@@ -5,7 +5,7 @@ use htsget_search::htsget::{HtsGet, Query, Response};
 use htsget_search::simple::SimpleHtsGet;
 
 fn main() -> Result<()> {
-    let htsget = SimpleHtsGet::new();
+    let htsget = SimpleHtsGet::new("../data");
     let args = unimplemented!();
     htsget_search(&mut htsget, args)?;
 }
