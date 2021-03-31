@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "htsget-cli",
+    "htsget-search",
+]
