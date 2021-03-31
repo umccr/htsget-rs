@@ -7,21 +7,24 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
-  #[error("Some Error")]
-  SomeError,
+  #[error("Invalid input: {0}")]
+  InvalidInput(String),
+  
+  #[error("IO error: {0}")]
+  IOError(String),
 }
 
 #[derive(Debug)]
 pub struct Query {
-    id: String,
-    format: Option<Format>,
-    class: Option<String>,
-    reference_name: Option<String>,
-    start: Option<u32>,
-    end: Option<u32>,
-    fields: Vec<String>,
-    tags: Option<Tags>,
-    no_tags: Option<Vec<String>>,
+    pub id: String,
+    pub format: Option<Format>,
+    pub class: Option<String>,
+    pub reference_name: Option<String>,
+    pub start: Option<u32>,
+    pub end: Option<u32>,
+    pub fields: Vec<String>,
+    pub tags: Option<Tags>,
+    pub no_tags: Option<Vec<String>>,
 }
 
 impl Query {
@@ -83,8 +86,8 @@ pub enum Tags {
 
 #[derive(Debug)]
 pub struct Headers {
-    authorization: String,
-    range: String,
+  pub authorization: String,
+  pub range: String,
 }
 
 impl Headers {
@@ -98,9 +101,9 @@ impl Headers {
 
 #[derive(Debug)]
 pub struct Url {
-    url: String,
-    headers: Headers,
-    class: String,
+  pub url: String,
+  pub headers: Headers,
+  pub class: String,
 }
 
 impl Url {
@@ -115,8 +118,8 @@ impl Url {
 
 #[derive(Debug)]
 pub struct Response {
-    format: Format,
-    urls: Vec<Url>,
+  pub format: Format,
+  pub urls: Vec<Url>,
 }
 
 pub trait HtsGet {
