@@ -1,3 +1,8 @@
+/// HtsGet model and interface
+///
+/// Based on the htsget spec: https://samtools.github.io/hts-specs/htsget.html
+///
+
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
