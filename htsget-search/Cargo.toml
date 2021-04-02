@@ -12,6 +12,7 @@ thiserror = "~1.0"
 # rust-htslib = "~0.36"
 
 noodles = { git = "https://github.com/zaeleus/noodles.git" }
+noodles-bgzf = { git = "https://github.com/zaeleus/noodles.git" }
 noodles-bam = { git = "https://github.com/zaeleus/noodles.git" }
 noodles-sam = { git = "https://github.com/zaeleus/noodles.git" }
 
