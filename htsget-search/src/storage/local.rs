@@ -1,7 +1,11 @@
+//! Module providing an implementation for the [Storage] trait using the local file system.
+//!
+
 use std::path::{Path, PathBuf};
 
-use super::{Result, Storage, StorageError};
+use super::{GetOptions, Result, Storage, StorageError};
 
+/// Implementation for the [Storage] trait using the local file system.
 pub struct LocalStorage {
   base_path: PathBuf,
 }
@@ -16,7 +20,7 @@ impl LocalStorage {
 }
 
 impl Storage for LocalStorage {
-  fn get<K: AsRef<str>>(&self, key: K, _length: Option<usize>) -> Result<PathBuf> {
+  fn get<K: AsRef<str>>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
     let key: &str = key.as_ref();
     self
       .base_path
@@ -35,5 +39,17 @@ impl Storage for LocalStorage {
           .then(|| path)
           .ok_or_else(|| StorageError::NotFound(key.to_string()))
       })
+  }
+}
+
+#[cfg(test)]
+mod tests {
+
+  use super::*;
+
+  #[test]
+  fn get_() {
+    // TODO determine root path through cargo env vars
+    let storage = LocalStorage::new("../data");
   }
 }

@@ -1,42 +1,19 @@
-use std::{
-  fs::File,
-  path::{Path, PathBuf},
-};
+//! Module providing the search capability using BAM/BAI files
+//!
 
-use noodles::Region;
+use std::{fs::File, path::Path};
+
 use noodles_bam::{self as bam, bai};
 use noodles_bgzf::VirtualPosition;
 use noodles_sam::{self as sam};
 use sam::header::ReferenceSequences;
 
 use crate::{
-  htsget::{Format, HtsGet, HtsGetError, Query, Response},
-  storage::Storage,
+  htsget::{HtsGetError, Query, Response, Result},
+  storage::{GetOptions, Storage},
 };
 
-pub struct HtsGetFromStorage<S> {
-  storage: S,
-}
-
-impl<S> HtsGet for HtsGetFromStorage<S>
-where
-  S: Storage,
-{
-  fn search(&self, query: Query) -> Result<Response, HtsGetError> {
-    match query.format {
-      Some(Format::BAM) | None => BamSearch::new(&self.storage).search(query),
-      Some(format) => Err(HtsGetError::unsupported_format(format)),
-    }
-  }
-}
-
-impl<S> HtsGetFromStorage<S> {
-  pub fn new(storage: S) -> Self {
-    Self { storage }
-  }
-}
-
-struct BamSearch<'a, S> {
+pub(crate) struct BamSearch<'a, S> {
   storage: &'a S,
 }
 
@@ -45,23 +22,18 @@ where
   S: Storage,
 {
   /// 100 Mb
-  const DEFAULT_BAM_HEADER_LENGTH: usize = 100 * 1024 * 1024;
+  const DEFAULT_BAM_HEADER_LENGTH: usize = 100 * 1024 * 1024; // TODO find a number that makes more sense
 
   pub fn new(storage: &'a S) -> Self {
     Self { storage }
   }
 
-  fn search(&self, query: Query) -> Result<Response, HtsGetError> {
+  pub fn search(&self, query: Query) -> Result<Response> {
     // TODO check class, for now we assume it is None or "body"
 
     let (bam_key, bai_key) = self.get_keys_from_id(query.id.as_str())?;
 
-    let bam_path = self
-      .storage
-      .get(bam_key, Some(Self::DEFAULT_BAM_HEADER_LENGTH))?;
-
-    let bai_path = self.storage.get(bai_key, None)?;
-
+    let bai_path = self.storage.get(bai_key, GetOptions::default())?;
     let index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
 
     let positions = match query.reference_name.as_ref() {
@@ -70,6 +42,8 @@ where
         Self::get_positions_for_all_reads(&index)
       }
       Some(reference_name) => {
+        let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
+        let bam_path = self.storage.get(bam_key, get_options)?;
         let bam_header = Self::read_bam_header(&bam_path)?;
         let reference_sequences = bam_header.reference_sequences();
         match reference_sequences.get(reference_name) {
@@ -95,7 +69,7 @@ where
   /// This may involve a more complex transformation in the future,
   /// or even require custom implementations depending on the organizational structure
   /// For now there is a 1:1 mapping to the underlying files
-  fn get_keys_from_id(&self, id: &str) -> Result<(String, String), HtsGetError> {
+  fn get_keys_from_id(&self, id: &str) -> Result<(String, String)> {
     let bam_key = format!("{}.bam", id);
     let bai_key = format!("{}.bai", bam_key);
     Ok((bam_key, bai_key))
@@ -129,51 +103,29 @@ where
     positions
   }
 
-  fn read_bam_header<P: AsRef<Path>>(path: P) -> Result<sam::Header, HtsGetError> {
+  fn read_bam_header<P: AsRef<Path>>(path: P) -> Result<sam::Header> {
     let mut bam_reader = File::open(path.as_ref())
       .map(bam::Reader::new)
-      .map_err(|_| HtsGetError::IOError("Reading BAM".to_string()))?;
+      .map_err(|_| HtsGetError::io_error("Reading BAM"))?;
 
     bam_reader
       .read_header()
-      .map_err(|_| HtsGetError::IOError("Reading BAM".to_string()))?
+      .map_err(|_| HtsGetError::io_error("Reading BAM"))?
       .parse()
-      .map_err(|_| HtsGetError::IOError("Reading BAM".to_string()))
-  }
-
-  fn get_region_from_query(
-    &self,
-    query: &Query,
-    reference_sequences: &ReferenceSequences,
-  ) -> Result<Region, HtsGetError> {
-    let raw_region = match query.reference_name.as_ref() {
-      None => ".".to_string(),
-      Some(reference_name) => match query.start.as_ref() {
-        None => reference_name.clone(),
-        Some(start) => match query.end.as_ref() {
-          None => format!("{}:{}", *reference_name, *start),
-          Some(end) => format!("{}:{}-{}", *reference_name, *start, *end),
-        },
-      },
-    };
-
-    Region::from_str_reference_sequences(raw_region.as_str(), reference_sequences).map_err(|_| {
-      HtsGetError::InvalidInput(format!("Malformed reference sequences: {}", &raw_region))
-    })
+      .map_err(|_| HtsGetError::io_error("Reading BAM"))
   }
 }
 
 #[cfg(test)]
 mod tests {
 
-  use crate::storage::local::LocalStorage;
-
   use super::*;
+  use crate::storage::local::LocalStorage;
 
   #[test]
   fn search_() {
     // TODO determine root path through cargo env vars
     let storage = LocalStorage::new("../data");
-    let htsget = HtsGetFromStorage::new(storage);
+    let htsget = BamSearch::new(&storage);
   }
 }

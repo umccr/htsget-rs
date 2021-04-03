@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
-use htsget_search::htsget::storage::HtsGetFromStorage;
+use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::{
   htsget::{HtsGet, Query, Response},
   storage::local::LocalStorage,

@@ -1,12 +1,18 @@
-/// HtsGet model and interface
-///
-/// Based on the htsget spec: https://samtools.github.io/hts-specs/htsget.html
-///
-pub mod storage;
+//! Module providing a representation of the HtsGet specification.
+//!
+//! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
+//!
+
+pub mod bam;
+pub mod from_storage;
+
+use std::collections::HashMap;
 
 use thiserror::Error;
 
 use crate::storage::StorageError;
+
+type Result<T> = core::result::Result<T, HtsGetError>;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
@@ -59,6 +65,8 @@ impl From<StorageError> for HtsGetError {
   }
 }
 
+/// A query contains all the parameters that can be used when requesting
+/// a search for either of `reads` or `variants`.
 #[derive(Debug)]
 pub struct Query {
   pub id: String,
@@ -115,6 +123,7 @@ impl Query {
   // TODO the rest of the builder methods ...
 }
 
+/// An enumeration with all the possible formats.
 #[derive(Debug)]
 pub enum Format {
   BAM,
@@ -135,36 +144,45 @@ impl Into<String> for Format {
   }
 }
 
+/// Possible values for the tags parameter.
 #[derive(Debug)]
 pub enum Tags {
+  /// Include all tags
   All,
+  /// List of tags to include
   List(Vec<String>),
 }
 
+/// The headers that need to be supplied when requesting data from a url.
 #[derive(Debug)]
-pub struct Headers {
-  pub authorization: String,
-  pub range: String,
-}
+pub struct Headers(HashMap<String, String>);
 
 impl Headers {
-  pub fn new(authorization: String, range: String) -> Self {
-    Self {
-      authorization,
-      range,
-    }
+  pub fn new(headers: HashMap<String, String>) -> Self {
+    Self(headers)
+  }
+
+  pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
+    self.0.insert(key.into(), value.into());
   }
 }
 
+impl Default for Headers {
+  fn default() -> Self {
+      Self(HashMap::new())
+  }
+}
+
+/// A url from which raw data can be retrieved.
 #[derive(Debug)]
 pub struct Url {
   pub url: String,
-  pub headers: Option<Headers>,
+  pub headers: Headers,
   pub class: Option<String>,
 }
 
 impl Url {
-  pub fn new(url: String, headers: Option<Headers>, class: Option<String>) -> Self {
+  pub fn new(url: String, headers: Headers, class: Option<String>) -> Self {
     Self {
       url,
       headers,
@@ -173,12 +191,14 @@ impl Url {
   }
 }
 
+/// The response for a HtsGet query.
 #[derive(Debug)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
 }
 
+/// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
 pub trait HtsGet {
-  fn search(&self, query: Query) -> Result<Response, HtsGetError>;
+  fn search(&self, query: Query) -> Result<Response>;
 }
