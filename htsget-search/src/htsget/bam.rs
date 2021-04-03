@@ -192,6 +192,8 @@ pub mod tests {
     });
   }
 
+  // TODO add tests for `BamSearch::url`
+  
   pub fn with_local_storage(test: impl Fn(LocalStorage)) {
     let base_path = std::env::current_dir()
       .unwrap()
