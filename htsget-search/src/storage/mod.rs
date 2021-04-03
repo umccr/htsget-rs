@@ -6,7 +6,7 @@ pub mod local;
 use std::path::PathBuf;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, PartialEq, Debug)]
 pub enum StorageError {
   #[error("Invalid key: {0}")]
   InvalidKey(String),

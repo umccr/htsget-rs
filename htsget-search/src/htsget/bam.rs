@@ -125,7 +125,7 @@ mod tests {
   #[test]
   fn search_() {
     // TODO determine root path through cargo env vars
-    let storage = LocalStorage::new("../data");
+    let storage = LocalStorage::new("../data").unwrap();
     let htsget = BamSearch::new(&storage);
   }
 }

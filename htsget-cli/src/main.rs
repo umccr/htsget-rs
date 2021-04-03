@@ -8,7 +8,7 @@ use htsget_search::{
 };
 
 fn main() -> Result<()> {
-  let storage = LocalStorage::new("../data");
+  let storage = LocalStorage::new("../data")?;
   let htsget = HtsGetFromStorage::new(storage);
   let args = unimplemented!();
   htsget_search(&mut htsget, args)?;
