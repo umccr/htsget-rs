@@ -2,7 +2,11 @@
 ///
 /// Based on the htsget spec: https://samtools.github.io/hts-specs/htsget.html
 ///
+pub mod storage;
+
 use thiserror::Error;
+
+use crate::storage::StorageError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
@@ -41,6 +45,17 @@ impl HtsGetError {
 
   pub fn io_error<S: Into<String>>(message: S) -> Self {
     Self::IOError(message.into())
+  }
+}
+
+impl From<StorageError> for HtsGetError {
+  fn from(err: StorageError) -> Self {
+    match err {
+      StorageError::NotFound(key) => Self::NotFound(format!("Not found in storage: {}", key)),
+      StorageError::InvalidKey(key) => {
+        Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
+      }
+    }
   }
 }
 

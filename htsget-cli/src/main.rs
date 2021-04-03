@@ -1,11 +1,15 @@
 use anyhow::Result;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
-use htsget_search::htsget::{HtsGet, Query, Response};
-use htsget_search::simple::SimpleHtsGet;
+use htsget_search::htsget::storage::HtsGetFromStorage;
+use htsget_search::{
+  htsget::{HtsGet, Query, Response},
+  storage::local::LocalStorage,
+};
 
 fn main() -> Result<()> {
-  let htsget = SimpleHtsGet::new("../data");
+  let storage = LocalStorage::new("../data");
+  let htsget = HtsGetFromStorage::new(storage);
   let args = unimplemented!();
   htsget_search(&mut htsget, args)?;
 }
