@@ -169,7 +169,7 @@ impl Headers {
 
 impl Default for Headers {
   fn default() -> Self {
-      Self(HashMap::new())
+    Self(HashMap::new())
   }
 }
 
