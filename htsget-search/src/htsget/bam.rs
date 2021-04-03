@@ -9,7 +9,7 @@ use noodles_sam::{self as sam};
 use sam::header::ReferenceSequences;
 
 use crate::{
-  htsget::{Format, Headers, HtsGetError, Query, Response, Result, Url},
+  htsget::{Format, HtsGetError, Query, Response, Result, Url},
   storage::{GetOptions, Range, Storage, UrlOptions},
 };
 
@@ -131,9 +131,10 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
   use super::*;
+  use crate::htsget::Headers;
   use crate::storage::local::LocalStorage;
 
   #[test]
@@ -163,7 +164,7 @@ mod tests {
     });
   }
 
-  // TODO we need an test BAM containing unmapped reads
+  // TODO we need a testing BAM containing unmapped reads
   #[test]
   fn search_all_reads() {
     with_local_storage(|storage| {
@@ -197,8 +198,6 @@ mod tests {
       .parent()
       .unwrap()
       .join("data");
-    // println!("{:#?}", LocalStorage::new(base_path));
-    // assert!(false);
     test(LocalStorage::new(base_path).unwrap())
   }
 }
