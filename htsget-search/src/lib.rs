@@ -1,2 +1,2 @@
 pub mod htsget;
-pub mod simple;
+pub mod storage;
