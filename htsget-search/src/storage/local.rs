@@ -139,6 +139,8 @@ mod tests {
     });
   }
 
+  // TODO add tests for `LocalStorage::url`
+
   fn with_local_storage(test: impl Fn(LocalStorage)) {
     let base_path = tempfile::TempDir::new().unwrap();
     File::create(base_path.path().join("key1"))
