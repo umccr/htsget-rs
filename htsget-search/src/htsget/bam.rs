@@ -124,8 +124,15 @@ mod tests {
 
   #[test]
   fn search_() {
-    // TODO determine root path through cargo env vars
-    let storage = LocalStorage::new("../data").unwrap();
-    let htsget = BamSearch::new(&storage);
+    with_local_storage(|storage| {
+      let htsget = BamSearch::new(&storage);
+
+      // TODO add test
+    });
+  }
+
+  pub fn with_local_storage(test: impl Fn(LocalStorage)) {
+    let base_path = std::env::current_dir().unwrap().parent().unwrap().join("data");
+    test(LocalStorage::new(base_path).unwrap())
   }
 }
