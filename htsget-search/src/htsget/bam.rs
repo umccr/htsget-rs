@@ -9,8 +9,8 @@ use noodles_sam::{self as sam};
 use sam::header::ReferenceSequences;
 
 use crate::{
-  htsget::{HtsGetError, Query, Response, Result},
-  storage::{GetOptions, Storage},
+  htsget::{Format, Headers, HtsGetError, Query, Response, Result, Url},
+  storage::{GetOptions, Range, Storage, UrlOptions},
 };
 
 pub(crate) struct BamSearch<'a, S> {
@@ -22,7 +22,7 @@ where
   S: Storage,
 {
   /// 100 Mb
-  const DEFAULT_BAM_HEADER_LENGTH: usize = 100 * 1024 * 1024; // TODO find a number that makes more sense
+  const DEFAULT_BAM_HEADER_LENGTH: u64 = 100 * 1024 * 1024; // TODO find a number that makes more sense
 
   pub fn new(storage: &'a S) -> Self {
     Self { storage }
@@ -33,7 +33,7 @@ where
 
     let (bam_key, bai_key) = self.get_keys_from_id(query.id.as_str())?;
 
-    let bai_path = self.storage.get(bai_key, GetOptions::default())?;
+    let bai_path = self.storage.get(&bai_key, GetOptions::default())?;
     let index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
 
     let positions = match query.reference_name.as_ref() {
@@ -43,7 +43,7 @@ where
       }
       Some(reference_name) => {
         let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
-        let bam_path = self.storage.get(bam_key, get_options)?;
+        let bam_path = self.storage.get(&bam_key, get_options)?;
         let bam_header = Self::read_bam_header(&bam_path)?;
         let reference_sequences = bam_header.reference_sequences();
         match reference_sequences.get(reference_name) {
@@ -61,8 +61,22 @@ where
       }
     };
 
-    // TODO build the Response from the vector of virtual positions
-    unimplemented!()
+    let urls = positions
+      .into_iter()
+      .map(|(start, end)| {
+        let range = Range::new()
+          .with_start(start.compressed())
+          .with_end(end.compressed());
+        let options = UrlOptions::default().with_range(range);
+        self
+          .storage
+          .url(&bam_key, options)
+          .map_err(HtsGetError::from)
+      })
+      .collect::<Result<Vec<Url>>>()?;
+
+    let format = query.format.unwrap_or(Format::BAM);
+    Ok(Response::new(format, urls))
   }
 
   /// Generate a key for the storage object from an ID
@@ -123,16 +137,68 @@ mod tests {
   use crate::storage::local::LocalStorage;
 
   #[test]
-  fn search_() {
+  fn search_mapped_reads() {
     with_local_storage(|storage| {
-      let htsget = BamSearch::new(&storage);
+      let search = BamSearch::new(&storage);
+      let query = Query::new("htsnexus_test_NA12878");
+      let response = search.search(query);
+      println!("{:#?}", response);
+      let expected_url = format!(
+        "file://{}",
+        storage
+          .base_path()
+          .join("htsnexus_test_NA12878.bam")
+          .to_string_lossy()
+      );
+      let expected_response = Ok(Response::new(
+        Format::BAM,
+        vec![
+          Url::new(expected_url.clone())
+            .with_headers(Headers::default().with_header("Range", "bytes=4668-977196")),
+          Url::new(expected_url)
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-2112141")),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
 
-      // TODO add test
+  // TODO we need an test BAM containing unmapped reads
+  #[test]
+  fn search_all_reads() {
+    with_local_storage(|storage| {
+      let search = BamSearch::new(&storage);
+      let query = Query::new("htsnexus_test_NA12878").with_reference_name("*");
+      let response = search.search(query);
+      println!("{:#?}", response);
+      let expected_url = format!(
+        "file://{}",
+        storage
+          .base_path()
+          .join("htsnexus_test_NA12878.bam")
+          .to_string_lossy()
+      );
+      let expected_response = Ok(Response::new(
+        Format::BAM,
+        vec![
+          Url::new(expected_url.clone())
+            .with_headers(Headers::default().with_header("Range", "bytes=4668-977196")),
+          Url::new(expected_url)
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-2112141")),
+        ],
+      ));
+      assert_eq!(response, expected_response)
     });
   }
 
   pub fn with_local_storage(test: impl Fn(LocalStorage)) {
-    let base_path = std::env::current_dir().unwrap().parent().unwrap().join("data");
+    let base_path = std::env::current_dir()
+      .unwrap()
+      .parent()
+      .unwrap()
+      .join("data");
+    // println!("{:#?}", LocalStorage::new(base_path));
+    // assert!(false);
     test(LocalStorage::new(base_path).unwrap())
   }
 }
