@@ -3,9 +3,12 @@
 
 use std::path::{Path, PathBuf};
 
-use super::{GetOptions, Result, Storage, StorageError};
+use crate::htsget::{Headers, Url};
+
+use super::{GetOptions, Result, Storage, StorageError, UrlOptions};
 
 /// Implementation for the [Storage] trait using the local file system.
+#[derive(Debug)]
 pub struct LocalStorage {
   base_path: PathBuf,
 }
@@ -25,10 +28,8 @@ impl LocalStorage {
   pub fn base_path(&self) -> &Path {
     self.base_path.as_path()
   }
-}
 
-impl Storage for LocalStorage {
-  fn get<K: AsRef<str>>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
+  fn get_path_from_key<K: AsRef<str>>(&self, key: K) -> Result<PathBuf> {
     let key: &str = key.as_ref();
     self
       .base_path
@@ -47,6 +48,32 @@ impl Storage for LocalStorage {
           .then(|| path)
           .ok_or_else(|| StorageError::NotFound(key.to_string()))
       })
+  }
+}
+
+impl Storage for LocalStorage {
+  fn get<K: AsRef<str>>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
+    self.get_path_from_key(key)
+  }
+
+  fn url<K: AsRef<str>>(&self, key: K, options: UrlOptions) -> Result<Url> {
+    let range_start = options
+      .range
+      .start
+      .map(|start| start.to_string())
+      .unwrap_or("".to_string());
+    let range_end = options
+      .range
+      .end
+      .map(|end| end.to_string())
+      .unwrap_or("".to_string());
+    let headers =
+      Headers::default().with_header("Range", format!("bytes={}-{}", range_start, range_end));
+
+    // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
+    let path = self.get_path_from_key(key)?;
+    let url = Url::new(format!("file://{}", path.to_string_lossy())).with_headers(headers);
+    Ok(url)
   }
 }
 

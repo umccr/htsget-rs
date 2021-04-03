@@ -71,7 +71,7 @@ impl From<StorageError> for HtsGetError {
 pub struct Query {
   pub id: String,
   pub format: Option<Format>,
-  pub class: Option<String>,
+  pub class: Option<Class>,
   pub reference_name: Option<String>,
   pub start: Option<u32>,
   pub end: Option<u32>,
@@ -100,8 +100,8 @@ impl Query {
     self
   }
 
-  pub fn with_class(mut self, class: impl Into<String>) -> Self {
-    self.class = Some(class.into());
+  pub fn with_class(mut self, class: Class) -> Self {
+    self.class = Some(class);
     self
   }
 
@@ -124,7 +124,7 @@ impl Query {
 }
 
 /// An enumeration with all the possible formats.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Format {
   BAM,
   CRAM,
@@ -144,6 +144,12 @@ impl Into<String> for Format {
   }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum Class {
+  Header,
+  Body,
+}
+
 /// Possible values for the tags parameter.
 #[derive(Debug)]
 pub enum Tags {
@@ -154,12 +160,21 @@ pub enum Tags {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
   pub fn new(headers: HashMap<String, String>) -> Self {
     Self(headers)
+  }
+
+  pub fn with_header<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> Self {
+    self.0.insert(key.into(), value.into());
+    self
+  }
+
+  pub fn is_empty(&self) -> bool {
+    self.0.is_empty()
   }
 
   pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
@@ -174,28 +189,44 @@ impl Default for Headers {
 }
 
 /// A url from which raw data can be retrieved.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Url {
   pub url: String,
-  pub headers: Headers,
-  pub class: Option<String>,
+  pub headers: Option<Headers>,
+  pub class: Option<Class>,
 }
 
 impl Url {
-  pub fn new(url: String, headers: Headers, class: Option<String>) -> Self {
+  pub fn new<S: Into<String>>(url: S) -> Self {
     Self {
-      url,
-      headers,
-      class,
+      url: url.into(),
+      headers: None,
+      class: None,
     }
+  }
+
+  pub fn with_headers(mut self, headers: Headers) -> Self {
+    self.headers = Some(headers).filter(|h| !h.is_empty());
+    self
+  }
+
+  pub fn with_class(mut self, class: Class) -> Self {
+    self.class = Some(class);
+    self
   }
 }
 
 /// The response for a HtsGet query.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
+}
+
+impl Response {
+  pub fn new(format: Format, urls: Vec<Url>) -> Self {
+    Self { format, urls }
+  }
 }
 
 /// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
