@@ -137,6 +137,8 @@ pub mod tests {
   use crate::htsget::Headers;
   use crate::storage::local::LocalStorage;
 
+  use bam_builder::{bam_order::BamSortOrder, BamBuilder};
+
   #[test]
   fn search_mapped_reads() {
     with_local_storage(|storage| {
@@ -190,6 +192,65 @@ pub mod tests {
       ));
       assert_eq!(response, expected_response)
     });
+  }
+
+  #[test]
+  fn search_unmapped_reads() {
+        // Create a builder with all defaults except the read_len is 100
+        let mut builder = BamBuilder::new(
+          100,                        // default read length
+          30,                         // default base quality
+          "HtsGetTestBamUnmapped".to_owned(), // name of sample
+          None,                       // optional read group id
+          BamSortOrder::Unsorted,     // how to sort reads when `.sort` is called
+          None,                       // optional sequence dictionary
+          Some(666),                  // optional seed used for generating random bases
+      );
+
+      // Create a single read pair with only 2 unmapped reads
+      let records = builder
+          .pair_builder()
+          .contig(0)               // reads are mapped to tid 0
+          .start1(0)               // start pos of read1
+          .start2(200)             // start pos of read2
+          .unmapped1(true)         // override default of unmapped
+          .unmapped2(true)         // override default of unmapped
+          .build()                 // inflate the underlying records and set mate info
+          .unwrap();
+
+      // Add the pair to bam builder
+      builder.add_pair(records);
+
+      // Are we unmapped yet?
+      assert_eq!(builder.records[0].tid(), -1);
+      assert_eq!(builder.records[0].pos(), -1);
+
+      // Do htsget search on those unmapped reads
+      with_local_storage(|storage| {
+
+        let search = BamSearch::new(&storage);
+        let query = Query::new("HtsGetTestBamUnmapped").with_reference_name("*");
+        let response = search.search(query);
+        println!("{:#?}", response);
+        let expected_url = format!(
+          "data://{}", // TODO: Storage backend should be just bytes instead of files in filesystem?
+                       // Also, assumes there's a HtsGetTestBamUnmapped.bam.bai present... perhaps I should just generate files and dump to disk first as a PoC?
+          storage
+            .base_path()
+            .join("inline_data_perhaps")
+            .to_string_lossy()
+        );
+        let expected_response = Ok(Response::new(
+          Format::BAM,
+          vec![
+            Url::new(expected_url.clone())
+              .with_headers(Headers::default().with_header("Range", "bytes=4668-977196")),
+            Url::new(expected_url)
+              .with_headers(Headers::default().with_header("Range", "bytes=977196-2112141")),
+          ],
+        ));
+        assert_eq!(response, expected_response)
+      });
   }
 
   // TODO add tests for `BamSearch::url`
