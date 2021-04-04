@@ -72,8 +72,11 @@ pub struct Query {
   pub id: String,
   pub format: Option<Format>,
   pub class: Option<Class>,
+  /// Reference name
   pub reference_name: Option<String>,
+  /// sequence start position (1-based)
   pub start: Option<u32>,
+  /// sequence end position (1-based)
   pub end: Option<u32>,
   pub fields: Vec<String>,
   pub tags: Option<Tags>,

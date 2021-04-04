@@ -3,10 +3,10 @@
 
 use std::{fs::File, path::Path};
 
+use bam::bai::index::reference_sequence::bin::Chunk;
 use noodles_bam::{self as bam, bai};
 use noodles_bgzf::VirtualPosition;
 use noodles_sam::{self as sam};
-use sam::header::ReferenceSequences;
 
 use crate::{
   htsget::{Format, HtsGetError, Query, Response, Result, Url},
@@ -19,10 +19,12 @@ pub(crate) struct BamSearch<'a, S> {
 
 impl<'a, S> BamSearch<'a, S>
 where
-  S: Storage,
+  S: Storage + 'a,
 {
-  /// 100 Mb
-  const DEFAULT_BAM_HEADER_LENGTH: u64 = 100 * 1024 * 1024; // TODO find a number that makes more sense
+  /// 1 Mb
+  const DEFAULT_BAM_HEADER_LENGTH: u64 = 1 * 1024 * 1024; // TODO find a number that makes more sense
+
+  const MIN_SEQ_POSITION: u32 = 1; // 1-based
 
   pub fn new(storage: &'a S) -> Self {
     Self { storage }
@@ -34,30 +36,15 @@ where
     let (bam_key, bai_key) = self.get_keys_from_id(query.id.as_str())?;
 
     let bai_path = self.storage.get(&bai_key, GetOptions::default())?;
-    let index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
+    let bai_index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
 
     let positions = match query.reference_name.as_ref() {
-      None => Self::get_positions_for_mapped_reads(&index),
+      None => Self::get_positions_for_mapped_reads(&bai_index),
       Some(reference_name) if reference_name.as_str() == "*" => {
-        Self::get_positions_for_all_reads(&index)
+        Self::get_positions_for_all_reads(&bai_index)
       }
       Some(reference_name) => {
-        let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
-        let bam_path = self.storage.get(&bam_key, get_options)?;
-        let bam_header = Self::read_bam_header(&bam_path)?;
-        let reference_sequences = bam_header.reference_sequences();
-        match reference_sequences.get(reference_name) {
-          None => Err(HtsGetError::not_found(format!(
-            "Reference name not found: {}",
-            reference_name
-          ))),
-          Some(reference_sequence) => {
-            // let region = self.get_region_from_query(&query, reference_sequences)?;
-            // let q = bam_reader.query(reference_sequences, &index, &region)
-            //   .map_err(|_| HtsGetError::IOError("Querying BAM".to_string()))?;
-            unimplemented!()
-          }
-        }?
+        self.get_positions_for_reference_name(&bam_key, reference_name, &bai_index, &query)?
       }
     };
 
@@ -89,7 +76,7 @@ where
     Ok((bam_key, bai_key))
   }
 
-  // This returns only mapped reads
+  /// This returns only mapped reads
   fn get_positions_for_mapped_reads(index: &bai::Index) -> Vec<(VirtualPosition, VirtualPosition)> {
     let mut positions: Vec<(VirtualPosition, VirtualPosition)> = Vec::new();
     for reference_sequence in index.reference_sequences() {
@@ -103,7 +90,7 @@ where
     positions
   }
 
-  // This returns unplaced unmapped and mapped reads
+  /// This returns unplaced unmapped and mapped reads
   fn get_positions_for_all_reads(index: &bai::Index) -> Vec<(VirtualPosition, VirtualPosition)> {
     let mut positions: Vec<(VirtualPosition, VirtualPosition)> = Vec::new();
     for reference_sequence in index.reference_sequences() {
@@ -117,6 +104,39 @@ where
     positions
   }
 
+  /// This returns reads for a given reference name
+  fn get_positions_for_reference_name(
+    &self,
+    bam_key: &String,
+    reference_name: &String,
+    bai_index: &bai::Index,
+    query: &Query,
+  ) -> Result<Vec<(VirtualPosition, VirtualPosition)>> {
+    let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
+    let bam_path = self.storage.get(bam_key, get_options)?;
+    let bam_header = Self::read_bam_header(&bam_path)?;
+    let maybe_bam_ref_seq = bam_header.reference_sequences().get_full(reference_name);
+
+    let positions = match maybe_bam_ref_seq {
+      None => Err(HtsGetError::not_found(format!(
+        "Reference name not found: {}",
+        reference_name
+      ))),
+      Some((bam_ref_seq_idx, _, bam_ref_seq)) => {
+        let seq_start = query.start.map(|start| start as i32);
+        let seq_end = query.end.map(|end| end as i32);
+        Self::get_positions_for_reference_sequence(
+          bam_ref_seq,
+          bam_ref_seq_idx,
+          bai_index,
+          seq_start,
+          seq_end,
+        )
+      }
+    }?;
+    Ok(positions)
+  }
+
   fn read_bam_header<P: AsRef<Path>>(path: P) -> Result<sam::Header> {
     let mut bam_reader = File::open(path.as_ref())
       .map(bam::Reader::new)
@@ -127,6 +147,42 @@ where
       .map_err(|_| HtsGetError::io_error("Reading BAM"))?
       .parse()
       .map_err(|_| HtsGetError::io_error("Reading BAM"))
+  }
+
+  fn get_positions_for_reference_sequence(
+    bam_ref_seq: &sam::header::ReferenceSequence,
+    bam_ref_seq_idx: usize,
+    bai_index: &bai::Index,
+    seq_start: Option<i32>,
+    seq_end: Option<i32>,
+  ) -> Result<Vec<(VirtualPosition, VirtualPosition)>> {
+    let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
+    let seq_end = seq_end.unwrap_or_else(|| bam_ref_seq.len());
+    let bai_ref_seq = bai_index
+      .reference_sequences()
+      .get(bam_ref_seq_idx)
+      .ok_or_else(|| {
+        HtsGetError::not_found(format!(
+          "Reference not found in the BAI file: {} ({})",
+          bam_ref_seq.name(),
+          bam_ref_seq_idx
+        ))
+      })?;
+
+    let chunks: Vec<Chunk> = bai_ref_seq
+      .query(seq_start, seq_end)
+      .into_iter()
+      .flat_map(|bin| bin.chunks())
+      .cloned()
+      .collect();
+
+    let min_offset = bai_ref_seq.min_offset(seq_start);
+    let positions: Vec<(VirtualPosition, VirtualPosition)> =
+      bai::optimize_chunks(&chunks, min_offset)
+        .into_iter()
+        .map(|chunk| (chunk.start(), chunk.end()))
+        .collect();
+    Ok(positions)
   }
 }
 
@@ -192,8 +248,60 @@ pub mod tests {
     });
   }
 
-  // TODO add tests for `BamSearch::url`
-  
+  #[test]
+  fn search_ref_name_without_range() {
+    with_local_storage(|storage| {
+      let search = BamSearch::new(&storage);
+      let query = Query::new("htsnexus_test_NA12878")
+        .with_reference_name("11");
+      let response = search.search(query);
+      println!("{:#?}", response);
+      let expected_url = format!(
+        "file://{}",
+        storage
+          .base_path()
+          .join("htsnexus_test_NA12878.bam")
+          .to_string_lossy()
+      );
+      let expected_response = Ok(Response::new(
+        Format::BAM,
+        vec![
+          Url::new(expected_url.clone())
+            .with_headers(Headers::default().with_header("Range", "bytes=4668-977196")),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  #[test]
+  fn search_ref_name_with_range() {
+    with_local_storage(|storage| {
+      let search = BamSearch::new(&storage);
+      let query = Query::new("htsnexus_test_NA12878")
+        .with_reference_name("11")
+        .with_start(5079500)
+        .with_end(5081200);
+      let response = search.search(query);
+      println!("{:#?}", response);
+      let expected_url = format!(
+        "file://{}",
+        storage
+          .base_path()
+          .join("htsnexus_test_NA12878.bam")
+          .to_string_lossy()
+      );
+      let expected_response = Ok(Response::new(
+        Format::BAM,
+        vec![
+          Url::new(expected_url.clone())
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-977196")),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
   pub fn with_local_storage(test: impl Fn(LocalStorage)) {
     let base_path = std::env::current_dir()
       .unwrap()
