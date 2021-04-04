@@ -29,7 +29,7 @@ pub enum HtsGetError {
   InvalidRange(String),
 
   #[error("IO error: {0}")]
-  IOError(String),
+  IoError(String),
 }
 
 impl HtsGetError {
@@ -50,7 +50,7 @@ impl HtsGetError {
   }
 
   pub fn io_error<S: Into<String>>(message: S) -> Self {
-    Self::IOError(message.into())
+    Self::IoError(message.into())
   }
 }
 
