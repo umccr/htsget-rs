@@ -1,0 +1,16 @@
+[package]
+name = "htsget-devtools"
+version = "0.1.0"
+authors = ["Christian Perez Llamas <christian.perez@adevinta.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+serde = { version = "~1.0", features = ["derive"] }
+serde_yaml = "~0.8"
+
+noodles-bgzf = { git = "https://github.com/zaeleus/noodles.git" }
+noodles-bam = { git = "https://github.com/zaeleus/noodles.git" }
+noodles-sam = { git = "https://github.com/zaeleus/noodles.git" }

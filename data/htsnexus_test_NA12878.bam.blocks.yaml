@@ -1,0 +1,96 @@
+---
+- name: "11"
+  index: 10
+  len: 135006516
+  start: 4668
+  end: 977196
+  seq_start: 4999976
+  seq_end: 6000637
+  blocks:
+    - start: 4668
+      end: 256721
+      seq_start: 4999976
+      seq_end: 5020089
+      mapped_count: 3888
+      unmapped_count: 0
+    - start: 256721
+      end: 499249
+      seq_start: 5013200
+      seq_end: 5034179
+      mapped_count: 3451
+      unmapped_count: 0
+    - start: 499249
+      end: 555224
+      seq_start: 5027713
+      seq_end: 5058126
+      mapped_count: 1077
+      unmapped_count: 0
+    - start: 555224
+      end: 627987
+      seq_start: 5045925
+      seq_end: 5067502
+      mapped_count: 1074
+      unmapped_count: 0
+    - start: 627987
+      end: 824361
+      seq_start: 5061710
+      seq_end: 5080032
+      mapped_count: 3012
+      unmapped_count: 0
+    - start: 824361
+      end: 977196
+      seq_start: 5076958
+      seq_end: 6000637
+      mapped_count: 2145
+      unmapped_count: 0
+- name: "20"
+  index: 19
+  len: 63025520
+  start: 977196
+  end: 2112141
+  seq_start: 5094466
+  seq_end: 6100000
+  blocks:
+    - start: 977196
+      end: 1065952
+      seq_start: 5094466
+      seq_end: 6015111
+      mapped_count: 1511
+      unmapped_count: 0
+    - start: 1065952
+      end: 1350270
+      seq_start: 6012636
+      seq_end: 6031349
+      mapped_count: 3875
+      unmapped_count: 0
+    - start: 1350270
+      end: 1454565
+      seq_start: 6029171
+      seq_end: 6048726
+      mapped_count: 1506
+      unmapped_count: 0
+    - start: 1454565
+      end: 1590681
+      seq_start: 6043124
+      seq_end: 6065590
+      mapped_count: 2156
+      unmapped_count: 0
+    - start: 1590681
+      end: 1912645
+      seq_start: 6060229
+      seq_end: 6083166
+      mapped_count: 4530
+      unmapped_count: 0
+    - start: 1912645
+      end: 2060795
+      seq_start: 6078275
+      seq_end: 6096581
+      mapped_count: 2370
+      unmapped_count: 0
+    - start: 2060795
+      end: 2112141
+      seq_start: 6093191
+      seq_end: 6100000
+      mapped_count: 725
+      unmapped_count: 578
+
