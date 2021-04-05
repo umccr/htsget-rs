@@ -24,6 +24,12 @@ pub struct Range {
   end: Option<u64>,
 }
 
+impl Default for Range {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl Range {
   pub fn new() -> Self {
     Self {

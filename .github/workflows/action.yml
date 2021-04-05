@@ -8,46 +8,18 @@ jobs:
     strategy:
       matrix:
         rust: [stable]
-        os: [macOS-latest]
+        os: [ubuntu-latest]
     steps:
       - name: Setup Rust
         uses: hecrj/setup-rust-action@master
         with:
           rust-version: ${{ matrix.rust }}
           components: rustfmt, clippy
-      - name: Install cargo-make
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-make
       - name: Checkout
         uses: actions/checkout@v1
       - name: Run cargo fmt
-        run: cargo make format
+        run: cargo fmt
       - name: Run cargo clippy
-        run: cargo make clippy
+        run: cargo clippy
       - name: Run tests
-        run: cargo make test
-  ubuntu-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup Rust
-        uses: hecrj/setup-rust-action@master
-        with:
-          rust-version: stable
-          components: rustfmt, clippy
-      - name: Install cargo-make
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-make
-      # - name: Update apt
-      #   run: sudo apt update
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Run cargo fmt
-        run: cargo make format
-      - name: Run cargo clippy
-        run: cargo make clippy
-      - name: Run tests
-        run: cargo make test
+        run: cargo test

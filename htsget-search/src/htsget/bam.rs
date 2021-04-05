@@ -6,7 +6,7 @@ use std::{fs::File, path::Path};
 use noodles_bam::{self as bam, bai};
 use noodles_bgzf::VirtualPosition;
 use noodles_sam::{self as sam};
-use sam::header::ReferenceSequences;
+//use sam::header::ReferenceSequences;
 
 use crate::{
   htsget::{Format, HtsGetError, Query, Response, Result, Url},
@@ -31,7 +31,7 @@ where
   pub fn search(&self, query: Query) -> Result<Response> {
     // TODO check class, for now we assume it is None or "body"
 
-    let (bam_key, bai_key) = self.get_keys_from_id(query.id.as_str())?;
+    let (bam_key, bai_key) = self.get_keys_from_id(query.id.as_str());
 
     let bai_path = self.storage.get(&bai_key, GetOptions::default())?;
     let index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
@@ -51,7 +51,7 @@ where
             "Reference name not found: {}",
             reference_name
           ))),
-          Some(reference_sequence) => {
+          Some(_reference_sequence) => {
             // let region = self.get_region_from_query(&query, reference_sequences)?;
             // let q = bam_reader.query(reference_sequences, &index, &region)
             //   .map_err(|_| HtsGetError::IOError("Querying BAM".to_string()))?;
@@ -75,7 +75,7 @@ where
       })
       .collect::<Result<Vec<Url>>>()?;
 
-    let format = query.format.unwrap_or(Format::BAM);
+    let format = query.format.unwrap_or(Format::Bam);
     Ok(Response::new(format, urls))
   }
 
@@ -83,10 +83,10 @@ where
   /// This may involve a more complex transformation in the future,
   /// or even require custom implementations depending on the organizational structure
   /// For now there is a 1:1 mapping to the underlying files
-  fn get_keys_from_id(&self, id: &str) -> Result<(String, String)> {
+  fn get_keys_from_id(&self, id: &str) -> (String, String) {
     let bam_key = format!("{}.bam", id);
     let bai_key = format!("{}.bai", bam_key);
-    Ok((bam_key, bai_key))
+    (bam_key, bai_key)
   }
 
   // This returns only mapped reads
@@ -193,7 +193,7 @@ pub mod tests {
   }
 
   // TODO add tests for `BamSearch::url`
-  
+
   pub fn with_local_storage(test: impl Fn(LocalStorage)) {
     let base_path = std::env::current_dir()
       .unwrap()

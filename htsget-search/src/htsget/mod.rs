@@ -20,7 +20,7 @@ pub enum HtsGetError {
   NotFound(String),
 
   #[error("Unsupported Format: {0}")]
-  UnsupportedFormat(String),
+  UnsupportedFormat(Format),
 
   #[error("Invalid input: {0}")]
   InvalidInput(String),
@@ -29,7 +29,7 @@ pub enum HtsGetError {
   InvalidRange(String),
 
   #[error("IO error: {0}")]
-  IOError(String),
+  IoError(String),
 }
 
 impl HtsGetError {
@@ -37,8 +37,8 @@ impl HtsGetError {
     Self::NotFound(message.into())
   }
 
-  pub fn unsupported_format<S: Into<String>>(format: S) -> Self {
-    Self::UnsupportedFormat(format.into())
+  pub fn unsupported_format<S: From<Format>>(format: S) -> Self {
+    Self::UnsupportedFormat(format)
   }
 
   pub fn invalid_input<S: Into<String>>(message: S) -> Self {
@@ -50,7 +50,7 @@ impl HtsGetError {
   }
 
   pub fn io_error<S: Into<String>>(message: S) -> Self {
-    Self::IOError(message.into())
+    Self::IoError(message.into())
   }
 }
 
@@ -126,21 +126,20 @@ impl Query {
 /// An enumeration with all the possible formats.
 #[derive(Debug, PartialEq)]
 pub enum Format {
-  BAM,
-  CRAM,
-  VCF,
-  BCF,
+  Bam,
+  Cram,
+  Vcf,
+  Bcf,
 }
 
-impl Into<String> for Format {
-  fn into(self) -> String {
-    match self {
-      Self::BAM => "BAM",
-      Self::CRAM => "CRAM",
-      Self::VCF => "VCF",
-      Self::BCF => "BCF",
+impl From<String> for Format {
+  fn from(s: String) -> Format {
+    match s.as_str() {
+      "BAM" => Format::Bam,
+      "CRAM" => Format::Cram,
+      "VCF" => Format::Vcf,
+      "BCF" => Format::Bcf
     }
-    .to_string()
   }
 }
 
