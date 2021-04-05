@@ -123,5 +123,6 @@ pub fn serde_virtual_position<S>(
 where
   S: Serializer,
 {
-  serializer.serialize_u64(vpos.compressed())
+  let s = format!("{}/{}", vpos.compressed(), vpos.uncompressed());
+  serializer.serialize_str(s.as_str())
 }

@@ -37,7 +37,7 @@ impl<S> HtsGetFromStorage<S> {
 #[cfg(test)]
 mod tests {
 
-  use crate::htsget::bam::tests::with_local_storage;
+  use crate::htsget::bam::tests::{expected_url, with_local_storage};
   use crate::htsget::{Headers, Url};
 
   use super::*;
@@ -49,21 +49,16 @@ mod tests {
       let query = Query::new("htsnexus_test_NA12878").with_format(Format::Bam);
       let response = htsget.search(query);
       println!("{:#?}", response);
-      let expected_url = format!(
-        "file://{}",
-        htsget
-          .storage()
-          .base_path()
-          .join("htsnexus_test_NA12878.bam")
-          .to_string_lossy()
-      );
+
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![
-          Url::new(expected_url.clone())
-            .with_headers(Headers::default().with_header("Range", "bytes=4668-977196")),
-          Url::new(expected_url)
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-2112141")),
+          Url::new(expected_url(&htsget.storage()))
+            .with_headers(Headers::default().with_header("Range", "bytes=4668-1042732")),
+          Url::new(expected_url(&htsget.storage()))
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-2177677")),
+          Url::new(expected_url(&htsget.storage()))
+            .with_headers(Headers::default().with_header("Range", "bytes=2060795-")),
         ],
       ));
       assert_eq!(response, expected_response)

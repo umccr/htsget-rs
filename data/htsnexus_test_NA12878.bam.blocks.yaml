@@ -2,8 +2,8 @@
 - name: "11"
   index: 10
   len: 135006516
-  start: 4668
-  end: 977196
+  start: 4668/0
+  end: 977196/55020
   seq_start: 4999976
   seq_end: 6000637
   blocks:
@@ -46,8 +46,8 @@
 - name: "20"
   index: 19
   len: 63025520
-  start: 977196
-  end: 2112141
+  start: 977196/55020
+  end: 2112141/22962
   seq_start: 5094466
   seq_end: 6100000
   blocks:

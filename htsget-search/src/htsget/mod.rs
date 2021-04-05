@@ -143,7 +143,7 @@ impl From<Format> for String {
       Format::Vcf => "VCF",
       Format::Bcf => "BCF",
     }
-    .to_string()  
+    .to_string()
   }
 }
 

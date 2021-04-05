@@ -5,12 +5,43 @@ use std::{fs::File, path::Path};
 
 use bam::bai::index::reference_sequence::bin::Chunk;
 use noodles_bam::{self as bam, bai};
+use noodles_bgzf::VirtualPosition;
 use noodles_sam::{self as sam};
 
 use crate::{
   htsget::{Format, HtsGetError, Query, Response, Result, Url},
   storage::{GetOptions, Range, Storage, UrlOptions},
 };
+
+trait VirtualPositionExt {
+  const MAX_BLOCK_SIZE: u64 = 65536;
+
+  /// Get the starting bytes for a compressed BGZF block.
+  fn byte_range_start(&self) -> u64;
+  /// Get the ending bytes for a compressed BGZF block.
+  fn byte_range_end(&self) -> u64;
+  fn to_string(&self) -> String;
+}
+
+impl VirtualPositionExt for VirtualPosition {
+  /// This is just an alias to compressed. Kept for consistency.
+  fn byte_range_start(&self) -> u64 {
+    self.compressed()
+  }
+  /// The compressed part refers always to the beginning of a BGZF block.
+  /// But when we need to translate it into a byte range, we need to make sure
+  /// the reads falling inside that block are also included, which requires to know
+  /// where that block ends, which is not trivial nor possible for the last block.
+  /// The simple solution goes through adding the maximum BGZF block size,
+  /// so we don't loose any read (although adding extra unneeded reads to the query results).
+  fn byte_range_end(&self) -> u64 {
+    self.compressed() + Self::MAX_BLOCK_SIZE
+  }
+
+  fn to_string(&self) -> String {
+    format!("{}/{}", self.compressed(), self.uncompressed())
+  }
+}
 
 pub(crate) struct BamSearch<'a, S> {
   storage: &'a S,
@@ -37,17 +68,20 @@ where
     let bai_path = self.storage.get(&bai_key, GetOptions::default())?;
     let bai_index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
 
-    let positions = match query.reference_name.as_ref() {
-      None => Self::get_positions_for_all_reads(&bai_index),
+    let byte_ranges = match query.reference_name.as_ref() {
+      None => self.get_byte_ranges_for_all_reads(bam_key.as_str(), &bai_index)?,
       Some(reference_name) if reference_name.as_str() == "*" => {
-        self.get_positions_for_unmapped_reads(bam_key.as_str(), &bai_index)?
+        self.get_byte_ranges_for_unmapped_reads(bam_key.as_str(), &bai_index)?
       }
-      Some(reference_name) => {
-        self.get_positions_for_reference_name(bam_key.as_str(), reference_name, &bai_index, &query)?
-      }
+      Some(reference_name) => self.get_byte_ranges_for_reference_name(
+        bam_key.as_str(),
+        reference_name,
+        &bai_index,
+        &query,
+      )?,
     };
 
-    let urls = positions
+    let urls = byte_ranges
       .into_iter()
       .map(|range| {
         let options = UrlOptions::default().with_range(range);
@@ -72,26 +106,33 @@ where
     (bam_key, bai_key)
   }
 
-  /// This returns unplaced unmapped and mapped reads
-  fn get_positions_for_all_reads(index: &bai::Index) -> Vec<Range> {
-    let mut positions: Vec<Range> = Vec::new();
-    for reference_sequence in index.reference_sequences() {
+  /// This returns unmapped and mapped ranges
+  fn get_byte_ranges_for_all_reads(
+    &self,
+    bam_key: &str,
+    bai_index: &bai::Index,
+  ) -> Result<Vec<Range>> {
+    let mut byte_ranges: Vec<Range> = Vec::new();
+    for reference_sequence in bai_index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
-        // TODO Ask to the noodles author whether metadata.start_position will include unmapped reads or not
+        // TODO Ask to the noodles author whether metadata start and end will include unmapped reads or not
         let start_vpos = metadata.start_position();
         let end_vpos = metadata.end_position();
-        positions.push(
+        byte_ranges.push(
           Range::default()
-            .with_start(start_vpos.compressed())
-            .with_end(end_vpos.compressed()),
+            .with_start(start_vpos.byte_range_start())
+            .with_end(end_vpos.byte_range_end()),
         );
       }
     }
-    positions
+
+    let unmapped_byte_ranges = self.get_byte_ranges_for_unmapped_reads(bam_key, bai_index)?;
+    byte_ranges.extend(unmapped_byte_ranges.into_iter());
+    Ok(byte_ranges)
   }
 
-  /// This returns only unmapped reads
-  fn get_positions_for_unmapped_reads(
+  /// This returns only unmapped ranges
+  fn get_byte_ranges_for_unmapped_reads(
     &self,
     bam_key: &str,
     bai_index: &bai::Index,
@@ -107,26 +148,17 @@ where
       None => {
         let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
         let bam_path = self.storage.get(bam_key, get_options)?;
-
-        let mut bam_reader = File::open(bam_path)
-          .map(bam::Reader::new)
-          .map_err(|_| HtsGetError::io_error("Reading BAM"))?;
-
-        bam_reader
-          .read_header()
-          .map_err(|_| HtsGetError::io_error("Reading BAM"))?
-          .parse::<sam::Header>()
-          .map_err(|_| HtsGetError::io_error("Reading BAM"))?;
-
+        let (bam_reader, _) = Self::read_bam_header(&bam_path)?;
         bam_reader.virtual_position()
       }
     };
 
-    Ok(vec![Range::default().with_start(start.compressed())])
+    // TODO Ask noodle author if they know how to retrieve the file end from a BAI to include it in the range
+    Ok(vec![Range::default().with_start(start.byte_range_start())])
   }
 
   /// This returns reads for a given reference name
-  fn get_positions_for_reference_name(
+  fn get_byte_ranges_for_reference_name(
     &self,
     bam_key: &str,
     reference_name: &str,
@@ -135,7 +167,7 @@ where
   ) -> Result<Vec<Range>> {
     let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
     let bam_path = self.storage.get(bam_key, get_options)?;
-    let bam_header = Self::read_bam_header(&bam_path)?;
+    let (_, bam_header) = Self::read_bam_header(&bam_path)?;
     let maybe_bam_ref_seq = bam_header.reference_sequences().get_full(reference_name);
 
     let positions = match maybe_bam_ref_seq {
@@ -158,16 +190,18 @@ where
     Ok(positions)
   }
 
-  fn read_bam_header<P: AsRef<Path>>(path: P) -> Result<sam::Header> {
+  fn read_bam_header<P: AsRef<Path>>(path: P) -> Result<(bam::Reader<File>, sam::Header)> {
     let mut bam_reader = File::open(path.as_ref())
       .map(bam::Reader::new)
       .map_err(|_| HtsGetError::io_error("Reading BAM"))?;
 
-    bam_reader
+    let bam_header = bam_reader
       .read_header()
-      .map_err(|_| HtsGetError::io_error("Reading BAM"))?
+      .map_err(|_| HtsGetError::io_error("Reading BAM header"))?
       .parse()
-      .map_err(|_| HtsGetError::io_error("Reading BAM"))
+      .map_err(|_| HtsGetError::io_error("Parsing BAM header"))?;
+
+    Ok((bam_reader, bam_header))
   }
 
   fn get_positions_for_reference_sequence(
@@ -198,12 +232,13 @@ where
       .collect();
 
     let min_offset = bai_ref_seq.min_offset(seq_start);
+
     let positions = bai::optimize_chunks(&chunks, min_offset)
       .into_iter()
       .map(|chunk| {
         Range::default()
-          .with_start(chunk.start().compressed())
-          .with_end(chunk.end().compressed())
+          .with_start(chunk.start().byte_range_start())
+          .with_end(chunk.end().byte_range_end())
       })
       .collect();
     Ok(positions)
@@ -224,27 +259,23 @@ pub mod tests {
       let query = Query::new("htsnexus_test_NA12878");
       let response = search.search(query);
       println!("{:#?}", response);
-      let expected_url = format!(
-        "file://{}",
-        storage
-          .base_path()
-          .join("htsnexus_test_NA12878.bam")
-          .to_string_lossy()
-      );
+
+      // TODO Should the byte ranges be merged ???
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![
-          Url::new(expected_url.clone())
-            .with_headers(Headers::default().with_header("Range", "bytes=4668-977196")),
-          Url::new(expected_url)
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-2112141")),
+          Url::new(expected_url(&storage))
+            .with_headers(Headers::default().with_header("Range", "bytes=4668-1042732")),
+          Url::new(expected_url(&storage))
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-2177677")),
+          Url::new(expected_url(&storage))
+            .with_headers(Headers::default().with_header("Range", "bytes=2060795-")),
         ],
       ));
       assert_eq!(response, expected_response)
     });
   }
 
-  // TODO we need a testing BAM containing unmapped reads
   #[test]
   fn search_unmapped_reads() {
     with_local_storage(|storage| {
@@ -252,16 +283,10 @@ pub mod tests {
       let query = Query::new("htsnexus_test_NA12878").with_reference_name("*");
       let response = search.search(query);
       println!("{:#?}", response);
-      let expected_url = format!(
-        "file://{}",
-        storage
-          .base_path()
-          .join("htsnexus_test_NA12878.bam")
-          .to_string_lossy()
-      );
+
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url)
+        vec![Url::new(expected_url(&storage))
           .with_headers(Headers::default().with_header("Range", "bytes=2060795-"))],
       ));
       assert_eq!(response, expected_response)
@@ -269,49 +294,43 @@ pub mod tests {
   }
 
   #[test]
-  fn search_ref_name_without_range() {
+  fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| {
       let search = BamSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878").with_reference_name("20");
       let response = search.search(query);
       println!("{:#?}", response);
-      let expected_url = format!(
-        "file://{}",
-        storage
-          .base_path()
-          .join("htsnexus_test_NA12878.bam")
-          .to_string_lossy()
-      );
+
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url.clone())
-          .with_headers(Headers::default().with_header("Range", "bytes=977196-2112141"))],
+        vec![Url::new(expected_url(&storage))
+          .with_headers(Headers::default().with_header("Range", "bytes=977196-2177677"))],
       ));
       assert_eq!(response, expected_response)
     });
   }
 
   #[test]
-  fn search_ref_name_with_range() {
+  fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| {
       let search = BamSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878")
         .with_reference_name("11")
-        .with_start(5079500)
-        .with_end(5081200);
+        .with_start(5015000)
+        .with_end(5050000);
       let response = search.search(query);
       println!("{:#?}", response);
-      let expected_url = format!(
-        "file://{}",
-        storage
-          .base_path()
-          .join("htsnexus_test_NA12878.bam")
-          .to_string_lossy()
-      );
+
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url.clone())
-          .with_headers(Headers::default().with_header("Range", "bytes=824361-977196"))],
+        vec![
+          Url::new(expected_url(&storage))
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-693523")),
+          Url::new(expected_url(&storage))
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-889897")),
+          Url::new(expected_url(&storage))
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-1042732")),
+        ],
       ));
       assert_eq!(response, expected_response)
     });
@@ -324,5 +343,15 @@ pub mod tests {
       .unwrap()
       .join("data");
     test(LocalStorage::new(base_path).unwrap())
+  }
+
+  pub fn expected_url(storage: &LocalStorage) -> String {
+    format!(
+      "file://{}",
+      storage
+        .base_path()
+        .join("htsnexus_test_NA12878.bam")
+        .to_string_lossy()
+    )
   }
 }

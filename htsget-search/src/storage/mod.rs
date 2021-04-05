@@ -26,10 +26,7 @@ pub struct Range {
 
 impl Range {
   pub fn new(start: Option<u64>, end: Option<u64>) -> Self {
-    Self {
-      start,
-      end,
-    }
+    Self { start, end }
   }
 
   pub fn with_start(mut self, start: u64) -> Self {
