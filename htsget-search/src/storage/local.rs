@@ -61,12 +61,12 @@ impl Storage for LocalStorage {
       .range
       .start
       .map(|start| start.to_string())
-      .unwrap_or("".to_string());
+      .unwrap_or_else(|| "".to_string());
     let range_end = options
       .range
       .end
       .map(|end| end.to_string())
-      .unwrap_or("".to_string());
+      .unwrap_or_else(|| "".to_string());
     let headers =
       Headers::default().with_header("Range", format!("bytes={}-{}", range_start, range_end));
 

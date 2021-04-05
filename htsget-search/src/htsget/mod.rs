@@ -129,21 +129,21 @@ impl Query {
 /// An enumeration with all the possible formats.
 #[derive(Debug, PartialEq)]
 pub enum Format {
-  BAM,
-  CRAM,
-  VCF,
-  BCF,
+  Bam,
+  Cram,
+  Vcf,
+  Bcf,
 }
 
-impl Into<String> for Format {
-  fn into(self) -> String {
-    match self {
-      Self::BAM => "BAM",
-      Self::CRAM => "CRAM",
-      Self::VCF => "VCF",
-      Self::BCF => "BCF",
+impl From<Format> for String {
+  fn from(format: Format) -> Self {
+    match format {
+      Format::Bam => "BAM",
+      Format::Cram => "CRAM",
+      Format::Vcf => "VCF",
+      Format::Bcf => "BCF",
     }
-    .to_string()
+    .to_string()  
   }
 }
 

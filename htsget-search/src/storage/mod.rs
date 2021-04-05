@@ -25,10 +25,10 @@ pub struct Range {
 }
 
 impl Range {
-  pub fn new() -> Self {
+  pub fn new(start: Option<u64>, end: Option<u64>) -> Self {
     Self {
-      start: None,
-      end: None,
+      start,
+      end,
     }
   }
 
@@ -43,13 +43,22 @@ impl Range {
   }
 }
 
+impl Default for Range {
+  fn default() -> Self {
+    Self {
+      start: None,
+      end: None,
+    }
+  }
+}
+
 pub struct GetOptions {
   range: Range,
 }
 
 impl GetOptions {
   pub fn with_max_length(mut self, max_length: u64) -> Self {
-    self.range = Range::new().with_start(0).with_end(max_length);
+    self.range = Range::default().with_start(0).with_end(max_length);
     self
   }
 
@@ -62,7 +71,7 @@ impl GetOptions {
 impl Default for GetOptions {
   fn default() -> Self {
     Self {
-      range: Range::new(),
+      range: Range::default(),
     }
   }
 }
@@ -87,7 +96,7 @@ impl UrlOptions {
 impl Default for UrlOptions {
   fn default() -> Self {
     Self {
-      range: Range::new(),
+      range: Range::default(),
       class: None,
     }
   }

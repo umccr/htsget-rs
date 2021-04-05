@@ -18,7 +18,7 @@ where
 {
   fn search(&self, query: Query) -> Result<Response> {
     match query.format {
-      Some(Format::BAM) | None => BamSearch::new(&self.storage).search(query),
+      Some(Format::Bam) | None => BamSearch::new(&self.storage).search(query),
       Some(format) => Err(HtsGetError::unsupported_format(format)),
     }
   }
@@ -46,7 +46,7 @@ mod tests {
   fn search_bam() {
     with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
-      let query = Query::new("htsnexus_test_NA12878").with_format(Format::BAM);
+      let query = Query::new("htsnexus_test_NA12878").with_format(Format::Bam);
       let response = htsget.search(query);
       println!("{:#?}", response);
       let expected_url = format!(
@@ -58,7 +58,7 @@ mod tests {
           .to_string_lossy()
       );
       let expected_response = Ok(Response::new(
-        Format::BAM,
+        Format::Bam,
         vec![
           Url::new(expected_url.clone())
             .with_headers(Headers::default().with_header("Range", "bytes=4668-977196")),
