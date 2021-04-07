@@ -10,22 +10,22 @@ use noodles_sam::{self as sam};
 
 use crate::{
   htsget::{Format, HtsGetError, Query, Response, Result, Url},
-  storage::{GetOptions, Range, Storage, UrlOptions},
+  storage::{GetOptions, BytesRange, Storage, UrlOptions},
 };
 
 trait VirtualPositionExt {
   const MAX_BLOCK_SIZE: u64 = 65536;
 
   /// Get the starting bytes for a compressed BGZF block.
-  fn byte_range_start(&self) -> u64;
+  fn bytes_range_start(&self) -> u64;
   /// Get the ending bytes for a compressed BGZF block.
-  fn byte_range_end(&self) -> u64;
+  fn bytes_range_end(&self) -> u64;
   fn to_string(&self) -> String;
 }
 
 impl VirtualPositionExt for VirtualPosition {
   /// This is just an alias to compressed. Kept for consistency.
-  fn byte_range_start(&self) -> u64 {
+  fn bytes_range_start(&self) -> u64 {
     self.compressed()
   }
   /// The compressed part refers always to the beginning of a BGZF block.
@@ -34,7 +34,7 @@ impl VirtualPositionExt for VirtualPosition {
   /// where that block ends, which is not trivial nor possible for the last block.
   /// The simple solution goes through adding the maximum BGZF block size,
   /// so we don't loose any read (although adding extra unneeded reads to the query results).
-  fn byte_range_end(&self) -> u64 {
+  fn bytes_range_end(&self) -> u64 {
     self.compressed() + Self::MAX_BLOCK_SIZE
   }
 
@@ -111,17 +111,17 @@ where
     &self,
     bam_key: &str,
     bai_index: &bai::Index,
-  ) -> Result<Vec<Range>> {
-    let mut byte_ranges: Vec<Range> = Vec::new();
+  ) -> Result<Vec<BytesRange>> {
+    let mut byte_ranges: Vec<BytesRange> = Vec::new();
     for reference_sequence in bai_index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
         // TODO Ask to the noodles author whether metadata start and end will include unmapped reads or not
         let start_vpos = metadata.start_position();
         let end_vpos = metadata.end_position();
         byte_ranges.push(
-          Range::default()
-            .with_start(start_vpos.byte_range_start())
-            .with_end(end_vpos.byte_range_end()),
+          BytesRange::default()
+            .with_start(start_vpos.bytes_range_start())
+            .with_end(end_vpos.bytes_range_end()),
         );
       }
     }
@@ -136,7 +136,7 @@ where
     &self,
     bam_key: &str,
     bai_index: &bai::Index,
-  ) -> Result<Vec<Range>> {
+  ) -> Result<Vec<BytesRange>> {
     let last_interval = bai_index
       .reference_sequences()
       .iter()
@@ -154,7 +154,7 @@ where
     };
 
     // TODO Ask noodle author if they know how to retrieve the file end from a BAI to include it in the range
-    Ok(vec![Range::default().with_start(start.byte_range_start())])
+    Ok(vec![BytesRange::default().with_start(start.bytes_range_start())])
   }
 
   /// This returns reads for a given reference name
@@ -164,13 +164,13 @@ where
     reference_name: &str,
     bai_index: &bai::Index,
     query: &Query,
-  ) -> Result<Vec<Range>> {
+  ) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
     let bam_path = self.storage.get(bam_key, get_options)?;
     let (_, bam_header) = Self::read_bam_header(&bam_path)?;
     let maybe_bam_ref_seq = bam_header.reference_sequences().get_full(reference_name);
 
-    let positions = match maybe_bam_ref_seq {
+    let byte_ranges = match maybe_bam_ref_seq {
       None => Err(HtsGetError::not_found(format!(
         "Reference name not found: {}",
         reference_name
@@ -178,7 +178,7 @@ where
       Some((bam_ref_seq_idx, _, bam_ref_seq)) => {
         let seq_start = query.start.map(|start| start as i32);
         let seq_end = query.end.map(|end| end as i32);
-        Self::get_positions_for_reference_sequence(
+        Self::get_byte_ranges_for_reference_sequence(
           bam_ref_seq,
           bam_ref_seq_idx,
           bai_index,
@@ -187,7 +187,7 @@ where
         )
       }
     }?;
-    Ok(positions)
+    Ok(byte_ranges)
   }
 
   fn read_bam_header<P: AsRef<Path>>(path: P) -> Result<(bam::Reader<File>, sam::Header)> {
@@ -204,13 +204,13 @@ where
     Ok((bam_reader, bam_header))
   }
 
-  fn get_positions_for_reference_sequence(
+  fn get_byte_ranges_for_reference_sequence(
     bam_ref_seq: &sam::header::ReferenceSequence,
     bam_ref_seq_idx: usize,
     bai_index: &bai::Index,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
-  ) -> Result<Vec<Range>> {
+  ) -> Result<Vec<BytesRange>> {
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
     let seq_end = seq_end.unwrap_or_else(|| bam_ref_seq.len());
     let bai_ref_seq = bai_index
@@ -233,15 +233,15 @@ where
 
     let min_offset = bai_ref_seq.min_offset(seq_start);
 
-    let positions = bai::optimize_chunks(&chunks, min_offset)
+    let byte_ranges = bai::optimize_chunks(&chunks, min_offset)
       .into_iter()
       .map(|chunk| {
-        Range::default()
-          .with_start(chunk.start().byte_range_start())
-          .with_end(chunk.end().byte_range_end())
+        BytesRange::default()
+          .with_start(chunk.start().bytes_range_start())
+          .with_end(chunk.end().bytes_range_end())
       })
       .collect();
-    Ok(positions)
+    Ok(byte_ranges)
   }
 }
 

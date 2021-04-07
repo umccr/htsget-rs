@@ -19,12 +19,12 @@ pub enum StorageError {
 
 type Result<T> = core::result::Result<T, StorageError>;
 
-pub struct Range {
+pub struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
 }
 
-impl Range {
+impl BytesRange {
   pub fn new(start: Option<u64>, end: Option<u64>) -> Self {
     Self { start, end }
   }
@@ -40,7 +40,7 @@ impl Range {
   }
 }
 
-impl Default for Range {
+impl Default for BytesRange {
   fn default() -> Self {
     Self {
       start: None,
@@ -50,16 +50,16 @@ impl Default for Range {
 }
 
 pub struct GetOptions {
-  range: Range,
+  range: BytesRange,
 }
 
 impl GetOptions {
   pub fn with_max_length(mut self, max_length: u64) -> Self {
-    self.range = Range::default().with_start(0).with_end(max_length);
+    self.range = BytesRange::default().with_start(0).with_end(max_length);
     self
   }
 
-  pub fn with_range(mut self, range: Range) -> Self {
+  pub fn with_range(mut self, range: BytesRange) -> Self {
     self.range = range;
     self
   }
@@ -68,18 +68,18 @@ impl GetOptions {
 impl Default for GetOptions {
   fn default() -> Self {
     Self {
-      range: Range::default(),
+      range: BytesRange::default(),
     }
   }
 }
 
 pub struct UrlOptions {
-  range: Range,
+  range: BytesRange,
   class: Option<Class>,
 }
 
 impl UrlOptions {
-  pub fn with_range(mut self, range: Range) -> Self {
+  pub fn with_range(mut self, range: BytesRange) -> Self {
     self.range = range;
     self
   }
@@ -93,7 +93,7 @@ impl UrlOptions {
 impl Default for UrlOptions {
   fn default() -> Self {
     Self {
-      range: Range::default(),
+      range: BytesRange::default(),
       class: None,
     }
   }
