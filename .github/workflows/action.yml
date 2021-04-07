@@ -1,0 +1,25 @@
+name: Run Rust tests
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: [stable]
+        os: [ubuntu-latest]
+    steps:
+      - name: Setup Rust
+        uses: hecrj/setup-rust-action@master
+        with:
+          rust-version: ${{ matrix.rust }}
+          components: rustfmt, clippy
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Run cargo fmt
+        run: cargo fmt
+      - name: Run cargo clippy
+        run: cargo clippy
+      - name: Run tests
+        run: cargo test
