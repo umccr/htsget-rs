@@ -43,26 +43,26 @@ pub fn bam_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
   let joined_ref_seqs = header
     .reference_sequences()
     .into_iter()
-    .zip(index.reference_sequences().into_iter())
+    .zip(index.reference_sequences().iter())
     .enumerate();
 
   for (idx, ((ref_seq_name, hdr_ref_seq), idx_ref_seq)) in joined_ref_seqs {
     if let Some(metadata) = idx_ref_seq.metadata() {
       let blocks: HashSet<u64> = idx_ref_seq
         .bins()
-        .into_iter()
-        .flat_map(|bin| bin.chunks().into_iter())
+        .iter()
+        .flat_map(|bin| bin.chunks().iter())
         .flat_map(|chunk| vec![chunk.start(), chunk.end()])
         .map(|vpos| vpos.compressed())
         .collect();
       let mut blocks: Vec<u64> = blocks.into_iter().collect();
-      blocks.sort();
+      blocks.sort_unstable();
 
       let intervals: Vec<(u64, u64)> = blocks
         .iter()
         .take(blocks.len() - 1)
         .zip(blocks.iter().skip(1))
-        .map(|(start, end)| (start.clone(), end.clone()))
+        .map(|(start, end)| (*start, *end))
         .collect();
 
       let mut ref_seq_start = u64::MAX;
