@@ -52,14 +52,8 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![
-          Url::new(expected_url(&htsget.storage()))
-            .with_headers(Headers::default().with_header("Range", "bytes=4668-1042732")),
-          Url::new(expected_url(&htsget.storage()))
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-2177677")),
-          Url::new(expected_url(&htsget.storage()))
-            .with_headers(Headers::default().with_header("Range", "bytes=2060795-")),
-        ],
+        vec![Url::new(expected_url(&htsget.storage()))
+          .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
       ));
       assert_eq!(response, expected_response)
     })

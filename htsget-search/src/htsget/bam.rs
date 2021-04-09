@@ -10,7 +10,7 @@ use noodles_sam::{self as sam};
 
 use crate::{
   htsget::{Format, HtsGetError, Query, Response, Result, Url},
-  storage::{GetOptions, BytesRange, Storage, UrlOptions},
+  storage::{BytesRange, GetOptions, Storage, UrlOptions},
 };
 
 trait VirtualPositionExt {
@@ -106,7 +106,7 @@ where
     (bam_key, bai_key)
   }
 
-  /// This returns unmapped and mapped ranges
+  /// This returns mapped and placed unmapped ranges
   fn get_byte_ranges_for_all_reads(
     &self,
     bam_key: &str,
@@ -115,7 +115,6 @@ where
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
     for reference_sequence in bai_index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
-        // TODO Ask to the noodles author whether metadata start and end will include unmapped reads or not
         let start_vpos = metadata.start_position();
         let end_vpos = metadata.end_position();
         byte_ranges.push(
@@ -128,10 +127,10 @@ where
 
     let unmapped_byte_ranges = self.get_byte_ranges_for_unmapped_reads(bam_key, bai_index)?;
     byte_ranges.extend(unmapped_byte_ranges.into_iter());
-    Ok(byte_ranges)
+    Ok(BytesRange::merge_all(byte_ranges))
   }
 
-  /// This returns only unmapped ranges
+  /// This returns only unplaced unmapped ranges
   fn get_byte_ranges_for_unmapped_reads(
     &self,
     bam_key: &str,
@@ -153,11 +152,13 @@ where
       }
     };
 
-    // TODO Ask noodle author if they know how to retrieve the file end from a BAI to include it in the range
-    Ok(vec![BytesRange::default().with_start(start.bytes_range_start())])
+    // TODO get the end of the range from the BAM size (will require a new call in the Storage interface)
+    Ok(vec![
+      BytesRange::default().with_start(start.bytes_range_start())
+    ])
   }
 
-  /// This returns reads for a given reference name
+  /// This returns reads for a given reference name and an optional sequence range
   fn get_byte_ranges_for_reference_name(
     &self,
     bam_key: &str,
@@ -241,7 +242,8 @@ where
           .with_end(chunk.end().bytes_range_end())
       })
       .collect();
-    Ok(byte_ranges)
+
+    Ok(BytesRange::merge_all(byte_ranges))
   }
 }
 
@@ -260,17 +262,10 @@ pub mod tests {
       let response = search.search(query);
       println!("{:#?}", response);
 
-      // TODO Should the byte ranges be merged ???
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![
-          Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=4668-1042732")),
-          Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-2177677")),
-          Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=2060795-")),
-        ],
+        vec![Url::new(expected_url(&storage))
+          .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
       ));
       assert_eq!(response, expected_response)
     });

@@ -3,7 +3,7 @@
 
 pub mod local;
 
-use std::path::PathBuf;
+use std::{cmp::Ordering, path::PathBuf};
 use thiserror::Error;
 
 use crate::htsget::{Class, Url};
@@ -19,6 +19,7 @@ pub enum StorageError {
 
 type Result<T> = core::result::Result<T, StorageError>;
 
+#[derive(Debug, Clone)]
 pub struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
@@ -37,6 +38,73 @@ impl BytesRange {
   pub fn with_end(mut self, end: u64) -> Self {
     self.end = Some(end);
     self
+  }
+
+  pub fn get_start(&self) -> Option<u64> {
+    self.start
+  }
+
+  pub fn get_end(&self) -> Option<u64> {
+    self.end
+  }
+
+  pub fn overlaps(&self, range: &BytesRange) -> bool {
+    let cond1 = match (self.start.as_ref(), range.end.as_ref()) {
+      (None, None) | (None, Some(_)) | (Some(_), None) => true,
+      (Some(start), Some(end)) => end >= start,
+    };
+    let cond2 = match (self.end.as_ref(), range.start.as_ref()) {
+      (None, None) | (None, Some(_)) | (Some(_), None) => true,
+      (Some(end), Some(start)) => end >= start,
+    };
+    cond1 && cond2
+  }
+
+  pub fn merge_with(&mut self, range: &BytesRange) {
+    self.start = match (self.start.as_ref(), range.start.as_ref()) {
+      (None, None) | (None, Some(_)) | (Some(_), None) => None,
+      (Some(a), Some(b)) => Some(*a.min(b)),
+    };
+    self.end = match (self.end.as_ref(), range.end.as_ref()) {
+      (None, None) | (None, Some(_)) | (Some(_), None) => None,
+      (Some(a), Some(b)) => Some(*a.max(b)),
+    };
+  }
+
+  pub fn merge_all(mut ranges: Vec<BytesRange>) -> Vec<BytesRange> {
+    if ranges.len() < 2 {
+      ranges
+    } else {
+      ranges.sort_by(|a, b| {
+        let a_start = a.get_start().unwrap_or(0);
+        let b_start = b.get_start().unwrap_or(0);
+        let start_ord = a_start.cmp(&b_start);
+        if start_ord == Ordering::Equal {
+          let a_end = a.get_end().unwrap_or(u64::MAX);
+          let b_end = b.get_end().unwrap_or(u64::MAX);
+          b_end.cmp(&a_end)
+        } else {
+          start_ord
+        }
+      });
+
+      let mut optimized_ranges = Vec::with_capacity(ranges.len());
+
+      let mut current_range = ranges[0].clone();
+
+      for range in ranges.iter().skip(1) {
+        if current_range.overlaps(range) {
+          current_range.merge_with(range)
+        } else {
+          optimized_ranges.push(current_range.clone());
+          current_range = range.clone();
+        }
+      }
+
+      optimized_ranges.push(current_range.clone());
+
+      optimized_ranges
+    }
   }
 }
 
