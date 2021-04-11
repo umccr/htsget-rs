@@ -35,6 +35,10 @@ This crate provides two basic abstractions:
 - [The great *noodles* library](https://github.com/zaeleus/noodles)
 - [Inspecting, summarizing, and manipulating the read alignments](https://mtbgenomicsworkshop.readthedocs.io/en/latest/material/day3/mappingstats.html)
 
+### VCF/BCF formats
+
+- [VCF specification](https://samtools.github.io/hts-specs/VCFv4.3.pdf)
+
 ### Previous attempts to work on HtsGet with Rust
 
 - https://github.com/umccr/htsget-rs
