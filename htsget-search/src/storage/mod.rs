@@ -8,6 +8,19 @@ use thiserror::Error;
 
 use crate::htsget::{Class, Url};
 
+type Result<T> = core::result::Result<T, StorageError>;
+
+/// An Storage represents some kind of object based storage (either locally or in the cloud)
+/// that can be used to retrieve files for alignments, variants or its respective indexes.
+pub trait Storage {
+  // TODO Consider another type of interface based on IO streaming
+  // so we don't need to guess the length of the headers, but just
+  // parse them in an streaming fashion.
+  fn get<K: AsRef<str>>(&self, key: K, options: GetOptions) -> Result<PathBuf>;
+
+  fn url<K: AsRef<str>>(&self, key: K, options: UrlOptions) -> Result<Url>;
+}
+
 #[derive(Error, PartialEq, Debug)]
 pub enum StorageError {
   #[error("Invalid key: {0}")]
@@ -16,8 +29,6 @@ pub enum StorageError {
   #[error("Not found: {0}")]
   NotFound(String),
 }
-
-type Result<T> = core::result::Result<T, StorageError>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BytesRange {
@@ -166,17 +177,6 @@ impl Default for UrlOptions {
       class: None,
     }
   }
-}
-
-/// An Storage represents some kind of object based storage (either locally or in the cloud)
-/// that can be used to retrieve files for alignments, variants or its respective indexes.
-pub trait Storage {
-  // TODO Consider another type of interface based on IO streaming
-  // so we don't need to guess the length of the headers, but just
-  // parse them in an streaming fashion.
-  fn get<K: AsRef<str>>(&self, key: K, options: GetOptions) -> Result<PathBuf>;
-
-  fn url<K: AsRef<str>>(&self, key: K, options: UrlOptions) -> Result<Url>;
 }
 
 #[cfg(test)]

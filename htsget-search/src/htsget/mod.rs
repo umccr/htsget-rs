@@ -3,7 +3,7 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
-pub mod bam;
+pub mod bam_search;
 pub mod from_storage;
 
 use std::collections::HashMap;
@@ -13,6 +13,11 @@ use thiserror::Error;
 use crate::storage::StorageError;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
+
+/// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
+pub trait HtsGet {
+  fn search(&self, query: Query) -> Result<Response>;
+}
 
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
@@ -230,9 +235,4 @@ impl Response {
   pub fn new(format: Format, urls: Vec<Url>) -> Self {
     Self { format, urls }
   }
-}
-
-/// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
-pub trait HtsGet {
-  fn search(&self, query: Query) -> Result<Response>;
 }

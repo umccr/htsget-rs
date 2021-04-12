@@ -2,7 +2,7 @@
 //!
 
 use crate::{
-  htsget::bam::BamSearch,
+  htsget::bam_search::BamSearch,
   htsget::{Format, HtsGet, HtsGetError, Query, Response, Result},
   storage::Storage,
 };
@@ -37,7 +37,7 @@ impl<S> HtsGetFromStorage<S> {
 #[cfg(test)]
 mod tests {
 
-  use crate::htsget::bam::tests::{expected_url, with_local_storage};
+  use crate::htsget::bam_search::tests::{expected_url, with_local_storage};
   use crate::htsget::{Headers, Url};
 
   use super::*;
