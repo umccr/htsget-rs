@@ -1,7 +1,11 @@
 //! Module providing the search capability using BAM/BAI files
 //!
 
-use std::{fs::File, path::Path};
+use std::{
+  collections::{HashMap, HashSet},
+  fs::File,
+  path::Path,
+};
 
 use bam::bai::index::reference_sequence::bin::Chunk;
 use noodles_bam::{self as bam, bai};
@@ -19,7 +23,7 @@ trait VirtualPositionExt {
   /// Get the starting bytes for a compressed BGZF block.
   fn bytes_range_start(&self) -> u64;
   /// Get the ending bytes for a compressed BGZF block.
-  fn bytes_range_end(&self) -> u64;
+  fn bytes_range_end(&self, block_ranges: &HashMap<u64, u64>) -> u64;
   fn to_string(&self) -> String;
 }
 
@@ -34,13 +38,47 @@ impl VirtualPositionExt for VirtualPosition {
   /// where that block ends, which is not trivial nor possible for the last block.
   /// The simple solution goes through adding the maximum BGZF block size,
   /// so we don't loose any read (although adding extra unneeded reads to the query results).
-  fn bytes_range_end(&self) -> u64 {
-    self.compressed() + Self::MAX_BLOCK_SIZE
+  fn bytes_range_end(&self, block_ranges: &HashMap<u64, u64>) -> u64 {
+    block_ranges
+      .get(&self.compressed())
+      .cloned()
+      .unwrap_or_else(|| self.compressed() + Self::MAX_BLOCK_SIZE)
   }
 
   fn to_string(&self) -> String {
     format!("{}/{}", self.compressed(), self.uncompressed())
   }
+}
+
+fn load_block_ranges(bai_index: &bai::Index) -> HashMap<u64, u64> {
+  let mut ref_seq_interval: HashMap<u64, u64> =
+    HashMap::with_capacity(bai_index.reference_sequences().len());
+
+  for idx_ref_seq in bai_index.reference_sequences() {
+    if let Some(_) = idx_ref_seq.metadata() {
+      let blocks: HashSet<u64> = idx_ref_seq
+        .bins()
+        .iter()
+        .flat_map(|bin| bin.chunks().iter())
+        .flat_map(|chunk| vec![chunk.start(), chunk.end()])
+        .map(|vpos| vpos.compressed())
+        .collect();
+
+      let mut blocks: Vec<u64> = blocks.into_iter().collect();
+      blocks.sort_unstable();
+
+      let intervals: HashMap<u64, u64> = blocks
+        .iter()
+        .take(blocks.len() - 1)
+        .zip(blocks.iter().skip(1))
+        .map(|(start, end)| (*start, *end))
+        .collect();
+
+      ref_seq_interval.extend(intervals);
+    }
+  }
+
+  ref_seq_interval
 }
 
 pub(crate) struct BamSearch<'a, S> {
@@ -105,7 +143,9 @@ where
     bam_key: &str,
     bai_index: &bai::Index,
   ) -> Result<Vec<BytesRange>> {
+    let block_ranges = load_block_ranges(bai_index);
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
+
     for reference_sequence in bai_index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
         let start_vpos = metadata.start_position();
@@ -113,7 +153,7 @@ where
         byte_ranges.push(
           BytesRange::default()
             .with_start(start_vpos.bytes_range_start())
-            .with_end(end_vpos.bytes_range_end()),
+            .with_end(end_vpos.bytes_range_end(&block_ranges)),
         );
       }
     }
@@ -227,12 +267,14 @@ where
 
     let min_offset = bai_ref_seq.min_offset(seq_start);
 
+    let block_ranges = load_block_ranges(bai_index);
+
     let byte_ranges = bai::optimize_chunks(&chunks, min_offset)
       .into_iter()
       .map(|chunk| {
         BytesRange::default()
           .with_start(chunk.start().bytes_range_start())
-          .with_end(chunk.end().bytes_range_end())
+          .with_end(chunk.end().bytes_range_end(&block_ranges))
       })
       .collect();
 
