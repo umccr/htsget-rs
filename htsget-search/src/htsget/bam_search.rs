@@ -9,7 +9,7 @@ use noodles_bgzf::VirtualPosition;
 use noodles_sam::{self as sam};
 
 use crate::{
-  htsget::{Format, HtsGetError, Query, Response, Result, Url},
+  htsget::{Class, Format, HtsGetError, Query, Response, Result, Url},
   storage::{BytesRange, GetOptions, Storage, UrlOptions},
 };
 
@@ -61,39 +61,32 @@ where
   }
 
   pub fn search(&self, query: Query) -> Result<Response> {
-    // TODO check class, for now we assume it is None or "body"
-
     let (bam_key, bai_key) = self.get_keys_from_id(query.id.as_str());
 
-    let bai_path = self.storage.get(&bai_key, GetOptions::default())?;
-    let bai_index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
+    match query.class {
+      None | Some(Class::Body) => {
+        let bai_path = self.storage.get(&bai_key, GetOptions::default())?;
+        let bai_index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
 
-    let byte_ranges = match query.reference_name.as_ref() {
-      None => self.get_byte_ranges_for_all_reads(bam_key.as_str(), &bai_index)?,
-      Some(reference_name) if reference_name.as_str() == "*" => {
-        self.get_byte_ranges_for_unmapped_reads(bam_key.as_str(), &bai_index)?
+        let byte_ranges = match query.reference_name.as_ref() {
+          None => self.get_byte_ranges_for_all_reads(bam_key.as_str(), &bai_index)?,
+          Some(reference_name) if reference_name.as_str() == "*" => {
+            self.get_byte_ranges_for_unmapped_reads(bam_key.as_str(), &bai_index)?
+          }
+          Some(reference_name) => self.get_byte_ranges_for_reference_name(
+            bam_key.as_str(),
+            reference_name,
+            &bai_index,
+            &query,
+          )?,
+        };
+        self.build_response(query, &bam_key, byte_ranges)
       }
-      Some(reference_name) => self.get_byte_ranges_for_reference_name(
-        bam_key.as_str(),
-        reference_name,
-        &bai_index,
-        &query,
-      )?,
-    };
-
-    let urls = byte_ranges
-      .into_iter()
-      .map(|range| {
-        let options = UrlOptions::default().with_range(range);
-        self
-          .storage
-          .url(&bam_key, options)
-          .map_err(HtsGetError::from)
-      })
-      .collect::<Result<Vec<Url>>>()?;
-
-    let format = query.format.unwrap_or(Format::Bam);
-    Ok(Response::new(format, urls))
+      Some(Class::Header) => {
+        let byte_ranges = self.get_byte_ranges_for_header();
+        self.build_response(query, &bam_key, byte_ranges)
+      }
+    }
   }
 
   /// Generate a key for the storage object from an ID
@@ -245,6 +238,40 @@ where
 
     Ok(BytesRange::merge_all(byte_ranges))
   }
+
+  /// Returns the header bytes range.
+  fn get_byte_ranges_for_header(&self) -> Vec<BytesRange> {
+    vec![BytesRange::default()
+      .with_start(0)
+      .with_end(Self::DEFAULT_BAM_HEADER_LENGTH)]
+  }
+
+  /// Build the response from the query using urls.
+  fn build_response(
+    &self,
+    query: Query,
+    bam_key: &str,
+    byte_ranges: Vec<BytesRange>,
+  ) -> Result<Response> {
+    let urls = byte_ranges
+      .into_iter()
+      .map(|range| {
+        let options = match query.class.as_ref() {
+          None => UrlOptions::default().with_range(range),
+          Some(class) => UrlOptions::default()
+            .with_range(range)
+            .with_class(class.clone()),
+        };
+        self
+          .storage
+          .url(&bam_key, options)
+          .map_err(HtsGetError::from)
+      })
+      .collect::<Result<Vec<Url>>>()?;
+
+    let format = query.format.unwrap_or(Format::Bam);
+    Ok(Response::new(format, urls))
+  }
 }
 
 #[cfg(test)]
@@ -326,6 +353,24 @@ pub mod tests {
           Url::new(expected_url(&storage))
             .with_headers(Headers::default().with_header("Range", "bytes=977196-1042732")),
         ],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  #[test]
+  fn search_header() {
+    with_local_storage(|storage| {
+      let search = BamSearch::new(&storage);
+      let query = Query::new("htsnexus_test_NA12878").with_class(Class::Header);
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![Url::new(expected_url(&storage))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-1048576"))
+          .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)
     });

@@ -152,7 +152,7 @@ impl From<Format> for String {
   }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Class {
   Header,
   Body,
