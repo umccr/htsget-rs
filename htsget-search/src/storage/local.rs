@@ -84,6 +84,7 @@ mod tests {
   use std::io::prelude::*;
 
   use super::*;
+  use crate::storage::BytesRange;
 
   #[test]
   fn get_non_existing_key() {
@@ -139,7 +140,70 @@ mod tests {
     });
   }
 
-  // TODO add tests for `LocalStorage::url`
+  #[test]
+  fn url_of_non_existing_key() {
+    with_local_storage(|storage| {
+      let result = storage.url("non-existing-key", UrlOptions::default());
+      assert_eq!(
+        result,
+        Err(StorageError::InvalidKey("non-existing-key".to_string()))
+      );
+    });
+  }
+
+  #[test]
+  fn url_of_folder() {
+    with_local_storage(|storage| {
+      let result = storage.url("folder", UrlOptions::default());
+      assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
+    });
+  }
+
+  #[test]
+  fn url_with_forbidden_path() {
+    with_local_storage(|storage| {
+      let result = storage.url("folder/../../passwords", UrlOptions::default());
+      assert_eq!(
+        result,
+        Err(StorageError::InvalidKey(
+          "folder/../../passwords".to_string()
+        ))
+      );
+    });
+  }
+
+  #[test]
+  fn url_of_existing_key() {
+    with_local_storage(|storage| {
+      let result = storage.url("folder/../key1", UrlOptions::default());
+      let expected = Url::new(format!(
+        "file://{}",
+        storage.base_path().join("key1").to_string_lossy()
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=-"));
+      assert_eq!(result, Ok(expected));
+    });
+  }
+
+  #[test]
+  fn url_of_existing_key_with_specified_range() {
+    with_local_storage(|storage| {
+      let result = storage.url(
+        "folder/../key1",
+        UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
+      );
+      assert_eq!(
+        result,
+        Ok(
+          Url::new(format!(
+            "file://{}",
+            storage.base_path().join("key1").to_string_lossy()
+          ))
+          .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
+        )
+      );
+    });
+  }
 
   fn with_local_storage(test: impl Fn(LocalStorage)) {
     let base_path = tempfile::TempDir::new().unwrap();
