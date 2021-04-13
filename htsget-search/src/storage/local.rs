@@ -73,6 +73,10 @@ impl Storage for LocalStorage {
     // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
     let path = self.get_path_from_key(key)?;
     let url = Url::new(format!("file://{}", path.to_string_lossy())).with_headers(headers);
+    let url = match options.class {
+      Some(class) => url.with_class(class),
+      None => url,
+    };
     Ok(url)
   }
 }
