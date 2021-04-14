@@ -2,7 +2,7 @@
 //!
 
 use std::{
-  collections::{HashMap, HashSet},
+  collections::{BTreeSet, HashMap},
   fs::File,
   path::Path,
 };
@@ -51,34 +51,31 @@ impl VirtualPositionExt for VirtualPosition {
 }
 
 fn load_block_ranges(bai_index: &bai::Index) -> HashMap<u64, u64> {
-  let mut ref_seq_interval: HashMap<u64, u64> =
-    HashMap::with_capacity(bai_index.reference_sequences().len());
+  let mut blocks: BTreeSet<u64> = BTreeSet::new();
 
   for idx_ref_seq in bai_index.reference_sequences() {
     if let Some(_) = idx_ref_seq.metadata() {
-      let blocks: HashSet<u64> = idx_ref_seq
-        .bins()
-        .iter()
-        .flat_map(|bin| bin.chunks().iter())
-        .flat_map(|chunk| vec![chunk.start(), chunk.end()])
-        .map(|vpos| vpos.compressed())
-        .collect();
-
-      let mut blocks: Vec<u64> = blocks.into_iter().collect();
-      blocks.sort_unstable();
-
-      let intervals: HashMap<u64, u64> = blocks
-        .iter()
-        .take(blocks.len() - 1)
-        .zip(blocks.iter().skip(1))
-        .map(|(start, end)| (*start, *end))
-        .collect();
-
-      ref_seq_interval.extend(intervals);
+      blocks.extend(
+        idx_ref_seq
+          .bins()
+          .iter()
+          .flat_map(|bin| bin.chunks().iter())
+          .flat_map(|chunk| vec![chunk.start().compressed(), chunk.end().compressed()]),
+      );
     }
   }
 
-  ref_seq_interval
+  let mut intervals: HashMap<u64, u64> = HashMap::with_capacity(blocks.len());
+
+  intervals.extend(
+    blocks
+      .iter()
+      .take(blocks.len() - 1)
+      .zip(blocks.iter().skip(1))
+      .map(|(start, end)| (*start, *end)),
+  );
+
+  intervals
 }
 
 pub(crate) struct BamSearch<'a, S> {
