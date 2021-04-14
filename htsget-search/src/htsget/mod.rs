@@ -128,7 +128,20 @@ impl Query {
     self
   }
 
-  // TODO the rest of the builder methods ...
+  pub fn with_fields(mut self, fields: Vec<impl Into<String>>) -> Self {
+    self.fields = fields.into_iter().map(|field| field.into()).collect();
+    self
+  }
+
+  pub fn with_tags(mut self, tags: Tags) -> Self {
+    self.tags = Some(tags);
+    self
+  }
+
+  pub fn with_no_tags(mut self, no_tags: Vec<impl Into<String>>) -> Self {
+    self.no_tags = Some(no_tags.into_iter().map(|field| field.into()).collect());
+    self
+  }
 }
 
 /// An enumeration with all the possible formats.
