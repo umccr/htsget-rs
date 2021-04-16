@@ -4,6 +4,7 @@
 //!
 
 pub mod bam_search;
+pub mod vcf_search;
 pub mod from_storage;
 
 use std::collections::HashMap;
