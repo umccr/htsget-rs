@@ -381,7 +381,7 @@ pub mod tests {
       .unwrap()
       .parent()
       .unwrap()
-      .join("data");
+      .join("data/bam");
     test(LocalStorage::new(base_path).unwrap())
   }
 
