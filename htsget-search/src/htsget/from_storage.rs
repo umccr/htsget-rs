@@ -3,6 +3,7 @@
 
 use crate::{
   htsget::bam_search::BamSearch,
+  htsget::vcf_search::VCFSearch,
   htsget::{Format, HtsGet, HtsGetError, Query, Response, Result},
   storage::Storage,
 };
@@ -19,6 +20,7 @@ where
   fn search(&self, query: Query) -> Result<Response> {
     match query.format {
       Some(Format::Bam) | None => BamSearch::new(&self.storage).search(query),
+      Some(Format::Vcf) | None => VCFSearch::new(&self.storage).search(query),
       Some(format) => Err(HtsGetError::unsupported_format(format)),
     }
   }
@@ -52,6 +54,22 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
+        vec![Url::new(expected_url(&htsget.storage()))
+          .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
+      ));
+      assert_eq!(response, expected_response)
+    })
+  }
+
+  fn search_vcf() {
+    with_local_storage(|storage| {
+      let htsget = HtsGetFromStorage::new(storage);
+      let query = Query::new("spec-v4.3").with_format(Format::Vcf);
+      let response = htsget.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Vcf,
         vec![Url::new(expected_url(&htsget.storage()))
           .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
       ));
