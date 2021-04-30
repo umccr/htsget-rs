@@ -1,7 +1,7 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::{fs::File, path::Path};
+use std::{fs::File, path::Path, io::{BufReader}};
 
 
 use noodles_vcf::{self as vcf};
@@ -24,36 +24,75 @@ where
     }
     
     pub fn search(&self, query: Query) -> Result<Response> {
-        let vcf_key = self.get_keys_from_id(query.id.as_str());
-    
-        match query.class {
-          None | Some(Class::Body) => {
-            let vcf_path = self.storage.get(&vcf_key, GetOptions::default())?;
-            let vcf_header = vcf::Reader::read_header(vcf_path).map_err(|_| HtsGetError::io_error("Reading VCF"))?;
-
-            // TODO:
-            // 1. Read records directly, header might not be needed
-            // 2. Get POS for the records of the ID being queried
-            // 3. Return an appropriate byte_range for the repeated IDs (CHROMS)
-    
-            self.build_response(query, &vcf_key, _byte_ranges)
-          }
-          Some(Class::Header) => {
-            let byte_ranges = self.get_byte_ranges_for_header();
-            self.build_response(query, &bam_key, byte_ranges)
-          }
+      let vcf_key = self.get_keys_from_id(query.id.as_str());
+  
+      match query.class {
+        None | Some(Class::Body) => {
+          let vcf_path = self.storage.get(&vcf_key, GetOptions::default())?;
+          let vcf_reader = self.read_vcf(vcf_path);
+        }
+        Some(Class::Header) => {
+          let vcf_path = self.storage.get(&vcf_key, GetOptions::default())?;
+          let vcf_reader = self.read_vcf(vcf_path);
         }
       }
+      
+      let byte_ranges = match query.reference_name.as_ref() {
+        Some(header) => todo!(),
+        Some(_) => todo!(),
+        None => todo!() //self.get_byte_ranges_for_all_records(vcf_reader?.0)?
+      };
 
-      fn get_keys_from_id(&self, id: &str) -> String {
-        let vcf_key = format!("{}.vcf", id);
-        vcf_key
-      }
+          // TODO:
+          // 1. Read records directly, header might not be needed
+          // 2. Get POS for the records of the ID being queried
+          // 3. Return an appropriate byte_range for the repeated IDs (CHROMS)
+  
+          // let byte_ranges = match query.reference_name.as_ref() {
+          //   None => self.get_byte_ranges_for_all_records(vcf_key.as_str())?,
+          //   Some(reference_name) => self.get_byte_ranges_for_reference_name(
+          //     vcf_key.as_str(),
+          //     reference_name,
+          //     &query,
+          //   )?,
+          // };
+  
+        self.build_response(query, &vcf_key, byte_ranges)
+    }
 
-      fn get_byte_ranges_for_all_records(
-        &self,
-        vcf_key: &str,
-      ) -> Result<Vec<BytesRange>> {
-          todo!()
-      }    
-}    
+    fn get_keys_from_id(&self, id: &str) -> String {
+      let vcf_key = format!("{}.vcf.gz", id); // TODO: allow uncompressed, plain, .vcf files
+      vcf_key
+    }
+
+    fn get_byte_ranges_for_all_records(
+      &self,
+      reader: vcf::Reader<BufReader<File>>,
+    ) -> Result<Vec<BytesRange>> {
+       let byte_ranges: Vec<BytesRange> = Vec::new();
+       Ok(byte_ranges)
+    }
+
+    fn read_vcf<P: AsRef<Path>>(&self, path: P) -> Result<(vcf::Reader<BufReader<File>>, vcf::Header)> {
+      let mut vcf_reader = File::open(path).map(BufReader::new)
+        .map(vcf::Reader::new)
+        .map_err(|_| HtsGetError::io_error("Reading VCF"))?;
+  
+      let vcf_header = vcf_reader
+        .read_header()
+        .map_err(|_| HtsGetError::io_error("Reading VCF header"))?
+        .parse()
+        .map_err(|_| HtsGetError::io_error("Parsing VCF header"))?;
+  
+      Ok((vcf_reader, vcf_header))
+    }
+
+    fn build_response(
+      &self,
+      query: Query,
+      bam_key: &str,
+      byte_ranges: Vec<BytesRange>,
+    ) -> Result<Response> {
+      todo!()
+    }  
+}
