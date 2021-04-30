@@ -3,8 +3,9 @@
 
 use std::{fs::File, path::Path, io::{BufReader}};
 
-
 use noodles_vcf::{self as vcf};
+use noodles_tabix::{self as tabix};
+use noodles_bgzf::{self as bgzf};
 
 use crate::{
     htsget::{Class, Format, HtsGetError, Query, Response, Result, Url},
@@ -22,7 +23,8 @@ where
     pub fn new(storage: &'a S) -> Self {
         Self { storage }
     }
-    
+   
+    /// TODO: Refer to https://github.com/zaeleus/noodles/commit/a00901697d0fafa1595981eff00488aa305e1429
     pub fn search(&self, query: Query) -> Result<Response> {
       let vcf_key = self.get_keys_from_id(query.id.as_str());
   
@@ -73,18 +75,21 @@ where
        Ok(byte_ranges)
     }
 
-    fn read_vcf<P: AsRef<Path>>(&self, path: P) -> Result<(vcf::Reader<BufReader<File>>, vcf::Header)> {
-      let mut vcf_reader = File::open(path).map(BufReader::new)
+    fn read_vcf<P: AsRef<Path>>(&self, path: P) -> Result<(vcf::Reader<BufReader<File>>, vcf::Header, tabix::Index)> {
+      let mut vcf_reader = File::open(path)
+        .map(bgzf::Reader::new) 
         .map(vcf::Reader::new)
         .map_err(|_| HtsGetError::io_error("Reading VCF"))?;
-  
+ 
       let vcf_header = vcf_reader
         .read_header()
         .map_err(|_| HtsGetError::io_error("Reading VCF header"))?
         .parse()
         .map_err(|_| HtsGetError::io_error("Parsing VCF header"))?;
-  
-      Ok((vcf_reader, vcf_header))
+      
+      let vcf_index = tabix::read(path); //+".tbi" is typical vcf index extension, but should be flexible accepting other fnames
+      
+      Ok((vcf_reader, vcf_header, vcf_index))
     }
 
     fn build_response(
