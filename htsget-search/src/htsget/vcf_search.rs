@@ -25,6 +25,9 @@ where
     }
    
     /// TODO: Refer to https://github.com/zaeleus/noodles/commit/a00901697d0fafa1595981eff00488aa305e1429
+    /// Perhaps just call newly introduced "query" on Noodles VCF crate:
+    /// https://github.com/zaeleus/noodles/commit/302033d7b247cd080b8f7ea23c6d3a7d5772e294
+    /// That query method seems to have been mirrored into the BAM implementation, so it'd be nice to revisit BAM search as well accordingly 
     pub fn search(&self, query: Query) -> Result<Response> {
       let vcf_key = self.get_keys_from_id(query.id.as_str());
   
@@ -87,7 +90,8 @@ where
         .parse()
         .map_err(|_| HtsGetError::io_error("Parsing VCF header"))?;
       
-      let vcf_index = tabix::read(path); //+".tbi" is typical vcf index extension, but should be flexible accepting other fnames
+     let vcf_index = tabix::read(path.as_ref())
+        .map_err(|_| HtsGetError::io_error("Reading index"); //+".tbi" is typical vcf index extension, but should be flexible accepting other fnames
       
       Ok((vcf_reader, vcf_header, vcf_index))
     }
@@ -99,5 +103,5 @@ where
       byte_ranges: Vec<BytesRange>,
     ) -> Result<Response> {
       todo!()
-    }  
+    }
 }
