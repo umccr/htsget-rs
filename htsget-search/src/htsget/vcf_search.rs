@@ -78,8 +78,8 @@ where
        Ok(byte_ranges)
     }
 
-    fn read_vcf<P: AsRef<Path>>(&self, path: P) -> Result<(vcf::Reader<BufReader<File>>, vcf::Header, tabix::Index)> {
-      let mut vcf_reader = File::open(path)
+    fn read_vcf<P: AsRef<Path>>(&self, path: P) -> Result<(vcf::Reader<noodles_bgzf::Reader<std::fs::File>>, vcf::Header, tabix::Index)> {
+      let mut vcf_reader = File::open(&path)
         .map(bgzf::Reader::new) 
         .map(vcf::Reader::new)
         .map_err(|_| HtsGetError::io_error("Reading VCF"))?;
@@ -90,8 +90,8 @@ where
         .parse()
         .map_err(|_| HtsGetError::io_error("Parsing VCF header"))?;
       
-     let vcf_index = tabix::read(path.as_ref())
-        .map_err(|_| HtsGetError::io_error("Reading index"); //+".tbi" is typical vcf index extension, but should be flexible accepting other fnames
+     let vcf_index = tabix::read(&path)
+        .map_err(|_| HtsGetError::io_error("Reading index"))?; //+".tbi" is typical vcf index extension, but should be flexible accepting other fnames
       
       Ok((vcf_reader, vcf_header, vcf_index))
     }
