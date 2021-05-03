@@ -58,10 +58,7 @@ where
         Self { storage }
     }
    
-    /// TODO: Refer to https://github.com/zaeleus/noodles/commit/a00901697d0fafa1595981eff00488aa305e1429
-    /// Perhaps just call newly introduced "query" on Noodles VCF crate:
-    /// https://github.com/zaeleus/noodles/commit/302033d7b247cd080b8f7ea23c6d3a7d5772e294
-    /// That query method seems to have been mirrored into the BAM implementation, so it'd be nice to revisit BAM search as well accordingly 
+    /// TODO: The (VCF)::Reader::query method is mirrored into the BAM implementation, reducing code duplication
     pub fn search(&self, query: Query) -> Result<Response> {
       let (vcf_key, tbi_key) = self.get_keys_from_id(query.id.as_str());
   
@@ -72,23 +69,16 @@ where
           let (vcf_reader, vcf_header, vcf_index)  = self.read_vcf(vcf_key)?;
 
           let byte_ranges = match query.reference_name.as_ref() {
-            None => vcf::Reader::query(self.read_vcf(vcf_key), &vcf_index, Region::All)
-              
-            //   vcf_key.as_str(), &vcf_index)?,
-            // Some(reference_name) if reference_name.as_str() == "*" => {
-            //   vcf::Reader::new(vcf_key.as_str(), &vcf_index)?
-            // }
-            // Some(reference_name) => self.get_byte_ranges_for_reference_name(
-            //   vcf_key.as_str(),
-            //   reference_name,
-            //   &vcf_index,
-            //   &query,
-            // )?,
+            None => vcf_reader.query(&vcf_index, &Region::All),
+            Some(reference_name) if reference_name.as_str() == "*" => {
+              vcf_reader.query(&vcf_index, &Region::Unmapped)
+            }
+            //Some(reference_name) => vcf_reader.query(&vcf_index, &Region::name(reference_name.as_str()))              
           };
           self.build_response(query, &vcf_key, byte_ranges)
         }
         Some(Class::Header) => {
-          let byte_ranges = self.get_byte_ranges_for_header();
+          let byte_ranges = todo!();
           self.build_response(query, &vcf_key, byte_ranges)
         }
       }
@@ -99,91 +89,6 @@ where
       let tbi_key = format!("{}.vcf.gz.tbi", id);
       (vcf_key, tbi_key)
     }
-
-    fn get_byte_ranges_for_header(&self){
-      todo!();
-    }
-
-    fn get_byte_ranges_for_all_records(
-      &self,
-      vcf_key: &str,
-      tbi_index: &tabix::Index
-    ) -> Result<Vec<BytesRange>> {
-       let byte_ranges: Vec<BytesRange> = Vec::new();
-       for reference_sequence in tbi_index.reference_sequences() {
-         if let Some(refseq) = reference_sequence.metadata() {
-           let start_vpos = refseq.start_position();
-           let end_vpos = refseq.end_position();
-           byte_ranges.push(
-             BytesRange::default()
-              .with_start(start_vpos.bytes_range_start())
-              .with_end(end_vpos.bytes_range_end()),
-           );
-         }
-       }
-       Ok(byte_ranges)
-    }
-
-    /// This returns only unplaced unmapped ranges
-    fn get_byte_ranges_for_unmapped_reads(
-      &self,
-      vcf_key: &str,
-      tbi_index: &tabix::Index,
-    ) -> Result<Vec<BytesRange>> {
-      let last_interval = tbi_index
-        .reference_sequences()
-        .iter()
-        .rev()
-        .find_map(|rs| rs.intervals().last().cloned());
-
-      let start = match last_interval {
-        Some(start) => start,
-        None => {
-          let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
-          let vcf_path = self.storage.get(vcf_key, get_options)?;
-          let (vcf_reader, _, _) = self.read_vcf(&vcf_path)?;
-          vcf_reader.virtual_position()
-        }
-      };
-
-      // TODO get the end of the range from the BAM size (will require a new call in the Storage interface)
-      Ok(vec![
-        BytesRange::default().with_start(start.bytes_range_start())
-      ])
-    }
-
-  /// This returns reads for a given reference name and an optional sequence range
-  fn get_byte_ranges_for_reference_name(
-    &self,
-    vcf_key: &str,
-    reference_name: &str,
-    bai_index: &tabix::Index,
-    query: &Query,
-  ) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
-    let vcf_path = self.storage.get(vcf_key, get_options)?;
-    let (vcf_reader, _, _) = self.read_vcf(&vcf_path)?;
-    let maybe_bam_ref_seq = vcf_reader.reference_sequences().get_full(reference_name);
-
-    let byte_ranges = match maybe_bam_ref_seq {
-      None => Err(HtsGetError::not_found(format!(
-        "Reference name not found: {}",
-        reference_name
-      ))),
-      Some((bam_ref_seq_idx, _, bam_ref_seq)) => {
-        let seq_start = query.start.map(|start| start as i32);
-        let seq_end = query.end.map(|end| end as i32);
-        Self::get_byte_ranges_for_reference_sequence(
-          bam_ref_seq,
-          bam_ref_seq_idx,
-          bai_index,
-          seq_start,
-          seq_end,
-        )
-      }
-    }?;
-    Ok(byte_ranges)
-  }
 
     fn read_vcf<P: AsRef<Path>>(&self, path: P) -> Result<(vcf::Reader<noodles_bgzf::Reader<std::fs::File>>, vcf::Header, tabix::Index)> {
       let mut vcf_reader = File::open(&path)
