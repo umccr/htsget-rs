@@ -1,6 +1,7 @@
 //! Module providing the search capability using VCF files
 //!
 
+use std::str::FromStr;
 use std::{fs::File, path::Path, io::{BufReader}};
 
 use noodles_core::{Region};
@@ -73,8 +74,10 @@ where
             Some(reference_name) if reference_name.as_str() == "*" => {
               vcf_reader.query(&vcf_index, &Region::Unmapped)
             }
-            //Some(reference_name) => vcf_reader.query(&vcf_index, &Region::name(reference_name.as_str()))              
+            // TODO: Map this Noodles-core::ParseError into HtsGetError
+            Some(reference_name) => vcf_reader.query(&vcf_index, &Region::from_str(reference_name.as_str())?)              
           };
+          // TODO: Turn the result from vcf_reader.query into Vec<ByteRanges>
           self.build_response(query, &vcf_key, byte_ranges)
         }
         Some(Class::Header) => {

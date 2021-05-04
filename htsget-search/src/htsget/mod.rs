@@ -71,6 +71,18 @@ impl From<StorageError> for HtsGetError {
   }
 }
 
+// impl From<noodles_core::ParseError> for HtsGetError {
+//   fn from(err: ParseError) -> Self {
+//     match err {
+//       ParseError::Empty(key) => Self::NotFound(format!("Not found in storage: {}", key)),
+//       ParseError::Ambiguous(key) => {
+//       ParseError::Invalid(key) => {
+//         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
+//       }
+//     }
+//   }
+// }
+
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
 #[derive(Debug)]
