@@ -2,7 +2,7 @@
 //!
 
 use std::str::FromStr;
-use std::{fs::File, path::Path, io::{BufReader}};
+use std::{fs::File, path::Path};//, io::{BufReader}};
 
 use noodles_core::{Region};
 use noodles_vcf::{self as vcf};
@@ -77,8 +77,8 @@ where
             // TODO: Map this Noodles-core::ParseError into HtsGetError
             Some(reference_name) => vcf_reader.query(&vcf_index, &Region::from_str(reference_name.as_str())?)              
           };
-          // TODO: Turn the result from vcf_reader.query into Vec<ByteRanges>
-          self.build_response(query, &vcf_key, byte_ranges)
+          // TODO: Turn the result from vcf_reader.query into Vec<ByteRanges>`
+          self.build_response(query, &vcf_key, byte_ranges?)
         }
         Some(Class::Header) => {
           let byte_ranges = todo!();

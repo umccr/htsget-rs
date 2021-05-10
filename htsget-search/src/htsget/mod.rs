@@ -12,6 +12,8 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::storage::StorageError;
+use noodles_core::ParseError;
+use std::io;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
 
@@ -36,6 +38,9 @@ pub enum HtsGetError {
 
   #[error("IO error: {0}")]
   IoError(String),
+  
+  #[error("Parsing error: {0}")]
+  ParseError(String),
 }
 
 impl HtsGetError {
@@ -71,17 +76,22 @@ impl From<StorageError> for HtsGetError {
   }
 }
 
-// impl From<noodles_core::ParseError> for HtsGetError {
-//   fn from(err: ParseError) -> Self {
-//     match err {
-//       ParseError::Empty(key) => Self::NotFound(format!("Not found in storage: {}", key)),
-//       ParseError::Ambiguous(key) => {
-//       ParseError::Invalid(key) => {
-//         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
-//       }
-//     }
-//   }
-// }
+// TODO: See if there's a way to proxy the ParseErrors from noodles_core without repeating them here with our custom messages.
+impl From<ParseError> for HtsGetError {
+  fn from(err: ParseError) -> Self {
+    match err {
+      ParseError::Ambiguous => Self::ParseError(format!("Parsing error, ambiguous field")),
+    }
+  }
+}
+
+impl From<io::Error> for HtsGetError {
+  fn from(err: io::Error) -> Self {
+    match err {
+      io::Error { repr } => Self::io_error("IO Error"),
+    }
+  }
+}
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
