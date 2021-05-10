@@ -74,11 +74,10 @@ where
             Some(reference_name) if reference_name.as_str() == "*" => {
               vcf_reader.query(&vcf_index, &Region::Unmapped)
             }
-            // TODO: Map this Noodles-core::ParseError into HtsGetError
             Some(reference_name) => vcf_reader.query(&vcf_index, &Region::from_str(reference_name.as_str())?)              
           };
           // TODO: Turn the result from vcf_reader.query into Vec<ByteRanges>`
-          self.build_response(query, &vcf_key, byte_ranges?)
+          self.build_response(query, &vcf_key, byte_ranges.iter().collect())
         }
         Some(Class::Header) => {
           let byte_ranges = todo!();

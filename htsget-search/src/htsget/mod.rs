@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::storage::StorageError;
-use noodles_core::ParseError;
+use noodles_core::region::ParseError;
 use std::io;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
