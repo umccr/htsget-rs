@@ -1,10 +1,8 @@
 [package]
 name = "htsget-search"
 version = "0.1.0"
-authors = ["Christian Perez Llamas <christian.perez@adevinta.com>"]
+authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 thiserror = "~1.0"
