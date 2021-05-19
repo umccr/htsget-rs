@@ -68,9 +68,9 @@ where
         None | Some(Class::Body) => {
           let _tbi_path = self.storage.get(&vcf_key, GetOptions::default())?; // TODO: Be more flexible/resilient with index files, do not just assume `.tbi` within the same directory 
           //let vcf_index = tabix::read(tbi_path).map_err(|_| HtsGetError::io_error("Reading TBI"))?;
-          let (vcf_reader, vcf_header, vcf_index)  = self.read_vcf(vcf_key)?;
+          let (mut vcf_reader, vcf_header, vcf_index)  = self.read_vcf(vcf_key)?;
 
-          let byte_ranges = match query.reference_name.as_ref() {
+          let query_results = match query.reference_name.as_ref() {
             None => vcf_reader.query(&vcf_index, &Region::All),
             Some(reference_name) if reference_name.as_str() == "*" => {
               vcf_reader.query(&vcf_index, &Region::Unmapped)
@@ -78,12 +78,23 @@ where
             Some(reference_name) => vcf_reader.query(&vcf_index, &Region::from_str(reference_name.as_str())?)              
           };
 
-          self.build_response(query, &vcf_key, byte_ranges.into_iter().collect())
+          // let br = BytesRange::new(query_results.unwrap().start.try_into().unwrap(),
+          //                          query_results.unwrap().end.try_into().unwrap());
+
+          let start_result = query_results.unwrap().start.try_into().unwrap();
+          let end_result = query_results.unwrap().end.try_into().unwrap();
+
+          let br = BytesRange::default().with_start(start_result)
+                                        .with_end(end_result);
+
+          let vbr = vec!(br);
+          self.build_response(query, &vcf_key, vbr)
         }
-        // Some(Class::Header) => {
-        //   let byte_ranges = todo!();
-        //   self.build_response(query, &vcf_key, byte_ranges.into_iter().collect())
-        // }
+        Some(Class::Header) => {
+          todo!()
+          // let byte_ranges = todo!();
+          // self.build_response(query, &vcf_key, byte_ranges.into_iter().collect())
+        }
       }
     }
 
