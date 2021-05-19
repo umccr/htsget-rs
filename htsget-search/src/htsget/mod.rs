@@ -81,6 +81,10 @@ impl From<ParseError> for HtsGetError {
   fn from(err: ParseError) -> Self {
     match err {
       ParseError::Ambiguous => Self::ParseError(format!("Parsing error, ambiguous field")),
+      ParseError::Empty => Self::ParseError(format!("Parsing error, empty field")),
+      ParseError::Invalid => Self::ParseError(format!("Parsing error, invalid field")),
+      ParseError::InvalidStartPosition(_) => Self::ParseError(format!("Parsing error, invalid start position")),
+      ParseError::InvalidEndPosition(_) => Self::ParseError(format!("Parsing error, invalid end position")),
     }
   }
 }
