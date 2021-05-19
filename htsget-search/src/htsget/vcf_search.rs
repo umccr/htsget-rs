@@ -3,6 +3,7 @@
 
 use std::str::FromStr;
 use std::{fs::File, path::Path};//, io::{BufReader}};
+use std::convert::TryInto;
 
 use noodles_core::{Region};
 use noodles_vcf::{self as vcf};
@@ -76,13 +77,13 @@ where
             }
             Some(reference_name) => vcf_reader.query(&vcf_index, &Region::from_str(reference_name.as_str())?)              
           };
-          // TODO: Turn the result from vcf_reader.query into Vec<ByteRanges>`
-          self.build_response(query, &vcf_key, byte_ranges.iter().collect())
+
+          self.build_response(query, &vcf_key, byte_ranges.into_iter().collect())
         }
-        Some(Class::Header) => {
-          let byte_ranges = todo!();
-          self.build_response(query, &vcf_key, byte_ranges)
-        }
+        // Some(Class::Header) => {
+        //   let byte_ranges = todo!();
+        //   self.build_response(query, &vcf_key, byte_ranges.into_iter().collect())
+        // }
       }
     }
 
