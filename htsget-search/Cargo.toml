@@ -9,12 +9,20 @@ thiserror = "~1.0"
 
 # noodles = { version = "0.1.0", git = "https://github.com/zaeleus/noodles.git", features = ["bgzf, sam, bam, vcf, tabix"] }
 
-noodles-core= { path = "../../noodles/noodles-core" } #git = "https://github.com/zaeleus/noodles.git" }
-noodles-bgzf = { path = "../../noodles/noodles-bgzf" } #git = "https://github.com/zaeleus/noodles.git" }
-noodles-bam = { path = "../../noodles/noodles-bam" } #git = "https://github.com/zaeleus/noodles.git" }
-noodles-sam = { path = "../../noodles/noodles-sam" } #git = "https://github.com/zaeleus/noodles.git" }
-noodles-vcf = { path = "../../noodles/noodles-vcf" } #git = "https://github.com/zaeleus/noodles.git" }
-noodles-tabix = { path = "../../noodles/noodles-tabix" } #git = "https://github.com/zaeleus/noodles.git" }
+# noodles-core =  { path = "../../noodles/noodles-core" }
+# noodles-bgzf =  { path = "../../noodles/noodles-bgzf" }
+# noodles-bam =   { path = "../../noodles/noodles-bam" }
+# noodles-sam =   { path = "../../noodles/noodles-sam" }
+# noodles-vcf =   { path = "../../noodles/noodles-vcf" }
+# noodles-tabix = { path = "../../noodles/noodles-tabix" }
+
+noodles-core =  { git = "https://github.com/zaeleus/noodles.git" }
+noodles-bgzf =  { git = "https://github.com/zaeleus/noodles.git" }
+noodles-bam =   { git = "https://github.com/zaeleus/noodles.git" }
+noodles-sam =   { git = "https://github.com/zaeleus/noodles.git" }
+noodles-vcf =   { git = "https://github.com/zaeleus/noodles.git" }
+noodles-tabix = { git = "https://github.com/zaeleus/noodles.git" }
+
 
 [dev-dependencies]
 tempfile = "3.2.0"
