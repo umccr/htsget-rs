@@ -20,7 +20,7 @@ where
   fn search(&self, query: Query) -> Result<Response> {
     match query.format {
       Some(Format::Bam) | None => BamSearch::new(&self.storage).search(query),
-      Some(Format::Vcf) | None => VCFSearch::new(&self.storage).search(query),
+      Some(Format::Vcf) => VCFSearch::new(&self.storage).search(query),
       Some(format) => Err(HtsGetError::unsupported_format(format)),
     }
   }
