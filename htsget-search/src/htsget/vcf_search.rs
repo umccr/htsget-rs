@@ -54,21 +54,19 @@ impl<'a, S> VCFSearch<'a, S>
 where
   S: Storage + 'a,
 {
-    const DEFAULT_BAM_HEADER_LENGTH: u64 = 1024 * 1024; // TODO find a number that makes more sense
-
     pub fn new(storage: &'a S) -> Self {
         Self { storage }
     }
    
     /// TODO: The (VCF)::Reader::query method is mirrored into the BAM implementation, reducing code duplication
     pub fn search(&self, query: Query) -> Result<Response> {
-      let (vcf_key, tbi_key) = self.get_keys_from_id(query.id.as_str());
+      let (vcf_key, _tbi_key) = self.get_keys_from_id(query.id.as_str());
   
       match query.class {
         None | Some(Class::Body) => {
           let _tbi_path = self.storage.get(&vcf_key, GetOptions::default())?; // TODO: Be more flexible/resilient with index files, do not just assume `.tbi` within the same directory 
           //let vcf_index = tabix::read(tbi_path).map_err(|_| HtsGetError::io_error("Reading TBI"))?;
-          let (mut vcf_reader, vcf_header, vcf_index)  = self.read_vcf(vcf_key)?;
+          let (mut vcf_reader, _vcf_header, vcf_index)  = self.read_vcf(&vcf_key)?;
 
           let query_results = match query.reference_name.as_ref() {
             None => vcf_reader.query(&vcf_index, &Region::All),
@@ -76,13 +74,13 @@ where
               vcf_reader.query(&vcf_index, &Region::Unmapped)
             }
             Some(reference_name) => vcf_reader.query(&vcf_index, &Region::from_str(reference_name.as_str())?)              
-          };
+          }?;
 
           // let br = BytesRange::new(query_results.unwrap().start.try_into().unwrap(),
           //                          query_results.unwrap().end.try_into().unwrap());
 
-          let start_result = query_results.unwrap().start.try_into().unwrap();
-          let end_result = query_results.unwrap().end.try_into().unwrap();
+          let start_result = query_results.start.try_into().unwrap();
+          let end_result = query_results.end.try_into().unwrap();
 
           let br = BytesRange::default().with_start(start_result)
                                         .with_end(end_result);

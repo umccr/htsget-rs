@@ -92,7 +92,7 @@ impl From<ParseError> for HtsGetError {
 impl From<io::Error> for HtsGetError {
   fn from(err: io::Error) -> Self {
     match err {
-      io::Error { repr } => Self::io_error("IO Error"),
+      io::Error { .. } => Self::io_error("IO Error"),
     }
   }
 }
