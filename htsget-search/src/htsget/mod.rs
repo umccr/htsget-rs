@@ -4,8 +4,8 @@
 //!
 
 pub mod bam_search;
-pub mod vcf_search;
 pub mod from_storage;
+pub mod vcf_search;
 
 use std::collections::HashMap;
 
@@ -38,7 +38,7 @@ pub enum HtsGetError {
 
   #[error("IO error: {0}")]
   IoError(String),
-  
+
   #[error("Parsing error: {0}")]
   ParseError(String),
 }
@@ -83,8 +83,12 @@ impl From<ParseError> for HtsGetError {
       ParseError::Ambiguous => Self::ParseError(format!("Parsing error, ambiguous field")),
       ParseError::Empty => Self::ParseError(format!("Parsing error, empty field")),
       ParseError::Invalid => Self::ParseError(format!("Parsing error, invalid field")),
-      ParseError::InvalidStartPosition(_) => Self::ParseError(format!("Parsing error, invalid start position")),
-      ParseError::InvalidEndPosition(_) => Self::ParseError(format!("Parsing error, invalid end position")),
+      ParseError::InvalidStartPosition(_) => {
+        Self::ParseError(format!("Parsing error, invalid start position"))
+      }
+      ParseError::InvalidEndPosition(_) => {
+        Self::ParseError(format!("Parsing error, invalid end position"))
+      }
     }
   }
 }
