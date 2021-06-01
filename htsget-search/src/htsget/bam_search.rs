@@ -4,8 +4,7 @@
 use std::{fs::File, path::Path};
 
 use noodles_bam::{self as bam, bai};
-use noodles_bgzf::index::Chunk;
-use noodles_bgzf::index::optimize_chunks;
+use noodles_bgzf::index::{Chunk, optimize_chunks};
 use noodles_bgzf::VirtualPosition;
 use noodles_sam::{self as sam};
 
