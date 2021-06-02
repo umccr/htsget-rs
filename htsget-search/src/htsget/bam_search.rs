@@ -3,8 +3,8 @@
 
 use std::{fs::File, path::Path};
 
-use bam::bai::index::reference_sequence::bin::Chunk;
 use noodles_bam::{self as bam, bai};
+use noodles_bgzf::index::{Chunk, optimize_chunks};
 use noodles_bgzf::VirtualPosition;
 use noodles_sam::{self as sam};
 
@@ -227,7 +227,7 @@ where
 
     let min_offset = bai_ref_seq.min_offset(seq_start);
 
-    let byte_ranges = bai::optimize_chunks(&chunks, min_offset)
+    let byte_ranges = optimize_chunks(&chunks, min_offset)
       .into_iter()
       .map(|chunk| {
         BytesRange::default()
@@ -276,10 +276,10 @@ where
 
 #[cfg(test)]
 pub mod tests {
-
-  use super::*;
   use crate::htsget::Headers;
   use crate::storage::local::LocalStorage;
+
+  use super::*;
 
   #[test]
   fn search_all_reads() {

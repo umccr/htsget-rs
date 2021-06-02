@@ -478,4 +478,30 @@ mod tests {
 
     assert_eq!(BytesRange::merge_all(ranges), expected_ranges);
   }
+
+  #[test]
+  fn get_options_with_max_length() {
+    let result = GetOptions::default().with_max_length(1);
+    assert_eq!(result.range, BytesRange::default().with_start(0).with_end(1));
+  }
+
+  #[test]
+  fn get_options_with_range() {
+    let result = GetOptions::default().with_range(BytesRange::default());
+    assert_eq!(result.range, BytesRange::default());
+  }
+
+  #[test]
+  fn url_options_with_range() {
+    let result = UrlOptions::default().with_range(BytesRange::default());
+    assert_eq!(result.range, BytesRange::default());
+    assert_eq!(result.class, None);
+  }
+
+  #[test]
+  fn url_options_with_class() {
+    let result = UrlOptions::default().with_class(Class::Header);
+    assert_eq!(result.range, BytesRange::default());
+    assert_eq!(result.class, Some(Class::Header));
+  }
 }
