@@ -78,10 +78,7 @@ impl Storage for LocalStorage {
         Headers::default().with_header("Range", format!("bytes={}-{}", range_start, range_end)),
       )
     };
-    let url = match options.class {
-      Some(class) => url.with_class(class),
-      None => url,
-    };
+    let url = url.with_class(options.class);
     Ok(url)
   }
 }

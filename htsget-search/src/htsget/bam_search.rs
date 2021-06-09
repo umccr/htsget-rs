@@ -4,7 +4,7 @@
 use std::{fs::File, path::Path};
 
 use noodles_bam::{self as bam, bai};
-use noodles_bgzf::index::{Chunk, optimize_chunks};
+use noodles_bgzf::index::{optimize_chunks, Chunk};
 use noodles_bgzf::VirtualPosition;
 use noodles_sam::{self as sam};
 
@@ -64,7 +64,7 @@ where
     let (bam_key, bai_key) = self.get_keys_from_id(query.id.as_str());
 
     match query.class {
-      None | Some(Class::Body) => {
+      Class::Body => {
         let bai_path = self.storage.get(&bai_key, GetOptions::default())?;
         let bai_index = bai::read(bai_path).map_err(|_| HtsGetError::io_error("Reading BAI"))?;
 
@@ -82,7 +82,7 @@ where
         };
         self.build_response(query, &bam_key, byte_ranges)
       }
-      Some(Class::Header) => {
+      Class::Header => {
         let byte_ranges = self.get_byte_ranges_for_header();
         self.build_response(query, &bam_key, byte_ranges)
       }
@@ -256,12 +256,9 @@ where
     let urls = byte_ranges
       .into_iter()
       .map(|range| {
-        let options = match query.class.as_ref() {
-          None => UrlOptions::default().with_range(range),
-          Some(class) => UrlOptions::default()
-            .with_range(range)
-            .with_class(class.clone()),
-        };
+        let options = UrlOptions::default()
+          .with_range(range)
+          .with_class(query.class.clone());
         self
           .storage
           .url(&bam_key, options)
