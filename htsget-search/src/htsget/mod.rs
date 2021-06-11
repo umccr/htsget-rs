@@ -107,7 +107,7 @@ impl From<io::Error> for HtsGetError {
 pub struct Query {
   pub id: String,
   pub format: Option<Format>,
-  pub class: Option<Class>,
+  pub class: Class,
   /// Reference name
   pub reference_name: Option<String>,
   /// sequence start position (1-based)
@@ -124,7 +124,7 @@ impl Query {
     Self {
       id: id.into(),
       format: None,
-      class: None,
+      class: Class::Body,
       reference_name: None,
       start: None,
       end: None,
@@ -140,7 +140,7 @@ impl Query {
   }
 
   pub fn with_class(mut self, class: Class) -> Self {
-    self.class = Some(class);
+    self.class = class;
     self
   }
 
@@ -245,7 +245,7 @@ impl Default for Headers {
 pub struct Url {
   pub url: String,
   pub headers: Option<Headers>,
-  pub class: Option<Class>,
+  pub class: Class,
 }
 
 impl Url {
@@ -253,7 +253,7 @@ impl Url {
     Self {
       url: url.into(),
       headers: None,
-      class: None,
+      class: Class::Body,
     }
   }
 
@@ -263,7 +263,7 @@ impl Url {
   }
 
   pub fn with_class(mut self, class: Class) -> Self {
-    self.class = Some(class);
+    self.class = class;
     self
   }
 }
