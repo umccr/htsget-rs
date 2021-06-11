@@ -1,10 +1,14 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::{fs::File, path::Path}; //, io::{BufReader}};
 use std::convert::TryInto;
+use std::{fs::File, path::Path}; //, io::{BufReader}};
 
-use noodles_bgzf::{self as bgzf, VirtualPosition, index::{Chunk, optimize_chunks}};
+use noodles_bgzf::{
+  self as bgzf,
+  index::{optimize_chunks, Chunk},
+  VirtualPosition,
+};
 use noodles_tabix::{self as tabix};
 use noodles_vcf::{self as vcf};
 
@@ -60,7 +64,7 @@ where
     let (vcf_key, _tbi_key) = self.get_keys_from_id(query.id.as_str());
 
     match query.class {
-      None | Some(Class::Body) => {
+      Class::Body => {
         let tbi_path = self.storage.get(&vcf_key, GetOptions::default())?; // TODO: Be more flexible/resilient with index files, do not just assume `.tbi` within the same directory
         let vcf_index = tabix::read(tbi_path).map_err(|_| HtsGetError::io_error("Reading TBI"))?;
 
@@ -78,18 +82,15 @@ where
         };
         self.build_response(query, &vcf_key, byte_ranges)
       }
-      Some(Class::Header) => {
+      Class::Header => {
         let byte_ranges = self.get_byte_ranges_for_header();
         self.build_response(query, &vcf_key, byte_ranges)
       }
     }
   }
 
-
   fn get_byte_ranges_for_header(&self) -> Vec<BytesRange> {
-    vec![BytesRange::default()
-      .with_start(0)
-      .with_end(4096)] // XXX: Check spec
+    vec![BytesRange::default().with_start(0).with_end(4096)] // XXX: Check spec
   }
 
   fn get_byte_ranges_for_reference_name(
@@ -123,7 +124,7 @@ where
     }?;
     Ok(byte_ranges)
   }
-  
+
   fn get_byte_ranges_for_reference_sequence(
     vcf_ref_seq: &vcf::header::Samples,
     vcf_ref_seq_idx: usize,
@@ -139,8 +140,7 @@ where
       .ok_or_else(|| {
         HtsGetError::not_found(format!(
           "Reference not found in the TBI file: {} ({})",
-          vcf_ref_seq,
-          vcf_ref_seq_idx
+          vcf_ref_seq, vcf_ref_seq_idx
         ))
       })?;
 
@@ -187,7 +187,7 @@ where
     byte_ranges.extend(unmapped_byte_ranges.into_iter());
     Ok(BytesRange::merge_all(byte_ranges))
   }
-  
+
   fn get_keys_from_id(&self, id: &str) -> (String, String) {
     let vcf_key = format!("{}.vcf.gz", id); // TODO: allow uncompressed, plain, .vcf files
     let tbi_key = format!("{}.vcf.gz.tbi", id);
@@ -227,12 +227,9 @@ where
     let urls = byte_ranges
       .into_iter()
       .map(|range| {
-        let options = match query.class.as_ref() {
-          None => UrlOptions::default().with_range(range),
-          Some(class) => UrlOptions::default()
-            .with_range(range)
-            .with_class(class.clone()),
-        };
+        let options = UrlOptions::default()
+          .with_range(range)
+          .with_class(query.class.clone());
         self
           .storage
           .url(&vcf_key, options)
