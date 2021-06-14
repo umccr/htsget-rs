@@ -1,7 +1,6 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::convert::TryInto;
 use std::{fs::File, path::Path}; //, io::{BufReader}};
 
 use noodles_bgzf::{
@@ -89,8 +88,30 @@ where
     }
   }
 
-  fn get_byte_ranges_for_header(&self) -> Vec<BytesRange> {
-    vec![BytesRange::default().with_start(0).with_end(4096)] // XXX: Check spec
+  fn get_keys_from_id(&self, id: &str) -> (String, String) {
+    let vcf_key = format!("{}.vcf.gz", id); // TODO: allow uncompressed, plain, .vcf files
+    let tbi_key = format!("{}.vcf.gz.tbi", id);
+    (vcf_key, tbi_key)
+  }
+
+  fn get_byte_ranges_for_all_variants(
+    &self,
+    vcf_key: &str,
+    tbi_index: &tabix::Index,
+  ) -> Result<Vec<BytesRange>> {
+    let mut byte_ranges: Vec<BytesRange> = Vec::new();
+    for reference_sequence in tbi_index.reference_sequences() {
+      if let Some(metadata) = reference_sequence.metadata() {
+        let start_vpos = metadata.start_position();
+        let end_vpos = metadata.end_position();
+        byte_ranges.push(
+          BytesRange::default()
+            .with_start(start_vpos.bytes_range_start())
+            .with_end(end_vpos.bytes_range_end()),
+        );
+      }
+    }
+    Ok(BytesRange::merge_all(byte_ranges))
   }
 
   fn get_byte_ranges_for_reference_name(
@@ -102,7 +123,7 @@ where
   ) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default().with_max_length(4096); // XXX: Read spec, what's the max length for this?
     let vcf_path = self.storage.get(vcf_key, get_options)?;
-    let (_, vcf_header, _) = Self::read_vcf(self, &vcf_path)?;
+    let (_, vcf_header) = Self::read_vcf(self, &vcf_path)?;
     let maybe_vcf_ref_seq = vcf_header.sample_names().get_full(reference_name);
 
     let byte_ranges = match maybe_vcf_ref_seq {
@@ -125,6 +146,27 @@ where
     Ok(byte_ranges)
   }
 
+  fn read_vcf<P: AsRef<Path>>(
+    &self,
+    path: P,
+  ) -> Result<(
+    vcf::Reader<noodles_bgzf::Reader<std::fs::File>>,
+    vcf::Header,
+  )> {
+    let mut vcf_reader = File::open(&path)
+      .map(bgzf::Reader::new)
+      .map(vcf::Reader::new)
+      .map_err(|_| HtsGetError::io_error("Reading VCF"))?;
+
+    let vcf_header = vcf_reader
+      .read_header()
+      .map_err(|_| HtsGetError::io_error("Reading VCF header"))?
+      .parse()
+      .map_err(|_| HtsGetError::io_error("Parsing VCF header"))?;
+
+    Ok((vcf_reader, vcf_header))
+  }
+
   fn get_byte_ranges_for_reference_sequence(
     vcf_ref_seq: &vcf::header::Samples,
     vcf_ref_seq_idx: usize,
@@ -133,7 +175,7 @@ where
     seq_end: Option<i32>,
   ) -> Result<Vec<BytesRange>> {
     let seq_start = seq_start.unwrap_or(4096 as i32); // XXX: Check spec
-    let seq_end = seq_end.unwrap_or_else(|| vcf_ref_seq.len().try_into().unwrap()); // XXX: Revisit
+    let seq_end = seq_end.unwrap_or_else(|| vcf_ref_seq.len() as i32); // XXX: Revisit
     let tbi_ref_seq = tbi_index
       .reference_sequences()
       .get(vcf_ref_seq_idx)
@@ -165,57 +207,8 @@ where
     Ok(BytesRange::merge_all(byte_ranges))
   }
 
-  fn get_byte_ranges_for_all_variants(
-    &self,
-    vcf_key: &str,
-    tbi_index: &tabix::Index,
-  ) -> Result<Vec<BytesRange>> {
-    let mut byte_ranges: Vec<BytesRange> = Vec::new();
-    for reference_sequence in tbi_index.reference_sequences() {
-      if let Some(metadata) = reference_sequence.metadata() {
-        let start_vpos = metadata.start_position();
-        let end_vpos = metadata.end_position();
-        byte_ranges.push(
-          BytesRange::default()
-            .with_start(start_vpos.bytes_range_start())
-            .with_end(end_vpos.bytes_range_end()),
-        );
-      }
-    }
-
-    let unmapped_byte_ranges = self.get_byte_ranges_for_all_variants(vcf_key, tbi_index)?;
-    byte_ranges.extend(unmapped_byte_ranges.into_iter());
-    Ok(BytesRange::merge_all(byte_ranges))
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let vcf_key = format!("{}.vcf.gz", id); // TODO: allow uncompressed, plain, .vcf files
-    let tbi_key = format!("{}.vcf.gz.tbi", id);
-    (vcf_key, tbi_key)
-  }
-
-  fn read_vcf<P: AsRef<Path>>(
-    &self,
-    path: P,
-  ) -> Result<(
-    vcf::Reader<noodles_bgzf::Reader<std::fs::File>>,
-    vcf::Header,
-    tabix::Index,
-  )> {
-    let mut vcf_reader = File::open(&path)
-      .map(bgzf::Reader::new)
-      .map(vcf::Reader::new)
-      .map_err(|_| HtsGetError::io_error("Reading VCF"))?;
-
-    let vcf_header = vcf_reader
-      .read_header()
-      .map_err(|_| HtsGetError::io_error("Reading VCF header"))?
-      .parse()
-      .map_err(|_| HtsGetError::io_error("Parsing VCF header"))?;
-
-    let vcf_index = tabix::read(&path).map_err(|_| HtsGetError::io_error("Reading index"))?; //+".tbi" is typical vcf index extension, but should be flexible accepting other fnames
-
-    Ok((vcf_reader, vcf_header, vcf_index))
+  fn get_byte_ranges_for_header(&self) -> Vec<BytesRange> {
+    vec![BytesRange::default().with_start(0).with_end(4096)] // XXX: Check spec
   }
 
   fn build_response(
