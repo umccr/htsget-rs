@@ -19,7 +19,7 @@ trait VirtualPositionExt {
   /// Get the starting bytes for a compressed BGZF block.
   fn bytes_range_start(&self) -> u64;
   /// Get the ending bytes for a compressed BGZF block.
-  fn bytes_range_end(&self) -> u64;
+  fn bytes_range_end(&self, reader: &mut bam::Reader<File>) -> u64;
   fn to_string(&self) -> String;
 }
 
@@ -32,15 +32,36 @@ impl VirtualPositionExt for VirtualPosition {
   /// But when we need to translate it into a byte range, we need to make sure
   /// the reads falling inside that block are also included, which requires to know
   /// where that block ends, which is not trivial nor possible for the last block.
-  /// The simple solution goes through adding the maximum BGZF block size,
-  /// so we don't loose any read (although adding extra unneeded reads to the query results).
-  fn bytes_range_end(&self) -> u64 {
-    self.compressed() + Self::MAX_BLOCK_SIZE
+  /// The solution used here goes through reading the records starting at the compressed
+  /// virtual offset (coffset) of the end position (remember this will always be the
+  /// start of a BGZF block). If we read the records pointed by that coffset until we
+  /// reach a different coffset, we can find out where the current block ends.
+  /// Therefore this can be used to only add the required bytes in the query results.
+  /// If for some reason we can't read correctly the records we fall back
+  /// to adding the maximum BGZF block size.
+  fn bytes_range_end(&self, reader: &mut bam::Reader<File>) -> u64 {
+    get_next_block_position(*self, reader).unwrap_or(self.compressed() + Self::MAX_BLOCK_SIZE)
   }
 
   fn to_string(&self) -> String {
     format!("{}/{}", self.compressed(), self.uncompressed())
   }
+}
+
+fn get_next_block_position(
+  block_position: VirtualPosition,
+  reader: &mut bam::Reader<File>,
+) -> Option<u64> {
+  reader.seek(block_position).ok()?;
+  let next_block_index = loop {
+    let mut record = bam::Record::default();
+    reader.read_record(&mut record).ok()?;
+    let actual_block_index = reader.virtual_position().compressed();
+    if actual_block_index > block_position.compressed() {
+      break actual_block_index;
+    }
+  };
+  Some(next_block_index)
 }
 
 pub(crate) struct BamSearch<'a, S> {
@@ -106,6 +127,9 @@ where
     bai_index: &bai::Index,
   ) -> Result<Vec<BytesRange>> {
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
+    let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
+    let bam_path = self.storage.get(bam_key, get_options)?;
+    let mut bam_reader = Self::get_bam_reader(bam_path)?;
     for reference_sequence in bai_index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
         let start_vpos = metadata.start_position();
@@ -113,7 +137,7 @@ where
         byte_ranges.push(
           BytesRange::default()
             .with_start(start_vpos.bytes_range_start())
-            .with_end(end_vpos.bytes_range_end()),
+            .with_end(end_vpos.bytes_range_end(&mut bam_reader)),
         );
       }
     }
@@ -161,7 +185,7 @@ where
   ) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
     let bam_path = self.storage.get(bam_key, get_options)?;
-    let (_, bam_header) = Self::read_bam_header(&bam_path)?;
+    let (mut bam_reader, bam_header) = Self::read_bam_header(&bam_path)?;
     let maybe_bam_ref_seq = bam_header.reference_sequences().get_full(reference_name);
 
     let byte_ranges = match maybe_bam_ref_seq {
@@ -178,6 +202,7 @@ where
           bai_index,
           seq_start,
           seq_end,
+          &mut bam_reader,
         )
       }
     }?;
@@ -185,9 +210,7 @@ where
   }
 
   fn read_bam_header<P: AsRef<Path>>(path: P) -> Result<(bam::Reader<File>, sam::Header)> {
-    let mut bam_reader = File::open(path.as_ref())
-      .map(bam::Reader::new)
-      .map_err(|_| HtsGetError::io_error("Reading BAM"))?;
+    let mut bam_reader = Self::get_bam_reader(path)?;
 
     let bam_header = bam_reader
       .read_header()
@@ -198,12 +221,19 @@ where
     Ok((bam_reader, bam_header))
   }
 
+  fn get_bam_reader<P: AsRef<Path>>(path: P) -> Result<bam::Reader<File>> {
+    File::open(path.as_ref())
+      .map(bam::Reader::new)
+      .map_err(|_| HtsGetError::io_error("Reading BAM"))
+  }
+
   fn get_byte_ranges_for_reference_sequence(
     bam_ref_seq: &sam::header::ReferenceSequence,
     bam_ref_seq_idx: usize,
     bai_index: &bai::Index,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
+    bam_reader: &mut bam::Reader<File>,
   ) -> Result<Vec<BytesRange>> {
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
     let seq_end = seq_end.unwrap_or_else(|| bam_ref_seq.len());
@@ -232,7 +262,7 @@ where
       .map(|chunk| {
         BytesRange::default()
           .with_start(chunk.start().bytes_range_start())
-          .with_end(chunk.end().bytes_range_end())
+          .with_end(chunk.end().bytes_range_end(bam_reader))
       })
       .collect();
 
@@ -323,7 +353,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url(&storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=977196-2177677"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=977196-2125492"))],
       ));
       assert_eq!(response, expected_response)
     });
@@ -344,11 +374,11 @@ pub mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=256721-693523")),
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-643947")),
           Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=824361-889897")),
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-840476")),
           Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-1042732")),
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-996261")),
         ],
       ));
       assert_eq!(response, expected_response)
