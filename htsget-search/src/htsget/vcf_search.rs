@@ -55,6 +55,8 @@ impl<'a, S> VCFSearch<'a, S>
 where
   S: Storage + 'a,
 {
+  const MIN_SEQ_POSITION: i32 = 1; // 1-based
+
   pub fn new(storage: &'a S) -> Self {
     Self { storage }
   }
@@ -68,9 +70,9 @@ where
         let vcf_index = tabix::read(tbi_path).map_err(|_| HtsGetError::io_error("Reading TBI"))?;
 
         let byte_ranges = match query.reference_name.as_ref() {
-          None => self.get_byte_ranges_for_all_variants(vcf_key.as_str(), &vcf_index)?,
+          None => self.get_byte_ranges_for_all_variants(&vcf_index)?,
           Some(reference_name) if reference_name.as_str() == "*" => {
-            self.get_byte_ranges_for_all_variants(vcf_key.as_str(), &vcf_index)?
+            self.get_byte_ranges_for_all_variants(&vcf_index)?
           }
           Some(reference_name) => self.get_byte_ranges_for_reference_name(
             vcf_key.as_str(),
@@ -94,11 +96,7 @@ where
     (vcf_key, tbi_key)
   }
 
-  fn get_byte_ranges_for_all_variants(
-    &self,
-    vcf_key: &str,
-    tbi_index: &tabix::Index,
-  ) -> Result<Vec<BytesRange>> {
+  fn get_byte_ranges_for_all_variants(&self, tbi_index: &tabix::Index) -> Result<Vec<BytesRange>> {
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
     for reference_sequence in tbi_index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
@@ -121,28 +119,31 @@ where
     tbi_index: &tabix::Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default().with_max_length(4096); // XXX: Read spec, what's the max length for this?
+    let get_options = GetOptions::default();
     let vcf_path = self.storage.get(vcf_key, get_options)?;
     let (_, vcf_header) = Self::read_vcf(self, &vcf_path)?;
-    let maybe_vcf_ref_seq = vcf_header.sample_names().get_full(reference_name);
+    let maybe_len = vcf_header
+      .contigs()
+      .get(reference_name)
+      .and_then(|contig| contig.len());
 
-    let byte_ranges = match maybe_vcf_ref_seq {
-      None => Err(HtsGetError::not_found(format!(
-        "Reference name not found: {}",
-        reference_name
-      ))),
-      Some((vcf_ref_seq_idx, vcf_ref_seq)) => {
-        let seq_start = query.start.map(|start| start as i32);
-        let seq_end = query.end.map(|end| end as i32);
-        Self::get_byte_ranges_for_reference_sequence(
-          vcf_ref_seq,
-          vcf_ref_seq_idx,
-          tbi_index,
-          seq_start,
-          seq_end,
-        )
-      }
-    }?;
+    // We are assuming the order of the names and the references sequences
+    // in the index is the same
+    let ref_seq_index = tbi_index
+      .reference_sequence_names()
+      .iter()
+      .enumerate()
+      .find(|(_, name)| name == &reference_name)
+      .map(|(index, _)| index)
+      .ok_or(HtsGetError::not_found(format!(
+        "Reference name not found in the TBI file: {}",
+        reference_name,
+      )))?;
+
+    let seq_start = query.start.map(|start| start as i32);
+    let seq_end = query.end.map(|end| end as i32).and(maybe_len);
+    let byte_ranges =
+      Self::get_byte_ranges_for_reference_sequence(ref_seq_index, tbi_index, seq_start, seq_end)?;
     Ok(byte_ranges)
   }
 
@@ -168,23 +169,15 @@ where
   }
 
   fn get_byte_ranges_for_reference_sequence(
-    vcf_ref_seq: &vcf::header::Samples,
-    vcf_ref_seq_idx: usize,
+    ref_seq_index: usize,
     tbi_index: &tabix::Index,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
   ) -> Result<Vec<BytesRange>> {
-    let seq_start = seq_start.unwrap_or(4096 as i32); // XXX: Check spec
-    let seq_end = seq_end.unwrap_or_else(|| vcf_ref_seq.len() as i32); // XXX: Revisit
-    let tbi_ref_seq = tbi_index
-      .reference_sequences()
-      .get(vcf_ref_seq_idx)
-      .ok_or_else(|| {
-        HtsGetError::not_found(format!(
-          "Reference not found in the TBI file: {} ({})",
-          vcf_ref_seq, vcf_ref_seq_idx
-        ))
-      })?;
+    let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION);
+    // TODO: We should be able to get a fallback value.
+    let seq_end = seq_end.unwrap();
+    let tbi_ref_seq = tbi_index.reference_sequences().get(ref_seq_index).unwrap();
 
     let chunks: Vec<Chunk> = tbi_ref_seq
       .query(seq_start, seq_end)
@@ -193,8 +186,7 @@ where
       .cloned()
       .collect();
 
-    //let min_offset = vcf_ref_seq.
-
+    let min_offset = tbi_ref_seq.min_offset(seq_start);
     let byte_ranges = optimize_chunks(&chunks, min_offset)
       .into_iter()
       .map(|chunk| {
