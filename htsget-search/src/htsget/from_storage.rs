@@ -61,6 +61,7 @@ mod tests {
     })
   }
 
+  #[test]
   fn search_vcf() {
     with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
