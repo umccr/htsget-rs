@@ -39,14 +39,19 @@ impl<S> HtsGetFromStorage<S> {
 #[cfg(test)]
 mod tests {
 
-  use crate::htsget::bam_search::tests::{expected_url, with_local_storage};
+  use crate::htsget::bam_search::tests::{
+    expected_url as bam_expected_url, with_local_storage as bam_with_local_storage,
+  };
+  use crate::htsget::vcf_search::tests::{
+    expected_url as vcf_expected_url, with_local_storage as vcf_with_local_storage,
+  };
   use crate::htsget::{Headers, Url};
 
   use super::*;
 
   #[test]
   fn search_bam() {
-    with_local_storage(|storage| {
+    bam_with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
       let query = Query::new("htsnexus_test_NA12878").with_format(Format::Bam);
       let response = htsget.search(query);
@@ -54,7 +59,7 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url(&htsget.storage()))
+        vec![Url::new(bam_expected_url(&htsget.storage()))
           .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
       ));
       assert_eq!(response, expected_response)
@@ -63,7 +68,7 @@ mod tests {
 
   #[test]
   fn search_vcf() {
-    with_local_storage(|storage| {
+    vcf_with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
       let query = Query::new("spec-v4.3").with_format(Format::Vcf);
       let response = htsget.search(query);
@@ -71,7 +76,7 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(&htsget.storage()))
+        vec![Url::new(vcf_expected_url(&htsget.storage()))
           .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
       ));
       assert_eq!(response, expected_response)

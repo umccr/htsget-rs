@@ -62,11 +62,11 @@ where
   }
 
   pub fn search(&self, query: Query) -> Result<Response> {
-    let (vcf_key, _tbi_key) = self.get_keys_from_id(query.id.as_str());
+    let (vcf_key, tbi_key) = self.get_keys_from_id(query.id.as_str());
 
     match query.class {
       Class::Body => {
-        let tbi_path = self.storage.get(&vcf_key, GetOptions::default())?; // TODO: Be more flexible/resilient with index files, do not just assume `.tbi` within the same directory
+        let tbi_path = self.storage.get(&tbi_key, GetOptions::default())?; // TODO: Be more flexible/resilient with index files, do not just assume `.tbi` within the same directory
         let vcf_index = tabix::read(tbi_path).map_err(|_| HtsGetError::io_error("Reading TBI"))?;
 
         let byte_ranges = match query.reference_name.as_ref() {
@@ -265,7 +265,7 @@ pub mod tests {
       "file://{}",
       storage
         .base_path()
-        .join("sample1-bcbio-cancer.vcf.gc")
+        .join("sample1-bcbio-cancer.vcf.gz")
         .to_string_lossy()
     )
   }
