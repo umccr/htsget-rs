@@ -234,3 +234,47 @@ where
     Ok(Response::new(format, urls))
   }
 }
+
+#[cfg(test)]
+pub mod tests {
+  use crate::htsget::Headers;
+  use crate::storage::local::LocalStorage;
+
+  use super::*;
+
+  #[test]
+  fn search_all_reads() {
+    with_local_storage(|storage| {
+      let search = VCFSearch::new(&storage);
+      let query = Query::new("sample1-bcbio-cancer");
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Vcf,
+        vec![Url::new(expected_url(&storage))
+          .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  pub fn with_local_storage(test: impl Fn(LocalStorage)) {
+    let base_path = std::env::current_dir()
+      .unwrap()
+      .parent()
+      .unwrap()
+      .join("data/vcf");
+    test(LocalStorage::new(base_path).unwrap())
+  }
+
+  pub fn expected_url(storage: &LocalStorage) -> String {
+    format!(
+      "file://{}",
+      storage
+        .base_path()
+        .join("sample1-bcbio-cancer.vcf.gc")
+        .to_string_lossy()
+    )
+  }
+}
