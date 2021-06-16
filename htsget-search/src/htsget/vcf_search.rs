@@ -23,7 +23,7 @@ trait VirtualPositionExt {
   /// Get the starting bytes for a compressed BGZF block.
   fn bytes_range_start(&self) -> u64;
   /// Get the ending bytes for a compressed BGZF block.
-  fn bytes_range_end(&self) -> u64;
+  fn bytes_range_end(&self, reader: &mut vcf::Reader<bgzf::Reader<File>>) -> u64;
   fn to_string(&self) -> String;
 }
 
@@ -36,15 +36,36 @@ impl VirtualPositionExt for VirtualPosition {
   /// But when we need to translate it into a byte range, we need to make sure
   /// the reads falling inside that block are also included, which requires to know
   /// where that block ends, which is not trivial nor possible for the last block.
-  /// The simple solution goes through adding the maximum BGZF block size,
-  /// so we don't loose any read (although adding extra unneeded reads to the query results).
-  fn bytes_range_end(&self) -> u64 {
-    self.compressed() + Self::MAX_BLOCK_SIZE
+  /// The solution used here goes through reading the records starting at the compressed
+  /// virtual offset (coffset) of the end position (remember this will always be the
+  /// start of a BGZF block). If we read the records pointed by that coffset until we
+  /// reach a different coffset, we can find out where the current block ends.
+  /// Therefore this can be used to only add the required bytes in the query results.
+  /// If for some reason we can't read correctly the records we fall back
+  /// to adding the maximum BGZF block size.
+  fn bytes_range_end(&self, reader: &mut vcf::Reader<bgzf::Reader<File>>) -> u64 {
+    get_next_block_position(*self, reader).unwrap_or(self.compressed() + Self::MAX_BLOCK_SIZE)
   }
 
   fn to_string(&self) -> String {
     format!("{}/{}", self.compressed(), self.uncompressed())
   }
+}
+
+fn get_next_block_position(
+  block_position: VirtualPosition,
+  reader: &mut vcf::Reader<bgzf::Reader<File>>,
+) -> Option<u64> {
+  reader.seek(block_position).ok()?;
+  let next_block_index = loop {
+    let mut record = String::new();
+    reader.read_record(&mut record).ok()?;
+    let actual_block_index = reader.virtual_position().compressed();
+    if actual_block_index > block_position.compressed() {
+      break actual_block_index;
+    }
+  };
+  Some(next_block_index)
 }
 
 pub(crate) struct VCFSearch<'a, S> {
@@ -70,9 +91,9 @@ where
         let vcf_index = tabix::read(tbi_path).map_err(|_| HtsGetError::io_error("Reading TBI"))?;
 
         let byte_ranges = match query.reference_name.as_ref() {
-          None => self.get_byte_ranges_for_all_variants(&vcf_index)?,
+          None => self.get_byte_ranges_for_all_variants(&vcf_index, &vcf_key)?,
           Some(reference_name) if reference_name.as_str() == "*" => {
-            self.get_byte_ranges_for_all_variants(&vcf_index)?
+            self.get_byte_ranges_for_all_variants(&vcf_index, &vcf_key)?
           }
           Some(reference_name) => self.get_byte_ranges_for_reference_name(
             vcf_key.as_str(),
@@ -96,7 +117,15 @@ where
     (vcf_key, tbi_key)
   }
 
-  fn get_byte_ranges_for_all_variants(&self, tbi_index: &tabix::Index) -> Result<Vec<BytesRange>> {
+  fn get_byte_ranges_for_all_variants(
+    &self,
+    tbi_index: &tabix::Index,
+    vcf_key: &str,
+  ) -> Result<Vec<BytesRange>> {
+    let get_options = GetOptions::default();
+    let vcf_path = self.storage.get(vcf_key, get_options)?;
+    let (mut vcf_reader, _) = self.read_vcf(vcf_path)?;
+
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
     for reference_sequence in tbi_index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
@@ -105,7 +134,7 @@ where
         byte_ranges.push(
           BytesRange::default()
             .with_start(start_vpos.bytes_range_start())
-            .with_end(end_vpos.bytes_range_end()),
+            .with_end(end_vpos.bytes_range_end(&mut vcf_reader)),
         );
       }
     }
@@ -121,7 +150,7 @@ where
   ) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default();
     let vcf_path = self.storage.get(vcf_key, get_options)?;
-    let (_, vcf_header) = Self::read_vcf(self, &vcf_path)?;
+    let (mut vcf_reader, vcf_header) = Self::read_vcf(self, &vcf_path)?;
     let maybe_len = vcf_header
       .contigs()
       .get(reference_name)
@@ -142,8 +171,13 @@ where
 
     let seq_start = query.start.map(|start| start as i32);
     let seq_end = query.end.map(|end| end as i32).and(maybe_len);
-    let byte_ranges =
-      Self::get_byte_ranges_for_reference_sequence(ref_seq_index, tbi_index, seq_start, seq_end)?;
+    let byte_ranges = Self::get_byte_ranges_for_reference_sequence(
+      &mut vcf_reader,
+      ref_seq_index,
+      tbi_index,
+      seq_start,
+      seq_end,
+    )?;
     Ok(byte_ranges)
   }
 
@@ -169,6 +203,7 @@ where
   }
 
   fn get_byte_ranges_for_reference_sequence(
+    vcf_reader: &mut vcf::Reader<bgzf::Reader<File>>,
     ref_seq_index: usize,
     tbi_index: &tabix::Index,
     seq_start: Option<i32>,
@@ -192,7 +227,7 @@ where
       .map(|chunk| {
         BytesRange::default()
           .with_start(chunk.start().bytes_range_start())
-          .with_end(chunk.end().bytes_range_end())
+          .with_end(chunk.end().bytes_range_end(vcf_reader))
       })
       .collect();
 
