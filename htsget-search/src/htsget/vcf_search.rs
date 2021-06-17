@@ -56,7 +56,7 @@ fn get_next_block_position(
   block_position: VirtualPosition,
   reader: &mut vcf::Reader<bgzf::Reader<File>>,
 ) -> Option<u64> {
-  reader.seek(block_position).ok()?;
+  reader.seek(block_position).ok()?.compressed();
   let next_block_index = loop {
     let mut record = String::new();
     reader.read_record(&mut record).ok()?;
@@ -270,17 +270,17 @@ pub mod tests {
   use super::*;
 
   #[test]
-  fn search_all_reads() {
+  fn search_all_variants() {
     with_local_storage(|storage| {
       let search = VCFSearch::new(&storage);
-      let query = Query::new("sample1-bcbio-cancer");
+      let query = Query::new("spec-v4.3");
       let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
         vec![Url::new(expected_url(&storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-851"))],
       ));
       assert_eq!(response, expected_response)
     });
@@ -300,7 +300,7 @@ pub mod tests {
       "file://{}",
       storage
         .base_path()
-        .join("sample1-bcbio-cancer.vcf.gz")
+        .join("spec-v4.3.vcf.gz")
         .to_string_lossy()
     )
   }

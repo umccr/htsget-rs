@@ -77,7 +77,7 @@ mod tests {
       let expected_response = Ok(Response::new(
         Format::Vcf,
         vec![Url::new(vcf_expected_url(&htsget.storage()))
-          .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-851"))],
       ));
       assert_eq!(response, expected_response)
     })
