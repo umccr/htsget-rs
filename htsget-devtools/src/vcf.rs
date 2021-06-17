@@ -41,6 +41,8 @@ pub fn vcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
     .map(bgzf::Reader::new)
     .map(vcf::Reader::new)?;
 
+  let _ = reader.read_header()?.parse::<vcf::Header>().unwrap();
+
   let mut ref_seqs = Vec::new();
 
   for (index, (name, ref_seq)) in index
