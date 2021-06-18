@@ -170,7 +170,7 @@ where
       )))?;
 
     let seq_start = query.start.map(|start| start as i32);
-    let seq_end = query.end.map(|end| end as i32).and(maybe_len);
+    let seq_end = query.end.map(|end| end as i32).or(maybe_len);
     let byte_ranges = Self::get_byte_ranges_for_reference_sequence(
       &mut vcf_reader,
       ref_seq_index,
@@ -210,9 +210,11 @@ where
     seq_end: Option<i32>,
   ) -> Result<Vec<BytesRange>> {
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION);
-    // TODO: We should be able to get a fallback value.
-    let seq_end = seq_end.unwrap();
-    let tbi_ref_seq = tbi_index.reference_sequences().get(ref_seq_index).unwrap();
+    let seq_end = seq_end.unwrap(); // Needs revisit
+    let tbi_ref_seq = tbi_index
+      .reference_sequences()
+      .get(ref_seq_index)
+      .ok_or(HtsGetError::ParseError(String::from("Parsing TBI file")))?;
 
     let chunks: Vec<Chunk> = tbi_ref_seq
       .query(seq_start, seq_end)
@@ -274,6 +276,23 @@ pub mod tests {
     with_local_storage(|storage| {
       let search = VCFSearch::new(&storage);
       let query = Query::new("spec-v4.3");
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Vcf,
+        vec![Url::new(expected_url(&storage))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-851"))],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  #[test]
+  fn search_reference_name_without_seq_range() {
+    with_local_storage(|storage| {
+      let search = VCFSearch::new(&storage);
+      let query = Query::new("spec-v4.3").with_reference_name("20");
       let response = search.search(query);
       println!("{:#?}", response);
 
