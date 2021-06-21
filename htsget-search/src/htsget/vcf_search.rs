@@ -58,9 +58,13 @@ fn get_next_block_position(
 ) -> Option<u64> {
   reader.seek(block_position).ok()?.compressed();
   let next_block_index = loop {
-    let mut record = String::new();
-    reader.read_record(&mut record).ok()?;
+    let bytes_read = reader.read_record(&mut String::new()).ok()?;
     let actual_block_index = reader.virtual_position().compressed();
+    if bytes_read == 0 {
+      // TODO: This means we reached the EOF. Must be revisited when there is a
+      // call in the Storage trait to know the total size of the file
+      return None;
+    }
     if actual_block_index > block_position.compressed() {
       break actual_block_index;
     }
@@ -210,7 +214,10 @@ where
     seq_end: Option<i32>,
   ) -> Result<Vec<BytesRange>> {
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION);
-    let seq_end = seq_end.unwrap(); // Needs revisit
+    // TODO: The following line needs to be revisited
+    // What should we do if the length of the sequence isn't in the header and hasn't been
+    // specified in the query?
+    let seq_end = seq_end.unwrap();
     let tbi_ref_seq = tbi_index
       .reference_sequences()
       .get(ref_seq_index)
@@ -275,14 +282,15 @@ pub mod tests {
   fn search_all_variants() {
     with_local_storage(|storage| {
       let search = VCFSearch::new(&storage);
-      let query = Query::new("spec-v4.3");
+      let filename = "spec-svs-v4.1";
+      let query = Query::new(filename);
       let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(&storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-851"))],
+        vec![Url::new(expected_url(&storage, filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-66531"))],
       ));
       assert_eq!(response, expected_response)
     });
@@ -292,14 +300,15 @@ pub mod tests {
   fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| {
       let search = VCFSearch::new(&storage);
-      let query = Query::new("spec-v4.3").with_reference_name("20");
+      let filename = "spec-v4.3";
+      let query = Query::new(filename).with_reference_name("20");
       let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(&storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-851"))],
+        vec![Url::new(expected_url(&storage, filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-66359"))],
       ));
       assert_eq!(response, expected_response)
     });
@@ -314,12 +323,12 @@ pub mod tests {
     test(LocalStorage::new(base_path).unwrap())
   }
 
-  pub fn expected_url(storage: &LocalStorage) -> String {
+  pub fn expected_url(storage: &LocalStorage, name: &str) -> String {
     format!(
       "file://{}",
       storage
         .base_path()
-        .join("spec-v4.3.vcf.gz")
+        .join(format!("{}.vcf.gz", name))
         .to_string_lossy()
     )
   }

@@ -71,6 +71,9 @@ pub fn vcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
           });
           last_block = reader.virtual_position();
         }
+        if last_block == reader.virtual_position() {
+          break; //EOF
+        }
       }
       chunks.push(Chunk { start, end, blocks })
     }
