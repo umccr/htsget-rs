@@ -60,12 +60,7 @@ fn get_next_block_position(
   let next_block_index = loop {
     let bytes_read = reader.read_record(&mut String::new()).ok()?;
     let actual_block_index = reader.virtual_position().compressed();
-    if bytes_read == 0 {
-      // TODO: This means we reached the EOF. Must be revisited when there is a
-      // call in the Storage trait to know the total size of the file
-      return None;
-    }
-    if actual_block_index > block_position.compressed() {
+    if bytes_read == 0 || actual_block_index > block_position.compressed() {
       break actual_block_index;
     }
   };
@@ -290,7 +285,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Vcf,
         vec![Url::new(expected_url(&storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-66531"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-1023"))],
       ));
       assert_eq!(response, expected_response)
     });
@@ -308,7 +303,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Vcf,
         vec![Url::new(expected_url(&storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-66359"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-851"))],
       ));
       assert_eq!(response, expected_response)
     });
