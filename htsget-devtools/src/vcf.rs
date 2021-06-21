@@ -33,6 +33,8 @@ pub struct Block {
   start: VirtualPosition,
   #[serde(serialize_with = "serde_virtual_position")]
   end: VirtualPosition,
+  seq_start: i32,
+  seq_end: i32,
 }
 
 pub fn vcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
@@ -62,17 +64,25 @@ pub fn vcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
       let mut blocks = Vec::new();
       reader.seek(start)?;
       let mut last_block = start;
+      let mut seq_start = i32::MAX;
+      let mut seq_end = 0;
       while last_block < end {
-        reader.read_record(&mut String::new())?;
+        let mut record = String::new();
+        let bytes_read = reader.read_record(&mut record)?;
+        if bytes_read == 0 {
+          break; //EOF
+        }
+        let record: vcf::Record = record.parse().unwrap();
+        seq_start = seq_start.min(record.position().into());
+        seq_end = seq_end.max(record.position().into());
         if reader.virtual_position().compressed() != last_block.compressed() {
           blocks.push(Block {
             start: last_block,
             end: reader.virtual_position(),
+            seq_start,
+            seq_end,
           });
           last_block = reader.virtual_position();
-        }
-        if last_block == reader.virtual_position() {
-          break; //EOF
         }
       }
       chunks.push(Chunk { start, end, blocks })
