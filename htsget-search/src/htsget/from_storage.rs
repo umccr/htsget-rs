@@ -70,14 +70,15 @@ mod tests {
   fn search_vcf() {
     vcf_with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
-      let query = Query::new("spec-v4.3").with_format(Format::Vcf);
+      let filename = "spec-v4.3";
+      let query = Query::new(filename).with_format(Format::Vcf);
       let response = htsget.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(vcf_expected_url(&htsget.storage()))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-851"))],
+        vec![Url::new(vcf_expected_url(&htsget.storage(), filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-66359"))],
       ));
       assert_eq!(response, expected_response)
     })
