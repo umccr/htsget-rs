@@ -353,7 +353,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url(&storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=977196-2125492"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=977196-2128166"))],
       ));
       assert_eq!(response, expected_response)
     });
@@ -374,11 +374,11 @@ pub mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=256721-643947")),
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-647346")),
           Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=824361-840476")),
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-842101")),
           Url::new(expected_url(&storage))
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-996261")),
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-996015")),
         ],
       ));
       assert_eq!(response, expected_response)
