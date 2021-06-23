@@ -55,12 +55,7 @@ fn get_next_block_position(
   reader.seek(block_position).ok()?;
   let next_block_index = loop {
     let mut record = bam::Record::default();
-    let bytes_read = reader.read_record(&mut record).ok()?;
-    if bytes_read == 0 {
-      // This means we reached the EOF. Must be revisited when there is a call in the Storage trait
-      // to know the total size of the file
-      return None;
-    }
+    reader.read_record(&mut record).ok()?;
     let actual_block_index = reader.virtual_position().compressed();
     if actual_block_index > block_position.compressed() {
       break actual_block_index;
