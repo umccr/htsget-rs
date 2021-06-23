@@ -155,7 +155,7 @@ impl Default for GetOptions {
 
 pub struct UrlOptions {
   range: BytesRange,
-  class: Option<Class>,
+  class: Class,
 }
 
 impl UrlOptions {
@@ -165,7 +165,7 @@ impl UrlOptions {
   }
 
   pub fn with_class(mut self, class: Class) -> Self {
-    self.class = Some(class);
+    self.class = class;
     self
   }
 }
@@ -174,7 +174,7 @@ impl Default for UrlOptions {
   fn default() -> Self {
     Self {
       range: BytesRange::default(),
-      class: None,
+      class: Class::Body,
     }
   }
 }
@@ -482,7 +482,10 @@ mod tests {
   #[test]
   fn get_options_with_max_length() {
     let result = GetOptions::default().with_max_length(1);
-    assert_eq!(result.range, BytesRange::default().with_start(0).with_end(1));
+    assert_eq!(
+      result.range,
+      BytesRange::default().with_start(0).with_end(1)
+    );
   }
 
   #[test]
@@ -495,13 +498,13 @@ mod tests {
   fn url_options_with_range() {
     let result = UrlOptions::default().with_range(BytesRange::default());
     assert_eq!(result.range, BytesRange::default());
-    assert_eq!(result.class, None);
+    assert_eq!(result.class, Class::Body);
   }
 
   #[test]
   fn url_options_with_class() {
     let result = UrlOptions::default().with_class(Class::Header);
     assert_eq!(result.range, BytesRange::default());
-    assert_eq!(result.class, Some(Class::Header));
+    assert_eq!(result.class, Class::Header);
   }
 }

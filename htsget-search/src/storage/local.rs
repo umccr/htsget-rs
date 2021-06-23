@@ -67,16 +67,18 @@ impl Storage for LocalStorage {
       .end
       .map(|end| end.to_string())
       .unwrap_or_else(|| "".to_string());
-    let headers =
-      Headers::default().with_header("Range", format!("bytes={}-{}", range_start, range_end));
 
     // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
     let path = self.get_path_from_key(key)?;
-    let url = Url::new(format!("file://{}", path.to_string_lossy())).with_headers(headers);
-    let url = match options.class {
-      Some(class) => url.with_class(class),
-      None => url,
+    let url = Url::new(format!("file://{}", path.to_string_lossy()));
+    let url = if range_start.is_empty() && range_end.is_empty() {
+      url
+    } else {
+      url.with_headers(
+        Headers::default().with_header("Range", format!("bytes={}-{}", range_start, range_end)),
+      )
     };
+    let url = url.with_class(options.class);
     Ok(url)
   }
 }
@@ -183,8 +185,7 @@ mod tests {
       let expected = Url::new(format!(
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
-      ))
-      .with_headers(Headers::default().with_header("Range", "bytes=-"));
+      ));
       assert_eq!(result, Ok(expected));
     });
   }
@@ -204,6 +205,26 @@ mod tests {
             storage.base_path().join("key1").to_string_lossy()
           ))
           .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
+        )
+      );
+    });
+  }
+
+  #[test]
+  fn url_of_existing_key_with_specified_open_ended_range() {
+    with_local_storage(|storage| {
+      let result = storage.url(
+        "folder/../key1",
+        UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
+      );
+      assert_eq!(
+        result,
+        Ok(
+          Url::new(format!(
+            "file://{}",
+            storage.base_path().join("key1").to_string_lossy()
+          ))
+          .with_headers(Headers::default().with_header("Range", "bytes=7-"))
         )
       );
     });
