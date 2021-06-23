@@ -68,13 +68,16 @@ pub fn vcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
       let mut seq_end = 0;
       while last_block < end {
         let mut record = String::new();
+        let previous_pos = reader.virtual_position();
         let bytes_read = reader.read_record(&mut record)?;
         if bytes_read == 0 {
           break; //EOF
         }
         let record: vcf::Record = record.parse().unwrap();
-        seq_start = seq_start.min(record.position().into());
-        seq_end = seq_end.max(record.position().into());
+        if previous_pos < end {
+          seq_start = seq_start.min(record.position().into());
+          seq_end = seq_end.max(record.position().into());
+        }
         if reader.virtual_position().compressed() != last_block.compressed() {
           blocks.push(Block {
             start: last_block,
