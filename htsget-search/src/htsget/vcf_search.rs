@@ -44,6 +44,10 @@ impl VirtualPositionExt for VirtualPosition {
   /// If for some reason we can't read correctly the records we fall back
   /// to adding the maximum BGZF block size.
   fn bytes_range_end(&self, reader: &mut vcf::Reader<bgzf::Reader<File>>) -> u64 {
+    if self.uncompressed() == 0 {
+      // If the uncompressed part is exactly zero, we don't need the next block
+      return self.compressed();
+    }
     get_next_block_position(*self, reader).unwrap_or(self.compressed() + Self::MAX_BLOCK_SIZE)
   }
 
@@ -285,7 +289,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Vcf,
         vec![Url::new(expected_url(&storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-1023"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3367"))],
       ));
       assert_eq!(response, expected_response)
     });
@@ -303,7 +307,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Vcf,
         vec![Url::new(expected_url(&storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3395"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-823"))],
       ));
       assert_eq!(response, expected_response)
     });

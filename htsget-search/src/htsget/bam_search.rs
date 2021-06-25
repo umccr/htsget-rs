@@ -40,6 +40,10 @@ impl VirtualPositionExt for VirtualPosition {
   /// If for some reason we can't read correctly the records we fall back
   /// to adding the maximum BGZF block size.
   fn bytes_range_end(&self, reader: &mut bam::Reader<File>) -> u64 {
+    if self.uncompressed() == 0 {
+      // If the uncompressed part is exactly zero, we don't need the next block
+      return self.compressed();
+    }
     get_next_block_position(*self, reader).unwrap_or(self.compressed() + Self::MAX_BLOCK_SIZE)
   }
 
