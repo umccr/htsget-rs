@@ -71,11 +71,11 @@ fn get_next_block_position(
   Some(next_block_index)
 }
 
-pub(crate) struct VCFSearch<'a, S> {
+pub(crate) struct VcfSearch<'a, S> {
   storage: &'a S,
 }
 
-impl<'a, S> VCFSearch<'a, S>
+impl<'a, S> VcfSearch<'a, S>
 where
   S: Storage + 'a,
 {
@@ -280,7 +280,7 @@ pub mod tests {
   #[test]
   fn search_all_variants() {
     with_local_storage(|storage| {
-      let search = VCFSearch::new(&storage);
+      let search = VcfSearch::new(&storage);
       let filename = "sample1-bcbio-cancer";
       let query = Query::new(filename);
       let response = search.search(query);
@@ -298,7 +298,7 @@ pub mod tests {
   #[test]
   fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| {
-      let search = VCFSearch::new(&storage);
+      let search = VcfSearch::new(&storage);
       let filename = "spec-v4.3";
       let query = Query::new(filename).with_reference_name("20");
       let response = search.search(query);
