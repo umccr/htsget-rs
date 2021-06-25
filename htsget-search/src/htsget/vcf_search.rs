@@ -90,7 +90,7 @@ where
 
     match query.class {
       Class::Body => {
-        let tbi_path = self.storage.get(&tbi_key, GetOptions::default())?; // TODO: Be more flexible/resilient with index files, do not just assume `.tbi` within the same directory
+        let tbi_path = self.storage.get(&tbi_key, GetOptions::default())?;
         let vcf_index = tabix::read(tbi_path).map_err(|_| HtsGetError::io_error("Reading TBI"))?;
 
         let byte_ranges = match query.reference_name.as_ref() {
@@ -111,12 +111,17 @@ where
     }
   }
 
+  /// Generate a key for the storage object from an ID
+  /// This may involve a more complex transformation in the future,
+  /// or even require custom implementations depending on the organizational structure
+  /// For now there is a 1:1 mapping to the underlying files
   fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let vcf_key = format!("{}.vcf.gz", id); // TODO: allow uncompressed, plain, .vcf files
+    let vcf_key = format!("{}.vcf.gz", id);
     let tbi_key = format!("{}.vcf.gz.tbi", id);
     (vcf_key, tbi_key)
   }
 
+  /// Returns [byte ranges](BytesRange) that cover all the variants
   fn get_byte_ranges_for_all_variants(
     &self,
     tbi_index: &tabix::Index,
@@ -141,6 +146,8 @@ where
     Ok(BytesRange::merge_all(byte_ranges))
   }
 
+  /// Returns [byte ranges](BytesRange) containing an specific reference sequence.
+  /// Needs a Query
   fn get_byte_ranges_for_reference_name(
     &self,
     vcf_key: &str,
@@ -181,6 +188,7 @@ where
     Ok(byte_ranges)
   }
 
+  /// Creates a VCF reader and reads its header
   fn read_vcf<P: AsRef<Path>>(
     &self,
     path: P,
@@ -202,6 +210,8 @@ where
     Ok((vcf_reader, vcf_header))
   }
 
+  /// Returns [byte ranges](BytesRange) that cover an specific reference sequence.
+  /// Needs the index of the sequence in the Tabix index
   fn get_byte_ranges_for_reference_sequence(
     vcf_reader: &mut vcf::Reader<bgzf::Reader<File>>,
     ref_seq_index: usize,
@@ -239,6 +249,7 @@ where
     Ok(BytesRange::merge_all(byte_ranges))
   }
 
+  /// Returns a [byte range](BytesRange) that covers the header
   fn get_byte_ranges_for_header(&self, vcf_key: &str) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default();
     let vcf_path = self.storage.get(vcf_key, get_options)?;
@@ -249,6 +260,7 @@ where
     Ok(vec![BytesRange::default().with_start(0).with_end(end)])
   }
 
+  /// Builts a [response](Response)
   fn build_response(
     &self,
     query: Query,
