@@ -277,7 +277,7 @@ pub mod tests {
   fn search_all_variants() {
     with_local_storage(|storage| {
       let search = VCFSearch::new(&storage);
-      let filename = "spec-svs-v4.1";
+      let filename = "sample1-bcbio-cancer";
       let query = Query::new(filename);
       let response = search.search(query);
       println!("{:#?}", response);
@@ -303,7 +303,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Vcf,
         vec![Url::new(expected_url(&storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-851"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3395"))],
       ));
       assert_eq!(response, expected_response)
     });
