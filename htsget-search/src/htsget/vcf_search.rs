@@ -95,9 +95,6 @@ where
 
         let byte_ranges = match query.reference_name.as_ref() {
           None => self.get_byte_ranges_for_all_variants(&vcf_index, &vcf_key)?,
-          Some(reference_name) if reference_name.as_str() == "*" => {
-            self.get_byte_ranges_for_all_variants(&vcf_index, &vcf_key)?
-          }
           Some(reference_name) => self.get_byte_ranges_for_reference_name(
             vcf_key.as_str(),
             reference_name,
