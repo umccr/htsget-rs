@@ -1,7 +1,7 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::{fs::File, path::Path}; //, io::{BufReader}};
+use std::{fs::File, path::Path};
 
 use noodles_bgzf::{
   self as bgzf,
@@ -108,7 +108,7 @@ where
         self.build_response(query, &vcf_key, byte_ranges)
       }
       Class::Header => {
-        let byte_ranges = self.get_byte_ranges_for_header();
+        let byte_ranges = self.get_byte_ranges_for_header(vcf_key.as_str())?;
         self.build_response(query, &vcf_key, byte_ranges)
       }
     }
@@ -242,8 +242,14 @@ where
     Ok(BytesRange::merge_all(byte_ranges))
   }
 
-  fn get_byte_ranges_for_header(&self) -> Vec<BytesRange> {
-    vec![BytesRange::default().with_start(0).with_end(4096)] // XXX: Check spec
+  fn get_byte_ranges_for_header(&self, vcf_key: &str) -> Result<Vec<BytesRange>> {
+    let get_options = GetOptions::default();
+    let vcf_path = self.storage.get(vcf_key, get_options)?;
+    let (mut vcf_reader, _) = self.read_vcf(vcf_path)?;
+    let end = vcf_reader
+      .virtual_position()
+      .bytes_range_end(&mut vcf_reader);
+    Ok(vec![BytesRange::default().with_start(0).with_end(end)])
   }
 
   fn build_response(
@@ -329,6 +335,25 @@ pub mod tests {
         Format::Vcf,
         vec![Url::new(expected_url(&storage, filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-3367"))],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  #[test]
+  fn search_header() {
+    with_local_storage(|storage| {
+      let search = VcfSearch::new(&storage);
+      let filename = "spec-v4.3";
+      let query = Query::new(filename).with_class(Class::Header);
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Vcf,
+        vec![Url::new(expected_url(&storage, filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-823"))
+          .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)
     });
