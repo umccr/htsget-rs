@@ -80,6 +80,7 @@ where
   S: Storage + 'a,
 {
   const MIN_SEQ_POSITION: i32 = 1; // 1-based
+  const MAX_SEQ_POSITION: i32 = 37450; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
 
   pub fn new(storage: &'a S) -> Self {
     Self { storage }
@@ -220,17 +221,15 @@ where
     seq_end: Option<i32>,
   ) -> Result<Vec<BytesRange>> {
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION);
-    // TODO: The following line needs to be revisited
-    // What should we do if the length of the sequence isn't in the header and hasn't been
-    // specified in the query?
-    let seq_end = seq_end.unwrap();
+    let seq_end = seq_end.unwrap_or(Self::MAX_SEQ_POSITION);
     let tbi_ref_seq = tbi_index
       .reference_sequences()
       .get(ref_seq_index)
-      .ok_or(HtsGetError::ParseError(String::from("Parsing TBI file")))?;
+      .ok_or_else(|| HtsGetError::ParseError(String::from("Parsing TBI file")))?;
 
     let chunks: Vec<Chunk> = tbi_ref_seq
-      .query(seq_start, seq_end)
+      .query(seq_start..=seq_end)
+      .map_err(|_| HtsGetError::InvalidRange(format!("{}-{}", seq_start, seq_end)))?
       .into_iter()
       .flat_map(|bin| bin.chunks())
       .cloned()
