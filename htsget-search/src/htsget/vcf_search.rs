@@ -172,10 +172,12 @@ where
       .enumerate()
       .find(|(_, name)| name == &reference_name)
       .map(|(index, _)| index)
-      .ok_or(HtsGetError::not_found(format!(
-        "Reference name not found in the TBI file: {}",
-        reference_name,
-      )))?;
+      .ok_or_else(|| {
+        HtsGetError::not_found(format!(
+          "Reference name not found in the TBI file: {}",
+          reference_name,
+        ))
+      })?;
 
     let seq_start = query.start.map(|start| start as i32);
     let seq_end = query.end.map(|end| end as i32).or(maybe_len);

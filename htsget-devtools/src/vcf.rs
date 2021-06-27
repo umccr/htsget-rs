@@ -92,15 +92,15 @@ pub fn vcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
     }
     ref_seqs.push(RefSeq {
       name: name.clone(),
-      index: index,
+      index,
       start: ref_seq
         .metadata()
         .map(|metadata| metadata.start_position())
-        .unwrap_or(VirtualPosition::from(0)),
+        .unwrap_or_else(|| VirtualPosition::from(0)),
       end: ref_seq
         .metadata()
         .map(|metadata| metadata.end_position())
-        .unwrap_or(VirtualPosition::from(0)),
+        .unwrap_or_else(|| VirtualPosition::from(0)),
       chunks,
     })
   }
