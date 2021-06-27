@@ -351,6 +351,23 @@ pub mod tests {
   }
 
   #[test]
+  fn search_reference_name_with_invalid_seq_range() {
+    with_local_storage(|storage| {
+      let search = VcfSearch::new(&storage);
+      let filename = "sample1-bcbio-cancer";
+      let query = Query::new(filename)
+        .with_reference_name("chrM")
+        .with_start(0)
+        .with_end(153);
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Err(HtsGetError::InvalidRange("0-153".to_string()));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  #[test]
   fn search_header() {
     with_local_storage(|storage| {
       let search = VcfSearch::new(&storage);
