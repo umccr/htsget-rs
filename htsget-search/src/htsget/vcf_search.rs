@@ -80,7 +80,7 @@ where
   S: Storage + 'a,
 {
   const MIN_SEQ_POSITION: i32 = 1; // 1-based
-  const MAX_SEQ_POSITION: i32 = 37450; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
+  const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
 
   pub fn new(storage: &'a S) -> Self {
     Self { storage }
