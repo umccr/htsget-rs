@@ -5,12 +5,14 @@
 
 pub mod bam_search;
 pub mod from_storage;
+pub mod vcf_search;
 
 use std::collections::HashMap;
 
 use thiserror::Error;
 
 use crate::storage::StorageError;
+use std::io;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
 
@@ -35,6 +37,9 @@ pub enum HtsGetError {
 
   #[error("IO error: {0}")]
   IoError(String),
+
+  #[error("Parsing error: {0}")]
+  ParseError(String),
 }
 
 impl HtsGetError {
@@ -67,6 +72,12 @@ impl From<StorageError> for HtsGetError {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
     }
+  }
+}
+
+impl From<io::Error> for HtsGetError {
+  fn from(_: io::Error) -> Self {
+    Self::io_error("IO Error")
   }
 }
 
@@ -347,7 +358,10 @@ mod tests {
   #[test]
   fn query_with_no_tags() {
     let result = Query::new("NA12878").with_no_tags(vec!["RG", "OQ"]);
-    assert_eq!(result.no_tags, Some(vec!["RG".to_string(), "OQ".to_string()]));
+    assert_eq!(
+      result.no_tags,
+      Some(vec!["RG".to_string(), "OQ".to_string()])
+    );
   }
 
   #[test]
@@ -376,8 +390,7 @@ mod tests {
 
   #[test]
   fn headers_with_header() {
-    let header = Headers::new(HashMap::new())
-        .with_header("Range", "bytes=0-1023");
+    let header = Headers::new(HashMap::new()).with_header("Range", "bytes=0-1023");
     let result = header.0.get("Range");
     assert_eq!(result, Some(&"bytes=0-1023".to_string()));
   }
@@ -398,14 +411,14 @@ mod tests {
   #[test]
   fn url_with_headers() {
     let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
-        .with_headers(Headers::new(HashMap::new()));
+      .with_headers(Headers::new(HashMap::new()));
     assert_eq!(result.headers, None);
   }
 
   #[test]
   fn url_with_class() {
-    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
-        .with_class(Class::Header);
+    let result =
+      Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").with_class(Class::Header);
     assert_eq!(result.class, Class::Header);
   }
 
@@ -413,9 +426,12 @@ mod tests {
   fn response_new() {
     let result = Response::new(
       Format::Bam,
-      vec![Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")]
+      vec![Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")],
     );
     assert_eq!(result.format, Format::Bam);
-    assert_eq!(result.urls, vec![Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")]);
+    assert_eq!(
+      result.urls,
+      vec![Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")]
+    );
   }
 }

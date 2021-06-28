@@ -40,6 +40,10 @@ impl VirtualPositionExt for VirtualPosition {
   /// If for some reason we can't read correctly the records we fall back
   /// to adding the maximum BGZF block size.
   fn bytes_range_end(&self, reader: &mut bam::Reader<File>) -> u64 {
+    if self.uncompressed() == 0 {
+      // If the uncompressed part is exactly zero, we don't need the next block
+      return self.compressed();
+    }
     get_next_block_position(*self, reader).unwrap_or(self.compressed() + Self::MAX_BLOCK_SIZE)
   }
 
@@ -55,9 +59,9 @@ fn get_next_block_position(
   reader.seek(block_position).ok()?;
   let next_block_index = loop {
     let mut record = bam::Record::default();
-    reader.read_record(&mut record).ok()?;
+    let bytes_read = reader.read_record(&mut record).ok()?;
     let actual_block_index = reader.virtual_position().compressed();
-    if actual_block_index > block_position.compressed() {
+    if bytes_read == 0 || actual_block_index > block_position.compressed() {
       break actual_block_index;
     }
   };
@@ -249,7 +253,8 @@ where
       })?;
 
     let chunks: Vec<Chunk> = bai_ref_seq
-      .query(seq_start, seq_end)
+      .query(seq_start..=seq_end)
+      .map_err(|_| HtsGetError::InvalidRange(format!("{}-{}", seq_start, seq_end)))?
       .into_iter()
       .flat_map(|bin| bin.chunks())
       .cloned()
