@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::storage::StorageError;
-use noodles_core::region::ParseError;
 use std::io;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
@@ -71,23 +70,6 @@ impl From<StorageError> for HtsGetError {
       StorageError::NotFound(key) => Self::NotFound(format!("Not found in storage: {}", key)),
       StorageError::InvalidKey(key) => {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
-      }
-    }
-  }
-}
-
-// TODO: See if there's a way to proxy the ParseErrors from noodles_core without repeating them here with our custom messages.
-impl From<ParseError> for HtsGetError {
-  fn from(err: ParseError) -> Self {
-    match err {
-      ParseError::Ambiguous => Self::ParseError("Parsing error, ambiguous field".to_string()),
-      ParseError::Empty => Self::ParseError("Parsing error, empty field".to_string()),
-      ParseError::Invalid => Self::ParseError("Parsing error, invalid field".to_string()),
-      ParseError::InvalidStartPosition(_) => {
-        Self::ParseError("Parsing error, invalid start position".to_string())
-      }
-      ParseError::InvalidEndPosition(_) => {
-        Self::ParseError("Parsing error, invalid end position".to_string())
       }
     }
   }
