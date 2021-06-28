@@ -253,7 +253,8 @@ where
       })?;
 
     let chunks: Vec<Chunk> = bai_ref_seq
-      .query(seq_start, seq_end)
+      .query(seq_start..=seq_end)
+      .map_err(|_| HtsGetError::InvalidRange(format!("{}-{}", seq_start, seq_end)))?
       .into_iter()
       .flat_map(|bin| bin.chunks())
       .cloned()
