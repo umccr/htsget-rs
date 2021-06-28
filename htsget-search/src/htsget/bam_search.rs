@@ -76,9 +76,6 @@ impl<'a, S> BamSearch<'a, S>
 where
   S: Storage + 'a,
 {
-  /// 1 Mb
-  const DEFAULT_BAM_HEADER_LENGTH: u64 = 1024 * 1024; // TODO find a number that makes more sense
-
   const MIN_SEQ_POSITION: u32 = 1; // 1-based
 
   pub fn new(storage: &'a S) -> Self {
@@ -108,7 +105,7 @@ where
         self.build_response(query, &bam_key, byte_ranges)
       }
       Class::Header => {
-        let byte_ranges = self.get_byte_ranges_for_header();
+        let byte_ranges = self.get_byte_ranges_for_header(&bam_key)?;
         self.build_response(query, &bam_key, byte_ranges)
       }
     }
@@ -131,7 +128,7 @@ where
     bai_index: &bai::Index,
   ) -> Result<Vec<BytesRange>> {
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
-    let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
+    let get_options = GetOptions::default();
     let bam_path = self.storage.get(bam_key, get_options)?;
     let mut bam_reader = Self::get_bam_reader(bam_path)?;
     for reference_sequence in bai_index.reference_sequences() {
@@ -166,7 +163,7 @@ where
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
+        let get_options = GetOptions::default();
         let bam_path = self.storage.get(bam_key, get_options)?;
         let (bam_reader, _) = Self::read_bam_header(&bam_path)?;
         bam_reader.virtual_position()
@@ -187,7 +184,7 @@ where
     bai_index: &bai::Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default().with_max_length(Self::DEFAULT_BAM_HEADER_LENGTH);
+    let get_options = GetOptions::default();
     let bam_path = self.storage.get(bam_key, get_options)?;
     let (mut bam_reader, bam_header) = Self::read_bam_header(&bam_path)?;
     let maybe_bam_ref_seq = bam_header.reference_sequences().get_full(reference_name);
@@ -275,10 +272,14 @@ where
   }
 
   /// Returns the header bytes range.
-  fn get_byte_ranges_for_header(&self) -> Vec<BytesRange> {
-    vec![BytesRange::default()
-      .with_start(0)
-      .with_end(Self::DEFAULT_BAM_HEADER_LENGTH)]
+  fn get_byte_ranges_for_header(&self, bam_key: &str) -> Result<Vec<BytesRange>> {
+    let get_options = GetOptions::default();
+    let bam_path = self.storage.get(bam_key, get_options)?;
+    let (mut reader, _) = Self::read_bam_header(&bam_path)?;
+    reader.read_reference_sequences()?;
+    Ok(vec![BytesRange::default().with_start(0).with_end(
+      reader.virtual_position().bytes_range_end(&mut reader),
+    )])
   }
 
   /// Build the response from the query using urls.
@@ -401,7 +402,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url(&storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-1048576"))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-4668"))
           .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)
