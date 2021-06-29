@@ -4,6 +4,7 @@
 //!
 
 pub mod bam_search;
+pub mod bcf_search;
 pub mod from_storage;
 pub mod vcf_search;
 

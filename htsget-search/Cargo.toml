@@ -21,6 +21,7 @@ noodles-bgzf =  { git = "https://github.com/zaeleus/noodles.git" }
 noodles-bam =   { git = "https://github.com/zaeleus/noodles.git" }
 noodles-sam =   { git = "https://github.com/zaeleus/noodles.git" }
 noodles-vcf =   { git = "https://github.com/zaeleus/noodles.git" }
+noodles-bcf =   { git = "https://github.com/zaeleus/noodles.git" }
 noodles-tabix = { git = "https://github.com/zaeleus/noodles.git" }
 
 
