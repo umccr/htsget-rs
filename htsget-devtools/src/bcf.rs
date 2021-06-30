@@ -42,23 +42,14 @@ pub fn bcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
   let mut reader = File::open(path.as_ref()).map(bcf::Reader::new)?;
   let index = csi::read(path.as_ref().with_extension("gz.csi"))?;
 
+  let _ = reader.read_file_format()?;
   let _ = reader.read_header()?.parse::<vcf::Header>().unwrap();
-
-  let mut s = bcf::Record::default();
-  loop {
-    reader.read_record(&mut s)?;
-    if s.is_empty() {
-      break;
-    }
-    dbg!(s.position());
-  }
-  return Ok(vec![]);
 
   let mut ref_seqs = Vec::new();
 
   for (index, ref_seq) in index.reference_sequences().iter().enumerate() {
     let mut chunks = Vec::new();
-    let id = 0;
+    let mut id = 0;
 
     for (start, end) in ref_seq
       .bins()
