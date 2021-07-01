@@ -8,7 +8,7 @@ use noodles_bgzf::{
   index::{optimize_chunks, Chunk},
   VirtualPosition,
 };
-use noodles_tabix::{self as tabix};
+use noodles_csi::{self as csi};
 use noodles_vcf::{self as vcf};
 
 use crate::{
@@ -87,12 +87,12 @@ where
   }
 
   pub fn search(&self, query: Query) -> Result<Response> {
-    let (bcf_key, tbi_key) = self.get_keys_from_id(query.id.as_str());
+    let (bcf_key, csi_key) = self.get_keys_from_id(query.id.as_str());
 
     match query.class {
       Class::Body => {
-        let tbi_path = self.storage.get(&tbi_key, GetOptions::default())?;
-        let bcf_index = tabix::read(tbi_path).map_err(|_| HtsGetError::io_error("Reading TBI"))?;
+        let csi_path = self.storage.get(&csi_key, GetOptions::default())?;
+        let bcf_index = csi::read(csi_path).map_err(|_| HtsGetError::io_error("Reading CSI"))?;
 
         let byte_ranges = match query.reference_name.as_ref() {
           None => self.get_byte_ranges_for_all_variants(&bcf_index, &bcf_key)?,
@@ -118,14 +118,14 @@ where
   /// For now there is a 1:1 mapping to the underlying files
   fn get_keys_from_id(&self, id: &str) -> (String, String) {
     let bcf_key = format!("{}.bcf", id);
-    let tbi_key = format!("{}.bcf.tbi", id);
-    (bcf_key, tbi_key)
+    let csi_key = format!("{}.bcf.csi", id);
+    (bcf_key, csi_key)
   }
 
   /// Returns [byte ranges](BytesRange) that cover all the variants
   fn get_byte_ranges_for_all_variants(
     &self,
-    tbi_index: &tabix::Index,
+    csi_index: &csi::Index,
     bcf_key: &str,
   ) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default();
@@ -133,7 +133,7 @@ where
     let (mut bcf_reader, _) = self.read_bcf(bcf_path)?;
 
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
-    for reference_sequence in tbi_index.reference_sequences() {
+    for reference_sequence in csi_index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
         let start_vpos = metadata.start_position();
         let end_vpos = metadata.end_position();
@@ -153,38 +153,33 @@ where
     &self,
     bcf_key: &str,
     reference_name: &str,
-    tbi_index: &tabix::Index,
+    csi_index: &csi::Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default();
     let bcf_path = self.storage.get(bcf_key, get_options)?;
     let (mut bcf_reader, header) = Self::read_bcf(self, &bcf_path)?;
-    let maybe_len = header
-      .contigs()
-      .get(reference_name)
-      .and_then(|contig| contig.len());
-
-    // We are assuming the order of the names and the references sequences
+    // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
-    let ref_seq_index = tbi_index
-      .reference_sequence_names()
+    let (ref_seq_index, (_, contig)) = header
+      .contigs()
       .iter()
       .enumerate()
-      .find(|(_, name)| name == &reference_name)
-      .map(|(index, _)| index)
+      .find(|(_, (name, _))| name == &reference_name)
       .ok_or_else(|| {
         HtsGetError::not_found(format!(
-          "Reference name not found in the TBI file: {}",
+          "Reference name not found in the header: {}",
           reference_name,
         ))
       })?;
+    let maybe_len = contig.len();
 
     let seq_start = query.start.map(|start| start as i32);
     let seq_end = query.end.map(|end| end as i32).or(maybe_len);
     let byte_ranges = Self::get_byte_ranges_for_reference_sequence(
       &mut bcf_reader,
       ref_seq_index,
-      tbi_index,
+      csi_index,
       seq_start,
       seq_end,
     )?;
@@ -196,6 +191,7 @@ where
     let mut bcf_reader = File::open(&path)
       .map(bcf::Reader::new)
       .map_err(|_| HtsGetError::io_error("Reading BCF"))?;
+    let _ = bcf_reader.read_file_format()?;
 
     let header = bcf_reader
       .read_header()
@@ -207,30 +203,37 @@ where
   }
 
   /// Returns [byte ranges](BytesRange) that cover an specific reference sequence.
-  /// Needs the index of the sequence in the Tabix index
+  /// Needs the index of the sequence in the CSI index
   fn get_byte_ranges_for_reference_sequence(
     bcf_reader: &mut bcf::Reader<File>,
     ref_seq_index: usize,
-    tbi_index: &tabix::Index,
+    csi_index: &csi::Index,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
   ) -> Result<Vec<BytesRange>> {
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION);
     let seq_end = seq_end.unwrap_or(Self::MAX_SEQ_POSITION);
-    let tbi_ref_seq = tbi_index
+    let csi_ref_seq = csi_index
       .reference_sequences()
       .get(ref_seq_index)
-      .ok_or_else(|| HtsGetError::ParseError(String::from("Parsing TBI file")))?;
+      .ok_or_else(|| HtsGetError::ParseError(String::from("Parsing CSI file")))?;
 
-    let chunks: Vec<Chunk> = tbi_ref_seq
-      .query(seq_start..=seq_end)
+    let chunks: Vec<Chunk> = csi_ref_seq
+      .query(
+        csi_index.min_shift(),
+        csi_index.depth(),
+        seq_start as i64..=seq_end as i64,
+      )
       .map_err(|_| HtsGetError::InvalidRange(format!("{}-{}", seq_start, seq_end)))?
       .into_iter()
       .flat_map(|bin| bin.chunks())
       .cloned()
       .collect();
 
-    let min_offset = tbi_ref_seq.min_offset(seq_start);
+    let min_offset = csi_ref_seq
+      .metadata()
+      .map(|metadata| metadata.start_position())
+      .unwrap_or(VirtualPosition::from(0));
     let byte_ranges = optimize_chunks(&chunks, min_offset)
       .into_iter()
       .map(|chunk| {

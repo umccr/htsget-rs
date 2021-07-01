@@ -23,6 +23,7 @@ noodles-sam =   { git = "https://github.com/zaeleus/noodles.git" }
 noodles-vcf =   { git = "https://github.com/zaeleus/noodles.git" }
 noodles-bcf =   { git = "https://github.com/zaeleus/noodles.git" }
 noodles-tabix = { git = "https://github.com/zaeleus/noodles.git" }
+noodles-csi = { git = "https://github.com/zaeleus/noodles.git" }
 
 
 [dev-dependencies]
