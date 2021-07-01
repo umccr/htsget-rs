@@ -325,6 +325,63 @@ pub mod tests {
     });
   }
 
+  #[test]
+  fn search_reference_name_with_seq_range() {
+    with_local_storage(|storage| {
+      let search = BcfSearch::new(&storage);
+      let filename = "sample1-bcbio-cancer";
+      let query = Query::new(filename)
+        .with_reference_name("chrM")
+        .with_start(151)
+        .with_end(153);
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bcf,
+        vec![Url::new(expected_url(&storage, filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3530"))],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  #[test]
+  fn search_reference_name_with_invalid_seq_range() {
+    with_local_storage(|storage| {
+      let search = BcfSearch::new(&storage);
+      let filename = "sample1-bcbio-cancer";
+      let query = Query::new(filename)
+        .with_reference_name("chrM")
+        .with_start(0)
+        .with_end(153);
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Err(HtsGetError::InvalidRange("0-153".to_string()));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  #[test]
+  fn search_header() {
+    with_local_storage(|storage| {
+      let search = BcfSearch::new(&storage);
+      let filename = "vcf-spec-v4.3";
+      let query = Query::new(filename).with_class(Class::Header);
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bcf,
+        vec![Url::new(expected_url(&storage, filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-950"))
+          .with_class(Class::Header)],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
   pub fn with_local_storage(test: impl Fn(LocalStorage)) {
     let base_path = std::env::current_dir()
       .unwrap()
