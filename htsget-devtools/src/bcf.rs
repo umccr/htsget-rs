@@ -10,7 +10,7 @@ use noodles_vcf::{self as vcf};
 
 #[derive(Debug, Serialize)]
 pub struct RefSeq {
-  id: i32,
+  name: String,
   index: usize,
   #[serde(serialize_with = "serde_virtual_position")]
   start: VirtualPosition,
@@ -43,7 +43,7 @@ pub fn bcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
   let index = csi::read(path.as_ref().with_extension("gz.csi"))?;
 
   let _ = reader.read_file_format()?;
-  let _ = reader.read_header()?.parse::<vcf::Header>().unwrap();
+  let header = reader.read_header()?.parse::<vcf::Header>().unwrap();
 
   let mut ref_seqs = Vec::new();
 
@@ -87,7 +87,7 @@ pub fn bcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
       chunks.push(Chunk { start, end, blocks })
     }
     ref_seqs.push(RefSeq {
-      id,
+      name: header.contigs()[id as usize].id().to_string(),
       index,
       start: ref_seq
         .metadata()
