@@ -117,8 +117,8 @@ where
   /// or even require custom implementations depending on the organizational structure
   /// For now there is a 1:1 mapping to the underlying files
   fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let bcf_key = format!("{}.bcf", id);
-    let csi_key = format!("{}.bcf.csi", id);
+    let bcf_key = format!("{}.bcf.gz", id);
+    let csi_key = format!("{}.bcf.gz.csi", id);
     (bcf_key, csi_key)
   }
 
@@ -289,6 +289,42 @@ pub mod tests {
 
   use super::*;
 
+  #[test]
+  fn search_all_variants() {
+    with_local_storage(|storage| {
+      let search = BcfSearch::new(&storage);
+      let filename = "sample1-bcbio-cancer";
+      let query = Query::new(filename);
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bcf,
+        vec![Url::new(expected_url(&storage, filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3530"))],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
+  #[test]
+  fn search_reference_name_without_seq_range() {
+    with_local_storage(|storage| {
+      let search = BcfSearch::new(&storage);
+      let filename = "vcf-spec-v4.3";
+      let query = Query::new(filename).with_reference_name("20");
+      let response = search.search(query);
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bcf,
+        vec![Url::new(expected_url(&storage, filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-950"))],
+      ));
+      assert_eq!(response, expected_response)
+    });
+  }
+
   pub fn with_local_storage(test: impl Fn(LocalStorage)) {
     let base_path = std::env::current_dir()
       .unwrap()
@@ -303,7 +339,7 @@ pub mod tests {
       "file://{}",
       storage
         .base_path()
-        .join(format!("{}.bcf", name))
+        .join(format!("{}.bcf.gz", name))
         .to_string_lossy()
     )
   }
