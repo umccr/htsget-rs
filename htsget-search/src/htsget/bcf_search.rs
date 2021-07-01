@@ -233,7 +233,7 @@ where
     let min_offset = csi_ref_seq
       .metadata()
       .map(|metadata| metadata.start_position())
-      .unwrap_or(VirtualPosition::from(0));
+      .unwrap_or_else(|| VirtualPosition::from(0));
     let byte_ranges = optimize_chunks(&chunks, min_offset)
       .into_iter()
       .map(|chunk| {
