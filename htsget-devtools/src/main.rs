@@ -25,7 +25,7 @@ fn main() {
     .unwrap()
     .join("data")
     .join("bcf")
-    .join("vcf-spec-v4.3.bcf.gz");
+    .join("vcf-spec-v4.3.bcf");
 
   let ref_seqs = bcf::bcf_blocks(path).unwrap();
   println!("{}", serde_yaml::to_string(&ref_seqs).unwrap());

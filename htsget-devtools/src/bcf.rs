@@ -40,7 +40,7 @@ pub struct Block {
 
 pub fn bcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
   let mut reader = File::open(path.as_ref()).map(bcf::Reader::new)?;
-  let index = csi::read(path.as_ref().with_extension("gz.csi"))?;
+  let index = csi::read(path.as_ref().with_extension("bcf.csi"))?;
 
   let _ = reader.read_file_format()?;
   let header = reader.read_header()?.parse::<vcf::Header>().unwrap();

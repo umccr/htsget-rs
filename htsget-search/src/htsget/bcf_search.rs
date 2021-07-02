@@ -117,8 +117,8 @@ where
   /// or even require custom implementations depending on the organizational structure
   /// For now there is a 1:1 mapping to the underlying files
   fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let bcf_key = format!("{}.bcf.gz", id);
-    let csi_key = format!("{}.bcf.gz.csi", id);
+    let bcf_key = format!("{}.bcf", id);
+    let csi_key = format!("{}.bcf.csi", id);
     (bcf_key, csi_key)
   }
 
@@ -396,7 +396,7 @@ pub mod tests {
       "file://{}",
       storage
         .base_path()
-        .join(format!("{}.bcf.gz", name))
+        .join(format!("{}.bcf", name))
         .to_string_lossy()
     )
   }
