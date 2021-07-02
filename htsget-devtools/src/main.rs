@@ -1,4 +1,5 @@
 mod bam;
+mod bcf;
 mod vcf;
 
 fn main() {
@@ -18,5 +19,14 @@ fn main() {
     .join("sample1-bcbio-cancer.vcf.gz");
 
   let ref_seqs = vcf::vcf_blocks(path).unwrap();
+  println!("{}", serde_yaml::to_string(&ref_seqs).unwrap());
+
+  let path = std::env::current_dir()
+    .unwrap()
+    .join("data")
+    .join("bcf")
+    .join("vcf-spec-v4.3.bcf");
+
+  let ref_seqs = bcf::bcf_blocks(path).unwrap();
   println!("{}", serde_yaml::to_string(&ref_seqs).unwrap());
 }

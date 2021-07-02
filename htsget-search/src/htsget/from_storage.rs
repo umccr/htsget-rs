@@ -3,6 +3,7 @@
 
 use crate::{
   htsget::bam_search::BamSearch,
+  htsget::bcf_search::BcfSearch,
   htsget::vcf_search::VcfSearch,
   htsget::{Format, HtsGet, HtsGetError, Query, Response, Result},
   storage::Storage,
@@ -21,6 +22,7 @@ where
     match query.format {
       Some(Format::Bam) | None => BamSearch::new(&self.storage).search(query),
       Some(Format::Vcf) => VcfSearch::new(&self.storage).search(query),
+      Some(Format::Bcf) => BcfSearch::new(&self.storage).search(query),
       Some(format) => Err(HtsGetError::unsupported_format(format)),
     }
   }
