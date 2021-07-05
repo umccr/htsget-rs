@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "htsget-search",
+    "htsget-http",
     "htsget-devtools"
 ]
