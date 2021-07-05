@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 thiserror = "~1.0"
+flate2 = "1.0"
 
 # noodles = { version = "0.1.0", git = "https://github.com/zaeleus/noodles.git", features = ["bgzf, sam, bam, vcf, tabix"] }
 
@@ -19,6 +20,7 @@ thiserror = "~1.0"
 noodles-core =  { git = "https://github.com/zaeleus/noodles.git" }
 noodles-bgzf =  { git = "https://github.com/zaeleus/noodles.git" }
 noodles-bam =   { git = "https://github.com/zaeleus/noodles.git" }
+noodles-cram =  { git = "https://github.com/zaeleus/noodles.git" }
 noodles-sam =   { git = "https://github.com/zaeleus/noodles.git" }
 noodles-vcf =   { git = "https://github.com/zaeleus/noodles.git" }
 noodles-bcf =   { git = "https://github.com/zaeleus/noodles.git" }
