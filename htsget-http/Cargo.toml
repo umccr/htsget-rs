@@ -1,0 +1,10 @@
+
+[package]
+name = "htsget-http"
+version = "0.1.0"
+authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+
+actix-web = "3"
