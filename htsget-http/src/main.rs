@@ -1,9 +1,17 @@
-use actix_web::{get, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{
+  get,
+  web::{Path, Query},
+  App, HttpServer, Responder,
+};
+use std::collections::HashMap;
 
 #[get("/reads/{id:.+}")]
-async fn reads(request: HttpRequest) -> impl Responder {
-  let id = request.match_info().get("id").unwrap().to_string();
-  HttpResponse::Ok().body(&id)
+async fn reads(
+  mut query: Query<HashMap<String, String>>,
+  Path(id): Path<String>,
+) -> impl Responder {
+  query.insert("id".to_string(), id);
+  format!("{:?}", query)
 }
 
 #[actix_web::main]
