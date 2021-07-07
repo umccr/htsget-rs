@@ -8,3 +8,6 @@ edition = "2018"
 [dependencies]
 
 actix-web = "3"
+thiserror = "~1.0"
+serde = "1"
+htsget-search = { path = "../htsget-search" }
