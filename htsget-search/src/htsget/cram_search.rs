@@ -2,8 +2,7 @@ use std::convert::TryFrom;
 use std::fs::File;
 use std::io::BufReader;
 
-use flate2::read::GzDecoder;
-use noodles_bam::record::{reference_sequence_id, ReferenceSequenceId};
+use noodles_bam::record::{ReferenceSequenceId};
 use noodles_cram::{crai, Reader};
 use noodles_cram::crai::{Index, Record};
 use noodles_sam::Header;
@@ -59,13 +58,8 @@ impl<'a, S> CramSearch<'a, S>
     /// Read index from key
     fn read_index(&self, crai_key: &str) -> Result<Index> {
         let crai_path = self.storage.get(&crai_key, GetOptions::default())?;
-        let mut crai_reader = File::open(crai_path)
-            .map(GzDecoder::new)
-            .map(BufReader::new)
-            .map(crai::Reader::new)
-            .map_err(|_| HtsGetError::io_error("Reading CRAI"))?;
 
-        crai_reader.read_index().map_err(|_| HtsGetError::io_error("Reading CRAI"))
+        crai::read(crai_path).map_err(|_| HtsGetError::io_error("Reading CRAI"))
     }
 
     /// Returns the header bytes range.
@@ -136,10 +130,7 @@ impl<'a, S> CramSearch<'a, S>
             crai_index,
             cram_reader,
             |record| {
-                record.reference_sequence_id().map_or_else(
-                    || true,
-                    |ref_seq| i32::from(ref_seq) == reference_sequence_id::UNMAPPED,
-                )
+                record.reference_sequence_id().is_none()
             },
         )
     }
@@ -152,14 +143,14 @@ impl<'a, S> CramSearch<'a, S>
         cram_reader: &mut Reader<BufReader<File>>,
         cram_header: Header,
     ) -> Result<Vec<BytesRange>> {
-        let maybe_cram_ref_seq = cram_header.reference_sequences().get_full(reference_name);
+        let maybe_cram_ref_seq = cram_header.reference_sequences().get_index_of(reference_name);
 
         let byte_ranges = match maybe_cram_ref_seq {
             None => Err(HtsGetError::not_found(format!(
                 "Reference name not found: {}",
                 reference_name
             ))),
-            Some((ref_seq_id, _, _)) => {
+            Some(ref_seq_id) => {
                 let cram_ref_seq_idx = ReferenceSequenceId::try_from(ref_seq_id as i32)
                     .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
                 Self::get_bytes_ranges(
@@ -192,7 +183,8 @@ impl<'a, S> CramSearch<'a, S>
 
         let last = crai_index.last().ok_or_else(|| HtsGetError::invalid_input("No entries in CRAI"))?;
         if predicate(last) {
-            // This operation is quite slow. An implementation based on file size might be better.
+            // An implementation based on file size might be better.
+            cram_reader.seek(std::io::SeekFrom::Start(last.offset()))?;
             cram_reader.records().last();
             let eof_position = cram_reader.position().map_err(|_| HtsGetError::io_error("Reading CRAM eof"))?;
             let eof_position = eof_position - Self::EOF_CONTAINER_LENGTH;

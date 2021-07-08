@@ -24,7 +24,8 @@ where
       Some(Format::Bam) | None => BamSearch::new(&self.storage).search(query),
       Some(Format::Cram) => CramSearch::new(&self.storage).search(query),
       Some(Format::Vcf) => VcfSearch::new(&self.storage).search(query),
-      Some(Format::Bcf) => BcfSearch::new(&self.storage).search(query)
+      Some(Format::Bcf) => BcfSearch::new(&self.storage).search(query),
+      Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format))
     }
   }
 }

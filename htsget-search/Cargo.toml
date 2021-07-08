@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 thiserror = "~1.0"
-flate2 = "1.0"
 
 # noodles = { version = "0.1.0", git = "https://github.com/zaeleus/noodles.git", features = ["bgzf, sam, bam, vcf, tabix"] }
 

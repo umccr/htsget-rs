@@ -164,17 +164,18 @@ pub enum Format {
   Cram,
   Vcf,
   Bcf,
+  Unsupported(String)
 }
 
 impl From<Format> for String {
   fn from(format: Format) -> Self {
     match format {
-      Format::Bam => "BAM",
-      Format::Cram => "CRAM",
-      Format::Vcf => "VCF",
-      Format::Bcf => "BCF",
+      Format::Bam => "BAM".to_string(),
+      Format::Cram => "CRAM".to_string(),
+      Format::Vcf => "VCF".to_string(),
+      Format::Bcf => "BCF".to_string(),
+      Format::Unsupported(format) => format
     }
-    .to_string()
   }
 }
 
