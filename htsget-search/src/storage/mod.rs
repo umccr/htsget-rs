@@ -19,6 +19,8 @@ pub trait Storage {
   fn get<K: AsRef<str>>(&self, key: K, options: GetOptions) -> Result<PathBuf>;
 
   fn url<K: AsRef<str>>(&self, key: K, options: UrlOptions) -> Result<Url>;
+
+  fn head<K: AsRef<str>>(&self, key: K) -> Result<u64>;
 }
 
 #[derive(Error, PartialEq, Debug)]

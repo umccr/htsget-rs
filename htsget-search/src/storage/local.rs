@@ -81,6 +81,12 @@ impl Storage for LocalStorage {
     let url = url.with_class(options.class);
     Ok(url)
   }
+
+  fn head<K: AsRef<str>>(&self, key: K) -> Result<u64> {
+    let key: &str = key.as_ref();
+    let path = self.get_path_from_key(key)?;
+    Ok(std::fs::metadata(path).map_err(|err| StorageError::NotFound(err.to_string()))?.len())
+  }
 }
 
 #[cfg(test)]
@@ -227,6 +233,15 @@ mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=7-"))
         )
       );
+    });
+  }
+
+  #[test]
+  fn file_size() {
+    with_local_storage(|storage| {
+      let result = storage.head("folder/../key1");
+      let expected: u64 = 6;
+      assert_eq!(result, Ok(expected));
     });
   }
 
