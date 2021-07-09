@@ -20,6 +20,7 @@ impl<'a, S> CramSearch<'a, S>
 {
     const FILE_DEFINITION_LENGTH: u64 = 26;
     const EOF_CONTAINER_LENGTH: u64 = 38;
+    const MIN_SEQ_POSITION: u32 = 1; // 1-based
 
     pub fn new(storage: &'a S) -> Self {
         Self { storage }
@@ -45,6 +46,7 @@ impl<'a, S> CramSearch<'a, S>
                         &crai_index,
                         &mut cram_reader,
                         cram_header,
+                        &query
                     )?,
                 };
                 self.build_response(query, &cram_key, byte_ranges)
@@ -113,7 +115,10 @@ impl<'a, S> CramSearch<'a, S>
         crai_index: &[crai::Record],
         cram_reader: &mut Reader<BufReader<File>>,
     ) -> Result<Vec<BytesRange>> {
-        Self::get_bytes_ranges(
+        Self::bytes_ranges_from_index(
+            None,
+            None,
+            None,
             crai_index,
             cram_reader,
             |_| true,
@@ -126,7 +131,10 @@ impl<'a, S> CramSearch<'a, S>
         crai_index: &[crai::Record],
         cram_reader: &mut Reader<BufReader<File>>,
     ) -> Result<Vec<BytesRange>> {
-        Self::get_bytes_ranges(
+        Self::bytes_ranges_from_index(
+            None,
+            None,
+            None,
             crai_index,
             cram_reader,
             |record| {
@@ -142,18 +150,24 @@ impl<'a, S> CramSearch<'a, S>
         crai_index: &[crai::Record],
         cram_reader: &mut Reader<BufReader<File>>,
         cram_header: Header,
+        query: &Query,
     ) -> Result<Vec<BytesRange>> {
-        let maybe_cram_ref_seq = cram_header.reference_sequences().get_index_of(reference_name);
+        let maybe_cram_ref_seq = cram_header.reference_sequences().get_full(reference_name);
 
         let byte_ranges = match maybe_cram_ref_seq {
             None => Err(HtsGetError::not_found(format!(
                 "Reference name not found: {}",
                 reference_name
             ))),
-            Some(ref_seq_id) => {
+            Some((ref_seq_id, _, ref_seq)) => {
                 let cram_ref_seq_idx = ReferenceSequenceId::try_from(ref_seq_id as i32)
                     .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
-                Self::get_bytes_ranges(
+                let seq_start = query.start.map(|start| start as i32);
+                let seq_end = query.end.map(|end| end as i32);
+                Self::bytes_ranges_from_index(
+                    Some(ref_seq),
+                    seq_start,
+                    seq_end,
                     crai_index,
                     cram_reader,
                     |record| record.reference_sequence_id() == Some(cram_ref_seq_idx),
@@ -164,7 +178,10 @@ impl<'a, S> CramSearch<'a, S>
     }
 
     /// Get bytes ranges using the index.
-    fn get_bytes_ranges<F>(
+    fn bytes_ranges_from_index<F>(
+        ref_seq: Option<&noodles_sam::header::ReferenceSequence>,
+        seq_start: Option<i32>,
+        seq_end: Option<i32>,
         crai_index: &[crai::Record],
         cram_reader: &mut noodles_cram::Reader<BufReader<File>>,
         predicate: F,
@@ -175,7 +192,7 @@ impl<'a, S> CramSearch<'a, S>
         let mut byte_ranges: Vec<BytesRange> = crai_index.iter().zip(crai_index.iter().skip(1))
             .filter_map(|(record, next)| {
                 if predicate(record) {
-                    Some(BytesRange::default().with_start(record.offset()).with_end(next.offset()))
+                    Self::bytes_ranges_for_record(ref_seq, seq_start, seq_end, record, next)
                 } else {
                     None
                 }
@@ -192,6 +209,31 @@ impl<'a, S> CramSearch<'a, S>
         }
 
         Ok(BytesRange::merge_all(byte_ranges))
+    }
+
+    /// Gets bytes ranges for a specific index entry.
+    fn bytes_ranges_for_record(
+        ref_seq: Option<&noodles_sam::header::ReferenceSequence>,
+        seq_start: Option<i32>,
+        seq_end: Option<i32>,
+        record: &Record,
+        next: &Record
+    ) -> Option<BytesRange> {
+        match ref_seq {
+            None => {
+                Some(BytesRange::default().with_start(record.offset()).with_end(next.offset()))
+            }
+            Some(ref_seq) => {
+                let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
+                let seq_end = seq_end.unwrap_or_else(|| ref_seq.len());
+
+                if seq_start <= record.alignment_start() + record.alignment_span() && seq_end >= record.alignment_start() {
+                    Some(BytesRange::default().with_start(record.offset()).with_end(next.offset()))
+                } else {
+                    None
+                }
+            }
+        }
     }
 
     /// Build the response from the query using urls.
@@ -272,6 +314,46 @@ pub mod tests {
                 Format::Cram,
                 vec![Url::new(expected_url(&storage))
                     .with_headers(Headers::default().with_header("Range", "bytes=604231-1280106"))],
+            ));
+            assert_eq!(response, expected_response)
+        });
+    }
+
+    #[test]
+    fn search_reference_name_with_seq_range_no_overlap() {
+        with_local_storage(|storage| {
+            let search = CramSearch::new(&storage);
+            let query = Query::new("htsnexus_test_NA12878")
+                .with_reference_name("11")
+                .with_start(5000000)
+                .with_end(5050000);
+            let response = search.search(query);
+            println!("{:#?}", response);
+
+            let expected_response = Ok(Response::new(
+                Format::Cram,
+                vec![Url::new(expected_url(&storage))
+                    .with_headers(Headers::default().with_header("Range", "bytes=6087-465709"))],
+            ));
+            assert_eq!(response, expected_response)
+        });
+    }
+
+    #[test]
+    fn search_reference_name_with_seq_range_overlap() {
+        with_local_storage(|storage| {
+            let search = CramSearch::new(&storage);
+            let query = Query::new("htsnexus_test_NA12878")
+                .with_reference_name("11")
+                .with_start(5000000)
+                .with_end(5100000);
+            let response = search.search(query);
+            println!("{:#?}", response);
+
+            let expected_response = Ok(Response::new(
+                Format::Cram,
+                vec![Url::new(expected_url(&storage))
+                    .with_headers(Headers::default().with_header("Range", "bytes=6087-604231"))],
             ));
             assert_eq!(response, expected_response)
         });
