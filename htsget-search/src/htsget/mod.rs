@@ -95,12 +95,12 @@ pub struct Query {
   pub class: Class,
   /// Reference name
   pub reference_name: Option<String>,
-  /// sequence start position (1-based)
+  /// sequence start position (0-based, inclusive, exclusive)
   pub start: Option<u32>,
-  /// sequence end position (1-based)
+  /// sequence end position (0-based, inclusive, exclusive)
   pub end: Option<u32>,
-  pub fields: Vec<String>,
-  pub tags: Option<Tags>,
+  pub fields: Fields,
+  pub tags: Tags,
   pub no_tags: Option<Vec<String>>,
 }
 
@@ -113,8 +113,8 @@ impl Query {
       reference_name: None,
       start: None,
       end: None,
-      fields: Vec::new(),
-      tags: None,
+      fields: Fields::All,
+      tags: Tags::All,
       no_tags: None,
     }
   }
@@ -144,13 +144,13 @@ impl Query {
     self
   }
 
-  pub fn with_fields(mut self, fields: Vec<impl Into<String>>) -> Self {
-    self.fields = fields.into_iter().map(|field| field.into()).collect();
+  pub fn with_fields(mut self, fields: Fields) -> Self {
+    self.fields = fields;
     self
   }
 
   pub fn with_tags(mut self, tags: Tags) -> Self {
-    self.tags = Some(tags);
+    self.tags = tags;
     self
   }
 
@@ -167,7 +167,7 @@ pub enum Format {
   Cram,
   Vcf,
   Bcf,
-  Unsupported(String)
+  Unsupported(String),
 }
 
 impl From<Format> for String {
@@ -177,7 +177,7 @@ impl From<Format> for String {
       Format::Cram => "CRAM".to_string(),
       Format::Vcf => "VCF".to_string(),
       Format::Bcf => "BCF".to_string(),
-      Format::Unsupported(format) => format
+      Format::Unsupported(format) => format,
     }
   }
 }
@@ -198,6 +198,15 @@ impl fmt::Display for Format {
 pub enum Class {
   Header,
   Body,
+}
+
+/// Possible values for the fields parameter.
+#[derive(Debug, PartialEq)]
+pub enum Fields {
+  /// Include all fields
+  All,
+  /// List of fields to include
+  List(Vec<String>),
 }
 
 /// Possible values for the tags parameter.
@@ -363,14 +372,18 @@ mod tests {
 
   #[test]
   fn query_with_fields() {
-    let result = Query::new("NA12878").with_fields(vec!["QNAME", "FLAG"]);
-    assert_eq!(result.fields, vec!["QNAME", "FLAG"]);
+    let result = Query::new("NA12878")
+      .with_fields(Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()]));
+    assert_eq!(
+      result.fields,
+      Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()])
+    );
   }
 
   #[test]
   fn query_with_tags() {
     let result = Query::new("NA12878").with_tags(Tags::All);
-    assert_eq!(result.tags, Some(Tags::All));
+    assert_eq!(result.tags, Tags::All);
   }
 
   #[test]
