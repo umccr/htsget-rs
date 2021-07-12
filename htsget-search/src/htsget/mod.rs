@@ -95,9 +95,9 @@ pub struct Query {
   pub class: Class,
   /// Reference name
   pub reference_name: Option<String>,
-  /// sequence start position (0-based, inclusive, exclusive)
+  /// sequence start position (inclusive, 0-based)
   pub start: Option<u32>,
-  /// sequence end position (0-based, inclusive, exclusive)
+  /// sequence end position (exclusive, 0-based)
   pub end: Option<u32>,
   pub fields: Fields,
   pub tags: Tags,
