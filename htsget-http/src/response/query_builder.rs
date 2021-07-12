@@ -82,9 +82,9 @@ impl QueryBuilder {
     if (self.query.start.is_some() || self.query.end.is_some())
       && (self.query.reference_name.is_none() || self.query.reference_name.clone().unwrap() == "*")
     {
-      return Err(HtsGetError::InvalidInput(format!(
-        "Can't use range whitout specifying the reference name or with \"*\"",
-      )));
+      return Err(HtsGetError::InvalidInput(
+        "Can't use range whitout specifying the reference name or with \"*\"".to_string(),
+      ));
     }
     if self.query.start.is_some()
       && self.query.end.is_some()
@@ -102,7 +102,7 @@ impl QueryBuilder {
   pub fn add_fields(mut self, fields: Option<impl Into<String>>) -> Self {
     if let Some(fields) = fields {
       self.query = self.query.with_fields(Fields::List(
-        fields.into().split(",").map(|s| s.to_string()).collect(),
+        fields.into().split(',').map(|s| s.to_string()).collect(),
       ));
     }
     self
@@ -114,11 +114,11 @@ impl QueryBuilder {
     notags: Option<impl Into<String>>,
   ) -> Result<Self> {
     let notags = match notags {
-      Some(notags) => notags.into().split(",").map(|s| s.to_string()).collect(),
+      Some(notags) => notags.into().split(',').map(|s| s.to_string()).collect(),
       None => vec![],
     };
     if let Some(tags) = tags {
-      let tags: Vec<String> = tags.into().split(",").map(|s| s.to_string()).collect();
+      let tags: Vec<String> = tags.into().split(',').map(|s| s.to_string()).collect();
       if tags.iter().any(|tag| notags.contains(tag)) {
         return Err(HtsGetError::InvalidInput(
           "Tags and notags can't intersect".to_string(),
