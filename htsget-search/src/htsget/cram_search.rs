@@ -7,11 +7,64 @@ use noodles_cram::{crai, Reader};
 use noodles_cram::crai::{Index, Record};
 use noodles_sam::Header;
 
-use crate::htsget::{Class, Format, HtsGetError, Query, Response, Result, Url};
-use crate::storage::{BytesRange, GetOptions, Storage, UrlOptions};
+use crate::htsget::{Format, HtsGetError, Query, Result};
+use crate::htsget::search::Search;
+use crate::storage::{BytesRange, GetOptions, Storage};
 
 pub(crate) struct CramSearch<'a, S> {
   storage: &'a S,
+}
+
+impl<'a, S> Search<'a, S, Index> for CramSearch<'a, S>
+  where
+    S: Storage + 'a
+{
+  fn get_byte_ranges_for_all(&self, key: &str, index: &Index) -> Result<Vec<BytesRange>> {
+    let (mut cram_reader, _) = self.read_header(key)?;
+    Self::bytes_ranges_from_index(
+      None,
+      None,
+      None,
+      index,
+      &mut cram_reader,
+      |_| true,
+    )
+  }
+
+  fn get_byte_ranges_for_reference_name(&self, key: &str, reference_name: &str, index: &Index, query: &Query) -> Result<Vec<BytesRange>> {
+    let (mut cram_reader, header) = self.read_header(key)?;
+    if reference_name == "*" {
+      self.get_byte_ranges_for_unmapped_reads(index, &mut cram_reader)
+    } else {
+      self.get_byte_ranges_for_reference_name(reference_name, index, &mut cram_reader, header, query)
+    }
+  }
+
+  fn read_index(&self, key: &str) -> Result<Index> {
+    let crai_path = self.storage.get(&key, GetOptions::default())?;
+    crai::read(crai_path).map_err(|_| HtsGetError::io_error("Reading CRAI"))
+  }
+
+  fn get_keys_from_id(&self, id: &str) -> (String, String) {
+    let cram_key = format!("{}.cram", id);
+    let crai_key = format!("{}.crai", cram_key);
+    (cram_key, crai_key)
+  }
+
+  fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
+    let (mut reader, _) = self.read_header(key)?;
+    Ok(vec![BytesRange::default().with_start(Self::FILE_DEFINITION_LENGTH).with_end(
+      reader.position()?,
+    )])
+  }
+
+  fn get_storage(&self) -> &S {
+    self.storage
+  }
+
+  fn get_format(&self) -> Format {
+    Format::Cram
+  }
 }
 
 impl<'a, S> CramSearch<'a, S>
@@ -26,64 +79,12 @@ impl<'a, S> CramSearch<'a, S>
     Self { storage }
   }
 
-  /// Build response from a query.
-  pub fn search(&self, query: Query) -> Result<Response> {
-    let (cram_key, crai_key) = self.get_keys_from_id(query.id.as_str());
-    let crai_index = self.read_index(&crai_key)?;
-    let header_bytes = self.get_byte_ranges_for_header(&crai_index)?;
-
-    // Currently this ignores the start and end part of the query.
-    match query.class {
-      Class::Body => {
-        let (mut cram_reader, cram_header) = self.read_header(&cram_key, header_bytes)?;
-        let byte_ranges = match query.reference_name.as_ref() {
-          None => self.get_byte_ranges_for_all_reads(&crai_index, &mut cram_reader)?,
-          Some(reference_name) if reference_name.as_str() == "*" => {
-            self.get_byte_ranges_for_unmapped_reads(&crai_index, &mut cram_reader)?
-          }
-          Some(reference_name) => self.get_byte_ranges_for_reference_name(
-              reference_name,
-              &crai_index,
-              &mut cram_reader,
-              cram_header,
-              &query,
-          )?,
-        };
-        self.build_response(query, &cram_key, byte_ranges)
-      }
-      Class::Header => {
-        self.build_response(query, &cram_key, vec![header_bytes])
-      }
-    }
-  }
-
-  /// Read index from key
-  fn read_index(&self, crai_key: &str) -> Result<Index> {
-    let crai_path = self.storage.get(&crai_key, GetOptions::default())?;
-
-    crai::read(crai_path).map_err(|_| HtsGetError::io_error("Reading CRAI"))
-  }
-
-  /// Returns the header bytes range.
-  fn get_byte_ranges_for_header(
-    &self,
-    crai_index: &[crai::Record],
-  ) -> Result<BytesRange> {
-    // Assuming that the first index represents the first data container.
-    let first_record = crai_index.first().ok_or_else(|| HtsGetError::not_found("No entries in CRAI"))?;
-    Ok(BytesRange::default()
-      .with_start(Self::FILE_DEFINITION_LENGTH)
-      .with_end(first_record.offset())
-    )
-  }
-
   /// Read header using storage options.
   fn read_header(
     &self,
-    key: &str,
-    header_bytes: BytesRange,
+    key: &str
   ) -> Result<(Reader<BufReader<File>>, Header)> {
-    let get_options = GetOptions::default().with_range(header_bytes);
+    let get_options = GetOptions::default();
     let cram_path = self.storage.get(key, get_options)?;
 
     let mut reader = File::open(cram_path)
@@ -100,29 +101,6 @@ impl<'a, S> CramSearch<'a, S>
       .map_err(|_| HtsGetError::io_error("Parsing CRAM header"))?;
 
     Ok((reader, header))
-  }
-
-  /// Get key for storage object.
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let cram_key = format!("{}.cram", id);
-    let crai_key = format!("{}.crai", cram_key);
-    (cram_key, crai_key)
-  }
-
-  /// Returns mapped and placed unmapped ranges
-  fn get_byte_ranges_for_all_reads(
-    &self,
-    crai_index: &[crai::Record],
-    cram_reader: &mut Reader<BufReader<File>>,
-  ) -> Result<Vec<BytesRange>> {
-    Self::bytes_ranges_from_index(
-      None,
-      None,
-      None,
-      crai_index,
-      cram_reader,
-      |_| true,
-    )
   }
 
   /// Returns only unplaced unmapped ranges
@@ -235,40 +213,16 @@ impl<'a, S> CramSearch<'a, S>
       }
     }
   }
-
-  /// Build the response from the query using urls.
-  fn build_response(
-    &self,
-    query: Query,
-    cram_key: &str,
-    byte_ranges: Vec<BytesRange>,
-  ) -> Result<Response> {
-    let urls = byte_ranges
-      .into_iter()
-      .map(|range| {
-        let options = UrlOptions::default()
-          .with_range(range)
-          .with_class(query.class.clone());
-        self
-          .storage
-          .url(&cram_key, options)
-          .map_err(HtsGetError::from)
-      })
-      .collect::<Result<Vec<Url>>>()?;
-
-    let format = query.format.unwrap_or(Format::Cram);
-    Ok(Response::new(format, urls))
-  }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use crate::htsget::Headers;
-    use crate::storage::local::LocalStorage;
+  use crate::htsget::{Class, Headers, Response, Url};
+  use crate::storage::local::LocalStorage;
 
-    use super::*;
+  use super::*;
 
-    #[test]
+  #[test]
   fn search_all_reads() {
     with_local_storage(|storage| {
       let search = CramSearch::new(&storage);

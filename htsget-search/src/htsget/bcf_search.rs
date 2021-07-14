@@ -3,137 +3,49 @@
 
 use std::{fs::File, path::Path};
 
-use noodles_bcf::{self as bcf};
+use noodles_bcf as bcf;
 use noodles_bgzf::{
-  index::{optimize_chunks, Chunk},
+  index::{Chunk, optimize_chunks},
   VirtualPosition,
 };
-use noodles_csi::{self as csi};
-use noodles_vcf::{self as vcf};
+use noodles_csi::{self as csi, Index};
+use noodles_vcf as vcf;
 
 use crate::{
-  htsget::{Class, Format, HtsGetError, Query, Response, Result, Url},
-  storage::{BytesRange, GetOptions, Storage, UrlOptions},
+  htsget::{Format, HtsGetError, Query, Result},
+  storage::{BytesRange, GetOptions, Storage},
 };
-
-// TODO: This trait is clearly common across, **at least**, VCF, BCF and BAM
-trait VirtualPositionExt {
-  const MAX_BLOCK_SIZE: u64 = 65536;
-
-  /// Get the starting bytes for a compressed BGZF block.
-  fn bytes_range_start(&self) -> u64;
-  /// Get the ending bytes for a compressed BGZF block.
-  fn bytes_range_end(&self, reader: &mut bcf::Reader<File>) -> u64;
-  fn to_string(&self) -> String;
-}
-
-impl VirtualPositionExt for VirtualPosition {
-  /// This is just an alias to compressed. Kept for consistency.
-  fn bytes_range_start(&self) -> u64 {
-    self.compressed()
-  }
-  /// The compressed part refers always to the beginning of a BGZF block.
-  /// But when we need to translate it into a byte range, we need to make sure
-  /// the reads falling inside that block are also included, which requires to know
-  /// where that block ends, which is not trivial nor possible for the last block.
-  /// The solution used here goes through reading the records starting at the compressed
-  /// virtual offset (coffset) of the end position (remember this will always be the
-  /// start of a BGZF block). If we read the records pointed by that coffset until we
-  /// reach a different coffset, we can find out where the current block ends.
-  /// Therefore this can be used to only add the required bytes in the query results.
-  /// If for some reason we can't read correctly the records we fall back
-  /// to adding the maximum BGZF block size.
-  fn bytes_range_end(&self, reader: &mut bcf::Reader<File>) -> u64 {
-    if self.uncompressed() == 0 {
-      // If the uncompressed part is exactly zero, we don't need the next block
-      return self.compressed();
-    }
-    get_next_block_position(*self, reader).unwrap_or(self.compressed() + Self::MAX_BLOCK_SIZE)
-  }
-
-  fn to_string(&self) -> String {
-    format!("{}/{}", self.compressed(), self.uncompressed())
-  }
-}
-
-fn get_next_block_position(
-  block_position: VirtualPosition,
-  reader: &mut bcf::Reader<File>,
-) -> Option<u64> {
-  reader.seek(block_position).ok()?.compressed();
-  let next_block_index = loop {
-    let bytes_read = reader.read_record(&mut bcf::Record::default()).ok()?;
-    let actual_block_index = reader.virtual_position().compressed();
-    if bytes_read == 0 || actual_block_index > block_position.compressed() {
-      break actual_block_index;
-    }
-  };
-  Some(next_block_index)
-}
+use crate::htsget::search::{BlockPosition, Search, VirtualPositionExt};
 
 pub(crate) struct BcfSearch<'a, S> {
   storage: &'a S,
 }
 
-impl<'a, S> BcfSearch<'a, S>
-where
-  S: Storage + 'a,
+impl BlockPosition for bcf::Reader<File> {
+  fn read_bytes(&mut self) -> Option<usize> {
+    self.read_record(&mut bcf::Record::default()).ok()
+  }
+
+  fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+    self.seek(pos)
+  }
+
+  fn virtual_position(&self) -> VirtualPosition {
+    self.virtual_position()
+  }
+}
+
+impl<'a, S> Search<'a, S, csi::Index> for BcfSearch<'a, S>
+  where
+    S: Storage + 'a
 {
-  const MIN_SEQ_POSITION: i32 = 1; // 1-based
-  const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
-
-  pub fn new(storage: &'a S) -> Self {
-    Self { storage }
-  }
-
-  pub fn search(&self, query: Query) -> Result<Response> {
-    let (bcf_key, csi_key) = self.get_keys_from_id(query.id.as_str());
-
-    match query.class {
-      Class::Body => {
-        let csi_path = self.storage.get(&csi_key, GetOptions::default())?;
-        let bcf_index = csi::read(csi_path).map_err(|_| HtsGetError::io_error("Reading CSI"))?;
-
-        let byte_ranges = match query.reference_name.as_ref() {
-          None => self.get_byte_ranges_for_all_variants(&bcf_index, &bcf_key)?,
-          Some(reference_name) => self.get_byte_ranges_for_reference_name(
-            bcf_key.as_str(),
-            reference_name,
-            &bcf_index,
-            &query,
-          )?,
-        };
-        self.build_response(query, &bcf_key, byte_ranges)
-      }
-      Class::Header => {
-        let byte_ranges = self.get_byte_ranges_for_header(bcf_key.as_str())?;
-        self.build_response(query, &bcf_key, byte_ranges)
-      }
-    }
-  }
-
-  /// Generate a key for the storage object from an ID
-  /// This may involve a more complex transformation in the future,
-  /// or even require custom implementations depending on the organizational structure
-  /// For now there is a 1:1 mapping to the underlying files
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let bcf_key = format!("{}.bcf", id);
-    let csi_key = format!("{}.bcf.csi", id);
-    (bcf_key, csi_key)
-  }
-
-  /// Returns [byte ranges](BytesRange) that cover all the variants
-  fn get_byte_ranges_for_all_variants(
-    &self,
-    csi_index: &csi::Index,
-    bcf_key: &str,
-  ) -> Result<Vec<BytesRange>> {
+  fn get_byte_ranges_for_all(&self, key: &str, index: &Index) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default();
-    let bcf_path = self.storage.get(bcf_key, get_options)?;
+    let bcf_path = self.storage.get(key, get_options)?;
     let (mut bcf_reader, _) = self.read_bcf(bcf_path)?;
 
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
-    for reference_sequence in csi_index.reference_sequences() {
+    for reference_sequence in index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
         let start_vpos = metadata.start_position();
         let end_vpos = metadata.end_position();
@@ -147,17 +59,9 @@ where
     Ok(BytesRange::merge_all(byte_ranges))
   }
 
-  /// Returns [byte ranges](BytesRange) containing an specific reference sequence.
-  /// Needs a Query
-  fn get_byte_ranges_for_reference_name(
-    &self,
-    bcf_key: &str,
-    reference_name: &str,
-    csi_index: &csi::Index,
-    query: &Query,
-  ) -> Result<Vec<BytesRange>> {
+  fn get_byte_ranges_for_reference_name(&self, key: &str, reference_name: &str, index: &Index, query: &Query) -> Result<Vec<BytesRange>> {
     let get_options = GetOptions::default();
-    let bcf_path = self.storage.get(bcf_key, get_options)?;
+    let bcf_path = self.storage.get(key, get_options)?;
     let (mut bcf_reader, header) = Self::read_bcf(self, &bcf_path)?;
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
@@ -179,11 +83,52 @@ where
     let byte_ranges = Self::get_byte_ranges_for_reference_sequence(
       &mut bcf_reader,
       ref_seq_index,
-      csi_index,
+      index,
       seq_start,
       seq_end,
     )?;
     Ok(byte_ranges)
+  }
+
+  fn read_index(&self, key: &str) -> Result<Index> {
+    let csi_path = self.storage.get(&key, GetOptions::default())?;
+    csi::read(csi_path).map_err(|_| HtsGetError::io_error("Reading CSI"))
+  }
+
+  fn get_keys_from_id(&self, id: &str) -> (String, String) {
+    let bcf_key = format!("{}.bcf", id);
+    let csi_key = format!("{}.bcf.csi", id);
+    (bcf_key, csi_key)
+  }
+
+  fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
+    let get_options = GetOptions::default();
+    let bcf_path = self.storage.get(key, get_options)?;
+    let (mut bcf_reader, _) = self.read_bcf(bcf_path)?;
+    let end = bcf_reader
+      .virtual_position()
+      .bytes_range_end(&mut bcf_reader);
+    Ok(vec![BytesRange::default().with_start(0).with_end(end)])
+  }
+
+  fn get_storage(&self) -> &S {
+    self.storage
+  }
+
+  fn get_format(&self) -> Format {
+    Format::Bcf
+  }
+}
+
+impl<'a, S> BcfSearch<'a, S>
+where
+  S: Storage + 'a,
+{
+  const MIN_SEQ_POSITION: i32 = 1; // 1-based
+  const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
+
+  pub fn new(storage: &'a S) -> Self {
+    Self { storage }
   }
 
   /// Creates a BCF reader and reads its header
@@ -245,46 +190,11 @@ where
 
     Ok(BytesRange::merge_all(byte_ranges))
   }
-
-  /// Returns a [byte range](BytesRange) that covers the header
-  fn get_byte_ranges_for_header(&self, bcf_key: &str) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let bcf_path = self.storage.get(bcf_key, get_options)?;
-    let (mut bcf_reader, _) = self.read_bcf(bcf_path)?;
-    let end = bcf_reader
-      .virtual_position()
-      .bytes_range_end(&mut bcf_reader);
-    Ok(vec![BytesRange::default().with_start(0).with_end(end)])
-  }
-
-  /// Builts a [response](Response)
-  fn build_response(
-    &self,
-    query: Query,
-    bcf_key: &str,
-    byte_ranges: Vec<BytesRange>,
-  ) -> Result<Response> {
-    let urls = byte_ranges
-      .into_iter()
-      .map(|range| {
-        let options = UrlOptions::default()
-          .with_range(range)
-          .with_class(query.class.clone());
-        self
-          .storage
-          .url(&bcf_key, options)
-          .map_err(HtsGetError::from)
-      })
-      .collect::<Result<Vec<Url>>>()?;
-
-    let format = query.format.unwrap_or(Format::Bcf);
-    Ok(Response::new(format, urls))
-  }
 }
 
 #[cfg(test)]
 pub mod tests {
-  use crate::htsget::Headers;
+  use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
 
   use super::*;

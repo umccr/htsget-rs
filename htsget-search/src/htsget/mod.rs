@@ -3,18 +3,19 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
+use std::collections::HashMap;
+use std::io;
+
+use thiserror::Error;
+
+use crate::storage::StorageError;
+
 pub mod bam_search;
 pub mod bcf_search;
 pub mod cram_search;
 pub mod from_storage;
 pub mod vcf_search;
-
-use std::collections::HashMap;
-
-use thiserror::Error;
-
-use crate::storage::StorageError;
-use std::io;
+mod search;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
 
