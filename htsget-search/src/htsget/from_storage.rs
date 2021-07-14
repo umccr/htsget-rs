@@ -1,6 +1,7 @@
 //! Module providing an implementation of the [HtsGet] trait using a [Storage].
 //!
 
+use crate::htsget::search::Search;
 use crate::{
   htsget::bam_search::BamSearch,
   htsget::bcf_search::BcfSearch,
@@ -25,7 +26,7 @@ where
       Some(Format::Cram) => CramSearch::new(&self.storage).search(query),
       Some(Format::Vcf) => VcfSearch::new(&self.storage).search(query),
       Some(Format::Bcf) => BcfSearch::new(&self.storage).search(query),
-      Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format))
+      Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format)),
     }
   }
 }
@@ -63,7 +64,7 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(bam_expected_url(&htsget.storage()))
+        vec![Url::new(bam_expected_url(htsget.storage()))
           .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
       ));
       assert_eq!(response, expected_response)
@@ -81,7 +82,7 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(vcf_expected_url(&htsget.storage(), filename))
+        vec![Url::new(vcf_expected_url(htsget.storage(), filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-823"))],
       ));
       assert_eq!(response, expected_response)
