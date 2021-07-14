@@ -1,13 +1,12 @@
 
 [package]
-name = "htsget-http"
+name = "htsget-actix"
 version = "0.1.0"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>"]
 edition = "2018"
 
 [dependencies]
 
-thiserror = "~1.0"
-serde = "1"
-serde_json = "1"
+actix-web = "3"
+htsget-http = { path = "../htsget-http" }
 htsget-search = { path = "../htsget-search" }
