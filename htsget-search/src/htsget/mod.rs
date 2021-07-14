@@ -3,18 +3,21 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
+use std::collections::HashMap;
+use std::io;
+
+use thiserror::Error;
+
+use crate::storage::StorageError;
+use core::fmt;
+use std::fmt::Formatter;
+
 pub mod bam_search;
 pub mod bcf_search;
 pub mod cram_search;
 pub mod from_storage;
 pub mod vcf_search;
-
-use std::collections::HashMap;
-
-use thiserror::Error;
-
-use crate::storage::StorageError;
-use std::io;
+mod search;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
 
@@ -175,6 +178,18 @@ impl From<Format> for String {
       Format::Vcf => "VCF".to_string(),
       Format::Bcf => "BCF".to_string(),
       Format::Unsupported(format) => format
+    }
+  }
+}
+
+impl fmt::Display for Format {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Format::Bam => write!(f, "BAM"),
+      Format::Cram => write!(f, "CRAM"),
+      Format::Vcf => write!(f, "VCF"),
+      Format::Bcf => write!(f, "BCF"),
+      Format::Unsupported(format) => write!(f, "{}", format)
     }
   }
 }
