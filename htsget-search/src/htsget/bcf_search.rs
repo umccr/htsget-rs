@@ -1,7 +1,7 @@
 //! Module providing the search capability using BCF files
 //!
 
-use std::{fs::File, path::Path};
+use std::{fs::File};
 
 use noodles_bcf as bcf;
 use noodles_bgzf::{
@@ -40,9 +40,7 @@ impl<'a, S> Search<'a, S, csi::Index> for BcfSearch<'a, S>
     S: Storage + 'a
 {
   fn get_byte_ranges_for_all(&self, key: &str, index: &Index) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let bcf_path = self.storage.get(key, get_options)?;
-    let (mut bcf_reader, _) = self.read_bcf(bcf_path)?;
+    let (mut bcf_reader, _) = self.read_bcf(key)?;
 
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
     for reference_sequence in index.reference_sequences() {
@@ -60,9 +58,7 @@ impl<'a, S> Search<'a, S, csi::Index> for BcfSearch<'a, S>
   }
 
   fn get_byte_ranges_for_reference_name(&self, key: &str, reference_name: &str, index: &Index, query: &Query) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let bcf_path = self.storage.get(key, get_options)?;
-    let (mut bcf_reader, header) = Self::read_bcf(self, &bcf_path)?;
+    let (mut bcf_reader, header) = Self::read_bcf(self, key)?;
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
     let (ref_seq_index, (_, contig)) = header
@@ -102,9 +98,7 @@ impl<'a, S> Search<'a, S, csi::Index> for BcfSearch<'a, S>
   }
 
   fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let bcf_path = self.storage.get(key, get_options)?;
-    let (mut bcf_reader, _) = self.read_bcf(bcf_path)?;
+    let (mut bcf_reader, _) = self.read_bcf(key)?;
     let end = bcf_reader
       .virtual_position()
       .bytes_range_end(&mut bcf_reader);
@@ -132,10 +126,8 @@ where
   }
 
   /// Creates a BCF reader and reads its header
-  fn read_bcf<P: AsRef<Path>>(&self, path: P) -> Result<(bcf::Reader<File>, vcf::Header)> {
-    let mut bcf_reader = File::open(&path)
-      .map(bcf::Reader::new)
-      .map_err(|_| HtsGetError::io_error("Reading BCF"))?;
+  fn read_bcf(&self, key: &str) -> Result<(bcf::Reader<File>, vcf::Header)> {
+    let mut bcf_reader = self.get_reader(key, "Reading BCF", bcf::Reader::new)?;
     let _ = bcf_reader.read_file_format()?;
 
     let header = bcf_reader

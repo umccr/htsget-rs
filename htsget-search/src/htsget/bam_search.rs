@@ -1,7 +1,7 @@
 //! Module providing the search capability using BAM/BAI files
 //!
 
-use std::{fs::File, path::Path};
+use std::{fs::File};
 
 use noodles_bam::{self as bam, bai};
 use noodles_bam::bai::Index;
@@ -39,10 +39,8 @@ impl<'a, S> Search<'a, S, bai::Index> for BamSearch<'a, S>
     S: Storage + 'a
 {
   fn get_byte_ranges_for_all(&self, key: &str, index: &Index) -> Result<Vec<BytesRange>> {
+    let (mut bam_reader, _) = self.read_bam_header(key)?;
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
-    let get_options = GetOptions::default();
-    let bam_path = self.storage.get(key, get_options)?;
-    let mut bam_reader = Self::get_bam_reader(bam_path)?;
     for reference_sequence in index.reference_sequences() {
       if let Some(metadata) = reference_sequence.metadata() {
         let start_vpos = metadata.start_position();
@@ -79,9 +77,7 @@ impl<'a, S> Search<'a, S, bai::Index> for BamSearch<'a, S>
   }
 
   fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let bam_path = self.storage.get(key, get_options)?;
-    let (mut reader, _) = Self::read_bam_header(&bam_path)?;
+    let (mut reader, _) = self.read_bam_header(key)?;
     reader.read_reference_sequences()?;
     Ok(vec![BytesRange::default().with_start(0).with_end(
       reader.virtual_position().bytes_range_end(&mut reader),
@@ -122,9 +118,7 @@ where
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let get_options = GetOptions::default();
-        let bam_path = self.storage.get(bam_key, get_options)?;
-        let (bam_reader, _) = Self::read_bam_header(&bam_path)?;
+        let (bam_reader, _) = self.read_bam_header(bam_key)?;
         bam_reader.virtual_position()
       }
     };
@@ -143,9 +137,7 @@ where
     bai_index: &bai::Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let bam_path = self.storage.get(bam_key, get_options)?;
-    let (mut bam_reader, bam_header) = Self::read_bam_header(&bam_path)?;
+    let (mut bam_reader, bam_header) = self.read_bam_header(bam_key)?;
     let maybe_bam_ref_seq = bam_header.reference_sequences().get_full(reference_name);
 
     let byte_ranges = match maybe_bam_ref_seq {
@@ -169,8 +161,8 @@ where
     Ok(byte_ranges)
   }
 
-  fn read_bam_header<P: AsRef<Path>>(path: P) -> Result<(bam::Reader<File>, sam::Header)> {
-    let mut bam_reader = Self::get_bam_reader(path)?;
+  fn read_bam_header(&self, key: &str) -> Result<(bam::Reader<File>, sam::Header)> {
+    let mut bam_reader = self.get_reader(key, "Reading BAM", bam::Reader::new)?;
 
     let bam_header = bam_reader
       .read_header()
@@ -179,12 +171,6 @@ where
       .map_err(|_| HtsGetError::io_error("Parsing BAM header"))?;
 
     Ok((bam_reader, bam_header))
-  }
-
-  fn get_bam_reader<P: AsRef<Path>>(path: P) -> Result<bam::Reader<File>> {
-    File::open(path.as_ref())
-      .map(bam::Reader::new)
-      .map_err(|_| HtsGetError::io_error("Reading BAM"))
   }
 
   fn get_byte_ranges_for_reference_sequence(

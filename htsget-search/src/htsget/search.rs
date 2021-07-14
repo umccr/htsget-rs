@@ -6,6 +6,8 @@ use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result, Url},
   storage::{BytesRange, Storage, UrlOptions},
 };
+use std::fs::File;
+use crate::storage::GetOptions;
 
 const MAX_BLOCK_SIZE: u64 = 65536;
 
@@ -96,6 +98,23 @@ pub(crate) trait Search<'a, S, T>
 
     let format = query.format.unwrap_or_else(|| self.get_format());
     Ok(Response::new(format, urls))
+  }
+
+  /// Get the reader from the file key.
+  fn get_reader<F, R, U: Into<String>>(
+    &self,
+    key: &str,
+    msg: U,
+    reader: F
+  ) -> Result<R>
+    where F: FnOnce(File) -> R
+  {
+    let get_options = GetOptions::default();
+    let cram_path = self.get_storage().get(key, get_options)?;
+
+    File::open(cram_path)
+      .map(reader)
+      .map_err(|_| HtsGetError::io_error(msg))
   }
 }
 

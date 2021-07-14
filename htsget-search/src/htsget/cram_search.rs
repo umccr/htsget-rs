@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 use std::fs::File;
-use std::io::BufReader;
 
 use noodles_bam::record::ReferenceSequenceId;
 use noodles_cram::{crai, Reader};
@@ -83,14 +82,8 @@ impl<'a, S> CramSearch<'a, S>
   fn read_header(
     &self,
     key: &str
-  ) -> Result<(Reader<BufReader<File>>, Header)> {
-    let get_options = GetOptions::default();
-    let cram_path = self.storage.get(key, get_options)?;
-
-    let mut reader = File::open(cram_path)
-      .map(BufReader::new)
-      .map(noodles_cram::Reader::new)
-      .map_err(|_| HtsGetError::io_error("Reading CRAM"))?;
+  ) -> Result<(Reader<File>, Header)> {
+    let mut reader = self.get_reader(key, "Reading CRAM", noodles_cram::Reader::new)?;
 
     reader.read_file_definition().map_err(|_| HtsGetError::io_error("Reading CRAM file definition"))?;
 
@@ -107,7 +100,7 @@ impl<'a, S> CramSearch<'a, S>
   fn get_byte_ranges_for_unmapped_reads(
     &self,
     crai_index: &[crai::Record],
-    cram_reader: &mut Reader<BufReader<File>>,
+    cram_reader: &mut Reader<File>,
   ) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
       None,
@@ -126,7 +119,7 @@ impl<'a, S> CramSearch<'a, S>
     &self,
     reference_name: &str,
     crai_index: &[crai::Record],
-    cram_reader: &mut Reader<BufReader<File>>,
+    cram_reader: &mut Reader<File>,
     cram_header: Header,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
@@ -161,7 +154,7 @@ impl<'a, S> CramSearch<'a, S>
     seq_start: Option<i32>,
     seq_end: Option<i32>,
     crai_index: &[crai::Record],
-    cram_reader: &mut noodles_cram::Reader<BufReader<File>>,
+    cram_reader: &mut noodles_cram::Reader<File>,
     predicate: F,
   ) -> Result<Vec<BytesRange>>
     where F: Fn(&Record) -> bool

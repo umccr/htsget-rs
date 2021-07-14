@@ -1,7 +1,7 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::{fs::File, path::Path};
+use std::{fs::File};
 
 use noodles_bgzf::{
   self as bgzf,
@@ -40,9 +40,7 @@ impl<'a, S> Search<'a, S, Index> for VcfSearch<'a, S>
     S: Storage + 'a
 {
   fn get_byte_ranges_for_all(&self, key: &str, index: &Index) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let vcf_path = self.storage.get(key, get_options)?;
-    let (mut vcf_reader, _) = self.read_vcf(vcf_path)?;
+    let (mut vcf_reader, _) = self.read_vcf(key)?;
 
     let mut byte_ranges: Vec<BytesRange> = Vec::new();
     for reference_sequence in index.reference_sequences() {
@@ -60,9 +58,7 @@ impl<'a, S> Search<'a, S, Index> for VcfSearch<'a, S>
   }
 
   fn get_byte_ranges_for_reference_name(&self, key: &str, reference_name: &str, index: &Index, query: &Query) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let vcf_path = self.storage.get(key, get_options)?;
-    let (mut vcf_reader, vcf_header) = Self::read_vcf(self, &vcf_path)?;
+    let (mut vcf_reader, vcf_header) = Self::read_vcf(self, key)?;
     let maybe_len = vcf_header
       .contigs()
       .get(reference_name)
@@ -107,9 +103,7 @@ impl<'a, S> Search<'a, S, Index> for VcfSearch<'a, S>
   }
 
   fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
-    let get_options = GetOptions::default();
-    let vcf_path = self.storage.get(key, get_options)?;
-    let (mut vcf_reader, _) = self.read_vcf(vcf_path)?;
+    let (mut vcf_reader, _) = self.read_vcf(key)?;
     let end = vcf_reader
       .virtual_position()
       .bytes_range_end(&mut vcf_reader);
@@ -137,17 +131,16 @@ where
   }
 
   /// Creates a VCF reader and reads its header
-  fn read_vcf<P: AsRef<Path>>(
+  fn read_vcf(
     &self,
-    path: P,
+    key: &str
   ) -> Result<(
     vcf::Reader<noodles_bgzf::Reader<std::fs::File>>,
     vcf::Header,
   )> {
-    let mut vcf_reader = File::open(&path)
-      .map(bgzf::Reader::new)
-      .map(vcf::Reader::new)
-      .map_err(|_| HtsGetError::io_error("Reading VCF"))?;
+    let mut vcf_reader = self.get_reader(key, "Reading VCF", |file| {
+      vcf::Reader::new(bgzf::Reader::new(file))
+    })?;
 
     let vcf_header = vcf_reader
       .read_header()
