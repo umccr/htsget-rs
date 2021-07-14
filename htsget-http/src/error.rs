@@ -1,4 +1,4 @@
-use actix_web::{http::StatusCode, web::Json, Responder};
+use htsget_search::htsget::HtsGetError as HtsGetSearchError;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -29,7 +29,7 @@ struct JsonHtsGetError {
 }
 
 impl HtsGetError {
-  pub fn to_json_responder(&self) -> impl Responder {
+  pub fn to_json_representation(&self) -> (String, u16) {
     let (message, status_code) = match self {
       HtsGetError::InvalidAuthentication(s) => (s, 401),
       HtsGetError::PermissionDenied(s) => (s, 403),
@@ -39,10 +39,28 @@ impl HtsGetError {
       HtsGetError::InvalidInput(s) => (s, 400),
       HtsGetError::InvalidRange(s) => (s, 400),
     };
-    Json(JsonHtsGetError {
-      error: self.to_string(),
-      message: message.clone(),
-    })
-    .with_status(StatusCode::from_u16(status_code as u16).unwrap())
+    (
+      serde_json::to_string(&JsonHtsGetError {
+        error: self.to_string(),
+        message: message.clone(),
+      })
+      .expect("Internal error while converting error to json"),
+      status_code,
+    )
+  }
+}
+
+impl From<HtsGetSearchError> for HtsGetError {
+  fn from(error: HtsGetSearchError) -> Self {
+    match error {
+      HtsGetSearchError::NotFound(s) => HtsGetError::NotFound(s),
+      HtsGetSearchError::UnsupportedFormat(s) => HtsGetError::UnsupportedFormat(s),
+      HtsGetSearchError::InvalidInput(s) => HtsGetError::InvalidInput(s),
+      HtsGetSearchError::InvalidRange(s) => HtsGetError::InvalidRange(s),
+      HtsGetSearchError::IoError(_) => HtsGetError::NotFound("There was an IO error".to_string()),
+      HtsGetSearchError::ParseError(_) => {
+        HtsGetError::NotFound("The requested content couldn't be parsed correctly".to_string())
+      }
+    }
   }
 }

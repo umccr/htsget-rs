@@ -2,5 +2,6 @@
 members = [
     "htsget-search",
     "htsget-http",
+    "htsget-actix",
     "htsget-devtools"
 ]
