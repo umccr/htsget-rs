@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "htsget-search",
-    "htsget-http",
-    "htsget-actix",
+    "htsget-http-core",
+    "htsget-http-actix",
     "htsget-devtools"
 ]

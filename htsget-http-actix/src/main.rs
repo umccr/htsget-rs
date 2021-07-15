@@ -4,7 +4,7 @@ use actix_web::{
   web::{Data, Json, Path, Query},
   App, HttpServer, Responder,
 };
-use htsget_http::get_response;
+use htsget_http_core::get_response;
 use htsget_search::{htsget::from_storage::HtsGetFromStorage, storage::local::LocalStorage};
 use std::collections::HashMap;
 
