@@ -40,7 +40,7 @@ impl HtsGetError {
       HtsGetError::InvalidRange(s) => (s, 400),
     };
     (
-      serde_json::to_string(&JsonHtsGetError {
+      serde_json::to_string_pretty(&JsonHtsGetError {
         error: self.to_string(),
         message: message.clone(),
       })

@@ -95,9 +95,8 @@ pub struct Query {
   pub class: Class,
   /// Reference name
   pub reference_name: Option<String>,
-  /// sequence start position (inclusive, 0-based)
+  /// The start and end positions are 0-based. [start, end)  
   pub start: Option<u32>,
-  /// sequence end position (exclusive, 0-based)
   pub end: Option<u32>,
   pub fields: Fields,
   pub tags: Tags,
@@ -238,6 +237,10 @@ impl Headers {
 
   pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
     self.0.insert(key.into(), value.into());
+  }
+
+  pub fn get_inner(self) -> HashMap<String, String> {
+    self.0
   }
 }
 
