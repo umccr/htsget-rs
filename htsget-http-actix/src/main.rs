@@ -1,6 +1,7 @@
 use actix_web::{App, HttpServer};
 use htsget_search::{htsget::from_storage::HtsGetFromStorage, storage::local::LocalStorage};
 mod get;
+mod post;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -12,6 +13,8 @@ async fn main() -> std::io::Result<()> {
       .data(htsget)
       .service(get::reads)
       .service(get::variants)
+      .service(post::reads)
+      .service(post::variants)
   })
   .bind("127.0.0.1:8080")?
   .run()

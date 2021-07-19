@@ -59,25 +59,35 @@ impl QueryBuilder {
   }
 
   pub fn add_range(
-    mut self,
+    self,
     start: Option<impl Into<String>>,
     end: Option<impl Into<String>>,
   ) -> Result<Self> {
-    let start = start.map(|s| s.into());
-    let end = end.map(|s| s.into());
-    if let Some(start) = start {
-      self.query = self.query.with_start(
+    let start = start
+      .map(|start| start.into())
+      .map(|start| {
         start
           .parse::<u32>()
-          .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid start", start)))?,
-      );
-    }
-    if let Some(end) = end {
-      self.query = self.query.with_end(
+          .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid start", start)))
+      })
+      .transpose()?;
+    let end = end
+      .map(|end| end.into())
+      .map(|end| {
         end
           .parse::<u32>()
-          .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid end", end)))?,
-      );
+          .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid end", end)))
+      })
+      .transpose()?;
+    self.add_range_from_u32(start, end)
+  }
+
+  pub fn add_range_from_u32(mut self, start: Option<u32>, end: Option<u32>) -> Result<Self> {
+    if let Some(start) = start {
+      self.query = self.query.with_start(start);
+    }
+    if let Some(end) = end {
+      self.query = self.query.with_end(end);
     }
     if (self.query.start.is_some() || self.query.end.is_some())
       && (self.query.reference_name.is_none() || self.query.reference_name.clone().unwrap() == "*")
@@ -99,26 +109,43 @@ impl QueryBuilder {
     Ok(self)
   }
 
-  pub fn add_fields(mut self, fields: Option<impl Into<String>>) -> Self {
+  pub fn add_fields(self, fields: Option<impl Into<String>>) -> Self {
+    self.add_fields_from_vec(
+      fields.map(|fields| fields.into().split(',').map(|s| s.to_string()).collect()),
+    )
+  }
+
+  pub fn add_fields_from_vec(mut self, fields: Option<Vec<impl Into<String>>>) -> Self {
     if let Some(fields) = fields {
-      self.query = self.query.with_fields(Fields::List(
-        fields.into().split(',').map(|s| s.to_string()).collect(),
-      ));
+      self.query = self
+        .query
+        .with_fields(Fields::List(fields.into_iter().map(|s| s.into()).collect()));
     }
     self
   }
 
   pub fn add_tags(
-    mut self,
+    self,
     tags: Option<impl Into<String>>,
     notags: Option<impl Into<String>>,
   ) -> Result<Self> {
+    self.add_tags_from_vec(
+      tags.map(|tags| tags.into().split(',').map(|s| s.to_string()).collect()),
+      notags.map(|notags| notags.into().split(',').map(|s| s.to_string()).collect()),
+    )
+  }
+
+  pub fn add_tags_from_vec(
+    mut self,
+    tags: Option<Vec<impl Into<String>>>,
+    notags: Option<Vec<impl Into<String>>>,
+  ) -> Result<Self> {
     let notags = match notags {
-      Some(notags) => notags.into().split(',').map(|s| s.to_string()).collect(),
+      Some(notags) => notags.into_iter().map(|notag| notag.into()).collect(),
       None => vec![],
     };
     if let Some(tags) = tags {
-      let tags: Vec<String> = tags.into().split(',').map(|s| s.to_string()).collect();
+      let tags: Vec<String> = tags.into_iter().map(|tag| tag.into()).collect();
       if tags.iter().any(|tag| notags.contains(tag)) {
         return Err(HtsGetError::InvalidInput(
           "Tags and notags can't intersect".to_string(),

@@ -1,14 +1,16 @@
 mod query_builder;
 use query_builder::QueryBuilder;
 mod error;
-use error::Result;
+pub use error::{HtsGetError, Result};
 mod json_response;
 use json_response::JsonResponse;
+mod post_request;
+pub use post_request::PostRequest;
 
-use htsget_search::htsget::{HtsGet, Query};
+use htsget_search::htsget::{HtsGet, Query, Response};
 use std::collections::HashMap;
 
-pub fn get_response<H: HtsGet>(
+pub fn get_response_for_get_request<H: HtsGet>(
   searcher: &H,
   query_information: &HashMap<String, String>,
 ) -> Result<String> {
@@ -33,4 +35,25 @@ fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query
       )?
       .build(),
   )
+}
+
+pub fn get_response_for_post_request<H: HtsGet>(
+  searcher: &H,
+  request: PostRequest,
+  id: impl Into<String>,
+) -> Result<String> {
+  let responses = request
+    .get_queries(id)?
+    .into_iter()
+    .map(|query| searcher.search(query).map_err(|error| error.into()))
+    .collect::<Result<Vec<Response>>>()?;
+  // It's okay to unwrap because there will be at least one response
+  Ok(JsonResponse::new(merge_responses(responses).unwrap()))
+}
+
+fn merge_responses(responses: Vec<Response>) -> Option<Response> {
+  responses.into_iter().reduce(|mut acc, mut response| {
+    acc.urls.append(&mut response.urls);
+    acc
+  })
 }

@@ -11,6 +11,7 @@ pub struct JsonResponse {
 
 impl JsonResponse {
   pub fn new(response: Response) -> String {
+    // TODO: Use .to_string() when https://github.com/umccr/htsget-rs/pull/52 is merged
     let format = match response.format {
       Format::Bam => "BAM",
       Format::Cram => "CRAM",
