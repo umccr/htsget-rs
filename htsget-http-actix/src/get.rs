@@ -17,7 +17,7 @@ pub async fn reads(
 ) -> impl Responder {
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), id);
-  if let None = query_information.get("format") {
+  if query_information.get("format").is_none() {
     query_information.insert("format".to_string(), "BAM".to_string());
   }
   handle_request(query_information, shared_state.get_ref())
@@ -31,7 +31,7 @@ pub async fn variants(
 ) -> impl Responder {
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), id);
-  if let None = query_information.get("format") {
+  if query_information.get("format").is_none() {
     query_information.insert("format".to_string(), "VCF".to_string());
   }
   handle_request(query_information, shared_state.get_ref())

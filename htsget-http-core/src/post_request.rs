@@ -42,12 +42,10 @@ impl PostRequest {
   }
 
   fn get_base_query_builder(&self, id: impl Into<String>) -> Result<QueryBuilder> {
-    Ok(
-      QueryBuilder::new(Some(id.into()))?
-        .add_format(self.format.clone())?
-        .add_class(self.class.clone())?
-        .add_fields_from_vec(self.fields.clone())
-        .add_tags_from_vec(self.tags.clone(), self.notags.clone())?,
-    )
+    QueryBuilder::new(Some(id.into()))?
+      .add_format(self.format.clone())?
+      .add_class(self.class.clone())?
+      .add_fields_from_vec(self.fields.clone())
+      .add_tags_from_vec(self.tags.clone(), self.notags.clone())
   }
 }

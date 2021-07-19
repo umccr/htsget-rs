@@ -18,7 +18,7 @@ pub fn get_response_for_get_request<H: HtsGet>(
   searcher
     .search(query)
     .map_err(|error| error.into())
-    .map(|response| JsonResponse::new(response))
+    .map(JsonResponse::from_response)
 }
 
 fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query> {
@@ -48,7 +48,9 @@ pub fn get_response_for_post_request<H: HtsGet>(
     .map(|query| searcher.search(query).map_err(|error| error.into()))
     .collect::<Result<Vec<Response>>>()?;
   // It's okay to unwrap because there will be at least one response
-  Ok(JsonResponse::new(merge_responses(responses).unwrap()))
+  Ok(JsonResponse::from_response(
+    merge_responses(responses).unwrap(),
+  ))
 }
 
 fn merge_responses(responses: Vec<Response>) -> Option<Response> {

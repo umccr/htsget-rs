@@ -15,7 +15,7 @@ pub async fn reads(
   shared_state: Data<HtsGetFromStorage<LocalStorage>>,
 ) -> impl Responder {
   let mut request = request.into_inner();
-  if let None = request.format {
+  if request.format.is_none() {
     request.format = Some("BAM".to_string());
   }
   handle_request(request, id, shared_state.get_ref())
@@ -28,7 +28,7 @@ pub async fn variants(
   shared_state: Data<HtsGetFromStorage<LocalStorage>>,
 ) -> impl Responder {
   let mut request = request.into_inner();
-  if let None = request.format {
+  if request.format.is_none() {
     request.format = Some("VCF".to_string());
   }
   handle_request(request, id, shared_state.get_ref())

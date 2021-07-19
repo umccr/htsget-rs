@@ -10,7 +10,7 @@ pub struct JsonResponse {
 }
 
 impl JsonResponse {
-  pub fn new(response: Response) -> String {
+  pub fn from_response(response: Response) -> String {
     // TODO: Use .to_string() when https://github.com/umccr/htsget-rs/pull/52 is merged
     let format = match response.format {
       Format::Bam => "BAM",
@@ -20,11 +20,7 @@ impl JsonResponse {
       Format::Unsupported(_) => panic!("Response with an unsupported format"),
     }
     .to_string();
-    let urls = response
-      .urls
-      .into_iter()
-      .map(|url| JsonUrl::new(url))
-      .collect();
+    let urls = response.urls.into_iter().map(JsonUrl::new).collect();
     serde_json::to_string_pretty(&JsonResponse { format, urls })
       .expect("Internal error while converting response to json")
   }
