@@ -4,6 +4,8 @@ use thiserror::Error;
 
 pub type Result<T> = core::result::Result<T, HtsGetError>;
 
+/// An error type that describes the errors specified in the
+/// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
   #[error("InvalidAuthentication")]
@@ -29,6 +31,8 @@ struct JsonHtsGetError {
 }
 
 impl HtsGetError {
+  /// Allows converting the error to JSON and the correspondent
+  /// status code
   pub fn to_json_representation(&self) -> (String, u16) {
     let (message, status_code) = match self {
       HtsGetError::InvalidAuthentication(s) => (s, 401),

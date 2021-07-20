@@ -88,7 +88,7 @@ impl From<io::Error> for HtsGetError {
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Query {
   pub id: String,
   pub format: Option<Format>,

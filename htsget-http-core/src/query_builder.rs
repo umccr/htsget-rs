@@ -1,6 +1,7 @@
 use crate::error::{HtsGetError, Result};
 use htsget_search::htsget::{Class, Fields, Format, Query, Tags};
 
+/// A helper struct to construct a [Query] from [Strings](String)  
 #[derive(Debug)]
 pub struct QueryBuilder {
   query: Query,
@@ -153,7 +154,9 @@ impl QueryBuilder {
       }
       self.query = self.query.with_tags(Tags::List(tags));
     };
-    self.query = self.query.with_no_tags(notags);
+    if !notags.is_empty() {
+      self.query = self.query.with_no_tags(notags);
+    }
     Ok(self)
   }
 }

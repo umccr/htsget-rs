@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use htsget_search::htsget::{Class, Format, Response, Url};
 use serde::Serialize;
 
+/// A helper struct to convert [Responses](Response) to JSON. It shouldn't be used
+/// on its own, but with the `from_response` associated function
 #[derive(Serialize)]
 pub struct JsonResponse {
   format: String,
@@ -10,6 +12,7 @@ pub struct JsonResponse {
 }
 
 impl JsonResponse {
+  /// Converts a [Response] to JSON
   pub fn from_response(response: Response) -> String {
     // TODO: Use .to_string() when https://github.com/umccr/htsget-rs/pull/52 is merged
     let format = match response.format {
@@ -26,6 +29,8 @@ impl JsonResponse {
   }
 }
 
+/// A helper struct to convert [Urls](Url) to JSON. It shouldn't be used
+/// on its own, but with [JsonResponse]
 #[derive(Serialize)]
 struct JsonUrl {
   url: String,

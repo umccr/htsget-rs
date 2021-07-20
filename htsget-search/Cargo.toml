@@ -16,15 +16,15 @@ thiserror = "~1.0"
 # noodles-vcf =   { path = "../../noodles/noodles-vcf" }
 # noodles-tabix = { path = "../../noodles/noodles-tabix" }
 
-noodles-core =  { git = "https://github.com/zaeleus/noodles.git" }
-noodles-bgzf =  { git = "https://github.com/zaeleus/noodles.git" }
-noodles-bam =   { git = "https://github.com/zaeleus/noodles.git" }
-noodles-cram =  { git = "https://github.com/zaeleus/noodles.git" }
-noodles-sam =   { git = "https://github.com/zaeleus/noodles.git" }
-noodles-vcf =   { git = "https://github.com/zaeleus/noodles.git" }
-noodles-bcf =   { git = "https://github.com/zaeleus/noodles.git" }
-noodles-tabix = { git = "https://github.com/zaeleus/noodles.git" }
-noodles-csi = { git = "https://github.com/zaeleus/noodles.git" }
+noodles-core =  { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
+noodles-bgzf =  { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
+noodles-bam =   { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
+noodles-cram =  { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
+noodles-sam =   { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
+noodles-vcf =   { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
+noodles-bcf =   { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
+noodles-tabix = { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
+noodles-csi = { git = "https://github.com/zaeleus/noodles.git", rev = "2f23ab7a864573e3175e2b5c249a4afe470cd73c" }
 
 
 [dev-dependencies]
