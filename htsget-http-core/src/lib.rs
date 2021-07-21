@@ -27,12 +27,12 @@ pub fn get_response_for_get_request<H: HtsGet>(
 fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query> {
   Ok(
     QueryBuilder::new(query_information.get("id"))?
-      .add_format(query_information.get("format"))?
-      .add_class(query_information.get("class"))?
-      .add_reference_name(query_information.get("referenceName"))
-      .add_range(query_information.get("start"), query_information.get("end"))?
-      .add_fields(query_information.get("fields"))
-      .add_tags(
+      .with_format(query_information.get("format"))?
+      .with_class(query_information.get("class"))?
+      .with_reference_name(query_information.get("referenceName"))
+      .with_range(query_information.get("start"), query_information.get("end"))?
+      .with_fields(query_information.get("fields"))
+      .with_tags(
         query_information.get("tags"),
         query_information.get("notags"),
       )?

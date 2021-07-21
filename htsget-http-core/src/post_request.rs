@@ -36,8 +36,8 @@ impl PostRequest {
           Ok(
             self
               .get_base_query_builder(id.clone())?
-              .add_reference_name(Some(region.reference_name.clone()))
-              .add_range_from_u32(region.start, region.end)?
+              .with_reference_name(Some(region.reference_name.clone()))
+              .with_range_from_u32(region.start, region.end)?
               .build(),
           )
         })
@@ -49,10 +49,10 @@ impl PostRequest {
 
   fn get_base_query_builder(&self, id: impl Into<String>) -> Result<QueryBuilder> {
     QueryBuilder::new(Some(id.into()))?
-      .add_format(self.format.clone())?
-      .add_class(self.class.clone())?
-      .add_fields_from_vec(self.fields.clone())
-      .add_tags_from_vec(self.tags.clone(), self.notags.clone())
+      .with_format(self.format.clone())?
+      .with_class(self.class.clone())?
+      .with_fields_from_vec(self.fields.clone())
+      .with_tags_from_vec(self.tags.clone(), self.notags.clone())
   }
 }
 

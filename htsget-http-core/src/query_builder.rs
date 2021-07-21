@@ -18,7 +18,7 @@ impl QueryBuilder {
     self.query
   }
 
-  pub fn add_format(mut self, format: Option<impl Into<String>>) -> Result<Self> {
+  pub fn with_format(mut self, format: Option<impl Into<String>>) -> Result<Self> {
     let format = format.map(|s| s.into());
     if let Some(format) = format {
       self.query = self.query.with_format(match format.as_str() {
@@ -37,7 +37,7 @@ impl QueryBuilder {
     Ok(self)
   }
 
-  pub fn add_class(mut self, class: Option<impl Into<String>>) -> Result<Self> {
+  pub fn with_class(mut self, class: Option<impl Into<String>>) -> Result<Self> {
     let class = class.map(|s| s.into());
     self.query = self.query.with_class(match class {
       None => Class::Body,
@@ -52,14 +52,14 @@ impl QueryBuilder {
     Ok(self)
   }
 
-  pub fn add_reference_name(mut self, reference_name: Option<impl Into<String>>) -> Self {
+  pub fn with_reference_name(mut self, reference_name: Option<impl Into<String>>) -> Self {
     if let Some(reference_name) = reference_name {
       self.query = self.query.with_reference_name(reference_name);
     }
     self
   }
 
-  pub fn add_range(
+  pub fn with_range(
     self,
     start: Option<impl Into<String>>,
     end: Option<impl Into<String>>,
@@ -80,10 +80,10 @@ impl QueryBuilder {
           .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid end", end)))
       })
       .transpose()?;
-    self.add_range_from_u32(start, end)
+    self.with_range_from_u32(start, end)
   }
 
-  pub fn add_range_from_u32(mut self, start: Option<u32>, end: Option<u32>) -> Result<Self> {
+  pub fn with_range_from_u32(mut self, start: Option<u32>, end: Option<u32>) -> Result<Self> {
     if let Some(start) = start {
       self.query = self.query.with_start(start);
     }
@@ -110,13 +110,13 @@ impl QueryBuilder {
     Ok(self)
   }
 
-  pub fn add_fields(self, fields: Option<impl Into<String>>) -> Self {
-    self.add_fields_from_vec(
+  pub fn with_fields(self, fields: Option<impl Into<String>>) -> Self {
+    self.with_fields_from_vec(
       fields.map(|fields| fields.into().split(',').map(|s| s.to_string()).collect()),
     )
   }
 
-  pub fn add_fields_from_vec(mut self, fields: Option<Vec<impl Into<String>>>) -> Self {
+  pub fn with_fields_from_vec(mut self, fields: Option<Vec<impl Into<String>>>) -> Self {
     if let Some(fields) = fields {
       self.query = self
         .query
@@ -125,18 +125,18 @@ impl QueryBuilder {
     self
   }
 
-  pub fn add_tags(
+  pub fn with_tags(
     self,
     tags: Option<impl Into<String>>,
     notags: Option<impl Into<String>>,
   ) -> Result<Self> {
-    self.add_tags_from_vec(
+    self.with_tags_from_vec(
       tags.map(|tags| tags.into().split(',').map(|s| s.to_string()).collect()),
       notags.map(|notags| notags.into().split(',').map(|s| s.to_string()).collect()),
     )
   }
 
-  pub fn add_tags_from_vec(
+  pub fn with_tags_from_vec(
     mut self,
     tags: Option<Vec<impl Into<String>>>,
     notags: Option<Vec<impl Into<String>>>,
@@ -189,7 +189,7 @@ mod tests {
     assert_eq!(
       QueryBuilder::new(Some("ValidID"))
         .unwrap()
-        .add_format(Some("VCF"))
+        .with_format(Some("VCF"))
         .unwrap()
         .build()
         .format
@@ -203,7 +203,7 @@ mod tests {
     assert_eq!(
       QueryBuilder::new(Some("ValidID"))
         .unwrap()
-        .add_format(Some("Invalid"))
+        .with_format(Some("Invalid"))
         .unwrap_err(),
       HtsGetError::UnsupportedFormat(format!("The Invalid format isn't supported"))
     );
@@ -214,7 +214,7 @@ mod tests {
     assert_eq!(
       QueryBuilder::new(Some("ValidID"))
         .unwrap()
-        .add_class(Some("header"))
+        .with_class(Some("header"))
         .unwrap()
         .build()
         .class,
@@ -227,7 +227,7 @@ mod tests {
     assert_eq!(
       QueryBuilder::new(Some("ValidID"))
         .unwrap()
-        .add_reference_name(Some("ValidName"))
+        .with_reference_name(Some("ValidName"))
         .build()
         .reference_name,
       Some("ValidName".to_string())
@@ -238,8 +238,8 @@ mod tests {
   fn query_with_range() {
     let query = QueryBuilder::new(Some("ValidID"))
       .unwrap()
-      .add_reference_name(Some("ValidName"))
-      .add_range(Some("3"), Some("5"))
+      .with_reference_name(Some("ValidName"))
+      .with_range(Some("3"), Some("5"))
       .unwrap()
       .build();
     assert_eq!((query.start, query.end), (Some(3), Some(5)));
@@ -250,7 +250,7 @@ mod tests {
     assert_eq!(
       QueryBuilder::new(Some("ValidID"))
         .unwrap()
-        .add_range(Some("3"), Some("5"))
+        .with_range(Some("3"), Some("5"))
         .unwrap_err(),
       HtsGetError::InvalidInput(format!(
         "Can't use range whitout specifying the reference name or with \"*\""
@@ -263,8 +263,8 @@ mod tests {
     assert_eq!(
       QueryBuilder::new(Some("ValidID"))
         .unwrap()
-        .add_reference_name(Some("ValidName"))
-        .add_range(Some("a"), Some("5"))
+        .with_reference_name(Some("ValidName"))
+        .with_range(Some("a"), Some("5"))
         .unwrap_err(),
       HtsGetError::InvalidInput(format!("a isn't a valid start"))
     );
@@ -275,8 +275,8 @@ mod tests {
     assert_eq!(
       QueryBuilder::new(Some("ValidID"))
         .unwrap()
-        .add_reference_name(Some("ValidName"))
-        .add_range(Some("5"), Some("3"))
+        .with_reference_name(Some("ValidName"))
+        .with_range(Some("5"), Some("3"))
         .unwrap_err(),
       HtsGetError::InvalidRange(format!("end(3) is greater than start(5)"))
     );
@@ -287,7 +287,7 @@ mod tests {
     assert_eq!(
       QueryBuilder::new(Some("ValidID"))
         .unwrap()
-        .add_fields(Some("header,part1,part2"))
+        .with_fields(Some("header,part1,part2"))
         .build()
         .fields,
       Fields::List(vec![
@@ -302,7 +302,7 @@ mod tests {
   fn query_with_tags() {
     let query = QueryBuilder::new(Some("ValidID"))
       .unwrap()
-      .add_tags(Some("header,part1,part2"), Some("part3"))
+      .with_tags(Some("header,part1,part2"), Some("part3"))
       .unwrap()
       .build();
     assert_eq!(
@@ -320,7 +320,7 @@ mod tests {
   fn query_with_invalid_tags() {
     let query = QueryBuilder::new(Some("ValidID"))
       .unwrap()
-      .add_tags(Some("header,part1,part2"), Some("part3"))
+      .with_tags(Some("header,part1,part2"), Some("part3"))
       .unwrap()
       .build();
     assert_eq!(
