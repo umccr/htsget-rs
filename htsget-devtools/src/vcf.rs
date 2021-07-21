@@ -4,6 +4,7 @@ use std::io::Result;
 use std::path::Path;
 
 use noodles_bgzf::{self as bgzf, VirtualPosition};
+use noodles_csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles_tabix::{self as tabix};
 use noodles_vcf::{self as vcf};
 

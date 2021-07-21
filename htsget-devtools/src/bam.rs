@@ -7,6 +7,7 @@ use std::{collections::HashSet, path::Path};
 use bam::Record;
 use noodles_bam::{self as bam, bai};
 use noodles_bgzf::VirtualPosition;
+use noodles_csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles_sam::{self as sam};
 
 #[derive(Debug, Serialize)]
