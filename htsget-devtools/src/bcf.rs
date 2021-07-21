@@ -5,7 +5,7 @@ use std::path::Path;
 
 use noodles_bcf::{self as bcf};
 use noodles_bgzf::VirtualPosition;
-use noodles_csi::{self as csi};
+use noodles_csi::{self as csi, BinningIndex, BinningIndexReferenceSequence};
 use noodles_vcf::{self as vcf};
 
 #[derive(Debug, Serialize)]
