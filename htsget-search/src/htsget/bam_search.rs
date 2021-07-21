@@ -13,6 +13,7 @@ use noodles_sam as sam;
 use noodles_sam::Header;
 
 use crate::htsget::search::{BgzfSearch, Search, SearchReads};
+use crate::htsget::HtsGetError;
 use crate::{
   htsget::search::{BlockPosition, VirtualPositionExt},
   htsget::{Format, Query, Result},
@@ -48,12 +49,8 @@ where
     ref_seq.len()
   }
 
-  fn get_byte_ranges_for_unmapped(
-    &self,
-    bam_key: &str,
-    bai_index: &bai::Index,
-  ) -> Result<Vec<BytesRange>> {
-    let last_interval = bai_index
+  fn get_byte_ranges_for_unmapped(&self, key: &str, index: &bai::Index) -> Result<Vec<BytesRange>> {
+    let last_interval = index
       .reference_sequences()
       .iter()
       .rev()
@@ -62,15 +59,18 @@ where
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let (bam_reader, _) = self.create_reader(bam_key)?;
+        let (bam_reader, _) = self.create_reader(key)?;
         bam_reader.virtual_position()
       }
     };
 
-    // TODO get the end of the range from the BAM size (will require a new call in the Storage interface)
-    Ok(vec![
-      BytesRange::default().with_start(start.bytes_range_start())
-    ])
+    let file_size = self
+      .storage
+      .head(key)
+      .map_err(|_| HtsGetError::io_error("Reading file size"))?;
+    Ok(vec![BytesRange::default()
+      .with_start(start.bytes_range_start())
+      .with_end(file_size)])
   }
 }
 
@@ -139,6 +139,7 @@ where
 
   fn get_byte_ranges_for_reference_sequence(
     &self,
+    _key: &str,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
@@ -183,7 +184,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url(&storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=4668-"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=4668-2596799"))],
       ));
       assert_eq!(response, expected_response)
     });
@@ -200,7 +201,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url(&storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=2060795-"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596799"))],
       ));
       assert_eq!(response, expected_response)
     });
