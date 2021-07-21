@@ -15,6 +15,8 @@ const VARIANTS_DEFAULT_FORMAT: &str = "VCF";
 const READS_FORMATS: [&str; 2] = ["BAM", "CRAM"];
 const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
 
+/// A enum to distinguish between the two endpoint defined in the
+/// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
 pub enum Endpoint {
   Reads,
   Variants,
@@ -103,4 +105,31 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
     acc.urls.append(&mut response.urls);
     acc
   })
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use htsget_search::{
+    htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
+    storage::local::LocalStorage,
+  };
+  #[test]
+  fn get_request() {
+    let mut query = HashMap::new();
+    query.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
+    let mut headers = HashMap::new();
+    headers.insert("Range".to_string(), "bytes=4668-".to_string());
+    assert_eq!(
+      get_response_for_get_request(&get_searcher(), query, Endpoint::Reads),
+      Ok(JsonResponse::from_response(Response::new(
+        Format::Bam,
+        vec![Url::new("file:///mnt/datos/Daniel/Escritorio/Universidad/htsget-rs/data/bam/htsnexus_test_NA12878.bam").with_headers(Headers::new(headers))]
+      )))
+    )
+  }
+
+  fn get_searcher() -> impl HtsGet {
+    HtsGetFromStorage::new(LocalStorage::new("../data").unwrap())
+  }
 }
