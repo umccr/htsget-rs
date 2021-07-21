@@ -4,11 +4,10 @@ use actix_web::{
   web::{Data, Json, Path, Query},
   Responder,
 };
-use htsget_http_core::get_response_for_get_request;
+use htsget_http_core::{get_response_for_get_request, Endpoint};
 use htsget_search::{htsget::from_storage::HtsGetFromStorage, storage::local::LocalStorage};
 use std::collections::HashMap;
 
-// TODO: Don't accept the variants formats in the reads endpoint and viceversa
 #[get("/reads/{id:.+}")]
 pub async fn reads(
   request: Query<HashMap<String, String>>,
@@ -17,10 +16,7 @@ pub async fn reads(
 ) -> impl Responder {
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), id);
-  if query_information.get("format").is_none() {
-    query_information.insert("format".to_string(), "BAM".to_string());
-  }
-  handle_request(query_information, shared_state.get_ref())
+  handle_request(query_information, shared_state.get_ref(), Endpoint::Reads)
 }
 
 #[get("/variants/{id:.+}")]
@@ -31,17 +27,19 @@ pub async fn variants(
 ) -> impl Responder {
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), id);
-  if query_information.get("format").is_none() {
-    query_information.insert("format".to_string(), "VCF".to_string());
-  }
-  handle_request(query_information, shared_state.get_ref())
+  handle_request(
+    query_information,
+    shared_state.get_ref(),
+    Endpoint::Variants,
+  )
 }
 
 fn handle_request(
   request_information: HashMap<String, String>,
   htsget: &HtsGetFromStorage<LocalStorage>,
+  endpoint: Endpoint,
 ) -> impl Responder {
-  let response = get_response_for_get_request(htsget, &request_information);
+  let response = get_response_for_get_request(htsget, request_information, endpoint);
   match response {
     Err(error) => {
       let (json, status_code) = error.to_json_representation();
