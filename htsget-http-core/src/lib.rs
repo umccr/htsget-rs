@@ -124,7 +124,18 @@ mod tests {
       get_response_for_get_request(&get_searcher(), query, Endpoint::Reads),
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
-        vec![Url::new("file:///mnt/datos/Daniel/Escritorio/Universidad/htsget-rs/data/bam/htsnexus_test_NA12878.bam").with_headers(Headers::new(headers))]
+        vec![Url::new(format!(
+          "file://{}",
+          std::env::current_dir()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("data")
+            .join("bam")
+            .join("htsnexus_test_NA12878.bam")
+            .to_string_lossy()
+        ))
+        .with_headers(Headers::new(headers))]
       )))
     )
   }
