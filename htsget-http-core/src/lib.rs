@@ -119,7 +119,7 @@ mod tests {
     let mut query = HashMap::new();
     query.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=4668-".to_string());
+    headers.insert("Range".to_string(), "bytes=4668-2596799".to_string());
     assert_eq!(
       get_response_for_get_request(&get_searcher(), query, Endpoint::Reads),
       Ok(JsonResponse::from_response(Response::new(
