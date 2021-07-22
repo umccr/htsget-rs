@@ -85,7 +85,11 @@ impl Storage for LocalStorage {
   fn head<K: AsRef<str>>(&self, key: K) -> Result<u64> {
     let key: &str = key.as_ref();
     let path = self.get_path_from_key(key)?;
-    Ok(std::fs::metadata(path).map_err(|err| StorageError::NotFound(err.to_string()))?.len())
+    Ok(
+      std::fs::metadata(path)
+        .map_err(|err| StorageError::NotFound(err.to_string()))?
+        .len(),
+    )
   }
 }
 

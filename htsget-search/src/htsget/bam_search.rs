@@ -4,13 +4,14 @@
 use std::path::PathBuf;
 use std::{fs::File, io};
 
-use noodles_bam::bai::index::ReferenceSequence;
-use noodles_bam::bai::Index;
-use noodles_bam::{self as bam, bai, Reader};
-use noodles_bgzf::VirtualPosition;
-use noodles_csi::BinningIndex;
-use noodles_sam as sam;
-use noodles_sam::Header;
+use noodles::bam;
+use noodles::bam::bai::index::ReferenceSequence;
+use noodles::bam::bai::Index;
+use noodles::bam::{bai, Reader};
+use noodles::bgzf::VirtualPosition;
+use noodles::csi::BinningIndex;
+use noodles::sam;
+use noodles::sam::Header;
 
 use crate::htsget::search::{BgzfSearch, Search, SearchReads};
 use crate::htsget::HtsGetError;
@@ -121,11 +122,7 @@ where
     &self,
     header: &'b Header,
     name: &str,
-  ) -> Option<(
-    usize,
-    &'b String,
-    &'b noodles_sam::header::ReferenceSequence,
-  )> {
+  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)> {
     header.reference_sequences().get_full(name)
   }
 

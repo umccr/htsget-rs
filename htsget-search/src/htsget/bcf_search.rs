@@ -5,12 +5,13 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::{fs::File, io};
 
-use noodles_bcf as bcf;
-use noodles_bcf::Reader;
-use noodles_bgzf::VirtualPosition;
-use noodles_csi::index::ReferenceSequence;
-use noodles_csi::{self as csi, Index};
-use noodles_vcf as vcf;
+use noodles::bcf;
+use noodles::bcf::Reader;
+use noodles::bgzf::VirtualPosition;
+use noodles::csi;
+use noodles::csi::index::ReferenceSequence;
+use noodles::csi::Index;
+use noodles::vcf;
 
 use crate::htsget::search::{BgzfSearch, BlockPosition, Search};
 use crate::{

@@ -16,8 +16,8 @@ pub mod bam_search;
 pub mod bcf_search;
 pub mod cram_search;
 pub mod from_storage;
+pub mod search;
 pub mod vcf_search;
-mod search;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
 
@@ -167,7 +167,7 @@ pub enum Format {
   Cram,
   Vcf,
   Bcf,
-  Unsupported(String)
+  Unsupported(String),
 }
 
 impl From<Format> for String {
@@ -177,7 +177,7 @@ impl From<Format> for String {
       Format::Cram => "CRAM".to_string(),
       Format::Vcf => "VCF".to_string(),
       Format::Bcf => "BCF".to_string(),
-      Format::Unsupported(format) => format
+      Format::Unsupported(format) => format,
     }
   }
 }
@@ -189,7 +189,7 @@ impl fmt::Display for Format {
       Format::Cram => write!(f, "CRAM"),
       Format::Vcf => write!(f, "VCF"),
       Format::Bcf => write!(f, "BCF"),
-      Format::Unsupported(format) => write!(f, "{}", format)
+      Format::Unsupported(format) => write!(f, "{}", format),
     }
   }
 }

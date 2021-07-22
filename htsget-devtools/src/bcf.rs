@@ -3,10 +3,11 @@ use std::fs::File;
 use std::io::Result;
 use std::path::Path;
 
-use noodles_bcf::{self as bcf};
-use noodles_bgzf::VirtualPosition;
-use noodles_csi::{self as csi, BinningIndex, BinningIndexReferenceSequence};
-use noodles_vcf::{self as vcf};
+use noodles::bcf;
+use noodles::bgzf::VirtualPosition;
+use noodles::csi;
+use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::vcf;
 
 #[derive(Debug, Serialize)]
 pub struct RefSeq {

@@ -5,11 +5,13 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::{fs::File, io};
 
-use noodles_bgzf::{self as bgzf, VirtualPosition};
-use noodles_tabix::index::ReferenceSequence;
-use noodles_tabix::{self as tabix, Index};
-use noodles_vcf as vcf;
-use noodles_vcf::Reader;
+use noodles::bgzf;
+use noodles::bgzf::VirtualPosition;
+use noodles::tabix;
+use noodles::tabix::index::ReferenceSequence;
+use noodles::tabix::Index;
+use noodles::vcf;
+use noodles::vcf::Reader;
 
 use crate::htsget::search::{BgzfSearch, BlockPosition, Search};
 use crate::{
@@ -54,9 +56,9 @@ impl<'a, S>
 where
   S: Storage + 'a,
 {
-  const READER_FN: fn(File) -> Reader<noodles_bgzf::Reader<File>> =
+  const READER_FN: fn(File) -> Reader<bgzf::Reader<File>> =
     |file| vcf::Reader::new(bgzf::Reader::new(file));
-  const HEADER_FN: fn(&mut Reader<noodles_bgzf::Reader<File>>) -> io::Result<String> =
+  const HEADER_FN: fn(&mut Reader<bgzf::Reader<File>>) -> io::Result<String> =
     vcf::Reader::read_header;
   const INDEX_FN: fn(PathBuf) -> io::Result<Index> = tabix::read;
 
