@@ -114,23 +114,20 @@ mod tests {
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
     storage::local::LocalStorage,
   };
+  use std::path::PathBuf;
   #[test]
   fn get_request() {
-    let mut query = HashMap::new();
-    query.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
+    let mut request = HashMap::new();
+    request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     let mut headers = HashMap::new();
     headers.insert("Range".to_string(), "bytes=4668-2596799".to_string());
     assert_eq!(
-      get_response_for_get_request(&get_searcher(), query, Endpoint::Reads),
+      get_response_for_get_request(&get_searcher(), request, Endpoint::Reads),
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
           "file://{}",
-          std::env::current_dir()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("data")
+          get_base_path()
             .join("bam")
             .join("htsnexus_test_NA12878.bam")
             .to_string_lossy()
@@ -138,6 +135,145 @@ mod tests {
         .with_headers(Headers::new(headers))]
       )))
     )
+  }
+
+  #[test]
+  fn get_reads_request_with_variants_format() {
+    let mut request = HashMap::new();
+    request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
+    request.insert("format".to_string(), "VCF".to_string());
+    assert_eq!(
+      get_response_for_get_request(&get_searcher(), request, Endpoint::Reads),
+      Err(HtsGetError::UnsupportedFormat(
+        "VCF isn't a supported format".to_string()
+      ))
+    )
+  }
+
+  #[test]
+  fn get_request_with_range() {
+    let mut request = HashMap::new();
+    request.insert("id".to_string(), "vcf/sample1-bcbio-cancer".to_string());
+    request.insert("referenceName".to_string(), "chrM".to_string());
+    request.insert("start".to_string(), "149".to_string());
+    request.insert("end".to_string(), "200".to_string());
+    let mut headers = HashMap::new();
+    headers.insert("Range".to_string(), "bytes=0-3367".to_string());
+    assert_eq!(
+      get_response_for_get_request(&get_searcher(), request, Endpoint::Variants),
+      Ok(JsonResponse::from_response(Response::new(
+        Format::Vcf,
+        vec![Url::new(format!(
+          "file://{}",
+          get_base_path()
+            .join("vcf")
+            .join("sample1-bcbio-cancer.vcf.gz")
+            .to_string_lossy()
+        ))
+        .with_headers(Headers::new(headers))]
+      )))
+    )
+  }
+
+  #[test]
+  fn post_request() {
+    let request = PostRequest {
+      format: None,
+      class: None,
+      fields: None,
+      tags: None,
+      notags: None,
+      regions: None,
+    };
+    let mut headers = HashMap::new();
+    headers.insert("Range".to_string(), "bytes=4668-2596799".to_string());
+    assert_eq!(
+      get_response_for_post_request(
+        &get_searcher(),
+        request,
+        "bam/htsnexus_test_NA12878",
+        Endpoint::Reads
+      ),
+      Ok(JsonResponse::from_response(Response::new(
+        Format::Bam,
+        vec![Url::new(format!(
+          "file://{}",
+          get_base_path()
+            .join("bam")
+            .join("htsnexus_test_NA12878.bam")
+            .to_string_lossy()
+        ))
+        .with_headers(Headers::new(headers))]
+      )))
+    )
+  }
+
+  #[test]
+  fn post_variants_request_with_reads_format() {
+    let request = PostRequest {
+      format: Some("BAM".to_string()),
+      class: None,
+      fields: None,
+      tags: None,
+      notags: None,
+      regions: None,
+    };
+    assert_eq!(
+      get_response_for_post_request(
+        &get_searcher(),
+        request,
+        "bam/htsnexus_test_NA12878",
+        Endpoint::Variants
+      ),
+      Err(HtsGetError::UnsupportedFormat(
+        "BAM isn't a supported format".to_string()
+      ))
+    )
+  }
+
+  #[test]
+  fn post_request_with_range() {
+    let request = PostRequest {
+      format: Some("VCF".to_string()),
+      class: None,
+      fields: None,
+      tags: None,
+      notags: None,
+      regions: Some(vec![Region {
+        reference_name: "chrM".to_string(),
+        start: Some(149),
+        end: Some(200),
+      }]),
+    };
+    let mut headers = HashMap::new();
+    headers.insert("Range".to_string(), "bytes=0-3367".to_string());
+    assert_eq!(
+      get_response_for_post_request(
+        &get_searcher(),
+        request,
+        "vcf/sample1-bcbio-cancer",
+        Endpoint::Variants
+      ),
+      Ok(JsonResponse::from_response(Response::new(
+        Format::Vcf,
+        vec![Url::new(format!(
+          "file://{}",
+          get_base_path()
+            .join("vcf")
+            .join("sample1-bcbio-cancer.vcf.gz")
+            .to_string_lossy()
+        ))
+        .with_headers(Headers::new(headers))]
+      )))
+    )
+  }
+
+  fn get_base_path() -> PathBuf {
+    std::env::current_dir()
+      .unwrap()
+      .parent()
+      .unwrap()
+      .join("data")
   }
 
   fn get_searcher() -> impl HtsGet {
