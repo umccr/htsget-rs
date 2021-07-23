@@ -7,10 +7,12 @@ use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use noodles_bam::record::ReferenceSequenceId;
-use noodles_cram::crai::{Index, Record};
-use noodles_cram::{self as cram, crai, Reader};
-use noodles_sam::{self as sam, Header};
+use noodles::bam::record::ReferenceSequenceId;
+use noodles::cram;
+use noodles::cram::crai::{Index, Record};
+use noodles::cram::{crai, Reader};
+use noodles::sam;
+use noodles::sam::Header;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
@@ -44,11 +46,7 @@ where
     &self,
     header: &'b Header,
     name: &str,
-  ) -> Option<(
-    usize,
-    &'b String,
-    &'b noodles_sam::header::ReferenceSequence,
-  )> {
+  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)> {
     header.reference_sequences().get_full(name)
   }
 
@@ -136,7 +134,7 @@ where
   fn bytes_ranges_from_index<F>(
     &self,
     key: &str,
-    ref_seq: Option<&noodles_sam::header::ReferenceSequence>,
+    ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
     crai_index: &[crai::Record],
@@ -179,7 +177,7 @@ where
 
   /// Gets bytes ranges for a specific index entry.
   fn bytes_ranges_for_record(
-    ref_seq: Option<&noodles_sam::header::ReferenceSequence>,
+    ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
     record: &Record,

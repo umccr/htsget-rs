@@ -10,10 +10,10 @@ use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use noodles_bgzf::VirtualPosition;
-use noodles_csi::binning_index::merge_chunks;
-use noodles_csi::{BinningIndex, BinningIndexReferenceSequence};
-use noodles_sam as sam;
+use noodles::bgzf::VirtualPosition;
+use noodles::csi::binning_index::merge_chunks;
+use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::sam;
 
 use crate::storage::GetOptions;
 use crate::{

@@ -4,11 +4,12 @@ use std::fs::File;
 use std::io::Result;
 use std::{collections::HashSet, path::Path};
 
-use bam::Record;
-use noodles_bam::{self as bam, bai};
-use noodles_bgzf::VirtualPosition;
-use noodles_csi::{BinningIndex, BinningIndexReferenceSequence};
-use noodles_sam::{self as sam};
+use noodles::bam;
+use noodles::bam::bai;
+use noodles::bam::Record;
+use noodles::bgzf::VirtualPosition;
+use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::sam;
 
 #[derive(Debug, Serialize)]
 pub struct RefSeq {
