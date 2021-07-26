@@ -6,6 +6,10 @@ mod json_response;
 use json_response::JsonResponse;
 mod post_request;
 pub use post_request::{PostRequest, Region};
+mod service_info;
+pub use service_info::{
+  get_service_info_json, ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType,
+};
 
 use htsget_search::htsget::{HtsGet, Query, Response};
 use std::collections::HashMap;
@@ -25,8 +29,8 @@ pub enum Endpoint {
 /// Gets a JSON response for a GET request. The GET request parameters must
 /// be in a HashMap. The "id" field is the only mandatory one. The rest can be
 /// consulted [here](https://samtools.github.io/hts-specs/htsget.html)
-pub fn get_response_for_get_request<H: HtsGet>(
-  searcher: &H,
+pub fn get_response_for_get_request(
+  searcher: &impl HtsGet,
   mut query_information: HashMap<String, String>,
   endpoint: Endpoint,
 ) -> Result<String> {
@@ -71,8 +75,8 @@ fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query
 
 /// Gets a response in JSON for a POST request.
 /// The parameters can be consulted [here](https://samtools.github.io/hts-specs/htsget.html)
-pub fn get_response_for_post_request<H: HtsGet>(
-  searcher: &H,
+pub fn get_response_for_post_request(
+  searcher: &impl HtsGet,
   mut request: PostRequest,
   id: impl Into<String>,
   endpoint: Endpoint,

@@ -24,6 +24,9 @@ type Result<T> = core::result::Result<T, HtsGetError>;
 /// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
 pub trait HtsGet {
   fn search(&self, query: Query) -> Result<Response>;
+  fn get_supported_formats(&self) -> Vec<Format>;
+  fn are_field_parameters_effective(&self) -> bool;
+  fn are_tag_parameters_effective(&self) -> bool;
 }
 
 #[derive(Error, Debug, PartialEq)]
