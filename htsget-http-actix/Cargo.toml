@@ -8,5 +8,7 @@ edition = "2018"
 [dependencies]
 
 actix-web = "3"
+envy = "0.4"
+serde = { version = "1", features = ["derive"] }
 htsget-http-core = { path = "../htsget-http-core" }
 htsget-search = { path = "../htsget-search" }
