@@ -7,7 +7,7 @@ mod get;
 mod post;
 
 const USAGE: &str = r"
-There are some environment variables that can be set to configure the server:
+This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
 * HTSGET_IP: The ip to use. Default: 127.0.0.1
 * HTSGET_PORT: The port to use. Default: 8080
 * HTSGET_PATH: The path to the directory where the server should be started. Default: Actual directory
@@ -15,7 +15,7 @@ There are some environment variables that can be set to configure the server:
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-  if args().any(|arg| arg == "-h" || arg == "--help") {
+  if args().len() > 1 {
     println!("{}", USAGE);
     return Ok(());
   }
