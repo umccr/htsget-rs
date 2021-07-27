@@ -16,6 +16,7 @@ This executable doesn't use command line arguments, but there are some environme
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
   if args().len() > 1 {
+    // Show help if command line options are provided
     println!("{}", USAGE);
     return Ok(());
   }

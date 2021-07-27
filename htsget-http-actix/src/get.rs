@@ -8,6 +8,7 @@ use htsget_http_core::{get_response_for_get_request, Endpoint};
 use htsget_search::{htsget::from_storage::HtsGetFromStorage, storage::local::LocalStorage};
 use std::collections::HashMap;
 
+/// GET request reads endpoint
 #[get("/reads/{id:.+}")]
 pub async fn reads(
   request: Query<HashMap<String, String>>,
@@ -19,6 +20,7 @@ pub async fn reads(
   handle_request(query_information, shared_state.get_ref(), Endpoint::Reads)
 }
 
+/// GET request variants endpoint
 #[get("/variants/{id:.+}")]
 pub async fn variants(
   request: Query<HashMap<String, String>>,

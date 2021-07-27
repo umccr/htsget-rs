@@ -13,6 +13,7 @@ fn default_path() -> PathBuf {
   PathBuf::from(".")
 }
 
+/// A struct to extract the configuration from the environment variables
 #[derive(Deserialize, Debug)]
 pub struct Config {
   #[serde(default = "default_port")]

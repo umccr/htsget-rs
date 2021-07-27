@@ -7,6 +7,7 @@ use actix_web::{
 use htsget_http_core::{get_response_for_post_request, Endpoint, PostRequest};
 use htsget_search::{htsget::from_storage::HtsGetFromStorage, storage::local::LocalStorage};
 
+/// POST request reads endpoint
 #[post("/reads/{id:.+}")]
 pub async fn reads(
   request: Json<PostRequest>,
@@ -21,6 +22,7 @@ pub async fn reads(
   )
 }
 
+/// POST request variants endpoint
 #[post("/variants/{id:.+}")]
 pub async fn variants(
   request: Json<PostRequest>,
