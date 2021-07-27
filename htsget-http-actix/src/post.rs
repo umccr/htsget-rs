@@ -1,18 +1,16 @@
 use actix_web::{
   http::StatusCode,
-  post,
   web::{Data, Json, Path},
   Responder,
 };
 use htsget_http_core::{get_response_for_post_request, Endpoint, PostRequest};
-use htsget_search::{htsget::from_storage::HtsGetFromStorage, storage::local::LocalStorage};
+use htsget_search::htsget::HtsGet;
 
 /// POST request reads endpoint
-#[post("/reads/{id:.+}")]
-pub async fn reads(
+pub async fn reads<H: HtsGet>(
   request: Json<PostRequest>,
   Path(id): Path<String>,
-  shared_state: Data<HtsGetFromStorage<LocalStorage>>,
+  shared_state: Data<H>,
 ) -> impl Responder {
   handle_request(
     request.into_inner(),
@@ -23,11 +21,10 @@ pub async fn reads(
 }
 
 /// POST request variants endpoint
-#[post("/variants/{id:.+}")]
-pub async fn variants(
+pub async fn variants<H: HtsGet>(
   request: Json<PostRequest>,
   Path(id): Path<String>,
-  shared_state: Data<HtsGetFromStorage<LocalStorage>>,
+  shared_state: Data<H>,
 ) -> impl Responder {
   handle_request(
     request.into_inner(),
@@ -40,7 +37,7 @@ pub async fn variants(
 fn handle_request(
   request: PostRequest,
   id: String,
-  htsget: &HtsGetFromStorage<LocalStorage>,
+  htsget: &impl HtsGet,
   endpoint: Endpoint,
 ) -> impl Responder {
   let response = get_response_for_post_request(htsget, request, id, endpoint);
