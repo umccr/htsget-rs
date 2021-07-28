@@ -13,6 +13,7 @@ fn default_path() -> PathBuf {
   PathBuf::from(".")
 }
 
+/// Configuration for the server. Each field will be read from environment variables
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
   #[serde(default = "default_port")]

@@ -6,6 +6,12 @@ To start the server it should be enough to run `cargo run` or to execute the bin
 * HTSGET_PORT: The port to use. Default: 8080
 * HTSGET_PATH: The path to the directory where the server should be started. Default: Actual directory
 For example, `HTSGET_PORT=8000 cargo run` will try to bind the server to the port 8000.
+The next variables are used to configure the info for the service-info endpoints
+* HTSGET_ID: The id of the service. Default: ""
+* HTSGET_NAME: The name of the service. Default: "HtsGet service"
+* HTSGET_VERSION: The version of the service. Default: ""
+* HTSGET_ORGANIZATION_NAME: The name of the organization. Default: "Snake oil"
+* HTSGET_ORGANIZATION_URL: The url of the organization. Default: "https://en.wikipedia.org/wiki/Snake_oil"
 ## Examples
 These are some examples with [curl](https://github.com/curl/curl) in which the server was started at the root of the [htsget-rs project](https://github.com/umccr/htsget-rs):
 * Simple GET request:
@@ -23,4 +29,8 @@ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=hea
 * POST request:
 ```bash
 curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+```
+* Service-info request:
+```bash
+curl 127.0.0.1:8080/variants/service-info
 ```
