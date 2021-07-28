@@ -1,13 +1,9 @@
 use crate::AppState;
 
 use super::Config;
-use actix_web::{
-  http::StatusCode,
-  web::{Data, Json},
-  Responder,
-};
+use actix_web::{dev::HttpResponseBuilder, http::StatusCode, web::Data, HttpResponse, Responder};
 use htsget_http_core::{
-  get_service_info_json as get_base_service_info_json, Endpoint, Result, ServiceInfo,
+  get_service_info_json as get_base_service_info_json, Endpoint, JsonResponse, Result, ServiceInfo,
 };
 use htsget_search::htsget::HtsGet;
 
@@ -15,19 +11,19 @@ pub mod get;
 pub mod post;
 
 /// Handles a response, converting errors to json and using the proper HTTP status code
-fn handle_response(response: Result<String>) -> impl Responder {
+fn handle_response(response: Result<JsonResponse>) -> impl Responder {
   match response {
     Err(error) => {
       let (json, status_code) = error.to_json_representation();
-      Json(json).with_status(StatusCode::from_u16(status_code).unwrap())
+      HttpResponseBuilder::new(StatusCode::from_u16(status_code).unwrap()).json(json)
     }
-    Ok(json) => Json(json).with_status(StatusCode::OK),
+    Ok(json) => HttpResponseBuilder::new(StatusCode::OK).json(json),
   }
 }
 
 /// Gets the JSON to return for a service-info endpoint
 fn get_service_info_json<H: HtsGet>(app_state: &AppState<H>, endpoint: Endpoint) -> impl Responder {
-  Json(fill_out_service_info_json(
+  HttpResponse::Ok().json(fill_out_service_info_json(
     get_base_service_info_json(endpoint, &app_state.htsget),
     &app_state.config,
   ))
