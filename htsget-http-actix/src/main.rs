@@ -3,8 +3,8 @@ use htsget_search::{htsget::from_storage::HtsGetFromStorage, storage::local::Loc
 use std::env::args;
 mod config;
 use config::Config;
-mod get;
-mod post;
+mod handlers;
+use handlers::{get, post};
 
 const USAGE: &str = r"
 This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
@@ -22,14 +22,13 @@ async fn main() -> std::io::Result<()> {
     return Ok(());
   }
   let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
-  let htsget = HtsGetFromStorage::new(
-    LocalStorage::new(config.htsget_path)
-      .expect("Couldn't create a Storage with the provided path"),
-  );
-  let htsget = web::Data::new(htsget);
+  let htsget_path = config.htsget_path;
   HttpServer::new(move || {
     App::new()
-      .app_data(htsget.clone())
+      .data(HtsGetFromStorage::new(
+        LocalStorage::new(htsget_path.clone())
+          .expect("Couldn't create a Storage with the provided path"),
+      ))
       .service(
         web::scope("/reads/{id:.+}")
           .route("", web::get().to(get::reads::<HtsGetStorage>))
