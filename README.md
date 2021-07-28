@@ -7,9 +7,11 @@ For now, the aim of this project is to build a Minimal Viable Product (MVP) for 
 This repository consists of a workspace composed by the following crates:
 
 - [htsget-search](htsget-search): This crate will contain the core logic needed to run searches in the genomic data according to the HtsGet specs. Things like how to access the genomic data with the reads or the variants from cloud storage, or how to run queries on their indices, or how to provide the information needed by the HtsGet spec. But this crate has nothing to do with the HTTP or REST protocols, only the core logic, which means that it could also be used to build other kind of interfaces on top of it, like Command Line Interfaces (CLI) for example.
+- [htsget-http-core](htsget-http-core): This crate contains the core logic needed to handle HTTP requests as stated in the HtsGet spec. Things like converting query results to JSON or to properly report errors to the client. As a rule of thumb this crate aims contain everything HTTP related that isn't framework dependent.
+- [htsget-http-actix](htsget-http-actix): This crate contains a working server implementation based on the other crates in the project. It contains the framework dependent code. It should be possible for anyone to write another crate like this one using htsget-search, htsget-http-core and their preferred framework;
 - [htsget-devtools](htsget-devtools): This is just a bunch of code helping us to explore the formats or to proof some concepts. Nothing to take very seriously ;-P
 
-More crates will come as we progress in this project, for example the HTTP/REST layer.
+More crates will come as we progress in this project, for example the htsget id resolver interface layer.
 
 ## Architecture of htsget-search
 

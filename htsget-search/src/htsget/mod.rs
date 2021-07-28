@@ -108,19 +108,18 @@ impl From<io::Error> for HtsGetError {
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Query {
   pub id: String,
   pub format: Option<Format>,
   pub class: Class,
   /// Reference name
   pub reference_name: Option<String>,
-  /// sequence start position (1-based)
+  /// The start and end positions are 0-based. [start, end)  
   pub start: Option<u32>,
-  /// sequence end position (1-based)
   pub end: Option<u32>,
-  pub fields: Vec<String>,
-  pub tags: Option<Tags>,
+  pub fields: Fields,
+  pub tags: Tags,
   pub no_tags: Option<Vec<String>>,
 }
 
@@ -133,8 +132,8 @@ impl Query {
       reference_name: None,
       start: None,
       end: None,
-      fields: Vec::new(),
-      tags: None,
+      fields: Fields::All,
+      tags: Tags::All,
       no_tags: None,
     }
   }
@@ -164,13 +163,13 @@ impl Query {
     self
   }
 
-  pub fn with_fields(mut self, fields: Vec<impl Into<String>>) -> Self {
-    self.fields = fields.into_iter().map(|field| field.into()).collect();
+  pub fn with_fields(mut self, fields: Fields) -> Self {
+    self.fields = fields;
     self
   }
 
   pub fn with_tags(mut self, tags: Tags) -> Self {
-    self.tags = Some(tags);
+    self.tags = tags;
     self
   }
 
@@ -220,6 +219,15 @@ pub enum Class {
   Body,
 }
 
+/// Possible values for the fields parameter.
+#[derive(Debug, PartialEq)]
+pub enum Fields {
+  /// Include all fields
+  All,
+  /// List of fields to include
+  List(Vec<String>),
+}
+
 /// Possible values for the tags parameter.
 #[derive(Debug, PartialEq)]
 pub enum Tags {
@@ -249,6 +257,10 @@ impl Headers {
 
   pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
     self.0.insert(key.into(), value.into());
+  }
+
+  pub fn get_inner(self) -> HashMap<String, String> {
+    self.0
   }
 }
 
@@ -395,14 +407,18 @@ mod tests {
 
   #[test]
   fn query_with_fields() {
-    let result = Query::new("NA12878").with_fields(vec!["QNAME", "FLAG"]);
-    assert_eq!(result.fields, vec!["QNAME", "FLAG"]);
+    let result = Query::new("NA12878")
+      .with_fields(Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()]));
+    assert_eq!(
+      result.fields,
+      Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()])
+    );
   }
 
   #[test]
   fn query_with_tags() {
     let result = Query::new("NA12878").with_tags(Tags::All);
-    assert_eq!(result.tags, Some(Tags::All));
+    assert_eq!(result.tags, Tags::All);
   }
 
   #[test]
