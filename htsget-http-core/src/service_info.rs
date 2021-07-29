@@ -2,6 +2,7 @@ use crate::Endpoint;
 use htsget_search::htsget::HtsGet;
 use serde::{Deserialize, Serialize};
 
+/// A struct representing the information that should be present in a service-info response
 #[derive(Serialize, Deserialize)]
 pub struct ServiceInfo {
   pub id: String,
@@ -11,6 +12,17 @@ pub struct ServiceInfo {
   #[serde(rename = "type")]
   pub service_type: ServiceInfoType,
   pub htsget: ServiceInfoHtsget,
+  // The next fields aren't in the HtsGet specification, but were added
+  // because they were present in the reference implementation and were deemed useful
+  #[serde(rename = "contactUrl")]
+  pub contact_url: String,
+  #[serde(rename = "documentationUrl")]
+  pub documentation_url: String,
+  #[serde(rename = "createdAt")]
+  pub created_at: String,
+  #[serde(rename = "UpdatedAt")]
+  pub updated_at: String,
+  pub environment: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -31,9 +43,9 @@ pub struct ServiceInfoHtsget {
   pub datatype: String,
   pub formats: Vec<String>,
   #[serde(rename = "fieldsParametersEffective")]
-  pub fields_parameters_effective: String,
+  pub fields_parameters_effective: bool,
   #[serde(rename = "TagsParametersEffective")]
-  pub tags_parameters_effective: String,
+  pub tags_parameters_effective: bool,
 }
 
 pub fn get_service_info_json(endpoint: Endpoint, searcher: &impl HtsGet) -> ServiceInfo {
@@ -48,8 +60,8 @@ pub fn get_service_info_json(endpoint: Endpoint, searcher: &impl HtsGet) -> Serv
       .iter()
       .map(|format| format.to_string())
       .collect(),
-    fields_parameters_effective: searcher.are_field_parameters_effective().to_string(),
-    tags_parameters_effective: searcher.are_tag_parameters_effective().to_string(),
+    fields_parameters_effective: searcher.are_field_parameters_effective(),
+    tags_parameters_effective: searcher.are_tag_parameters_effective(),
   };
   let type_info = ServiceInfoType {
     group: "org.ga4gh".to_string(),
@@ -67,5 +79,10 @@ pub fn get_service_info_json(endpoint: Endpoint, searcher: &impl HtsGet) -> Serv
     organization: organization_info,
     service_type: type_info,
     htsget: hstget_info,
+    contact_url: "".to_string(),
+    documentation_url: "https://github.com/umccr/htsget-rs/tree/main/htsget-http-actix".to_string(),
+    created_at: "".to_string(),
+    updated_at: "".to_string(),
+    environment: "testing".to_string(),
   }
 }

@@ -12,8 +12,15 @@ The next variables are used to configure the info for the service-info endpoints
 * HTSGET_VERSION: The version of the service. Default: ""
 * HTSGET_ORGANIZATION_NAME: The name of the organization. Default: "Snake oil"
 * HTSGET_ORGANIZATION_URL: The url of the organization. Default: "https://en.wikipedia.org/wiki/Snake_oil"
+The following variables aren't in the specification, but were added because they exist in the reference implementation
+* HTSGET_CONTACT_URL: A url to provide contact to the users. Default: "",
+* HTSGET_DOCUMENTATION_URL: A link to the documentation. Default: "https://github.com/umccr/htsget-rs/tree/main/htsget-http-actix",
+* HTSGET_CREATED_AT: Date of the creation of the service. Default: "",
+* HTSGET_UPDATED_AT: Date of the last update of the service. Default: "",
+* HTSGET_ENVIRONMENT: The environment in which the service is running. Default: "Testing",
 ## Examples
-These are some examples with [curl](https://github.com/curl/curl) in which the server was started at the root of the [htsget-rs project](https://github.com/umccr/htsget-rs):
+These are some examples with [curl](https://github.com/curl/curl).  **For this examples the server was started at the root of the [htsget-rs project](https://github.com/umccr/htsget-rs)**.
+To test them you can run `cargo run` from **the top of the project** or `HTSGET_PATH=../ cargo run` from the `hts-get-http-actix` directory, otherwise we could have problems as [directory traversal](https://en.wikipedia.org/wiki/Directory_traversal_attack) isn't allowed. It is necessary to have the whole htsget-rs project for this examples, because the example files in the `data` folder are used.
 * Simple GET request:
 ```bash
 curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'

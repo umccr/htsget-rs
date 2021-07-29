@@ -27,4 +27,9 @@ pub struct Config {
   pub htsget_version: Option<String>,
   pub htsget_organization_name: Option<String>,
   pub htsget_organization_url: Option<String>,
+  pub htsget_contact_url: String,
+  pub htsget_documentation_url: String,
+  pub htsget_created_at: String,
+  pub htsget_updated_at: String,
+  pub htsget_environment: String,
 }
