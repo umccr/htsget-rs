@@ -9,10 +9,11 @@ impl<T: Serialize> Responder for PrettyJson<T> {
   type Future = Ready<Result<HttpResponse, Error>>;
 
   fn respond_to(self, _: &HttpRequest) -> Self::Future {
-    let body = match serde_json::to_string_pretty(&self.0) {
+    let mut body = match serde_json::to_string_pretty(&self.0) {
       Ok(body) => body,
       Err(e) => return err(e.into()),
     };
+    body.push('\n');
 
     ok(
       HttpResponse::build(StatusCode::OK)
