@@ -13,8 +13,8 @@ fn default_path() -> PathBuf {
   PathBuf::from(".")
 }
 
-/// A struct to extract the configuration from the environment variables
-#[derive(Deserialize, Debug)]
+/// Configuration for the server. Each field will be read from environment variables
+#[derive(Deserialize, Debug, Clone)]
 pub struct Config {
   #[serde(default = "default_port")]
   pub htsget_port: String,
@@ -22,4 +22,14 @@ pub struct Config {
   pub htsget_ip: String,
   #[serde(default = "default_path")]
   pub htsget_path: PathBuf,
+  pub htsget_id: Option<String>,
+  pub htsget_name: Option<String>,
+  pub htsget_version: Option<String>,
+  pub htsget_organization_name: Option<String>,
+  pub htsget_organization_url: Option<String>,
+  pub htsget_contact_url: Option<String>,
+  pub htsget_documentation_url: Option<String>,
+  pub htsget_created_at: Option<String>,
+  pub htsget_updated_at: Option<String>,
+  pub htsget_environment: Option<String>,
 }

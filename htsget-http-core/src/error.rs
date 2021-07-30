@@ -24,8 +24,10 @@ pub enum HtsGetError {
   InvalidRange(String),
 }
 
+/// A helper struct implementing [serde's Serialize trait](Serialize) to allow
+/// easily converting HtsGetErrors to JSON
 #[derive(Serialize)]
-struct JsonHtsGetError {
+pub struct JsonHtsGetError {
   error: String,
   message: String,
 }
@@ -33,7 +35,7 @@ struct JsonHtsGetError {
 impl HtsGetError {
   /// Allows converting the error to JSON and the correspondent
   /// status code
-  pub fn to_json_representation(&self) -> (String, u16) {
+  pub fn to_json_representation(&self) -> (JsonHtsGetError, u16) {
     let (message, status_code) = match self {
       HtsGetError::InvalidAuthentication(s) => (s, 401),
       HtsGetError::PermissionDenied(s) => (s, 403),
@@ -44,11 +46,10 @@ impl HtsGetError {
       HtsGetError::InvalidRange(s) => (s, 400),
     };
     (
-      serde_json::to_string_pretty(&JsonHtsGetError {
+      JsonHtsGetError {
         error: self.to_string(),
         message: message.clone(),
-      })
-      .expect("Internal error while converting error to json"),
+      },
       status_code,
     )
   }
