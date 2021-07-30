@@ -32,6 +32,18 @@ where
       Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format)),
     }
   }
+
+  fn get_supported_formats(&self) -> Vec<Format> {
+    vec![Format::Bam, Format::Cram, Format::Vcf, Format::Bcf]
+  }
+
+  fn are_field_parameters_effective(&self) -> bool {
+    false
+  }
+
+  fn are_tag_parameters_effective(&self) -> bool {
+    false
+  }
 }
 
 impl<S> HtsGetFromStorage<S> {
