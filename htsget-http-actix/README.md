@@ -19,8 +19,8 @@ The following variables aren't in the specification, but were added because they
 * HTSGET_UPDATED_AT: Date of the last update of the service. Default: "",
 * HTSGET_ENVIRONMENT: The environment in which the service is running. Default: "Testing",
 ## Examples
-These are some examples with [curl](https://github.com/curl/curl).  **For this examples the server was started at the root of the [htsget-rs project](https://github.com/umccr/htsget-rs)**.
-To test them you can run `cargo run` from **the top of the project** or `HTSGET_PATH=../ cargo run` from the `hts-get-http-actix` directory, otherwise we could have problems as [directory traversal](https://en.wikipedia.org/wiki/Directory_traversal_attack) isn't allowed. It is necessary to have the whole htsget-rs project for this examples, because the example files in the `data` folder are used.
+These are some examples with [curl](https://github.com/curl/curl).  **For this examples the server was started at the root of the [htsget-rs project](https://github.com/umccr/htsget-rs)**, so we can use the example files inside the `data` directory.
+To test them you can run `cargo run -p htsget-http_actix` from **the top of the project** or `HTSGET_PATH=../ cargo run` from the `hts-get-http-actix` directory, otherwise we could have problems as [directory traversal](https://en.wikipedia.org/wiki/Directory_traversal_attack) isn't allowed.
 * Simple GET request:
 ```bash
 curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
