@@ -1,6 +1,7 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
+use async_trait::async_trait;
 use std::path::{Path, PathBuf};
 
 use crate::htsget::{Headers, Url};
@@ -29,7 +30,7 @@ impl LocalStorage {
     self.base_path.as_path()
   }
 
-  fn get_path_from_key<K: AsRef<str>>(&self, key: K) -> Result<PathBuf> {
+  fn get_path_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<PathBuf> {
     let key: &str = key.as_ref();
     self
       .base_path
@@ -51,12 +52,13 @@ impl LocalStorage {
   }
 }
 
+#[async_trait]
 impl Storage for LocalStorage {
-  fn get<K: AsRef<str>>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
     self.get_path_from_key(key)
   }
 
-  fn url<K: AsRef<str>>(&self, key: K, options: UrlOptions) -> Result<Url> {
+  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let range_start = options
       .range
       .start
@@ -82,11 +84,12 @@ impl Storage for LocalStorage {
     Ok(url)
   }
 
-  fn head<K: AsRef<str>>(&self, key: K) -> Result<u64> {
+  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let key: &str = key.as_ref();
     let path = self.get_path_from_key(key)?;
     Ok(
-      std::fs::metadata(path)
+      tokio::fs::metadata(path)
+        .await
         .map_err(|err| StorageError::NotFound(err.to_string()))?
         .len(),
     )
@@ -96,40 +99,45 @@ impl Storage for LocalStorage {
 #[cfg(test)]
 mod tests {
 
-  use std::fs::{create_dir, File};
-  use std::io::prelude::*;
-
   use super::*;
   use crate::storage::BytesRange;
+  use std::future::Future;
+  use tokio::fs::{create_dir, File};
+  use tokio::io::AsyncWriteExt;
 
-  #[test]
-  fn get_non_existing_key() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn get_non_existing_key() {
+    with_local_storage(|storage| async move {
       let result = storage
         .get("non-existing-key", GetOptions::default())
+        .await
         .map(|path| path.to_string_lossy().to_string());
       assert_eq!(
         result,
         Err(StorageError::InvalidKey("non-existing-key".to_string()))
       );
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn get_folder() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn get_folder() {
+    with_local_storage(|storage| async move {
       let result = storage
         .get("folder", GetOptions::default())
+        .await
         .map(|path| path.to_string_lossy().to_string());
       assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn get_forbidden_path() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn get_forbidden_path() {
+    with_local_storage(|storage| async move {
       let result = storage
         .get("folder/../../passwords", GetOptions::default())
+        .await
         .map(|path| path.to_string_lossy().to_string());
       assert_eq!(
         result,
@@ -137,14 +145,16 @@ mod tests {
           "folder/../../passwords".to_string()
         ))
       );
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn get_existing_key() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn get_existing_key() {
+    with_local_storage(|storage| async move {
       let result = storage
         .get("folder/../key1", GetOptions::default())
+        .await
         .map(|path| path.to_string_lossy().to_string());
       assert_eq!(
         result,
@@ -153,60 +163,69 @@ mod tests {
           storage.base_path().join("key1").to_string_lossy()
         ))
       );
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn url_of_non_existing_key() {
-    with_local_storage(|storage| {
-      let result = storage.url("non-existing-key", UrlOptions::default());
+  #[tokio::test]
+  async fn url_of_non_existing_key() {
+    with_local_storage(|storage| async move {
+      let result = storage.url("non-existing-key", UrlOptions::default()).await;
       assert_eq!(
         result,
         Err(StorageError::InvalidKey("non-existing-key".to_string()))
       );
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn url_of_folder() {
-    with_local_storage(|storage| {
-      let result = storage.url("folder", UrlOptions::default());
+  #[tokio::test]
+  async fn url_of_folder() {
+    with_local_storage(|storage| async move {
+      let result = storage.url("folder", UrlOptions::default()).await;
       assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn url_with_forbidden_path() {
-    with_local_storage(|storage| {
-      let result = storage.url("folder/../../passwords", UrlOptions::default());
+  #[tokio::test]
+  async fn url_with_forbidden_path() {
+    with_local_storage(|storage| async move {
+      let result = storage
+        .url("folder/../../passwords", UrlOptions::default())
+        .await;
       assert_eq!(
         result,
         Err(StorageError::InvalidKey(
           "folder/../../passwords".to_string()
         ))
       );
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn url_of_existing_key() {
-    with_local_storage(|storage| {
-      let result = storage.url("folder/../key1", UrlOptions::default());
+  #[tokio::test]
+  async fn url_of_existing_key() {
+    with_local_storage(|storage| async move {
+      let result = storage.url("folder/../key1", UrlOptions::default()).await;
       let expected = Url::new(format!(
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
       ));
       assert_eq!(result, Ok(expected));
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn url_of_existing_key_with_specified_range() {
-    with_local_storage(|storage| {
-      let result = storage.url(
-        "folder/../key1",
-        UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
-      );
+  #[tokio::test]
+  async fn url_of_existing_key_with_specified_range() {
+    with_local_storage(|storage| async move {
+      let result = storage
+        .url(
+          "folder/../key1",
+          UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
+        )
+        .await;
       assert_eq!(
         result,
         Ok(
@@ -217,16 +236,19 @@ mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
         )
       );
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn url_of_existing_key_with_specified_open_ended_range() {
-    with_local_storage(|storage| {
-      let result = storage.url(
-        "folder/../key1",
-        UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
-      );
+  #[tokio::test]
+  async fn url_of_existing_key_with_specified_open_ended_range() {
+    with_local_storage(|storage| async move {
+      let result = storage
+        .url(
+          "folder/../key1",
+          UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
+        )
+        .await;
       assert_eq!(
         result,
         Ok(
@@ -237,29 +259,39 @@ mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=7-"))
         )
       );
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn file_size() {
-    with_local_storage(|storage| {
-      let result = storage.head("folder/../key1");
+  #[tokio::test]
+  async fn file_size() {
+    with_local_storage(|storage| async move {
+      let result = storage.head("folder/../key1").await;
       let expected: u64 = 6;
       assert_eq!(result, Ok(expected));
-    });
+    })
+    .await;
   }
 
-  fn with_local_storage(test: impl Fn(LocalStorage)) {
+  async fn with_local_storage<F, Fut>(test: F)
+  where
+    F: FnOnce(LocalStorage) -> Fut,
+    Fut: Future<Output = ()>,
+  {
     let base_path = tempfile::TempDir::new().unwrap();
     File::create(base_path.path().join("key1"))
+      .await
       .unwrap()
       .write_all(b"value1")
+      .await
       .unwrap();
-    create_dir(base_path.path().join("folder")).unwrap();
+    create_dir(base_path.path().join("folder")).await.unwrap();
     File::create(base_path.path().join("folder").join("key2"))
+      .await
       .unwrap()
       .write_all(b"value2")
+      .await
       .unwrap();
-    test(LocalStorage::new(base_path.path()).unwrap())
+    test(LocalStorage::new(base_path.path()).unwrap()).await
   }
 }

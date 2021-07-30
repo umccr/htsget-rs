@@ -1,13 +1,13 @@
 //! Module providing the search capability using BAM/BAI files
 //!
-
+use async_trait::async_trait;
 use std::path::PathBuf;
-use std::{fs::File, io};
+use tokio::{fs::File, io};
 
 use noodles::bam;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
-use noodles::bam::{bai, Reader};
+use noodles::bam::{bai, AsyncReader};
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
 use noodles::sam;
@@ -20,18 +20,21 @@ use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesRange, Storage},
 };
+use std::future::Future;
+use std::pin::Pin;
 
 pub(crate) struct BamSearch<'a, S> {
   storage: &'a S,
 }
 
-impl BlockPosition for bam::Reader<File> {
-  fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut bam::Record::default()).ok()
+#[async_trait]
+impl BlockPosition for bam::AsyncReader<File> {
+  async fn read_bytes(&mut self) -> Option<usize> {
+    self.read_record(&mut bam::Record::default()).await.ok()
   }
 
-  fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
-    self.seek(pos)
+  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+    self.seek(pos).await
   }
 
   fn virtual_position(&self) -> VirtualPosition {
@@ -39,10 +42,11 @@ impl BlockPosition for bam::Reader<File> {
   }
 }
 
-impl<'a, S> BgzfSearch<'a, S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+#[async_trait]
+impl<'a, S> BgzfSearch<'a, S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
   for BamSearch<'a, S>
 where
-  S: Storage + 'a,
+  S: Storage + Send + Sync + 'a,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
@@ -50,7 +54,11 @@ where
     ref_seq.len()
   }
 
-  fn get_byte_ranges_for_unmapped(&self, key: &str, index: &bai::Index) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_unmapped(
+    &self,
+    key: &str,
+    index: &bai::Index,
+  ) -> Result<Vec<BytesRange>> {
     let last_interval = index
       .reference_sequences()
       .iter()
@@ -60,7 +68,7 @@ where
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let (bam_reader, _) = self.create_reader(key)?;
+        let (bam_reader, _) = self.create_reader(key).await?;
         bam_reader.virtual_position()
       }
     };
@@ -68,6 +76,7 @@ where
     let file_size = self
       .storage
       .head(key)
+      .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
     Ok(vec![BytesRange::default()
       .with_start(start.bytes_range_start())
@@ -75,27 +84,34 @@ where
   }
 }
 
-impl<'a, S> Search<'a, S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+#[async_trait]
+impl<'a, S> Search<'a, S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
   for BamSearch<'a, S>
 where
-  S: Storage + 'a,
+  S: Storage + Send + Sync + 'a,
 {
-  const READER_FN: fn(File) -> Reader<File> = bam::Reader::new;
-  const HEADER_FN: fn(&mut Reader<File>) -> io::Result<String> = |reader| {
-    let header = reader.read_header();
-    reader.read_reference_sequences()?;
-    header
+  const READER_FN: fn(File) -> AsyncReader<File> = bam::AsyncReader::new;
+  const HEADER_FN: fn(
+    &'_ mut AsyncReader<File>,
+  ) -> Pin<Box<dyn Future<Output = io::Result<String>> + Send + '_>> = |reader| {
+    Box::pin(async move {
+      let header = reader.read_header().await;
+      reader.read_reference_sequences().await?;
+      header
+    })
   };
   const INDEX_FN: fn(PathBuf) -> io::Result<Index> = bai::read;
 
-  fn get_byte_ranges_for_reference_name(
+  async fn get_byte_ranges_for_reference_name(
     &self,
     key: &str,
     reference_name: &str,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_reference_name_reads(key, reference_name, index, query)
+    self
+      .get_byte_ranges_for_reference_name_reads(key, reference_name, index, query)
+      .await
   }
 
   fn get_keys_from_id(&self, id: &str) -> (String, String) {
@@ -113,12 +129,13 @@ where
   }
 }
 
-impl<'a, S> SearchReads<'a, S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+#[async_trait]
+impl<'a, S> SearchReads<'a, S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
   for BamSearch<'a, S>
 where
-  S: Storage + 'a,
+  S: Storage + Send + Sync + 'a,
 {
-  fn get_reference_sequence_from_name<'b>(
+  async fn get_reference_sequence_from_name<'b>(
     &self,
     header: &'b Header,
     name: &str,
@@ -126,37 +143,39 @@ where
     header.reference_sequences().get_full(name)
   }
 
-  fn get_byte_ranges_for_unmapped_reads(
+  async fn get_byte_ranges_for_unmapped_reads(
     &self,
     bam_key: &str,
     bai_index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_unmapped(bam_key, bai_index)
+    self.get_byte_ranges_for_unmapped(bam_key, bai_index).await
   }
 
-  fn get_byte_ranges_for_reference_sequence(
+  async fn get_byte_ranges_for_reference_sequence(
     &self,
     _key: &str,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
-    reader: &mut Reader<File>,
+    reader: &mut AsyncReader<File>,
   ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_reference_sequence_bgzf(
-      ref_seq,
-      ref_seq_id,
-      &index,
-      query.start.map(|start| start as i32),
-      query.end.map(|end| end as i32),
-      reader,
-    )
+    self
+      .get_byte_ranges_for_reference_sequence_bgzf(
+        ref_seq,
+        ref_seq_id,
+        index,
+        query.start.map(|start| start as i32),
+        query.end.map(|end| end as i32),
+        reader,
+      )
+      .await
   }
 }
 
 impl<'a, S> BamSearch<'a, S>
 where
-  S: Storage + 'a,
+  S: Storage + Send + Sync + 'a,
 {
   pub fn new(storage: &'a S) -> Self {
     Self { storage }
@@ -170,12 +189,12 @@ pub mod tests {
 
   use super::*;
 
-  #[test]
-  fn search_all_reads() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn search_all_reads() {
+    with_local_storage(|storage| async move {
       let search = BamSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878");
-      let response = search.search(query);
+      let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
@@ -184,15 +203,16 @@ pub mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=4668-2596799"))],
       ));
       assert_eq!(response, expected_response)
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn search_unmapped_reads() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn search_unmapped_reads() {
+    with_local_storage(|storage| async move {
       let search = BamSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878").with_reference_name("*");
-      let response = search.search(query);
+      let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
@@ -201,15 +221,16 @@ pub mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596799"))],
       ));
       assert_eq!(response, expected_response)
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn search_reference_name_without_seq_range() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn search_reference_name_without_seq_range() {
+    with_local_storage(|storage| async move {
       let search = BamSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878").with_reference_name("20");
-      let response = search.search(query);
+      let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
@@ -218,18 +239,19 @@ pub mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=977196-2128166"))],
       ));
       assert_eq!(response, expected_response)
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn search_reference_name_with_seq_range() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn search_reference_name_with_seq_range() {
+    with_local_storage(|storage| async move {
       let search = BamSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878")
         .with_reference_name("11")
         .with_start(5015000)
         .with_end(5050000);
-      let response = search.search(query);
+      let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
@@ -244,15 +266,16 @@ pub mod tests {
         ],
       ));
       assert_eq!(response, expected_response)
-    });
+    })
+    .await;
   }
 
-  #[test]
-  fn search_header() {
-    with_local_storage(|storage| {
+  #[tokio::test]
+  async fn search_header() {
+    with_local_storage(|storage| async move {
       let search = BamSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878").with_class(Class::Header);
-      let response = search.search(query);
+      let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
@@ -262,19 +285,24 @@ pub mod tests {
           .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)
-    });
+    })
+    .await;
   }
 
-  pub fn with_local_storage(test: impl Fn(LocalStorage)) {
+  pub(crate) async fn with_local_storage<F, Fut>(test: F)
+  where
+    F: FnOnce(LocalStorage) -> Fut,
+    Fut: Future<Output = ()>,
+  {
     let base_path = std::env::current_dir()
       .unwrap()
       .parent()
       .unwrap()
       .join("data/bam");
-    test(LocalStorage::new(base_path).unwrap())
+    test(LocalStorage::new(base_path).unwrap()).await
   }
 
-  pub fn expected_url(storage: &LocalStorage) -> String {
+  pub(crate) fn expected_url(storage: &LocalStorage) -> String {
     format!(
       "file://{}",
       storage

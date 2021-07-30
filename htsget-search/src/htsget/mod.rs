@@ -3,6 +3,7 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::io;
 
@@ -22,8 +23,9 @@ pub mod vcf_search;
 type Result<T> = core::result::Result<T, HtsGetError>;
 
 /// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
+#[async_trait]
 pub trait HtsGet {
-  fn search(&self, query: Query) -> Result<Response>;
+  async fn search(&self, query: Query) -> Result<Response>;
 }
 
 #[derive(Error, Debug, PartialEq)]

@@ -5,9 +5,19 @@ authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Roman Valls Guimera <b
 edition = "2018"
 
 [dependencies]
+async-trait = "0.1.50"
 thiserror = "~1.0"
+async-std = "1.9.0"
+tokio = { version = "1.9.0", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3.16"
 
-noodles = { version = "0.2.0", features = ["bam", "bcf", "bgzf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ["bam", "bcf", "bgzf", "cram", "csi", "sam", "tabix", "vcf"] }
+
+noodles-bgzf =  { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ['async'] }
+noodles-bam =   { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ['async'] }
+noodles-vcf =   { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ['async'] }
+
 
 [dev-dependencies]
 tempfile = "3.2.0"
