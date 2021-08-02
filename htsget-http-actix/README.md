@@ -1,43 +1,76 @@
-# HtsGet rust-based server
-This crate should allow to setup an [HtsGet](http://samtools.github.io/hts-specs/htsget.html) compliant server. For that purpose it uses the htsget-search, htsget-http-core and actix-web crates as dependencies.
-## Start the server
-To start the server it should be enough to run `cargo run` or to execute the binary. You should keep in mind, that the server will take the path where you executed it as base path to search for files. This and other settings can be changed using environment variables:
-* HTSGET_IP: The ip to use. Default: 127.0.0.1
-* HTSGET_PORT: The port to use. Default: 8080
-* HTSGET_PATH: The path to the directory where the server should be started. Default: Actual directory
-For example, `HTSGET_PORT=8000 cargo run` will try to bind the server to the port 8000.
-The next variables are used to configure the info for the service-info endpoints
-* HTSGET_ID: The id of the service. Default: ""
-* HTSGET_NAME: The name of the service. Default: "HtsGet service"
-* HTSGET_VERSION: The version of the service. Default: ""
-* HTSGET_ORGANIZATION_NAME: The name of the organization. Default: "Snake oil"
-* HTSGET_ORGANIZATION_URL: The url of the organization. Default: "https://en.wikipedia.org/wiki/Snake_oil"
-The following variables aren't in the specification, but were added because they exist in the reference implementation
-* HTSGET_CONTACT_URL: A url to provide contact to the users. Default: "",
-* HTSGET_DOCUMENTATION_URL: A link to the documentation. Default: "https://github.com/umccr/htsget-rs/tree/main/htsget-http-actix",
-* HTSGET_CREATED_AT: Date of the creation of the service. Default: "",
-* HTSGET_UPDATED_AT: Date of the last update of the service. Default: "",
-* HTSGET_ENVIRONMENT: The environment in which the service is running. Default: "Testing",
-## Examples
-These are some examples with [curl](https://github.com/curl/curl).  **For this examples the server was started at the root of the [htsget-rs project](https://github.com/umccr/htsget-rs)**, so we can use the example files inside the `data` directory.
-To test them you can run `cargo run -p htsget-http_actix` from **the top of the project** or `HTSGET_PATH=../ cargo run` from the `hts-get-http-actix` directory, otherwise we could have problems as [directory traversal](https://en.wikipedia.org/wiki/Directory_traversal_attack) isn't allowed.
-* Simple GET request:
-```bash
-curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+# htsget rust-based server
+This crate should allow to setup an [htsget](http://samtools.github.io/hts-specs/htsget.html) compliant server. For that purpose it uses the htsget-search, htsget-http-core and actix-web crates as dependencies.
+
+## Quickstart 
+
+These are some examples with [curl](https://github.com/curl/curl). **For the curl examples shown below to work, we assume that the server is being started from the root of the [htsget-rs project](https://github.com/umccr/htsget-rs)**, so we can use the example files inside the `data` directory.
+
+To test them you can run:
+
+```shell
+$ cargo run -p htsget-http-actix
 ```
-* Simple POST request:
-```bash
-curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+
+From **the top of the project**. Alternatively, the `HTSGET_PATH` environment variable can be set accordingly if the current working directory is `htsget-http-actix`, i.e:
+
+```shell
+$ HTSGET_PATH=../ cargo run
 ```
-* GET request:
+
+Otherwise we could have problems as [directory traversal](https://en.wikipedia.org/wiki/Directory_traversal_attack) isn't allowed.
+
+## Environment variables 
+
+There are reasonable defaults to allow the user to spin up the server as fast as possible, but all of them are configurable via environment variables.
+
+Since this service can be used in serverless environments, no `dotenv` configuration is needed, [adjusting the environment variables below prevent accidental leakage of settings and sensitive information](https://medium.com/@softprops/configuration-envy-a09584386705).
+
+| Variable | Description | Default |
+|---|---|---|
+| HTSGET_IP| IP address | 127.0.0.1
+| HTSGET_PORT| TCP Port | 8080
+| HTSGET_PATH| The path to the directory where the server starts | `$PWD` | 
+| HTSGET_ID| ID of the service. | "" |
+| HTSGET_NAME| Name of the service. | HtsGet service |
+| HTSGET_VERSION | Version of the service | ""
+| HTSGET_ORGANIZATION_NAME| Name of the organization | Snake oil
+| HTSGET_ORGANIZATION_URL| URL of the organization | https://en.wikipedia.org/wiki/Snake_oil |
+| HTSGET_CONTACT_URL | URL to provide contact to the users | "" |
+| HTSGET_DOCUMENTATION_URL| Link to documentation | https://github.com/umccr/htsget-rs/tree/main/htsget-http-actix |
+| HTSGET_CREATED_AT | Date of the creation of the service. | "" |
+| HTSGET_UPDATED_AT | Date of the last update of the service. | "" |
+| HTSGET_ENVIRONMENT | Environment in which the service is running. | Testing |
+
+## Example cURL requests
+
+As mentioned above, please keep in mind that the server will take the path where you executed it as base path to search for files. Here's a selection on what to ask this server for:
+
+### GET
+
 ```bash
-curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header'
+$ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
-* POST request:
+
+### POST
+
 ```bash
-curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+$ curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
-* Service-info request:
+
+### Parametrised GET
+
 ```bash
-curl 127.0.0.1:8080/variants/service-info
+$ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header'
+```
+
+### Parametrised POST
+
+```bash
+$ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+```
+
+### Service-info
+
+```bash
+$ curl 127.0.0.1:8080/variants/service-info
 ```
