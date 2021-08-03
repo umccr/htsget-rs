@@ -1,4 +1,4 @@
-use crate::Endpoint;
+use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
 use htsget_search::htsget::HtsGet;
 use serde::{Deserialize, Serialize};
 
@@ -59,6 +59,10 @@ pub fn get_service_info_json(endpoint: Endpoint, searcher: &impl HtsGet) -> Serv
       .get_supported_formats()
       .iter()
       .map(|format| format.to_string())
+      .filter(|format| match endpoint {
+        Endpoint::Reads => READS_FORMATS.contains(&format.as_str()),
+        Endpoint::Variants => VARIANTS_FORMATS.contains(&format.as_str()),
+      })
       .collect(),
     fields_parameters_effective: searcher.are_field_parameters_effective(),
     tags_parameters_effective: searcher.are_tag_parameters_effective(),
