@@ -1,0 +1,17 @@
+{
+    "htsgetConfig": {
+        "props": {
+            "port": 8081
+        },
+        "reads": {
+            "dataSourceRegistry": {
+                "sources": [
+                    {
+                        "pattern": "^(?P<id>.*)$",
+                        "path": "/data/bam/{id}.bam"
+                    }
+                ]
+            }
+        }
+    }
+}
