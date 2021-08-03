@@ -1,5 +1,18 @@
 TBD: Architecture document that should follow a similar structure to [@matklad's writeup](https://matklad.github.io/2021/02/06/ARCHITECTURE.md.html)
 
+TL;DR from the ARCHITECTURE blogpost:
+
+* WHERE to change the code, given feature X, give pointers.
+* Keep it short.
+* What problem does this repo solve?
+* Codemap: Where's the thing that does X, "map of the country, not an atlas"
+* Avoid going into details of how each module works: separate docs and xrefs are better.
+* Do name important files, modules, and types: NO LINKS (links go stale), JUST NAMES (symbol search).
+* Call-out architectural invariants: explain absence of something.
+* Point out boundaries between layers and systems.
+
+* Example: https://github.com/rust-analyzer/rust-analyzer/blob/d7c99931d05e3723d878bea5dc26766791fa4e69/docs/dev/architecture.md
+
 ## Organization of the project
 
 This repository consists of a workspace composed by the following crates:
@@ -22,28 +35,28 @@ This crate provides two basic abstractions:
 
 - [Storage](htsget-search/src/storage/mod.rs): The `Storage` trait represents some kind of object based storage (either locally or in the cloud) that can be used to retrieve files for alignments, variants or its respective indexes, as well as to get metadata from them. We include a reference implementation using [local files](htsget-search/src/storage/local.rs), but there are plans to [support AWS S3](https://github.com/chris-zen/htsget-mvp/issues/9) too.
 
--## References
--
--### HtsGet specification and references
--
--- [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
--- [Google genomics HtsGet reference implementation](https://github.com/googlegenomics/htsget)
--
--### SAM/BAM formats and tools
--
--- [SAM specification](https://github.com/samtools/hts-specs/blob/master/SAMv1.pdf)
--- [The great *noodles* library](https://github.com/zaeleus/noodles)
--- [Inspecting, summarizing, and manipulating the read alignments](https://mtbgenomicsworkshop.readthedocs.io/en/latest/material/day3/mappingstats.html)
--
--### VCF/BCF formats
--
--- [VCF specification](https://samtools.github.io/hts-specs/VCFv4.3.pdf)
--
--### Previous attempts to work on HtsGet with Rust
--
--- https://github.com/umccr/htsget-rs
--- https://github.com/brainstorm/htsget-indexer
--- https://github.com/brainstorm/bio-index-formats/
+## References
+
+### HtsGet specification and references
+
+[HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
+[Google genomics HtsGet reference implementation](https://github.com/googlegenomics/htsget)
+
+### SAM/BAM formats and tools
+
+[SAM specification](https://github.com/samtools/hts-specs/blob/master/SAMv1.pdf)
+[The great *noodles* library](https://github.com/zaeleus/noodles)
+[Inspecting, summarizing, and manipulating the read alignments](https://mtbgenomicsworkshop.readthedocs.io/en/latest/material/day3/mappingstats.html)
+
+### VCF/BCF formats
+
+[VCF specification](https://samtools.github.io/hts-specs/VCFv4.3.pdf)
+
+### Previous attempts to work on HtsGet with Rust
+
+https://github.com/umccr/htsget-rs
+https://github.com/brainstorm/htsget-indexer
+https://github.com/brainstorm/bio-index-formats/
 
 ## Previous attempts to work on htsget with Rust
 
