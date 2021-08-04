@@ -11,23 +11,24 @@ use crate::{
   storage::Storage,
 };
 use async_trait::async_trait;
+use std::sync::Arc;
 
 /// Implementation of the [HtsGet] trait using a [Storage].
 pub struct HtsGetFromStorage<S> {
-  storage: S,
+  storage_ref: Arc<S>,
 }
 
 #[async_trait]
 impl<S> HtsGet for HtsGetFromStorage<S>
 where
-  S: Storage + Sync + Send,
+  S: Storage + Sync + Send + 'static,
 {
   async fn search(&self, query: Query) -> Result<Response> {
     match query.format {
-      Some(Format::Bam) | None => BamSearch::new(&self.storage).search(query).await,
-      Some(Format::Cram) => CramSearch::new(&self.storage).search(query).await,
-      Some(Format::Vcf) => VcfSearch::new(&self.storage).search(query).await,
-      Some(Format::Bcf) => BcfSearch::new(&self.storage).search(query).await,
+      Some(Format::Bam) | None => BamSearch::new(self.storage()).search(query).await,
+      Some(Format::Cram) => CramSearch::new(self.storage()).search(query).await,
+      Some(Format::Vcf) => VcfSearch::new(self.storage()).search(query).await,
+      Some(Format::Bcf) => BcfSearch::new(self.storage()).search(query).await,
       Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format)),
     }
   }
@@ -35,11 +36,13 @@ where
 
 impl<S> HtsGetFromStorage<S> {
   pub fn new(storage: S) -> Self {
-    Self { storage }
+    Self {
+      storage_ref: Arc::new(storage),
+    }
   }
 
-  pub fn storage(&self) -> &S {
-    &self.storage
+  pub fn storage(&self) -> Arc<S> {
+    Arc::clone(&self.storage_ref)
   }
 }
 
@@ -59,7 +62,7 @@ mod tests {
   #[tokio::test]
   async fn search_bam() {
     with_bam_local_storage(|storage| async move {
-      let htsget = HtsGetFromStorage::new(storage);
+      let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
       let query = Query::new("htsnexus_test_NA12878").with_format(Format::Bam);
       let response = htsget.search(query).await;
       println!("{:#?}", response);
@@ -77,7 +80,7 @@ mod tests {
   #[tokio::test]
   async fn search_vcf() {
     with_vcf_local_storage(|storage| async move {
-      let htsget = HtsGetFromStorage::new(storage);
+      let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
       let filename = "spec-v4.3";
       let query = Query::new(filename).with_format(Format::Vcf);
       let response = htsget.search(query).await;

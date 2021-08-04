@@ -47,6 +47,9 @@ pub enum HtsGetError {
 
   #[error("Parsing error: {0}")]
   ParseError(String),
+
+  #[error("Concurrency error: {0}")]
+  ConcurrencyError(String),
 }
 
 impl HtsGetError {
@@ -68,6 +71,14 @@ impl HtsGetError {
 
   pub fn io_error<S: Into<String>>(message: S) -> Self {
     Self::IoError(message.into())
+  }
+
+  pub fn parse_error<S: Into<String>>(message: S) -> Self {
+    Self::ParseError(message.into())
+  }
+
+  pub fn concurrency_error<S: Into<String>>(message: S) -> Self {
+    Self::ConcurrencyError(message.into())
   }
 }
 
@@ -313,6 +324,18 @@ mod tests {
   fn htsget_error_io_error() {
     let result = HtsGetError::io_error("error");
     assert!(matches!(result, HtsGetError::IoError(message) if message == "error"));
+  }
+
+  #[test]
+  fn htsget_error_parse_error() {
+    let result = HtsGetError::parse_error("error");
+    assert!(matches!(result, HtsGetError::ParseError(message) if message == "error"));
+  }
+
+  #[test]
+  fn htsget_error_concurrency_error() {
+    let result = HtsGetError::concurrency_error("error");
+    assert!(matches!(result, HtsGetError::ConcurrencyError(message) if message == "error"));
   }
 
   #[test]
