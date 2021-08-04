@@ -1,14 +1,32 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use htsget_http_core::JsonResponse;
 use reqwest::{blocking::Client, Url};
+use std::time::Duration;
 
-fn request() {
-  let mut url = Url::parse("http://127.0.0.1/variants/data/vcf/sample1-bcbio-cancer").unwrap();
-  url.set_port(Some(8080)).unwrap();
-  Client::new().post(url).send().unwrap();
+fn request(url: Url) {
+  let _: JsonResponse = Client::new().get(url).send().unwrap().json().unwrap();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-  c.bench_function("simple POST request ", |b| b.iter(|| request()));
+  let mut group = c.benchmark_group("Requests");
+  group
+    .sample_size(500)
+    .measurement_time(Duration::from_secs(10));
+  group.bench_function("htsget-rs", |b| {
+    b.iter(|| {
+      let mut url = Url::parse("http://localhost/reads/data/bam/htsnexus_test_NA12878").unwrap();
+      url.set_port(Some(8080)).unwrap();
+      request(url)
+    })
+  });
+  group.bench_function("htsget-refserver", |b| {
+    b.iter(|| {
+      let mut url = Url::parse("http://localhost/reads/htsnexus_test_NA12878").unwrap();
+      url.set_port(Some(8081)).unwrap();
+      request(url)
+    })
+  });
+  group.finish();
 }
 
 criterion_group!(benches, criterion_benchmark);

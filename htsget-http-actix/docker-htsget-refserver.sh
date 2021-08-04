@@ -1,2 +1,2 @@
 docker image pull ga4gh/htsget-refserver:1.4.0
-docker container run -d -p 8081:3000 -v $(pwd)/../data:/data -v $(pwd):/config ga4gh/htsget-refserver:1.4.0 ./htsget-refserver -config /config/config.json
+docker container run -d -p 8081:3000 -v $(pwd)/../data:/data -v $(pwd):/config ga4gh/htsget-refserver:1.4.0 ./htsget-refserver -config /config/htsget-refserver-config.json

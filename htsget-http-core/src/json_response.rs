@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use htsget_search::htsget::{Class, Format, Response, Url};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// A helper struct to convert [Responses](Response) to JSON. It implements [serde's Serialize trait](Serialize),
 /// so it's trivial to convert to JSON.
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonResponse {
   htsget: HtsGetResponse,
 }
@@ -20,7 +20,7 @@ impl JsonResponse {
 
 /// A helper struct to represent a JSON response. It shouldn't be used
 /// on its own, but with [JsonResponse]
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct HtsGetResponse {
   format: String,
   urls: Vec<JsonUrl>,
@@ -39,26 +39,25 @@ impl HtsGetResponse {
 
 /// A helper struct to convert [Urls](Url) to JSON. It shouldn't be used
 /// on its own, but with [JsonResponse]
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonUrl {
   url: String,
-  headers: HashMap<String, String>,
-  class: String,
+  headers: Option<HashMap<String, String>>,
+  class: Option<String>,
 }
 
 impl JsonUrl {
   fn new(url: Url) -> Self {
     JsonUrl {
       url: url.url,
-      headers: match url.headers {
-        Some(headers) => headers.get_inner(),
-        None => HashMap::new(),
-      },
-      class: match url.class {
-        Class::Body => "body",
-        Class::Header => "header",
-      }
-      .to_string(),
+      headers: url.headers.map(|headers| headers.get_inner()),
+      class: Some(
+        match url.class {
+          Class::Body => "body",
+          Class::Header => "header",
+        }
+        .to_string(),
+      ),
     }
   }
 }
