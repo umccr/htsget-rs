@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// so it's trivial to convert to JSON.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonResponse {
-  htsget: HtsGetResponse,
+  pub htsget: HtsGetResponse,
 }
 
 impl JsonResponse {
@@ -22,8 +22,8 @@ impl JsonResponse {
 /// on its own, but with [JsonResponse]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct HtsGetResponse {
-  format: String,
-  urls: Vec<JsonUrl>,
+  pub format: String,
+  pub urls: Vec<JsonUrl>,
 }
 
 impl HtsGetResponse {
@@ -41,9 +41,9 @@ impl HtsGetResponse {
 /// on its own, but with [JsonResponse]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonUrl {
-  url: String,
-  headers: Option<HashMap<String, String>>,
-  class: Option<String>,
+  pub url: String,
+  pub headers: Option<HashMap<String, String>>,
+  pub class: Option<String>,
 }
 
 impl JsonUrl {

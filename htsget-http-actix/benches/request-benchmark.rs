@@ -1,10 +1,44 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use htsget_http_core::JsonResponse;
 use reqwest::{blocking::Client, Url};
-use std::time::Duration;
+use serde::Serialize;
+use std::collections::HashMap;
+use std::{convert::TryInto, time::Duration};
+#[derive(Serialize)]
+struct Empty {}
 
 fn request(url: Url) {
-  let _: JsonResponse = Client::new().get(url).send().unwrap().json().unwrap();
+  let client = Client::new();
+  let response: JsonResponse = client
+    .get(url)
+    .json(&Empty {})
+    .send()
+    .unwrap()
+    .json()
+    .unwrap();
+  let download_size: usize = response
+    .htsget
+    .urls
+    .iter()
+    .map(|json_url| {
+      client
+        .get(&json_url.url)
+        .headers(
+          json_url
+            .headers
+            .as_ref()
+            .unwrap_or(&HashMap::new())
+            .try_into()
+            .unwrap(),
+        )
+        .send()
+        .unwrap()
+        .text()
+        .unwrap()
+        .len()
+    })
+    .sum();
+  println!("{}", download_size)
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
