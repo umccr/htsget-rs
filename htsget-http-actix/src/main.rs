@@ -1,3 +1,4 @@
+use actix_files::Files;
 use actix_web::{web, App, HttpServer};
 use htsget_search::{
   htsget::{from_storage::HtsGetFromStorage, HtsGet},
@@ -80,6 +81,7 @@ async fn main() -> std::io::Result<()> {
           .route("/{id:.+}", web::get().to(get::variants::<HtsGetStorage>))
           .route("/{id:.+}", web::post().to(post::variants::<HtsGetStorage>)),
       )
+      .service(Files::new("/data", htsget_path.clone()))
   })
   .bind(address)?
   .run()
