@@ -57,7 +57,7 @@ impl<S> HtsGetFromStorage<S> {
 mod tests {
 
   use crate::htsget::bam_search::tests::{
-    expected_url as bam_expected_url, with_local_storage as bam_with_local_storage,
+    with_local_storage as bam_with_local_storage, EXPECTED_URL as BAM_EXPECTED_URL,
   };
   use crate::htsget::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as vcf_with_local_storage,
@@ -76,7 +76,7 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(bam_expected_url(htsget.storage()))
+        vec![Url::new(BAM_EXPECTED_URL)
           .with_headers(Headers::default().with_header("Range", "bytes=4668-2596799"))],
       ));
       assert_eq!(response, expected_response)
@@ -94,7 +94,7 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(vcf_expected_url(htsget.storage(), filename))
+        vec![Url::new(vcf_expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-823"))],
       ));
       assert_eq!(response, expected_response)

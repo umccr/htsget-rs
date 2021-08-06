@@ -170,6 +170,8 @@ pub mod tests {
 
   use super::*;
 
+  pub const EXPECTED_URL: &str = "http://localhost/data/htsnexus_test_NA12878.bam";
+
   #[test]
   fn search_all_reads() {
     with_local_storage(|storage| {
@@ -180,7 +182,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url(&storage))
+        vec![Url::new(EXPECTED_URL)
           .with_headers(Headers::default().with_header("Range", "bytes=4668-2596799"))],
       ));
       assert_eq!(response, expected_response)
@@ -197,7 +199,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url(&storage))
+        vec![Url::new(EXPECTED_URL)
           .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596799"))],
       ));
       assert_eq!(response, expected_response)
@@ -214,7 +216,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url(&storage))
+        vec![Url::new(EXPECTED_URL)
           .with_headers(Headers::default().with_header("Range", "bytes=977196-2128166"))],
       ));
       assert_eq!(response, expected_response)
@@ -235,11 +237,11 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![
-          Url::new(expected_url(&storage))
+          Url::new(EXPECTED_URL)
             .with_headers(Headers::default().with_header("Range", "bytes=256721-647346")),
-          Url::new(expected_url(&storage))
+          Url::new(EXPECTED_URL)
             .with_headers(Headers::default().with_header("Range", "bytes=824361-842101")),
-          Url::new(expected_url(&storage))
+          Url::new(EXPECTED_URL)
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996015")),
         ],
       ));
@@ -257,7 +259,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url(&storage))
+        vec![Url::new(EXPECTED_URL)
           .with_headers(Headers::default().with_header("Range", "bytes=0-4668"))
           .with_class(Class::Header)],
       ));
@@ -271,16 +273,6 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/bam");
-    test(LocalStorage::new(base_path).unwrap())
-  }
-
-  pub fn expected_url(storage: &LocalStorage) -> String {
-    format!(
-      "file://{}",
-      storage
-        .base_path()
-        .join("htsnexus_test_NA12878.bam")
-        .to_string_lossy()
-    )
+    test(LocalStorage::new(base_path, "localhost").unwrap())
   }
 }

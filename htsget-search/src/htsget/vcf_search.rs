@@ -148,7 +148,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(&storage, filename))
+        vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-3367"))],
       ));
       assert_eq!(response, expected_response)
@@ -166,7 +166,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(&storage, filename))
+        vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-823"))],
       ));
       assert_eq!(response, expected_response)
@@ -187,7 +187,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(&storage, filename))
+        vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-3367"))],
       ));
       assert_eq!(response, expected_response)
@@ -222,7 +222,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(&storage, filename))
+        vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-823"))
           .with_class(Class::Header)],
       ));
@@ -236,16 +236,10 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/vcf");
-    test(LocalStorage::new(base_path).unwrap())
+    test(LocalStorage::new(base_path, "localhost").unwrap())
   }
 
-  pub fn expected_url(storage: &LocalStorage, name: &str) -> String {
-    format!(
-      "file://{}",
-      storage
-        .base_path()
-        .join(format!("{}.vcf.gz", name))
-        .to_string_lossy()
-    )
+  pub fn expected_url(name: &str) -> String {
+    format!("http://localhost/data/{}.vcf.gz", name)
   }
 }
