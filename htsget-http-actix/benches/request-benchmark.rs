@@ -1,13 +1,16 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use htsget_http_core::JsonResponse;
-use reqwest::{blocking::Client, Url};
+use reqwest::{blocking::Client, IntoUrl};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::{convert::TryInto, time::Duration};
 #[derive(Serialize)]
 struct Empty {}
 
-fn request(url: Url) {
+const HTSGET_RS_URL: &str = "http://localhost:8080/reads/data/bam/htsnexus_test_NA12878";
+const HTSGET_REFSERVER_URL: &str = "http://localhost:8081/reads/htsnexus_test_NA12878";
+
+fn request(url: impl IntoUrl) -> usize {
   let client = Client::new();
   let response: JsonResponse = client
     .get(url)
@@ -16,7 +19,7 @@ fn request(url: Url) {
     .unwrap()
     .json()
     .unwrap();
-  let download_size: usize = response
+  response
     .htsget
     .urls
     .iter()
@@ -37,8 +40,7 @@ fn request(url: Url) {
         .unwrap()
         .len()
     })
-    .sum();
-  println!("{}", download_size)
+    .sum()
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -46,20 +48,12 @@ fn criterion_benchmark(c: &mut Criterion) {
   group
     .sample_size(500)
     .measurement_time(Duration::from_secs(10));
-  group.bench_function("htsget-rs", |b| {
-    b.iter(|| {
-      let mut url = Url::parse("http://localhost/reads/data/bam/htsnexus_test_NA12878").unwrap();
-      url.set_port(Some(8080)).unwrap();
-      request(url)
-    })
-  });
+  group.bench_function("htsget-rs", |b| b.iter(|| request(HTSGET_RS_URL)));
+  println!("Download size: {} bytes", request(HTSGET_RS_URL));
   group.bench_function("htsget-refserver", |b| {
-    b.iter(|| {
-      let mut url = Url::parse("http://localhost/reads/htsnexus_test_NA12878").unwrap();
-      url.set_port(Some(8081)).unwrap();
-      request(url)
-    })
+    b.iter(|| request(HTSGET_REFSERVER_URL))
   });
+  println!("Download size: {} bytes", request(HTSGET_REFSERVER_URL));
   group.finish();
 }
 
