@@ -333,6 +333,6 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/cram");
-    test(LocalStorage::new(base_path, "localhost").unwrap())
+    test(LocalStorage::new(base_path, "localhost/data").unwrap())
   }
 }

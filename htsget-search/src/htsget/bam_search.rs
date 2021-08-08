@@ -273,6 +273,6 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/bam");
-    test(LocalStorage::new(base_path, "localhost").unwrap())
+    test(LocalStorage::new(base_path, "localhost/data").unwrap())
   }
 }

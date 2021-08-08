@@ -236,7 +236,7 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/vcf");
-    test(LocalStorage::new(base_path, "localhost").unwrap())
+    test(LocalStorage::new(base_path, "localhost/data").unwrap())
   }
 
   pub fn expected_url(name: &str) -> String {

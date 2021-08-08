@@ -77,7 +77,7 @@ impl Storage for LocalStorage {
       .map_err(|_| StorageError::NotFound(captured_key))?
       .to_owned();
     let url = Url::new(format!(
-      "http://{}/data/{}",
+      "http://{}/{}",
       self.address,
       path.to_string_lossy()
     ));
@@ -261,6 +261,6 @@ mod tests {
       .unwrap()
       .write_all(b"value2")
       .unwrap();
-    test(LocalStorage::new(base_path.path(), "localhost").unwrap())
+    test(LocalStorage::new(base_path.path(), "localhost/data").unwrap())
   }
 }

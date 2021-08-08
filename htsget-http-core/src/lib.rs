@@ -256,6 +256,6 @@ mod tests {
   }
 
   fn get_searcher() -> impl HtsGet {
-    HtsGetFromStorage::new(LocalStorage::new("../data", "localhost").unwrap())
+    HtsGetFromStorage::new(LocalStorage::new("../data", "localhost/data").unwrap())
   }
 }
