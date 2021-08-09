@@ -34,6 +34,10 @@ This crate provides two basic abstractions:
 
 - [storage](htsget-search/src/storage/mod.rs): The `Storage` trait represents some kind of object based storage (either locally or in the cloud) that can be used to retrieve files for alignments, variants or its respective indexes, as well as to get metadata from them. We include a reference implementation using [local files](htsget-search/src/storage/local.rs), but there are plans to [support AWS S3](https://github.com/chris-zen/htsget-mvp/issues/9) too.
 
+#### Traits abstraction
+
+TBD: Marko, describe a bit which changes would be needed if, for instance VCF4.4 comes along and needs something to be changed at the trait impl level?
+
 # References
 
 For a deep dive on the aforementioned bioinformatics data formats, here are links to the official specifications:
