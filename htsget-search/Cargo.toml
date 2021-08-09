@@ -11,3 +11,11 @@ noodles = { version = "0.5.0", features = ["bam", "bcf", "bgzf", "cram", "csi", 
 
 [dev-dependencies]
 tempfile = "3.2.0"
+<<<<<<< HEAD
+=======
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false
+>>>>>>> 466ea4a (Add htsget-search benchmark)
