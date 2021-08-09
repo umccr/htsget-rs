@@ -11,17 +11,18 @@ $ cargo run -p htsget-http-actix
 Then the server is ready to listen to your requests on port 8080, please refer to the [htsget-http-actix crate README.md for furhter details][htsget-http-actix-readme].
 
 ## Intro
+
 htsget makes bioinformatic data formats accessible through HTTP in a consistent way.
 
-This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec] using [Noodles][noodles].
+This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec] using [Noodles][noodles]. This implementation gets rid of the `unsafe` interfacing with the C-based [htslib](https://github.com/samtools/htslib), which has had [many vulnerabilities](https://github.com/samtools/htslib/pulls?q=oss-fuzz) along with other [also problematic third party dependencies such as OpenSSL](https://www.openssl.org/news/vulnerabilities.html). In contrast, this repo uses the [independently audited RustLS counterpart](http://jbp.io/2020/06/14/rustls-audit.html) for SSL and safe data format access via Noodles.
 
-Other implementation shortcomings have been identified and addressed, both in feature set and fundamental abstractions such as decoupled storage backends:
+Other implementation shortcomings have been identified and addressed, both in terms feature completeness and fundamental abstractions such as decoupled storage backends:
 
 |          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [htsget-rs][htsget-rs]
 |---	    	  |---	    | ---    |  ---	 |  ---	  | ---	   |
 | maintained  | ❌ 	   | ❌ 	    | ✅	 	 |   ❌    |  ✅	  |
 | local       | ✅	     | ❌ 	    | ✅	   |  ✅	    | ✅  |
-| cloud       | ✅      | ✅ 	    | ✅   |  	 ❌  	|   🚧  |
+| cloud       | ✅      | ✅ 	    | ✅   |  	 ❌  	|   [🚧 ][aws-fixing] |
 | BAM         | ✅	     | ✅ 	    | ✅   |  	 ✅  |   ✅  |
 | CRAM        | ✅	     | ❌ 	    | ✅ 	|  	  ✅ |   ✅  |
 | VCF         | ✅	     | [❌][google-novcf]  | ✅   |  ✅      |  ✅   |
@@ -30,12 +31,15 @@ Other implementation shortcomings have been identified and addressed, both in fe
 | htslib-free | ❌      | ❌         |  ❌ |  ❌      |   ✅  |
 | rust | ❌      | ❌         |  ❌ |  ❌      |   ✅  |
 
+Hover over some of the tick marks for a reference of the issues 👆
+
 [ebi-htsget]: https://github.com/andrewyatz/basic-htsget
 [htsget-rs]: https://github.com/umccr/htsget-rs
 [dnanexus]: https://github.com/dnanexus-rnd/htsnexus
 [google-htsget]: https://github.com/googlegenomics/htsget
 [google-novcf]: https://github.com/googlegenomics/htsget/issues/34
 [ga4gh-ref]: https://github.com/ga4gh/htsget-refserver
+[aws-fixing]: https://github.com/umccr/htsget-rs/issues/47
 
 ## Architecture
 
