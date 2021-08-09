@@ -44,13 +44,13 @@ async fn main() -> std::io::Result<()> {
   }
   let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
   let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
-  let moved_address = address.clone();
+  let storage_base_address = format!("{}/data", address);
   let htsget_path = config.htsget_path.clone();
   HttpServer::new(move || {
     App::new()
       .data(AppState {
         htsget: HtsGetFromStorage::new(
-          LocalStorage::new(htsget_path.clone(), moved_address.clone())
+          LocalStorage::new(&htsget_path, &storage_base_address)
             .expect("Couldn't create a Storage with the provided path"),
         ),
         config: config.clone(),

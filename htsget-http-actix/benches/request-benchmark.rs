@@ -1,6 +1,7 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::measurement::WallTime;
+use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use htsget_http_core::{JsonResponse, PostRequest, Region};
-use reqwest::{blocking::Client, Error as ActixError, IntoUrl};
+use reqwest::{blocking::Client, Error as ActixError};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::{convert::TryInto, time::Duration};
@@ -10,7 +11,7 @@ struct Empty {}
 const HTSGET_RS_URL: &str = "http://localhost:8080/reads/data/bam/htsnexus_test_NA12878";
 const HTSGET_REFSERVER_URL: &str = "http://localhost:8081/reads/htsnexus_test_NA12878";
 
-fn request(url: impl IntoUrl, json_content: &impl Serialize) -> Result<usize, ActixError> {
+fn request(url: &str, json_content: &impl Serialize) -> Result<usize, ActixError> {
   let client = Client::new();
   let response: JsonResponse = client.get(url).json(json_content).send()?.json()?;
   Ok(
@@ -41,26 +42,37 @@ fn request(url: impl IntoUrl, json_content: &impl Serialize) -> Result<usize, Ac
   )
 }
 
+fn bench_request(
+  group: &mut BenchmarkGroup<WallTime>,
+  name: &str,
+  url: &str,
+  json_content: &impl Serialize,
+) {
+  println!(
+    "\n\nDownload size: {} bytes",
+    request(url, json_content).expect("Error during the request")
+  );
+  group.bench_function(name, |b| b.iter(|| request(url, json_content)));
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
   let mut group = c.benchmark_group("Requests");
   group
-    .sample_size(500)
-    .measurement_time(Duration::from_secs(10));
+    .sample_size(150)
+    .measurement_time(Duration::from_secs(15));
 
-  println!(
-    "Download size: {} bytes",
-    request(HTSGET_RS_URL, &Empty {}).expect("Error during the request")
+  bench_request(
+    &mut group,
+    "htsget-rs simple request",
+    HTSGET_RS_URL,
+    &Empty {},
   );
-  group.bench_function("htsget-rs simple request", |b| {
-    b.iter(|| request(HTSGET_RS_URL, &Empty {}))
-  });
-  println!(
-    "Download size: {} bytes",
-    request(HTSGET_REFSERVER_URL, &Empty {}).expect("Error during the request")
+  bench_request(
+    &mut group,
+    "htsget-refserver simple request",
+    HTSGET_REFSERVER_URL,
+    &Empty {},
   );
-  group.bench_function("htsget-refserver simple request", |b| {
-    b.iter(|| request(HTSGET_REFSERVER_URL, &Empty {}))
-  });
 
   let json_content = PostRequest {
     format: None,
@@ -74,20 +86,18 @@ fn criterion_benchmark(c: &mut Criterion) {
       end: None,
     }]),
   };
-  println!(
-    "Download size: {} bytes",
-    request(HTSGET_RS_URL, &json_content).expect("Error during the request")
+  bench_request(
+    &mut group,
+    "htsget-rs with region",
+    HTSGET_RS_URL,
+    &json_content,
   );
-  group.bench_function("htsget-rs with region", |b| {
-    b.iter(|| request(HTSGET_RS_URL, &json_content))
-  });
-  println!(
-    "Download size: {} bytes",
-    request(HTSGET_REFSERVER_URL, &json_content).expect("Error during the request")
+  bench_request(
+    &mut group,
+    "htsget-refserver with region",
+    HTSGET_REFSERVER_URL,
+    &json_content,
   );
-  group.bench_function("htsget-refserver with region", |b| {
-    b.iter(|| request(HTSGET_REFSERVER_URL, &json_content))
-  });
 
   group.finish();
 }
