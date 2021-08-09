@@ -99,6 +99,38 @@ fn criterion_benchmark(c: &mut Criterion) {
     &json_content,
   );
 
+  let json_content = PostRequest {
+    format: None,
+    class: None,
+    fields: None,
+    tags: None,
+    notags: None,
+    regions: Some(vec![
+      Region {
+        reference_name: "20".to_string(),
+        start: None,
+        end: None,
+      },
+      Region {
+        reference_name: "11".to_string(),
+        start: Some(4999977),
+        end: Some(5008321),
+      },
+    ]),
+  };
+  bench_request(
+    &mut group,
+    "htsget-rs with two regions",
+    HTSGET_RS_URL,
+    &json_content,
+  );
+  bench_request(
+    &mut group,
+    "htsget-refserver with two regions",
+    HTSGET_REFSERVER_URL,
+    &json_content,
+  );
+
   group.finish();
 }
 
