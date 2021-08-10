@@ -2,7 +2,7 @@
 //!
 use async_trait::async_trait;
 use std::path::PathBuf;
-use tokio::{fs::File, io};
+use tokio::fs::File;
 
 use noodles::bam;
 use noodles::bam::bai::index::ReferenceSequence;
@@ -13,7 +13,7 @@ use noodles::csi::BinningIndex;
 use noodles::sam;
 use noodles::sam::Header;
 
-use crate::htsget::search::{AsyncHeaderResult, BgzfSearch, Search, SearchReads};
+use crate::htsget::search::{AsyncHeaderResult, AsyncIndexResult, BgzfSearch, Search, SearchReads};
 use crate::htsget::HtsGetError;
 use crate::{
   htsget::search::{BlockPosition, VirtualPositionExt},
@@ -97,17 +97,18 @@ where
       header
     })
   };
-  const INDEX_FN: fn(PathBuf) -> io::Result<Index> = bai::read;
+  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
+    |path| Box::pin(async move { bai::r#async::read(path).await });
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: &str,
-    reference_name: &str,
+    key: String,
+    reference_name: String,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
     self
-      .get_byte_ranges_for_reference_name_reads(key, reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(key, &reference_name, index, query)
       .await
   }
 
@@ -150,21 +151,20 @@ where
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    _key: &str,
+    key: String,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
-    reader: &mut AsyncReader<File>,
   ) -> Result<Vec<BytesRange>> {
     self
       .get_byte_ranges_for_reference_sequence_bgzf(
+        key,
         ref_seq,
         ref_seq_id,
         index,
         query.start.map(|start| start as i32),
         query.end.map(|end| end as i32),
-        reader,
       )
       .await
   }

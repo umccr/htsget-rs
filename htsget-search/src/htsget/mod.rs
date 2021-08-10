@@ -12,6 +12,7 @@ use thiserror::Error;
 use crate::storage::StorageError;
 use core::fmt;
 use std::fmt::Formatter;
+use tokio::task::JoinError;
 
 pub mod bam_search;
 pub mod bcf_search;
@@ -90,6 +91,12 @@ impl From<StorageError> for HtsGetError {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
     }
+  }
+}
+
+impl From<JoinError> for HtsGetError {
+  fn from(err: JoinError) -> Self {
+    Self::concurrency_error(err.to_string())
   }
 }
 

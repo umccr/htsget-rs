@@ -4,7 +4,7 @@
 use async_trait::async_trait;
 use std::marker::PhantomData;
 use std::path::PathBuf;
-use std::{fs::File, io};
+use tokio::fs::File;
 
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
@@ -12,14 +12,17 @@ use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
 use noodles::vcf;
+use noodles::vcf::AsyncReader;
 use noodles::vcf::Header;
-use noodles::vcf::Reader;
 
-use crate::htsget::search::{AsyncHeaderResult, BgzfSearch, BlockPosition, Search};
+use crate::htsget::search::{
+  find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search,
+};
 use crate::{
-  htsget::{Format, HtsGetError, Query, Result},
+  htsget::{Format, Query, Result},
   storage::{BytesRange, Storage},
 };
+use futures::prelude::stream::FuturesUnordered;
 use std::sync::Arc;
 
 pub(crate) struct VcfSearch<S> {
@@ -27,13 +30,13 @@ pub(crate) struct VcfSearch<S> {
 }
 
 #[async_trait]
-impl BlockPosition for vcf::Reader<bgzf::Reader<File>> {
+impl BlockPosition for vcf::AsyncReader<bgzf::AsyncReader<File>> {
   async fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut String::new()).ok()
+    self.read_record(&mut String::new()).await.ok()
   }
 
   async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
-    self.seek(pos)
+    self.seek(pos).await
   }
 
   fn virtual_position(&self) -> VirtualPosition {
@@ -42,7 +45,8 @@ impl BlockPosition for vcf::Reader<bgzf::Reader<File>> {
 }
 
 #[async_trait]
-impl<S> BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::Reader<bgzf::Reader<File>>, Header>
+impl<S>
+  BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
   for VcfSearch<S>
 where
   S: Storage + Send + Sync + 'static,
@@ -55,59 +59,65 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, ReferenceSequence, tabix::Index, vcf::Reader<bgzf::Reader<File>>, Header>
+impl<S>
+  Search<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
   for VcfSearch<S>
 where
   S: Storage + Send + Sync + 'static,
 {
-  const READER_FN: fn(tokio::fs::File) -> Reader<bgzf::Reader<File>> = |file| {
-    let file = file
-      .try_into_std()
-      .expect("converting tokio file to std file.");
-    vcf::Reader::new(bgzf::Reader::new(file))
-  };
-  const HEADER_FN: fn(&'_ mut Reader<bgzf::Reader<File>>) -> AsyncHeaderResult =
-    |reader| Box::pin(async move { vcf::Reader::read_header(reader) });
-  const INDEX_FN: fn(PathBuf) -> io::Result<Index> = tabix::read;
+  const READER_FN: fn(File) -> AsyncReader<bgzf::AsyncReader<File>> =
+    |file| vcf::AsyncReader::new(bgzf::AsyncReader::new(file));
+  const HEADER_FN: fn(&'_ mut AsyncReader<bgzf::AsyncReader<File>>) -> AsyncHeaderResult =
+    |reader| Box::pin(async move { reader.read_header().await });
+  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
+    |path| Box::pin(async move { tabix::r#async::read(path).await });
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: &str,
-    reference_name: &str,
+    key: String,
+    reference_name: String,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    let (mut vcf_reader, vcf_header) = self.create_reader(key).await?;
+    let (_, vcf_header) = self.create_reader(&key).await?;
     let maybe_len = vcf_header
       .contigs()
-      .get(reference_name)
+      .get(&reference_name)
       .and_then(|contig| contig.len());
 
     // We are assuming the order of the names and the references sequences
     // in the index is the same
-    let ref_seq_index = index
-      .reference_sequence_names()
-      .iter()
-      .enumerate()
-      .find(|(_, name)| name == &reference_name)
-      .map(|(index, _)| index)
-      .ok_or_else(|| {
-        HtsGetError::not_found(format!(
-          "Reference name not found in the TBI file: {}",
-          reference_name,
-        ))
-      })?;
+    let futures = FuturesUnordered::new();
+    for (index, name) in index.reference_sequence_names().iter().enumerate() {
+      let owned_name = name.to_owned();
+      let owned_reference_name = reference_name.clone();
+      futures.push(tokio::spawn(async move {
+        if owned_name == owned_reference_name {
+          Some(index)
+        } else {
+          None
+        }
+      }));
+    }
+    let ref_seq_index = find_first(
+      &format!(
+        "Reference name not found in the TBI file: {}",
+        reference_name,
+      ),
+      futures,
+    )
+    .await?;
 
     let seq_start = query.start.map(|start| start as i32);
     let seq_end = query.end.map(|end| end as i32).or(maybe_len);
     let byte_ranges = self
       .get_byte_ranges_for_reference_sequence_bgzf(
+        key,
         &PhantomData,
         ref_seq_index,
         index,
         seq_start,
         seq_end,
-        &mut vcf_reader,
       )
       .await?;
     Ok(byte_ranges)
@@ -142,7 +152,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-  use crate::htsget::{Class, Headers, Response, Url};
+  use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
   use crate::storage::local::LocalStorage;
 
   use super::*;

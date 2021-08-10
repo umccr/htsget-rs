@@ -4,7 +4,6 @@
 use async_trait::async_trait;
 use std::convert::TryFrom;
 use std::fs::File;
-use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
@@ -15,10 +14,15 @@ use noodles::cram::{crai, Reader};
 use noodles::sam;
 use noodles::sam::Header;
 
-use crate::htsget::search::{AsyncHeaderResult, Search, SearchAll, SearchReads};
+use crate::htsget::search::{AsyncHeaderResult, AsyncIndexResult, Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{BytesRange, Storage};
+use futures::prelude::stream::FuturesUnordered;
+use futures::StreamExt;
 use std::sync::Arc;
+use tokio::select;
+
+/// TODO convert to async when available.
 
 pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
@@ -29,8 +33,17 @@ impl<S> SearchAll<S, PhantomData<Self>, Index, Reader<File>, Header> for CramSea
 where
   S: Storage + Send + Sync + 'static,
 {
-  async fn get_byte_ranges_for_all(&self, key: &str, index: &Index) -> Result<Vec<BytesRange>> {
-    Self::bytes_ranges_from_index(self, key, None, None, None, index, |_| true).await
+  async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
+    Self::bytes_ranges_from_index(
+      self,
+      &key,
+      None,
+      None,
+      None,
+      index,
+      Arc::new(|_: &Record| true),
+    )
+    .await
   }
 
   async fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
@@ -59,31 +72,36 @@ where
     key: &str,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    Self::bytes_ranges_from_index(self, key, None, None, None, index, |record| {
-      record.reference_sequence_id().is_none()
-    })
+    Self::bytes_ranges_from_index(
+      self,
+      key,
+      None,
+      None,
+      None,
+      index,
+      Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
+    )
     .await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    key: &str,
+    key: String,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
-    _reader: &mut Reader<File>,
   ) -> Result<Vec<BytesRange>> {
     let ref_seq_id = ReferenceSequenceId::try_from(ref_seq_id as i32)
       .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
     Self::bytes_ranges_from_index(
       self,
-      key,
+      &key,
       Some(ref_seq),
       query.start.map(|start| start as i32),
       query.end.map(|end| end as i32),
       index,
-      |record| record.reference_sequence_id() == Some(ref_seq_id),
+      Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )
     .await
   }
@@ -106,17 +124,18 @@ where
       reader.read_file_header()
     })
   };
-  const INDEX_FN: fn(PathBuf) -> io::Result<Index> = crai::read;
+  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
+    |path| Box::pin(async move { crai::read(path) });
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: &str,
-    reference_name: &str,
+    key: String,
+    reference_name: String,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
     self
-      .get_byte_ranges_for_reference_name_reads(key, reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(key, &reference_name, index, query)
       .await
   }
 
@@ -154,23 +173,44 @@ where
     seq_start: Option<i32>,
     seq_end: Option<i32>,
     crai_index: &[crai::Record],
-    predicate: F,
+    predicate: Arc<F>,
   ) -> Result<Vec<BytesRange>>
   where
-    F: Fn(&Record) -> bool,
+    F: Fn(&Record) -> bool + Send + Sync + 'static,
   {
     // This could be improved by using some sort of index mapping.
-    let mut byte_ranges: Vec<BytesRange> = crai_index
-      .iter()
-      .zip(crai_index.iter().skip(1))
-      .filter_map(|(record, next)| {
-        if predicate(record) {
-          Self::bytes_ranges_for_record(ref_seq, seq_start, seq_end, record, next)
+    let mut futures = FuturesUnordered::new();
+    for (record, next) in crai_index.iter().zip(crai_index.iter().skip(1)) {
+      let owned_record = record.clone();
+      let owned_next = next.clone();
+      let ref_seq_owned = ref_seq.cloned();
+      let owned_predicate = predicate.clone();
+      futures.push(tokio::spawn(async move {
+        if owned_predicate(&owned_record) {
+          Self::bytes_ranges_for_record(
+            ref_seq_owned.as_ref(),
+            seq_start,
+            seq_end,
+            &owned_record,
+            &owned_next,
+          )
         } else {
           None
         }
-      })
-      .collect();
+      }));
+    }
+
+    let mut byte_ranges = Vec::new();
+    loop {
+      select! {
+        Some(next) = futures.next() => {
+          if let Some(range) = next.map_err(HtsGetError::from)? {
+            byte_ranges.push(range);
+          }
+        },
+        else => break
+      }
+    }
 
     let last = crai_index
       .last()
