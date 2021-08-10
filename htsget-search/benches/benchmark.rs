@@ -1,6 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use htsget_search::{
-  htsget::{from_storage::HtsGetFromStorage, Class, Fields, HtsGet, HtsGetError, Query, Tags},
+  htsget::{
+    from_storage::HtsGetFromStorage, Class, Fields, Format, HtsGet, HtsGetError, Query, Tags,
+  },
   storage::local::LocalStorage,
 };
 use std::time::Duration;
@@ -26,6 +28,66 @@ fn criterion_benchmark(c: &mut Criterion) {
         reference_name: None,
         start: None,
         end: None,
+        fields: Fields::All,
+        tags: Tags::All,
+        no_tags: None,
+      })
+    })
+  });
+  group.bench_function("Bam query", |b| {
+    b.iter(|| {
+      perform_query(Query {
+        id: "bam/htsnexus_test_NA12878".to_string(),
+        format: None,
+        class: Class::Body,
+        reference_name: Some("11".to_string()),
+        start: Some(4999977),
+        end: Some(5008321),
+        fields: Fields::All,
+        tags: Tags::All,
+        no_tags: None,
+      })
+    })
+  });
+  group.bench_function("VCF query", |b| {
+    b.iter(|| {
+      perform_query(Query {
+        id: "vcf/sample1-bcbio-cancer".to_string(),
+        format: None,
+        class: Class::Body,
+        reference_name: Some("chrM".to_string()),
+        start: Some(151),
+        end: Some(153),
+        fields: Fields::All,
+        tags: Tags::All,
+        no_tags: None,
+      })
+    })
+  });
+  group.bench_function("BCF query", |b| {
+    b.iter(|| {
+      perform_query(Query {
+        id: "bcf/sample1-bcbio-cancer".to_string(),
+        format: Some(Format::Bcf),
+        class: Class::Body,
+        reference_name: Some("chrM".to_string()),
+        start: Some(151),
+        end: Some(153),
+        fields: Fields::All,
+        tags: Tags::All,
+        no_tags: None,
+      })
+    })
+  });
+  group.bench_function("CRAM query", |b| {
+    b.iter(|| {
+      perform_query(Query {
+        id: "cram/htsnexus_test_NA12878".to_string(),
+        format: Some(Format::Cram),
+        class: Class::Body,
+        reference_name: Some("11".to_string()),
+        start: Some(4999977),
+        end: Some(5008321),
         fields: Fields::All,
         tags: Tags::All,
         no_tags: None,
