@@ -12,6 +12,10 @@ const HTSGET_RS_URL: &str = "http://localhost:8080/reads/data/bam/htsnexus_test_
 const HTSGET_REFSERVER_URL: &str = "http://localhost:8081/reads/htsnexus_test_NA12878";
 const HTSGET_RS_VCF_URL: &str = "http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer";
 const HTSGET_REFSERVER_VCF_URL: &str = "http://localhost:8081/variants/sample1-bcbio-cancer";
+const HTSGET_RS_BIG_VCF_URL: &str =
+  "http://localhost:8080/variants/data/vcf/internationalgenomesample";
+const HTSGET_REFSERVER_BIG_VCF_URL: &str =
+  "http://localhost:8081/variants/internationalgenomesample";
 
 fn request(url: &str, json_content: &impl Serialize) -> Result<usize, ActixError> {
   let client = Client::new();
@@ -65,13 +69,13 @@ fn criterion_benchmark(c: &mut Criterion) {
 
   bench_request(
     &mut group,
-    "htsget-rs simple request",
+    "[LIGHT] htsget-rs simple request",
     HTSGET_RS_URL,
     &Empty {},
   );
   bench_request(
     &mut group,
-    "htsget-refserver simple request",
+    "[LIGHT] htsget-refserver simple request",
     HTSGET_REFSERVER_URL,
     &Empty {},
   );
@@ -90,13 +94,13 @@ fn criterion_benchmark(c: &mut Criterion) {
   };
   bench_request(
     &mut group,
-    "htsget-rs with region",
+    "[LIGHT] htsget-rs with region",
     HTSGET_RS_URL,
     &json_content,
   );
   bench_request(
     &mut group,
-    "htsget-refserver with region",
+    "[LIGHT] htsget-refserver with region",
     HTSGET_REFSERVER_URL,
     &json_content,
   );
@@ -122,13 +126,13 @@ fn criterion_benchmark(c: &mut Criterion) {
   };
   bench_request(
     &mut group,
-    "htsget-rs with two regions",
+    "[LIGHT] htsget-rs with two regions",
     HTSGET_RS_URL,
     &json_content,
   );
   bench_request(
     &mut group,
-    "htsget-refserver with two regions",
+    "[LIGHT] htsget-refserver with two regions",
     HTSGET_REFSERVER_URL,
     &json_content,
   );
@@ -147,14 +151,41 @@ fn criterion_benchmark(c: &mut Criterion) {
   };
   bench_request(
     &mut group,
-    "htsget-rs with VCF",
+    "[LIGHT] htsget-rs with VCF",
     HTSGET_RS_VCF_URL,
     &json_content,
   );
   bench_request(
     &mut group,
-    "htsget-refserver with VCF",
+    "[LIGHT] htsget-refserver with VCF",
     HTSGET_REFSERVER_VCF_URL,
+    &json_content,
+  );
+
+  // The following ones are HEAVY requests
+
+  let json_content = PostRequest {
+    format: None,
+    class: None,
+    fields: None,
+    tags: None,
+    notags: None,
+    regions: Some(vec![Region {
+      reference_name: "14".to_string(),
+      start: None,
+      end: None,
+    }]),
+  };
+  bench_request(
+    &mut group,
+    "[HEAVY] htsget-rs big VCF file",
+    HTSGET_RS_BIG_VCF_URL,
+    &json_content,
+  );
+  bench_request(
+    &mut group,
+    "[HEAVY] htsget-refserver big VCF file",
+    HTSGET_REFSERVER_BIG_VCF_URL,
     &json_content,
   );
 
