@@ -5,8 +5,12 @@ use reqwest::{blocking::Client, Error as ActixError};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::{convert::TryInto, time::Duration};
+
 #[derive(Serialize)]
 struct Empty {}
+
+const BENCHMARK_DURATION_SECONDS: u64 = 15;
+const NUMBER_OF_EXECUTIONS: usize = 150;
 
 const HTSGET_RS_URL: &str = "http://localhost:8080/reads/data/bam/htsnexus_test_NA12878";
 const HTSGET_REFSERVER_URL: &str = "http://localhost:8081/reads/htsnexus_test_NA12878";
@@ -64,8 +68,8 @@ fn bench_request(
 fn criterion_benchmark(c: &mut Criterion) {
   let mut group = c.benchmark_group("Requests");
   group
-    .sample_size(150)
-    .measurement_time(Duration::from_secs(15));
+    .sample_size(NUMBER_OF_EXECUTIONS)
+    .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
   bench_request(
     &mut group,

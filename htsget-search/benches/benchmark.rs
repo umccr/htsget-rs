@@ -7,6 +7,9 @@ use htsget_search::{
 };
 use std::time::Duration;
 
+const BENCHMARK_DURATION_SECONDS: u64 = 5;
+const NUMBER_OF_EXECUTIONS: usize = 150;
+
 fn perform_query(query: Query) -> Result<(), HtsGetError> {
   let htsget = HtsGetFromStorage::new(LocalStorage::new("../data", "localhost").unwrap());
   htsget.search(query)?;
@@ -16,8 +19,8 @@ fn perform_query(query: Query) -> Result<(), HtsGetError> {
 fn criterion_benchmark(c: &mut Criterion) {
   let mut group = c.benchmark_group("Queries");
   group
-    .sample_size(20)
-    .measurement_time(Duration::from_secs(5));
+    .sample_size(NUMBER_OF_EXECUTIONS)
+    .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
   group.bench_function("[LIGHT] Simple bam query", |b| {
     b.iter(|| {
