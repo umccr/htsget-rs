@@ -11,4 +11,4 @@ edition = "2018"
 serde = { version = "~1.0", features = ["derive"] }
 serde_yaml = "~0.8"
 
-noodles = { version = "0.2.0", features = ["bam", "bcf", "bgzf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.5.0", features = ["bam", "bcf", "bgzf", "cram", "csi", "sam", "tabix", "vcf"] }

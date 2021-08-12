@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 thiserror = "~1.0"
 
-noodles = { version = "0.2.0", features = ["bam", "bcf", "bgzf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.5.0", features = ["bam", "bcf", "bgzf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 [dev-dependencies]
 tempfile = "3.2.0"
