@@ -11,14 +11,13 @@ tokio = { version = "1.9.0", features = ["full"] }
 tokio-stream = "0.1"
 futures = "0.3.16"
 
-noodles = { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ["bam", "bcf", "bgzf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.5.0", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
-noodles-bgzf =  { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ['async'] }
-noodles-bam =   { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ['async'] }
-noodles-bcf =   { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ['async'] }
-noodles-tabix =   { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ['async'] }
-noodles-vcf =   { git = "https://github.com/zaeleus/noodles.git", branch = "async", features = ['async'] }
-
+noodles-bgzf = { version = "0.3.0", features = ['async'] }
+noodles-bam = { version = "0.3.0", features = ['async'] }
+noodles-bcf = { version = "0.4.0", features = ['async'] }
+noodles-tabix = { version = "0.5.0", features = ['async'] }
+noodles-vcf = { version = "0.4.0", features = ['async'] }
 
 [dev-dependencies]
 tempfile = "3.2.0"
