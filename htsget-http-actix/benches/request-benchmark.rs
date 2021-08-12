@@ -10,6 +10,8 @@ struct Empty {}
 
 const HTSGET_RS_URL: &str = "http://localhost:8080/reads/data/bam/htsnexus_test_NA12878";
 const HTSGET_REFSERVER_URL: &str = "http://localhost:8081/reads/htsnexus_test_NA12878";
+const HTSGET_RS_VCF_URL: &str = "http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer";
+const HTSGET_REFSERVER_VCF_URL: &str = "http://localhost:8081/variants/sample1-bcbio-cancer";
 
 fn request(url: &str, json_content: &impl Serialize) -> Result<usize, ActixError> {
   let client = Client::new();
@@ -32,7 +34,7 @@ fn request(url: &str, json_content: &impl Serialize) -> Result<usize, ActixError
                 .unwrap(),
             )
             .send()?
-            .text()?
+            .bytes()?
             .len(),
         )
       })
@@ -128,6 +130,31 @@ fn criterion_benchmark(c: &mut Criterion) {
     &mut group,
     "htsget-refserver with two regions",
     HTSGET_REFSERVER_URL,
+    &json_content,
+  );
+
+  let json_content = PostRequest {
+    format: None,
+    class: None,
+    fields: None,
+    tags: None,
+    notags: None,
+    regions: Some(vec![Region {
+      reference_name: "chrM".to_string(),
+      start: Some(0),
+      end: Some(153),
+    }]),
+  };
+  bench_request(
+    &mut group,
+    "htsget-rs with VCF",
+    HTSGET_RS_VCF_URL,
+    &json_content,
+  );
+  bench_request(
+    &mut group,
+    "htsget-refserver with VCF",
+    HTSGET_REFSERVER_VCF_URL,
     &json_content,
   );
 

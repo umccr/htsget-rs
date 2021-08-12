@@ -13,6 +13,16 @@
                     }
                 ]
             }
+        },
+        "variants": {
+            "dataSourceRegistry": {
+                "sources": [
+                    {
+                        "pattern": "^(?P<id>.*)$",
+                        "path": "/data/vcf/{id}.vcf.gz"
+                    }
+                ]
+            }
         }
     }
 }
