@@ -9,31 +9,37 @@ use htsget_search::htsget::HtsGet;
 use std::collections::HashMap;
 
 /// GET request reads endpoint
-pub async fn reads<H: HtsGet>(
+pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
   Path(id): Path<String>,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), id);
-  handle_response(get_response_for_get_request(
-    &app_state.get_ref().htsget,
-    query_information,
-    Endpoint::Reads,
-  ))
+  handle_response(
+    get_response_for_get_request(
+      app_state.get_ref().htsget.clone(),
+      query_information,
+      Endpoint::Reads,
+    )
+    .await,
+  )
 }
 
 /// GET request variants endpoint
-pub async fn variants<H: HtsGet>(
+pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
   Path(id): Path<String>,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), id);
-  handle_response(get_response_for_get_request(
-    &app_state.get_ref().htsget,
-    query_information,
-    Endpoint::Variants,
-  ))
+  handle_response(
+    get_response_for_get_request(
+      app_state.get_ref().htsget.clone(),
+      query_information,
+      Endpoint::Variants,
+    )
+    .await,
+  )
 }

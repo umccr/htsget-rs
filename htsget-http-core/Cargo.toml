@@ -10,3 +10,6 @@ edition = "2018"
 thiserror = "~1.0"
 serde = { version = "1", features = ["derive"] }
 htsget-search = { path = "../htsget-search" }
+
+futures = "0.3.16"
+tokio = { version = "1.9.0", features = ["full"] }

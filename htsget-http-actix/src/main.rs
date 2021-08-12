@@ -8,6 +8,7 @@ mod config;
 use config::Config;
 mod handlers;
 use handlers::{get, post, reads_service_info, variants_service_info};
+use std::sync::Arc;
 
 const USAGE: &str = r#"
 This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
@@ -30,7 +31,7 @@ The next variables are used to configure the info for the service-info endpoints
 type HtsGetStorage = HtsGetFromStorage<LocalStorage>;
 
 pub struct AppState<H: HtsGet> {
-  htsget: H,
+  htsget: Arc<H>,
   config: Config,
 }
 
@@ -47,10 +48,10 @@ async fn main() -> std::io::Result<()> {
   HttpServer::new(move || {
     App::new()
       .data(AppState {
-        htsget: HtsGetFromStorage::new(
+        htsget: Arc::new(HtsGetFromStorage::new(
           LocalStorage::new(htsget_path.clone())
             .expect("Couldn't create a Storage with the provided path"),
-        ),
+        )),
         config: config.clone(),
       })
       .service(

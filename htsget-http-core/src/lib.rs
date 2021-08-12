@@ -11,8 +11,12 @@ pub use service_info::{
   get_service_info_json, ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType,
 };
 
+use futures::prelude::stream::FuturesUnordered;
+use futures::StreamExt;
 use htsget_search::htsget::{HtsGet, Query, Response};
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::select;
 
 const READS_DEFAULT_FORMAT: &str = "BAM";
 const VARIANTS_DEFAULT_FORMAT: &str = "VCF";
@@ -29,8 +33,8 @@ pub enum Endpoint {
 /// Gets a JSON response for a GET request. The GET request parameters must
 /// be in a HashMap. The "id" field is the only mandatory one. The rest can be
 /// consulted [here](https://samtools.github.io/hts-specs/htsget.html)
-pub fn get_response_for_get_request(
-  searcher: &impl HtsGet,
+pub async fn get_response_for_get_request(
+  searcher: Arc<impl HtsGet + Send + Sync + 'static>,
   mut query_information: HashMap<String, String>,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
@@ -53,6 +57,7 @@ pub fn get_response_for_get_request(
   let query = convert_to_query(&query_information)?;
   searcher
     .search(query)
+    .await
     .map_err(|error| error.into())
     .map(JsonResponse::from_response)
 }
@@ -75,8 +80,8 @@ fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query
 
 /// Gets a response in JSON for a POST request.
 /// The parameters can be consulted [here](https://samtools.github.io/hts-specs/htsget.html)
-pub fn get_response_for_post_request(
-  searcher: &impl HtsGet,
+pub async fn get_response_for_post_request(
+  searcher: Arc<impl HtsGet + Send + Sync + 'static>,
   mut request: PostRequest,
   id: impl Into<String>,
   endpoint: Endpoint,
@@ -93,11 +98,22 @@ pub fn get_response_for_post_request(
       )))
     }
   }
-  let responses = request
-    .get_queries(id)?
-    .into_iter()
-    .map(|query| searcher.search(query).map_err(|error| error.into()))
-    .collect::<Result<Vec<Response>>>()?;
+
+  let mut futures = FuturesUnordered::new();
+  for query in request.get_queries(id)? {
+    let owned_searcher = searcher.clone();
+    futures.push(tokio::spawn(
+      async move { owned_searcher.search(query).await },
+    ));
+  }
+  let mut responses: Vec<Response> = Vec::new();
+  loop {
+    select! {
+      Some(next) = futures.next() => responses.push(next.map_err(|err| HtsGetError::ConcurrencyError(err.to_string()))?.map_err(HtsGetError::from)?),
+      else => break
+    }
+  }
+
   Ok(JsonResponse::from_response(
     // It's okay to unwrap because there will be at least one response
     merge_responses(responses).unwrap(),
@@ -119,14 +135,15 @@ mod tests {
     storage::local::LocalStorage,
   };
   use std::path::PathBuf;
-  #[test]
-  fn get_request() {
+
+  #[tokio::test]
+  async fn get_request() {
     let mut request = HashMap::new();
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     let mut headers = HashMap::new();
     headers.insert("Range".to_string(), "bytes=4668-2596799".to_string());
     assert_eq!(
-      get_response_for_get_request(&get_searcher(), request, Endpoint::Reads),
+      get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
@@ -141,21 +158,21 @@ mod tests {
     )
   }
 
-  #[test]
-  fn get_reads_request_with_variants_format() {
+  #[tokio::test]
+  async fn get_reads_request_with_variants_format() {
     let mut request = HashMap::new();
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     request.insert("format".to_string(), "VCF".to_string());
     assert_eq!(
-      get_response_for_get_request(&get_searcher(), request, Endpoint::Reads),
+      get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
       Err(HtsGetError::UnsupportedFormat(
         "VCF isn't a supported format".to_string()
       ))
     )
   }
 
-  #[test]
-  fn get_request_with_range() {
+  #[tokio::test]
+  async fn get_request_with_range() {
     let mut request = HashMap::new();
     request.insert("id".to_string(), "vcf/sample1-bcbio-cancer".to_string());
     request.insert("referenceName".to_string(), "chrM".to_string());
@@ -164,7 +181,7 @@ mod tests {
     let mut headers = HashMap::new();
     headers.insert("Range".to_string(), "bytes=0-3367".to_string());
     assert_eq!(
-      get_response_for_get_request(&get_searcher(), request, Endpoint::Variants),
+      get_response_for_get_request(get_searcher(), request, Endpoint::Variants).await,
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
         vec![Url::new(format!(
@@ -179,8 +196,8 @@ mod tests {
     )
   }
 
-  #[test]
-  fn post_request() {
+  #[tokio::test]
+  async fn post_request() {
     let request = PostRequest {
       format: None,
       class: None,
@@ -193,11 +210,12 @@ mod tests {
     headers.insert("Range".to_string(), "bytes=4668-2596799".to_string());
     assert_eq!(
       get_response_for_post_request(
-        &get_searcher(),
+        get_searcher(),
         request,
         "bam/htsnexus_test_NA12878",
         Endpoint::Reads
-      ),
+      )
+      .await,
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
@@ -212,8 +230,8 @@ mod tests {
     )
   }
 
-  #[test]
-  fn post_variants_request_with_reads_format() {
+  #[tokio::test]
+  async fn post_variants_request_with_reads_format() {
     let request = PostRequest {
       format: Some("BAM".to_string()),
       class: None,
@@ -224,19 +242,20 @@ mod tests {
     };
     assert_eq!(
       get_response_for_post_request(
-        &get_searcher(),
+        get_searcher(),
         request,
         "bam/htsnexus_test_NA12878",
         Endpoint::Variants
-      ),
+      )
+      .await,
       Err(HtsGetError::UnsupportedFormat(
         "BAM isn't a supported format".to_string()
       ))
     )
   }
 
-  #[test]
-  fn post_request_with_range() {
+  #[tokio::test]
+  async fn post_request_with_range() {
     let request = PostRequest {
       format: Some("VCF".to_string()),
       class: None,
@@ -253,11 +272,12 @@ mod tests {
     headers.insert("Range".to_string(), "bytes=0-3367".to_string());
     assert_eq!(
       get_response_for_post_request(
-        &get_searcher(),
+        get_searcher(),
         request,
         "vcf/sample1-bcbio-cancer",
         Endpoint::Variants
-      ),
+      )
+      .await,
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
         vec![Url::new(format!(
@@ -280,7 +300,9 @@ mod tests {
       .join("data")
   }
 
-  fn get_searcher() -> impl HtsGet {
-    HtsGetFromStorage::new(LocalStorage::new("../data").unwrap())
+  fn get_searcher() -> Arc<impl HtsGet> {
+    Arc::new(HtsGetFromStorage::new(
+      LocalStorage::new("../data").unwrap(),
+    ))
   }
 }

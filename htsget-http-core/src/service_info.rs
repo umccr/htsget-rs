@@ -1,6 +1,7 @@
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
 use htsget_search::htsget::HtsGet;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// A struct representing the information that should be present in a service-info response
 #[derive(Serialize, Deserialize)]
@@ -48,7 +49,10 @@ pub struct ServiceInfoHtsget {
   pub tags_parameters_effective: bool,
 }
 
-pub fn get_service_info_json(endpoint: Endpoint, searcher: &impl HtsGet) -> ServiceInfo {
+pub fn get_service_info_json(
+  endpoint: Endpoint,
+  searcher: Arc<impl HtsGet + Send + Sync + 'static>,
+) -> ServiceInfo {
   let hstget_info = ServiceInfoHtsget {
     datatype: match endpoint {
       Endpoint::Reads => "reads",
