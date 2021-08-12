@@ -19,7 +19,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     .sample_size(20)
     .measurement_time(Duration::from_secs(5));
 
-  group.bench_function("Simple bam query", |b| {
+  group.bench_function("[LIGHT] Simple bam query", |b| {
     b.iter(|| {
       perform_query(Query {
         id: "bam/htsnexus_test_NA12878".to_string(),
@@ -34,7 +34,7 @@ fn criterion_benchmark(c: &mut Criterion) {
       })
     })
   });
-  group.bench_function("Bam query", |b| {
+  group.bench_function("[LIGHT] Bam query", |b| {
     b.iter(|| {
       perform_query(Query {
         id: "bam/htsnexus_test_NA12878".to_string(),
@@ -49,7 +49,7 @@ fn criterion_benchmark(c: &mut Criterion) {
       })
     })
   });
-  group.bench_function("VCF query", |b| {
+  group.bench_function("[LIGHT] VCF query", |b| {
     b.iter(|| {
       perform_query(Query {
         id: "vcf/sample1-bcbio-cancer".to_string(),
@@ -64,7 +64,7 @@ fn criterion_benchmark(c: &mut Criterion) {
       })
     })
   });
-  group.bench_function("BCF query", |b| {
+  group.bench_function("[LIGHT] BCF query", |b| {
     b.iter(|| {
       perform_query(Query {
         id: "bcf/sample1-bcbio-cancer".to_string(),
@@ -79,7 +79,7 @@ fn criterion_benchmark(c: &mut Criterion) {
       })
     })
   });
-  group.bench_function("CRAM query", |b| {
+  group.bench_function("[LIGHT] CRAM query", |b| {
     b.iter(|| {
       perform_query(Query {
         id: "cram/htsnexus_test_NA12878".to_string(),

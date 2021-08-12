@@ -1,0 +1,20 @@
+on: [pull_request]
+name: benchmark pull requests
+jobs:
+  runBenchmark:
+    name: run benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: Enter htsget-search
+        run: cd htsget-search
+      - uses: jasonwilliams/criterion-compare-action@move_to_actions
+        with:
+          benchName: "LIGHT" # Optional. Compare only this benchmark target
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enter htsget-http-actix
+        run: cd ../htsget-http-actix
+      - uses: jasonwilliams/criterion-compare-action@move_to_actions
+        with:
+          benchName: "LIGHT" # Optional. Compare only this benchmark target
+          token: ${{ secrets.GITHUB_TOKEN }}

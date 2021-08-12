@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2018"
 
+[lib]
+bench = false
+
 [dependencies]
 thiserror = "~1.0"
 
