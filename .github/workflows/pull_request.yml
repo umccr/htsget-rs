@@ -1,19 +1,31 @@
 on: [pull_request]
 name: benchmark pull requests
 jobs:
-  runBenchmark:
+  run-htsget-search-benchmark:
     name: run benchmark
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: htsget-search
     steps:
       - uses: actions/checkout@master
-      - name: Enter htsget-search
-        run: cd htsget-search
       - uses: jasonwilliams/criterion-compare-action@move_to_actions
         with:
           benchName: "LIGHT" # Optional. Compare only this benchmark target
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Enter htsget-http-actix
-        run: cd ../htsget-http-actix
+  run-htsget-http-actix-benchmarks:
+    name: run benchmark
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: htsget-http-actix
+    steps:
+      - uses: actions/checkout@master
+      - run: pwd
+      - name: Start the hstget-rs server
+        run: cargo run --release & 
+      - name: Start the hstget-refserver server
+        run: bash benches/docker-htsget-refserver.sh
       - uses: jasonwilliams/criterion-compare-action@move_to_actions
         with:
           benchName: "LIGHT" # Optional. Compare only this benchmark target
