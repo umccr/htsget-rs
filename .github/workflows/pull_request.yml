@@ -14,6 +14,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Enter htsget-http-actix
         run: cd ../htsget-http-actix
+      - name: Start the servers
+        run: cargo run --release & ; bash benches/docker-htsget-refserver.sh
       - uses: jasonwilliams/criterion-compare-action@move_to_actions
         with:
           benchName: "LIGHT" # Optional. Compare only this benchmark target
