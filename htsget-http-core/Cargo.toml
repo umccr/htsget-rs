@@ -10,3 +10,6 @@ edition = "2018"
 thiserror = "~1.0"
 serde = { version = "1", features = ["derive"] }
 htsget-search = { path = "../htsget-search" }
+
+[dev-dependencies]
+htsget-id-resolver = { path = "../htsget-id-resolver" }

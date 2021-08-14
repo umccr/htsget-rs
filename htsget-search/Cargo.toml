@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 thiserror = "~1.0"
-
+htsget-id-resolver = { path = "../htsget-id-resolver"}
 noodles = { version = "0.5.0", features = ["bam", "bcf", "bgzf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 [dev-dependencies]

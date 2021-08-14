@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer};
+use htsget_id_resolver::RegexResolver;
 use htsget_search::{
   htsget::{from_storage::HtsGetFromStorage, HtsGet},
   storage::local::LocalStorage,
@@ -48,7 +49,7 @@ async fn main() -> std::io::Result<()> {
     App::new()
       .data(AppState {
         htsget: HtsGetFromStorage::new(
-          LocalStorage::new(htsget_path.clone())
+          LocalStorage::new(htsget_path.clone(), RegexResolver::new("", "").unwrap())
             .expect("Couldn't create a Storage with the provided path"),
         ),
         config: config.clone(),

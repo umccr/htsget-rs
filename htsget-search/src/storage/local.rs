@@ -6,15 +6,17 @@ use std::path::{Path, PathBuf};
 use crate::htsget::{Headers, Url};
 
 use super::{GetOptions, Result, Storage, StorageError, UrlOptions};
+use htsget_id_resolver::{HtsgetIdResolver, RegexResolver};
 
 /// Implementation for the [Storage] trait using the local file system.
 #[derive(Debug)]
 pub struct LocalStorage {
   base_path: PathBuf,
+  id_resolver: RegexResolver,
 }
 
 impl LocalStorage {
-  pub fn new<P: AsRef<Path>>(base_path: P) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -22,6 +24,7 @@ impl LocalStorage {
       .map_err(|_| StorageError::NotFound(base_path.as_ref().to_string_lossy().to_string()))
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
+        id_resolver,
       })
   }
 
@@ -33,7 +36,7 @@ impl LocalStorage {
     let key: &str = key.as_ref();
     self
       .base_path
-      .join(key)
+      .join(self.id_resolver.resolve_id(key))
       .canonicalize()
       .map_err(|_| StorageError::InvalidKey(key.to_string()))
       .and_then(|path| {
@@ -260,6 +263,6 @@ mod tests {
       .unwrap()
       .write_all(b"value2")
       .unwrap();
-    test(LocalStorage::new(base_path.path()).unwrap())
+    test(LocalStorage::new(base_path.path(), RegexResolver::new("", "").unwrap()).unwrap())
   }
 }

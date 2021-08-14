@@ -114,6 +114,7 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use htsget_id_resolver::RegexResolver;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
     storage::local::LocalStorage,
@@ -281,6 +282,8 @@ mod tests {
   }
 
   fn get_searcher() -> impl HtsGet {
-    HtsGetFromStorage::new(LocalStorage::new("../data").unwrap())
+    HtsGetFromStorage::new(
+      LocalStorage::new("../data", RegexResolver::new("", "").unwrap()).unwrap(),
+    )
   }
 }
