@@ -3,14 +3,14 @@
 
 use async_trait::async_trait;
 use std::convert::TryFrom;
-use std::fs::File;
 use std::marker::PhantomData;
 use std::path::PathBuf;
+use tokio::fs::File;
 
 use noodles::bam::record::ReferenceSequenceId;
 use noodles::cram;
 use noodles::cram::crai::{Index, Record};
-use noodles::cram::{crai, Reader};
+use noodles::cram::{crai, AsyncReader};
 use noodles::sam;
 use noodles::sam::Header;
 
@@ -22,14 +22,12 @@ use futures::StreamExt;
 use std::sync::Arc;
 use tokio::select;
 
-/// TODO convert to async when available.
-
 pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
 }
 
 #[async_trait]
-impl<S> SearchAll<S, PhantomData<Self>, Index, Reader<File>, Header> for CramSearch<S>
+impl<S> SearchAll<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
 where
   S: Storage + Send + Sync + 'static,
 {
@@ -50,12 +48,12 @@ where
     let (mut reader, _) = self.create_reader(key).await?;
     Ok(vec![BytesRange::default()
       .with_start(Self::FILE_DEFINITION_LENGTH)
-      .with_end(reader.position()?)])
+      .with_end(reader.position().await?)])
   }
 }
 
 #[async_trait]
-impl<S> SearchReads<S, PhantomData<Self>, Index, Reader<File>, Header> for CramSearch<S>
+impl<S> SearchReads<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
 where
   S: Storage + Send + Sync + 'static,
 {
@@ -108,24 +106,19 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, PhantomData<Self>, Index, Reader<File>, Header> for CramSearch<S>
+impl<S> Search<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
 where
   S: Storage + Send + Sync + 'static,
 {
-  const READER_FN: fn(tokio::fs::File) -> Reader<File> = |file| {
-    let file = file
-      .try_into_std()
-      .expect("converting tokio file to std file.");
-    cram::Reader::new(file)
-  };
-  const HEADER_FN: fn(&'_ mut Reader<File>) -> AsyncHeaderResult = |reader| {
+  const READER_FN: fn(File) -> AsyncReader<File> = cram::AsyncReader::new;
+  const HEADER_FN: fn(&'_ mut AsyncReader<File>) -> AsyncHeaderResult = |reader| {
     Box::pin(async move {
-      reader.read_file_definition()?;
-      reader.read_file_header()
+      reader.read_file_definition().await?;
+      reader.read_file_header().await
     })
   };
   const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { crai::read(path) });
+    |path| Box::pin(async move { crai::r#async::read(path).await });
 
   async fn get_byte_ranges_for_reference_name(
     &self,

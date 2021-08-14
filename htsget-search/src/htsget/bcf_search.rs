@@ -44,7 +44,7 @@ impl BlockPosition for bcf::AsyncReader<File> {
 }
 
 #[async_trait]
-impl<S> BgzfSearch<S, ReferenceSequence, csi::Index, bcf::AsyncReader<File>, vcf::Header>
+impl<S> BgzfSearch<S, ReferenceSequence, Index, bcf::AsyncReader<File>, vcf::Header>
   for BcfSearch<S>
 where
   S: Storage + Send + Sync + 'static,
@@ -57,8 +57,7 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, ReferenceSequence, csi::Index, bcf::AsyncReader<File>, vcf::Header>
-  for BcfSearch<S>
+impl<S> Search<S, ReferenceSequence, Index, bcf::AsyncReader<File>, vcf::Header> for BcfSearch<S>
 where
   S: Storage + Send + Sync + 'static,
 {
@@ -69,9 +68,8 @@ where
       reader.read_header().await
     })
   };
-  /// TODO convert to async when available.
   const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { csi::read(path) });
+    |path| Box::pin(async move { csi::r#async::read(path).await });
 
   async fn get_byte_ranges_for_reference_name(
     &self,

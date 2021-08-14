@@ -332,7 +332,7 @@ where
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
     let seq_end = seq_end.unwrap_or_else(|| Self::max_seq_position(reference_sequence));
 
-    // TODO convert to async when supported.
+    // TODO convert to async if supported later.
     let chunks = index
       .query(ref_seq_id, seq_start..=seq_end)
       .map_err(|_| HtsGetError::InvalidRange(format!("{}-{}", seq_start, seq_end)))?;
