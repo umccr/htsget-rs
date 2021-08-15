@@ -1,4 +1,4 @@
-use super::HtsgetIdResolver;
+use super::HtsGetIdResolver;
 use regex::{Error, Regex};
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ impl RegexResolver {
   }
 }
 
-impl HtsgetIdResolver for RegexResolver {
+impl HtsGetIdResolver for RegexResolver {
   fn resolve_id(&self, id: &str) -> Option<String> {
     if self.regex.is_match(id) {
       Some(self.regex.replace(id, &self.replacement_string).to_string())
