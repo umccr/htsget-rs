@@ -36,7 +36,12 @@ impl LocalStorage {
     let key: &str = key.as_ref();
     self
       .base_path
-      .join(self.id_resolver.resolve_id(key))
+      .join(
+        self
+          .id_resolver
+          .resolve_id(key)
+          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))?,
+      )
       .canonicalize()
       .map_err(|_| StorageError::InvalidKey(key.to_string()))
       .and_then(|path| {
@@ -263,6 +268,6 @@ mod tests {
       .unwrap()
       .write_all(b"value2")
       .unwrap();
-    test(LocalStorage::new(base_path.path(), RegexResolver::new("", "").unwrap()).unwrap())
+    test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
   }
 }

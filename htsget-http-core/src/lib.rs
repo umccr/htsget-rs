@@ -283,7 +283,7 @@ mod tests {
 
   fn get_searcher() -> impl HtsGet {
     HtsGetFromStorage::new(
-      LocalStorage::new("../data", RegexResolver::new("", "").unwrap()).unwrap(),
+      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap()).unwrap(),
     )
   }
 }

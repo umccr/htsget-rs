@@ -272,7 +272,7 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/bam");
-    test(LocalStorage::new(base_path, RegexResolver::new("", "").unwrap()).unwrap())
+    test(LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap())
   }
 
   pub fn expected_url(storage: &LocalStorage) -> String {

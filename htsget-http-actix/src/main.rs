@@ -15,6 +15,9 @@ This executable doesn't use command line arguments, but there are some environme
 * HTSGET_IP: The ip to use. Default: 127.0.0.1
 * HTSGET_PORT: The port to use. Default: 8080
 * HTSGET_PATH: The path to the directory where the server should be started. Default: Actual directory
+* HTSGET_REGEX: The regular expression that should match an ID. Default: ".*"
+* HTSGET_REPLACEMENT: The replacement expression. Default: "$0"
+For more information about the regex options look in the documentation of the regex crate.
 The next variables are used to configure the info for the service-info endpoints
 * HTSGET_ID: The id of the service. Default: ""
 * HTSGET_NAME: The name of the service. Default: "HtsGet service"
@@ -45,12 +48,17 @@ async fn main() -> std::io::Result<()> {
   let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
   let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
   let htsget_path = config.htsget_path.clone();
+  let htsget_regex = config.htsget_regex.clone();
+  let htsget_replacement = config.htsget_replacement.clone();
   HttpServer::new(move || {
     App::new()
       .data(AppState {
         htsget: HtsGetFromStorage::new(
-          LocalStorage::new(htsget_path.clone(), RegexResolver::new("", "").unwrap())
-            .expect("Couldn't create a Storage with the provided path"),
+          LocalStorage::new(
+            htsget_path.clone(),
+            RegexResolver::new(&htsget_regex, &htsget_replacement).unwrap(),
+          )
+          .expect("Couldn't create a Storage with the provided path"),
         ),
         config: config.clone(),
       })

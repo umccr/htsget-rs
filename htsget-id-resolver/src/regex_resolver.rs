@@ -17,7 +17,11 @@ impl RegexResolver {
 }
 
 impl HtsgetIdResolver for RegexResolver {
-  fn resolve_id(&self, id: &str) -> String {
-    id.to_string()
+  fn resolve_id(&self, id: &str) -> Option<String> {
+    if self.regex.is_match(id) {
+      Some(self.regex.replace(id, &self.replacement_string).to_string())
+    } else {
+      None
+    }
   }
 }
