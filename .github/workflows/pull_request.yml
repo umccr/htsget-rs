@@ -8,15 +8,15 @@ jobs:
       - uses: actions/checkout@master
       - name: Enter htsget-search
         run: cd htsget-search
-      - uses: jasonwilliams/criterion-compare-action@move_to_actions
+      - uses: boa-dev/criterion-compare-action@move_to_actions
         with:
           benchName: "LIGHT" # Optional. Compare only this benchmark target
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Enter htsget-http-actix
         run: cd ../htsget-http-actix
       - name: Start the servers
-        run: cargo run --release & ; bash benches/docker-htsget-refserver.sh
-      - uses: jasonwilliams/criterion-compare-action@move_to_actions
+        run: cargo run --release & ; ./benches/docker-htsget-refserver.sh
+      - uses: boa-dev/criterion-compare-action
         with:
           benchName: "LIGHT" # Optional. Compare only this benchmark target
           token: ${{ secrets.GITHUB_TOKEN }}
