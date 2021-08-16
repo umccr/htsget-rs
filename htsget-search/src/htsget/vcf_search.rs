@@ -1,11 +1,12 @@
 //! Module providing the search capability using VCF files
 //!
 
-use async_trait::async_trait;
 use std::marker::PhantomData;
 use std::path::PathBuf;
-use tokio::fs::File;
+use std::sync::Arc;
 
+use async_trait::async_trait;
+use futures::prelude::stream::FuturesUnordered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
 use noodles::tabix;
@@ -14,16 +15,15 @@ use noodles::tabix::Index;
 use noodles::vcf;
 use noodles::vcf::AsyncReader;
 use noodles::vcf::Header;
+use tokio::fs::File;
 
 use crate::htsget::search::{
   find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search,
 };
 use crate::{
   htsget::{Format, Query, Result},
-  storage::{BytesRange, Storage},
+  storage::{AsyncStorage, BytesRange},
 };
-use futures::prelude::stream::FuturesUnordered;
-use std::sync::Arc;
 
 pub(crate) struct VcfSearch<S> {
   storage: Arc<S>,
@@ -49,7 +49,7 @@ impl<S>
   BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
   for VcfSearch<S>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -63,7 +63,7 @@ impl<S>
   Search<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
   for VcfSearch<S>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
 {
   const READER_FN: fn(File) -> AsyncReader<bgzf::AsyncReader<File>> =
     |file| vcf::AsyncReader::new(bgzf::AsyncReader::new(file));
@@ -140,7 +140,7 @@ where
 
 impl<S> VcfSearch<S>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
 {
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
@@ -152,11 +152,12 @@ where
 
 #[cfg(test)]
 pub mod tests {
+  use std::future::Future;
+
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
-  use crate::storage::local::LocalStorage;
+  use crate::storage::blocking::local::LocalStorage;
 
   use super::*;
-  use std::future::Future;
 
   #[tokio::test]
   async fn search_all_variants() {

@@ -4,12 +4,15 @@ version = "0.1.0"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2018"
 
+[features]
+default = ["async"]
+async = ["tokio", "futures"]
+
 [dependencies]
 async-trait = "0.1.50"
 thiserror = "~1.0"
-tokio = { version = "1.9.0", features = ["full"] }
-tokio-stream = "0.1"
-futures = "0.3.16"
+tokio = { version = "1.9.0", features = ["full"], optional = true }
+futures = { version = "0.3.16", optional = true }
 
 #noodles = { version = "0.5.0", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 #

@@ -1,6 +1,7 @@
-use htsget_search::htsget::HtsGetError as HtsGetSearchError;
 use serde::Serialize;
 use thiserror::Error;
+
+use htsget_search::htsget::HtsGetError as HtsGetSearchError;
 
 pub type Result<T> = core::result::Result<T, HtsGetError>;
 

@@ -1,6 +1,8 @@
-use crate::{QueryBuilder, Result};
-use htsget_search::htsget::Query;
 use serde::{Deserialize, Serialize};
+
+use htsget_search::htsget::Query;
+
+use crate::{QueryBuilder, Result};
 
 /// A struct to represent a POST request according to the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html). It implements
@@ -58,8 +60,10 @@ impl PostRequest {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use htsget_search::htsget::{Class, Format};
+
+  use super::*;
+
   #[test]
   fn post_request_without_regions() {
     assert_eq!(

@@ -3,34 +3,36 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
-use async_trait::async_trait;
+use core::fmt;
 use std::collections::HashMap;
+use std::fmt::Formatter;
 use std::io;
 
 use thiserror::Error;
-
-use crate::storage::StorageError;
-use core::fmt;
-use std::fmt::Formatter;
 use tokio::task::JoinError;
 
+#[cfg(feature = "async")]
+pub use async_htsget::*;
+
+use crate::storage::StorageError;
+
+#[cfg(feature = "async")]
+pub mod async_htsget;
+#[cfg(feature = "async")]
 pub mod bam_search;
+#[cfg(feature = "async")]
 pub mod bcf_search;
+pub mod blocking;
+#[cfg(feature = "async")]
 pub mod cram_search;
+#[cfg(feature = "async")]
 pub mod from_storage;
+#[cfg(feature = "async")]
 pub mod search;
+#[cfg(feature = "async")]
 pub mod vcf_search;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
-
-/// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
-#[async_trait]
-pub trait HtsGet {
-  async fn search(&self, query: Query) -> Result<Response>;
-  fn get_supported_formats(&self) -> Vec<Format>;
-  fn are_field_parameters_effective(&self) -> bool;
-  fn are_tag_parameters_effective(&self) -> bool;
-}
 
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {

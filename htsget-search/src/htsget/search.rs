@@ -5,29 +5,29 @@
 //! where the names of the types indicate their purpose.
 //!
 
-use async_trait::async_trait;
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::str::FromStr;
-use tokio::fs::File;
-use tokio::io;
+use std::sync::Arc;
 
+use async_trait::async_trait;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::merge_chunks;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
+use tokio::fs::File;
+use tokio::io;
+use tokio::select;
+use tokio::task::JoinHandle;
 
 use crate::storage::GetOptions;
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
-  storage::{BytesRange, Storage, UrlOptions},
+  storage::{AsyncStorage, BytesRange, UrlOptions},
 };
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use tokio::select;
-use tokio::task::JoinHandle;
 
 pub(crate) type AsyncHeaderResult<'a> =
   Pin<Box<dyn Future<Output = io::Result<String>> + Send + 'a>>;
@@ -83,7 +83,7 @@ where
 pub(crate) trait SearchReads<S, ReferenceSequence, Index, Reader, Header>:
   Search<S, ReferenceSequence, Index, Reader, Header>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
   Reader: Send,
   Header: FromStr + Send + Sync,
   Index: Send + Sync,
@@ -160,7 +160,7 @@ where
 pub(crate) trait Search<S, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, ReferenceSequence, Index, Reader, Header>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
   Header: FromStr + Send,
   Reader: Send,
   Index: Send + Sync,
@@ -308,7 +308,7 @@ where
 pub(crate) trait BgzfSearch<S, ReferenceSequence, Index, Reader, Header>:
   Search<S, ReferenceSequence, Index, Reader, Header>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
   Reader: BlockPosition + Send,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
@@ -376,7 +376,7 @@ where
 impl<S, ReferenceSequence, Index, Reader, Header, T>
   SearchAll<S, ReferenceSequence, Index, Reader, Header> for T
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
   Reader: BlockPosition + Send,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,

@@ -1,6 +1,10 @@
 //! Module providing an implementation of the [HtsGet] trait using a [Storage].
 //!
 
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
 use crate::htsget::search::Search;
 use crate::{
   htsget::bam_search::BamSearch,
@@ -8,10 +12,8 @@ use crate::{
   htsget::cram_search::CramSearch,
   htsget::vcf_search::VcfSearch,
   htsget::{Format, HtsGet, HtsGetError, Query, Response, Result},
-  storage::Storage,
+  storage::AsyncStorage,
 };
-use async_trait::async_trait;
-use std::sync::Arc;
 
 /// Implementation of the [HtsGet] trait using a [Storage].
 pub struct HtsGetFromStorage<S> {
@@ -21,7 +23,7 @@ pub struct HtsGetFromStorage<S> {
 #[async_trait]
 impl<S> HtsGet for HtsGetFromStorage<S>
 where
-  S: Storage + Sync + Send + 'static,
+  S: AsyncStorage + Sync + Send + 'static,
 {
   async fn search(&self, query: Query) -> Result<Response> {
     match query.format {
@@ -60,7 +62,6 @@ impl<S> HtsGetFromStorage<S> {
 
 #[cfg(test)]
 mod tests {
-
   use crate::htsget::bam_search::tests::{
     expected_url as bam_expected_url, with_local_storage as with_bam_local_storage,
   };

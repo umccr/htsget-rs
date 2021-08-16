@@ -1,11 +1,12 @@
 //! Module providing the search capability using BCF files
 //!
 
-use async_trait::async_trait;
 use std::marker::PhantomData;
 use std::path::PathBuf;
-use tokio::{fs::File, io};
+use std::sync::Arc;
 
+use async_trait::async_trait;
+use futures::prelude::stream::FuturesUnordered;
 use noodles::bcf;
 use noodles::bcf::AsyncReader;
 use noodles::bgzf::VirtualPosition;
@@ -13,16 +14,15 @@ use noodles::csi;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::vcf;
+use tokio::{fs::File, io};
 
 use crate::htsget::search::{
   find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search,
 };
 use crate::{
   htsget::{Format, Query, Result},
-  storage::{BytesRange, Storage},
+  storage::{AsyncStorage, BytesRange},
 };
-use futures::prelude::stream::FuturesUnordered;
-use std::sync::Arc;
 
 pub(crate) struct BcfSearch<S> {
   storage: Arc<S>,
@@ -47,7 +47,7 @@ impl BlockPosition for bcf::AsyncReader<File> {
 impl<S> BgzfSearch<S, ReferenceSequence, Index, bcf::AsyncReader<File>, vcf::Header>
   for BcfSearch<S>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -59,7 +59,7 @@ where
 #[async_trait]
 impl<S> Search<S, ReferenceSequence, Index, bcf::AsyncReader<File>, vcf::Header> for BcfSearch<S>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
 {
   const READER_FN: fn(tokio::fs::File) -> AsyncReader<File> = bcf::AsyncReader::new;
   const HEADER_FN: fn(&'_ mut AsyncReader<File>) -> AsyncHeaderResult = |reader| {
@@ -134,7 +134,7 @@ where
 
 impl<S> BcfSearch<S>
 where
-  S: Storage + Send + Sync + 'static,
+  S: AsyncStorage + Send + Sync + 'static,
 {
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
 
@@ -145,11 +145,12 @@ where
 
 #[cfg(test)]
 pub mod tests {
+  use std::future::Future;
+
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
-  use crate::storage::local::LocalStorage;
+  use crate::storage::blocking::local::LocalStorage;
 
   use super::*;
-  use std::future::Future;
 
   #[tokio::test]
   async fn search_all_variants() {

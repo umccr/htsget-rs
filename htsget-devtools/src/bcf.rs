@@ -1,4 +1,3 @@
-use serde::{Serialize, Serializer};
 use std::fs::File;
 use std::io::Result;
 use std::path::Path;
@@ -8,6 +7,7 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::vcf;
+use serde::{Serialize, Serializer};
 
 #[derive(Debug, Serialize)]
 pub struct RefSeq {

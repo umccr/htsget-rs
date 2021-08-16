@@ -1,22 +1,24 @@
-mod query_builder;
-use query_builder::QueryBuilder;
-mod error;
-pub use error::{HtsGetError, Result};
-mod json_response;
-pub use json_response::{JsonResponse, JsonUrl};
-mod post_request;
-pub use post_request::{PostRequest, Region};
-mod service_info;
-pub use service_info::{
-  get_service_info_json, ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType,
-};
-
-use futures::prelude::stream::FuturesUnordered;
-use futures::StreamExt;
-use htsget_search::htsget::{HtsGet, Query, Response};
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::select;
+
+#[cfg(feature = "async")]
+pub use async_http_core::{get_response_for_get_request, get_response_for_post_request};
+pub use error::{HtsGetError, Result};
+use htsget_search::htsget::{Query, Response};
+pub use json_response::{JsonResponse, JsonUrl};
+pub use post_request::{PostRequest, Region};
+use query_builder::QueryBuilder;
+#[cfg(feature = "async")]
+pub use service_info::get_service_info_json;
+pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
+
+#[cfg(feature = "async")]
+mod async_http_core;
+pub mod blocking;
+mod error;
+mod json_response;
+mod post_request;
+mod query_builder;
+mod service_info;
 
 const READS_DEFAULT_FORMAT: &str = "BAM";
 const VARIANTS_DEFAULT_FORMAT: &str = "VCF";
@@ -30,14 +32,10 @@ pub enum Endpoint {
   Variants,
 }
 
-/// Gets a JSON response for a GET request. The GET request parameters must
-/// be in a HashMap. The "id" field is the only mandatory one. The rest can be
-/// consulted [here](https://samtools.github.io/hts-specs/htsget.html)
-pub async fn get_response_for_get_request(
-  searcher: Arc<impl HtsGet + Send + Sync + 'static>,
-  mut query_information: HashMap<String, String>,
-  endpoint: Endpoint,
-) -> Result<JsonResponse> {
+pub(crate) fn match_endpoints_get_request(
+  endpoint: &Endpoint,
+  query_information: &mut HashMap<String, String>,
+) -> Result<()> {
   match (endpoint, query_information.get(&"format".to_string())) {
     (Endpoint::Reads, None) => {
       query_information.insert("format".to_string(), READS_DEFAULT_FORMAT.to_string());
@@ -54,12 +52,26 @@ pub async fn get_response_for_get_request(
       )))
     }
   }
-  let query = convert_to_query(&query_information)?;
-  searcher
-    .search(query)
-    .await
-    .map_err(|error| error.into())
-    .map(JsonResponse::from_response)
+  Ok(())
+}
+
+pub(crate) fn match_endpoints_post_request(
+  endpoint: &Endpoint,
+  request: &mut PostRequest,
+) -> Result<()> {
+  match (endpoint, &request.format) {
+    (Endpoint::Reads, None) => request.format = Some(READS_DEFAULT_FORMAT.to_string()),
+    (Endpoint::Variants, None) => request.format = Some(VARIANTS_DEFAULT_FORMAT.to_string()),
+    (Endpoint::Reads, Some(s)) if READS_FORMATS.contains(&s.as_str()) => (),
+    (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
+    (_, Some(s)) => {
+      return Err(HtsGetError::UnsupportedFormat(format!(
+        "{} isn't a supported format",
+        s
+      )))
+    }
+  }
+  Ok(())
 }
 
 fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query> {
@@ -78,48 +90,6 @@ fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query
   )
 }
 
-/// Gets a response in JSON for a POST request.
-/// The parameters can be consulted [here](https://samtools.github.io/hts-specs/htsget.html)
-pub async fn get_response_for_post_request(
-  searcher: Arc<impl HtsGet + Send + Sync + 'static>,
-  mut request: PostRequest,
-  id: impl Into<String>,
-  endpoint: Endpoint,
-) -> Result<JsonResponse> {
-  match (endpoint, &request.format) {
-    (Endpoint::Reads, None) => request.format = Some(READS_DEFAULT_FORMAT.to_string()),
-    (Endpoint::Variants, None) => request.format = Some(VARIANTS_DEFAULT_FORMAT.to_string()),
-    (Endpoint::Reads, Some(s)) if READS_FORMATS.contains(&s.as_str()) => (),
-    (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
-    (_, Some(s)) => {
-      return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format",
-        s
-      )))
-    }
-  }
-
-  let mut futures = FuturesUnordered::new();
-  for query in request.get_queries(id)? {
-    let owned_searcher = searcher.clone();
-    futures.push(tokio::spawn(
-      async move { owned_searcher.search(query).await },
-    ));
-  }
-  let mut responses: Vec<Response> = Vec::new();
-  loop {
-    select! {
-      Some(next) = futures.next() => responses.push(next.map_err(|err| HtsGetError::ConcurrencyError(err.to_string()))?.map_err(HtsGetError::from)?),
-      else => break
-    }
-  }
-
-  Ok(JsonResponse::from_response(
-    // It's okay to unwrap because there will be at least one response
-    merge_responses(responses).unwrap(),
-  ))
-}
-
 fn merge_responses(responses: Vec<Response>) -> Option<Response> {
   responses.into_iter().reduce(|mut acc, mut response| {
     acc.urls.append(&mut response.urls);
@@ -129,12 +99,16 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use std::path::PathBuf;
+  use std::sync::Arc;
+
+  use htsget_search::htsget::HtsGet;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
-    storage::local::LocalStorage,
+    storage::blocking::local::LocalStorage,
   };
-  use std::path::PathBuf;
+
+  use super::*;
 
   #[tokio::test]
   async fn get_request() {
