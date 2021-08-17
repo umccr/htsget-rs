@@ -53,7 +53,7 @@ Hover over some of the tick marks for a reference of the issues 👆
 
 ## Architecture
 
-Please refer to [the architecture of this project](ARCHITECTURE.md) to get a grasp of how this project is structured and how to contribute if you'd like so :)
+Please refer to [the architecture of this project](doc/ARCHITECTURE.md) to get a grasp of how this project is structured and how to contribute if you'd like so :)
 
 ## License
 
