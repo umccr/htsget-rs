@@ -1,58 +1,56 @@
-# HtsGet implementation for Rust
+# htsget-rs
 
-For now, the aim of this project is to build a Minimal Viable Product (MVP) for a HtsGet API with Rust.
+## Quickstart
 
-## Organization of the project
+Instantiating a demo htsget-rs server is as simple as running:
 
-This repository consists of a workspace composed by the following crates:
+```
+$ cargo run -p htsget-http-actix
+```
 
-- [htsget-search](htsget-search): This crate will contain the core logic needed to run searches in the genomic data according to the HtsGet specs. Things like how to access the genomic data with the reads or the variants from cloud storage, or how to run queries on their indices, or how to provide the information needed by the HtsGet spec. But this crate has nothing to do with the HTTP or REST protocols, only the core logic, which means that it could also be used to build other kind of interfaces on top of it, like Command Line Interfaces (CLI) for example.
-- [htsget-http-core](htsget-http-core): This crate contains the core logic needed to handle HTTP requests as stated in the HtsGet spec. Things like converting query results to JSON or to properly report errors to the client. As a rule of thumb this crate aims contain everything HTTP related that isn't framework dependent.
-- [htsget-http-actix](htsget-http-actix): This crate contains a working server implementation based on the other crates in the project. It contains the framework dependent code. It should be possible for anyone to write another crate like this one using htsget-search, htsget-http-core and their preferred framework;
-- [htsget-devtools](htsget-devtools): This is just a bunch of code helping us to explore the formats or to proof some concepts. Nothing to take very seriously ;-P
+Then the server is ready to listen to your requests on port 8080, please refer to the [htsget-http-actix crate README.md for furhter details][htsget-http-actix-readme].
 
-More crates will come as we progress in this project, for example the htsget id resolver interface layer.
+## Intro
 
-## Architecture of htsget-search
+htsget makes bioinformatic data formats accessible through HTTP in a consistent way.
 
-This crate provides two basic abstractions:
+This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec] using [Noodles][noodles]. This implementation gets rid of the `unsafe` interfacing with the C-based [htslib](https://github.com/samtools/htslib), which has had [many vulnerabilities](https://github.com/samtools/htslib/pulls?q=oss-fuzz) along with other [also problematic third party dependencies such as OpenSSL](https://www.openssl.org/news/vulnerabilities.html). In contrast, this repo uses the [independently audited RustLS counterpart](http://jbp.io/2020/06/14/rustls-audit.html) for SSL and safe data format access via Noodles.
 
-- [HtsGet](htsget-search/src/htsget/mod.rs#L18): The `HtsGet` trait represents an entity that can resolve queries according to the HtsGet spec.
-  The `HtsGet` trait comes together with a basic model to represent basic entities needed to perform a search (`Query`, `Format`, `Class`, `Tags`, `Headers`, `Url`, `Response`).
-  We include a reference implementation called [HtsGetFromStorage](htsget-search/src/htsget/from_storage.rs) that provides the logic to resolve queries using an external `Storage`.
-  It can only [resolve queries for data in BAM format](htsget-search/src/htsget/bam_search.rs), but we [plan to support other formats](https://github.com/chris-zen/htsget-mvp/issues/7) too.
+Other implementation shortcomings have been identified and addressed, both in terms feature completeness and fundamental abstractions such as decoupled storage backends:
 
-- [Storage](htsget-search/src/storage/mod.rs): The `Storage` trait represents some kind of object based storage (either locally or in the cloud) that can be used to retrieve files for alignments, variants or its respective indexes, as well as to get metadata from them. We include a reference implementation using [local files](htsget-search/src/storage/local.rs), but there are plans to [support AWS S3](https://github.com/chris-zen/htsget-mvp/issues/9) too.
+|          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [htsget-rs][htsget-rs]
+|---	    	  |---	    | ---    |  ---	 |  ---	  | ---	   |
+| maintained  | ❌ 	   | ❌ 	    | ✅	 	 |   ❌    |  ✅	  |
+| local       | ✅	     | ❌ 	    | ✅	   |  ✅	    | ✅  |
+| cloud       | ✅      | ✅ 	    | ✅   |  	 ❌  	|   [🚧 ][aws-fixing] |
+| BAM         | ✅	     | ✅ 	    | ✅   |  	 ✅  |   ✅  |
+| CRAM        | ✅	     | ❌ 	    | ✅ 	|  	  ✅ |   ✅  |
+| VCF         | ✅	     | [❌][google-novcf]  | ✅   |  ✅      |  ✅   |
+| BCF         | ✅	     | ✅  	     | ✅   |   ✅   |   ✅   |
+| storage    | ❌      | ❌  	     | ❌    |    ❌     |   ✅  |
+| htslib-free | ❌      | ❌         |  ❌ |  ❌      |   ✅  |
+| rust | ❌      | ❌         |  ❌ |  ❌      |   ✅  |
 
-## References
+Hover over some of the tick marks for a reference of the issues 👆
 
-### HtsGet specification and references
+[ebi-htsget]: https://github.com/andrewyatz/basic-htsget
+[htsget-rs]: https://github.com/umccr/htsget-rs
+[dnanexus]: https://github.com/dnanexus-rnd/htsnexus
+[google-htsget]: https://github.com/googlegenomics/htsget
+[google-novcf]: https://github.com/googlegenomics/htsget/issues/34
+[ga4gh-ref]: https://github.com/ga4gh/htsget-refserver
+[aws-fixing]: https://github.com/umccr/htsget-rs/issues/47
 
-- [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
-- [Google genomics HtsGet reference implementation](https://github.com/googlegenomics/htsget)
+## Architecture
 
-### SAM/BAM formats and tools
-
-- [SAM specification](https://github.com/samtools/hts-specs/blob/master/SAMv1.pdf)
-- [The great *noodles* library](https://github.com/zaeleus/noodles)
-- [Inspecting, summarizing, and manipulating the read alignments](https://mtbgenomicsworkshop.readthedocs.io/en/latest/material/day3/mappingstats.html)
-
-### VCF/BCF formats
-
-- [VCF specification](https://samtools.github.io/hts-specs/VCFv4.3.pdf)
-
-### Previous attempts to work on HtsGet with Rust
-
-- https://github.com/umccr/htsget-rs
-- https://github.com/brainstorm/htsget-indexer
-- https://github.com/brainstorm/bio-index-formats/
-
-## Google Summer of Code 2021
-
-This project participates in the [GSoC for 2021](https://summerofcode.withgoogle.com/organizations/5907083486035968/) under the [Global Alliance for Genomics and Health](https://www.ga4gh.org/). If you are interested on participating, please apply for the [idea "Pure Rust serverless htsget implementation" in this document](https://docs.google.com/document/d/1Ep7aoOuQD2B5pWCG_bVANb8JVHZ2SoNDa9BJARhv_e0/edit#heading=h.vjm3s4ho0ys) contacting the primary mentor.
+Please refer to [the architecture of this project](ARCHITECTURE.md) to get a grasp of how this project is structured and how to contribute if you'd like so :)
 
 ## License
 
 This project is distributed under the terms of the MIT license.
 
 See [LICENSE](LICENSE) for details.
+
+[htsget-spec]: https://samtools.github.io/hts-specs/htsget.html
+[noodles]: https://github.com/zaeleus/noodles
+[htsget-http-actix-readme]: https://github.com/umccr/htsget-rs/blob/main/htsget-http-actix/README.md

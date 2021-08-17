@@ -1,4 +1,6 @@
-# htsget rust-based server
+![build](https://github.com/umccr/htsget-rs/actions/workflows/action.yml/badge.svg)
+
+# htsget Rust server
 This crate should allow to setup an [htsget](http://samtools.github.io/hts-specs/htsget.html) compliant server. For that purpose it uses the htsget-search, htsget-http-core and actix-web crates as dependencies.
 
 ## Quickstart 
