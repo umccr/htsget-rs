@@ -28,7 +28,7 @@ Other implementation shortcomings have been identified and addressed, both in te
 |---	    	  |---	    | ---    |  ---	 |  ---	  | ---	   |
 | maintained  | ❌ 	   | ❌ 	    | ✅	 	 |   ❌    |  ✅	  |
 | local       | ✅	     | ❌ 	    | ✅	   |  ✅	    | ✅  |
-| cloud       | ✅      | ✅ 	    | ✅   |  	 ❌  	|   [🚧 ][aws-fixing] |
+| serverless  | ❌     | ❌	    | ❌   |  	 ❌  	|   [🚧 ][aws-fixing] |
 | BAM         | ✅	     | ✅ 	    | ✅   |  	 ✅  |   ✅  |
 | CRAM        | ✅	     | ❌ 	    | ✅ 	|  	  ✅ |   ✅  |
 | VCF         | ✅	     | [❌][google-novcf]  | ✅   |  ✅      |  ✅   |
