@@ -22,7 +22,7 @@ htsget makes bioinformatic data formats accessible through HTTP in a consistent 
 
 This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec] using [Noodles][noodles]. This implementation gets rid of the [`unsafe` interfacing][rust-htslib] with the C-based [htslib](https://github.com/samtools/htslib), which has had [many vulnerabilities](https://github.com/samtools/htslib/pulls?q=oss-fuzz) along with other [problematic third party dependencies such as OpenSSL](https://www.openssl.org/news/vulnerabilities.html). In contrast, this repo uses the [independently audited RustLS counterpart](http://jbp.io/2020/06/14/rustls-audit.html) for SSL and safe data format access via Noodles.
 
-Other implementation shortcomings have been identified and addressed, both in terms feature completeness and fundamental abstractions such as decoupled storage backends:
+Our Rust implementation distinguishes itself from others in feature completeness and fundamental abstractions such as decoupled storage backends:
 
 |          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [gel-htsget][gel-htsget] | [htsget-rs][htsget-rs]
 |---	    	  |---      | ---                |  ---	 |  ---	  | --- |	---    |
@@ -35,7 +35,6 @@ Other implementation shortcomings have been identified and addressed, both in te
 | BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅  |
 | storage[1]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅  |
 | htslib-free     | ❌      | ✅                  | ❌    |  ❌    | ❌ |   ✅  |
-| [rust][rust-<3] | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅  |
 
 Hover over some of the tick marks for a reference of the issues 👆
 
@@ -49,7 +48,6 @@ Hover over some of the tick marks for a reference of the issues 👆
 [google-novcf]: https://github.com/googlegenomics/htsget/issues/34
 [ga4gh-ref]: https://github.com/ga4gh/htsget-refserver
 [aws-fixing]: https://github.com/umccr/htsget-rs/issues/47
-[rust-<3]: https://www.reddit.com/r/rust/comments/owll2j/rust_is_the_most_loved_language_six_years_in_a/
 
 ## Architecture
 
