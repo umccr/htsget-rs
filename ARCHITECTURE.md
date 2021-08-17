@@ -69,13 +69,11 @@ For a deep dive on the aforementioned bioinformatics data formats, here are link
 [htsget-ticket]: https://samtools.github.io/hts-specs/pub/htsget-ticket.png
 [htsget-paper]: https://academic.oup.com/bioinformatics/article/35/1/119/5040320
 
-TL;DR from the ARCHITECTURE blogpost:
+## Improving this document further
+
+Adding the gaps explained in the [ARCHITECTURE blogpost](https://matklad.github.io/2021/02/06/ARCHITECTURE.md.html):
 
 * WHERE to change the code, given feature X, give pointers.
-* ~~Keep it short.~~
-* ~~What problem does this repo solve?~~
-* ~~Codemap: Where's the thing that does X, "map of the country, not an atlas"~~
-* ~~Avoid going into details of how each module works: separate docs and xrefs are better.~~
 * Do name important files, modules, and types: NO LINKS (links go stale), JUST NAMES (symbol search).
 * Call-out architectural invariants: explain absence of something.
 * Point out boundaries between layers and systems.
