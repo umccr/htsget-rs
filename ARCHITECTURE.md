@@ -29,14 +29,21 @@ This crate provides two basic abstractions:
 
 - [htsget](htsget-search/src/htsget/mod.rs#L18): The `htsget` trait represents an entity that can resolve queries according to the htsget spec.
   The `htsget` trait comes together with a basic model to represent basic entities needed to perform a search (`Query`, `Format`, `Class`, `Tags`, `Headers`, `Url`, `Response`).
-  We include a reference implementation called [htsgetFromStorage](htsget-search/src/htsget/from_storage.rs) that provides the logic to resolve queries using an external `Storage`.
-  It can only [resolve queries for data in BAM format](htsget-search/src/htsget/bam_search.rs), but we [plan to support other formats](https://github.com/chris-zen/htsget-mvp/issues/7) too.
+  We include a reference implementation called [HtsGetFromStorage](htsget-search/src/htsget/from_storage.rs) that provides the logic to resolve queries using an external `Storage`.
+  It supports the [BAM](htsget-search/src/htsget/bam_search.rs), [BCF](htsget-search/src/htsget/bcf_search.rs), [CRAM](htsget-search/src/htsget/cram_search.rs), and [VCF](htsget-search/src/htsget/vcf_search.rs) formats.
 
-- [storage](htsget-search/src/storage/mod.rs): The `Storage` trait represents some kind of object based storage (either locally or in the cloud) that can be used to retrieve files for alignments, variants or its respective indexes, as well as to get metadata from them. We include a reference implementation using [local files](htsget-search/src/storage/local.rs), but there are plans to [support AWS S3](https://github.com/chris-zen/htsget-mvp/issues/9) too.
+- [storage](htsget-search/src/storage/mod.rs): The `Storage` trait represents some kind of object based storage (either locally or in the cloud) that can be used to retrieve files for alignments, variants or its respective indexes, as well as to get metadata from them. We include a reference implementation using [local files](htsget-search/src/storage/local.rs), and [AWS S3](https://github.com/chris-zen/htsget-mvp/issues/9).
 
 #### Traits abstraction
 
-TBD: Marko, describe a bit which changes would be needed if, for instance VCF4.4 comes along and needs something to be changed at the trait impl level?
+The htsget `Search` trait is an abstraction over all the formats, which removes commonalities. While each format has 
+its own particularities, there are many shared components that can be abstracted. Specifically, the `Search` trait defines
+the interface that handles the core logic of a htsget search request, and it passes the format specifics to the individual 
+format implementations.
+
+The implemention depends heavily on the [noodles bioinformatics crate](https://github.com/zaeleus/noodles), which handles the underlying data processing.
+Any changes to file format specifications would likely be reflected in the noodles crate, and minimal changes would be required in [htsget-search](htsget-search), due 
+to the interface that noodles provides.
 
 # References
 
