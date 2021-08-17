@@ -33,11 +33,13 @@ Other implementation shortcomings have been identified and addressed, both in te
 | CRAM        | ✅	     | ❌ 	    | ✅ 	|  	  ✅ |   ✅  |
 | VCF         | ✅	     | [❌][google-novcf]  | ✅   |  ✅      |  ✅   |
 | BCF         | ✅	     | ✅  	     | ✅   |   ✅   |   ✅   |
-| storage    | ❌      | ❌  	     | ❌    |    ❌     |   ✅  |
+| storage[1]    | ❌      | ❌  	     | ❌    |    ❌     |   ✅  |
 | htslib-free | ❌      | ❌         |  ❌ |  ❌      |   ✅  |
 | rust | ❌      | ❌         |  ❌ |  ❌      |   ✅  |
 
 Hover over some of the tick marks for a reference of the issues 👆
+
+[1] *as in: modular storage for different backends*
 
 [ebi-htsget]: https://github.com/andrewyatz/basic-htsget
 [htsget-rs]: https://github.com/umccr/htsget-rs
