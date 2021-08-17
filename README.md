@@ -1,3 +1,5 @@
+[![Logo](https://www.ga4gh.org/wp-content/themes/ga4gh-theme/gfx/GA-logo-horizontal-tag-RGB.svg)](https://ga4gh.org)
+
 # htsget-rs
 
 ## Quickstart
