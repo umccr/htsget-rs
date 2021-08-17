@@ -2,6 +2,8 @@
 
 # htsget-rs
 
+A 100% Rust implementation of the htsget protocol.
+
 ## Quickstart
 
 Instantiating a demo htsget-rs server is as simple as running:
