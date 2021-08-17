@@ -24,24 +24,25 @@ This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec
 
 Other implementation shortcomings have been identified and addressed, both in terms feature completeness and fundamental abstractions such as decoupled storage backends:
 
-|          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [htsget-rs][htsget-rs]
-|---	    	  |---	    | ---    |  ---	 |  ---	  | ---	   |
-| maintained  | ❌ 	   | ❌ 	    | ✅	 	 |   ❌    |  ✅	  |
-| local       | ✅	     | ❌ 	    | ✅	   |  ✅	    | ✅  |
-| serverless  | ❌     | ❌	    | ❌   |  	 ❌  	|   [🚧 ][aws-fixing] |
-| BAM         | ✅	     | ✅ 	    | ✅   |  	 ✅  |   ✅  |
-| CRAM        | ✅	     | ❌ 	    | ✅ 	|  	  ✅ |   ✅  |
-| VCF         | ✅	     | [❌][google-novcf]  | ✅   |  ✅      |  ✅   |
-| BCF         | ✅	     | ✅  	     | ✅   |   ✅   |   ✅   |
-| storage[1]    | ❌      | ❌  	     | ❌    |    ❌     |   ✅  |
-| htslib-free | ❌      | ❌         |  ❌ |  ❌      |   ✅  |
-| rust | ❌      | ❌         |  ❌ |  ❌      |   ✅  |
+|          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [gel-htsget][gel-htsget] | [htsget-rs][htsget-rs]
+|---	    	  |---      | ---                |  ---	 |  ---	  | --- |	---    |
+| maintained      | ❌      | ❌ 	                | ✅    |  ❌    | ✅  |  ✅  |
+| local           | ✅      | ❌ 	                | ✅	   |  ✅	   | ✅ |   ✅  |
+| serverless      | ❌      | ❌	                | ❌    |  ❌    | ❌ |   [🚧 ][aws-fixing] |
+| BAM             | ✅      | ✅ 	                | ✅    |  ✅    | ✅ |   ✅  |
+| CRAM            | ✅	   | ❌ 	                | ✅    |  ✅    | ✅ |   ✅  |
+| VCF             | ✅	   | [❌][google-novcf]  | ✅    |  ✅    | ✅ |   ✅  |
+| BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅  |
+| storage[1]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅  |
+| htslib-free     | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅  |
+| rust            | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅  |
 
 Hover over some of the tick marks for a reference of the issues 👆
 
 [1] *as in: modular storage for different backends*
 
 [ebi-htsget]: https://github.com/andrewyatz/basic-htsget
+[gel-htsget]: https://gitlab.com/genomicsengland/htsget/gel-htsget
 [htsget-rs]: https://github.com/umccr/htsget-rs
 [dnanexus]: https://github.com/dnanexus-rnd/htsnexus
 [google-htsget]: https://github.com/googlegenomics/htsget
