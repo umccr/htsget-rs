@@ -45,10 +45,6 @@ Hover over some of the tick marks for a reference of the issues 👆
 
 Please refer to [the architecture of this project](ARCHITECTURE.md) to get a grasp of how this project is structured and how to contribute if you'd like so :)
 
-## Benchmarks
-
-TBD: Daniel, put some runs and plots over here ;)
-
 ## License
 
 This project is distributed under the terms of the MIT license.
