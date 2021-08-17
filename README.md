@@ -35,7 +35,7 @@ Other implementation shortcomings have been identified and addressed, both in te
 | BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅  |
 | storage[1]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅  |
 | htslib-free     | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅  |
-| rust            | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅  |
+| [rust][rust-<3] | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅  |
 
 Hover over some of the tick marks for a reference of the issues 👆
 
@@ -49,6 +49,7 @@ Hover over some of the tick marks for a reference of the issues 👆
 [google-novcf]: https://github.com/googlegenomics/htsget/issues/34
 [ga4gh-ref]: https://github.com/ga4gh/htsget-refserver
 [aws-fixing]: https://github.com/umccr/htsget-rs/issues/47
+[rust-<3]: https://www.reddit.com/r/rust/comments/owll2j/rust_is_the_most_loved_language_six_years_in_a/
 
 ## Architecture
 
