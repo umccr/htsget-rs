@@ -34,7 +34,7 @@ Other implementation shortcomings have been identified and addressed, both in te
 | VCF             | ✅	   | [❌][google-novcf]  | ✅    |  ✅    | ✅ |   ✅  |
 | BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅  |
 | storage[1]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅  |
-| htslib-free     | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅  |
+| htslib-free     | ❌      | ✅                  | ❌    |  ❌    | ❌ |   ✅  |
 | [rust][rust-<3] | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅  |
 
 Hover over some of the tick marks for a reference of the issues 👆
