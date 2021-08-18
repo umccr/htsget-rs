@@ -24,17 +24,17 @@ This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec
 
 Our Rust implementation distinguishes itself from others in the following ways:
 
-|          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [gel-htsget][gel-htsget] | [htsget-rs][htsget-rs]
-|---	    	  |---      | ---                |  ---	 |  ---	  | --- |	---    |
-| maintained[1]   | ❌      | ❌ 	                | ✅    |  ❌    | ✅  |  ✅  |
-| local           | ✅      | ❌ 	                | ✅	   |  ✅	   | ✅ |   ✅  |
-| serverless      | ❌      | ❌	                | ❌    |  ❌    | ❌ |   [🚧 ][aws-fixing] |
-| BAM             | ✅      | ✅ 	                | ✅    |  ✅    | ✅ |   ✅  |
-| CRAM            | ✅	   | ❌ 	                | ✅    |  ✅    | ✅ |   ✅  |
-| VCF             | ✅	   | [❌][google-novcf]  | ✅    |  ✅    | ✅ |   ✅  |
-| BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅  |
-| storage[2]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅  |
-| safe[3]         | ❌      | ✅                  | ❌    |  ❌    | ❌ |   ✅  |
+|          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [gel-htsget][gel-htsget] | [htsget-rs][htsget-rs] | [CanDIG][candig-htsget]
+|---	    	  |---      | ---                |  ---	 |  ---	  | --- |	---             |   ---   |
+| maintained[1]   | ❌      | ❌ 	                | ✅    |  ❌    | ✅  |  ✅                |   ✅    |
+| local           | ✅      | ❌ 	                | ✅	   |  ✅	   | ✅ |   ✅                |   ✅    |
+| serverless      | ❌      | ❌	                | ❌    |  ❌    | ❌ |   [🚧 ][aws-fixing] |   ❌    |
+| BAM             | ✅      | ✅ 	                | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
+| CRAM            | ✅	   | ❌ 	                | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
+| VCF             | ✅	   | [❌][google-novcf]  | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
+| BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
+| storage[2]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
+| safe[3]         | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
 
 Hover over some of the tick marks for a reference of the issues 👆 Regarding some of the criteria annotations in the table:
 
@@ -49,6 +49,7 @@ Hover over some of the tick marks for a reference of the issues 👆 Regarding s
 [google-htsget]: https://github.com/googlegenomics/htsget
 [google-novcf]: https://github.com/googlegenomics/htsget/issues/34
 [ga4gh-ref]: https://github.com/ga4gh/htsget-refserver
+[candig-htsget]: https://github.com/CanDIG/htsget_app
 [aws-fixing]: https://github.com/umccr/htsget-rs/issues/47
 [safe-unsafe]: https://doc.rust-lang.org/nomicon/meet-safe-and-unsafe.html
 
