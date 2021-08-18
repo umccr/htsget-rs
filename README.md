@@ -34,7 +34,7 @@ Our Rust implementation distinguishes itself from others in the following ways:
 | VCF             | ✅	   | [❌][google-novcf]  | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | storage[2]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
-| safe[safe-unsafe] | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
+| [safe][safe-unsafe] | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
 | language        | C++     | Go                 | Go    |  Perl  | Python |  Rust          | Python  |
 
 Hover over some of the tick marks for a reference of the issues 👆 Regarding some of the criteria annotations in the table:
