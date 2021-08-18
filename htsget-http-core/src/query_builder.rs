@@ -1,7 +1,8 @@
-use crate::error::{HtsGetError, Result};
 use htsget_search::htsget::{Class, Fields, Format, Query, Tags};
 
-/// A helper struct to construct a [Query] from [Strings](String)  
+use crate::error::{HtsGetError, Result};
+
+/// A helper struct to construct a [Query] from [Strings](String)
 #[derive(Debug)]
 pub struct QueryBuilder {
   query: Query,
@@ -164,6 +165,7 @@ impl QueryBuilder {
 #[cfg(test)]
 mod tests {
   use super::*;
+
   #[test]
   fn query_without_id() {
     let option: Option<&str> = None;
@@ -205,7 +207,7 @@ mod tests {
         .unwrap()
         .with_format(Some("Invalid"))
         .unwrap_err(),
-      HtsGetError::UnsupportedFormat(format!("The Invalid format isn't supported"))
+      HtsGetError::UnsupportedFormat("The Invalid format isn't supported".to_string())
     );
   }
 
@@ -252,9 +254,9 @@ mod tests {
         .unwrap()
         .with_range(Some("3"), Some("5"))
         .unwrap_err(),
-      HtsGetError::InvalidInput(format!(
-        "Can't use range whitout specifying the reference name or with \"*\""
-      ))
+      HtsGetError::InvalidInput(
+        "Can't use range whitout specifying the reference name or with \"*\"".to_string()
+      )
     );
   }
 
@@ -266,7 +268,7 @@ mod tests {
         .with_reference_name(Some("ValidName"))
         .with_range(Some("a"), Some("5"))
         .unwrap_err(),
-      HtsGetError::InvalidInput(format!("a isn't a valid start"))
+      HtsGetError::InvalidInput("a isn't a valid start".to_string())
     );
   }
 
@@ -278,7 +280,7 @@ mod tests {
         .with_reference_name(Some("ValidName"))
         .with_range(Some("5"), Some("3"))
         .unwrap_err(),
-      HtsGetError::InvalidRange(format!("end(3) is greater than start(5)"))
+      HtsGetError::InvalidRange("end(3) is greater than start(5)".to_string())
     );
   }
 

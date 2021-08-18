@@ -1,27 +1,21 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
+use std::cmp::Ordering;
 
-pub mod local;
-
-use std::{cmp::Ordering, path::PathBuf};
 use thiserror::Error;
 
-use crate::htsget::{Class, Url};
+#[cfg(feature = "async")]
+pub use async_storage::*;
+
+use crate::htsget::Class;
+
+#[cfg(feature = "async")]
+pub mod async_storage;
+pub mod blocking;
+#[cfg(feature = "async")]
+pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
-
-/// An Storage represents some kind of object based storage (either locally or in the cloud)
-/// that can be used to retrieve files for alignments, variants or its respective indexes.
-pub trait Storage {
-  // TODO Consider another type of interface based on IO streaming
-  // so we don't need to guess the length of the headers, but just
-  // parse them in an streaming fashion.
-  fn get<K: AsRef<str>>(&self, key: K, options: GetOptions) -> Result<PathBuf>;
-
-  fn url<K: AsRef<str>>(&self, key: K, options: UrlOptions) -> Result<Url>;
-
-  fn head<K: AsRef<str>>(&self, key: K) -> Result<u64>;
-}
 
 #[derive(Error, PartialEq, Debug)]
 pub enum StorageError {
@@ -183,6 +177,7 @@ impl Default for UrlOptions {
 
 #[cfg(test)]
 mod tests {
+  use crate::htsget::Class;
 
   use super::*;
 

@@ -1,12 +1,16 @@
-
 [package]
 name = "htsget-http-core"
 version = "0.1.0"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>"]
 edition = "2018"
 
-[dependencies]
+[features]
+default = ["async", "htsget-search/default"]
+async = ["tokio", "futures", "htsget-search/async"]
 
+[dependencies]
 thiserror = "~1.0"
 serde = { version = "1", features = ["derive"] }
 htsget-search = { path = "../htsget-search" }
+futures = { version = "0.3.16", optional = true }
+tokio = { version = "1.9.0", features = ["full"], optional = true }
