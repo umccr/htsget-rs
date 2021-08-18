@@ -28,13 +28,14 @@ Our Rust implementation distinguishes itself from others in the following ways:
 |---	    	  |---      | ---                |  ---	 |  ---	  | --- |	---             |   ---   |
 | maintained[1]   | ❌      | ❌ 	                | ✅    |  ❌    | ✅  |  ✅                |   ✅    |
 | local           | ✅      | ❌ 	                | ✅	   |  ✅	   | ✅ |   ✅                |   ✅    |
-| serverless      | ❌      | ❌	                | ❌    |  ❌    | ❌ |   [🚧 ][aws-fixing] |   ❌    |
+| serverless      | ❌      | ❌	                | ❌    |  ❌    | ❌ |   [🚧][aws-fixing]  |   ❌    |
 | BAM             | ✅      | ✅ 	                | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | CRAM            | ✅	   | ❌ 	                | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | VCF             | ✅	   | [❌][google-novcf]  | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | storage[2]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
-| [safe][safe-unsafe] | ❌      | ❌                  | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
+| [safe][safe-unsafe] | ❌  | ❌                  | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
+| benchmarks      |  ❌     | ❌                  | ❌    |  ❌    | ❌ |   [🚧][benches]     |   ❌    |
 | language        | C++     | Go                 | Go    |  Perl  | Python |  Rust          | Python  |
 
 Hover over some of the tick marks for a reference of the issues 👆 Regarding some of the criteria annotations in the table:
@@ -51,6 +52,7 @@ Hover over some of the tick marks for a reference of the issues 👆 Regarding s
 [ga4gh-ref]: https://github.com/ga4gh/htsget-refserver
 [candig-htsget]: https://github.com/CanDIG/htsget_app
 [aws-fixing]: https://github.com/umccr/htsget-rs/issues/47
+[benches]: https://github.com/umccr/htsget-rs/pull/59
 [safe-unsafe]: https://doc.rust-lang.org/nomicon/meet-safe-and-unsafe.html
 
 ## Architecture
@@ -65,6 +67,5 @@ See [LICENSE](LICENSE) for details.
 
 [noodles]: https://github.com/zaeleus/noodles
 [htsget-spec]: https://samtools.github.io/hts-specs/htsget.html
-[noodles]: https://github.com/zaeleus/noodles
 [rust-htslib]: https://github.com/rust-bio/rust-htslib
 [htsget-http-actix-readme]: https://github.com/umccr/htsget-rs/blob/main/htsget-http-actix/README.md
