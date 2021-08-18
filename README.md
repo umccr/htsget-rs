@@ -40,8 +40,8 @@ Our Rust implementation distinguishes itself from others in the following ways:
 
 Hover over some of the tick marks for a reference of the issues 👆 Regarding some of the criteria annotations in the table:
 
+1. No signs of activity in main repository in >6 months. Maintainers: [please open an issue if that's not the case or the repo has been relocated and/or deprecated](https://github.com/umccr/htsget-rs/issues/new).
 1. Decoupled (relatively easy to exchange) storage backends.
-2. No signs of activity in main repository in >6 months. Maintainers: [please open an issue if that's not the case or the repo has been relocated and/or deprecated](https://github.com/umccr/htsget-rs/issues/new).
 
 [ebi-htsget]: https://github.com/andrewyatz/basic-htsget
 [gel-htsget]: https://gitlab.com/genomicsengland/htsget/gel-htsget
