@@ -20,7 +20,7 @@ Then the server is ready to listen to your requests on port 8080, please refer t
 
 htsget makes bioinformatic data formats accessible through HTTP in a consistent way.
 
-This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec] using [Noodles][noodles]. This implementation gets rid of the [`unsafe` interfacing][rust-htslib] with the C-based [htslib](https://github.com/samtools/htslib), which has had [many vulnerabilities](https://github.com/samtools/htslib/pulls?q=oss-fuzz) along with other [problematic third party dependencies such as OpenSSL](https://www.openssl.org/news/vulnerabilities.html). In contrast, this repo uses the [independently audited RustLS counterpart](http://jbp.io/2020/06/14/rustls-audit.html) for SSL and safe data format access via Noodles.
+This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec] using [Noodles][noodles]. This implementation gets rid of the [`unsafe` interfacing][rust-htslib] with the C-based [htslib](https://github.com/samtools/htslib), which has had [many vulnerabilities](https://github.com/samtools/htslib/pulls?q=oss-fuzz) along with other [problematic third party dependencies such as OpenSSL](https://www.openssl.org/news/vulnerabilities.html). In contrast, this repo uses the [independently audited RustLS counterpart](http://jbp.io/2020/06/14/rustls-audit.html) for SSL and [safe data format access via Noodles][noodles].
 
 Our Rust implementation distinguishes itself from others in the following ways:
 
@@ -63,6 +63,7 @@ This project is distributed under the terms of the MIT license.
 
 See [LICENSE](LICENSE) for details.
 
+[noodles]: https://github.com/zaeleus/noodles
 [htsget-spec]: https://samtools.github.io/hts-specs/htsget.html
 [noodles]: https://github.com/zaeleus/noodles
 [rust-htslib]: https://github.com/rust-bio/rust-htslib
