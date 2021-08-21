@@ -13,11 +13,11 @@ fn default_path() -> PathBuf {
   PathBuf::from(".")
 }
 
-fn default_regex() -> String {
+fn default_regex_match() -> String {
   ".*".to_string()
 }
 
-fn default_replacement() -> String {
+fn default_regex_substitution() -> String {
   "$0".to_string()
 }
 
@@ -30,10 +30,10 @@ pub struct Config {
   pub htsget_ip: String,
   #[serde(default = "default_path")]
   pub htsget_path: PathBuf,
-  #[serde(default = "default_regex")]
-  pub htsget_regex: String,
-  #[serde(default = "default_replacement")]
-  pub htsget_replacement: String,
+  #[serde(default = "default_regex_match")]
+  pub htsget_regex_match: String,
+  #[serde(default = "default_regex_substitution")]
+  pub htsget_regex_substitution: String,
   pub htsget_id: Option<String>,
   pub htsget_name: Option<String>,
   pub htsget_version: Option<String>,
