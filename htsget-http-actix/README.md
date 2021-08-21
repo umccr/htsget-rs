@@ -85,6 +85,6 @@ HTSGET_PATH=../ cargo run --release  &
 ```
 Then start the htsget-refserver. There is a simple script prepared for that matter. Docker should be installed and `docker.service` should be running:
 ```
-sudo bash benches/docker-htsget-refserver.s
+sudo bash benches/docker-htsget-refserver.sh
 ```
 Now you should be able to run the benchmarks with `cargo bench`!
