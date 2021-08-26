@@ -44,6 +44,7 @@ mod tests {
   use crate::htsget::{Headers, Url};
   use crate::storage::blocking::local::LocalStorage;
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
+  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
@@ -229,6 +230,7 @@ mod tests {
       .write_all(b"value2")
       .await
       .unwrap();
-    test(LocalStorage::new(base_path.path()).unwrap()).await
+    test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
+      .await
   }
 }

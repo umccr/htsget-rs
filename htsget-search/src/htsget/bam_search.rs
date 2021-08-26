@@ -185,6 +185,7 @@ pub mod tests {
 
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
+  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
@@ -298,7 +299,10 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/bam");
-    test(Arc::new(LocalStorage::new(base_path).unwrap())).await
+    test(Arc::new(
+      LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+    ))
+    .await
   }
 
   pub(crate) fn expected_url(storage: Arc<LocalStorage>) -> String {

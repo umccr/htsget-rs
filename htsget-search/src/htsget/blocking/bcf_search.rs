@@ -128,6 +128,7 @@ where
 pub mod tests {
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
+  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
@@ -230,7 +231,7 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/bcf");
-    test(LocalStorage::new(base_path).unwrap())
+    test(LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap())
   }
 
   pub fn expected_url(storage: &LocalStorage, name: &str) -> String {

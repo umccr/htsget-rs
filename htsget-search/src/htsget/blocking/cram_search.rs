@@ -15,7 +15,6 @@ use noodles::sam;
 use noodles::sam::Header;
 
 use crate::htsget::blocking::search::{Search, SearchAll, SearchReads};
-use crate::htsget::cram_search::CramSearch as AsyncCramSearch;
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::blocking::Storage;
 use crate::storage::BytesRange;
@@ -215,6 +214,7 @@ where
 pub mod tests {
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
+  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
@@ -333,7 +333,7 @@ pub mod tests {
       .parent()
       .unwrap()
       .join("data/cram");
-    test(LocalStorage::new(base_path).unwrap())
+    test(LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap())
   }
 
   pub fn expected_url(storage: &LocalStorage) -> String {

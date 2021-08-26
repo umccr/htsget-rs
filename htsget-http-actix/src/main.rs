@@ -1,14 +1,14 @@
 use std::env::args;
 use std::sync::Arc;
 
-use actix_web::{web, App, HttpServer};
-
 use crate::handlers::blocking::{get, post, reads_service_info, variants_service_info};
+use actix_web::{web, App, HttpServer};
 use config::Config;
 use handlers::{
   get as async_get, post as async_post, reads_service_info as async_reads_service_info,
   variants_service_info as async_variants_service_info,
 };
+use htsget_id_resolver::RegexResolver;
 use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::blocking::HtsGet;
 use htsget_search::{
@@ -24,6 +24,9 @@ This executable doesn't use command line arguments, but there are some environme
 * HTSGET_IP: The ip to use. Default: 127.0.0.1
 * HTSGET_PORT: The port to use. Default: 8080
 * HTSGET_PATH: The path to the directory where the server should be started. Default: Actual directory
+* HTSGET_REGEX: The regular expression that should match an ID. Default: ".*"
+* HTSGET_REPLACEMENT: The replacement expression. Default: "$0"
+For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
 The next variables are used to configure the info for the service-info endpoints
 * HTSGET_ID: The id of the service. Default: ""
 * HTSGET_NAME: The name of the service. Default: "HtsGet service"
@@ -63,12 +66,17 @@ async fn main() -> std::io::Result<()> {
   let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
   let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
   let htsget_path = config.htsget_path.clone();
+  let regex_match = config.htsget_regex_match.clone();
+  let regex_substitution = config.htsget_regex_substitution.clone();
   HttpServer::new(move || {
     App::new()
       .data(AsyncAppState {
         htsget: Arc::new(AsyncHtsGetStorage::new(
-          LocalStorage::new(htsget_path.clone())
-            .expect("Couldn't create a Storage with the provided path"),
+          LocalStorage::new(
+            htsget_path.clone(),
+            RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
+          )
+          .expect("Couldn't create a Storage with the provided path"),
         )),
         config: config.clone(),
       })
@@ -127,12 +135,17 @@ async fn main() -> std::io::Result<()> {
   let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
   let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
   let htsget_path = config.htsget_path.clone();
+  let regex_match = config.htsget_regex_match.clone();
+  let regex_substitution = config.htsget_regex_substitution.clone();
   HttpServer::new(move || {
     App::new()
       .data(AppState {
         htsget: HtsGetFromStorage::new(
-          LocalStorage::new(htsget_path.clone())
-            .expect("Couldn't create a Storage with the provided path"),
+          LocalStorage::new(
+            htsget_path.clone(),
+            RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
+          )
+          .expect("Couldn't create a Storage with the provided path"),
         ),
         config: config.clone(),
       })

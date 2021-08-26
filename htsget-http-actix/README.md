@@ -27,9 +27,11 @@ Since this service can be used in serverless environments, no `dotenv` configura
 
 | Variable | Description | Default |
 |---|---|---|
-| HTSGET_IP| IP address | 127.0.0.1
-| HTSGET_PORT| TCP Port | 8080
+| HTSGET_IP| IP address | 127.0.0.1 |
+| HTSGET_PORT| TCP Port | 8080 |
 | HTSGET_PATH| The path to the directory where the server starts | `$PWD` | 
+| HTSGET_REGEX| The regular expression an ID should match. | ".*" |
+| HTSGET_REPLACEMENT| The replacement expression, to produce a key from an ID. | "$0" |
 | HTSGET_ID| ID of the service. | "" |
 | HTSGET_NAME| Name of the service. | HtsGet service |
 | HTSGET_VERSION | Version of the service | ""
@@ -40,6 +42,7 @@ Since this service can be used in serverless environments, no `dotenv` configura
 | HTSGET_CREATED_AT | Date of the creation of the service. | "" |
 | HTSGET_UPDATED_AT | Date of the last update of the service. | "" |
 | HTSGET_ENVIRONMENT | Environment in which the service is running. | Testing |
+For more information about the regex options look in the [documentation of the regex crate](https://docs.rs/regex/).
 
 ## Example cURL requests
 
@@ -47,30 +50,37 @@ As mentioned above, please keep in mind that the server will take the path where
 
 ### GET
 
-```bash
+```shell
 $ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 ### POST
 
-```bash
+```shell
 $ curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 ### Parametrised GET
 
-```bash
+```shell
 $ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header'
 ```
 
 ### Parametrised POST
 
-```bash
+```shell
 $ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 ### Service-info
 
-```bash
+```shell
 $ curl 127.0.0.1:8080/variants/service-info
 ```
+
+## Example Regular expressions
+In this example 'data/' is added after the first '/'.
+```shell
+$ HTSGET_REGEX='(?P<group1>.*?)/(?P<group2>.*)' HTSGET_REPLACEMENT='$group1/data/$group2' cargo run --release -p htsget-http-actix
+```
+For more information about the regex options look in the [documentation of the regex crate](https://docs.rs/regex/).

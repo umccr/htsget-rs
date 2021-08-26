@@ -102,6 +102,7 @@ mod tests {
   use std::path::PathBuf;
   use std::sync::Arc;
 
+  use htsget_id_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
@@ -276,7 +277,7 @@ mod tests {
 
   fn get_searcher() -> Arc<impl HtsGet> {
     Arc::new(HtsGetFromStorage::new(
-      LocalStorage::new("../data").unwrap(),
+      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap()).unwrap(),
     ))
   }
 }

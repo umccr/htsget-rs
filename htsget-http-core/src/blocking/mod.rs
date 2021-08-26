@@ -50,6 +50,7 @@ pub fn get_response_for_post_request(
 mod tests {
   use std::path::PathBuf;
 
+  use htsget_id_resolver::RegexResolver;
   use htsget_search::{
     htsget::blocking::from_storage::HtsGetFromStorage,
     htsget::{Format, Headers, Url},
@@ -222,6 +223,8 @@ mod tests {
   }
 
   fn get_searcher() -> impl HtsGet {
-    HtsGetFromStorage::new(LocalStorage::new("../data").unwrap())
+    HtsGetFromStorage::new(
+      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+    )
   }
 }
