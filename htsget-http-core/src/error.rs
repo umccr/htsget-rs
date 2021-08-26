@@ -1,6 +1,7 @@
-use htsget_search::htsget::HtsGetError as HtsGetSearchError;
 use serde::Serialize;
 use thiserror::Error;
+
+use htsget_search::htsget::HtsGetError as HtsGetSearchError;
 
 pub type Result<T> = core::result::Result<T, HtsGetError>;
 
@@ -22,6 +23,8 @@ pub enum HtsGetError {
   InvalidInput(String),
   #[error("InvalidRange")]
   InvalidRange(String),
+  #[error("Concurrency error")]
+  ConcurrencyError(String),
 }
 
 /// A helper struct implementing [serde's Serialize trait](Serialize) to allow
@@ -44,6 +47,7 @@ impl HtsGetError {
       HtsGetError::UnsupportedFormat(s) => (s, 400),
       HtsGetError::InvalidInput(s) => (s, 400),
       HtsGetError::InvalidRange(s) => (s, 400),
+      HtsGetError::ConcurrencyError(s) => (s, 500),
     };
     (
       JsonHtsGetError {
@@ -66,6 +70,7 @@ impl From<HtsGetSearchError> for HtsGetError {
       HtsGetSearchError::ParseError(_) => {
         HtsGetError::NotFound("The requested content couldn't be parsed correctly".to_string())
       }
+      HtsGetSearchError::ConcurrencyError(s) => HtsGetError::ConcurrencyError(s),
     }
   }
 }

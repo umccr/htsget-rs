@@ -2,62 +2,48 @@
 //!
 
 use std::convert::TryFrom;
+use std::fs::File;
+use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use async_trait::async_trait;
-use futures::prelude::stream::FuturesUnordered;
-use futures::StreamExt;
 use noodles::bam::record::ReferenceSequenceId;
 use noodles::cram;
 use noodles::cram::crai::{Index, Record};
-use noodles::cram::{crai, AsyncReader};
+use noodles::cram::{crai, Reader};
 use noodles::sam;
 use noodles::sam::Header;
-use tokio::fs::File;
-use tokio::select;
 
-use crate::htsget::search::{AsyncHeaderResult, AsyncIndexResult, Search, SearchAll, SearchReads};
+use crate::htsget::blocking::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
-use crate::storage::{AsyncStorage, BytesRange};
+use crate::storage::blocking::Storage;
+use crate::storage::BytesRange;
 
-pub(crate) struct CramSearch<S> {
-  storage: Arc<S>,
+pub(crate) struct CramSearch<'a, S> {
+  storage: &'a S,
 }
 
-#[async_trait]
-impl<S> SearchAll<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<'a, S> SearchAll<'a, S, PhantomData<Self>, Index, Reader<File>, Header> for CramSearch<'a, S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage + 'a,
 {
-  async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
-    Self::bytes_ranges_from_index(
-      self,
-      &key,
-      None,
-      None,
-      None,
-      index,
-      Arc::new(|_: &Record| true),
-    )
-    .await
+  fn get_byte_ranges_for_all(&self, key: &str, index: &Index) -> Result<Vec<BytesRange>> {
+    Self::bytes_ranges_from_index(self, key, None, None, None, index, |_| true)
   }
 
-  async fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
-    let (mut reader, _) = self.create_reader(key).await?;
+  fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
+    let (mut reader, _) = self.create_reader(key)?;
     Ok(vec![BytesRange::default()
       .with_start(Self::FILE_DEFINITION_LENGTH)
-      .with_end(reader.position().await?)])
+      .with_end(reader.position()?)])
   }
 }
 
-#[async_trait]
-impl<S> SearchReads<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<'a, S> SearchReads<'a, S, PhantomData<Self>, Index, Reader<File>, Header> for CramSearch<'a, S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage + 'a,
 {
-  async fn get_reference_sequence_from_name<'b>(
+  fn get_reference_sequence_from_name<'b>(
     &self,
     header: &'b Header,
     name: &str,
@@ -65,71 +51,58 @@ where
     header.reference_sequences().get_full(name)
   }
 
-  async fn get_byte_ranges_for_unmapped_reads(
+  fn get_byte_ranges_for_unmapped_reads(
     &self,
     key: &str,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    Self::bytes_ranges_from_index(
-      self,
-      key,
-      None,
-      None,
-      None,
-      index,
-      Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
-    )
-    .await
+    Self::bytes_ranges_from_index(self, key, None, None, None, index, |record| {
+      record.reference_sequence_id().is_none()
+    })
   }
 
-  async fn get_byte_ranges_for_reference_sequence(
+  fn get_byte_ranges_for_reference_sequence(
     &self,
-    key: String,
+    key: &str,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
+    _reader: &mut Reader<File>,
   ) -> Result<Vec<BytesRange>> {
     let ref_seq_id = ReferenceSequenceId::try_from(ref_seq_id as i32)
       .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
     Self::bytes_ranges_from_index(
       self,
-      &key,
+      key,
       Some(ref_seq),
       query.start.map(|start| start as i32),
       query.end.map(|end| end as i32),
       index,
-      Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
+      |record| record.reference_sequence_id() == Some(ref_seq_id),
     )
-    .await
   }
 }
 
-#[async_trait]
-impl<S> Search<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<'a, S> Search<'a, S, PhantomData<Self>, Index, Reader<File>, Header> for CramSearch<'a, S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage + 'a,
 {
-  const READER_FN: fn(File) -> AsyncReader<File> = cram::AsyncReader::new;
-  const HEADER_FN: fn(&'_ mut AsyncReader<File>) -> AsyncHeaderResult = |reader| {
-    Box::pin(async move {
-      reader.read_file_definition().await?;
-      reader.read_file_header().await
-    })
+  const READER_FN: fn(File) -> Reader<File> = cram::Reader::new;
+  const HEADER_FN: fn(&mut Reader<File>) -> io::Result<String> = |reader| {
+    reader.read_file_definition()?;
+    reader.read_file_header()
   };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { crai::r#async::read(path).await });
+  const INDEX_FN: fn(PathBuf) -> io::Result<Index> = crai::read;
 
-  async fn get_byte_ranges_for_reference_name(
+  fn get_byte_ranges_for_reference_name(
     &self,
-    key: String,
-    reference_name: String,
+    key: &str,
+    reference_name: &str,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    self
-      .get_byte_ranges_for_reference_name_reads(key, &reference_name, index, query)
-      .await
+    self.get_byte_ranges_for_reference_name_reads(key, reference_name, index, query)
   }
 
   fn get_keys_from_id(&self, id: &str) -> (String, String) {
@@ -138,8 +111,8 @@ where
     (cram_key, crai_key)
   }
 
-  fn get_storage(&self) -> Arc<S> {
-    self.storage.clone()
+  fn get_storage(&self) -> &S {
+    self.storage
   }
 
   fn get_format(&self) -> Format {
@@ -147,63 +120,42 @@ where
   }
 }
 
-impl<S> CramSearch<S>
+impl<'a, S> CramSearch<'a, S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage + 'a,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;
   const EOF_CONTAINER_LENGTH: u64 = 38;
 
-  pub fn new(storage: Arc<S>) -> Self {
+  pub fn new(storage: &'a S) -> Self {
     Self { storage }
   }
 
   /// Get bytes ranges using the index.
-  async fn bytes_ranges_from_index<F>(
+  fn bytes_ranges_from_index<F>(
     &self,
     key: &str,
     ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
     crai_index: &[crai::Record],
-    predicate: Arc<F>,
+    predicate: F,
   ) -> Result<Vec<BytesRange>>
   where
-    F: Fn(&Record) -> bool + Send + Sync + 'static,
+    F: Fn(&Record) -> bool,
   {
     // This could be improved by using some sort of index mapping.
-    let mut futures = FuturesUnordered::new();
-    for (record, next) in crai_index.iter().zip(crai_index.iter().skip(1)) {
-      let owned_record = record.clone();
-      let owned_next = next.clone();
-      let ref_seq_owned = ref_seq.cloned();
-      let owned_predicate = predicate.clone();
-      futures.push(tokio::spawn(async move {
-        if owned_predicate(&owned_record) {
-          Self::bytes_ranges_for_record(
-            ref_seq_owned.as_ref(),
-            seq_start,
-            seq_end,
-            &owned_record,
-            &owned_next,
-          )
+    let mut byte_ranges: Vec<BytesRange> = crai_index
+      .iter()
+      .zip(crai_index.iter().skip(1))
+      .filter_map(|(record, next)| {
+        if predicate(record) {
+          Self::bytes_ranges_for_record(ref_seq, seq_start, seq_end, record, next)
         } else {
           None
         }
-      }));
-    }
-
-    let mut byte_ranges = Vec::new();
-    loop {
-      select! {
-        Some(next) = futures.next() => {
-          if let Some(range) = next.map_err(HtsGetError::from)? {
-            byte_ranges.push(range);
-          }
-        },
-        else => break
-      }
-    }
+      })
+      .collect();
 
     let last = crai_index
       .last()
@@ -212,7 +164,6 @@ where
       let file_size = self
         .storage
         .head(key)
-        .await
         .map_err(|_| HtsGetError::io_error("Reading CRAM file size."))?;
       let eof_position = file_size - Self::EOF_CONTAINER_LENGTH;
       byte_ranges.push(
@@ -261,146 +212,131 @@ where
 
 #[cfg(test)]
 pub mod tests {
-  use std::future::Future;
-
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
   use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
-  #[tokio::test]
-  async fn search_all_reads() {
-    with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+  #[test]
+  fn search_all_reads() {
+    with_local_storage(|storage| {
+      let search = CramSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878");
-      let response = search.search(query).await;
+      let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
+        vec![Url::new(expected_url(&storage))
           .with_headers(Headers::default().with_header("Range", "bytes=6087-1627756"))],
       ));
       assert_eq!(response, expected_response)
-    })
-    .await;
+    });
   }
 
-  #[tokio::test]
-  async fn search_unmapped_reads() {
-    with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+  #[test]
+  fn search_unmapped_reads() {
+    with_local_storage(|storage| {
+      let search = CramSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878").with_reference_name("*");
-      let response = search.search(query).await;
+      let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
+        vec![Url::new(expected_url(&storage))
           .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627756"))],
       ));
       assert_eq!(response, expected_response)
-    })
-    .await;
+    });
   }
 
-  #[tokio::test]
-  async fn search_reference_name_without_seq_range() {
-    with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+  #[test]
+  fn search_reference_name_without_seq_range() {
+    with_local_storage(|storage| {
+      let search = CramSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878").with_reference_name("20");
-      let response = search.search(query).await;
+      let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
+        vec![Url::new(expected_url(&storage))
           .with_headers(Headers::default().with_header("Range", "bytes=604231-1280106"))],
       ));
       assert_eq!(response, expected_response)
-    })
-    .await;
+    });
   }
 
-  #[tokio::test]
-  async fn search_reference_name_with_seq_range_no_overlap() {
-    with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+  #[test]
+  fn search_reference_name_with_seq_range_no_overlap() {
+    with_local_storage(|storage| {
+      let search = CramSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878")
         .with_reference_name("11")
         .with_start(5000000)
         .with_end(5050000);
-      let response = search.search(query).await;
+      let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
+        vec![Url::new(expected_url(&storage))
           .with_headers(Headers::default().with_header("Range", "bytes=6087-465709"))],
       ));
       assert_eq!(response, expected_response)
-    })
-    .await;
+    });
   }
 
-  #[tokio::test]
-  async fn search_reference_name_with_seq_range_overlap() {
-    with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+  #[test]
+  fn search_reference_name_with_seq_range_overlap() {
+    with_local_storage(|storage| {
+      let search = CramSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878")
         .with_reference_name("11")
         .with_start(5000000)
         .with_end(5100000);
-      let response = search.search(query).await;
+      let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
+        vec![Url::new(expected_url(&storage))
           .with_headers(Headers::default().with_header("Range", "bytes=6087-604231"))],
       ));
       assert_eq!(response, expected_response)
-    })
-    .await;
+    });
   }
 
-  #[tokio::test]
-  async fn search_header() {
-    with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+  #[test]
+  fn search_header() {
+    with_local_storage(|storage| {
+      let search = CramSearch::new(&storage);
       let query = Query::new("htsnexus_test_NA12878").with_class(Class::Header);
-      let response = search.search(query).await;
+      let response = search.search(query);
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
+        vec![Url::new(expected_url(&storage))
           .with_headers(Headers::default().with_header("Range", "bytes=26-6087"))
           .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)
-    })
-    .await;
+    });
   }
 
-  pub(crate) async fn with_local_storage<F, Fut>(test: F)
-  where
-    F: FnOnce(Arc<LocalStorage>) -> Fut,
-    Fut: Future<Output = ()>,
-  {
+  pub fn with_local_storage(test: impl Fn(LocalStorage)) {
     let base_path = std::env::current_dir()
       .unwrap()
       .parent()
       .unwrap()
       .join("data/cram");
-    test(Arc::new(
-      LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap(),
-    ))
-    .await
+    test(LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap())
   }
 
-  pub(crate) fn expected_url(storage: Arc<LocalStorage>) -> String {
+  pub fn expected_url(storage: &LocalStorage) -> String {
     format!(
       "file://{}",
       storage

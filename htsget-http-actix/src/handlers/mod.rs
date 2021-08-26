@@ -1,16 +1,24 @@
-use crate::AppState;
+use actix_web::{http::StatusCode, Either, Responder};
+
+use htsget_http_core::{JsonResponse, Result, ServiceInfo};
+use pretty_json::PrettyJson;
+
+#[cfg(feature = "async")]
+pub use crate::handlers::async_handlers::{
+  get_service_info_json, reads_service_info, variants_service_info,
+};
 
 use super::Config;
-use actix_web::{http::StatusCode, web::Data, Either, Responder};
-use htsget_http_core::{
-  get_service_info_json as get_base_service_info_json, Endpoint, JsonResponse, Result, ServiceInfo,
-};
-use htsget_search::htsget::HtsGet;
 
+#[cfg(feature = "async")]
+pub mod async_handlers;
+pub mod blocking;
+#[cfg(feature = "async")]
 pub mod get;
+#[cfg(feature = "async")]
 pub mod post;
+
 mod pretty_json;
-use pretty_json::PrettyJson;
 
 /// Handles a response, converting errors to json and using the proper HTTP status code
 fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, impl Responder> {
@@ -21,14 +29,6 @@ fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, imp
     }
     Ok(json) => Either::B(PrettyJson(json).with_status(StatusCode::OK)),
   }
-}
-
-/// Gets the JSON to return for a service-info endpoint
-fn get_service_info_json<H: HtsGet>(app_state: &AppState<H>, endpoint: Endpoint) -> impl Responder {
-  PrettyJson(fill_out_service_info_json(
-    get_base_service_info_json(endpoint, &app_state.htsget),
-    &app_state.config,
-  ))
 }
 
 /// Fills the service-info json with the data from the server config
@@ -64,14 +64,4 @@ fn fill_out_service_info_json(mut service_info_json: ServiceInfo, config: &Confi
     service_info_json.environment = environment.clone();
   }
   service_info_json
-}
-
-/// Gets the JSON to return for the reads service-info endpoint
-pub async fn reads_service_info<H: HtsGet>(app_state: Data<AppState<H>>) -> impl Responder {
-  get_service_info_json(app_state.get_ref(), Endpoint::Reads)
-}
-
-/// Gets the JSON to return for the variants service-info endpoint
-pub async fn variants_service_info<H: HtsGet>(app_state: Data<AppState<H>>) -> impl Responder {
-  get_service_info_json(app_state.get_ref(), Endpoint::Variants)
 }

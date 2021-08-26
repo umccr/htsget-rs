@@ -3,31 +3,36 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
+use core::fmt;
 use std::collections::HashMap;
+use std::fmt::Formatter;
 use std::io;
 
 use thiserror::Error;
+use tokio::task::JoinError;
+
+#[cfg(feature = "async")]
+pub use async_htsget::*;
 
 use crate::storage::StorageError;
-use core::fmt;
-use std::fmt::Formatter;
 
+#[cfg(feature = "async")]
+pub mod async_htsget;
+#[cfg(feature = "async")]
 pub mod bam_search;
+#[cfg(feature = "async")]
 pub mod bcf_search;
+pub mod blocking;
+#[cfg(feature = "async")]
 pub mod cram_search;
+#[cfg(feature = "async")]
 pub mod from_storage;
+#[cfg(feature = "async")]
 pub mod search;
+#[cfg(feature = "async")]
 pub mod vcf_search;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
-
-/// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
-pub trait HtsGet {
-  fn search(&self, query: Query) -> Result<Response>;
-  fn get_supported_formats(&self) -> Vec<Format>;
-  fn are_field_parameters_effective(&self) -> bool;
-  fn are_tag_parameters_effective(&self) -> bool;
-}
 
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
@@ -48,6 +53,9 @@ pub enum HtsGetError {
 
   #[error("Parsing error: {0}")]
   ParseError(String),
+
+  #[error("Concurrency error: {0}")]
+  ConcurrencyError(String),
 }
 
 impl HtsGetError {
@@ -70,6 +78,14 @@ impl HtsGetError {
   pub fn io_error<S: Into<String>>(message: S) -> Self {
     Self::IoError(message.into())
   }
+
+  pub fn parse_error<S: Into<String>>(message: S) -> Self {
+    Self::ParseError(message.into())
+  }
+
+  pub fn concurrency_error<S: Into<String>>(message: S) -> Self {
+    Self::ConcurrencyError(message.into())
+  }
 }
 
 impl From<StorageError> for HtsGetError {
@@ -80,6 +96,12 @@ impl From<StorageError> for HtsGetError {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
     }
+  }
+}
+
+impl From<JoinError> for HtsGetError {
+  fn from(err: JoinError) -> Self {
+    Self::concurrency_error(err.to_string())
   }
 }
 
@@ -326,6 +348,18 @@ mod tests {
   fn htsget_error_io_error() {
     let result = HtsGetError::io_error("error");
     assert!(matches!(result, HtsGetError::IoError(message) if message == "error"));
+  }
+
+  #[test]
+  fn htsget_error_parse_error() {
+    let result = HtsGetError::parse_error("error");
+    assert!(matches!(result, HtsGetError::ParseError(message) if message == "error"));
+  }
+
+  #[test]
+  fn htsget_error_concurrency_error() {
+    let result = HtsGetError::concurrency_error("error");
+    assert!(matches!(result, HtsGetError::ConcurrencyError(message) if message == "error"));
   }
 
   #[test]
