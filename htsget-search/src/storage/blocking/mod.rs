@@ -6,6 +6,8 @@ use crate::htsget::Url;
 use crate::storage::{GetOptions, StorageError, UrlOptions};
 
 pub mod local;
+#[cfg(feature = "aws")]
+pub mod aws;
 
 type Result<T> = core::result::Result<T, StorageError>;
 

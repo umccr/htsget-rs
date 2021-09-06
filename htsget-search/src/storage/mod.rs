@@ -14,6 +14,8 @@ pub mod async_storage;
 pub mod blocking;
 #[cfg(feature = "async")]
 pub mod local;
+// #[cfg(feature = "aws")]
+// pub mod aws;
 
 type Result<T> = core::result::Result<T, StorageError>;
 

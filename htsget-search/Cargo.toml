@@ -7,6 +7,7 @@ edition = "2018"
 [features]
 default = ["async"]
 async = ["tokio", "futures"]
+aws = ["aws-sdk-s3"]
 
 [dependencies]
 async-trait = "0.1.50"
@@ -14,6 +15,7 @@ thiserror = "~1.0"
 tokio = { version = "1.9.0", features = ["full"], optional = true }
 futures = { version = "0.3.16", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
+aws-sdk-s3 = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.17-alpha", package = "aws-sdk-s3", optional = true }
 
 #noodles = { version = "0.5.0", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 #

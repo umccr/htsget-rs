@@ -1,4 +1,4 @@
-name: Run Rust tests
+name: tests
 
 on: [push]
 
@@ -17,6 +17,7 @@ jobs:
             toolchain: ${{ matrix.rust }}
             override: true
             components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
@@ -29,3 +30,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+      - name: Run cargo test with all features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
+      - name: Run cargo test with no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --no-default-features
