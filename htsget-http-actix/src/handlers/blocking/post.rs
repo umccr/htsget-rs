@@ -1,17 +1,24 @@
+#[cfg(not(feature = "async"))]
 use actix_web::{
   web::{Data, Json, Path},
   Responder,
 };
 
+#[cfg(not(feature = "async"))]
 use htsget_http_core::blocking::get_response_for_post_request;
+#[cfg(not(feature = "async"))]
 use htsget_http_core::{Endpoint, PostRequest};
+#[cfg(not(feature = "async"))]
 use htsget_search::htsget::blocking::HtsGet;
 
+#[cfg(not(feature = "async"))]
 use crate::handlers::handle_response;
+#[cfg(not(feature = "async"))]
 use crate::AppState;
 
 /// POST request reads endpoint
-pub async fn reads<H: HtsGet>(
+#[cfg(not(feature = "async"))]
+pub fn reads<H: HtsGet>(
   request: Json<PostRequest>,
   Path(id): Path<String>,
   app_state: Data<AppState<H>>,
@@ -25,7 +32,8 @@ pub async fn reads<H: HtsGet>(
 }
 
 /// POST request variants endpoint
-pub async fn variants<H: HtsGet>(
+#[cfg(not(feature = "async"))]
+pub fn variants<H: HtsGet>(
   request: Json<PostRequest>,
   Path(id): Path<String>,
   app_state: Data<AppState<H>>,

@@ -1,15 +1,30 @@
 use std::env::args;
 use std::sync::Arc;
 
-//use htsget_http_actix::handlers::blocking::{get, post, reads_service_info, variants_service_info};
 use actix_web::{web, App, HttpServer};
+
+// Async
+#[cfg(feature = "async")]
+use htsget_http_actix::AsyncAppState;
+#[cfg(feature = "async")]
+use htsget_http_actix::AsyncHtsGetStorage;
+#[cfg(feature = "async")]
 use htsget_http_actix::handlers::{
-  get as async_get, post as async_post, reads_service_info as async_reads_service_info,
-  variants_service_info as async_variants_service_info,
+  get, post,
+  reads_service_info, variants_service_info,
 };
 
-use htsget_http_actix::AsyncAppState;
-use htsget_http_actix::AsyncHtsGetStorage;
+// Blocking
+#[cfg(not(feature = "async"))]
+use htsget_http_actix::HtsGetStorage;
+#[cfg(not(feature = "async"))]
+use htsget_http_actix::AppState;
+#[cfg(not(feature = "async"))]
+use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
+#[cfg(not(feature = "async"))]
+use htsget_http_actix::handlers::blocking::{get, post, reads_service_info, variants_service_info};
+
+
 use htsget_id_resolver::RegexResolver;
 
 use htsget_search::storage::blocking::local::LocalStorage;
@@ -46,38 +61,38 @@ async fn main() -> std::io::Result<()> {
         web::scope("/reads")
           .route(
             "/service-info",
-            web::get().to(async_reads_service_info::<AsyncHtsGetStorage>),
+            web::get().to(reads_service_info::<AsyncHtsGetStorage>),
           )
           .route(
             "/service-info",
-            web::post().to(async_reads_service_info::<AsyncHtsGetStorage>),
+            web::post().to(reads_service_info::<AsyncHtsGetStorage>),
           )
           .route(
             "/{id:.+}",
-            web::get().to(async_get::reads::<AsyncHtsGetStorage>),
+            web::get().to(get::reads::<AsyncHtsGetStorage>),
           )
           .route(
             "/{id:.+}",
-            web::post().to(async_post::reads::<AsyncHtsGetStorage>),
+            web::post().to(post::reads::<AsyncHtsGetStorage>),
           ),
       )
       .service(
         web::scope("/variants")
           .route(
             "/service-info",
-            web::get().to(async_variants_service_info::<AsyncHtsGetStorage>),
+            web::get().to(variants_service_info::<AsyncHtsGetStorage>),
           )
           .route(
             "/service-info",
-            web::post().to(async_variants_service_info::<AsyncHtsGetStorage>),
+            web::post().to(variants_service_info::<AsyncHtsGetStorage>),
           )
           .route(
             "/{id:.+}",
-            web::get().to(async_get::variants::<AsyncHtsGetStorage>),
+            web::get().to(get::variants::<AsyncHtsGetStorage>),
           )
           .route(
             "/{id:.+}",
-            web::post().to(async_post::variants::<AsyncHtsGetStorage>),
+            web::post().to(post::variants::<AsyncHtsGetStorage>),
           ),
       )
   })
