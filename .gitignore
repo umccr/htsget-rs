@@ -1,4 +1,6 @@
 /target
 Cargo.lock
 *.code-workspace
-internationalgenomesample.vcf.gz
+*.vcf.gz
+.vscode
+.idea

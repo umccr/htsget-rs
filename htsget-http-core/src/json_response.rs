@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use htsget_search::htsget::{Class, Format, Response, Url};
 use serde::{Deserialize, Serialize};
 
+use htsget_search::htsget::{Class, Format, Response, Url};
+
 /// A helper struct to convert [Responses](Response) to JSON. It implements [serde's Serialize trait](Serialize),
 /// so it's trivial to convert to JSON.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
