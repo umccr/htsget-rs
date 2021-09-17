@@ -109,6 +109,8 @@ mod tests {
     storage::blocking::local::LocalStorage,
   };
 
+  use super::*;
+
   #[tokio::test]
   async fn get_request() {
     let mut request = HashMap::new();
@@ -247,16 +249,6 @@ mod tests {
         ]
       )))
     )
-  }
-
-  //fn get_searcher() -> impl HtsGet {
-  //  HtsGetFromStorage::new(LocalStorage::new("../data", "localhost/data").unwrap())
-  fn get_base_path() -> PathBuf {
-    std::env::current_dir()
-      .unwrap()
-      .parent()
-      .unwrap()
-      .join("data")
   }
 
   fn get_searcher() -> Arc<impl HtsGet> {
