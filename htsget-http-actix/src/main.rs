@@ -5,25 +5,21 @@ use actix_web::{web, App, HttpServer};
 
 // Async
 #[cfg(feature = "async")]
+use htsget_http_actix::handlers::{get, post, reads_service_info, variants_service_info};
+#[cfg(feature = "async")]
 use htsget_http_actix::AsyncAppState;
 #[cfg(feature = "async")]
 use htsget_http_actix::AsyncHtsGetStorage;
-#[cfg(feature = "async")]
-use htsget_http_actix::handlers::{
-  get, post,
-  reads_service_info, variants_service_info,
-};
 
 // Blocking
 #[cfg(not(feature = "async"))]
-use htsget_http_actix::HtsGetStorage;
+use htsget_http_actix::handlers::blocking::{get, post, reads_service_info, variants_service_info};
 #[cfg(not(feature = "async"))]
 use htsget_http_actix::AppState;
 #[cfg(not(feature = "async"))]
-use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
+use htsget_http_actix::HtsGetStorage;
 #[cfg(not(feature = "async"))]
-use htsget_http_actix::handlers::blocking::{get, post, reads_service_info, variants_service_info};
-
+use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
 
 use htsget_id_resolver::RegexResolver;
 
@@ -67,10 +63,7 @@ async fn main() -> std::io::Result<()> {
             "/service-info",
             web::post().to(reads_service_info::<AsyncHtsGetStorage>),
           )
-          .route(
-            "/{id:.+}",
-            web::get().to(get::reads::<AsyncHtsGetStorage>),
-          )
+          .route("/{id:.+}", web::get().to(get::reads::<AsyncHtsGetStorage>))
           .route(
             "/{id:.+}",
             web::post().to(post::reads::<AsyncHtsGetStorage>),
