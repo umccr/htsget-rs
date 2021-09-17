@@ -1,4 +1,3 @@
-use actix_files::Files;
 use std::env::args;
 use std::sync::Arc;
 
