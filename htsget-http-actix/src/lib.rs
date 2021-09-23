@@ -1,3 +1,4 @@
+#[cfg(feature = "async")]
 use std::sync::Arc;
 
 use config::Config;

@@ -1,4 +1,6 @@
 use std::env::args;
+
+#[cfg(feature = "async")]
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
