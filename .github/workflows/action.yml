@@ -29,3 +29,11 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+      - name: Run cargo test with all features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test --all-features
+      - name: Run cargo test with no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test --no-default-features
