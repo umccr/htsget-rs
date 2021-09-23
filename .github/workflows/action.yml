@@ -17,6 +17,7 @@ jobs:
             toolchain: ${{ matrix.rust }}
             override: true
             components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
@@ -32,8 +33,10 @@ jobs:
       - name: Run cargo test with all features
         uses: actions-rs/cargo@v1
         with:
-          command: test --all-features
+          command: test
+          args: --all-features
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
         with:
-          command: test --no-default-features
+          command: test
+          args: --no-default-features
