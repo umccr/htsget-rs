@@ -35,12 +35,12 @@ fn get_service_info_json<H: HtsGet>(app_state: &AppState<H>, endpoint: Endpoint)
 
 /// Gets the JSON to return for the reads service-info endpoint
 #[cfg(not(feature = "async"))]
-pub fn reads_service_info<H: HtsGet>(app_state: Data<AppState<H>>) -> impl Responder {
+pub async fn reads_service_info<H: HtsGet>(app_state: Data<AppState<H>>) -> impl Responder {
   get_service_info_json(app_state.get_ref(), Endpoint::Reads)
 }
 
 /// Gets the JSON to return for the variants service-info endpoint
 #[cfg(not(feature = "async"))]
-pub fn variants_service_info<H: HtsGet>(app_state: Data<AppState<H>>) -> impl Responder {
+pub async fn variants_service_info<H: HtsGet>(app_state: Data<AppState<H>>) -> impl Responder {
   get_service_info_json(app_state.get_ref(), Endpoint::Variants)
 }

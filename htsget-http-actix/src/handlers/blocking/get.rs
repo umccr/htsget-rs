@@ -21,7 +21,7 @@ use crate::AppState;
 
 /// GET request reads endpoint
 #[cfg(not(feature = "async"))]
-pub fn reads<H: HtsGet>(
+pub async fn reads<H: HtsGet>(
   request: Query<HashMap<String, String>>,
   Path(id): Path<String>,
   app_state: Data<AppState<H>>,
@@ -37,7 +37,7 @@ pub fn reads<H: HtsGet>(
 
 /// GET request variants endpoint
 #[cfg(not(feature = "async"))]
-pub fn variants<H: HtsGet>(
+pub async fn variants<H: HtsGet>(
   request: Query<HashMap<String, String>>,
   Path(id): Path<String>,
   app_state: Data<AppState<H>>,
