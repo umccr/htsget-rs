@@ -1,18 +1,26 @@
+#[cfg(not(feature = "async"))]
 use std::collections::HashMap;
 
+#[cfg(not(feature = "async"))]
 use actix_web::{
   web::{Data, Path, Query},
   Responder,
 };
 
+#[cfg(not(feature = "async"))]
 use htsget_http_core::blocking::get_response_for_get_request;
+#[cfg(not(feature = "async"))]
 use htsget_http_core::Endpoint;
+#[cfg(not(feature = "async"))]
 use htsget_search::htsget::blocking::HtsGet;
 
+#[cfg(not(feature = "async"))]
 use crate::handlers::handle_response;
+#[cfg(not(feature = "async"))]
 use crate::AppState;
 
 /// GET request reads endpoint
+#[cfg(not(feature = "async"))]
 pub async fn reads<H: HtsGet>(
   request: Query<HashMap<String, String>>,
   Path(id): Path<String>,
@@ -28,6 +36,7 @@ pub async fn reads<H: HtsGet>(
 }
 
 /// GET request variants endpoint
+#[cfg(not(feature = "async"))]
 pub async fn variants<H: HtsGet>(
   request: Query<HashMap<String, String>>,
   Path(id): Path<String>,

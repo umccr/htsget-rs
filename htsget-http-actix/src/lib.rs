@@ -1,10 +1,17 @@
+#[cfg(feature = "async")]
 use std::sync::Arc;
 
 use config::Config;
+
+#[cfg(not(feature = "async"))]
 use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
+#[cfg(not(feature = "async"))]
 use htsget_search::htsget::blocking::HtsGet;
+#[cfg(not(feature = "async"))]
+use htsget_search::storage::blocking::local::LocalStorage;
+#[cfg(feature = "async")]
 use htsget_search::{
-  htsget::{from_storage::HtsGetFromStorage as AsyncHtsGetFromStorage, HtsGet as AsyncHtsGet},
+  htsget::{from_storage::HtsGetFromStorage, HtsGet},
   storage::blocking::local::LocalStorage,
 };
 
@@ -33,15 +40,16 @@ The next variables are used to configure the info for the service-info endpoints
 "#;
 
 #[cfg(feature = "async")]
-pub type AsyncHtsGetStorage = AsyncHtsGetFromStorage<LocalStorage>;
+pub type AsyncHtsGetStorage = HtsGetFromStorage<LocalStorage>;
 pub type HtsGetStorage = HtsGetFromStorage<LocalStorage>;
 
 #[cfg(feature = "async")]
-pub struct AsyncAppState<H: AsyncHtsGet> {
+pub struct AsyncAppState<H: HtsGet> {
   pub htsget: Arc<H>,
   pub config: Config,
 }
 
+#[cfg(not(feature = "async"))]
 pub struct AppState<H: HtsGet> {
   pub htsget: H,
   pub config: Config,
