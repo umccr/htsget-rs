@@ -1,9 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use htsget_id_resolver::RegexResolver;
 use htsget_search::{
-  htsget::{
-    from_storage::HtsGetFromStorage, Class, Fields, Format, HtsGet, HtsGetError, Query, Tags,
-  },
+  htsget::blocking::{from_storage::HtsGetFromStorage, HtsGet},
+  htsget::{Class, Fields, Format, HtsGetError, Query, Tags},
   storage::local::LocalStorage,
 };
 use std::time::Duration;
