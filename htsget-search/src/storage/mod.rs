@@ -6,6 +6,8 @@ use thiserror::Error;
 
 #[cfg(feature = "async")]
 pub use async_storage::*;
+#[cfg(feature = "aws")]
+pub mod aws;
 
 use crate::htsget::Class;
 
