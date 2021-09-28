@@ -48,8 +48,6 @@ pub fn get_response_for_post_request(
 
 #[cfg(test)]
 mod tests {
-  use std::path::PathBuf;
-
   use htsget_id_resolver::RegexResolver;
   use htsget_search::{
     htsget::blocking::from_storage::HtsGetFromStorage,
@@ -71,14 +69,10 @@ mod tests {
       get_response_for_get_request(&get_searcher(), request, Endpoint::Reads),
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
-        vec![Url::new(format!(
-          "file://{}",
-          get_base_path()
-            .join("bam")
-            .join("htsnexus_test_NA12878.bam")
-            .to_string_lossy()
-        ))
-        .with_headers(Headers::new(headers))]
+        vec![
+          Url::new("http://localhost/data/bam/htsnexus_test_NA12878.bam")
+            .with_headers(Headers::new(headers))
+        ]
       )))
     )
   }
@@ -109,14 +103,10 @@ mod tests {
       get_response_for_get_request(&get_searcher(), request, Endpoint::Variants),
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
-        vec![Url::new(format!(
-          "file://{}",
-          get_base_path()
-            .join("vcf")
-            .join("sample1-bcbio-cancer.vcf.gz")
-            .to_string_lossy()
-        ))
-        .with_headers(Headers::new(headers))]
+        vec![
+          Url::new("http://localhost/data/vcf/sample1-bcbio-cancer.vcf.gz")
+            .with_headers(Headers::new(headers))
+        ]
       )))
     )
   }
@@ -142,14 +132,10 @@ mod tests {
       ),
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
-        vec![Url::new(format!(
-          "file://{}",
-          get_base_path()
-            .join("bam")
-            .join("htsnexus_test_NA12878.bam")
-            .to_string_lossy()
-        ))
-        .with_headers(Headers::new(headers))]
+        vec![
+          Url::new("http://localhost/data/bam/htsnexus_test_NA12878.bam")
+            .with_headers(Headers::new(headers))
+        ]
       )))
     )
   }
@@ -202,29 +188,22 @@ mod tests {
       ),
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
-        vec![Url::new(format!(
-          "file://{}",
-          get_base_path()
-            .join("vcf")
-            .join("sample1-bcbio-cancer.vcf.gz")
-            .to_string_lossy()
-        ))
-        .with_headers(Headers::new(headers))]
+        vec![
+          Url::new("http://localhost/data/vcf/sample1-bcbio-cancer.vcf.gz")
+            .with_headers(Headers::new(headers))
+        ]
       )))
     )
   }
 
-  fn get_base_path() -> PathBuf {
-    std::env::current_dir()
-      .unwrap()
-      .parent()
-      .unwrap()
-      .join("data")
-  }
-
   fn get_searcher() -> impl HtsGet {
     HtsGetFromStorage::new(
-      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+      LocalStorage::new(
+        "../data",
+        "localhost/data",
+        RegexResolver::new(".*", "$0").unwrap(),
+      )
+      .unwrap(),
     )
   }
 }

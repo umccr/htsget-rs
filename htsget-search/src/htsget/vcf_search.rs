@@ -171,7 +171,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(storage, filename))
+        vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-3367"))],
       ));
       assert_eq!(response, expected_response)
@@ -190,7 +190,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(storage, filename))
+        vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-823"))],
       ));
       assert_eq!(response, expected_response)
@@ -212,7 +212,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(storage, filename))
+        vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-3367"))],
       ));
       assert_eq!(response, expected_response)
@@ -249,7 +249,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(storage, filename))
+        vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-823"))
           .with_class(Class::Header)],
       ));
@@ -269,18 +269,17 @@ pub mod tests {
       .unwrap()
       .join("data/vcf");
     test(Arc::new(
-      LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+      LocalStorage::new(
+        base_path,
+        "localhost/data",
+        RegexResolver::new(".*", "$0").unwrap(),
+      )
+      .unwrap(),
     ))
     .await
   }
 
-  pub(crate) fn expected_url(storage: Arc<LocalStorage>, name: &str) -> String {
-    format!(
-      "file://{}",
-      storage
-        .base_path()
-        .join(format!("{}.vcf.gz", name))
-        .to_string_lossy()
-    )
+  pub(crate) fn expected_url(name: &str) -> String {
+    format!("http://localhost/data/{}.vcf.gz", name)
   }
 }

@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use crate::htsget::Url;
 use crate::storage;
 use crate::storage::async_storage::AsyncStorage;
-use crate::storage::blocking::local::LocalStorage;
+pub use crate::storage::blocking::local::LocalStorage;
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
@@ -97,10 +97,13 @@ mod tests {
         .map(|path| path.to_string_lossy().to_string());
       assert_eq!(
         result,
-        Ok(format!(
-          "{}",
-          storage.base_path().join("key1").to_string_lossy()
-        ))
+        Ok(
+          storage
+            .base_path()
+            .join("key1")
+            .to_string_lossy()
+            .to_string()
+        )
       );
     })
     .await;
@@ -146,10 +149,7 @@ mod tests {
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
       let result = AsyncStorage::url(&storage, "folder/../key1", UrlOptions::default()).await;
-      let expected = Url::new(format!(
-        "file://{}",
-        storage.base_path().join("key1").to_string_lossy()
-      ));
+      let expected = Url::new("http://localhost/data/key1");
       assert_eq!(result, Ok(expected));
     })
     .await;
@@ -167,11 +167,8 @@ mod tests {
       assert_eq!(
         result,
         Ok(
-          Url::new(format!(
-            "file://{}",
-            storage.base_path().join("key1").to_string_lossy()
-          ))
-          .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
+          Url::new("http://localhost/data/key1")
+            .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
         )
       );
     })
@@ -190,11 +187,8 @@ mod tests {
       assert_eq!(
         result,
         Ok(
-          Url::new(format!(
-            "file://{}",
-            storage.base_path().join("key1").to_string_lossy()
-          ))
-          .with_headers(Headers::default().with_header("Range", "bytes=7-"))
+          Url::new("http://localhost/data/key1")
+            .with_headers(Headers::default().with_header("Range", "bytes=7-"))
         )
       );
     })
@@ -230,7 +224,14 @@ mod tests {
       .write_all(b"value2")
       .await
       .unwrap();
-    test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
-      .await
+    test(
+      LocalStorage::new(
+        base_path.path(),
+        "localhost/data",
+        RegexResolver::new(".*", "$0").unwrap(),
+      )
+      .unwrap(),
+    )
+    .await
   }
 }

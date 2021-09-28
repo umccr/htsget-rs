@@ -99,7 +99,6 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
-  use std::path::PathBuf;
   use std::sync::Arc;
 
   use htsget_id_resolver::RegexResolver;
@@ -253,7 +252,12 @@ mod tests {
 
   fn get_searcher() -> Arc<impl HtsGet> {
     Arc::new(HtsGetFromStorage::new(
-      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+      LocalStorage::new(
+        "../data",
+        "localhost/data",
+        RegexResolver::new(".*", "$0").unwrap(),
+      )
+      .unwrap(),
     ))
   }
 }

@@ -11,11 +11,16 @@ use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
 #[derive(Debug)]
 pub struct LocalStorage {
   base_path: PathBuf,
+  address: String,
   id_resolver: RegexResolver,
 }
 
 impl LocalStorage {
-  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(
+    base_path: P,
+    address: impl Into<String>,
+    id_resolver: RegexResolver,
+  ) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -23,6 +28,7 @@ impl LocalStorage {
       .map_err(|_| StorageError::NotFound(base_path.as_ref().to_string_lossy().to_string()))
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
+        address: address.into(),
         id_resolver,
       })
   }
@@ -75,9 +81,17 @@ impl Storage for LocalStorage {
       .map(|end| end.to_string())
       .unwrap_or_else(|| "".to_string());
 
-    // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
-    let path = self.get_path_from_key(key)?;
-    let url = Url::new(format!("file://{}", path.to_string_lossy()));
+    let captured_key = key.as_ref().to_string();
+    let path = self
+      .get_path_from_key(key)?
+      .strip_prefix(&self.base_path)
+      .map_err(|_| StorageError::NotFound(captured_key))?
+      .to_owned();
+    let url = Url::new(format!(
+      "http://{}/{}",
+      self.address,
+      path.to_string_lossy()
+    ));
     let url = if range_start.is_empty() && range_end.is_empty() {
       url
     } else {
@@ -201,10 +215,7 @@ mod tests {
   fn url_of_existing_key() {
     with_local_storage(|storage| {
       let result = storage.url("folder/../key1", UrlOptions::default());
-      let expected = Url::new(format!(
-        "file://{}",
-        storage.base_path().join("key1").to_string_lossy()
-      ));
+      let expected = Url::new("http://localhost/data/key1");
       assert_eq!(result, Ok(expected));
     });
   }
@@ -219,11 +230,8 @@ mod tests {
       assert_eq!(
         result,
         Ok(
-          Url::new(format!(
-            "file://{}",
-            storage.base_path().join("key1").to_string_lossy()
-          ))
-          .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
+          Url::new("http://localhost/data/key1")
+            .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
         )
       );
     });
@@ -239,11 +247,8 @@ mod tests {
       assert_eq!(
         result,
         Ok(
-          Url::new(format!(
-            "file://{}",
-            storage.base_path().join("key1").to_string_lossy()
-          ))
-          .with_headers(Headers::default().with_header("Range", "bytes=7-"))
+          Url::new("http://localhost/data/key1")
+            .with_headers(Headers::default().with_header("Range", "bytes=7-"))
         )
       );
     });
@@ -269,6 +274,13 @@ mod tests {
       .unwrap()
       .write_all(b"value2")
       .unwrap();
-    test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
+    test(
+      LocalStorage::new(
+        base_path.path(),
+        "localhost/data",
+        RegexResolver::new(".*", "$0").unwrap(),
+      )
+      .unwrap(),
+    )
   }
 }

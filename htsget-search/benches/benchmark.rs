@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use htsget_id_resolver::RegexResolver;
 use htsget_search::{
   htsget::{
     from_storage::HtsGetFromStorage, Class, Fields, Format, HtsGet, HtsGetError, Query, Tags,
@@ -11,7 +12,14 @@ const BENCHMARK_DURATION_SECONDS: u64 = 5;
 const NUMBER_OF_EXECUTIONS: usize = 150;
 
 fn perform_query(query: Query) -> Result<(), HtsGetError> {
-  let htsget = HtsGetFromStorage::new(LocalStorage::new("../data", "localhost").unwrap());
+  let htsget = HtsGetFromStorage::new(
+    LocalStorage::new(
+      "../data",
+      "localhost",
+      RegexResolver::new(".*", "$0").unwrap(),
+    )
+    .unwrap(),
+  );
   htsget.search(query)?;
   Ok(())
 }

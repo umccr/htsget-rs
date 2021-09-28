@@ -3,8 +3,8 @@ use std::env::args;
 #[cfg(feature = "async")]
 use std::sync::Arc;
 
-use actix_web::{web, App, HttpServer};
 use actix_files::Files;
+use actix_web::{web, App, HttpServer};
 
 // Async
 #[cfg(feature = "async")]
@@ -41,6 +41,7 @@ async fn main() -> std::io::Result<()> {
   }
   let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
   let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
+  let storage_base_address = format!("{}/data", address);
   let htsget_path = config.htsget_path.clone();
   let regex_match = config.htsget_regex_match.clone();
   let regex_substitution = config.htsget_regex_substitution.clone();
@@ -50,6 +51,7 @@ async fn main() -> std::io::Result<()> {
         htsget: Arc::new(AsyncHtsGetStorage::new(
           LocalStorage::new(
             htsget_path.clone(),
+            &storage_base_address,
             RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
           )
           .expect("Couldn't create a Storage with the provided path"),
@@ -91,6 +93,7 @@ async fn main() -> std::io::Result<()> {
             web::post().to(post::variants::<AsyncHtsGetStorage>),
           ),
       )
+      .service(Files::new("/data", htsget_path.clone()))
   })
   .bind(address)?
   .run()
@@ -119,6 +122,7 @@ async fn main() -> std::io::Result<()> {
           //  .expect("Couldn't create a Storage with the provided path"),
           LocalStorage::new(
             htsget_path.clone(),
+            &storage_base_address,
             RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
           )
           .expect("Couldn't create a Storage with the provided path"),
