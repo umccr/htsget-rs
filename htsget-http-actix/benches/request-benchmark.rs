@@ -21,7 +21,7 @@ const HTSGET_RS_BIG_VCF_URL: &str =
 const HTSGET_REFSERVER_BIG_VCF_URL: &str =
   "http://localhost:8081/variants/internationalgenomesample";
 
-fn request(url: &str, json_content: &impl Serialize) -> Result<usize, ActixError> {
+async fn request(url: &str, json_content: &impl Serialize) -> Result<usize, ActixError> {
   let client = Client::new();
   let response: JsonResponse = client.get(url).json(json_content).send()?.json()?;
   Ok(
@@ -52,20 +52,20 @@ fn request(url: &str, json_content: &impl Serialize) -> Result<usize, ActixError
   )
 }
 
-fn bench_request(
-  group: &mut BenchmarkGroup<WallTime>,
+async fn bench_request(
+  group: &mut BenchmarkGroup<'_, WallTime>,
   name: &str,
   url: &str,
   json_content: &impl Serialize,
 ) {
   println!(
     "\n\nDownload size: {} bytes",
-    request(url, json_content).expect("Error during the request")
+    request(url, json_content).await.expect("Error during the request")
   );
   group.bench_function(name, |b| b.iter(|| request(url, json_content)));
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
+async fn criterion_benchmark(c: &mut Criterion) {
   let mut group = c.benchmark_group("Requests");
   group
     .sample_size(NUMBER_OF_EXECUTIONS)
@@ -76,13 +76,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] htsget-rs simple request",
     HTSGET_RS_URL,
     &Empty {},
-  );
+  ).await;
   bench_request(
     &mut group,
     "[LIGHT] htsget-refserver simple request",
     HTSGET_REFSERVER_URL,
     &Empty {},
-  );
+  ).await;
 
   let json_content = PostRequest {
     format: None,
@@ -101,13 +101,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] htsget-rs with region",
     HTSGET_RS_URL,
     &json_content,
-  );
+  ).await;
   bench_request(
     &mut group,
     "[LIGHT] htsget-refserver with region",
     HTSGET_REFSERVER_URL,
     &json_content,
-  );
+  ).await;
 
   let json_content = PostRequest {
     format: None,
@@ -133,13 +133,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] htsget-rs with two regions",
     HTSGET_RS_URL,
     &json_content,
-  );
+  ).await;
   bench_request(
     &mut group,
     "[LIGHT] htsget-refserver with two regions",
     HTSGET_REFSERVER_URL,
     &json_content,
-  );
+  ).await;
 
   let json_content = PostRequest {
     format: None,
@@ -158,13 +158,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] htsget-rs with VCF",
     HTSGET_RS_VCF_URL,
     &json_content,
-  );
+  ).await;
   bench_request(
     &mut group,
     "[LIGHT] htsget-refserver with VCF",
     HTSGET_REFSERVER_VCF_URL,
     &json_content,
-  );
+  ).await;
 
   // The following ones are HEAVY requests
 
@@ -185,13 +185,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[HEAVY] htsget-rs big VCF file",
     HTSGET_RS_BIG_VCF_URL,
     &json_content,
-  );
+  ).await;
   bench_request(
     &mut group,
     "[HEAVY] htsget-refserver big VCF file",
     HTSGET_REFSERVER_BIG_VCF_URL,
     &json_content,
-  );
+  ).await;
 
   group.finish();
 }
