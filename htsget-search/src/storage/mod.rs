@@ -41,17 +41,6 @@ pub enum StorageError {
   },
 }
 
-// #[cfg(feature = "aws")]
-// #[derive(Error, PartialEq, Debug)]
-// pub enum AWSError {
-//   // Convenience error wrapping to have all errors under StorageError umbrella
-//   #[error("RusotoError<HeadObjectError>")]
-//   RusotoError {
-//       #[from]
-//       source: RusotoError<rusoto_s3::HeadObjectError>,
-//   },
-// }
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct BytesRange {
   start: Option<u64>,
