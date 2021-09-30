@@ -8,6 +8,8 @@ use thiserror::Error;
 pub use async_storage::*;
 #[cfg(feature = "aws")]
 pub mod aws;
+use rusoto_core::RusotoError;
+use rusoto_s3::HeadObjectError;
 
 use crate::htsget::Class;
 
@@ -28,7 +30,24 @@ pub enum StorageError {
 
   #[error("Not found: {0}")]
   NotFound(String),
+
+  #[error("AwsError")]
+  AwsError {
+      #[from]
+      source: RusotoError<HeadObjectError>,
+  },
 }
+
+// #[cfg(feature = "aws")]
+// #[derive(Error, PartialEq, Debug)]
+// pub enum AWSError {
+//   // Convenience error wrapping to have all errors under StorageError umbrella
+//   #[error("RusotoError<HeadObjectError>")]
+//   RusotoError {
+//       #[from]
+//       source: RusotoError<rusoto_s3::HeadObjectError>,
+//   },
+// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BytesRange {

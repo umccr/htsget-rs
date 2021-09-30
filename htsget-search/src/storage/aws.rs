@@ -1,6 +1,8 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
 use std::path::PathBuf;
+use std::env;
 
+use std::convert::TryInto;
 use async_trait::async_trait;
 
 use crate::htsget::Url;
@@ -17,12 +19,16 @@ use rusoto_core::{
 };
 
 use rusoto_s3 as s3;
-use rusoto_s3::util::PreSignedRequest;
+use rusoto_s3::{
+  S3,
+  S3Client,
+  HeadObjectRequest,
+  util::PreSignedRequest,
+};
 
 //use super::{GetOptions, Result, Storage, UrlOptions};
 //use super::Result;
 
-// TODO: Use envy for AWS creds?
 enum Retrieval {
   Immediate,
   Delayed,
@@ -75,7 +81,7 @@ impl AwsS3Storage {
     Ok((parts[2].to_string(), parts[3].to_string()))
   }
 
-  async fn s3_presign_url(bucket: String, key: String) -> Result<String> {
+  async fn s3_presign_url(client: S3Client, bucket: String, key: String) -> Result<String> {
     let region = Region::ApSoutheast2;
     let req = s3::GetObjectRequest {
       bucket,
@@ -89,6 +95,16 @@ impl AwsS3Storage {
       .unwrap();
     //PreSignedRequestOption expires_in: 3600
     Ok(req.get_presigned_url(&region, &credentials, &Default::default()))
+  }
+
+  async fn s3_head_url(client: S3Client, bucket: String, key: String) -> Result<u64> {
+    let head_req = HeadObjectRequest {
+      bucket: bucket.clone(),
+      key: key.clone(),
+      ..Default::default()
+    };
+
+    Ok(client.head_object(head_req).await?.content_length.unwrap_or(0).try_into().unwrap())
   }
 
   async fn determine_retrievability() -> Result<AwsS3StorageTier> {
@@ -110,15 +126,59 @@ impl AsyncStorage for AwsS3Storage {
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    let presigned_url = AwsS3Storage::s3_presign_url(self.bucket.clone(), key.as_ref().to_string());
-    let htsget_url = Url::new(presigned_url.await?); 
+    let client = S3Client::new(Region::default());
+
+    let presigned_url = AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
+    let htsget_url = Url::new(presigned_url.await?);
     Ok(htsget_url)
   }
 
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-    Ok(0)
+    let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
+    let client = S3Client::new(Region::default());
+
+    let (bucket, s3key) = AwsS3Storage::get_bucket_and_key_from_s3_url(key.to_string()).await?;
+
+    let object_bytes = AwsS3Storage::s3_head_url(client, self.bucket.clone(), s3key).await?;
+    Ok(object_bytes)
   }
 }
+
+// Testing
+
+struct TestS3Client {
+  region: Region,
+  s3: S3Client,
+  bucket_name: String,
+  // This flag signifies whether this bucket was already deleted as part of a test
+  bucket_deleted: bool,
+}
+
+// impl TestS3Client {
+//   // construct S3 testing client
+//   fn new(bucket_name: String) -> TestS3Client {
+//       let region = if let Ok(endpoint) = env::var("S3_ENDPOINT") {
+//           let region = Region::Custom {
+//               name: "us-east-1".to_owned(),
+//               endpoint: endpoint.to_owned(),
+//           };
+//           println!(
+//               "picked up non-standard endpoint {:?} from S3_ENDPOINT env. variable",
+//               region
+//           );
+//           region
+//       } else {
+//           Region::UsEast1
+//       };
+
+//       TestS3Client {
+//           region: region.to_owned(),
+//           s3: S3Client::new(region),
+//           bucket_name: bucket_name.to_owned(),
+//           bucket_deleted: false,
+//       }
+//   }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -128,7 +188,6 @@ mod tests {
   async fn split_s3_url_into_bucket_and_key() {
     let s3_url = "s3://bucket/key";
 
-    // TODO: This method should be outside of AwsS3Storage impl because bucket & key are needed prior to ::new()... utils?
     let (bucket, key) = AwsS3Storage::get_bucket_and_key_from_s3_url(s3_url.to_string())
       .await
       .unwrap();
@@ -143,12 +202,11 @@ mod tests {
     assert_eq!(bucket, "bucket");
     assert_eq!(key, "key");
   }
-  
+
   #[tokio::test]
   async fn get_htsget_url_from_s3() {
     let s3_url = "s3://bucket/key";
 
-    // TODO: This method should be outside of AwsS3Storage impl because bucket & key are needed prior to ::new()... utils?
     let (bucket, key) = AwsS3Storage::get_bucket_and_key_from_s3_url(s3_url.to_string())
       .await
       .unwrap();
@@ -162,5 +220,24 @@ mod tests {
 
     dbg!(s3_storage.url(key, UrlOptions::default()).await.unwrap());
     // TODO: Assert that the URL is valid https/AWS presigned URL
+  }
+
+  #[tokio::test]
+  async fn get_head_bytes_from_s3() {
+    let s3_url = "s3://bucket/key";
+
+    let (bucket, key) = AwsS3Storage::get_bucket_and_key_from_s3_url(s3_url.to_string())
+      .await
+      .unwrap();
+
+    let s3_storage = AwsS3Storage::new(
+      bucket.clone(),
+      key.clone(),
+      Region::ApSoutheast2,
+      AwsS3StorageTier::Standard(Retrieval::Immediate),
+    );
+
+    s3_storage.head(s3_url);
+    // TODO: Assert that the the bytes returned by head are expected
   }
 }
