@@ -1,9 +1,9 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
 
-use std::convert::TryInto;
 use async_trait::async_trait;
+use std::convert::TryInto;
 
 use crate::htsget::Url;
 
@@ -19,12 +19,7 @@ use rusoto_core::{
 };
 
 use rusoto_s3 as s3;
-use rusoto_s3::{
-  S3,
-  S3Client,
-  HeadObjectRequest,
-  util::PreSignedRequest,
-};
+use rusoto_s3::{util::PreSignedRequest, HeadObjectRequest, S3Client, S3};
 
 //use super::{GetOptions, Result, Storage, UrlOptions};
 //use super::Result;
@@ -104,7 +99,15 @@ impl AwsS3Storage {
       ..Default::default()
     };
 
-    Ok(client.head_object(head_req).await?.content_length.unwrap_or(0).try_into().unwrap())
+    Ok(
+      client
+        .head_object(head_req)
+        .await?
+        .content_length
+        .unwrap_or(0)
+        .try_into()
+        .unwrap(),
+    )
   }
 
   async fn determine_retrievability() -> Result<AwsS3StorageTier> {
@@ -128,7 +131,8 @@ impl AsyncStorage for AwsS3Storage {
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let client = S3Client::new(Region::default());
 
-    let presigned_url = AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
+    let presigned_url =
+      AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
     let htsget_url = Url::new(presigned_url.await?);
     Ok(htsget_url)
   }

@@ -36,8 +36,8 @@ pub enum StorageError {
   #[cfg(feature = "aws")]
   #[error("AwsError")]
   AwsError {
-      #[from]
-      source: RusotoError<HeadObjectError>,
+    #[from]
+    source: RusotoError<HeadObjectError>,
   },
 }
 

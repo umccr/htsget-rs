@@ -94,9 +94,9 @@ impl From<StorageError> for HtsGetError {
       StorageError::NotFound(key) => Self::NotFound(format!("Not found in storage: {}", key)),
       StorageError::InvalidKey(key) => {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
-      },
+      }
       #[cfg(feature = "aws")]
-      StorageError::AwsError{ .. } => Self::IoError(format!("AWS error: {}", err)),
+      StorageError::AwsError { .. } => Self::IoError(format!("AWS error: {}", err)),
     }
   }
 }
