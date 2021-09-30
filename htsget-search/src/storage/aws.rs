@@ -23,18 +23,18 @@ use rusoto_s3::util::PreSignedRequest;
 //use super::Result;
 
 // TODO: Use envy for AWS creds?
-enum Reachability {
-  ImmediateRetrieval,
-  DelayedRetrieval,
+enum Retrieval {
+  Immediate,
+  Delayed,
 }
 
-// TODO: Encode object "reachability" more statically in this enum?
+// TODO: Encode object "" more statically in this enum?
 enum AwsS3StorageTier {
-  Standard(Reachability),
-  StandardIa(Reachability),
-  OnezoneIa(Reachability),
-  Glacier(Reachability),     // ~24-48 hours
-  DeepArchive(Reachability), // ~48 hours
+  Standard(Retrieval),
+  StandardIa(Retrieval),
+  OnezoneIa(Retrieval),
+  Glacier(Retrieval),     // ~24-48 hours
+  DeepArchive(Retrieval), // ~48 hours
 }
 
 /// Implementation for the [Storage] trait using the local file system.
@@ -91,7 +91,7 @@ impl AwsS3Storage {
     Ok(req.get_presigned_url(&region, &credentials, &Default::default()))
   }
 
-  async fn determine_reachability() -> Result<AwsS3StorageTier> {
+  async fn determine_retrievability() -> Result<AwsS3StorageTier> {
     // 1. S3 head request to object
     // 2. Return status
     unimplemented!();
@@ -110,9 +110,9 @@ impl AsyncStorage for AwsS3Storage {
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    unimplemented!();
-    // let presigned_url = AwsS3Storage::s3_presign_url(self.bucket.clone(), key.as_ref().to_string()).await;
-    // Ok(presigned_url)
+    let presigned_url = AwsS3Storage::s3_presign_url(self.bucket.clone(), key.as_ref().to_string());
+    let htsget_url = Url::new(presigned_url.await?); 
+    Ok(htsget_url)
   }
 
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
@@ -137,10 +137,30 @@ mod tests {
       bucket.clone(),
       key.clone(),
       Region::ApSoutheast2,
-      AwsS3StorageTier::Standard(Reachability::ImmediateRetrieval),
+      AwsS3StorageTier::Standard(Retrieval::Immediate),
     );
 
     assert_eq!(bucket, "bucket");
     assert_eq!(key, "key");
+  }
+  
+  #[tokio::test]
+  async fn get_htsget_url_from_s3() {
+    let s3_url = "s3://bucket/key";
+
+    // TODO: This method should be outside of AwsS3Storage impl because bucket & key are needed prior to ::new()... utils?
+    let (bucket, key) = AwsS3Storage::get_bucket_and_key_from_s3_url(s3_url.to_string())
+      .await
+      .unwrap();
+
+    let s3_storage = AwsS3Storage::new(
+      bucket.clone(),
+      key.clone(),
+      Region::ApSoutheast2,
+      AwsS3StorageTier::Standard(Retrieval::Immediate),
+    );
+
+    dbg!(s3_storage.url(key, UrlOptions::default()).await.unwrap());
+    // TODO: Assert that the URL is valid https/AWS presigned URL
   }
 }
