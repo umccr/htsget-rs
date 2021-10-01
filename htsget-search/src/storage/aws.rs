@@ -243,4 +243,14 @@ mod tests {
       assert_eq!(res.status(), StatusCode::OK);
       assert_eq!(body, content);
   }
+
+  // #[tokio::test]
+  // async fn local_s3_server_returns_htsget_url() {
+  //   let (root, service) = setup_service().unwrap();
+
+  //   let bucket = "bucket";
+  //   let key = "key";
+  //   let content = "Hello World!";
+
+  // }
 }
