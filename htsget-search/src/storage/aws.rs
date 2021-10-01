@@ -111,6 +111,8 @@ impl AwsS3Storage {
   async fn determine_retrievability() -> Result<AwsS3StorageTier> {
     // 1. S3 head request to object
     // 2. Return status
+    // Similar (Java) code I wrote here: https://github.com/igvteam/igv/blob/master/src/main/java/org/broad/igv/util/AmazonUtils.java#L257
+    // Or with AWS cli with: $ aws s3api head-object --bucket awsexamplebucket --key dir1/example.obj
     unimplemented!();
   }
 }
@@ -194,8 +196,9 @@ mod tests {
       AwsS3StorageTier::Standard(Retrieval::Immediate),
     );
 
-    dbg!(s3_storage.url(key, UrlOptions::default()).await.unwrap());
-    // TODO: Assert that the URL is valid https/AWS presigned URL
+    let htsget_url = s3_storage.url(key, UrlOptions::default()).await.unwrap();
+    //dbg!(&htsget_url);
+    assert!(htsget_url.url.contains("X-Amz-Signature"));
   }
 
   #[tokio::test]
@@ -213,8 +216,9 @@ mod tests {
       AwsS3StorageTier::Standard(Retrieval::Immediate),
     );
 
-    s3_storage.head(s3_url);
-    // TODO: Assert that the the bytes returned by head are expected
+    //let htsget_head = s3_storage.head(s3_url).await.unwrap();
+    //dbg!(htsget_head);
+    //assert!(htsget_head.is_ok());
   }
 
   #[tokio::test]
