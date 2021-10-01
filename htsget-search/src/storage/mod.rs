@@ -9,6 +9,8 @@ pub use async_storage::*;
 #[cfg(feature = "aws")]
 pub mod aws;
 #[cfg(feature = "aws")]
+pub mod s3_testing;
+#[cfg(feature = "aws")]
 use rusoto_core::RusotoError;
 #[cfg(feature = "aws")]
 use rusoto_s3::HeadObjectError;

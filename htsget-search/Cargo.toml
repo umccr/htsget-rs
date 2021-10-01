@@ -13,26 +13,28 @@ aws = ["rusoto_core", "rusoto_s3"]
 [dependencies]
 async-trait = "0.1.50"
 thiserror = "~1.0"
+#[cfg(feature = "aws")]
+anyhow = "1.0.44" # TODO: s3_server requires this, but it should be easily removable?
 tokio = { version = "1.9.0", features = ["full"], optional = true }
 futures = { version = "0.3.16", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
-rusoto_core = { version = "0.47.0", git = "https://github.com/rusoto/rusoto.git", optional = true }
-rusoto_s3 = { version = "0.47.0", git = "https://github.com/rusoto/rusoto.git", optional = true }
 
+# AWS deps
+#[cfg(feature = "aws")]
+s3-server = "0.1.0"
 #aws-sdk-s3 = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.19-alpha", package = "aws-sdk-s3", optional = true }
+#[cfg(feature = "aws")]
+rusoto_core = { version = "0.47.0", git = "https://github.com/rusoto/rusoto.git", optional = true }
+#[cfg(feature = "aws")]
+rusoto_s3 = { version = "0.47.0", git = "https://github.com/rusoto/rusoto.git", optional = true }
+hyper = "0.14.13"
+tracing = "0.1.28"
+tracing-error = "0.1.2"
+tracing-futures = "0.2.5"
+tracing-subscriber = { version = "0.2.18" }
 
-#noodles = { version = "0.5.0", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-#
-#noodles-bgzf = { version = "0.3.0", features = ['async'] }
-#noodles-bam = { version = "0.3.0", features = ['async'] }
-#noodles-bcf = { version = "0.4.0", features = ['async'] }
-#noodles-cram = { version = "0.2.2", features = ['async'] }
-#noodles-csi = { version = "0.2.2", features = ['async'] }
-#noodles-tabix = { version = "0.5.0", features = ['async'] }
-#noodles-vcf = { version = "0.4.0", features = ['async'] }
-
+# Bioinformatics deps
 noodles = { git = "https://github.com/zaeleus/noodles", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-
 noodles-bgzf = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
 noodles-bam = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
 noodles-bcf = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
@@ -43,3 +45,5 @@ noodles-vcf = { git = "https://github.com/zaeleus/noodles", features = ['async']
 
 [dev-dependencies]
 tempfile = "3.2.0"
+#[cfg(feature = "aws")]
+s3-server = "0.1.0"

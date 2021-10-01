@@ -1,6 +1,5 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
-use std::env;
-use std::path::PathBuf;
+use std::path::{ PathBuf };
 
 use async_trait::async_trait;
 use std::convert::TryInto;
@@ -21,8 +20,7 @@ use rusoto_core::{
 use rusoto_s3 as s3;
 use rusoto_s3::{util::PreSignedRequest, HeadObjectRequest, S3Client, S3};
 
-//use super::{GetOptions, Result, Storage, UrlOptions};
-//use super::Result;
+use crate::storage::s3_testing::fs_write_object;
 
 enum Retrieval {
   Immediate,
@@ -148,45 +146,19 @@ impl AsyncStorage for AwsS3Storage {
   }
 }
 
-// Testing
-
-struct TestS3Client {
-  region: Region,
-  s3: S3Client,
-  bucket_name: String,
-  // This flag signifies whether this bucket was already deleted as part of a test
-  bucket_deleted: bool,
-}
-
-// impl TestS3Client {
-//   // construct S3 testing client
-//   fn new(bucket_name: String) -> TestS3Client {
-//       let region = if let Ok(endpoint) = env::var("S3_ENDPOINT") {
-//           let region = Region::Custom {
-//               name: "us-east-1".to_owned(),
-//               endpoint: endpoint.to_owned(),
-//           };
-//           println!(
-//               "picked up non-standard endpoint {:?} from S3_ENDPOINT env. variable",
-//               region
-//           );
-//           region
-//       } else {
-//           Region::UsEast1
-//       };
-
-//       TestS3Client {
-//           region: region.to_owned(),
-//           s3: S3Client::new(region),
-//           bucket_name: bucket_name.to_owned(),
-//           bucket_deleted: false,
-//       }
-//   }
-// }
 
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  use crate::storage::s3_testing::setup_service;
+  use crate::storage::s3_testing::recv_body_string;
+
+  use hyper::{Body, Method, StatusCode};
+  use s3_server::headers::HeaderValue;
+  use s3_server::headers::X_AMZ_CONTENT_SHA256;
+
+  type Request = hyper::Request<hyper::Body>;
 
   #[tokio::test]
   async fn split_s3_url_into_bucket_and_key() {
@@ -243,5 +215,32 @@ mod tests {
 
     s3_storage.head(s3_url);
     // TODO: Assert that the the bytes returned by head are expected
+  }
+
+  #[tokio::test]
+  async fn get_local_s3_server_object() {
+      let (root, service) = setup_service().unwrap();
+
+      let bucket = "asd";
+      let key = "qwe";
+      let content = "Hello World!";
+
+      fs_write_object(root, bucket, key, content).unwrap();
+
+      let mut req = Request::new(Body::empty());
+      *req.method_mut() = Method::GET;
+      *req.uri_mut() = format!("http://localhost/{}/{}", bucket, key)
+          .parse()
+          .unwrap();
+      req.headers_mut().insert(
+          X_AMZ_CONTENT_SHA256.clone(),
+          HeaderValue::from_static("UNSIGNED-PAYLOAD"),
+      );
+
+      let mut res = service.hyper_call(req).await.unwrap();
+      let body = recv_body_string(&mut res).await.unwrap();
+
+      assert_eq!(res.status(), StatusCode::OK);
+      assert_eq!(body, content);
   }
 }
