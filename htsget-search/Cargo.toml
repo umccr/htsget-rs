@@ -11,6 +11,7 @@ async = ["tokio", "futures"]
 aws = ["rusoto_core", "rusoto_s3"]
 
 [dependencies]
+regex = "1"
 async-trait = "0.1.50"
 thiserror = "~1.0"
 #[cfg(feature = "aws")]
