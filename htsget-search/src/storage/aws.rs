@@ -155,7 +155,14 @@ impl AsyncStorage for AwsS3Storage {
   /// Returns the size of the S3 object in bytes.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
-    let client = S3Client::new(Region::default());
+    // TODO: Dynamically determine region via get_region()
+    // TODO: How to introspect for testing/mocking here?
+    // let client = S3Client::new(Region::default());
+    let local_region = Region::Custom {
+      name: "local".to_owned(),
+      endpoint: "http://localhost:8014".to_owned(),
+    };
+    let client = S3Client::new(local_region);
 
     let (bucket, s3key) = AwsS3Storage::get_bucket_and_key_from_s3_url(key.to_string()).await?;
 
