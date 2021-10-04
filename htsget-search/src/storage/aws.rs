@@ -72,8 +72,19 @@ impl AwsS3Storage {
 
   // TODO: Take into account all S3 URL styles...: https://gist.github.com/bh1428/c30b7db493828ece622a6cb38c05362a
   async fn get_bucket_and_key_from_s3_url(s3_url: String) -> Result<(String, String)> {
+    // TODO: Rewrite as match
+    // match s3_url {
+    //  
+    // }
     if s3_url.starts_with("s3://") {
       let re = Regex::new(r"s3://([^/]+)/(.*)").unwrap();
+      let cap = re.captures(&s3_url).unwrap();
+      let bucket = cap[1].to_string();
+      let key = cap[2].to_string();
+
+      Ok((bucket, key))
+    } else if s3_url.starts_with("http://") { // useful for local testing, not for prod
+      let re = Regex::new(r"http://([^/]+)/(.*)").unwrap();
       let cap = re.captures(&s3_url).unwrap();
       let bucket = cap[1].to_string();
       let key = cap[2].to_string();
@@ -159,8 +170,8 @@ impl AsyncStorage for AwsS3Storage {
     // TODO: How to introspect for testing/mocking here?
     // let client = S3Client::new(Region::default());
     let local_region = Region::Custom {
-      name: "local".to_owned(),
       endpoint: "http://localhost:8014".to_owned(),
+      name: "local".to_owned(),
     };
     let client = S3Client::new(local_region);
 
@@ -236,7 +247,7 @@ mod tests {
 
     let mut req = Request::new(Body::empty());
     *req.method_mut() = Method::GET;
-    *req.uri_mut() = format!("http://localhost/{}/{}", bucket, key)
+    *req.uri_mut() = format!("http://localhost:8014/{}/{}", bucket, key)
         .parse()
         .unwrap();
     req.headers_mut().insert(
@@ -248,8 +259,8 @@ mod tests {
     let body = recv_body_string(&mut res).await.unwrap();
 
     let local_region = Region::Custom {
+      endpoint: "http://localhost:8014".to_owned(),
       name: "local".to_owned(),
-      endpoint: "s3://localhost".to_owned(),
     };
 
     let s3_storage = AwsS3Storage::new(
@@ -259,10 +270,11 @@ mod tests {
       AwsS3StorageTier::Standard(Retrieval::Immediate),
     );
 
-    let htsget_head = s3_storage.head(format!("s3://localhost/{}/{}", bucket, key)).await.unwrap();
-    dbg!(htsget_head);
+    let obj_head = format!("http://localhost:8014/{}/{}", bucket, key);
+    dbg!(&obj_head);
+    let htsget_head = s3_storage.head(obj_head).await.unwrap();
 
-    // assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.status(), StatusCode::OK);
     // assert_eq!(body, content);
   }
 
