@@ -290,7 +290,7 @@ mod tests {
 
       let mut req = Request::new(Body::empty());
       *req.method_mut() = Method::GET;
-      *req.uri_mut() = format!("s3://localhost/{}/{}", bucket, key)
+      *req.uri_mut() = format!("http://localhost:8014/{}/{}", bucket, key)
           .parse()
           .unwrap();
       req.headers_mut().insert(
