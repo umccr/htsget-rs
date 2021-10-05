@@ -1,0 +1,34 @@
+[package]
+name = "htsget-http-aws-lambda"
+version = "0.1.0"
+authors = ["Roman Valls Guimera <brainstorm@nopcode.org>"]
+edition = "2018"
+
+[dependencies]
+bytes = "1.0.1"
+jemallocator = "0.3.0"
+url = "2.1.1"
+serde = "^1"
+serde_derive = "^1"
+serde_json = "^1"
+lambda_runtime = { version = "0.4.1" }
+aws-sdk-s3 = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.19-alpha" }
+tracing-subscriber = "0.2.18"
+
+tokio = { version = "1.12.0" }
+
+htsget-http-core = { path = "../htsget-http-core" }
+htsget-search = { path = "../htsget-search" }
+htsget-id-resolver = { path = "../htsget-id-resolver" }
+
+[dev-dependencies]
+s3-server = "0.1.0"
+
+[[ bin ]]
+name = "bootstrap"
+path = "src/main.rs"
+
+#[profile.release]
+#lto = true
+#opt-level = 'z'
+#codegen-units = 1

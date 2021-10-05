@@ -4,5 +4,7 @@ members = [
     "htsget-http-core",
     "htsget-http-actix",
     "htsget-devtools",
-    "htsget-id-resolver"
+    "htsget-id-resolver",
+    #[cfg(feature = "aws")]
+    "htsget-http-aws-lambda"
 ]
