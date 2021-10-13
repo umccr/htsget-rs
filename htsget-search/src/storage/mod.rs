@@ -10,10 +10,6 @@ pub use async_storage::*;
 pub mod aws;
 #[cfg(feature = "aws")]
 pub mod s3_testing;
-#[cfg(feature = "aws")]
-use rusoto_core::RusotoError;
-#[cfg(feature = "aws")]
-use rusoto_s3::HeadObjectError;
 
 use crate::htsget::Class;
 
@@ -35,12 +31,12 @@ pub enum StorageError {
   #[error("Not found: {0}")]
   NotFound(String),
 
-  #[cfg(feature = "aws")]
-  #[error("AwsError")]
-  AwsError {
-    #[from]
-    source: RusotoError<HeadObjectError>,
-  },
+  // #[cfg(feature = "aws")]
+  // #[error("AwsError")]
+  // AwsError {
+  //   #[from]
+  //   source: StorageError,
+  // },
 }
 
 #[derive(Debug, Clone, PartialEq)]
