@@ -130,6 +130,9 @@ impl AwsS3Storage {
   }
 }
 
+// TODO: Determine if all three trait methods require Retrievavility testing before
+// reaching out to actual S3 objects or just the "head" operation.
+// i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
 #[async_trait]
 impl AsyncStorage for AwsS3Storage {
   /// Returns the S3 url (s3://bucket/key) for the given path (key).
