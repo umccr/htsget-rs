@@ -1,32 +1,26 @@
-use htsget_http_core::get_service_info_json as get_base_service_info_json;
-use htsget_http_core::Endpoint;
-use htsget_search::htsget::HtsGet;
+use lambda_runtime::{ Context, Error };
+use lambda_http::{ Body, Request, Response, IntoResponse };
 
-use crate::handlers::fill_out_service_info_json;
-use crate::handlers::pretty_json::PrettyJson;
-use crate::AsyncAppState;
+// use htsget_http_core::Endpoint;
+// use htsget_search::htsget::HtsGet;
 
-/// Gets the JSON to return for a service-info endpoint
-pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
-  app_state: &AsyncAppState<H>,
-  endpoint: Endpoint,
-) -> impl Responder {
-  PrettyJson(fill_out_service_info_json(
-    get_base_service_info_json(endpoint, app_state.htsget.clone()),
-    &app_state.config,
-  ))
-}
+pub async fn handle_lambda_request(req: Request, _: Context) -> Result<impl IntoResponse, Error> {
+    // TODO: Route logic here for the different endpoints
+    // /reads/{service-info}
+    // /variants/{service-info}
+    // Handle routes here perhaps? Using "path parameters" in lambda_http:
+    // https://github.com/awslabs/aws-lambda-rust-runtime/blob/master/lambda-http/src/ext.rs#L10
 
-/// Gets the JSON to return for the reads service-info endpoint
-pub async fn reads_service_info<H: HtsGet + Send + Sync + 'static>(
-  app_state: Data<AsyncAppState<H>>,
-) -> impl Responder {
-  get_service_info_json(app_state.get_ref(), Endpoint::Reads)
-}
+    let path = req.uri().path();
+    //let method = *req.method();
 
-/// Gets the JSON to return for the variants service-info endpoint
-pub async fn variants_service_info<H: HtsGet + Send + Sync + 'static>(
-  app_state: Data<AsyncAppState<H>>,
-) -> impl Responder {
-  get_service_info_json(app_state.get_ref(), Endpoint::Variants)
+    match Some(path) {
+      Some("/reads") => unimplemented!(),
+      Some("/variants") => unimplemented!(),
+      _ => Ok(Response::builder()
+            .status(400)
+            .body(Body::from("Error".to_string()))
+            .expect("htsget error")
+          )  
+    }
 }

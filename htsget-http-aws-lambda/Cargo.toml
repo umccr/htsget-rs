@@ -5,12 +5,14 @@ authors = ["Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2018"
 
 [dependencies]
+envy = "0.4.2"
 bytes = "1.0.1"
 jemallocator = "0.3.0"
 url = "2.1.1"
 serde = "^1"
 serde_derive = "^1"
 serde_json = "^1"
+lambda_http = { version = "0.4.1" }
 lambda_runtime = { version = "0.4.1" }
 aws-sdk-s3 = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.19-alpha" }
 tracing-subscriber = "0.2.18"
