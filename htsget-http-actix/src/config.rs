@@ -45,4 +45,5 @@ pub struct Config {
   pub htsget_created_at: Option<String>,
   pub htsget_updated_at: Option<String>,
   pub htsget_environment: Option<String>,
+  pub htsget_s3_bucket: Option<String>,
 }

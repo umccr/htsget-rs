@@ -6,20 +6,16 @@ use thiserror::Error;
 
 #[cfg(feature = "async")]
 pub use async_storage::*;
-#[cfg(feature = "aws")]
-pub mod aws;
-#[cfg(feature = "aws")]
-pub mod s3_testing;
 
 use crate::htsget::Class;
 
 #[cfg(feature = "async")]
 pub mod async_storage;
+#[cfg(feature = "aws")]
+pub mod aws;
 pub mod blocking;
 #[cfg(feature = "async")]
 pub mod local;
-// #[cfg(feature = "aws")]
-// pub mod aws;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
@@ -30,7 +26,6 @@ pub enum StorageError {
 
   #[error("Not found: {0}")]
   NotFound(String),
-
   // #[cfg(feature = "aws")]
   // #[error("AwsError")]
   // AwsError {
