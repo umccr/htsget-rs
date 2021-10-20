@@ -11,7 +11,7 @@ use crate::AsyncAppState;
 /// Gets the JSON to return for the reads service-info endpoint
 pub async fn reads_service_info<H: HtsGet + Send + Sync + 'static>(
   app_state: Data<AsyncAppState<H>>,
-) -> IntoResponse {
+) -> dyn IntoResponse {
   get_service_info_json(app_state.get_ref(), Endpoint::Reads)
 }
 /// Gets the JSON to return for a service-info endpoint
@@ -48,7 +48,7 @@ pub async fn lambda_request(req: Request, _: Context) -> Result<impl IntoRespons
   
     match Some(path) {
       Some("/reads") => { 
-          Ok(reads_service_info(app_data).await?)
+          Ok(reads_service_info(app_data).await)
           },
       Some("/variants") => unimplemented!(),
       _ => Ok(Response::builder()
