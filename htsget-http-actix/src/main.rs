@@ -2,6 +2,7 @@ use std::env::args;
 
 #[cfg(feature = "async")]
 use std::sync::Arc;
+use color_backtrace;
 
 use actix_web::{web, App, HttpServer};
 
@@ -33,6 +34,8 @@ use htsget_http_actix::USAGE;
 #[cfg(feature = "async")]
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+  color_backtrace::install();
+
   if args().len() > 1 {
     // Show help if command line options are provided
     println!("{}", USAGE);
