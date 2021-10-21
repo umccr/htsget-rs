@@ -16,9 +16,12 @@ async-trait = "0.1.50"
 thiserror = "~1.0"
 #[cfg(feature = "aws")]
 anyhow = "1.0.44" # TODO: s3_server requires this, but it should be easily removable?
-tokio = { version = "1.9.0", features = ["full"], optional = true }
+tokio = { version = "1.12.0", features = ["full"], optional = true }
+tokio-util = { version = "0.6.8", features = ["compat"] }
 futures = { version = "0.3.16", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
+log = "0.4"
+reqwest = { version = "0.11", features = ["stream"] }
 
 # AWS deps
 #[cfg(feature = "aws")]

@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
-use futures::StreamExt;
+use futures::{AsyncRead, StreamExt};
 use noodles::bam::record::ReferenceSequenceId;
 use noodles::cram;
 use noodles::cram::crai::{Index, Record};
@@ -117,8 +117,8 @@ where
       reader.read_file_header().await
     })
   };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { crai::r#async::read(path).await });
+  const INDEX_FN: fn(PathBuf, bytes::Bytes) -> AsyncIndexResult<'static, Index> =
+    |path, stream| Box::pin(async move { crai::r#async::read(path).await });
 
   async fn get_byte_ranges_for_reference_name(
     &self,

@@ -7,14 +7,16 @@ use aws_config;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::input::GetObjectInput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
-use aws_sdk_s3::{Client, Config, Region};
+use aws_sdk_s3::{Client as S3Client, Config, Region};
+use bytes::Bytes;
+use futures::{AsyncRead, TryStreamExt, TryFutureExt};
 use regex::Regex;
-
+use tokio_util::compat::FuturesAsyncReadCompatExt;
 use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;
 use crate::storage::aws::s3_url::parse_s3_url;
 use crate::storage::StorageError::InvalidKey;
-
+use log::{trace};
 use super::{GetOptions, Result, UrlOptions};
 
 mod s3_testing_helper;
@@ -37,16 +39,16 @@ enum AwsS3StorageTier {
 
 /// Implementation for the [Storage] trait utilising data from an S3 bucket.
 pub struct AwsS3Storage {
-  client: Client,
+  client: S3Client,
   bucket: String,
 }
 
 impl AwsS3Storage {
-  pub fn new(client: Client, bucket: String) -> Self {
+  pub fn new(client: S3Client, bucket: String) -> Self {
     AwsS3Storage { client, bucket }
   }
 
-  async fn s3_presign_url(client: Client, bucket: String, key: String) -> Result<String> {
+  async fn s3_presign_url(client: S3Client, bucket: String, key: String) -> Result<String> {
     let expires_in = Duration::from_secs(900);
 
     let region_provider = RegionProviderChain::first_try("ap-southeast-2")
@@ -78,7 +80,7 @@ impl AwsS3Storage {
     Ok(presigned_request.unwrap().uri().to_string())
   }
 
-  async fn s3_head(client: Client, bucket: String, key: String) -> Result<u64> {
+  async fn s3_head(client: S3Client, bucket: String, key: String) -> Result<u64> {
     let content_length = client
       .head_object()
       .bucket(bucket)
@@ -106,12 +108,48 @@ impl AwsS3Storage {
 // i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
 #[async_trait]
 impl AsyncStorage for AwsS3Storage {
+
+  async fn stream_from<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Box<dyn tokio::io::AsyncRead>> {
+    let s3path = PathBuf::from(&self.bucket).join(key.as_ref());
+
+    let response = reqwest::get("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/gambian_genome_variation_project/release/20200217_biallelic_SNV/ALL_GGVP.chr20.shapeit2_integrated_snvindels_v1b_20200120.GRCh38.phased.vcf.gz.tbi")
+      .await?
+      .error_for_status()?;
+
+    let response_stream = response.bytes_stream();
+
+    let response_reader = response_stream
+      .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+      .into_async_read();
+
+    // Convert the futures::io::AsyncRead into a tokio::io::AsyncRead.
+    let mut download = response_reader.compat();
+
+    Ok(Box::new(download))
+  }
+
+  async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
+    let k = key.as_ref().clone();
+    let content_response = self.client
+      .get_object()
+      .bucket(&self.bucket)
+      .key(k)
+      .send()
+      .await
+      .unwrap();
+
+    let content = content_response
+      .body
+      .collect().await.unwrap().into_bytes();
+
+    trace!("Key {} resulted in {} bytes of content", k, content.len());
+
+    Ok(content)
+  }
+
   /// Returns the S3 url (s3://bucket/key) for the given path (key).
   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
-    let key: &str = key.as_ref();
-    let (bucket, s3key, _) = parse_s3_url(key)?;
-
-    let s3path = PathBuf::from(bucket).join(s3key);
+    let s3path = PathBuf::from(&self.bucket).join(key.as_ref());
 
     Ok(s3path)
   }
@@ -124,7 +162,7 @@ impl AsyncStorage for AwsS3Storage {
 
     let shared_config = aws_config::from_env().region(region_provider).load().await;
 
-    let client = Client::new(&shared_config);
+    let client = S3Client::new(&shared_config);
 
     let presigned_url =
       AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
@@ -141,7 +179,7 @@ impl AsyncStorage for AwsS3Storage {
     let shared_config = aws_config::from_env().region(region_provider).load().await;
 
     let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
-    let client = Client::new(&shared_config);
+    let client = S3Client::new(&shared_config);
 
     let (bucket, s3key, _) = parse_s3_url(key)?;
 
@@ -165,14 +203,14 @@ mod tests {
 
   type Request = hyper::Request<hyper::Body>;
 
-  async fn aws_s3_client() -> Client {
+  async fn aws_s3_client() -> S3Client {
     let region_provider = RegionProviderChain::first_try("ap-southeast-2")
       .or_default_provider()
       .or_else(Region::new("us-east-1"));
 
     let shared_config = aws_config::from_env().region(region_provider).load().await;
 
-    Client::new(&shared_config)
+    S3Client::new(&shared_config)
   }
 
   #[tokio::test]

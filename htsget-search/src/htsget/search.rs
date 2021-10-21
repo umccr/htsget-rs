@@ -13,15 +13,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::stream::FuturesUnordered;
-use futures::StreamExt;
+use futures::{AsyncRead, StreamExt};
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::merge_chunks;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
-use noodles::sam;
+use noodles::{sam, tabix};
 use tokio::fs::File;
 use tokio::io;
 use tokio::select;
 use tokio::task::JoinHandle;
+use log::{trace, debug};
 
 use crate::storage::GetOptions;
 use crate::{
@@ -170,7 +171,7 @@ where
 
   const READER_FN: fn(File) -> Reader;
   const HEADER_FN: fn(&'_ mut Reader) -> AsyncHeaderResult;
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index>;
+  const INDEX_FN: fn(PathBuf, bytes::Bytes) -> AsyncIndexResult<'static, Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -196,7 +197,11 @@ where
   /// Read the index from the key.
   async fn read_index(&self, key: &str) -> Result<Index> {
     let path = self.get_storage().get(&key, GetOptions::default()).await?;
-    Self::INDEX_FN(path)
+    // ask the storage engine to get the entire content of the index - under the premise that indexes
+    // are 'small'
+    let bytes = self.get_storage().get_content(&key, GetOptions::default()).await?;
+
+    Self::INDEX_FN(path, bytes)
       .await
       .map_err(|_| HtsGetError::io_error(format!("Reading {} index file", self.get_format())))
   }
@@ -204,6 +209,8 @@ where
   /// Search based on the query.
   async fn search(&self, query: Query) -> Result<Response> {
     let (file_key, index_key) = self.get_keys_from_id(query.id.as_str());
+
+    debug!("Derived keys {} and {} from id", file_key, index_key);
 
     match query.class {
       Class::Body => {
@@ -242,6 +249,8 @@ where
     key: String,
     byte_ranges: Vec<BytesRange>,
   ) -> Result<Response> {
+    debug!("Building response {}", key);
+
     let mut storage_futures = FuturesUnordered::new();
     for range in byte_ranges {
       let options = UrlOptions::default()
@@ -269,6 +278,7 @@ where
   where
     U: Into<String> + Send,
   {
+    debug!("Making reader for for {}", key);
     let get_options = GetOptions::default();
     let path = storage.get(key, get_options).await?;
 
@@ -280,6 +290,7 @@ where
 
   /// Get the reader and header using the key.
   async fn create_reader(&self, key: &str) -> Result<(Reader, Header)> {
+    debug!("Trying create_reader for {}", key);
     let mut reader = Self::reader(
       key,
       format!("Reading {}", self.get_format()),
@@ -384,7 +395,10 @@ where
   T: BgzfSearch<S, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
+    debug!("Getting total byte range for {}", key);
+
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
+
     for ref_sequences in index.reference_sequences() {
       if let Some(metadata) = ref_sequences.metadata() {
         let storage = self.get_storage();

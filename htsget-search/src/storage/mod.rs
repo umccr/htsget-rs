@@ -19,19 +19,20 @@ pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
-#[derive(Error, PartialEq, Debug)]
+#[derive(Error, Debug)]
 pub enum StorageError {
   #[error("Invalid key: {0}")]
   InvalidKey(String),
 
   #[error("Not found: {0}")]
   NotFound(String),
-  // #[cfg(feature = "aws")]
-  // #[error("AwsError")]
-  // AwsError {
-  //   #[from]
-  //   source: StorageError,
-  // },
+
+  #[cfg(feature = "aws")]
+  #[error("AwsError")]
+  AwsError {
+     #[from]
+     source: reqwest::Error
+  },
 }
 
 #[derive(Debug, Clone, PartialEq)]

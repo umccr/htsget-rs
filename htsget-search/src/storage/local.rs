@@ -4,6 +4,8 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
+use bytes::Bytes;
+use futures::AsyncRead;
 
 use crate::htsget::Url;
 use crate::storage;
@@ -14,6 +16,14 @@ use super::{GetOptions, Result, StorageError, UrlOptions};
 
 #[async_trait]
 impl AsyncStorage for LocalStorage {
+  async fn stream_from<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Box<dyn tokio::io::AsyncRead>> {
+    todo!()
+  }
+
+  async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
+    todo!()
+  }
+
   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
     self.get_path_from_key(key)
   }

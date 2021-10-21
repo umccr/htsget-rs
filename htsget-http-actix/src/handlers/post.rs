@@ -13,9 +13,10 @@ use super::handle_response;
 /// POST request reads endpoint
 pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   request: Json<PostRequest>,
-  Path(id): Path<String>,
+  path: Path<String>,
   app_state: Data<AsyncAppState<H>>,
 ) -> impl Responder {
+  let (id) = path.into_inner();
   handle_response(
     get_response_for_post_request(
       app_state.get_ref().htsget.clone(),
@@ -30,9 +31,10 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 /// POST request variants endpoint
 pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   request: Json<PostRequest>,
-  Path(id): Path<String>,
+  path: Path<String>,
   app_state: Data<AsyncAppState<H>>,
 ) -> impl Responder {
+  let (id) = path.into_inner();
   handle_response(
     get_response_for_post_request(
       app_state.get_ref().htsget.clone(),

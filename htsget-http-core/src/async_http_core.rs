@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use log::{trace};
 
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -22,10 +23,12 @@ pub async fn get_response_for_get_request(
 ) -> Result<JsonResponse> {
   match_endpoints_get_request(&endpoint, &mut query_information)?;
   let query = convert_to_query(&query_information)?;
-  searcher
+  let search_result =   searcher
     .search(query)
-    .await
-    .map_err(|error| error.into())
+    .await;
+
+  trace!("{:?}", search_result);
+  search_result.map_err(|error| error.into())
     .map(JsonResponse::from_response)
 }
 

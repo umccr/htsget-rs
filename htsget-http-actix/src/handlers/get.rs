@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use log::{info, trace, warn};
 
 use actix_web::{
   web::{Data, Path, Query},
@@ -15,9 +16,10 @@ use super::handle_response;
 /// GET request reads endpoint
 pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
-  Path(id): Path<String>,
+  path: Path<String>,
   app_state: Data<AsyncAppState<H>>,
 ) -> impl Responder {
+  let (id) = path.into_inner();
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), id);
   handle_response(
@@ -33,14 +35,18 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 /// GET request variants endpoint
 pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
-  Path(id): Path<String>,
+  path: Path<String>,
   app_state: Data<AsyncAppState<H>>,
 ) -> impl Responder {
+  let (id) = path.into_inner();
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), id);
+
+  let app_data = app_state.get_ref().htsget.clone();
+
   handle_response(
     get_response_for_get_request(
-      app_state.get_ref().htsget.clone(),
+      app_data,
       query_information,
       Endpoint::Variants,
     )

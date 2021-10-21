@@ -1,11 +1,13 @@
 //! Module providing the search capability using VCF files
 //!
-
+use log::{trace};
+use reqwest;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::AsyncRead;
 use futures::prelude::stream::FuturesUnordered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
@@ -17,9 +19,7 @@ use noodles::vcf::AsyncReader;
 use noodles::vcf::Header;
 use tokio::fs::File;
 
-use crate::htsget::search::{
-  find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search,
-};
+use crate::htsget::search::{find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search, SearchAll};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{AsyncStorage, BytesRange},
@@ -69,8 +69,10 @@ where
     |file| vcf::AsyncReader::new(bgzf::AsyncReader::new(file));
   const HEADER_FN: fn(&'_ mut AsyncReader<bgzf::AsyncReader<File>>) -> AsyncHeaderResult =
     |reader| Box::pin(async move { reader.read_header().await });
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { tabix::r#async::read(path).await });
+  const INDEX_FN: fn(PathBuf, bytes::Bytes) -> AsyncIndexResult<'static, Index> =
+    |path, bytes| Box::pin(async move {
+      tabix::AsyncReader::new(bytes.as_ref()).read_index().await
+    });
 
   async fn get_byte_ranges_for_reference_name(
     &self,

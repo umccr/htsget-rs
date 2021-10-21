@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::AsyncRead;
 use futures::prelude::stream::FuturesUnordered;
 use noodles::bcf;
 use noodles::bcf::AsyncReader;
@@ -68,8 +69,8 @@ where
       reader.read_header().await
     })
   };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { csi::r#async::read(path).await });
+  const INDEX_FN: fn(PathBuf, bytes::Bytes) -> AsyncIndexResult<'static, Index> =
+    |path, stream| Box::pin(async move { csi::r#async::read(path).await });
 
   async fn get_byte_ranges_for_reference_name(
     &self,
