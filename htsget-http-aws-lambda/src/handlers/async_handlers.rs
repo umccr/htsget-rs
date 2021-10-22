@@ -1,20 +1,25 @@
 use std::sync::Arc;
+use super::Config;
 
 use lambda_runtime::{ Context, Error };
-use lambda_http::{ Body, Request, Response, IntoResponse };
+use lambda_http::{ Request, Response, IntoResponse };
 
 use htsget_search::htsget::HtsGet;
 use htsget_http_core::Endpoint;
 use htsget_http_core::get_service_info_json as get_base_service_info_json;
+use htsget_id_resolver::RegexResolver;
+
+use crate::handlers::PrettyJson;
 
 use crate::handlers::fill_out_service_info_json;
 use crate::AsyncAppState;
+use crate::AsyncHtsGetStorage;
 
 /// Gets the JSON to return for the reads service-info endpoint
 pub async fn reads_service_info<H: HtsGet + Send + Sync + 'static>(
-  app_state: Data<AsyncAppState<H>>,
+  app_state: AsyncAppState<H>,
 ) -> Response<H> {
-  get_service_info_json(app_state.get_ref(), Endpoint::Reads)
+  get_service_info_json(&app_state, Endpoint::Reads)
 }
 
 /// Gets the JSON to return for a service-info endpoint
@@ -41,7 +46,7 @@ pub async fn lambda_request(req: Request, _: Context) -> Result<impl IntoRespons
     
     // HtsGet config
     let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
-    let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
+    let address = format!("{}:{}", "todo_api_gatewayv2_endpoint", config.htsget_port);
     let htsget_path = config.htsget_path.clone();
     let regex_match = config.htsget_regex_match.clone();
     let regex_substitution = config.htsget_regex_substitution.clone();
