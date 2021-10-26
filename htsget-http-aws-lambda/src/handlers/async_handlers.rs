@@ -1,9 +1,7 @@
 use std::sync::Arc;
 use super::Config;
 
-use serde_json::Value;
-
-use htsget_search::htsget::Response as HtsGetResponse;
+use htsget_http_core::ServiceInfo;
 use lambda_runtime::{ Context, Error };
 use lambda_http::{ Request, Response, IntoResponse };
 
@@ -19,22 +17,22 @@ use crate::AsyncHtsGetStorage;
 /// Gets the JSON to return for the reads service-info endpoint
 pub async fn reads_service_info<H: HtsGet + Send + Sync + 'static>(
   app_state: AsyncAppState<H>,
-) -> Response<H> {
-  get_service_info_json(&app_state, Endpoint::Reads)
+) -> Response<H> where lambda_http::Body: From<H> {
+  get_service_info_json(&app_state, Endpoint::Reads).into() // TODO: Implement standard SerDe instead of PrettyJSON
 }
 
 /// Gets the JSON to return for a service-info endpoint
-pub fn get_service_info_json<H: IntoResponse>(
+pub fn get_service_info_json<H: IntoResponse + HtsGet + Send + Sync + 'static>(
   app_state: &AsyncAppState<H>,
   endpoint: Endpoint,
-) -> HtsGetResponse where H: HtsGet + Sync + Send {
+) -> ServiceInfo {
   fill_out_service_info_json(
     get_base_service_info_json(endpoint, app_state.htsget.clone()),
     &app_state.config,
-  ).into_response()
+  )
 }
 
-pub async fn lambda_request(req: Request, _: Context) -> Result<Response<T>, Error> {
+pub async fn lambda_request<T>(req: Request, _: Context) -> Result<T, Error> where T: IntoResponse {
     // TODO: Route logic here for the different endpoints
     // /reads/{service-info}
     // /variants/{service-info}
@@ -65,9 +63,9 @@ pub async fn lambda_request(req: Request, _: Context) -> Result<Response<T>, Err
   
     match Some(path) {
       Some("/reads") => {
-          Ok(Response::builder()
+          Response::builder()
             .status(200)
-            .body(reads_service_info(app_data).await))
+            .body(reads_service_info(app_data).await)
           },
       Some("/variants") => unimplemented!(),
       // _ => Ok(Ok(Response::builder()
