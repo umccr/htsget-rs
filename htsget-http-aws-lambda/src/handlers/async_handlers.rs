@@ -3,7 +3,7 @@ use super::Config;
 
 use htsget_http_core::ServiceInfo;
 use lambda_runtime::{ Context, Error };
-use lambda_http::{ Request, Response, IntoResponse };
+use lambda_http::{ Body, Request, Response, IntoResponse };
 
 use htsget_search::htsget::HtsGet;
 use htsget_http_core::Endpoint;
@@ -14,25 +14,44 @@ use crate::handlers::fill_out_service_info_json;
 use crate::AsyncAppState;
 use crate::AsyncHtsGetStorage;
 
+// ServiceInfo wrapper "newtype" for From/IntoResponse
+struct ServiceInfoLambdaResponse {
+  inner: ServiceInfo,
+}
+
+impl From<ServiceInfoLambdaResponse> for Response<ServiceInfo> {
+  fn from(inner: ServiceInfoLambdaResponse) -> Self {
+    Response::builder()
+      .status(200)
+      .body(inner.inner)
+      .unwrap()
+  }
+}
+
+// impl From<T> for Body where T: IntoResponse {
+//   fn from(inner: ServiceInfoLambdaResponse) -> Body {
+//     Body::from(inner.inner)
+//   }
+// }
+
 /// Gets the JSON to return for the reads service-info endpoint
 pub async fn reads_service_info<H: HtsGet + Send + Sync + 'static>(
   app_state: AsyncAppState<H>,
-) -> Response<H> where lambda_http::Body: From<H> {
-  get_service_info_json(&app_state, Endpoint::Reads).into() // TODO: Implement standard SerDe instead of PrettyJSON
+) -> ServiceInfoLambdaResponse {
+  get_service_info_json(&app_state, Endpoint::Reads)
 }
 
 /// Gets the JSON to return for a service-info endpoint
 pub fn get_service_info_json<H: IntoResponse + HtsGet + Send + Sync + 'static>(
   app_state: &AsyncAppState<H>,
   endpoint: Endpoint,
-) -> ServiceInfo {
-  fill_out_service_info_json(
-    get_base_service_info_json(endpoint, app_state.htsget.clone()),
-    &app_state.config,
-  )
+) -> ServiceInfoLambdaResponse {
+  let service_info = get_base_service_info_json(endpoint, app_state.htsget);
+  let res = fill_out_service_info_json(service_info, &app_state.config);
+  ServiceInfoLambdaResponse { inner: res }
 }
 
-pub async fn lambda_request<T>(req: Request, _: Context) -> Result<T, Error> where T: IntoResponse {
+pub async fn lambda_request(req: Request, _: Context) -> Result<Body, Error> {
     // TODO: Route logic here for the different endpoints
     // /reads/{service-info}
     // /variants/{service-info}
@@ -65,7 +84,7 @@ pub async fn lambda_request<T>(req: Request, _: Context) -> Result<T, Error> whe
       Some("/reads") => {
           Response::builder()
             .status(200)
-            .body(reads_service_info(app_data).await)
+            .body(reads_service_info(app_data)
           },
       Some("/variants") => unimplemented!(),
       // _ => Ok(Ok(Response::builder()
