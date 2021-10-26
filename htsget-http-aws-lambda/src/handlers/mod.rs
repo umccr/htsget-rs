@@ -1,7 +1,4 @@
 pub mod async_handlers;
-pub mod pretty_json;
-
-use pretty_json::PrettyJson;
 
 use htsget_http_core::{ServiceInfo};
 

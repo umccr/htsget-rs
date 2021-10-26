@@ -1,6 +1,9 @@
 use std::sync::Arc;
 use super::Config;
 
+use serde_json::Value;
+
+use htsget_search::htsget::Response as HtsGetResponse;
 use lambda_runtime::{ Context, Error };
 use lambda_http::{ Request, Response, IntoResponse };
 
@@ -8,8 +11,6 @@ use htsget_search::htsget::HtsGet;
 use htsget_http_core::Endpoint;
 use htsget_http_core::get_service_info_json as get_base_service_info_json;
 use htsget_id_resolver::RegexResolver;
-
-use crate::handlers::PrettyJson;
 
 use crate::handlers::fill_out_service_info_json;
 use crate::AsyncAppState;
@@ -23,17 +24,17 @@ pub async fn reads_service_info<H: HtsGet + Send + Sync + 'static>(
 }
 
 /// Gets the JSON to return for a service-info endpoint
-pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
+pub fn get_service_info_json<H: IntoResponse>(
   app_state: &AsyncAppState<H>,
   endpoint: Endpoint,
-) -> Response<H> {
-  PrettyJson(fill_out_service_info_json(
+) -> HtsGetResponse where H: HtsGet + Sync + Send {
+  fill_out_service_info_json(
     get_base_service_info_json(endpoint, app_state.htsget.clone()),
     &app_state.config,
-  ))
+  ).into_response()
 }
 
-pub async fn lambda_request(req: Request, _: Context) -> Result<impl IntoResponse, Error> {
+pub async fn lambda_request(req: Request, _: Context) -> Result<Response<T>, Error> {
     // TODO: Route logic here for the different endpoints
     // /reads/{service-info}
     // /variants/{service-info}
