@@ -2,7 +2,6 @@ use std::env::args;
 
 #[cfg(feature = "async")]
 use std::sync::Arc;
-use color_backtrace;
 
 use actix_web::{web, App, HttpServer};
 
@@ -48,7 +47,7 @@ async fn main() -> std::io::Result<()> {
   let regex_substitution = config.htsget_regex_substitution.clone();
   HttpServer::new(move || {
     App::new()
-      .data(AsyncAppState {
+      .app_data(web::Data::new(AsyncAppState {
         htsget: Arc::new(AsyncHtsGetStorage::new(
           LocalStorage::new(
             htsget_path.clone(),
@@ -57,7 +56,7 @@ async fn main() -> std::io::Result<()> {
           .expect("Couldn't create a Storage with the provided path"),
         )),
         config: config.clone(),
-      })
+      }))
       .service(
         web::scope("/reads")
           .route(

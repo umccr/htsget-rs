@@ -23,11 +23,11 @@ use crate::AppState;
 #[cfg(not(feature = "async"))]
 pub async fn reads<H: HtsGet>(
   request: Query<HashMap<String, String>>,
-  Path(id): Path<String>,
+  path: Path<String>,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
   let mut query_information = request.into_inner();
-  query_information.insert("id".to_string(), id);
+  query_information.insert("id".to_string(), path.into_inner());
   handle_response(get_response_for_get_request(
     &app_state.get_ref().htsget,
     query_information,
@@ -39,11 +39,11 @@ pub async fn reads<H: HtsGet>(
 #[cfg(not(feature = "async"))]
 pub async fn variants<H: HtsGet>(
   request: Query<HashMap<String, String>>,
-  Path(id): Path<String>,
+  path: Path<String>,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
   let mut query_information = request.into_inner();
-  query_information.insert("id".to_string(), id);
+  query_information.insert("id".to_string(), path.into_inner());
   handle_response(get_response_for_get_request(
     &app_state.get_ref().htsget,
     query_information,
