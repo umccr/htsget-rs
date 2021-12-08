@@ -41,6 +41,7 @@ The next variables are used to configure the info for the service-info endpoints
 
 #[cfg(feature = "async")]
 pub type AsyncHtsGetStorage = HtsGetFromStorage<LocalStorage>;
+#[cfg(not(feature = "async"))]
 pub type HtsGetStorage = HtsGetFromStorage<LocalStorage>;
 
 #[cfg(feature = "async")]

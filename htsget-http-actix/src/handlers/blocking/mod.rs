@@ -13,16 +13,12 @@ use crate::handlers::fill_out_service_info_json;
 #[cfg(not(feature = "async"))]
 use crate::handlers::pretty_json::PrettyJson;
 #[cfg(not(feature = "async"))]
+use crate::AppState;
+#[cfg(not(feature = "async"))]
 use crate::Config;
 
 pub mod get;
 pub mod post;
-
-#[cfg(not(feature = "async"))]
-pub struct AppState<H: HtsGet> {
-  pub htsget: H,
-  pub config: Config,
-}
 
 /// Gets the JSON to return for a service-info endpoint
 #[cfg(not(feature = "async"))]

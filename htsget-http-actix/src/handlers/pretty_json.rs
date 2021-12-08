@@ -12,7 +12,7 @@ impl<T: Serialize> Responder for PrettyJson<T> {
     body.push('\n');
 
     HttpResponse::build(StatusCode::OK)
-        .content_type("application/json")
-        .body(body)
+      .content_type("application/json")
+      .body(body)
   }
 }
