@@ -14,8 +14,6 @@ use crate::handlers::fill_out_service_info_json;
 use crate::handlers::pretty_json::PrettyJson;
 #[cfg(not(feature = "async"))]
 use crate::AppState;
-#[cfg(not(feature = "async"))]
-use crate::Config;
 
 pub mod get;
 pub mod post;
