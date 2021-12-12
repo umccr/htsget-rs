@@ -9,6 +9,7 @@ pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 #[cfg(feature = "async")]
 pub use service_info::get_service_info_json;
+pub use service_info::get_service_info_with;
 pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
 
 #[cfg(feature = "async")]

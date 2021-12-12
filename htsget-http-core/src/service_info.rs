@@ -7,7 +7,7 @@ use htsget_search::htsget::{Format, HtsGet};
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
 
 /// A struct representing the information that should be present in a service-info response
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ServiceInfo {
   pub id: String,
   pub name: String,
@@ -29,20 +29,20 @@ pub struct ServiceInfo {
   pub environment: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ServiceInfoOrganization {
   pub name: String,
   pub url: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ServiceInfoType {
   pub group: String,
   pub artifact: String,
   pub version: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ServiceInfoHtsget {
   pub datatype: String,
   pub formats: Vec<String>,

@@ -26,7 +26,7 @@ pub enum StorageError {
   NotFound(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
@@ -116,15 +116,7 @@ impl BytesRange {
   }
 }
 
-impl Default for BytesRange {
-  fn default() -> Self {
-    Self {
-      start: None,
-      end: None,
-    }
-  }
-}
-
+#[derive(Default)]
 pub struct GetOptions {
   range: BytesRange,
 }
@@ -138,14 +130,6 @@ impl GetOptions {
   pub fn with_range(mut self, range: BytesRange) -> Self {
     self.range = range;
     self
-  }
-}
-
-impl Default for GetOptions {
-  fn default() -> Self {
-    Self {
-      range: BytesRange::default(),
-    }
   }
 }
 

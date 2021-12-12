@@ -22,10 +22,17 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: fmt
+
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
+      - name: Run cargo clippy with no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --no-default-features
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:

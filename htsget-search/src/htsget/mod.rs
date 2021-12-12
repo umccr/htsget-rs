@@ -243,7 +243,7 @@ pub enum Tags {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
@@ -266,12 +266,6 @@ impl Headers {
 
   pub fn get_inner(self) -> HashMap<String, String> {
     self.0
-  }
-}
-
-impl Default for Headers {
-  fn default() -> Self {
-    Self(HashMap::new())
   }
 }
 

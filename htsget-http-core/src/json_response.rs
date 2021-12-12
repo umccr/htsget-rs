@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use htsget_search::htsget::{Class, Format, Response, Url};
 
 /// A helper struct to convert [Responses](Response) to JSON. It implements [serde's Serialize trait](Serialize),
 /// so it's trivial to convert to JSON.
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonResponse {
   htsget: HtsGetResponse,
 }
@@ -21,7 +21,7 @@ impl JsonResponse {
 
 /// A helper struct to represent a JSON response. It shouldn't be used
 /// on its own, but with [JsonResponse]
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct HtsGetResponse {
   format: String,
   urls: Vec<JsonUrl>,
@@ -40,7 +40,7 @@ impl HtsGetResponse {
 
 /// A helper struct to convert [Urls](Url) to JSON. It shouldn't be used
 /// on its own, but with [JsonResponse]
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonUrl {
   url: String,
   headers: HashMap<String, String>,

@@ -15,11 +15,11 @@ use super::handle_response;
 /// GET request reads endpoint
 pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
-  Path(id): Path<String>,
+  path: Path<String>,
   app_state: Data<AsyncAppState<H>>,
 ) -> impl Responder {
   let mut query_information = request.into_inner();
-  query_information.insert("id".to_string(), id);
+  query_information.insert("id".to_string(), path.into_inner());
   handle_response(
     get_response_for_get_request(
       app_state.get_ref().htsget.clone(),
@@ -33,11 +33,11 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 /// GET request variants endpoint
 pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
-  Path(id): Path<String>,
+  path: Path<String>,
   app_state: Data<AsyncAppState<H>>,
 ) -> impl Responder {
   let mut query_information = request.into_inner();
-  query_information.insert("id".to_string(), id);
+  query_information.insert("id".to_string(), path.into_inner());
   handle_response(
     get_response_for_get_request(
       app_state.get_ref().htsget.clone(),
