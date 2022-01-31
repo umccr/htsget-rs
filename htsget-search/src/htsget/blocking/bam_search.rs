@@ -81,7 +81,7 @@ impl<'a, S> Search<'a, S, ReferenceSequence, bai::Index, bam::Reader<File>, sam:
 where
   S: Storage + 'a,
 {
-  const READER_FN: fn(File) -> Reader<File> = bam::Reader::new;
+  const READER_FN: fn(File) -> Reader<File> = bam::Reader::new();
   const HEADER_FN: fn(&mut Reader<File>) -> io::Result<String> = |reader| {
     let header = reader.read_header();
     reader.read_reference_sequences()?;

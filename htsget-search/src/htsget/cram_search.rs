@@ -12,7 +12,7 @@ use futures::StreamExt;
 use noodles::bam::record::ReferenceSequenceId;
 use noodles::cram;
 use noodles::cram::crai::{Index, Record};
-use noodles::cram::{crai, AsyncReader};
+use noodles::cram::{crai, Reader};
 use noodles::sam;
 use noodles::sam::Header;
 use tokio::fs::File;
@@ -27,7 +27,7 @@ pub(crate) struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<S> SearchAll<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<S> SearchAll<S, PhantomData<Self>, Index, cram::Reader<File>, Header> for CramSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
@@ -53,7 +53,7 @@ where
 }
 
 #[async_trait]
-impl<S> SearchReads<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<S> SearchReads<S, PhantomData<Self>, Index, Reader<File>, Header> for CramSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
@@ -106,19 +106,19 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<S> Search<S, PhantomData<Self>, Index, cram::Reader<File>, Header> for CramSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
-  const READER_FN: fn(File) -> AsyncReader<File> = cram::AsyncReader::new;
-  const HEADER_FN: fn(&'_ mut AsyncReader<File>) -> AsyncHeaderResult = |reader| {
+  const READER_FN: fn(File) -> cram::Reader<File> = cram::Reader::new;
+  const HEADER_FN: fn(&'_ mut cram::Reader<File>) -> AsyncHeaderResult = |reader| {
     Box::pin(async move {
       reader.read_file_definition().await?;
       reader.read_file_header().await
     })
   };
   const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { crai::r#async::read(path).await });
+    |path| Box::pin(async move { crai::read(path).await });
 
   async fn get_byte_ranges_for_reference_name(
     &self,

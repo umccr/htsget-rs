@@ -13,7 +13,6 @@ use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
 use noodles::vcf;
-use noodles::vcf::AsyncReader;
 use noodles::vcf::Header;
 use tokio::fs::File;
 
@@ -30,7 +29,7 @@ pub(crate) struct VcfSearch<S> {
 }
 
 #[async_trait]
-impl BlockPosition for vcf::AsyncReader<bgzf::AsyncReader<File>> {
+impl BlockPosition for vcf::Reader<bgzf::Reader<File>> {
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut String::new()).await.ok()
   }
@@ -46,7 +45,7 @@ impl BlockPosition for vcf::AsyncReader<bgzf::AsyncReader<File>> {
 
 #[async_trait]
 impl<S>
-  BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
+  BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::Reader<bgzf::Reader<File>>, Header>
   for VcfSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
@@ -60,17 +59,17 @@ where
 
 #[async_trait]
 impl<S>
-  Search<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
+  Search<S, ReferenceSequence, tabix::Index, vcf::Reader<bgzf::Reader<File>>, Header>
   for VcfSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
-  const READER_FN: fn(File) -> AsyncReader<bgzf::AsyncReader<File>> =
-    |file| vcf::AsyncReader::new(bgzf::AsyncReader::new(file));
-  const HEADER_FN: fn(&'_ mut AsyncReader<bgzf::AsyncReader<File>>) -> AsyncHeaderResult =
+  const READER_FN: fn(File) -> vcf::Reader<bgzf::Reader<File>> =
+    |file| vcf::Reader::new(bgzf::Reader::new(file));
+  const HEADER_FN: fn(&'_ mut vcf::Reader<bgzf::Reader<File>>) -> AsyncHeaderResult =
     |reader| Box::pin(async move { reader.read_header().await });
   const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { tabix::r#async::read(path).await });
+    |path| Box::pin(async move { tabix::read(path).await });
 
   async fn get_byte_ranges_for_reference_name(
     &self,
