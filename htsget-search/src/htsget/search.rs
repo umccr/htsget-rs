@@ -80,11 +80,11 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<S, ReferenceSequence, Index, Reader, Header>:
-  Search<S, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchReads<S, ReferenceSequence, Index, AsyncReader, Header>:
+  Search<S, ReferenceSequence, Index, AsyncReader, Header>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  Reader: Send,
+  AsyncReader: Send,
   Header: FromStr + Send + Sync,
   Index: Send + Sync,
 {

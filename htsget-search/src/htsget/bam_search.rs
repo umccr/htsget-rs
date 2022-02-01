@@ -77,6 +77,7 @@ where
       .head(key)
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
+
     Ok(vec![BytesRange::default()
       .with_start(start.bytes_range_start())
       .with_end(file_size)])
@@ -89,16 +90,15 @@ impl<S> Search<S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
-  const READER_FN: fn(File) -> bam::Reader<File> = bam::Reader::new();
-  const HEADER_FN: fn(&'_ mut bam::Reader<File>) -> AsyncHeaderResult = |reader| {
+  const READER_FN: fn(File) -> bam::AsyncReader<File> = bam::AsyncReader::new();
+  const HEADER_FN: fn(&'_ mut bam::AsyncReader<File>) -> AsyncHeaderResult = |reader| {
     Box::pin(async move {
       let header = reader.read_header().await;
       reader.read_reference_sequences().await?;
       header
     })
   };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { bai::read(path).await });
+  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> = bai::read(path);
 
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -184,7 +184,6 @@ pub mod tests {
   use std::future::Future;
 
   use crate::htsget::{Class, Headers, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
   use htsget_id_resolver::RegexResolver;
 
   use super::*;

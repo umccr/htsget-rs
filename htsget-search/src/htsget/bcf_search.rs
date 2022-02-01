@@ -147,7 +147,6 @@ pub mod tests {
   use std::future::Future;
 
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
   use htsget_id_resolver::RegexResolver;
 
   use super::*;

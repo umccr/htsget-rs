@@ -11,25 +11,16 @@ use std::io;
 use thiserror::Error;
 use tokio::task::JoinError;
 
-#[cfg(feature = "async")]
 pub use async_htsget::*;
 
 use crate::storage::StorageError;
 
-#[cfg(feature = "async")]
 pub mod async_htsget;
-#[cfg(feature = "async")]
 pub mod bam_search;
-#[cfg(feature = "async")]
 pub mod bcf_search;
-pub mod blocking;
-#[cfg(feature = "async")]
 pub mod cram_search;
-#[cfg(feature = "async")]
 pub mod from_storage;
-#[cfg(feature = "async")]
 pub mod search;
-#[cfg(feature = "async")]
 pub mod vcf_search;
 
 type Result<T> = core::result::Result<T, HtsGetError>;

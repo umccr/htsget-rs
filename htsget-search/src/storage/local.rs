@@ -1,16 +1,66 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 
 use crate::htsget::Url;
 use crate::storage;
 use crate::storage::async_storage::AsyncStorage;
-use crate::storage::blocking::local::LocalStorage;
+use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
+/// Implementation for the [Storage] trait using the local file system.
+#[derive(Debug)]
+pub struct LocalStorage {
+  base_path: PathBuf,
+  id_resolver: RegexResolver,
+}
+
+impl LocalStorage {
+  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver) -> Result<Self> {
+    base_path
+      .as_ref()
+      .to_path_buf()
+      .canonicalize()
+      .map_err(|_| StorageError::NotFound(base_path.as_ref().to_string_lossy().to_string()))
+      .map(|canonicalized_base_path| Self {
+        base_path: canonicalized_base_path,
+        id_resolver,
+      })
+  }
+
+  pub fn base_path(&self) -> &Path {
+    self.base_path.as_path()
+  }
+
+  pub(crate) fn get_path_from_key<K: AsRef<str>>(&self, key: K) -> Result<PathBuf> {
+    let key: &str = key.as_ref();
+    self
+      .base_path
+      .join(
+        self
+          .id_resolver
+          .resolve_id(key)
+          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))?,
+      )
+      .canonicalize()
+      .map_err(|_| StorageError::InvalidKey(key.to_string()))
+      .and_then(|path| {
+        path
+          .starts_with(&self.base_path)
+          .then(|| path)
+          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
+      })
+      .and_then(|path| {
+        path
+          .is_file()
+          .then(|| path)
+          .ok_or_else(|| StorageError::NotFound(key.to_string()))
+      })
+  }
+}
 
 #[async_trait]
 impl AsyncStorage for LocalStorage {
@@ -19,7 +69,7 @@ impl AsyncStorage for LocalStorage {
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    storage::blocking::Storage::url(self, key, options)
+    storage::AsyncStorage::url(self, key, options)
   }
 
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
@@ -39,10 +89,8 @@ mod tests {
   use std::future::Future;
 
   use tokio::fs::{create_dir, File};
-  use tokio::io::AsyncWriteExt;
 
   use crate::htsget::{Headers, Url};
-  use crate::storage::blocking::local::LocalStorage;
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
   use htsget_id_resolver::RegexResolver;
 
@@ -147,7 +195,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let result = AsyncStorage::url(&storage, "folder/../key1", UrlOptions::default()).await;
       let expected = Url::new(format!(
-        "file://{}",
+        "https://{}",
         storage.base_path().join("key1").to_string_lossy()
       ));
       assert_eq!(result, Ok(expected));
@@ -168,7 +216,7 @@ mod tests {
         result,
         Ok(
           Url::new(format!(
-            "file://{}",
+            "https://{}",
             storage.base_path().join("key1").to_string_lossy()
           ))
           .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
@@ -191,7 +239,7 @@ mod tests {
         result,
         Ok(
           Url::new(format!(
-            "file://{}",
+            "https://{}",
             storage.base_path().join("key1").to_string_lossy()
           ))
           .with_headers(Headers::default().with_header("Range", "bytes=7-"))
