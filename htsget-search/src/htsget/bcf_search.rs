@@ -30,7 +30,7 @@ pub(crate) struct BcfSearch<S> {
 #[async_trait]
 impl BlockPosition for noodles::bcf::Reader<File> {
   async fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut bcf::Record::default()).await.ok()
+    self.read_record(&mut self)
   }
 
   async fn seek(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
@@ -62,13 +62,11 @@ where
 {
   const READER_FN: fn(tokio::fs::File) -> bcf::Reader<File> = bcf::Reader::new;
   const HEADER_FN: fn(&'_ mut bcf::Reader<File>) -> AsyncHeaderResult = |reader| {
-    Box::pin(async move {
       reader.read_file_format().await?;
       reader.read_header().await
-    })
   };
   const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { csi::read(path).await });
+    |path| { csi::read(path) };
 
   async fn get_byte_ranges_for_reference_name(
     &self,

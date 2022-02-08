@@ -67,9 +67,9 @@ where
   const READER_FN: fn(File) -> vcf::Reader<bgzf::Reader<File>> =
     |file| vcf::Reader::new(bgzf::Reader::new(file));
   const HEADER_FN: fn(&'_ mut vcf::Reader<bgzf::Reader<File>>) -> AsyncHeaderResult =
-    |reader| Box::pin(async move { reader.read_header().await });
+    |reader| { reader.read_header() };
   const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { tabix::read(path).await });
+    |path| { tabix::read(path)};
 
   async fn get_byte_ranges_for_reference_name(
     &self,

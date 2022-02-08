@@ -29,7 +29,7 @@ pub(crate) struct BamSearch<S> {
 #[async_trait]
 impl BlockPosition for bam::Reader<File> {
   async fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut bam::Record::default()).await.ok()
+    self.records()
   }
 
   async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
@@ -90,14 +90,12 @@ impl<S> Search<S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
-  const READER_FN: fn(File) -> bam::AsyncReader<File> = bam::AsyncReader::new();
+  const READER_FN: fn(File) -> bam::AsyncReader<File> = bam::AsyncReader::new;
   const HEADER_FN: fn(&'_ mut bam::AsyncReader<File>) -> AsyncHeaderResult = |reader| {
-    Box::pin(async move {
-      let header = reader.read_header().await;
-      reader.read_reference_sequences().await?;
-      header
-    })
-  };
+      let header = reader.read_header();
+      reader.read_reference_sequences();
+      header.await
+    };
   const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> = bai::read(path);
 
   async fn get_byte_ranges_for_reference_name(

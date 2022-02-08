@@ -5,9 +5,7 @@
 //! where the names of the types indicate their purpose.
 //!
 
-use std::future::Future;
 use std::path::PathBuf;
-use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -29,10 +27,8 @@ use crate::{
   storage::{AsyncStorage, BytesRange, UrlOptions},
 };
 
-pub(crate) type AsyncHeaderResult<'a> =
-  Pin<Box<dyn Future<Output = io::Result<String>> + Send + 'a>>;
-pub(crate) type AsyncIndexResult<'a, Index> =
-  Pin<Box<dyn Future<Output = io::Result<Index>> + Send + 'a>>;
+pub(crate) type AsyncHeaderResult = io::Result<String>;
+pub(crate) type AsyncIndexResult<'a, Index> = io::Result<Index>;
 
 /// Helper function to find the first non-none value from a set of futures.
 pub(crate) async fn find_first<T>(
@@ -168,8 +164,8 @@ where
 {
   const MIN_SEQ_POSITION: u32 = 1; // 1-based
 
-  const READER_FN: fn(File) -> Reader;
-  const HEADER_FN: fn(&'_ mut Reader) -> AsyncHeaderResult;
+  const READER_FN: fn(File) -> AsyncReader;
+  const HEADER_FN: fn(&'_ mut AsyncReader) -> AsyncHeaderResult;
   const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
@@ -288,7 +284,6 @@ where
     .await?;
 
     let header = Self::HEADER_FN(&mut reader)
-      .await
       .map_err(|_| HtsGetError::io_error(format!("Reading {} header", self.get_format())))?
       .parse::<Header>()
       .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))?;
