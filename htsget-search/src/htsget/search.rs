@@ -28,8 +28,8 @@ use crate::{
   storage::{AsyncStorage, BytesRange, UrlOptions},
 };
 
-pub(crate) type AsyncHeaderResult = io::Result<String>;
-pub(crate) type AsyncIndexResult<'a, Index> = io::Result<Index>;
+// pub(crate) type AsyncHeaderResult = io::Result<String>;
+// pub(crate) type AsyncIndexResult<'a, Index> = io::Result<Index>;
 
 /// Helper function to find the first non-none value from a set of futures.
 pub(crate) async fn find_first<T>(

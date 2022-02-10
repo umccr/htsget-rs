@@ -3,7 +3,6 @@
 
 use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -18,7 +17,7 @@ use noodles::sam::Header;
 use tokio::{fs::File};
 use tokio::select;
 
-use crate::htsget::search::{AsyncHeaderResult, AsyncIndexResult, Search, SearchAll, SearchReads};
+use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{AsyncStorage, BytesRange};
 
