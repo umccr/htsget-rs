@@ -71,9 +71,9 @@ pub fn bcf_blocks<P: AsRef<Path>>(path: P) -> Result<Vec<RefSeq>> {
           break; //EOF
         }
         if previous_pos < end {
-          id = record.chromosome_id().unwrap_or(id);
-          seq_start = seq_start.min(record.position().unwrap().into());
-          seq_end = seq_end.max(record.position().unwrap().into());
+          id = record.chromosome_id();
+          seq_start = seq_start.min(record.position().into());
+          seq_end = seq_end.max(record.position().into());
         }
         if reader.virtual_position().compressed() != last_block.compressed() {
           blocks.push(Block {

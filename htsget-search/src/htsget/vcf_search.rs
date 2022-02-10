@@ -2,7 +2,6 @@
 //!
 
 use std::marker::PhantomData;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -17,7 +16,7 @@ use noodles::vcf::Header;
 use tokio::fs::File;
 
 use crate::htsget::search::{
-  find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search,
+  find_first, BgzfSearch, BlockPosition, Search,
 };
 use crate::{
   htsget::{Format, Query, Result},
@@ -64,12 +63,12 @@ impl<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
-  const READER_FN: fn(File) -> vcf::Reader<bgzf::Reader<File>> =
-    |file| vcf::Reader::new(bgzf::Reader::new(file));
-  const HEADER_FN: fn(&'_ mut vcf::Reader<bgzf::Reader<File>>) -> AsyncHeaderResult =
-    |reader| { reader.read_header() };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| { tabix::read(path)};
+  // const READER_FN: fn(File) -> vcf::Reader<bgzf::Reader<File>> =
+  //   |file| vcf::Reader::new(bgzf::Reader::new(file));
+  // const HEADER_FN: fn(&'_ mut vcf::Reader<bgzf::Reader<File>>) -> AsyncHeaderResult =
+  //   |reader| { reader.read_header() };
+  // const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
+  //   |path| { tabix::read(path)};
 
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -154,7 +153,7 @@ pub mod tests {
   use std::future::Future;
 
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
+  use crate::storage::local::LocalStorage;
   use htsget_id_resolver::RegexResolver;
 
   use super::*;

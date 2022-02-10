@@ -110,13 +110,13 @@ impl<S> Search<S, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
-  const READER_FN: fn(File) -> cram::AsyncReader<File> = cram::AsyncReader::new;
-  const HEADER_FN: fn(&'_ mut cram::AsyncReader<File>) -> AsyncHeaderResult = |reader| {
-      reader.read_file_definition();
-      reader.read_file_header()
-  };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| { crai::read(path) };
+  // const READER_FN: fn(File) -> cram::AsyncReader<File> = cram::AsyncReader::new;
+  // const HEADER_FN: fn(&'_ mut cram::AsyncReader<File>) -> AsyncHeaderResult = |reader| {
+  //     reader.read_file_definition();
+  //     reader.read_file_header()
+  // };
+  // const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
+  //   |path| { crai::read(path) };
 
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -262,7 +262,7 @@ pub mod tests {
   use std::future::Future;
 
   use crate::htsget::{Class, Headers, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
+  use crate::storage::local::LocalStorage;
   use htsget_id_resolver::RegexResolver;
 
   use super::*;

@@ -2,8 +2,8 @@
 name = "htsget-id-resolver"
 version = "0.1.0"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 
-regex = "1.5"
+regex = "1.5.4"

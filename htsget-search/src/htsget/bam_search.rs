@@ -1,6 +1,5 @@
 //! Module providing the search capability using BAM/BAI files
 //!
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -14,13 +13,14 @@ use noodles::sam;
 use noodles::sam::Header;
 use tokio::fs::File;
 
-use crate::htsget::search::{AsyncHeaderResult, AsyncIndexResult, BgzfSearch, Search, SearchReads};
+use crate::htsget::search::{BgzfSearch, Search, SearchReads};
 use crate::htsget::HtsGetError;
 use crate::{
   htsget::search::{BlockPosition},
   htsget::{Format, Query, Result},
   storage::{AsyncStorage, BytesRange},
 };
+use crate::storage::local::LocalStorage;
 
 pub(crate) struct BamSearch<S> {
   storage: Arc<S>,
@@ -90,13 +90,13 @@ impl<S> Search<S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
-  const READER_FN: fn(File) -> bam::AsyncReader<File> = bam::AsyncReader::new;
-  const HEADER_FN: fn(&'_ mut bam::AsyncReader<File>) -> AsyncHeaderResult = |reader| {
-      let header = reader.read_header();
-      reader.read_reference_sequences();
-      header.await
-    };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> = bai::read(path);
+  // const READER_FN: fn(File) -> bam::AsyncReader<AsyncRead> = bam::AsyncReader::new;
+  // const HEADER_FN: fn(&'_ mut bam::AsyncReader<AsyncRead>) -> AsyncHeaderResult = |reader| {
+  //     let header = reader.read_header();
+  //     reader.read_reference_sequences();
+  //     header.await
+  //   };
+  // const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> = bai::read();
 
   async fn get_byte_ranges_for_reference_name(
     &self,

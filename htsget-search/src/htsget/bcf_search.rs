@@ -2,26 +2,25 @@
 //!
 
 use std::marker::PhantomData;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
 use noodles::bcf;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::vcf;
 use tokio::{fs::File, io};
 
 use crate::htsget::search::{
-  find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search,
+  find_first, BgzfSearch, BlockPosition, Search,
 };
 use crate::{
   htsget::{Format, Query, Result},
   storage::{AsyncStorage, BytesRange},
 };
+use crate::storage::local::LocalStorage;
 
 pub(crate) struct BcfSearch<S> {
   storage: Arc<S>,
@@ -60,13 +59,13 @@ impl<S> Search<S, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header> for 
 where
   S: AsyncStorage + Send + Sync + 'static,
 {
-  const READER_FN: fn(tokio::fs::File) -> bcf::Reader<File> = bcf::Reader::new;
-  const HEADER_FN: fn(&'_ mut bcf::Reader<File>) -> AsyncHeaderResult = |reader| {
-      reader.read_file_format().await?;
-      reader.read_header().await
-  };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| { csi::read(path) };
+  // const READER_FN: fn(tokio::fs::File) -> bcf::Reader<File> = bcf::Reader::new;
+  // const HEADER_FN: fn(&'_ mut bcf::Reader<File>) -> AsyncHeaderResult = |reader| {
+  //     reader.read_file_format().await?;
+  //     reader.read_header().await
+  // };
+  // const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
+  //   |path| { csi::read(path) };
 
   async fn get_byte_ranges_for_reference_name(
     &self,
