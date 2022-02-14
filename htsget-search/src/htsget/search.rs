@@ -154,14 +154,23 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait Search<S, ReferenceSequence, Index, Reader, Header>:
-  SearchAll<S, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait Search<S, R, ReferenceSequence, Index, Reader, Header>:
+  SearchAll<S, R, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage + Send + Sync,
+  R: AsyncReader<R> + Unpin,
   Header: FromStr + Send,
   Reader: Send,
   Index: Send + Sync,
-  Self: Sync + Send,
+  Self: Sync + Send
+
+// pub(crate) trait Search<S, ReferenceSequence, Index, Reader, Header>:
+//   SearchAll<S, ReferenceSequence, Index, Reader, Header>
+// where
+//   S: AsyncStorage + Send + Sync,
+//   Header: FromStr + Send,
+//   Reader: Send,
+//   Index: Send + Sync,
+//   Self: Sync + Send,
 {
   const MIN_SEQ_POSITION: u32 = 1; // 1-based
 
@@ -306,7 +315,7 @@ where
 /// [Header] is the format's header type.
 #[async_trait]
 pub(crate) trait BgzfSearch<S, ReferenceSequence, Index, Reader, Header>:
-  Search<S, ReferenceSequence, Index, Reader, Header>
+  Search<S, R, ReferenceSequence, Index, Reader, Header>
 where
   S: AsyncStorage + Send + Sync + 'static,
   Reader: BlockPosition + Send,
