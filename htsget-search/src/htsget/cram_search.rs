@@ -115,13 +115,16 @@ where
   S: AsyncStorage + Send + Sync + 'static,
   R: Unpin + Send + Sync
 {
-  // const READER_FN: fn(File) -> cram::AsyncReader<File> = cram::AsyncReader::new;
-  // const HEADER_FN: fn(&'_ mut cram::AsyncReader<File>) -> AsyncHeaderResult = |reader| {
-  //     reader.read_file_definition();
-  //     reader.read_file_header()
-  // };
-  // const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-  //   |path| { crai::read(path) };
+  fn init_reader(inner: R) -> cram::Reader<File> {
+    unimplemented!()
+  }
+
+  async fn read_raw_header(reader: &mut cram::Reader<File>) -> Result<String> {
+    unimplemented!()
+  }
+  async fn read_index_inner<T>(inner: T) -> Result<Index> {
+    unimplemented!()
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,

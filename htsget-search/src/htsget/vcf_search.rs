@@ -68,12 +68,17 @@ where
   S: AsyncStorage + Send + Sync + 'static,
   R: AsyncRead + Send + Sync + Unpin
 {
-  // const READER_FN: fn(File) -> vcf::Reader<bgzf::Reader<File>> =
-  //   |file| vcf::Reader::new(bgzf::Reader::new(file));
-  // const HEADER_FN: fn(&'_ mut vcf::Reader<bgzf::Reader<File>>) -> AsyncHeaderResult =
-  //   |reader| { reader.read_header() };
-  // const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-  //   |path| { tabix::read(path)};
+
+  fn init_reader(inner: R) -> vcf::Reader<File> {
+    unimplemented!()
+  }
+
+  async fn read_raw_header(reader: &mut vcf::Reader<File>) -> Result<String> {
+    unimplemented!()
+  }
+  async fn read_index_inner<T>(inner: T) -> Result<Index> {
+    unimplemented!()
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,

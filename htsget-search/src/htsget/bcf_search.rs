@@ -65,13 +65,16 @@ where
   S: AsyncStorage + Send + Sync + 'static,
   R: Unpin + Send + Sync
 {
-  // const READER_FN: fn(tokio::fs::File) -> bcf::Reader<File> = bcf::Reader::new;
-  // const HEADER_FN: fn(&'_ mut bcf::Reader<File>) -> AsyncHeaderResult = |reader| {
-  //     reader.read_file_format().await?;
-  //     reader.read_header().await
-  // };
-  // const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-  //   |path| { csi::read(path) };
+  fn init_reader(inner: R) -> bcf::Reader<File> {
+    unimplemented!()
+  }
+
+  async fn read_raw_header(reader: &mut bcf::Reader<File>) -> Result<String> {
+    unimplemented!()
+  }
+  async fn read_index_inner<T>(inner: T) -> Result<Index> {
+    unimplemented!()
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,
