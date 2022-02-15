@@ -13,6 +13,8 @@ use noodles::csi::Index;
 use noodles::vcf;
 use tokio::{fs::File, io};
 
+use crate::htsget::bcf_search::vcf::Header;
+
 use crate::htsget::search::{
   find_first, BgzfSearch, BlockPosition, Search,
 };
@@ -42,7 +44,7 @@ impl BlockPosition for noodles::bcf::Reader<File> {
 }
 
 #[async_trait]
-impl<S> BgzfSearch<S, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header>
+impl<S> BgzfSearch<S, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header, Header>
   for BcfSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
@@ -55,7 +57,7 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header> for BcfSearch<S>
+impl<S> Search<S, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header, Header> for BcfSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {

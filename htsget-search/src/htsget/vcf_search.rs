@@ -44,7 +44,7 @@ impl BlockPosition for vcf::Reader<bgzf::Reader<File>> {
 
 #[async_trait]
 impl<S>
-  BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::Reader<bgzf::Reader<File>>, Header>
+  BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::Reader<bgzf::Reader<File>>, Header, Header>
   for VcfSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
@@ -58,7 +58,7 @@ where
 
 #[async_trait]
 impl<S>
-  Search<S, ReferenceSequence, tabix::Index, vcf::Reader<bgzf::Reader<File>>, Header>
+  Search<S, ReferenceSequence, tabix::Index, vcf::Reader<bgzf::Reader<File>>, Header, Header>
   for VcfSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,

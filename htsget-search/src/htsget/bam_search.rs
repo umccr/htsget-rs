@@ -11,7 +11,9 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
 use noodles::sam;
 use noodles::sam::Header;
+use noodles_bam::AsyncReader;
 use tokio::fs::File;
+use tokio::io::AsyncRead;
 
 use crate::htsget::search::{BgzfSearch, Search, SearchReads};
 use crate::htsget::HtsGetError;
@@ -22,8 +24,9 @@ use crate::{
 };
 use crate::storage::local::LocalStorage;
 
-pub(crate) struct BamSearch<S> {
+pub(crate) struct BamSearch<S, R> {
   storage: Arc<S>,
+  reader: AsyncReader<R>
 }
 
 #[async_trait]
@@ -42,10 +45,11 @@ impl BlockPosition for bam::Reader<File> {
 }
 
 #[async_trait]
-impl<S> BgzfSearch<S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
-  for BamSearch<S>
+impl<S, R> BgzfSearch<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, Header>
+  for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
@@ -85,10 +89,11 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
-  for BamSearch<S>
+impl<S, R> Search<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+  for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin
 {
   // const READER_FN: fn(File) -> bam::AsyncReader<AsyncRead> = bam::AsyncReader::new;
   // const HEADER_FN: fn(&'_ mut bam::AsyncReader<AsyncRead>) -> AsyncHeaderResult = |reader| {
@@ -126,10 +131,11 @@ where
 }
 
 #[async_trait]
-impl<S> SearchReads<S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
-  for BamSearch<S>
+impl<S, R> SearchReads<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+  for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -168,9 +174,10 @@ where
   }
 }
 
-impl<S> BamSearch<S>
+impl<S, R> BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin
 {
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }

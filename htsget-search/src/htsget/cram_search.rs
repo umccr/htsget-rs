@@ -26,9 +26,10 @@ pub(crate) struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<S> SearchAll<S, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S>
+impl<S, R> SearchAll<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
@@ -52,9 +53,10 @@ where
 }
 
 #[async_trait]
-impl<S> SearchReads<S, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S>
+impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -105,7 +107,7 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S>
+impl<S> Search<S, PhantomData<Self>, Index, cram::AsyncReader<File>, Header, Header> for CramSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
 {

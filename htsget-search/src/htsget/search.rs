@@ -59,7 +59,7 @@ pub(crate) async fn find_first<T>(
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchAll<S, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchAll<S, R, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -77,8 +77,8 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<S, ReferenceSequence, Index, AsyncReader, Header>:
-  Search<S, ReferenceSequence, Index, AsyncReader, Header>
+pub(crate) trait SearchReads<S, R, ReferenceSequence, Index, AsyncReader, Header>:
+  Search<S, R, ReferenceSequence, Index, AsyncReader, Header>
 where
   S: AsyncStorage + Send + Sync + 'static,
   AsyncReader: Send,
@@ -157,10 +157,11 @@ where
 pub(crate) trait Search<S, R, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, R, ReferenceSequence, Index, Reader, Header>
 where
-  R: AsyncReader<R> + Unpin,
+  S: AsyncStorage + Send + Sync,
+  R: Unpin,
+  Index: Send + Sync,
   Header: FromStr + Send,
   Reader: Send,
-  Index: Send + Sync,
   Self: Sync + Send
 
 // pub(crate) trait Search<S, ReferenceSequence, Index, Reader, Header>:
@@ -178,9 +179,13 @@ where
   // const HEADER_FN: async fn(&'_ mut io::AsyncRead) -> AsyncHeaderResult;
   // const INDEX_FN: async fn(AsyncRead) -> AsyncIndexResult<'static, Index>;
 
-  async fn read(reader: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
-  async fn header(header: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
-  async fn index(index: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
+  // async fn read(reader: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
+  // async fn header(header: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
+  // async fn index(index: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
+
+  fn init_reader(inner: R) -> Reader;
+  async fn read_raw_header(reader: &mut Reader) -> Result<String>;
+  async fn read_index_inner<T>(inner: T) -> Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -314,7 +319,7 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<S, ReferenceSequence, Index, Reader, Header>:
+pub(crate) trait BgzfSearch<S, R, ReferenceSequence, Index, Reader, Header>:
   Search<S, R, ReferenceSequence, Index, Reader, Header>
 where
   S: AsyncStorage + Send + Sync + 'static,
@@ -382,15 +387,16 @@ where
 }
 
 #[async_trait]
-impl<S, ReferenceSequence, Index, Reader, Header, T>
-  SearchAll<S, ReferenceSequence, Index, Reader, Header> for T
+impl<S, R, ReferenceSequence, Index, Reader, Header, T>
+  SearchAll<S, R, ReferenceSequence, Index, Reader, Header> for T
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin,
   Reader: BlockPosition + Send,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
-  T: BgzfSearch<S, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+  T: BgzfSearch<S, R, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
