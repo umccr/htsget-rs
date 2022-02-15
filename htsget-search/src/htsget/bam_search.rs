@@ -49,7 +49,7 @@ impl<S, R> BgzfSearch<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, He
   for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin
+  R: Unpin + Send + Sync
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
@@ -93,7 +93,7 @@ impl<S, R> Search<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, sam::H
   for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin
+  R: Unpin + Send + Sync
 {
   // const READER_FN: fn(File) -> bam::AsyncReader<AsyncRead> = bam::AsyncReader::new;
   // const HEADER_FN: fn(&'_ mut bam::AsyncReader<AsyncRead>) -> AsyncHeaderResult = |reader| {
@@ -135,7 +135,7 @@ impl<S, R> SearchReads<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, s
   for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin
+  R: Unpin + Send + Sync
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
