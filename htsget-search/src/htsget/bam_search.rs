@@ -95,13 +95,21 @@ where
   S: AsyncStorage + Send + Sync + 'static,
   R: Unpin + Send + Sync
 {
-  // const READER_FN: fn(File) -> bam::AsyncReader<AsyncRead> = bam::AsyncReader::new;
-  // const HEADER_FN: fn(&'_ mut bam::AsyncReader<AsyncRead>) -> AsyncHeaderResult = |reader| {
-  //     let header = reader.read_header();
-  //     reader.read_reference_sequences();
-  //     header.await
-  //   };
-  // const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> = bai::read();
+
+  // fn init_reader(inner: R) -> bam::Reader<File> {
+  //   unimplemented!()
+  // }
+
+  fn init_reader(inner: R) -> bam::Reader<File> {
+    unimplemented!()
+  }
+
+  async fn read_raw_header(reader: &mut bam::Reader<File>) -> Result<String> {
+    unimplemented!()
+  }
+  async fn read_index_inner<T>(inner: T) -> Result<Index> {
+    unimplemented!()
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,
