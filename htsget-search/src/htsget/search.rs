@@ -80,6 +80,7 @@ where
 pub(crate) trait SearchReads<S, R, ReferenceSequence, Index, AsyncReader, Header>:
   Search<S, R, ReferenceSequence, Index, AsyncReader, Header>
 where
+  R: Send + Sync + Unpin,
   S: AsyncStorage + Send + Sync + 'static,
   AsyncReader: Send,
   Header: FromStr + Send + Sync,
@@ -322,6 +323,7 @@ where
 pub(crate) trait BgzfSearch<S, R, ReferenceSequence, Index, Reader, Header>:
   Search<S, R, ReferenceSequence, Index, Reader, Header>
 where
+  R: Send + Sync + Unpin,
   S: AsyncStorage + Send + Sync + 'static,
   Reader: BlockPosition + Send,
   ReferenceSequence: BinningIndexReferenceSequence,
@@ -391,7 +393,7 @@ impl<S, R, ReferenceSequence, Index, Reader, Header, T>
   SearchAll<S, R, ReferenceSequence, Index, Reader, Header> for T
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin,
+  R: Send + Sync + Unpin,
   Reader: BlockPosition + Send,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,

@@ -177,10 +177,10 @@ where
 impl<S, R> BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin
+  R: Send + Sync + Unpin
 {
-  pub fn new(storage: Arc<S>) -> Self {
-    Self { storage }
+  pub fn new(storage: Arc<S>, reader: AsyncReader<R>) -> Self {
+    Self { storage, reader }
   }
 }
 

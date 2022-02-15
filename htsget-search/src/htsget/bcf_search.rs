@@ -11,6 +11,7 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::vcf;
+use noodles_bam::AsyncReader;
 use tokio::{fs::File, io};
 
 use crate::htsget::bcf_search::vcf::Header;
@@ -24,8 +25,9 @@ use crate::{
 };
 use crate::storage::local::LocalStorage;
 
-pub(crate) struct BcfSearch<S> {
+pub(crate) struct BcfSearch<S, R> {
   storage: Arc<S>,
+  reader: AsyncReader<R>
 }
 
 #[async_trait]
@@ -44,10 +46,11 @@ impl BlockPosition for noodles::bcf::Reader<File> {
 }
 
 #[async_trait]
-impl<S> BgzfSearch<S, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header, Header>
-  for BcfSearch<S>
+impl<S, R> BgzfSearch<S, R, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header>
+  for BcfSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin + Send + Sync
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -57,9 +60,10 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header, Header> for BcfSearch<S>
+impl<S, R> Search<S, R, ReferenceSequence, Index, bcf::Reader<File>, vcf::Header> for BcfSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin + Send + Sync
 {
   // const READER_FN: fn(tokio::fs::File) -> bcf::Reader<File> = bcf::Reader::new;
   // const HEADER_FN: fn(&'_ mut bcf::Reader<File>) -> AsyncHeaderResult = |reader| {
@@ -130,9 +134,10 @@ where
   }
 }
 
-impl<S> BcfSearch<S>
+impl<S, R> BcfSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin + Send + Sync
 {
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
 

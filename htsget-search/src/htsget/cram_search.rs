@@ -14,19 +14,22 @@ use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
+use noodles_bam::AsyncReader;
 use tokio::{fs::File};
+use tokio::io::AsyncRead;
 use tokio::select;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{AsyncStorage, BytesRange};
 
-pub(crate) struct CramSearch<S> {
+pub(crate) struct CramSearch<S, R> {
   storage: Arc<S>,
+  reader: AsyncReader<R>
 }
 
 #[async_trait]
-impl<S, R> SearchAll<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S>
+impl<S, R> SearchAll<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
   R: Unpin
@@ -53,10 +56,10 @@ where
 }
 
 #[async_trait]
-impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S>
+impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin
+  R: Unpin + Send + Sync
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -107,9 +110,10 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, PhantomData<Self>, Index, cram::AsyncReader<File>, Header, Header> for CramSearch<S>
+impl<S, R> Search<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: Unpin + Send + Sync
 {
   // const READER_FN: fn(File) -> cram::AsyncReader<File> = cram::AsyncReader::new;
   // const HEADER_FN: fn(&'_ mut cram::AsyncReader<File>) -> AsyncHeaderResult = |reader| {
@@ -146,9 +150,10 @@ where
   }
 }
 
-impl<S> CramSearch<S>
+impl<S, R> CramSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
+  R: AsyncRead + Send + Sync
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;
   const EOF_CONTAINER_LENGTH: u64 = 38;
