@@ -15,7 +15,6 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::merge_chunks;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
-use noodles_bam::AsyncReader;
 use tokio::fs::File;
 use tokio::io;
 use tokio::io::AsyncRead;
@@ -74,15 +73,15 @@ where
 ///
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
-/// [Reader] is the format's reader type.
+/// [ReaderType] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<S, R, ReferenceSequence, Index, AsyncReader, Header>:
-  Search<S, R, ReferenceSequence, Index, AsyncReader, Header>
+pub(crate) trait SearchReads<Storage, Reader, ReferenceSequence, Index, ReaderType, Header>:
+  Search<Storage, Reader, ReferenceSequence, Index, ReaderType, Header>
 where
-  R: Send + Sync + Unpin,
-  S: AsyncStorage + Send + Sync + 'static,
-  AsyncReader: Send,
+  Reader: Send + Sync + Unpin,
+  Storage: AsyncStorage + Send + Sync + 'static,
+  ReaderType: Send,
   Header: FromStr + Send + Sync,
   Index: Send + Sync,
 {
@@ -320,12 +319,12 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<S, R, ReferenceSequence, Index, Reader, Header>:
-  Search<S, R, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait BgzfSearch<S, R, ReferenceSequence, Index, ReaderType, Header>:
+  Search<S, R, ReferenceSequence, Index, ReaderType, Header>
 where
   R: Send + Sync + Unpin,
   S: AsyncStorage + Send + Sync + 'static,
-  Reader: BlockPosition + Send,
+  ReaderType: BlockPosition + Send,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
   Header: FromStr + Send,
@@ -389,16 +388,16 @@ where
 }
 
 #[async_trait]
-impl<S, R, ReferenceSequence, Index, Reader, Header, T>
-  SearchAll<S, R, ReferenceSequence, Index, Reader, Header> for T
+impl<S, R, ReferenceSequence, Index, ReaderType, Header, T>
+  SearchAll<S, R, ReferenceSequence, Index, ReaderType, Header> for T
 where
   S: AsyncStorage + Send + Sync + 'static,
   R: Send + Sync + Unpin,
-  Reader: BlockPosition + Send,
+  ReaderType: BlockPosition + Send,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
-  T: BgzfSearch<S, R, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+  T: BgzfSearch<S, R, ReferenceSequence, Index, ReaderType, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();

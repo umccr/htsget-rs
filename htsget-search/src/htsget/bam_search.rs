@@ -45,11 +45,27 @@ impl BlockPosition for bam::Reader<File> {
 }
 
 #[async_trait]
-impl<S, R> BgzfSearch<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, Header>
+impl<R> BlockPosition for bam::Reader<AsyncReader<R>>
+where
+  R: AsyncRead
+{
+  async fn read_bytes(&mut self) -> Option<usize> {
+    todo!()
+  }
+  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+    todo!()
+  }
+  fn virtual_position(&self) -> VirtualPosition {
+    todo!()
+  }
+}
+
+#[async_trait]
+impl<S, R> BgzfSearch<S, R, ReferenceSequence, bai::Index, bam::Reader<AsyncReader<R>>, Header>
   for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin + Send + Sync
+  R: AsyncRead + Send + Sync + Unpin + BlockPosition
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
@@ -89,17 +105,12 @@ where
 }
 
 #[async_trait]
-impl<S, R> Search<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+impl<S, R> Search<S, R, ReferenceSequence, bai::Index, bam::Reader<AsyncReader<R>>, sam::Header>
   for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin + Send + Sync
+  R: AsyncRead + Unpin + Send + Sync + BlockPosition
 {
-
-  // fn init_reader(inner: R) -> bam::Reader<File> {
-  //   unimplemented!()
-  // }
-
   fn init_reader(inner: R) -> bam::Reader<File> {
     unimplemented!()
   }
@@ -139,11 +150,20 @@ where
 }
 
 #[async_trait]
-impl<S, R> SearchReads<S, R, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
-  for BamSearch<S, R>
+impl<Storage, Reader> SearchReads<Storage, Reader, ReferenceSequence, bai::Index, bam::Reader<AsyncReader<Reader>>, sam::Header>
+  for BamSearch<Storage, Reader>
+  where
+      Storage: AsyncStorage + Send + Sync + 'static,
+      Reader: AsyncRead + Unpin + Send + Sync + BlockPosition
+{
+}
+
+#[async_trait]
+impl<Storage, Reader> SearchReads<Storage, Reader, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+  for BamSearch<Storage, Reader>
 where
-  S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin + Send + Sync
+  Storage: AsyncStorage + Send + Sync + 'static,
+  Reader: Unpin + Send + Sync
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,

@@ -14,7 +14,7 @@ use noodles::vcf;
 use noodles_bam::AsyncReader;
 use tokio::{fs::File, io};
 
-use crate::htsget::bcf_search::vcf::Header;
+// use crate::htsget::bcf_search::vcf::Header;
 
 use crate::htsget::search::{
   find_first, BgzfSearch, BlockPosition, Search,
