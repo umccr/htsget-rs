@@ -11,7 +11,7 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
 use noodles::sam;
 use noodles::sam::Header;
-use noodles_bam::AsyncReader;
+use noodles_bam::{AsyncReader};
 use tokio::fs::File;
 use tokio::io::AsyncRead;
 
@@ -158,49 +158,49 @@ impl<Storage, Reader> SearchReads<Storage, Reader, ReferenceSequence, bai::Index
 {
 }
 
-#[async_trait]
-impl<Storage, Reader> SearchReads<Storage, Reader, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
-  for BamSearch<Storage, Reader>
-where
-  Storage: AsyncStorage + Send + Sync + 'static,
-  Reader: Unpin + Send + Sync
-{
-  async fn get_reference_sequence_from_name<'b>(
-    &self,
-    header: &'b Header,
-    name: &str,
-  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)> {
-    header.reference_sequences().get_full(name)
-  }
-
-  async fn get_byte_ranges_for_unmapped_reads(
-    &self,
-    bam_key: &str,
-    bai_index: &Index,
-  ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_unmapped(bam_key, bai_index).await
-  }
-
-  async fn get_byte_ranges_for_reference_sequence(
-    &self,
-    key: String,
-    ref_seq: &sam::header::ReferenceSequence,
-    ref_seq_id: usize,
-    query: &Query,
-    index: &Index,
-  ) -> Result<Vec<BytesRange>> {
-    self
-      .get_byte_ranges_for_reference_sequence_bgzf(
-        key,
-        ref_seq,
-        ref_seq_id,
-        index,
-        query.start.map(|start| start as i32),
-        query.end.map(|end| end as i32),
-      )
-      .await
-  }
-}
+// #[async_trait]
+// impl<Storage, Reader> SearchReads<Storage, Reader, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+//   for BamSearch<Storage, Reader>
+// where
+//   Storage: AsyncStorage + Send + Sync + 'static,
+//   Reader: Unpin + Send + Sync
+// {
+//   async fn get_reference_sequence_from_name<'b>(
+//     &self,
+//     header: &'b Header,
+//     name: &str,
+//   ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)> {
+//     header.reference_sequences().get_full(name)
+//   }
+//
+//   async fn get_byte_ranges_for_unmapped_reads(
+//     &self,
+//     bam_key: &str,
+//     bai_index: &Index,
+//   ) -> Result<Vec<BytesRange>> {
+//     self.get_byte_ranges_for_unmapped(bam_key, bai_index).await
+//   }
+//
+//   async fn get_byte_ranges_for_reference_sequence(
+//     &self,
+//     key: String,
+//     ref_seq: &sam::header::ReferenceSequence,
+//     ref_seq_id: usize,
+//     query: &Query,
+//     index: &Index,
+//   ) -> Result<Vec<BytesRange>> {
+//     self
+//       .get_byte_ranges_for_reference_sequence_bgzf(
+//         key,
+//         ref_seq,
+//         ref_seq_id,
+//         index,
+//         query.start.map(|start| start as i32),
+//         query.end.map(|end| end as i32),
+//       )
+//       .await
+//   }
+// }
 
 impl<S, R> BamSearch<S, R>
 where

@@ -19,7 +19,7 @@ use tokio::{fs::File};
 use tokio::io::AsyncRead;
 use tokio::select;
 
-use crate::htsget::search::{Search, SearchAll, SearchReads};
+use crate::htsget::search::{BlockPosition, Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{AsyncStorage, BytesRange};
 
@@ -56,10 +56,10 @@ where
 }
 
 #[async_trait]
-impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S, R>
+impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, cram::AsyncReader<R>, Header> for CramSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin + Send + Sync
+  R: Send + Sync + Unpin
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -109,13 +109,14 @@ where
   }
 }
 
+// DOC required: is it PhantomData because CRAM does not have ReferenceData?
 #[async_trait]
-impl<S, R> Search<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S, R>
+impl<S, R> Search<S, R, PhantomData<Self>, Index, cram::AsyncReader<R>, Header> for CramSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
   R: Unpin + Send + Sync
 {
-  fn init_reader(inner: R) -> cram::Reader<File> {
+  fn init_reader(inner: R) -> cram::Reader<R> {
     unimplemented!()
   }
 
