@@ -8,12 +8,12 @@ use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
+use noodles_vcf::AsyncReader;
 use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
 use noodles::vcf;
 use noodles::vcf::Header;
-use noodles_bam::AsyncReader;
 use tokio::fs::File;
 use tokio::io::AsyncRead;
 

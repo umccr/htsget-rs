@@ -324,7 +324,7 @@ pub(crate) trait BgzfSearch<S, R, ReferenceSequence, Index, ReaderType, Header>:
 where
   R: Send + Sync + Unpin,
   S: AsyncStorage + Send + Sync + 'static,
-  ReaderType: BlockPosition + Send,
+  ReaderType: Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
   Header: FromStr + Send,
@@ -454,6 +454,18 @@ pub(crate) trait BlockPosition {
   fn virtual_position(&self) -> VirtualPosition;
 }
 
+#[async_trait]
+impl BlockPosition for dyn AsyncRead {
+  async fn read_bytes(&mut self) -> Option<usize> {
+    todo!()
+  }
+
+  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+    todo!()
+  }
+}
+
+
 /// An extension trait for VirtualPosition, which defines some common functions for the Bgzf formats.
 #[async_trait]
 pub(crate) trait VirtualPositionExt {
@@ -482,11 +494,15 @@ impl VirtualPositionExt for VirtualPosition {
   /// But when we need to translate it into a byte range, we need to make sure
   /// the reads falling inside that block are also included, which requires to know
   /// where that block ends, which is not trivial nor possible for the last block.
+  ///
   /// The solution used here goes through reading the records starting at the compressed
   /// virtual offset (coffset) of the end position (remember this will always be the
-  /// start of a BGZF block). If we read the records pointed by that coffset until we
-  /// reach a different coffset, we can find out where the current block ends.
-  /// Therefore this can be used to only add the required bytes in the query results.
+  /// start of a BGZF block).
+  ///
+  /// If we read the records pointed by that coffset until we reach a different coffset,
+  /// we can find out where the current block ends. Therefore this can be used to only add the
+  /// required bytes in the query results.
+  ///
   /// If for some reason we can't read correctly the records we fall back
   /// to adding the maximum BGZF block size.
   async fn bytes_range_end<P>(&self, reader: &mut P) -> u64

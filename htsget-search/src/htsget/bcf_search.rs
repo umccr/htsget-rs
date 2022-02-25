@@ -7,11 +7,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
 use noodles::bcf;
+use noodles_bcf::AsyncReader;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::vcf;
-use noodles_bam::AsyncReader;
 use tokio::{fs::File, io};
 
 // use crate::htsget::bcf_search::vcf::Header;

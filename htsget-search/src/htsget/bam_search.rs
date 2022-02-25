@@ -5,13 +5,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
-use noodles::bam::bai;
+use noodles::bam::{bai, Reader};
 use noodles::bam;
+use noodles_bam::AsyncReader;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
 use noodles::sam;
 use noodles::sam::Header;
-use noodles_bam::{AsyncReader};
 use tokio::fs::File;
 use tokio::io::AsyncRead;
 
@@ -30,7 +30,7 @@ pub(crate) struct BamSearch<S, R> {
 }
 
 #[async_trait]
-impl BlockPosition for bam::Reader<File> {
+impl BlockPosition for Reader<File> {
   async fn read_bytes(&mut self) -> Option<usize> {
     self.records()
   }
@@ -45,7 +45,7 @@ impl BlockPosition for bam::Reader<File> {
 }
 
 #[async_trait]
-impl<R> BlockPosition for bam::Reader<AsyncReader<R>>
+impl<R> BlockPosition for Reader<AsyncReader<R>>
 where
   R: AsyncRead
 {
@@ -61,7 +61,7 @@ where
 }
 
 #[async_trait]
-impl<S, R> BgzfSearch<S, R, ReferenceSequence, bai::Index, bam::Reader<AsyncReader<R>>, Header>
+impl<S, R> BgzfSearch<S, R, ReferenceSequence, Index, Reader<AsyncReader<R>>, Header>
   for BamSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
@@ -76,7 +76,7 @@ where
   async fn get_byte_ranges_for_unmapped(
     &self,
     key: &str,
-    index: &bai::Index,
+    index: &Index,
   ) -> Result<Vec<BytesRange>> {
     let last_interval = index
       .reference_sequences()
@@ -150,11 +150,11 @@ where
 }
 
 #[async_trait]
-impl<Storage, Reader> SearchReads<Storage, Reader, ReferenceSequence, bai::Index, bam::Reader<AsyncReader<Reader>>, sam::Header>
-  for BamSearch<Storage, Reader>
+impl<S, R> SearchReads<S, R, ReferenceSequence, bai::Index, Reader<AsyncReader<R>>, sam::Header>
+  for BamSearch<S, R>
   where
-      Storage: AsyncStorage + Send + Sync + 'static,
-      Reader: AsyncRead + Unpin + Send + Sync + BlockPosition
+      S: AsyncStorage + Send + Sync + 'static,
+      R: AsyncRead + Unpin + Send + Sync + BlockPosition
 {
 }
 

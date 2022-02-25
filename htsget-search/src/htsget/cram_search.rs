@@ -9,12 +9,14 @@ use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
 use futures::StreamExt;
 use noodles::bam::record::ReferenceSequenceId;
+use noodles::bgzf::VirtualPosition;
 use noodles::cram;
+use noodles::cram::Reader;
+use noodles_cram::AsyncReader;
 use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
-use noodles_bam::AsyncReader;
 use tokio::{fs::File};
 use tokio::io::AsyncRead;
 use tokio::select;
@@ -27,6 +29,22 @@ pub(crate) struct CramSearch<S, R> {
   storage: Arc<S>,
   reader: AsyncReader<R>
 }
+
+// #[async_trait]
+// impl<R> BlockPosition for Reader<AsyncReader<R>>
+//   where
+//       R: AsyncRead
+// {
+//   async fn read_bytes(&mut self) -> Option<usize> {
+//     todo!()
+//   }
+//   async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+//     todo!()
+//   }
+//   fn virtual_position(&self) -> VirtualPosition {
+//     todo!()
+//   }
+// }
 
 #[async_trait]
 impl<S, R> SearchAll<S, R, PhantomData<Self>, Index, cram::AsyncReader<File>, Header> for CramSearch<S, R>
@@ -59,7 +77,7 @@ where
 impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, cram::AsyncReader<R>, Header> for CramSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Send + Sync + Unpin
+  R: AsyncRead + Send + Sync + Unpin
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -111,16 +129,16 @@ where
 
 // DOC required: is it PhantomData because CRAM does not have ReferenceData?
 #[async_trait]
-impl<S, R> Search<S, R, PhantomData<Self>, Index, cram::AsyncReader<R>, Header> for CramSearch<S, R>
+impl<S, R> Search<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S, R>
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Unpin + Send + Sync
+  R: AsyncRead + Unpin + Send + Sync
 {
-  fn init_reader(inner: R) -> cram::Reader<R> {
+  fn init_reader(inner: R) -> cram::AsyncReader<R> {
     unimplemented!()
   }
 
-  async fn read_raw_header(reader: &mut cram::Reader<File>) -> Result<String> {
+  async fn read_raw_header(reader: &mut cram::AsyncReader<File>) -> Result<String> {
     unimplemented!()
   }
   async fn read_index_inner<T>(inner: T) -> Result<Index> {
