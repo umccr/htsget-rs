@@ -76,8 +76,8 @@ where
 /// [ReaderType] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<Storage, Reader, ReferenceSequence, Index, ReaderType, Header>:
-  Search<Storage, Reader, ReferenceSequence, Index, ReaderType, Header>
+pub(crate) trait SearchReads<'a, Storage, Reader, ReferenceSequence, Index, ReaderType, Header>:
+  Search<'a, Storage, Reader, ReferenceSequence, Index, ReaderType, Header>
 where
   Reader: Send + Sync + Unpin,
   Storage: AsyncStorage + Send + Sync + 'static,
@@ -154,10 +154,10 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait Search<S, R, ReferenceSequence, Index, Reader, Header>:
+pub(crate) trait Search<'a, S: 'static, R, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, R, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage + Send + Sync,
+  S: AsyncStorage + Send + Sync + 'a,
   R: Unpin,
   Index: Send + Sync,
   Header: FromStr + Send,
@@ -183,6 +183,7 @@ where
   // async fn header(header: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
   // async fn index(index: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
 
+  fn reader_fn(file: File) -> Reader;
   fn init_reader(inner: R) -> Reader;
   async fn read_raw_header(reader: &mut Reader) -> Result<String>;
   async fn read_index_inner<T>(inner: T) -> Result<Index>;
@@ -211,9 +212,8 @@ where
   /// Read the index from the key.
   async fn read_index(&self, key: &str) -> Result<Index> {
     let path = self.get_storage().get(&key, GetOptions::default()).await?;
-    Self::INDEX_FN(path)
-      .await
-      .map_err(|_| HtsGetError::io_error(format!("Reading {} index file", self.get_format())))
+    let mut file = File::open(path).await?;
+    Self::read_index_inner(&mut file).await.map_err(|_| HtsGetError::io_error(format!("Reading {} index file", self.get_format())))
   }
 
   /// Search based on the query.
@@ -286,10 +286,9 @@ where
   {
     let get_options = GetOptions::default();
     let path = storage.get(key, get_options).await?;
-
     File::open(path)
       .await
-      .map(Self::READER_FN)
+      .map(Self::reader_fn)
       .map_err(|_| HtsGetError::io_error(msg))
   }
 
@@ -302,7 +301,7 @@ where
     )
     .await?;
 
-    let header = Self::HEADER_FN(&mut reader)
+    let header = Self::read_raw_header(&mut reader).await
       .map_err(|_| HtsGetError::io_error(format!("Reading {} header", self.get_format())))?
       .parse::<Header>()
       .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))?;
@@ -319,8 +318,8 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<S, R, ReferenceSequence, Index, ReaderType, Header>:
-  Search<S, R, ReferenceSequence, Index, ReaderType, Header>
+pub(crate) trait BgzfSearch<'a, S, R, ReferenceSequence, Index, ReaderType, Header>:
+  Search<'a, S, R, ReferenceSequence, Index, ReaderType, Header>
 where
   R: Send + Sync + Unpin,
   S: AsyncStorage + Send + Sync + 'static,
@@ -388,16 +387,16 @@ where
 }
 
 #[async_trait]
-impl<S, R, ReferenceSequence, Index, ReaderType, Header, T>
+impl<'a, S, R, ReferenceSequence, Index, ReaderType, Header, T>
   SearchAll<S, R, ReferenceSequence, Index, ReaderType, Header> for T
 where
   S: AsyncStorage + Send + Sync + 'static,
   R: Send + Sync + Unpin,
-  ReaderType: BlockPosition + Send,
+  ReaderType: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
-  T: BgzfSearch<S, R, ReferenceSequence, Index, ReaderType, Header> + Send + Sync,
+  T: BgzfSearch<'a, S, R, ReferenceSequence, Index, ReaderType, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
@@ -461,6 +460,10 @@ impl BlockPosition for dyn AsyncRead {
   }
 
   async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+    todo!()
+  }
+
+  fn virtual_position(&self) -> VirtualPosition {
     todo!()
   }
 }
