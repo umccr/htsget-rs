@@ -186,7 +186,7 @@ where
   fn reader_fn(file: File) -> Reader;
   fn init_reader(inner: R) -> Reader;
   async fn read_raw_header(reader: &mut Reader) -> Result<String>;
-  async fn read_index_inner<T>(inner: T) -> Result<Index>;
+  async fn read_index_inner<T: Send>(inner: T) -> Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(

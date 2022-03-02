@@ -106,7 +106,7 @@ where
   async fn read_raw_header(reader: &mut AsyncReader<R>) -> Result<String> {
     unimplemented!()
   }
-  async fn read_index_inner<T>(inner: T) -> Result<Index> {
+  async fn read_index_inner<T: Send>(inner: T) -> Result<Index> {
     unimplemented!()
   }
 
