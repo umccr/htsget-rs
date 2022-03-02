@@ -3,6 +3,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 
 use async_trait::async_trait;
 use tokio::fs::File;
@@ -67,10 +68,10 @@ impl LocalStorage {
 
 #[async_trait]
 impl AsyncStorage for LocalStorage {
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<Box<dyn AsyncRead>> {
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<Pin<Box<dyn AsyncRead + Send>>> {
     let path = self.get_path_from_key(key)?;
     let file = File::open(path).await.map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))?;
-    Ok(Box::new(file))
+    Ok(Box::pin(file))
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {

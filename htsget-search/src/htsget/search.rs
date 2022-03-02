@@ -5,6 +5,7 @@
 //! where the names of the types indicate their purpose.
 //!
 
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -186,7 +187,7 @@ where
   fn reader_fn(file: File) -> Reader;
   fn init_reader(inner: R) -> Reader;
   async fn read_raw_header(reader: &mut Reader) -> Result<String>;
-  async fn read_index_inner<T: Send>(inner: T) -> Result<Index>;
+  async fn read_index_inner<T: AsyncRead>(inner: T) -> Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -211,9 +212,8 @@ where
 
   /// Read the index from the key.
   async fn read_index(&self, key: &str) -> Result<Index> {
-    let path = self.get_storage().get(&key, GetOptions::default()).await?;
-    let mut file = File::open(path).await?;
-    Self::read_index_inner(&mut file).await.map_err(|_| HtsGetError::io_error(format!("Reading {} index file", self.get_format())))
+    let storage = self.get_storage().get(&key, GetOptions::default()).await?;
+    Self::read_index_inner(storage).await.map_err(|_| HtsGetError::io_error(format!("Reading {} index file", self.get_format())))
   }
 
   /// Search based on the query.
