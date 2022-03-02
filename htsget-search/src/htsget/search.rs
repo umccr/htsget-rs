@@ -323,7 +323,7 @@ pub(crate) trait BgzfSearch<'a, S, R, ReferenceSequence, Index, ReaderType, Head
 where
   R: Send + Sync + Unpin,
   S: AsyncStorage + Send + Sync + 'static,
-  ReaderType: Send + Sync,
+  ReaderType: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
   Header: FromStr + Send,
