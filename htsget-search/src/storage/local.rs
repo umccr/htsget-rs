@@ -1,11 +1,14 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
+use std::io;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use tokio::fs::File;
+use tokio::io::AsyncRead;
 
-use crate::htsget::Url;
+use crate::htsget::{HtsGetError, Url};
 use crate::storage;
 use crate::storage::async_storage::AsyncStorage;
 use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
@@ -24,7 +27,7 @@ impl LocalStorage {
       .as_ref()
       .to_path_buf()
       .canonicalize()
-      .map_err(|_| StorageError::NotFound(base_path.as_ref().to_string_lossy().to_string()))
+      .map_err(|e| StorageError::IoError(e, base_path.as_ref().to_string_lossy().to_string()))
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         id_resolver,
@@ -46,7 +49,7 @@ impl LocalStorage {
           .ok_or_else(|| StorageError::InvalidKey(key.to_string()))?,
       )
       .canonicalize()
-      .map_err(|_| StorageError::InvalidKey(key.to_string()))
+      .map_err(|e| StorageError::IoError(e, key.to_string()))
       .and_then(|path| {
         path
           .starts_with(&self.base_path)
@@ -57,19 +60,21 @@ impl LocalStorage {
         path
           .is_file()
           .then(|| path)
-          .ok_or_else(|| StorageError::NotFound(key.to_string()))
+          .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
       })
   }
 }
 
 #[async_trait]
 impl AsyncStorage for LocalStorage {
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
-    self.get_path_from_key(key)
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<Box<dyn AsyncRead>> {
+    let path = self.get_path_from_key(key)?;
+    let file = File::open(path).await.map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))?;
+    Ok(Box::new(file))
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    storage::AsyncStorage::url(self, key, options)
+    storage::AsyncStorage::url(self, key, options).await
   }
 
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
@@ -78,7 +83,7 @@ impl AsyncStorage for LocalStorage {
     Ok(
       tokio::fs::metadata(path)
         .await
-        .map_err(|err| StorageError::NotFound(err.to_string()))?
+        .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
         .len(),
     )
   }
@@ -116,7 +121,7 @@ mod tests {
       let result = AsyncStorage::get(&storage, "folder", GetOptions::default())
         .await
         .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
+      assert_eq!(result, Err(StorageError::KeyNotFound("folder".to_string())));
     })
     .await;
   }
@@ -170,7 +175,7 @@ mod tests {
   async fn url_of_folder() {
     with_local_storage(|storage| async move {
       let result = AsyncStorage::url(&storage, "folder", UrlOptions::default()).await;
-      assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
+      assert_eq!(result, Err(StorageError::KeyNotFound("folder".to_string())));
     })
     .await;
   }

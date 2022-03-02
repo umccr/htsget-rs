@@ -1,6 +1,7 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 use std::cmp::Ordering;
+use std::io;
 
 use thiserror::Error;
 
@@ -13,13 +14,16 @@ pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
-#[derive(Error, PartialEq, Debug)]
+#[derive(Error, Debug)]
 pub enum StorageError {
   #[error("Invalid key: {0}")]
   InvalidKey(String),
 
-  #[error("Not found: {0}")]
-  NotFound(String),
+  #[error("Key not found: {0}")]
+  KeyNotFound(String),
+
+  #[error("Io error: {0}, with key: {1}")]
+  IoError(io::Error, String)
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

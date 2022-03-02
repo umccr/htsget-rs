@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
+use tokio::io::AsyncRead;
 
 use crate::htsget::Url;
 use crate::storage::{GetOptions, UrlOptions};
@@ -14,7 +15,7 @@ pub trait AsyncStorage {
   // TODO Consider another type of interface based on IO streaming
   // so we don't need to guess the length of the headers, but just
   // parse them in an streaming fashion.
-  async fn get<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<PathBuf>;
+  async fn get<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Box<dyn AsyncRead>>;
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url>;
 
