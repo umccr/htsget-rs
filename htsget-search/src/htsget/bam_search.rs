@@ -5,12 +5,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
-use noodles::bam::{bai, Reader};
-use noodles::bam;
+use noodles::bam::{bai};
 use noodles_bam::AsyncReader;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
-use noodles::sam;
+use noodles::{bgzf, sam};
 use noodles::sam::Header;
 use tokio::fs::File;
 use tokio::io::AsyncRead;
@@ -23,9 +22,8 @@ use crate::{
   storage::{AsyncStorage, BytesRange},
 };
 
-pub(crate) struct BamSearch<S, R> {
-  storage: Arc<S>,
-  reader: AsyncReader<R>
+pub(crate) struct BamSearch<S> {
+  storage: Arc<S>
 }
 
 #[async_trait]
@@ -46,7 +44,7 @@ where
 
 #[async_trait]
 impl<'a, S, R> BgzfSearch<'a, S, R, ReferenceSequence, Index, AsyncReader<R>, Header>
-  for BamSearch<S, R>
+  for BamSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
   R: AsyncRead + Send + Sync + Unpin
@@ -89,25 +87,24 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R> Search<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<R>, sam::Header>
-  for BamSearch<S, R>
+impl<'a, S, R> Search<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<bgzf::AsyncReader<R>>, sam::Header>
+  for BamSearch<S>
 where
   S: AsyncStorage + Send + Sync + 'static,
   R: AsyncRead + Send + Sync + Unpin
 {
-  fn reader_fn(file: File) -> AsyncReader<R> {
-    todo!()
+  fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
+    AsyncReader::new(inner)
   }
 
-  fn init_reader(inner: R) -> AsyncReader<R> {
-    unimplemented!()
+  async fn read_raw_header(reader: &mut AsyncReader<bgzf::AsyncReader<R>>) -> Result<String> {
+    let header = reader.read_header().await;
+    reader.read_reference_sequences().await?;
+    header.map_err(|err| HtsGetError::io_error(format!("Io Error when reading header: {}", err)))
   }
-
-  async fn read_raw_header(reader: &mut AsyncReader<R>) -> Result<String> {
-    unimplemented!()
-  }
-  async fn read_index_inner<T: Send>(inner: T) -> Result<Index> {
-    unimplemented!()
+  async fn read_index_inner<T: AsyncRead + Send>(inner: T) -> Result<Index> {
+    let mut reader = bai::AsyncReader::new(inner);
+    reader.read_index().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading index: {}", err)))
   }
 
   async fn get_byte_ranges_for_reference_name(
@@ -139,7 +136,7 @@ where
 
 #[async_trait]
 impl<'a, S, R> SearchReads<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<R>, sam::Header>
-  for BamSearch<S, R>
+  for BamSearch<S>
   where
       S: AsyncStorage + Send + Sync + 'static,
       R: AsyncRead + Send + Sync + Unpin
@@ -182,13 +179,12 @@ impl<'a, S, R> SearchReads<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<
 }
 
 
-impl<S, R> BamSearch<S, R>
+impl<S> BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
-  R: Send + Sync + Unpin
+  S: AsyncStorage + Send + Sync + 'static
 {
-  pub fn new(storage: Arc<S>, reader: AsyncReader<R>) -> Self {
-    Self { storage, reader }
+  pub fn new(storage: Arc<S>) -> Self {
+    Self { storage }
   }
 }
 

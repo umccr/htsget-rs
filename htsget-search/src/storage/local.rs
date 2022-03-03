@@ -68,7 +68,7 @@ impl LocalStorage {
 
 #[async_trait]
 impl AsyncStorage for LocalStorage {
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<Pin<Box<dyn AsyncRead + Send>>> {
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<Pin<Box<dyn AsyncRead + Unpin + Send>>> {
     let path = self.get_path_from_key(key)?;
     let file = File::open(path).await.map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))?;
     Ok(Box::pin(file))

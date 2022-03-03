@@ -80,7 +80,7 @@ where
 pub(crate) trait SearchReads<'a, Storage, Reader, ReferenceSequence, Index, ReaderType, Header>:
   Search<'a, Storage, Reader, ReferenceSequence, Index, ReaderType, Header>
 where
-  Reader: Send + Sync + Unpin,
+  Reader: AsyncRead + Send + Sync + Unpin,
   Storage: AsyncStorage + Send + Sync + 'static,
   ReaderType: Send,
   Header: FromStr + Send + Sync,
@@ -155,11 +155,11 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait Search<'a, S: 'static, R, ReferenceSequence, Index, Reader, Header>:
+pub(crate) trait Search<'a, S, R, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, R, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage + Send + Sync + 'a,
-  R: Unpin,
+  S: AsyncStorage + Send + Sync + 'static,
+  R: AsyncRead + Send + Sync + Unpin,
   Index: Send + Sync,
   Header: FromStr + Send,
   Reader: Send,
@@ -184,10 +184,9 @@ where
   // async fn header(header: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
   // async fn index(index: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
 
-  fn reader_fn(file: File) -> Reader;
   fn init_reader(inner: R) -> Reader;
   async fn read_raw_header(reader: &mut Reader) -> Result<String>;
-  async fn read_index_inner<T: AsyncRead>(inner: T) -> Result<Index>;
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -285,11 +284,8 @@ where
     U: Into<String> + Send,
   {
     let get_options = GetOptions::default();
-    let path = storage.get(key, get_options).await?;
-    File::open(path)
-      .await
-      .map(Self::reader_fn)
-      .map_err(|_| HtsGetError::io_error(msg))
+    let storage = storage.get(key, get_options).await?;
+    Ok(Self::init_reader(storage))
   }
 
   /// Get the reader and header using the key.
@@ -321,7 +317,7 @@ where
 pub(crate) trait BgzfSearch<'a, S, R, ReferenceSequence, Index, ReaderType, Header>:
   Search<'a, S, R, ReferenceSequence, Index, ReaderType, Header>
 where
-  R: Send + Sync + Unpin,
+  R: AsyncRead + Send + Sync + Unpin,
   S: AsyncStorage + Send + Sync + 'static,
   ReaderType: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
@@ -391,7 +387,7 @@ impl<'a, S, R, ReferenceSequence, Index, ReaderType, Header, T>
   SearchAll<S, R, ReferenceSequence, Index, ReaderType, Header> for T
 where
   S: AsyncStorage + Send + Sync + 'static,
-  R: Send + Sync + Unpin,
+  R: AsyncRead + Send + Sync + Unpin,
   ReaderType: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,

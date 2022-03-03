@@ -98,8 +98,8 @@ impl From<JoinError> for HtsGetError {
 }
 
 impl From<io::Error> for HtsGetError {
-  fn from(_: io::Error) -> Self {
-    Self::io_error("IO Error")
+  fn from(err: io::Error) -> Self {
+    Self::io_error(err.to_string())
   }
 }
 
