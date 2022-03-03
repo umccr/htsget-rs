@@ -104,11 +104,11 @@ where
   async fn read_raw_header(reader: &mut AsyncReader<bgzf::AsyncReader<R>>) -> Result<String> {
     let header = reader.read_header().await;
     reader.read_reference_sequences().await?;
-    header.map_err(|err| HtsGetError::io_error(format!("Io Error when reading header: {}", err)))
+    header.map_err(|err| HtsGetError::io_error(format!("Io Error when reading bam header: {}", err)))
   }
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> Result<Index> {
     let mut reader = bai::AsyncReader::new(inner);
-    reader.read_index().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading index: {}", err)))
+    reader.read_index().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading bai index: {}", err)))
   }
 
   async fn get_byte_ranges_for_reference_name(
