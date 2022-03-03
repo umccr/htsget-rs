@@ -164,25 +164,8 @@ where
   Header: FromStr + Send,
   Reader: Send,
   Self: Sync + Send
-
-// pub(crate) trait Search<S, ReferenceSequence, Index, Reader, Header>:
-//   SearchAll<S, ReferenceSequence, Index, Reader, Header>
-// where
-//   S: AsyncStorage + Send + Sync,
-//   Header: FromStr + Send,
-//   Reader: Send,
-//   Index: Send + Sync,
-//   Self: Sync + Send,
 {
   const MIN_SEQ_POSITION: u32 = 1; // 1-based
-
-  // const READER_FN: async { fn(AsyncReader<AsyncRead>) -> io::AsyncRead };
-  // const HEADER_FN: async fn(&'_ mut io::AsyncRead) -> AsyncHeaderResult;
-  // const INDEX_FN: async fn(AsyncRead) -> AsyncIndexResult<'static, Index>;
-
-  // async fn read(reader: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
-  // async fn header(header: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
-  // async fn index(index: AsyncReader::<dyn AsyncRead>) -> dyn io::AsyncRead;
 
   fn init_reader(inner: R) -> Reader;
   async fn read_raw_header(reader: &mut Reader) -> Result<String>;
@@ -444,22 +427,6 @@ pub(crate) trait BlockPosition {
   /// Read the virtual position.
   fn virtual_position(&self) -> VirtualPosition;
 }
-
-#[async_trait]
-impl BlockPosition for dyn AsyncRead {
-  async fn read_bytes(&mut self) -> Option<usize> {
-    todo!()
-  }
-
-  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
-    todo!()
-  }
-
-  fn virtual_position(&self) -> VirtualPosition {
-    todo!()
-  }
-}
-
 
 /// An extension trait for VirtualPosition, which defines some common functions for the Bgzf formats.
 #[async_trait]

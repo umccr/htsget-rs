@@ -94,7 +94,7 @@ where
 impl<'a, S, R> Search<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<bgzf::AsyncReader<R>>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = R>  + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
   R: AsyncRead + Send + Sync + Unpin
 {
   fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
@@ -142,7 +142,7 @@ where
 impl<'a, S, R> SearchReads<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<bgzf::AsyncReader<R>>, sam::Header>
   for BamSearch<S>
   where
-      S: AsyncStorage<Streamable = R>  + Send + Sync + 'static,
+      S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
       R: AsyncRead + Send + Sync + Unpin
 {
   async fn get_reference_sequence_from_name<'b>(
@@ -183,9 +183,10 @@ impl<'a, S, R> SearchReads<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<
 }
 
 
-impl<S> BamSearch<S>
+impl<S, R> BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
+  R: AsyncRead + Send + Sync + Unpin,
 {
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
