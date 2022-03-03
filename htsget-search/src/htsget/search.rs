@@ -22,7 +22,7 @@ use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
 
-use crate::storage::GetOptions;
+use crate::storage::{async_storage, GetOptions};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{AsyncStorage, BytesRange, UrlOptions},
@@ -77,12 +77,12 @@ where
 /// [ReaderType] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<'a, Storage, Reader, ReferenceSequence, Index, ReaderType, Header>:
-  Search<'a, Storage, Reader, ReferenceSequence, Index, ReaderType, Header>
+pub(crate) trait SearchReads<'a, Storage, R, ReferenceSequence, Index, Reader, Header>:
+  Search<'a, Storage, R, ReferenceSequence, Index, Reader, Header>
 where
-  Reader: AsyncRead + Send + Sync + Unpin,
-  Storage: AsyncStorage + Send + Sync + 'static,
-  ReaderType: Send,
+  R: AsyncRead + Send + Sync + Unpin,
+  Storage: AsyncStorage<Streamable = R> + Send + Sync + 'static,
+  Reader: Send,
   Header: FromStr + Send + Sync,
   Index: Send + Sync,
 {
@@ -158,7 +158,7 @@ where
 pub(crate) trait Search<'a, S, R, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, R, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
   R: AsyncRead + Send + Sync + Unpin,
   Index: Send + Sync,
   Header: FromStr + Send,
@@ -279,10 +279,7 @@ where
   }
 
   /// Get the reader from the key.
-  async fn reader<U>(key: &str, msg: U, storage: Arc<S>) -> Result<Reader>
-  where
-    U: Into<String> + Send,
-  {
+  async fn reader(key: &str, storage: Arc<S>) -> Result<Reader> {
     let get_options = GetOptions::default();
     let storage = storage.get(key, get_options).await?;
     Ok(Self::init_reader(storage))
@@ -292,7 +289,6 @@ where
   async fn create_reader(&self, key: &str) -> Result<(Reader, Header)> {
     let mut reader = Self::reader(
       key,
-      format!("Reading {}", self.get_format()),
       self.get_storage(),
     )
     .await?;
@@ -318,7 +314,7 @@ pub(crate) trait BgzfSearch<'a, S, R, ReferenceSequence, Index, ReaderType, Head
   Search<'a, S, R, ReferenceSequence, Index, ReaderType, Header>
 where
   R: AsyncRead + Send + Sync + Unpin,
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
   ReaderType: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
@@ -352,7 +348,7 @@ where
       let storage = self.get_storage();
       let storage_key = key.clone();
       futures.push(tokio::spawn(async move {
-        let mut reader = Self::reader(&storage_key, "Reading BGZF", storage).await?;
+        let mut reader = Self::reader(&storage_key, storage).await?;
         Ok(
           BytesRange::default()
             .with_start(chunk.start().bytes_range_start())
@@ -386,7 +382,7 @@ where
 impl<'a, S, R, ReferenceSequence, Index, ReaderType, Header, T>
   SearchAll<S, R, ReferenceSequence, Index, ReaderType, Header> for T
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
   R: AsyncRead + Send + Sync + Unpin,
   ReaderType: BlockPosition + Send + Sync,
   Header: FromStr + Send,
@@ -403,7 +399,7 @@ where
         let start_vpos = metadata.start_position();
         let end_vpos = metadata.end_position();
         futures.push(tokio::spawn(async move {
-          let mut reader = Self::reader(&storage_key, "Reading BGZF", storage).await?;
+          let mut reader = Self::reader(&storage_key, storage).await?;
           let start_vpos = start_vpos.bytes_range_start();
           let end_vpos = end_vpos.bytes_range_end(&mut reader).await;
 
