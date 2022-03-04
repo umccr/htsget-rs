@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, AsyncSeek};
 use futures::prelude::stream::FuturesUnordered;
 use noodles::{bcf, bgzf, csi};
 use noodles::bcf::Reader;
@@ -32,12 +32,12 @@ pub(crate) struct BcfSearch<S> {
 #[async_trait]
 impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
   where
-    R: AsyncRead + Unpin + Send + Sync {
+    R: AsyncRead + AsyncSeek + Unpin + Send + Sync {
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bcf::Record::default()).await.ok()
   }
 
-  async fn seek(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
     self.seek(pos).await
   }
 
@@ -51,7 +51,7 @@ impl<'a, S, R> BgzfSearch<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::
   for BcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -64,19 +64,18 @@ where
 impl<'a, S, R> Search<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header> for BcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync
 {
   fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
     AsyncReader::new(inner)
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<bgzf::AsyncReader<R>>) -> Result<String> {
-    reader.read_header().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading bcf header: {}", err)))
+  async fn read_raw_header(reader: &mut AsyncReader<bgzf::AsyncReader<R>>) -> io::Result<String> {
+    reader.read_header().await
   }
 
-  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> Result<Index> {
-    let mut reader = csi::AsyncReader::new(inner);
-    reader.read_index().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading csi index: {}", err)))
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
+    csi::AsyncReader::new(inner).read_index().await
   }
 
   async fn get_byte_ranges_for_reference_name(
@@ -143,7 +142,7 @@ where
 impl<S, R> BcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync
 {
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
 

@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use tokio::io::AsyncSeek;
 use futures::prelude::stream::FuturesUnordered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
@@ -15,6 +16,7 @@ use noodles::tabix::Index;
 use noodles::vcf;
 use noodles::vcf::Header;
 use tokio::fs::File;
+use tokio::io;
 use tokio::io::AsyncRead;
 
 use crate::htsget::search::{
@@ -33,12 +35,12 @@ pub(crate) struct VcfSearch<S> {
 #[async_trait]
 impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
   where
-    R: AsyncRead + Send + Sync + Unpin {
+    R: AsyncRead + AsyncSeek + Send + Sync + Unpin {
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut String::new()).await.ok()
   }
 
-  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
     self.seek(pos).await
   }
 
@@ -53,7 +55,7 @@ impl<'a, S, R>
   for VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek +Unpin + Send + Sync
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -68,19 +70,18 @@ impl<'a, S, R>
   for VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
 {
   fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
     AsyncReader::new(bgzf::AsyncReader::new(inner))
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<bgzf::AsyncReader<R>>) -> Result<String> {
-    reader.read_header().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading vcf header: {}", err)))
+  async fn read_raw_header(reader: &mut AsyncReader<bgzf::AsyncReader<R>>) -> io::Result<String> {
+    reader.read_header().await
   }
 
-  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> Result<Index> {
-    let mut reader = tabix::AsyncReader::new(inner);
-    reader.read_index().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading tabix index: {}", err)))
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
+    tabix::AsyncReader::new(inner).read_index().await
   }
 
   async fn get_byte_ranges_for_reference_name(
@@ -152,7 +153,7 @@ where
 impl<S, R> VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
 {
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298

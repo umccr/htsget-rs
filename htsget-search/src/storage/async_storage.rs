@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 
 use async_trait::async_trait;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::htsget::Url;
 use crate::storage::{GetOptions, UrlOptions};
@@ -13,7 +13,7 @@ use super::Result;
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
 pub trait AsyncStorage {
-  type Streamable: AsyncRead + Unpin + Send;
+  type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
 
   // TODO Consider another type of interface based on IO streaming
   // so we don't need to guess the length of the headers, but just

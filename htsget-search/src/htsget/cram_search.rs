@@ -19,7 +19,7 @@ use noodles::sam;
 use noodles::sam::Header;
 use tokio::fs::File;
 use tokio::io::{AsyncRead, AsyncSeek};
-use tokio::select;
+use tokio::{io, select};
 
 use crate::htsget::search::{BlockPosition, Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
@@ -121,13 +121,13 @@ where
     AsyncReader::new(inner)
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<R>) -> Result<String> {
+  async fn read_raw_header(reader: &mut AsyncReader<R>) -> io::Result<String> {
     reader.read_file_definition().await?;
-    reader.read_file_header().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading cram header: {}", err)))
+    reader.read_file_header().await
   }
-  async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> Result<Index> {
-    let mut reader = crai::AsyncReader::new(inner);
-    reader.read_index().await.map_err(|err| HtsGetError::io_error(format!("Io Error when reading crai index: {}", err)))
+
+  async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {
+    crai::AsyncReader::new(inner).read_index().await
   }
 
   async fn get_byte_ranges_for_reference_name(

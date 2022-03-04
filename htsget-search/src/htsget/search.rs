@@ -168,8 +168,8 @@ where
   const MIN_SEQ_POSITION: u32 = 1; // 1-based
 
   fn init_reader(inner: R) -> Reader;
-  async fn read_raw_header(reader: &mut Reader) -> Result<String>;
-  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> Result<Index>;
+  async fn read_raw_header(reader: &mut Reader) -> io::Result<String>;
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -195,7 +195,7 @@ where
   /// Read the index from the key.
   async fn read_index(&self, key: &str) -> Result<Index> {
     let storage = self.get_storage().get(&key, GetOptions::default()).await?;
-    Self::read_index_inner(storage).await.map_err(|_| HtsGetError::io_error(format!("Reading {} index file", self.get_format())))
+    Self::read_index_inner(storage).await.map_err(|err| HtsGetError::io_error(format!("Reading {} index: {}", self.get_format(), err)))
   }
 
   /// Search based on the query.
@@ -277,7 +277,7 @@ where
     .await?;
 
     let header = Self::read_raw_header(&mut reader).await
-      .map_err(|_| HtsGetError::io_error(format!("Reading {} header", self.get_format())))?
+      .map_err(|err| HtsGetError::io_error(format!("Reading {} header: {}", self.get_format(), err)))?
       .parse::<Header>()
       .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))?;
 
@@ -423,7 +423,7 @@ pub(crate) trait BlockPosition {
   /// Read bytes of record.
   async fn read_bytes(&mut self) -> Option<usize>;
   /// Seek using VirtualPosition.
-  async fn seek(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition>;
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition>;
   /// Read the virtual position.
   fn virtual_position(&self) -> VirtualPosition;
 }
@@ -486,7 +486,7 @@ impl VirtualPositionExt for VirtualPosition {
   where
     P: BlockPosition + Send,
   {
-    reader.seek(*self).await.ok()?;
+    reader.seek_vpos(*self).await.ok()?;
     let next_block_index = loop {
       let bytes_read = reader.read_bytes().await?;
       let actual_block_index = reader.virtual_position().compressed();

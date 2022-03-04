@@ -22,7 +22,9 @@ impl AsyncStorage for LocalStorage {
 
   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
-    File::open(path).await.map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
+    let file = File::open(path).await;
+    let err = file.map_err(|e| StorageError::IoError(e, key.as_ref().to_string()));
+    err
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
@@ -128,7 +130,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let result = AsyncStorage::url(&storage, "folder/../key1", UrlOptions::default()).await;
       let expected = Url::new(format!(
-        "https://{}",
+        "file://{}",
         storage.base_path().join("key1").to_string_lossy()
       ));
       assert!(matches!(result, Ok(url) if url == expected));
@@ -146,7 +148,7 @@ mod tests {
       )
       .await;
       let expected = Url::new(format!(
-        "https://{}",
+        "file://{}",
         storage.base_path().join("key1").to_string_lossy()
       )).with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
@@ -164,7 +166,7 @@ mod tests {
       )
       .await;
       let expected = Url::new(format!(
-        "https://{}",
+        "file://{}",
         storage.base_path().join("key1").to_string_lossy()
       )).with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));

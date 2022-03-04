@@ -196,7 +196,7 @@ mod tests {
         UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
       );
       let expected = Url::new(format!(
-        "https://{}",
+        "file://{}",
         storage.base_path().join("key1").to_string_lossy()
       )).with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
@@ -211,7 +211,7 @@ mod tests {
         UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
       );
       let expected = Url::new(format!(
-        "https://{}",
+        "file://{}",
         storage.base_path().join("key1").to_string_lossy()
       )).with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));
