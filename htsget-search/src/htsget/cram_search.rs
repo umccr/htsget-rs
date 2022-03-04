@@ -110,7 +110,7 @@ where
   }
 }
 
-// DOC required: is it PhantomData because CRAM does not have ReferenceData?
+/// PhantomData is used here because of a lack of reference sequence data for CRAM.
 #[async_trait]
 impl<'a, S, R> Search<'a, S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
 where

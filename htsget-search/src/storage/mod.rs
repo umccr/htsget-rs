@@ -5,11 +5,15 @@ use std::io;
 
 use thiserror::Error;
 
-pub mod async_storage;
+#[cfg(feature = "async")]
 pub use async_storage::*;
 
 use crate::htsget::Class;
 
+#[cfg(feature = "async")]
+pub mod async_storage;
+pub mod blocking;
+#[cfg(feature = "async")]
 pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
