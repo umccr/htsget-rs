@@ -71,6 +71,7 @@ where
   }
 
   async fn read_raw_header(reader: &mut AsyncReader<bgzf::AsyncReader<R>>) -> io::Result<String> {
+    reader.read_file_format().await?;
     reader.read_header().await
   }
 

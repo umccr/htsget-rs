@@ -109,7 +109,9 @@ where
     header
   }
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
-    bai::AsyncReader::new(inner).read_index().await
+    let mut reader = bai::AsyncReader::new(inner);
+    reader.read_header().await?;
+    reader.read_index().await
   }
 
   async fn get_byte_ranges_for_reference_name(
