@@ -199,7 +199,7 @@ pub mod tests {
 
   use crate::htsget::{Class, Headers, Response, Url};
   use htsget_id_resolver::RegexResolver;
-  use crate::storage::local::LocalStorage;
+  use crate::storage::blocking::local::LocalStorage;
 
   use super::*;
 

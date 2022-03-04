@@ -16,8 +16,6 @@ use noodles::csi::Index;
 use noodles::vcf;
 use tokio::{fs::File, io};
 
-// use crate::htsget::bcf_search::vcf::Header;
-
 use crate::htsget::search::{
   find_first, BgzfSearch, BlockPosition, Search,
 };
@@ -26,7 +24,6 @@ use crate::{
   storage::{AsyncStorage, BytesRange},
 };
 use crate::htsget::HtsGetError;
-use crate::storage::local::LocalStorage;
 
 pub(crate) struct BcfSearch<S> {
   storage: Arc<S>
@@ -161,6 +158,7 @@ pub mod tests {
 
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
   use htsget_id_resolver::RegexResolver;
+  use crate::storage::blocking::local::LocalStorage;
 
   use super::*;
 

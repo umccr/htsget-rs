@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 use std::{fs::File, io};
 
-use noodles::bam;
+use noodles::{bam, bgzf};
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
 use noodles::bam::{bai, Reader};
@@ -26,7 +26,7 @@ pub(crate) struct BamSearch<'a, S> {
   storage: &'a S,
 }
 
-impl BlockPosition for bam::Reader<File> {
+impl BlockPosition for bam::Reader<bgzf::Reader<File>> {
   fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bam::Record::default()).ok()
   }
@@ -40,7 +40,7 @@ impl BlockPosition for bam::Reader<File> {
   }
 }
 
-impl<'a, S> BgzfSearch<'a, S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+impl<'a, S> BgzfSearch<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
   for BamSearch<'a, S>
 where
   S: Storage + 'a,
@@ -76,13 +76,13 @@ where
   }
 }
 
-impl<'a, S> Search<'a, S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+impl<'a, S> Search<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
   for BamSearch<'a, S>
 where
   S: Storage + 'a,
 {
-  const READER_FN: fn(File) -> Reader<File> = bam::Reader::new;
-  const HEADER_FN: fn(&mut Reader<File>) -> io::Result<String> = |reader| {
+  const READER_FN: fn(File) -> Reader<bgzf::Reader<File>> = bam::Reader::new;
+  const HEADER_FN: fn(&mut Reader<bgzf::Reader<File>>) -> io::Result<String> = |reader| {
     let header = reader.read_header();
     reader.read_reference_sequences()?;
     header
@@ -114,7 +114,7 @@ where
   }
 }
 
-impl<'a, S> SearchReads<'a, S, ReferenceSequence, bai::Index, bam::Reader<File>, sam::Header>
+impl<'a, S> SearchReads<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
   for BamSearch<'a, S>
 where
   S: Storage + 'a,
@@ -142,7 +142,7 @@ where
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
-    reader: &mut Reader<File>,
+    reader: &mut Reader<bgzf::Reader<File>>,
   ) -> Result<Vec<BytesRange>> {
     self.get_byte_ranges_for_reference_sequence_bgzf(
       ref_seq,
