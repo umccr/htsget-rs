@@ -5,37 +5,33 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::io::AsyncSeek;
 use futures::prelude::stream::FuturesUnordered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
-use noodles_vcf::{AsyncReader};
 use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
-use noodles::vcf;
 use noodles::vcf::Header;
-use tokio::fs::File;
+use noodles_vcf::AsyncReader;
 use tokio::io;
 use tokio::io::AsyncRead;
+use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{
-  find_first, BgzfSearch, BlockPosition, Search,
-};
+use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{AsyncStorage, BytesRange},
 };
-use crate::htsget::HtsGetError;
 
 pub(crate) struct VcfSearch<S> {
-  storage: Arc<S>
+  storage: Arc<S>,
 }
 
 #[async_trait]
 impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
-  where
-    R: AsyncRead + AsyncSeek + Send + Sync + Unpin {
+where
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+{
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut String::new()).await.ok()
   }
@@ -55,7 +51,7 @@ impl<'a, S, R>
   for VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek +Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -70,7 +66,7 @@ impl<'a, S, R>
   for VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
     AsyncReader::new(bgzf::AsyncReader::new(inner))
@@ -153,7 +149,7 @@ where
 impl<S, R> VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
@@ -167,9 +163,10 @@ where
 pub mod tests {
   use std::future::Future;
 
+  use htsget_id_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 

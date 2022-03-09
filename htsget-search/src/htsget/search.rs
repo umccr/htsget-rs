@@ -5,7 +5,6 @@
 //! where the names of the types indicate their purpose.
 //!
 
-use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -16,13 +15,12 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::merge_chunks;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
-use tokio::fs::File;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
 
-use crate::storage::{async_storage, GetOptions};
+use crate::storage::GetOptions;
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{AsyncStorage, BytesRange, UrlOptions},
@@ -160,7 +158,7 @@ where
   Index: Send + Sync,
   Header: FromStr + Send,
   Reader: Send,
-  Self: Sync + Send
+  Self: Sync + Send,
 {
   const MIN_SEQ_POSITION: u32 = 1; // 1-based
 
@@ -192,7 +190,9 @@ where
   /// Read the index from the key.
   async fn read_index(&self, key: &str) -> Result<Index> {
     let storage = self.get_storage().get(&key, GetOptions::default()).await?;
-    Self::read_index_inner(storage).await.map_err(|err| HtsGetError::io_error(format!("Reading {} index: {}", self.get_format(), err)))
+    Self::read_index_inner(storage)
+      .await
+      .map_err(|err| HtsGetError::io_error(format!("Reading {} index: {}", self.get_format(), err)))
   }
 
   /// Search based on the query.
@@ -267,14 +267,13 @@ where
 
   /// Get the reader and header using the key.
   async fn create_reader(&self, key: &str) -> Result<(Reader, Header)> {
-    let mut reader = Self::reader(
-      key,
-      self.get_storage(),
-    )
-    .await?;
+    let mut reader = Self::reader(key, self.get_storage()).await?;
 
-    let header = Self::read_raw_header(&mut reader).await
-      .map_err(|err| HtsGetError::io_error(format!("Reading {} header: {}", self.get_format(), err)))?
+    let header = Self::read_raw_header(&mut reader)
+      .await
+      .map_err(|err| {
+        HtsGetError::io_error(format!("Reading {} header: {}", self.get_format(), err))
+      })?
       .parse::<Header>()
       .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))?;
 

@@ -1,5 +1,5 @@
-use std::path::PathBuf;
-use std::pin::Pin;
+//! Provides the storage abstraction for [HtsGet].
+//!
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncSeek};
@@ -15,10 +15,11 @@ use super::Result;
 pub trait AsyncStorage {
   type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
 
-  // TODO Consider another type of interface based on IO streaming
-  // so we don't need to guess the length of the headers, but just
-  // parse them in an streaming fashion.
-  async fn get<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Self::Streamable>;
+  async fn get<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    options: GetOptions,
+  ) -> Result<Self::Streamable>;
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url>;
 

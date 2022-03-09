@@ -1,15 +1,10 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
-use std::io;
-use std::path::{Path, PathBuf};
-use std::pin::Pin;
-
 use async_trait::async_trait;
 use tokio::fs::File;
-use tokio::io::AsyncRead;
 
-use crate::htsget::{HtsGetError, Url};
+use crate::htsget::Url;
 use crate::storage;
 use crate::storage::async_storage::AsyncStorage;
 use crate::storage::blocking::local::LocalStorage;
@@ -22,7 +17,9 @@ impl AsyncStorage for LocalStorage {
 
   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
-    File::open(path).await.map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
+    File::open(path)
+      .await
+      .map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
@@ -49,17 +46,17 @@ mod tests {
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
+  use htsget_id_resolver::RegexResolver;
+
   use crate::htsget::{Headers, Url};
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
-  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
   #[tokio::test]
   async fn get_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "non-existing-key", GetOptions::default())
-        .await;
+      let result = AsyncStorage::get(&storage, "non-existing-key", GetOptions::default()).await;
       assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -68,8 +65,7 @@ mod tests {
   #[tokio::test]
   async fn get_folder() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "folder", GetOptions::default())
-        .await;
+      let result = AsyncStorage::get(&storage, "folder", GetOptions::default()).await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -78,9 +74,11 @@ mod tests {
   #[tokio::test]
   async fn get_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "folder/../../passwords", GetOptions::default())
-        .await;
-      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords"));
+      let result =
+        AsyncStorage::get(&storage, "folder/../../passwords", GetOptions::default()).await;
+      assert!(
+        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
+      );
     })
     .await;
   }
@@ -88,8 +86,7 @@ mod tests {
   #[tokio::test]
   async fn get_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "folder/../key1", GetOptions::default())
-        .await;
+      let result = AsyncStorage::get(&storage, "folder/../key1", GetOptions::default()).await;
       assert!(matches!(result, Ok(_)));
     })
     .await;
@@ -118,7 +115,9 @@ mod tests {
     with_local_storage(|storage| async move {
       let result =
         AsyncStorage::url(&storage, "folder/../../passwords", UrlOptions::default()).await;
-      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords"));
+      assert!(
+        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
+      );
     })
     .await;
   }
@@ -148,7 +147,8 @@ mod tests {
       let expected = Url::new(format!(
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
-      )).with_headers(Headers::default().with_header("Range", "bytes=7-9"));
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
@@ -166,7 +166,8 @@ mod tests {
       let expected = Url::new(format!(
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
-      )).with_headers(Headers::default().with_header("Range", "bytes=7-"));
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;

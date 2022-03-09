@@ -4,7 +4,6 @@
 use std::path::PathBuf;
 use std::{fs::File, io};
 
-use noodles::{bam, bgzf};
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
 use noodles::bam::{bai, Reader};
@@ -12,6 +11,7 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
 use noodles::sam;
 use noodles::sam::Header;
+use noodles::{bam, bgzf};
 
 use crate::htsget::blocking::search::{BgzfSearch, Search, SearchReads};
 use crate::htsget::HtsGetError;
@@ -40,7 +40,8 @@ impl BlockPosition for bam::Reader<bgzf::Reader<File>> {
   }
 }
 
-impl<'a, S> BgzfSearch<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
+impl<'a, S>
+  BgzfSearch<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
   for BamSearch<'a, S>
 where
   S: Storage + 'a,
@@ -76,7 +77,8 @@ where
   }
 }
 
-impl<'a, S> Search<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
+impl<'a, S>
+  Search<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
   for BamSearch<'a, S>
 where
   S: Storage + 'a,
@@ -114,7 +116,8 @@ where
   }
 }
 
-impl<'a, S> SearchReads<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
+impl<'a, S>
+  SearchReads<'a, S, ReferenceSequence, bai::Index, bam::Reader<bgzf::Reader<File>>, sam::Header>
   for BamSearch<'a, S>
 where
   S: Storage + 'a,

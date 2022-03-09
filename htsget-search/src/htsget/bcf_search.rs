@@ -5,34 +5,31 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::io::{AsyncRead, AsyncSeek};
 use futures::prelude::stream::FuturesUnordered;
-use noodles::{bcf, bgzf, csi};
-use noodles::bcf::Reader;
-use noodles_bcf::AsyncReader;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::vcf;
-use tokio::{fs::File, io};
+use noodles::{bcf, bgzf, csi};
+use noodles_bcf::AsyncReader;
+use tokio::io;
+use tokio::io::{AsyncRead, AsyncSeek};
 
-use crate::htsget::search::{
-  find_first, BgzfSearch, BlockPosition, Search,
-};
+use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{AsyncStorage, BytesRange},
 };
-use crate::htsget::HtsGetError;
 
 pub(crate) struct BcfSearch<S> {
-  storage: Arc<S>
+  storage: Arc<S>,
 }
 
 #[async_trait]
 impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
-  where
-    R: AsyncRead + AsyncSeek + Unpin + Send + Sync {
+where
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+{
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bcf::Record::default()).await.ok()
   }
@@ -47,11 +44,12 @@ impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
 }
 
 #[async_trait]
-impl<'a, S, R> BgzfSearch<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header>
+impl<'a, S, R>
+  BgzfSearch<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header>
   for BcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -61,10 +59,12 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R> Search<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header> for BcfSearch<S>
+impl<'a, S, R>
+  Search<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header>
+  for BcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
     AsyncReader::new(inner)
@@ -143,7 +143,7 @@ where
 impl<S, R> BcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
 
@@ -156,8 +156,9 @@ where
 pub mod tests {
   use std::future::Future;
 
-  use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
   use htsget_id_resolver::RegexResolver;
+
+  use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
 
   use super::*;

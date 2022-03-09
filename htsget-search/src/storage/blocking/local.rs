@@ -137,7 +137,9 @@ mod tests {
       let result = storage
         .get("folder/../../passwords", GetOptions::default())
         .map(|path| path.to_string_lossy().to_string());
-      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords"));
+      assert!(
+        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
+      );
     });
   }
 
@@ -172,7 +174,9 @@ mod tests {
   fn url_with_forbidden_path() {
     with_local_storage(|storage| {
       let result = storage.url("folder/../../passwords", UrlOptions::default());
-      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords"));
+      assert!(
+        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
+      );
     });
   }
 
@@ -198,7 +202,8 @@ mod tests {
       let expected = Url::new(format!(
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
-      )).with_headers(Headers::default().with_header("Range", "bytes=7-9"));
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
     });
   }
@@ -213,7 +218,8 @@ mod tests {
       let expected = Url::new(format!(
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
-      )).with_headers(Headers::default().with_header("Range", "bytes=7-"));
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));
     });
   }

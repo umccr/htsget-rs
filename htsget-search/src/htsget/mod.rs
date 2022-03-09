@@ -91,11 +91,13 @@ impl HtsGetError {
 impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
-      StorageError::KeyNotFound(key) => Self::NotFound(format!("Key not found in storage: {}", key)),
+      StorageError::KeyNotFound(key) => {
+        Self::NotFound(format!("Key not found in storage: {}", key))
+      }
       StorageError::InvalidKey(key) => {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
-      StorageError::IoError(e, key) => Self::IoError(format!("Io error: {}, from ID: {}", e, key))
+      StorageError::IoError(e, key) => Self::IoError(format!("Io error: {}, from ID: {}", e, key)),
     }
   }
 }

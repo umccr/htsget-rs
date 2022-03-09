@@ -1,5 +1,6 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
+
 use std::cmp::Ordering;
 use std::io;
 
@@ -27,7 +28,7 @@ pub enum StorageError {
   KeyNotFound(String),
 
   #[error("Io error: {0}, with key: {1}")]
-  IoError(io::Error, String)
+  IoError(io::Error, String),
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

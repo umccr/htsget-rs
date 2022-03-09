@@ -1,39 +1,37 @@
 //! Module providing the search capability using BAM/BAI files
 //!
-use std::marker::PhantomData;
-use std::pin::Pin;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
-use noodles::bam::{bai};
-use noodles_bam::AsyncReader;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
-use noodles::{bam, bgzf, sam};
 use noodles::sam::Header;
-use tokio::fs::File;
+use noodles::{bam, bgzf, sam};
+use noodles_bam::AsyncReader;
 use tokio::io;
-use tokio::io::AsyncSeek;
 use tokio::io::AsyncRead;
+use tokio::io::AsyncSeek;
 
 use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt};
 use crate::htsget::HtsGetError;
 use crate::{
-  htsget::search::{BlockPosition},
+  htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
   storage::{AsyncStorage, BytesRange},
 };
 
 pub(crate) struct BamSearch<S> {
-  storage: Arc<S>
+  storage: Arc<S>,
 }
 
 #[async_trait]
 impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
 where
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bam::Record::default()).await.ok()
@@ -49,11 +47,12 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R> BgzfSearch<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, Header>
+impl<'a, S, R>
+  BgzfSearch<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, Header>
   for BamSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
@@ -93,11 +92,12 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R> Search<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<bgzf::AsyncReader<R>>, sam::Header>
+impl<'a, S, R>
+  Search<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<bgzf::AsyncReader<R>>, sam::Header>
   for BamSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
     AsyncReader::new(inner)
@@ -142,11 +142,19 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R> SearchReads<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<bgzf::AsyncReader<R>>, sam::Header>
-  for BamSearch<S>
-  where
-      S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-      R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+impl<'a, S, R>
+  SearchReads<
+    'a,
+    S,
+    R,
+    ReferenceSequence,
+    bai::Index,
+    AsyncReader<bgzf::AsyncReader<R>>,
+    sam::Header,
+  > for BamSearch<S>
+where
+  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -185,7 +193,6 @@ impl<'a, S, R> SearchReads<'a, S, R, ReferenceSequence, bai::Index, AsyncReader<
   }
 }
 
-
 impl<S, R> BamSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
@@ -200,8 +207,9 @@ where
 pub mod tests {
   use std::future::Future;
 
-  use crate::htsget::{Class, Headers, Response, Url};
   use htsget_id_resolver::RegexResolver;
+
+  use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
 
   use super::*;

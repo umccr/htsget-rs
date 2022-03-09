@@ -9,31 +9,27 @@ use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
 use futures::StreamExt;
 use noodles::bam::record::ReferenceSequenceId;
-use noodles::bgzf::VirtualPosition;
-use noodles::cram;
-use noodles::cram::Reader;
-use noodles_cram::AsyncReader;
 use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
-use tokio::fs::File;
+use noodles_cram::AsyncReader;
 use tokio::io::{AsyncRead, AsyncSeek};
 use tokio::{io, select};
 
-use crate::htsget::search::{BlockPosition, Search, SearchAll, SearchReads};
+use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{AsyncStorage, BytesRange};
 
 pub(crate) struct CramSearch<S> {
-  storage: Arc<S>
+  storage: Arc<S>,
 }
 
 #[async_trait]
 impl<S, R> SearchAll<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
@@ -57,10 +53,11 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R> SearchReads<'a, S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
+impl<'a, S, R> SearchReads<'a, S, R, PhantomData<Self>, Index, AsyncReader<R>, Header>
+  for CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -115,7 +112,7 @@ where
 impl<'a, S, R> Search<'a, S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: R) -> AsyncReader<R> {
     AsyncReader::new(inner)
@@ -160,7 +157,7 @@ where
 impl<S, R> CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;
   const EOF_CONTAINER_LENGTH: u64 = 38;
@@ -274,9 +271,10 @@ where
 pub mod tests {
   use std::future::Future;
 
+  use htsget_id_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
