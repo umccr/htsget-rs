@@ -12,7 +12,7 @@ use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
 use noodles::vcf::Header;
-use noodles_vcf::AsyncReader;
+use noodles_vcf as vcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
@@ -23,14 +23,16 @@ use crate::{
   storage::{AsyncStorage, BytesRange},
 };
 
+type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
+
 pub(crate) struct VcfSearch<S> {
   storage: Arc<S>,
 }
 
 #[async_trait]
-impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
+impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
 where
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut String::new()).await.ok()
@@ -46,12 +48,12 @@ where
 }
 
 #[async_trait]
-impl<S, R>
-  BgzfSearch<S, R, ReferenceSequence, tabix::Index, AsyncReader<bgzf::AsyncReader<R>>, Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -61,17 +63,17 @@ where
 }
 
 #[async_trait]
-impl<S, R> Search<S, R, ReferenceSequence, tabix::Index, AsyncReader<bgzf::AsyncReader<R>>, Header>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
-    AsyncReader::new(bgzf::AsyncReader::new(inner))
+  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+    vcf::AsyncReader::new(bgzf::AsyncReader::new(inner))
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<bgzf::AsyncReader<R>>) -> io::Result<String> {
+  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
     reader.read_header().await
   }
 
@@ -145,10 +147,10 @@ where
   }
 }
 
-impl<S, R> VcfSearch<S>
+impl<S, ReaderType> VcfSearch<S>
 where
-  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298

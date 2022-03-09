@@ -26,10 +26,12 @@ pub(crate) struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<S, R> SearchAll<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
+impl<S, ReaderType>
+  SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
@@ -53,16 +55,18 @@ where
 }
 
 #[async_trait]
-impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
+impl<S, ReaderType>
+  SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn get_reference_sequence_from_name<'b>(
+  async fn get_reference_sequence_from_name<'a>(
     &self,
-    header: &'b Header,
+    header: &'a Header,
     name: &str,
-  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)> {
+  ) -> Option<(usize, &'a String, &'a sam::header::ReferenceSequence)> {
     header.reference_sequences().get_full(name)
   }
 
@@ -108,16 +112,17 @@ where
 
 /// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<S, R> Search<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
+impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  fn init_reader(inner: R) -> AsyncReader<R> {
+  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
     AsyncReader::new(inner)
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<R>) -> io::Result<String> {
+  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
     reader.read_file_definition().await?;
     reader.read_file_header().await
   }
@@ -153,10 +158,10 @@ where
   }
 }
 
-impl<S, R> CramSearch<S>
+impl<S, ReaderType> CramSearch<S>
 where
-  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;
   const EOF_CONTAINER_LENGTH: u64 = 38;
