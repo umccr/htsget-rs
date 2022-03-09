@@ -44,8 +44,8 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R>
-  BgzfSearch<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header>
+impl<S, R>
+  BgzfSearch<S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header>
   for BcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
@@ -59,8 +59,7 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R>
-  Search<'a, S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header>
+impl<S, R> Search<S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncReader<R>>, vcf::Header>
   for BcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,

@@ -53,8 +53,7 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R> SearchReads<'a, S, R, PhantomData<Self>, Index, AsyncReader<R>, Header>
-  for CramSearch<S>
+impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
   R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
@@ -109,7 +108,7 @@ where
 
 /// PhantomData is used here because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<'a, S, R> Search<'a, S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
+impl<S, R> Search<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
   R: AsyncRead + AsyncSeek + Unpin + Send + Sync,

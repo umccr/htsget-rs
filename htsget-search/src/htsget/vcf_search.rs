@@ -46,8 +46,8 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R>
-  BgzfSearch<'a, S, R, ReferenceSequence, tabix::Index, AsyncReader<bgzf::AsyncReader<R>>, Header>
+impl<S, R>
+  BgzfSearch<S, R, ReferenceSequence, tabix::Index, AsyncReader<bgzf::AsyncReader<R>>, Header>
   for VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
@@ -61,8 +61,7 @@ where
 }
 
 #[async_trait]
-impl<'a, S, R>
-  Search<'a, S, R, ReferenceSequence, tabix::Index, AsyncReader<bgzf::AsyncReader<R>>, Header>
+impl<S, R> Search<S, R, ReferenceSequence, tabix::Index, AsyncReader<bgzf::AsyncReader<R>>, Header>
   for VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
