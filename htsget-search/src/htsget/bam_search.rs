@@ -31,7 +31,7 @@ pub(crate) struct BamSearch<S> {
 #[async_trait]
 impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
 where
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bam::Record::default()).await.ok()
@@ -51,7 +51,7 @@ impl<S, R> BgzfSearch<S, R, ReferenceSequence, Index, AsyncReader<bgzf::AsyncRea
   for BamSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
@@ -96,7 +96,7 @@ impl<S, R>
   for BamSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
     AsyncReader::new(inner)
@@ -107,6 +107,7 @@ where
     reader.read_reference_sequences().await?;
     header
   }
+
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
     let mut reader = bai::AsyncReader::new(inner);
     reader.read_header().await?;
@@ -146,7 +147,7 @@ impl<S, R>
   for BamSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -188,7 +189,7 @@ where
 impl<S, R> BamSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }

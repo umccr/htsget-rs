@@ -49,6 +49,8 @@ pub(crate) async fn find_first<T>(
 /// [SearchAll] represents searching bytes ranges that are applicable to all formats. Specifically,
 /// range for the whole file, and the header.
 ///
+/// [S] is the storage type.
+/// [R] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
 /// [Reader] is the format's reader type.
@@ -67,16 +69,18 @@ where
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
 ///
+/// [S] is the storage type.
+/// [R] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
-/// [ReaderType] is the format's reader type.
+/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<Storage, R, ReferenceSequence, Index, Reader, Header>:
-  Search<Storage, R, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchReads<S, R, ReferenceSequence, Index, Reader, Header>:
+  Search<S, R, ReferenceSequence, Index, Reader, Header>
 where
-  R: AsyncRead + Send + Sync + Unpin,
-  Storage: AsyncStorage<Streamable = R> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
+  R: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
   Header: FromStr + Send + Sync,
   Index: Send + Sync,
@@ -145,6 +149,8 @@ where
 
 /// [Search] is the general trait that all formats implement, including functions from [SearchAll].
 ///
+/// [S] is the storage type.
+/// [R] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
 /// [Reader] is the format's reader type.
@@ -154,7 +160,7 @@ pub(crate) trait Search<S, R, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, R, ReferenceSequence, Index, Reader, Header>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + Send + Sync + Unpin,
+  R: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
   Header: FromStr + Send,
   Reader: Send,
@@ -284,17 +290,19 @@ where
 /// The [BgzfSearch] trait defines commonalities for the formats that use a binning index, specifically
 /// BAM, BCF, and VCF.
 ///
+/// [S] is the storage type.
+/// [R] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<S, R, ReferenceSequence, Index, ReaderType, Header>:
-  Search<S, R, ReferenceSequence, Index, ReaderType, Header>
+pub(crate) trait BgzfSearch<S, R, ReferenceSequence, Index, Reader, Header>:
+  Search<S, R, ReferenceSequence, Index, Reader, Header>
 where
-  R: AsyncRead + Send + Sync + Unpin,
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  ReaderType: BlockPosition + Send + Sync,
+  R: AsyncRead + Unpin + Send + Sync,
+  Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
   Header: FromStr + Send,
@@ -358,16 +366,16 @@ where
 }
 
 #[async_trait]
-impl<S, R, ReferenceSequence, Index, ReaderType, Header, T>
-  SearchAll<S, R, ReferenceSequence, Index, ReaderType, Header> for T
+impl<S, R, ReferenceSequence, Index, Reader, Header, T>
+  SearchAll<S, R, ReferenceSequence, Index, Reader, Header> for T
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + Send + Sync + Unpin,
-  ReaderType: BlockPosition + Send + Sync,
+  R: AsyncRead + Unpin + Send + Sync,
+  Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
-  T: BgzfSearch<S, R, ReferenceSequence, Index, ReaderType, Header> + Send + Sync,
+  T: BgzfSearch<S, R, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();

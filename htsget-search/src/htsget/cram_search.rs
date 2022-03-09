@@ -29,7 +29,7 @@ pub(crate) struct CramSearch<S> {
 impl<S, R> SearchAll<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
@@ -56,7 +56,7 @@ where
 impl<S, R> SearchReads<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'b>(
     &self,
@@ -106,7 +106,7 @@ where
   }
 }
 
-/// PhantomData is used here because of a lack of reference sequence data for CRAM.
+/// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
 impl<S, R> Search<S, R, PhantomData<Self>, Index, AsyncReader<R>, Header> for CramSearch<S>
 where
@@ -156,7 +156,7 @@ where
 impl<S, R> CramSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;
   const EOF_CONTAINER_LENGTH: u64 = 38;

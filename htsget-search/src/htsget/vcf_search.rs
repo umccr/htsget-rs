@@ -30,7 +30,7 @@ pub(crate) struct VcfSearch<S> {
 #[async_trait]
 impl<R> BlockPosition for AsyncReader<bgzf::AsyncReader<R>>
 where
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut String::new()).await.ok()
@@ -65,7 +65,7 @@ impl<S, R> Search<S, R, ReferenceSequence, tabix::Index, AsyncReader<bgzf::Async
   for VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: R) -> AsyncReader<bgzf::AsyncReader<R>> {
     AsyncReader::new(bgzf::AsyncReader::new(inner))
@@ -148,7 +148,7 @@ where
 impl<S, R> VcfSearch<S>
 where
   S: AsyncStorage<Streamable = R> + Send + Sync + 'static,
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
