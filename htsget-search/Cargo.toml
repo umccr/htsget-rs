@@ -15,15 +15,15 @@ tokio = { version = "1.16.1", features = ["full"], optional = true }
 futures = { version = "0.3.16", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
 
-noodles = { version = "0.20.0", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 #noodles-bgzf = { version = "0.8.0", features = ['async'] }
-noodles-bam = { version = "0.16.0", features = ["async"] }
-noodles-bcf = { version = "0.13.1", features = ["async"] }
-noodles-cram = { version = "0.13.0", features = ["async"] }
+noodles-bam = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
+noodles-bcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
+noodles-cram = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
 #noodles-csi = { version = "0.4.3", features = ['async'] }
 #noodles-tabix = { version = "0.7.3", features = ['async'] }
-noodles-vcf = { version = "0.14.1", features = ["async"] }
+noodles-vcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
 
 [dev-dependencies]
 tempfile = "3.2.0"

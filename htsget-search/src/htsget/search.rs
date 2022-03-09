@@ -28,9 +28,6 @@ use crate::{
   storage::{AsyncStorage, BytesRange, UrlOptions},
 };
 
-// pub(crate) type AsyncHeaderResult = io::Result<String>;
-// pub(crate) type AsyncIndexResult<'a, Index> = io::Result<Index>;
-
 /// Helper function to find the first non-none value from a set of futures.
 pub(crate) async fn find_first<T>(
   msg: &str,
@@ -452,6 +449,7 @@ impl VirtualPositionExt for VirtualPosition {
   fn bytes_range_start(&self) -> u64 {
     self.compressed()
   }
+
   /// The compressed part refers always to the beginning of a BGZF block.
   /// But when we need to translate it into a byte range, we need to make sure
   /// the reads falling inside that block are also included, which requires to know
