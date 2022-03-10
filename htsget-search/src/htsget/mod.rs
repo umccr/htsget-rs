@@ -91,10 +91,13 @@ impl HtsGetError {
 impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
-      StorageError::NotFound(key) => Self::NotFound(format!("Not found in storage: {}", key)),
+      StorageError::KeyNotFound(key) => {
+        Self::NotFound(format!("Key not found in storage: {}", key))
+      }
       StorageError::InvalidKey(key) => {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
+      StorageError::IoError(e, key) => Self::IoError(format!("Io error: {}, from ID: {}", e, key)),
     }
   }
 }
@@ -106,8 +109,8 @@ impl From<JoinError> for HtsGetError {
 }
 
 impl From<io::Error> for HtsGetError {
-  fn from(_: io::Error) -> Self {
-    Self::io_error("IO Error")
+  fn from(err: io::Error) -> Self {
+    Self::io_error(err.to_string())
   }
 }
 
@@ -358,7 +361,7 @@ mod tests {
 
   #[test]
   fn htsget_error_from_storage_not_found() {
-    let result = HtsGetError::from(StorageError::NotFound("error".to_string()));
+    let result = HtsGetError::from(StorageError::KeyNotFound("error".to_string()));
     assert!(matches!(result, HtsGetError::NotFound(_)));
   }
 

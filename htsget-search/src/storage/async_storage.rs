@@ -1,6 +1,8 @@
-use std::path::PathBuf;
+//! Provides the storage abstraction for [HtsGet].
+//!
 
 use async_trait::async_trait;
+use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::htsget::Url;
 use crate::storage::{GetOptions, UrlOptions};
@@ -11,10 +13,13 @@ use super::Result;
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
 pub trait AsyncStorage {
-  // TODO Consider another type of interface based on IO streaming
-  // so we don't need to guess the length of the headers, but just
-  // parse them in an streaming fashion.
-  async fn get<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<PathBuf>;
+  type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
+
+  async fn get<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    options: GetOptions,
+  ) -> Result<Self::Streamable>;
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url>;
 

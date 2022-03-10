@@ -25,7 +25,11 @@ fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, imp
   match response {
     Err(error) => {
       let (json, status_code) = error.to_json_representation();
-      Either::Left(PrettyJson(json).customize().with_status(StatusCode::from_u16(status_code).unwrap()))
+      Either::Left(
+        PrettyJson(json)
+          .customize()
+          .with_status(StatusCode::from_u16(status_code).unwrap()),
+      )
     }
     Ok(json) => Either::Right(PrettyJson(json).customize().with_status(StatusCode::OK)),
   }

@@ -20,7 +20,7 @@ impl LocalStorage {
       .as_ref()
       .to_path_buf()
       .canonicalize()
-      .map_err(|_| StorageError::NotFound(base_path.as_ref().to_string_lossy().to_string()))
+      .map_err(|_| StorageError::KeyNotFound(base_path.as_ref().to_string_lossy().to_string()))
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         id_resolver,
@@ -53,7 +53,7 @@ impl LocalStorage {
         path
           .is_file()
           .then(|| path)
-          .ok_or_else(|| StorageError::NotFound(key.to_string()))
+          .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
       })
   }
 }
@@ -94,7 +94,7 @@ impl Storage for LocalStorage {
     let path = self.get_path_from_key(key)?;
     Ok(
       std::fs::metadata(path)
-        .map_err(|err| StorageError::NotFound(err.to_string()))?
+        .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
         .len(),
     )
   }
@@ -117,10 +117,7 @@ mod tests {
       let result = storage
         .get("non-existing-key", GetOptions::default())
         .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(
-        result,
-        Err(StorageError::InvalidKey("non-existing-key".to_string()))
-      );
+      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     });
   }
 
@@ -130,7 +127,7 @@ mod tests {
       let result = storage
         .get("folder", GetOptions::default())
         .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
+      assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     });
   }
 
@@ -140,11 +137,8 @@ mod tests {
       let result = storage
         .get("folder/../../passwords", GetOptions::default())
         .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(
-        result,
-        Err(StorageError::InvalidKey(
-          "folder/../../passwords".to_string()
-        ))
+      assert!(
+        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
     });
   }
@@ -155,13 +149,8 @@ mod tests {
       let result = storage
         .get("folder/../key1", GetOptions::default())
         .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(
-        result,
-        Ok(format!(
-          "{}",
-          storage.base_path().join("key1").to_string_lossy()
-        ))
-      );
+      let expected = format!("{}", storage.base_path().join("key1").to_string_lossy());
+      assert!(matches!(result, Ok(msg) if msg == expected));
     });
   }
 
@@ -169,10 +158,7 @@ mod tests {
   fn url_of_non_existing_key() {
     with_local_storage(|storage| {
       let result = storage.url("non-existing-key", UrlOptions::default());
-      assert_eq!(
-        result,
-        Err(StorageError::InvalidKey("non-existing-key".to_string()))
-      );
+      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     });
   }
 
@@ -180,7 +166,7 @@ mod tests {
   fn url_of_folder() {
     with_local_storage(|storage| {
       let result = storage.url("folder", UrlOptions::default());
-      assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
+      assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     });
   }
 
@@ -188,11 +174,8 @@ mod tests {
   fn url_with_forbidden_path() {
     with_local_storage(|storage| {
       let result = storage.url("folder/../../passwords", UrlOptions::default());
-      assert_eq!(
-        result,
-        Err(StorageError::InvalidKey(
-          "folder/../../passwords".to_string()
-        ))
+      assert!(
+        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
     });
   }
@@ -205,7 +188,7 @@ mod tests {
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
       ));
-      assert_eq!(result, Ok(expected));
+      assert!(matches!(result, Ok(url) if url == expected));
     });
   }
 
@@ -216,16 +199,12 @@ mod tests {
         "folder/../key1",
         UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
       );
-      assert_eq!(
-        result,
-        Ok(
-          Url::new(format!(
-            "file://{}",
-            storage.base_path().join("key1").to_string_lossy()
-          ))
-          .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
-        )
-      );
+      let expected = Url::new(format!(
+        "file://{}",
+        storage.base_path().join("key1").to_string_lossy()
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
+      assert!(matches!(result, Ok(url) if url == expected));
     });
   }
 
@@ -236,16 +215,12 @@ mod tests {
         "folder/../key1",
         UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
       );
-      assert_eq!(
-        result,
-        Ok(
-          Url::new(format!(
-            "file://{}",
-            storage.base_path().join("key1").to_string_lossy()
-          ))
-          .with_headers(Headers::default().with_header("Range", "bytes=7-"))
-        )
-      );
+      let expected = Url::new(format!(
+        "file://{}",
+        storage.base_path().join("key1").to_string_lossy()
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=7-"));
+      assert!(matches!(result, Ok(url) if url == expected));
     });
   }
 
@@ -254,7 +229,7 @@ mod tests {
     with_local_storage(|storage| {
       let result = storage.head("folder/../key1");
       let expected: u64 = 6;
-      assert_eq!(result, Ok(expected));
+      assert!(matches!(result, Ok(size) if size == expected));
     });
   }
 

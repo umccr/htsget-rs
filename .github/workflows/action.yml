@@ -1,4 +1,4 @@
-name: Run Rust tests
+name: tests
 
 on: [push]
 

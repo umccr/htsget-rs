@@ -1,9 +1,8 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
-use std::path::PathBuf;
-
 use async_trait::async_trait;
+use tokio::fs::File;
 
 use crate::htsget::Url;
 use crate::storage;
@@ -14,8 +13,13 @@ use super::{GetOptions, Result, StorageError, UrlOptions};
 
 #[async_trait]
 impl AsyncStorage for LocalStorage {
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
-    self.get_path_from_key(key)
+  type Streamable = File;
+
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
+    let path = self.get_path_from_key(&key)?;
+    File::open(path)
+      .await
+      .map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
@@ -28,7 +32,7 @@ impl AsyncStorage for LocalStorage {
     Ok(
       tokio::fs::metadata(path)
         .await
-        .map_err(|err| StorageError::NotFound(err.to_string()))?
+        .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
         .len(),
     )
   }
@@ -37,27 +41,23 @@ impl AsyncStorage for LocalStorage {
 #[cfg(test)]
 mod tests {
   use std::future::Future;
+  use std::matches;
 
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
-  use crate::htsget::{Headers, Url};
-  use crate::storage::blocking::local::LocalStorage;
-  use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
   use htsget_id_resolver::RegexResolver;
+
+  use crate::htsget::{Headers, Url};
+  use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
 
   use super::*;
 
   #[tokio::test]
   async fn get_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "non-existing-key", GetOptions::default())
-        .await
-        .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(
-        result,
-        Err(StorageError::InvalidKey("non-existing-key".to_string()))
-      );
+      let result = AsyncStorage::get(&storage, "non-existing-key", GetOptions::default()).await;
+      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
   }
@@ -65,10 +65,8 @@ mod tests {
   #[tokio::test]
   async fn get_folder() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "folder", GetOptions::default())
-        .await
-        .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
+      let result = AsyncStorage::get(&storage, "folder", GetOptions::default()).await;
+      assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
   }
@@ -76,14 +74,10 @@ mod tests {
   #[tokio::test]
   async fn get_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "folder/../../passwords", GetOptions::default())
-        .await
-        .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(
-        result,
-        Err(StorageError::InvalidKey(
-          "folder/../../passwords".to_string()
-        ))
+      let result =
+        AsyncStorage::get(&storage, "folder/../../passwords", GetOptions::default()).await;
+      assert!(
+        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
     })
     .await;
@@ -92,16 +86,8 @@ mod tests {
   #[tokio::test]
   async fn get_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "folder/../key1", GetOptions::default())
-        .await
-        .map(|path| path.to_string_lossy().to_string());
-      assert_eq!(
-        result,
-        Ok(format!(
-          "{}",
-          storage.base_path().join("key1").to_string_lossy()
-        ))
-      );
+      let result = AsyncStorage::get(&storage, "folder/../key1", GetOptions::default()).await;
+      assert!(matches!(result, Ok(_)));
     })
     .await;
   }
@@ -110,10 +96,7 @@ mod tests {
   async fn url_of_non_existing_key() {
     with_local_storage(|storage| async move {
       let result = AsyncStorage::url(&storage, "non-existing-key", UrlOptions::default()).await;
-      assert_eq!(
-        result,
-        Err(StorageError::InvalidKey("non-existing-key".to_string()))
-      );
+      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
   }
@@ -122,7 +105,7 @@ mod tests {
   async fn url_of_folder() {
     with_local_storage(|storage| async move {
       let result = AsyncStorage::url(&storage, "folder", UrlOptions::default()).await;
-      assert_eq!(result, Err(StorageError::NotFound("folder".to_string())));
+      assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
   }
@@ -132,11 +115,8 @@ mod tests {
     with_local_storage(|storage| async move {
       let result =
         AsyncStorage::url(&storage, "folder/../../passwords", UrlOptions::default()).await;
-      assert_eq!(
-        result,
-        Err(StorageError::InvalidKey(
-          "folder/../../passwords".to_string()
-        ))
+      assert!(
+        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
     })
     .await;
@@ -150,7 +130,7 @@ mod tests {
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
       ));
-      assert_eq!(result, Ok(expected));
+      assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
   }
@@ -164,16 +144,12 @@ mod tests {
         UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
       )
       .await;
-      assert_eq!(
-        result,
-        Ok(
-          Url::new(format!(
-            "file://{}",
-            storage.base_path().join("key1").to_string_lossy()
-          ))
-          .with_headers(Headers::default().with_header("Range", "bytes=7-9"))
-        )
-      );
+      let expected = Url::new(format!(
+        "file://{}",
+        storage.base_path().join("key1").to_string_lossy()
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
+      assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
   }
@@ -187,16 +163,12 @@ mod tests {
         UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
       )
       .await;
-      assert_eq!(
-        result,
-        Ok(
-          Url::new(format!(
-            "file://{}",
-            storage.base_path().join("key1").to_string_lossy()
-          ))
-          .with_headers(Headers::default().with_header("Range", "bytes=7-"))
-        )
-      );
+      let expected = Url::new(format!(
+        "file://{}",
+        storage.base_path().join("key1").to_string_lossy()
+      ))
+      .with_headers(Headers::default().with_header("Range", "bytes=7-"));
+      assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
   }
@@ -206,7 +178,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let result = AsyncStorage::head(&storage, "folder/../key1").await;
       let expected: u64 = 6;
-      assert_eq!(result, Ok(expected));
+      assert!(matches!(result, Ok(size) if size == expected));
     })
     .await;
   }

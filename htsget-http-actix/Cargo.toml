@@ -2,7 +2,7 @@
 name = "htsget-http-actix"
 version = "0.1.0"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [features]
 default = ["async", "htsget-search/default", "htsget-http-core/default"]

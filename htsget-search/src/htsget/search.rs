@@ -5,9 +5,6 @@
 //! where the names of the types indicate their purpose.
 //!
 
-use std::future::Future;
-use std::path::PathBuf;
-use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -18,8 +15,8 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::merge_chunks;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
-use tokio::fs::File;
 use tokio::io;
+use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
 
@@ -28,11 +25,6 @@ use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{AsyncStorage, BytesRange, UrlOptions},
 };
-
-pub(crate) type AsyncHeaderResult<'a> =
-  Pin<Box<dyn Future<Output = io::Result<String>> + Send + 'a>>;
-pub(crate) type AsyncIndexResult<'a, Index> =
-  Pin<Box<dyn Future<Output = io::Result<Index>> + Send + 'a>>;
 
 /// Helper function to find the first non-none value from a set of futures.
 pub(crate) async fn find_first<T>(
@@ -57,12 +49,14 @@ pub(crate) async fn find_first<T>(
 /// [SearchAll] represents searching bytes ranges that are applicable to all formats. Specifically,
 /// range for the whole file, and the header.
 ///
+/// [S] is the storage type.
+/// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchAll<S, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -75,15 +69,18 @@ where
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
 ///
+/// [S] is the storage type.
+/// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<S, ReferenceSequence, Index, Reader, Header>:
-  Search<S, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
   Header: FromStr + Send + Sync,
   Index: Send + Sync,
@@ -152,25 +149,28 @@ where
 
 /// [Search] is the general trait that all formats implement, including functions from [SearchAll].
 ///
+/// [S] is the storage type.
+/// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait Search<S, ReferenceSequence, Index, Reader, Header>:
-  SearchAll<S, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
+  Index: Send + Sync,
   Header: FromStr + Send,
   Reader: Send,
-  Index: Send + Sync,
-  Self: Sync + Send + Sized,
+  Self: Sync + Send,
 {
   const MIN_SEQ_POSITION: u32 = 1; // 1-based
 
-  const READER_FN: fn(File) -> Reader;
-  const HEADER_FN: fn(&'_ mut Reader) -> AsyncHeaderResult;
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index>;
+  fn init_reader(inner: ReaderType) -> Reader;
+  async fn read_raw_header(reader: &mut Reader) -> io::Result<String>;
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -195,10 +195,10 @@ where
 
   /// Read the index from the key.
   async fn read_index(&self, key: &str) -> Result<Index> {
-    let path = self.get_storage().get(&key, GetOptions::default()).await?;
-    Self::INDEX_FN(path)
+    let storage = self.get_storage().get(&key, GetOptions::default()).await?;
+    Self::read_index_inner(storage)
       .await
-      .map_err(|_| HtsGetError::io_error(format!("Reading {} index file", self.get_format())))
+      .map_err(|err| HtsGetError::io_error(format!("Reading {} index: {}", self.get_format(), err)))
   }
 
   /// Search based on the query.
@@ -265,31 +265,21 @@ where
   }
 
   /// Get the reader from the key.
-  async fn reader<U>(key: &str, msg: U, storage: Arc<S>) -> Result<Reader>
-  where
-    U: Into<String> + Send,
-  {
+  async fn reader(key: &str, storage: Arc<S>) -> Result<Reader> {
     let get_options = GetOptions::default();
-    let path = storage.get(key, get_options).await?;
-
-    File::open(path)
-      .await
-      .map(Self::READER_FN)
-      .map_err(|_| HtsGetError::io_error(msg))
+    let storage = storage.get(key, get_options).await?;
+    Ok(Self::init_reader(storage))
   }
 
   /// Get the reader and header using the key.
   async fn create_reader(&self, key: &str) -> Result<(Reader, Header)> {
-    let mut reader = Self::reader(
-      key,
-      format!("Reading {}", self.get_format()),
-      self.get_storage(),
-    )
-    .await?;
+    let mut reader = Self::reader(key, self.get_storage()).await?;
 
-    let header = Self::HEADER_FN(&mut reader)
+    let header = Self::read_raw_header(&mut reader)
       .await
-      .map_err(|_| HtsGetError::io_error(format!("Reading {} header", self.get_format())))?
+      .map_err(|err| {
+        HtsGetError::io_error(format!("Reading {} header: {}", self.get_format(), err))
+      })?
       .parse::<Header>()
       .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))?;
 
@@ -300,16 +290,19 @@ where
 /// The [BgzfSearch] trait defines commonalities for the formats that use a binning index, specifically
 /// BAM, BCF, and VCF.
 ///
+/// [S] is the storage type.
+/// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<S, ReferenceSequence, Index, Reader, Header>:
-  Search<S, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage + Send + Sync + 'static,
-  Reader: BlockPosition + Send,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
+  Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
   Header: FromStr + Send,
@@ -342,7 +335,7 @@ where
       let storage = self.get_storage();
       let storage_key = key.clone();
       futures.push(tokio::spawn(async move {
-        let mut reader = Self::reader(&storage_key, "Reading BGZF", storage).await?;
+        let mut reader = Self::reader(&storage_key, storage).await?;
         Ok(
           BytesRange::default()
             .with_start(chunk.start().bytes_range_start())
@@ -373,15 +366,16 @@ where
 }
 
 #[async_trait]
-impl<S, ReferenceSequence, Index, Reader, Header, T>
-  SearchAll<S, ReferenceSequence, Index, Reader, Header> for T
+impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
+  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
 where
-  S: AsyncStorage + Send + Sync + 'static,
-  Reader: BlockPosition + Send,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
+  Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
-  T: BgzfSearch<S, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+  T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
@@ -392,7 +386,7 @@ where
         let start_vpos = metadata.start_position();
         let end_vpos = metadata.end_position();
         futures.push(tokio::spawn(async move {
-          let mut reader = Self::reader(&storage_key, "Reading BGZF", storage).await?;
+          let mut reader = Self::reader(&storage_key, storage).await?;
           let start_vpos = start_vpos.bytes_range_start();
           let end_vpos = end_vpos.bytes_range_end(&mut reader).await;
 
@@ -433,7 +427,7 @@ pub(crate) trait BlockPosition {
   /// Read bytes of record.
   async fn read_bytes(&mut self) -> Option<usize>;
   /// Seek using VirtualPosition.
-  async fn seek(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition>;
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition>;
   /// Read the virtual position.
   fn virtual_position(&self) -> VirtualPosition;
 }
@@ -462,15 +456,20 @@ impl VirtualPositionExt for VirtualPosition {
   fn bytes_range_start(&self) -> u64 {
     self.compressed()
   }
+
   /// The compressed part refers always to the beginning of a BGZF block.
   /// But when we need to translate it into a byte range, we need to make sure
   /// the reads falling inside that block are also included, which requires to know
   /// where that block ends, which is not trivial nor possible for the last block.
+  ///
   /// The solution used here goes through reading the records starting at the compressed
   /// virtual offset (coffset) of the end position (remember this will always be the
-  /// start of a BGZF block). If we read the records pointed by that coffset until we
-  /// reach a different coffset, we can find out where the current block ends.
-  /// Therefore this can be used to only add the required bytes in the query results.
+  /// start of a BGZF block).
+  ///
+  /// If we read the records pointed by that coffset until we reach a different coffset,
+  /// we can find out where the current block ends. Therefore this can be used to only add the
+  /// required bytes in the query results.
+  ///
   /// If for some reason we can't read correctly the records we fall back
   /// to adding the maximum BGZF block size.
   async fn bytes_range_end<P>(&self, reader: &mut P) -> u64
@@ -492,7 +491,7 @@ impl VirtualPositionExt for VirtualPosition {
   where
     P: BlockPosition + Send,
   {
-    reader.seek(*self).await.ok()?;
+    reader.seek_vpos(*self).await.ok()?;
     let next_block_index = loop {
       let bytes_read = reader.read_bytes().await?;
       let actual_block_index = reader.virtual_position().compressed();

@@ -2,7 +2,6 @@
 //!
 
 use std::marker::PhantomData;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,30 +11,34 @@ use noodles::bgzf::VirtualPosition;
 use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
-use noodles::vcf;
-use noodles::vcf::AsyncReader;
 use noodles::vcf::Header;
-use tokio::fs::File;
+use noodles_vcf as vcf;
+use tokio::io;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{
-  find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search,
-};
+use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{AsyncStorage, BytesRange},
 };
+
+type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
 pub(crate) struct VcfSearch<S> {
   storage: Arc<S>,
 }
 
 #[async_trait]
-impl BlockPosition for vcf::AsyncReader<bgzf::AsyncReader<File>> {
+impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
+where
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+{
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut String::new()).await.ok()
   }
 
-  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
     self.seek(pos).await
   }
 
@@ -45,11 +48,12 @@ impl BlockPosition for vcf::AsyncReader<bgzf::AsyncReader<File>> {
 }
 
 #[async_trait]
-impl<S>
-  BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -59,18 +63,23 @@ where
 }
 
 #[async_trait]
-impl<S>
-  Search<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  const READER_FN: fn(File) -> AsyncReader<bgzf::AsyncReader<File>> =
-    |file| vcf::AsyncReader::new(bgzf::AsyncReader::new(file));
-  const HEADER_FN: fn(&'_ mut AsyncReader<bgzf::AsyncReader<File>>) -> AsyncHeaderResult =
-    |reader| Box::pin(async move { reader.read_header().await });
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { tabix::r#async::read(path).await });
+  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+    vcf::AsyncReader::new(bgzf::AsyncReader::new(inner))
+  }
+
+  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+    reader.read_header().await
+  }
+
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
+    tabix::AsyncReader::new(inner).read_index().await
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -138,9 +147,10 @@ where
   }
 }
 
-impl<S> VcfSearch<S>
+impl<S, ReaderType> VcfSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
@@ -154,9 +164,10 @@ where
 pub mod tests {
   use std::future::Future;
 
+  use htsget_id_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 

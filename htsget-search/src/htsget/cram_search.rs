@@ -3,22 +3,21 @@
 
 use std::convert::TryFrom;
 use std::marker::PhantomData;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
 use futures::StreamExt;
 use noodles::bam::record::ReferenceSequenceId;
-use noodles::cram;
+use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
-use noodles::cram::{crai, AsyncReader};
 use noodles::sam;
 use noodles::sam::Header;
-use tokio::fs::File;
-use tokio::select;
+use noodles_cram::AsyncReader;
+use tokio::io::{AsyncRead, AsyncSeek};
+use tokio::{io, select};
 
-use crate::htsget::search::{AsyncHeaderResult, AsyncIndexResult, Search, SearchAll, SearchReads};
+use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{AsyncStorage, BytesRange};
 
@@ -27,9 +26,12 @@ pub(crate) struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<S> SearchAll<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<S, ReaderType>
+  SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
@@ -53,15 +55,18 @@ where
 }
 
 #[async_trait]
-impl<S> SearchReads<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<S, ReaderType>
+  SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn get_reference_sequence_from_name<'b>(
+  async fn get_reference_sequence_from_name<'a>(
     &self,
-    header: &'b Header,
+    header: &'a Header,
     name: &str,
-  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)> {
+  ) -> Option<(usize, &'a String, &'a sam::header::ReferenceSequence)> {
     header.reference_sequences().get_full(name)
   }
 
@@ -105,20 +110,26 @@ where
   }
 }
 
+/// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<S> Search<S, PhantomData<Self>, Index, AsyncReader<File>, Header> for CramSearch<S>
+impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  const READER_FN: fn(File) -> AsyncReader<File> = cram::AsyncReader::new;
-  const HEADER_FN: fn(&'_ mut AsyncReader<File>) -> AsyncHeaderResult = |reader| {
-    Box::pin(async move {
-      reader.read_file_definition().await?;
-      reader.read_file_header().await
-    })
-  };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { crai::r#async::read(path).await });
+  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+    AsyncReader::new(inner)
+  }
+
+  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+    reader.read_file_definition().await?;
+    reader.read_file_header().await
+  }
+
+  async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {
+    crai::AsyncReader::new(inner).read_index().await
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -147,9 +158,10 @@ where
   }
 }
 
-impl<S> CramSearch<S>
+impl<S, ReaderType> CramSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;
   const EOF_CONTAINER_LENGTH: u64 = 38;
@@ -263,9 +275,10 @@ where
 pub mod tests {
   use std::future::Future;
 
+  use htsget_id_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 

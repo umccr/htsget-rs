@@ -5,13 +5,13 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::{fs::File, io};
 
-use noodles::bcf;
 use noodles::bcf::Reader;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::vcf;
+use noodles::{bcf, bgzf};
 
 use crate::htsget::blocking::search::{BgzfSearch, BlockPosition, Search};
 use crate::{
@@ -24,7 +24,7 @@ pub(crate) struct BcfSearch<'a, S> {
   storage: &'a S,
 }
 
-impl BlockPosition for bcf::Reader<File> {
+impl BlockPosition for bcf::Reader<bgzf::Reader<File>> {
   fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bcf::Record::default()).ok()
   }
@@ -38,7 +38,8 @@ impl BlockPosition for bcf::Reader<File> {
   }
 }
 
-impl<'a, S> BgzfSearch<'a, S, ReferenceSequence, csi::Index, bcf::Reader<File>, vcf::Header>
+impl<'a, S>
+  BgzfSearch<'a, S, ReferenceSequence, csi::Index, bcf::Reader<bgzf::Reader<File>>, vcf::Header>
   for BcfSearch<'a, S>
 where
   S: Storage + 'a,
@@ -50,13 +51,14 @@ where
   }
 }
 
-impl<'a, S> Search<'a, S, ReferenceSequence, csi::Index, bcf::Reader<File>, vcf::Header>
+impl<'a, S>
+  Search<'a, S, ReferenceSequence, csi::Index, bcf::Reader<bgzf::Reader<File>>, vcf::Header>
   for BcfSearch<'a, S>
 where
   S: Storage + 'a,
 {
-  const READER_FN: fn(File) -> Reader<File> = bcf::Reader::new;
-  const HEADER_FN: fn(&mut Reader<File>) -> io::Result<String> = |reader| {
+  const READER_FN: fn(File) -> Reader<bgzf::Reader<File>> = bcf::Reader::new;
+  const HEADER_FN: fn(&mut Reader<bgzf::Reader<File>>) -> io::Result<String> = |reader| {
     reader.read_file_format()?;
     reader.read_header()
   };

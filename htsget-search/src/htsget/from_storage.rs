@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::htsget::search::Search;
 use crate::{
@@ -21,9 +22,10 @@ pub struct HtsGetFromStorage<S> {
 }
 
 #[async_trait]
-impl<S> HtsGet for HtsGetFromStorage<S>
+impl<S, R> HtsGet for HtsGetFromStorage<S>
 where
-  S: AsyncStorage + Sync + Send + 'static,
+  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  S: AsyncStorage<Streamable = R> + Sync + Send + 'static,
 {
   async fn search(&self, query: Query) -> Result<Response> {
     match query.format {

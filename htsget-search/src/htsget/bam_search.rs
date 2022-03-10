@@ -1,38 +1,45 @@
 //! Module providing the search capability using BAM/BAI files
 //!
-use std::path::PathBuf;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use noodles::bam;
+use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
-use noodles::bam::{bai, AsyncReader};
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
-use noodles::sam;
 use noodles::sam::Header;
-use tokio::fs::File;
+use noodles::{bgzf, sam};
+use noodles_bam as bam;
+use tokio::io;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{AsyncHeaderResult, AsyncIndexResult, BgzfSearch, Search, SearchReads};
+use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt};
 use crate::htsget::HtsGetError;
 use crate::{
-  htsget::search::{BlockPosition, VirtualPositionExt},
+  htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
   storage::{AsyncStorage, BytesRange},
 };
+
+type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
 pub(crate) struct BamSearch<S> {
   storage: Arc<S>,
 }
 
 #[async_trait]
-impl BlockPosition for bam::AsyncReader<File> {
+impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
+where
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+{
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bam::Record::default()).await.ok()
   }
 
-  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
     self.seek(pos).await
   }
 
@@ -42,10 +49,12 @@ impl BlockPosition for bam::AsyncReader<File> {
 }
 
 #[async_trait]
-impl<S> BgzfSearch<S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
@@ -56,7 +65,7 @@ where
   async fn get_byte_ranges_for_unmapped(
     &self,
     key: &str,
-    index: &bai::Index,
+    index: &Index,
   ) -> Result<Vec<BytesRange>> {
     let last_interval = index
       .reference_sequences()
@@ -77,6 +86,7 @@ where
       .head(key)
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
+
     Ok(vec![BytesRange::default()
       .with_start(start.bytes_range_start())
       .with_end(file_size)])
@@ -84,21 +94,28 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
+impl<S, ReaderType>
+  Search<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  const READER_FN: fn(File) -> AsyncReader<File> = bam::AsyncReader::new;
-  const HEADER_FN: fn(&'_ mut AsyncReader<File>) -> AsyncHeaderResult = |reader| {
-    Box::pin(async move {
-      let header = reader.read_header().await;
-      reader.read_reference_sequences().await?;
-      header
-    })
-  };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { bai::r#async::read(path).await });
+  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+    bam::AsyncReader::new(inner)
+  }
+
+  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+    let header = reader.read_header().await;
+    reader.read_reference_sequences().await?;
+    header
+  }
+
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
+    let mut reader = bai::AsyncReader::new(inner);
+    reader.read_header().await?;
+    reader.read_index().await
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -128,16 +145,18 @@ where
 }
 
 #[async_trait]
-impl<S> SearchReads<S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
+impl<S, ReaderType>
+  SearchReads<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn get_reference_sequence_from_name<'b>(
+  async fn get_reference_sequence_from_name<'a>(
     &self,
-    header: &'b Header,
+    header: &'a Header,
     name: &str,
-  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)> {
+  ) -> Option<(usize, &'a String, &'a sam::header::ReferenceSequence)> {
     header.reference_sequences().get_full(name)
   }
 
@@ -170,9 +189,10 @@ where
   }
 }
 
-impl<S> BamSearch<S>
+impl<S, ReaderType> BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
@@ -183,9 +203,10 @@ where
 pub mod tests {
   use std::future::Future;
 
+  use htsget_id_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
