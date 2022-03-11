@@ -98,6 +98,9 @@ impl From<StorageError> for HtsGetError {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
       StorageError::IoError(e, key) => Self::IoError(format!("Io error: {}, from ID: {}", e, key)),
+
+      #[cfg(feature = "aws")]
+      StorageError::AwsError { .. } => Self::IoError(format!("AWS error: {:?}", err)),
     }
   }
 }

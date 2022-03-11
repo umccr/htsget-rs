@@ -9,11 +9,12 @@ default = ["async", "htsget-search/default"]
 async = ["tokio", "futures", "htsget-search/async"]
 
 [dependencies]
-thiserror = "~1.0"
-serde = { version = "1", features = ["derive"] }
+thiserror = "1.0.30"
+serde = { version = "1.0.136", features = ["derive"] }
 htsget-search = { path = "../htsget-search" }
 futures = { version = "0.3.21", optional = true }
-tokio = { version = "1.16.1", features = ["full"], optional = true }
+tokio = { version = "1.17.0", features = ["full"], optional = true }
+log = "0.4.14"
 
 [dev-dependencies]
 htsget-id-resolver = { path = "../htsget-id-resolver" }

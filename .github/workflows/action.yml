@@ -2,6 +2,10 @@ name: tests
 
 on: [push]
 
+env:
+    AWS_ACCESS_KEY_ID: "FOO"
+    AWS_SECRET_ACCESS_KEY: "BAR"
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}

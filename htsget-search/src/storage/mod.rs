@@ -13,6 +13,8 @@ use crate::htsget::Class;
 
 #[cfg(feature = "async")]
 pub mod async_storage;
+#[cfg(feature = "aws")]
+pub mod aws;
 pub mod blocking;
 #[cfg(feature = "async")]
 pub mod local;
@@ -29,6 +31,13 @@ pub enum StorageError {
 
   #[error("Io error: {0}, with key: {1}")]
   IoError(io::Error, String),
+
+  #[cfg(feature = "aws")]
+  #[error("AwsError")]
+  AwsError {
+     #[from]
+     source: reqwest::Error
+  },
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
