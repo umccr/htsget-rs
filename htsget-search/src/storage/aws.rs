@@ -1,5 +1,5 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
-use std::io::{Error, ErrorKind, SeekFrom};
+use std::io::{Cursor, Error, ErrorKind, Read, SeekFrom};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -153,19 +153,25 @@ impl AwsS3Storage {
 // i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
 #[async_trait]
 impl AsyncStorage for AwsS3Storage {
-  type Streamable = StreamReader<ByteStream, Bytes>;
+  type Streamable = BufReader<Cursor<Bytes>>;
 
   /// Returns the S3 url (s3://bucket/key) for the given path (key).
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<StreamReader<ByteStream, Bytes>> {
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
+    let key = key.as_ref();
     let response = self.client
       .get_object()
       .bucket(&self.bucket)
-      .key(key.as_ref())
+      .key(key)
       .send()
       .await
-      .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
-      .body;
-    let reader = tokio_util::io::StreamReader::new(response);
+      .map_err(|err| StorageError::AwsError(err.to_string(), key.to_string()))?
+      .body
+      .collect()
+      .await
+      .map_err(|err| StorageError::AwsError(err.to_string(), key.to_string()))?
+      .into_bytes();
+    let cursor = Cursor::new(response);
+    let reader = tokio::io::BufReader::new(cursor);
     Ok(reader)
   }
 
