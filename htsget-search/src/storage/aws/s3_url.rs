@@ -1,9 +1,9 @@
-use super::{GetOptions, Result, UrlOptions};
-use crate::storage::StorageError::InvalidKey;
-use aws_sdk_s3::{Client, Config, Region};
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
-use std::str::FromStr;
+
+use crate::storage::StorageError::InvalidKey;
+
+use super::Result;
 
 /// Parses the given URL and determines if it is plausibly referring to an S3 object
 /// and if so, returns the object bucket, key and potentially region.
@@ -113,7 +113,6 @@ lazy_static! {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use regex::Regex;
 
   fn assert_not_match(uri: &str) {
     let result = parse_s3_url(uri);

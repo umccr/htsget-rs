@@ -4,12 +4,12 @@ use std::io;
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use s3_server::path::S3Path;
-use s3_server::storages::fs::FileSystem;
-use s3_server::S3Service;
-
 use anyhow::{anyhow, Result};
+use s3_server::path::S3Path;
+use s3_server::S3Service;
+use s3_server::storages::fs::FileSystem;
 use tracing::{debug_span, error};
+
 pub type Request = hyper::Request<hyper::Body>;
 pub type Response = hyper::Response<hyper::Body>;
 
@@ -57,7 +57,7 @@ pub fn setup_tracing() {
   tracing_subscriber::fmt()
     .event_format(fmt::format::Format::default().pretty())
     .with_env_filter(EnvFilter::from_default_env())
-    .with_timer(fmt::time::ChronoLocal::rfc3339())
+    .with_timer(fmt::time::LocalTime::rfc_3339())
     .finish()
     .with(ErrorLayer::default())
     .try_init()
@@ -73,11 +73,11 @@ pub fn setup_fs_root(clear: bool) -> Result<PathBuf> {
 
   let exists = root.exists();
   if exists && clear {
-    fs::remove_dir_all(&root).inspect_err(|err| error!(%err,"failed to remove root directory"))?;
+    fs::remove_dir_all(&root)?;//.inspect_err(|err| error!(%err,"failed to remove root directory"))?;
   }
 
   if !exists || clear {
-    fs::create_dir_all(&root).inspect_err(|err| error!(%err, "failed to create directory"))?;
+    fs::create_dir_all(&root)?;//.inspect_err(|err| error!(%err, "failed to create directory"))?;
   }
 
   if !root.exists() {
@@ -96,7 +96,7 @@ pub fn setup_service() -> Result<(PathBuf, S3Service)> {
 
   enter_sync!(debug_span!("setup service", root = %root.display()));
 
-  let fs = FileSystem::new(&root).inspect_err(|err| error!(%err, "failed to create filesystem"))?;
+  let fs = FileSystem::new(&root)?;//.inspect_err(|err| error!(%err, "failed to create filesystem"))?;
 
   let service = S3Service::new(fs);
 

@@ -37,16 +37,16 @@ noodles-vcf = { git = "https://github.com/zaeleus/noodles", branch = "master", f
 #[cfg(feature = "aws")]
 s3-server = { version = "0.1.0", optional = true }
 #[cfg(feature = "aws")]
-aws-sdk-s3 = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.20-alpha", package = "aws-sdk-s3", optional = true }
+aws-sdk-s3 = { version = "0.8.0", optional = true }
 #[cfg(feature = "aws")]
-aws-config = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.20-alpha", package = "aws-config", optional = true }
+aws-config = { version = "0.8.0", optional = true }
 #[cfg(feature = "aws")]
 lazy_static = "1.4.0"
 hyper = "0.14.17"
 tracing = "0.1.32"
 tracing-error = "0.2.0"
 tracing-futures = "0.2.5"
-tracing-subscriber = { version = "0.3.9" }
+tracing-subscriber = { version = "0.3.9", features = ["env-filter", "local-time"] }
 
 [dev-dependencies]
 tempfile = "3.2.0"

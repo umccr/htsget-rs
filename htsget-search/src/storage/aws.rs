@@ -1,29 +1,23 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
-use std::io::{Cursor, Error, ErrorKind, Read, SeekFrom};
+use std::io::Cursor;
 use std::path::PathBuf;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use aws_config;
 use aws_config::meta::region::RegionProviderChain;
+use aws_sdk_s3::{Client as S3Client, Config, Region};
 use aws_sdk_s3::input::GetObjectInput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
-use aws_sdk_s3::{ByteStream, Client as S3Client, Config, Region};
 use bytes::Bytes;
-use futures::{AsyncRead, TryStreamExt, TryFutureExt, AsyncSeek};
-use futures::stream::IntoAsyncRead;
-use regex::Regex;
-use tokio_util::compat::{Compat, FuturesAsyncReadCompatExt};
-use crate::htsget::{HtsGetError, Url};
+use futures::TryStreamExt;
+use tokio::io::BufReader;
+use tokio_util::compat::FuturesAsyncReadCompatExt;
+
+use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;
 use crate::storage::aws::s3_url::parse_s3_url;
-use crate::storage::StorageError::InvalidKey;
-use log::{trace};
-use tokio::io::BufReader;
-use tokio_util::io::StreamReader;
 use crate::storage::StorageError;
+
 use super::{GetOptions, Result, UrlOptions};
 
 mod s3_testing_helper;
@@ -55,14 +49,17 @@ impl AwsS3Storage {
     AwsS3Storage { client, bucket }
   }
 
-  async fn s3_presign_url(client: S3Client, bucket: String, key: String) -> Result<String> {
-    let expires_in = Duration::from_secs(900);
-
+  async fn get_shared_config() -> aws_config::Config {
     let region_provider = RegionProviderChain::first_try("ap-southeast-2")
       .or_default_provider()
       .or_else(Region::new("us-east-1"));
+    aws_config::from_env().region(region_provider).load().await
+  }
 
-    let shared_config = aws_config::from_env().region(region_provider).load().await;
+  async fn s3_presign_url(client: S3Client, bucket: String, key: String) -> Result<String> {
+    let expires_in = Duration::from_secs(900);
+
+    let shared_config = Self::get_shared_config().await;
 
     // Presigned requests can be made with the client directly
     let presigned_request = client
@@ -113,8 +110,8 @@ impl AwsS3Storage {
     let s3path = PathBuf::from(&self.bucket).join(key.as_ref());
 
     let response = reqwest::get("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/gambian_genome_variation_project/release/20200217_biallelic_SNV/ALL_GGVP.chr20.shapeit2_integrated_snvindels_v1b_20200120.GRCh38.phased.vcf.gz.tbi")
-      .await?
-      .error_for_status()?;
+      .await.map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
+      .error_for_status().map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?;
 
     let response_stream = response.bytes_stream();
 
@@ -168,11 +165,7 @@ impl AsyncStorage for AwsS3Storage {
 
   /// Returns a S3-presigned htsget URL
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    let region_provider = RegionProviderChain::first_try("ap-southeast-2")
-      .or_default_provider()
-      .or_else(Region::new("us-east-1"));
-
-    let shared_config = aws_config::from_env().region(region_provider).load().await;
+    let shared_config = Self::get_shared_config().await;
 
     let client = S3Client::new(&shared_config);
 
@@ -202,7 +195,6 @@ impl AsyncStorage for AwsS3Storage {
 
 #[cfg(test)]
 mod tests {
-  use crate::storage::aws::s3_url::parse_s3_url;
   use hyper::{Body, Method, StatusCode};
   use s3_server::headers::HeaderValue;
   use s3_server::headers::X_AMZ_CONTENT_SHA256;

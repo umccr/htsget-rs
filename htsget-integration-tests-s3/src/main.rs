@@ -1,19 +1,12 @@
-use std::env::args;
 use std::sync::Arc;
-use std::sync::mpsc;
-use std::thread;
 
-use actix_web::{App, HttpServer, rt::System, web};
+use actix_web::{App, HttpServer, web};
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::{Client as S3Client, Region};
-use futures::join;
 
 use htsget_http_actix::AsyncAppState;
-use htsget_http_actix::AsyncHtsGetStorage;
 use htsget_http_actix::config::Config;
-use htsget_http_actix::handlers::{get, post, reads_service_info, variants_service_info};
-use htsget_http_actix::USAGE;
-use htsget_id_resolver::RegexResolver;
+use htsget_http_actix::handlers::{get, post};
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::storage::aws::AwsS3Storage;
 
@@ -57,7 +50,7 @@ async fn main() -> std::io::Result<()> {
 
   let srv = HttpServer::new(move || {
     App::new()
-      .data(AsyncAppState {
+      .app_data(AsyncAppState {
         htsget: Arc::new(AsyncHtsGetAwsS3Storage::new(AwsS3Storage::new(
           S3Client::new(&aws_config),
           String::from("umccr-10g-data-dev"),
@@ -83,7 +76,7 @@ async fn main() -> std::io::Result<()> {
   test_basic_s3().await;
 
   // stop server
-  srv.stop(true).await;
+  srv.handle().stop(true).await;
 
   Ok(())
 }
