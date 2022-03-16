@@ -21,9 +21,9 @@ pub trait AsyncStorage {
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
-  async fn stream_from<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Box<dyn tokio::io::AsyncRead>>;
-
-  async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<bytes::Bytes>;
+  // async fn stream_from<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Box<dyn tokio::io::AsyncRead>>;
+  //
+  // async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<bytes::Bytes>;
 
   // return a Url that gives access to the content of this file/region, where the url
   // access is from the perspective of the client to htsget

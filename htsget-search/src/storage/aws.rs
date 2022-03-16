@@ -1,5 +1,8 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
+use std::io::{Error, ErrorKind, SeekFrom};
 use std::path::PathBuf;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -7,16 +10,20 @@ use aws_config;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_s3::input::GetObjectInput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
-use aws_sdk_s3::{Client as S3Client, Config, Region};
+use aws_sdk_s3::{ByteStream, Client as S3Client, Config, Region};
 use bytes::Bytes;
-use futures::{AsyncRead, TryStreamExt, TryFutureExt};
+use futures::{AsyncRead, TryStreamExt, TryFutureExt, AsyncSeek};
+use futures::stream::IntoAsyncRead;
 use regex::Regex;
-use tokio_util::compat::FuturesAsyncReadCompatExt;
-use crate::htsget::Url;
+use tokio_util::compat::{Compat, FuturesAsyncReadCompatExt};
+use crate::htsget::{HtsGetError, Url};
 use crate::storage::async_storage::AsyncStorage;
 use crate::storage::aws::s3_url::parse_s3_url;
 use crate::storage::StorageError::InvalidKey;
 use log::{trace};
+use tokio::io::BufReader;
+use tokio_util::io::StreamReader;
+use crate::storage::StorageError;
 use super::{GetOptions, Result, UrlOptions};
 
 mod s3_testing_helper;
@@ -101,13 +108,6 @@ impl AwsS3Storage {
     // Or with AWS cli with: $ aws s3api head-object --bucket awsexamplebucket --key dir1/example.obj
     unimplemented!();
   }
-}
-
-// TODO: Determine if all three trait methods require Retrievavility testing before
-// reaching out to actual S3 objects or just the "head" operation.
-// i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
-#[async_trait]
-impl AsyncStorage for AwsS3Storage {
 
   async fn stream_from<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Box<dyn tokio::io::AsyncRead>> {
     let s3path = PathBuf::from(&self.bucket).join(key.as_ref());
@@ -146,12 +146,27 @@ impl AsyncStorage for AwsS3Storage {
 
     Ok(content)
   }
+}
+
+// TODO: Determine if all three trait methods require Retrievavility testing before
+// reaching out to actual S3 objects or just the "head" operation.
+// i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
+#[async_trait]
+impl AsyncStorage for AwsS3Storage {
+  type Streamable = StreamReader<ByteStream, Bytes>;
 
   /// Returns the S3 url (s3://bucket/key) for the given path (key).
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<PathBuf> {
-    let s3path = PathBuf::from(&self.bucket).join(key.as_ref());
-
-    Ok(s3path)
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<StreamReader<ByteStream, Bytes>> {
+    let response = self.client
+      .get_object()
+      .bucket(&self.bucket)
+      .key(key.as_ref())
+      .send()
+      .await
+      .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
+      .body;
+    let reader = tokio_util::io::StreamReader::new(response);
+    Ok(reader)
   }
 
   /// Returns a S3-presigned htsget URL

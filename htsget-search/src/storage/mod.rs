@@ -33,11 +33,8 @@ pub enum StorageError {
   IoError(io::Error, String),
 
   #[cfg(feature = "aws")]
-  #[error("AwsError")]
-  AwsError {
-     #[from]
-     source: reqwest::Error
-  },
+  #[error("Aws error: {0}, with key: {1}")]
+  AwsError(String, String)
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
