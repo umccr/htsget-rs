@@ -129,35 +129,12 @@ impl AwsS3Storage {
   }
 
   async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
-    let k = key.as_ref().clone();
-    let content_response = self.client
-      .get_object()
-      .bucket(&self.bucket)
-      .key(k)
-      .send()
-      .await
-      .unwrap();
-
-    let content = content_response
-      .body
-      .collect().await.unwrap().into_bytes();
-
-    trace!("Key {} resulted in {} bytes of content", k, content.len());
-
-    Ok(content)
-  }
-}
-
-// TODO: Determine if all three trait methods require Retrievavility testing before
-// reaching out to actual S3 objects or just the "head" operation.
-// i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
-#[async_trait]
-impl AsyncStorage for AwsS3Storage {
-  type Streamable = BufReader<Cursor<Bytes>>;
-
-  /// Returns the S3 url (s3://bucket/key) for the given path (key).
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
     let key = key.as_ref();
+
+    // It would be nice to use a ready-made type with a ByteStream that implements AsyncRead + AsyncSeek
+    // in order to avoid reading the whole byte buffer into memory. A custom type could be made similar to
+    // https://users.rust-lang.org/t/what-to-pin-when-implementing-asyncread/63019/2 which could be based off
+    // StreamReader.
     let response = self.client
       .get_object()
       .bucket(&self.bucket)
@@ -170,6 +147,20 @@ impl AsyncStorage for AwsS3Storage {
       .await
       .map_err(|err| StorageError::AwsError(err.to_string(), key.to_string()))?
       .into_bytes();
+    Ok(response)
+  }
+}
+
+// TODO: Determine if all three trait methods require Retrievavility testing before
+// reaching out to actual S3 objects or just the "head" operation.
+// i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
+#[async_trait]
+impl AsyncStorage for AwsS3Storage {
+  type Streamable = BufReader<Cursor<Bytes>>;
+
+  /// Returns the S3 url (s3://bucket/key) for the given path (key).
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
+    let response = self.get_content(key, _options).await?;
     let cursor = Cursor::new(response);
     let reader = tokio::io::BufReader::new(cursor);
     Ok(reader)
