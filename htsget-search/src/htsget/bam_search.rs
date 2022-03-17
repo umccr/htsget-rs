@@ -49,11 +49,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<K, S, ReaderType>
+  BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
@@ -94,11 +94,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  Search<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
+impl<K, S, ReaderType>
+  Search<K, S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -145,11 +145,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchReads<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
+impl<K, S, ReaderType>
+  SearchReads<K, S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
@@ -189,9 +189,9 @@ where
   }
 }
 
-impl<S, ReaderType> BamSearch<S>
+impl<K, S, ReaderType> BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   pub fn new(storage: Arc<S>) -> Self {

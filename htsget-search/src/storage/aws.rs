@@ -48,6 +48,7 @@ pub struct AwsS3Storage {
 
 impl AwsS3Storage {
   pub fn new(client: S3Client, bucket: String) -> Self {
+    unimplemented!();
     AwsS3Storage { client, bucket }
   }
 
@@ -59,6 +60,7 @@ impl AwsS3Storage {
   }
 
   async fn s3_presign_url(client: S3Client, bucket: String, key: String) -> Result<String> {
+    unimplemented!();
     let expires_in = Duration::from_secs(900);
 
     let shared_config = Self::get_shared_config().await;
@@ -125,43 +127,43 @@ impl AwsS3Storage {
 // TODO: Determine if all three trait methods require Retrievavility testing before
 // reaching out to actual S3 objects or just the "head" operation.
 // i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
-#[async_trait]
-impl AsyncStorage for AwsS3Storage {
-  type Streamable = BufReader<Cursor<Bytes>>;
-
-  /// Returns the S3 url (s3://bucket/key) for the given path (key).
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
-    let response = self.get_content(key, _options).await?;
-    let cursor = Cursor::new(response);
-    let reader = tokio::io::BufReader::new(cursor);
-    Ok(reader)
-  }
-
-  /// Returns a S3-presigned htsget URL
-  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    let shared_config = Self::get_shared_config().await;
-    let client = S3Client::new(&shared_config);
-
-    let presigned_url =
-      AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
-    let htsget_url = Url::new(presigned_url.await?);
-
-    Ok(htsget_url)
-  }
-
-  /// Returns the size of the S3 object in bytes.
-  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-    let shared_config = Self::get_shared_config().await;
-
-    let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
-    let client = S3Client::new(&shared_config);
-
-    let (_, s3key, _) = parse_s3_url(key)?;
-
-    let object_bytes = AwsS3Storage::s3_head(client, self.bucket.clone(), s3key).await?;
-    Ok(object_bytes)
-  }
-}
+// #[async_trait]
+// impl AsyncStorage for AwsS3Storage {
+//   type Streamable = BufReader<Cursor<Bytes>>;
+//
+//   /// Returns the S3 url (s3://bucket/key) for the given path (key).
+//   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
+//     let response = self.get_content(key, _options).await?;
+//     let cursor = Cursor::new(response);
+//     let reader = tokio::io::BufReader::new(cursor);
+//     Ok(reader)
+//   }
+//
+//   /// Returns a S3-presigned htsget URL
+//   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
+//     let shared_config = Self::get_shared_config().await;
+//     let client = S3Client::new(&shared_config);
+//
+//     let presigned_url =
+//       AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
+//     let htsget_url = Url::new(presigned_url.await?);
+//
+//     Ok(htsget_url)
+//   }
+//
+//   /// Returns the size of the S3 object in bytes.
+//   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
+//     let shared_config = Self::get_shared_config().await;
+//
+//     let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
+//     let client = S3Client::new(&shared_config);
+//
+//     let (_, s3key, _) = parse_s3_url(key)?;
+//
+//     let object_bytes = AwsS3Storage::s3_head(client, self.bucket.clone(), s3key).await?;
+//     Ok(object_bytes)
+//   }
+// }
 
 #[cfg(test)]
 mod tests {

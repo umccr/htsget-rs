@@ -41,9 +41,9 @@ impl<K> AsyncStorage<K> for LocalStorage
   }
 }
 
-struct LocalKeyExtractor;
+struct SimpleKeyExtractor;
 
-impl<K> KeyExtractor<K> for LocalKeyExtractor
+impl<K> KeyExtractor<K> for SimpleKeyExtractor
   where K: AsRef<str> + Send
 {
   fn get_index_key<T: AsRef<str>>(id: T, format: Format) -> Result<K> {

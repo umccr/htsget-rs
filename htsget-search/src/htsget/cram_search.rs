@@ -26,11 +26,11 @@ pub(crate) struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<K, S, ReaderType>
+  SearchAll<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
@@ -55,11 +55,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<K, S, ReaderType>
+  SearchReads<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
@@ -112,10 +112,10 @@ where
 
 /// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<K, S, ReaderType> Search<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -158,9 +158,9 @@ where
   }
 }
 
-impl<S, ReaderType> CramSearch<S>
+impl<K, S, ReaderType> CramSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;

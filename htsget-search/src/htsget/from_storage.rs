@@ -22,10 +22,10 @@ pub struct HtsGetFromStorage<S> {
 }
 
 #[async_trait]
-impl<S, R> HtsGet for HtsGetFromStorage<S>
+impl<K, S, R> HtsGet for HtsGetFromStorage<S>
 where
   R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
-  S: AsyncStorage<Streamable = R> + Sync + Send + 'static,
+  S: AsyncStorage<K, Streamable = R> + Sync + Send + 'static,
 {
   async fn search(&self, query: Query) -> Result<Response> {
     match query.format {

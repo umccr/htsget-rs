@@ -56,7 +56,7 @@ pub(crate) async fn find_first<T>(
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchAll<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -76,10 +76,10 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchReads<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  Search<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
   Header: FromStr + Send + Sync,
@@ -156,10 +156,10 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait Search<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  SearchAll<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
   Header: FromStr + Send,
@@ -297,10 +297,10 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  Search<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
@@ -366,16 +366,16 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
-  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
+impl<K, S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
+  SearchAll<K, S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
-  T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+  T: BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
