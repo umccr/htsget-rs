@@ -4,8 +4,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use aws_config::Config;
 use aws_config::meta::region::RegionProviderChain;
-use aws_sdk_s3::{Client as S3Client, Config, Region};
+use aws_sdk_s3::{Client as S3Client, Region};
 use aws_sdk_s3::input::GetObjectInput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
 use bytes::Bytes;
@@ -40,6 +41,7 @@ enum AwsS3StorageTier {
 
 /// Implementation for the [Storage] trait utilising data from an S3 bucket.
 pub struct AwsS3Storage {
+  config: Config,
   client: S3Client,
   bucket: String,
 }
@@ -61,15 +63,6 @@ impl AwsS3Storage {
 
     let shared_config = Self::get_shared_config().await;
 
-    // Presigned requests can be made with the client directly
-    let presigned_request = client
-      .get_object()
-      .bucket(&bucket)
-      .key(&key)
-      .presigned(PresigningConfig::expires_in(expires_in).unwrap())
-      .await;
-
-    // Or, they can be made directly from an operation input
     let presigned_request = GetObjectInput::builder()
       .bucket(bucket)
       .key(key)
@@ -94,7 +87,6 @@ impl AwsS3Storage {
       .unwrap()
       .content_length as u64;
 
-    dbg!(content_length);
     Ok(content_length)
   }
 
@@ -104,25 +96,6 @@ impl AwsS3Storage {
     // Similar (Java) code I wrote here: https://github.com/igvteam/igv/blob/master/src/main/java/org/broad/igv/util/AmazonUtils.java#L257
     // Or with AWS cli with: $ aws s3api head-object --bucket awsexamplebucket --key dir1/example.obj
     unimplemented!();
-  }
-
-  async fn stream_from<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Box<dyn tokio::io::AsyncRead>> {
-    let s3path = PathBuf::from(&self.bucket).join(key.as_ref());
-
-    let response = reqwest::get("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/gambian_genome_variation_project/release/20200217_biallelic_SNV/ALL_GGVP.chr20.shapeit2_integrated_snvindels_v1b_20200120.GRCh38.phased.vcf.gz.tbi")
-      .await.map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
-      .error_for_status().map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?;
-
-    let response_stream = response.bytes_stream();
-
-    let response_reader = response_stream
-      .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-      .into_async_read();
-
-    // Convert the futures::io::AsyncRead into a tokio::io::AsyncRead.
-    let mut download = response_reader.compat();
-
-    Ok(Box::new(download))
   }
 
   async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
@@ -144,6 +117,7 @@ impl AwsS3Storage {
       .await
       .map_err(|err| StorageError::AwsError(err.to_string(), key.to_string()))?
       .into_bytes();
+
     Ok(response)
   }
 }
@@ -166,27 +140,23 @@ impl AsyncStorage for AwsS3Storage {
   /// Returns a S3-presigned htsget URL
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let shared_config = Self::get_shared_config().await;
-
     let client = S3Client::new(&shared_config);
 
     let presigned_url =
       AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
     let htsget_url = Url::new(presigned_url.await?);
+
     Ok(htsget_url)
   }
 
   /// Returns the size of the S3 object in bytes.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-    let region_provider = RegionProviderChain::first_try("ap-southeast-2")
-      .or_default_provider()
-      .or_else(Region::new("us-east-1"));
-
-    let shared_config = aws_config::from_env().region(region_provider).load().await;
+    let shared_config = Self::get_shared_config().await;
 
     let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
     let client = S3Client::new(&shared_config);
 
-    let (bucket, s3key, _) = parse_s3_url(key)?;
+    let (_, s3key, _) = parse_s3_url(key)?;
 
     let object_bytes = AwsS3Storage::s3_head(client, self.bucket.clone(), s3key).await?;
     Ok(object_bytes)
@@ -221,10 +191,9 @@ mod tests {
   async fn test_get_htsget_url_from_s3() {
     let s3_storage = AwsS3Storage::new(aws_s3_client().await, String::from("bucket"));
 
-    let htsget_url = s3_storage.url("key", UrlOptions::default()).await.unwrap();
+    let htsget_url = s3_storage.url("key", UrlOptions::default()).await;
 
-    dbg!(&htsget_url);
-    assert!(htsget_url.url.contains("X-Amz-Signature"));
+    assert!(htsget_url.unwrap().url.contains("X-Amz-Signature"));
   }
 
   // #[tokio::test]
