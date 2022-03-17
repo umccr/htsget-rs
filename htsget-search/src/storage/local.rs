@@ -4,10 +4,11 @@
 use async_trait::async_trait;
 use tokio::fs::File;
 
-use crate::htsget::Url;
+use crate::htsget::{Format, Url};
 use crate::storage;
 use crate::storage::async_storage::AsyncStorage;
 use crate::storage::blocking::local::LocalStorage;
+use crate::storage::key_extractor::KeyExtractor;
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
@@ -37,6 +38,32 @@ impl<K> AsyncStorage<K> for LocalStorage
         .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
         .len(),
     )
+  }
+}
+
+struct LocalKeyExtractor;
+
+impl<K> KeyExtractor<K> for LocalKeyExtractor
+  where K: AsRef<str> + Send
+{
+  fn get_index_key<T: AsRef<str>>(id: T, format: Format) -> Result<K> {
+    match format {
+      Format::Bam => Ok(id + ".bam.bai"),
+      Format::Cram => Ok(id + ".cram.crai"),
+      Format::Vcf => Ok(id + ".vcf.gz.tbi"),
+      Format::Bcf => Ok(id + ".bcf.csi"),
+      Format::Unsupported(format) => Err(StorageError::InvalidFormat(format))
+    }
+  }
+
+  fn get_file_key<T: AsRef<str>>(id: T, format: Format) -> Result<K> {
+    match format {
+      Format::Bam => Ok(id + ".bam"),
+      Format::Cram => Ok(id + ".cram"),
+      Format::Vcf => Ok(id + ".vcf.gz"),
+      Format::Bcf => Ok(id + ".bcf"),
+      Format::Unsupported(format) => Err(StorageError::InvalidFormat(format))
+    }
   }
 }
 
