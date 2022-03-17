@@ -12,16 +12,16 @@ use super::Result;
 /// A Storage represents some kind of object based storage (either locally or in the cloud)
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
-pub trait AsyncStorage<K> {
+pub trait AsyncStorage {
   type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
 
-  async fn get(
+  async fn get<K>(
     &self,
     key: K,
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
-  async fn url(&self, key: K, options: UrlOptions) -> Result<Url>;
+  async fn url<K>(&self, key: K, options: UrlOptions) -> Result<Url>;
 
-  async fn head(&self, key: K) -> Result<u64>;
+  async fn head<K>(&self, key: K) -> Result<u64>;
 }
