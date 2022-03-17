@@ -49,11 +49,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<K, S, ReaderType>
+  BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
@@ -62,7 +62,7 @@ where
     ref_seq.len()
   }
 
-  async fn get_byte_ranges_for_unmapped<K: 'static + Send + Sync + Clone>(
+  async fn get_byte_ranges_for_unmapped(
     &self,
     key: &K,
     index: &Index,
@@ -94,11 +94,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  Search<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
+impl<K, S, ReaderType>
+  Search<K, S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -117,7 +117,7 @@ where
     reader.read_index().await
   }
 
-  async fn get_byte_ranges_for_reference_name<K: 'static + Send + Sync + Clone>(
+  async fn get_byte_ranges_for_reference_name(
     &self,
     key: K,
     reference_name: String,
@@ -145,11 +145,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchReads<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
+impl<K, S, ReaderType>
+  SearchReads<K, S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
@@ -160,7 +160,7 @@ where
     header.reference_sequences().get_full(name)
   }
 
-  async fn get_byte_ranges_for_unmapped_reads<K: 'static + Send + Sync + Clone>(
+  async fn get_byte_ranges_for_unmapped_reads(
     &self,
     bam_key: &K,
     bai_index: &Index,
@@ -168,7 +168,7 @@ where
     self.get_byte_ranges_for_unmapped(bam_key, bai_index).await
   }
 
-  async fn get_byte_ranges_for_reference_sequence<K: 'static + Send + Sync + Clone>(
+  async fn get_byte_ranges_for_reference_sequence(
     &self,
     key: K,
     ref_seq: &sam::header::ReferenceSequence,
@@ -189,9 +189,9 @@ where
   }
 }
 
-impl<S, ReaderType> BamSearch<S>
+impl<K, S, ReaderType> BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   pub fn new(storage: Arc<S>) -> Self {
