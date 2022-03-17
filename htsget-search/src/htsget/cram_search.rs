@@ -26,14 +26,14 @@ pub(crate) struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  SearchAll<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_all<K: 'static + Send + Sync + Clone>(&self, key: K, index: &Index) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
       self,
       &key,
@@ -46,7 +46,7 @@ where
     .await
   }
 
-  async fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_header<K: 'static + Send + Sync + Clone>(&self, key: &K) -> Result<Vec<BytesRange>> {
     let (mut reader, _) = self.create_reader(key).await?;
     Ok(vec![BytesRange::default()
       .with_start(Self::FILE_DEFINITION_LENGTH)
@@ -55,11 +55,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  SearchReads<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
@@ -70,9 +70,9 @@ where
     header.reference_sequences().get_full(name)
   }
 
-  async fn get_byte_ranges_for_unmapped_reads(
+  async fn get_byte_ranges_for_unmapped_reads<K: 'static + Send + Sync + Clone>(
     &self,
-    key: &str,
+    key: &K,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
@@ -87,9 +87,9 @@ where
     .await
   }
 
-  async fn get_byte_ranges_for_reference_sequence(
+  async fn get_byte_ranges_for_reference_sequence<K: 'static + Send + Sync + Clone>(
     &self,
-    key: String,
+    key: K,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
@@ -112,10 +112,10 @@ where
 
 /// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<K, S, ReaderType> Search<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -131,9 +131,9 @@ where
     crai::AsyncReader::new(inner).read_index().await
   }
 
-  async fn get_byte_ranges_for_reference_name(
+  async fn get_byte_ranges_for_reference_name<K: 'static + Send + Sync + Clone>(
     &self,
-    key: String,
+    key: K,
     reference_name: String,
     index: &Index,
     query: &Query,
@@ -158,9 +158,9 @@ where
   }
 }
 
-impl<K, S, ReaderType> CramSearch<S>
+impl<S, ReaderType> CramSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;
@@ -171,9 +171,9 @@ where
   }
 
   /// Get bytes ranges using the index.
-  async fn bytes_ranges_from_index<F>(
+  async fn bytes_ranges_from_index<F, K: 'static + Send + Sync + Clone>(
     &self,
-    key: &str,
+    key: &K,
     ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_start: Option<i32>,
     seq_end: Option<i32>,

@@ -48,11 +48,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
@@ -63,10 +63,10 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType> Search<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -81,9 +81,9 @@ where
     tabix::AsyncReader::new(inner).read_index().await
   }
 
-  async fn get_byte_ranges_for_reference_name(
+  async fn get_byte_ranges_for_reference_name<K: 'static + Send + Sync + Clone>(
     &self,
-    key: String,
+    key: K,
     reference_name: String,
     index: &Index,
     query: &Query,
@@ -147,9 +147,9 @@ where
   }
 }
 
-impl<K, S, ReaderType> VcfSearch<S>
+impl<S, ReaderType> VcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   // 1-based

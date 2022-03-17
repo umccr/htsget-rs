@@ -25,6 +25,7 @@ use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{AsyncStorage, BytesRange, UrlOptions},
 };
+use crate::storage::key_extractor::KeyExtractor;
 
 /// Helper function to find the first non-none value from a set of futures.
 pub(crate) async fn find_first<T>(
@@ -56,15 +57,15 @@ pub(crate) async fn find_first<T>(
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchAll<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
   /// This returns mapped and placed unmapped ranges.
-  async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>>;
+  async fn get_byte_ranges_for_all<K: 'static + Send + Sync + Clone>(&self, key: K, index: &Index) -> Result<Vec<BytesRange>>;
 
   /// Returns the header bytes range.
-  async fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>>;
+  async fn get_byte_ranges_for_header<K: 'static + Send + Sync + Clone>(&self, key: &K) -> Result<Vec<BytesRange>>;
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -76,10 +77,10 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  Search<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
   Header: FromStr + Send + Sync,
@@ -93,16 +94,16 @@ where
   ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)>;
 
   /// Get unplaced unmapped ranges.
-  async fn get_byte_ranges_for_unmapped_reads(
+  async fn get_byte_ranges_for_unmapped_reads<K: 'static + Send + Sync + Clone>(
     &self,
-    key: &str,
+    key: &K,
     index: &Index,
   ) -> Result<Vec<BytesRange>>;
 
   /// Get reads ranges for a reference sequence implementation.
-  async fn get_byte_ranges_for_reference_sequence(
+  async fn get_byte_ranges_for_reference_sequence<K: 'static + Send + Sync + Clone>(
     &self,
-    key: String,
+    key: K,
     reference_sequence: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
@@ -110,9 +111,9 @@ where
   ) -> Result<Vec<BytesRange>>;
 
   ///Get reads for a given reference name and an optional sequence range.
-  async fn get_byte_ranges_for_reference_name_reads(
+  async fn get_byte_ranges_for_reference_name_reads<K: 'static + Send + Sync + Clone>(
     &self,
-    key: String,
+    key: K,
     reference_name: &str,
     index: &Index,
     query: &Query,
@@ -156,10 +157,10 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait Search<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  SearchAll<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
   Header: FromStr + Send,
@@ -173,9 +174,9 @@ where
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
-  async fn get_byte_ranges_for_reference_name(
+  async fn get_byte_ranges_for_reference_name<K: 'static + Send + Sync + Clone>(
     &self,
-    key: String,
+    key: K,
     reference_name: String,
     index: &Index,
     query: &Query,
@@ -194,7 +195,7 @@ where
   fn get_format(&self) -> Format;
 
   /// Read the index from the key.
-  async fn read_index(&self, key: &str) -> Result<Index> {
+  async fn read_index<K: 'static + Send + Sync + Clone>(&self, key: &K) -> Result<Index> {
     let storage = self.get_storage().get(&key, GetOptions::default()).await?;
     Self::read_index_inner(storage)
       .await
@@ -202,7 +203,9 @@ where
   }
 
   /// Search based on the query.
-  async fn search(&self, query: Query) -> Result<Response> {
+  async fn search<KeyExt, K>(&self, query: Query, key_extractor: KeyExt) -> Result<Response>
+  where KeyExt: KeyExtractor<K> + Send,
+        K: 'static + Send + Sync + Clone {
     let (file_key, index_key) = self.get_keys_from_id(query.id.as_str());
 
     match query.class {
@@ -236,10 +239,10 @@ where
   }
 
   /// Build the response from the query using urls.
-  async fn build_response(
+  async fn build_response<K: 'static + Send + Sync + Clone>(
     &self,
     query: Query,
-    key: String,
+    key: K,
     byte_ranges: Vec<BytesRange>,
   ) -> Result<Response> {
     let mut storage_futures = FuturesUnordered::new();
@@ -265,14 +268,14 @@ where
   }
 
   /// Get the reader from the key.
-  async fn reader(key: &str, storage: Arc<S>) -> Result<Reader> {
+  async fn reader<K: 'static + Send + Sync + Clone>(key: &K, storage: Arc<S>) -> Result<Reader> {
     let get_options = GetOptions::default();
     let storage = storage.get(key, get_options).await?;
     Ok(Self::init_reader(storage))
   }
 
   /// Get the reader and header using the key.
-  async fn create_reader(&self, key: &str) -> Result<(Reader, Header)> {
+  async fn create_reader<K: 'static + Send + Sync + Clone>(&self, key: &K) -> Result<(Reader, Header)> {
     let mut reader = Self::reader(key, self.get_storage()).await?;
 
     let header = Self::read_raw_header(&mut reader)
@@ -297,10 +300,10 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  Search<K, S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
@@ -313,9 +316,9 @@ where
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32;
 
   /// Get ranges for a reference sequence for the bgzf format.
-  async fn get_byte_ranges_for_reference_sequence_bgzf(
+  async fn get_byte_ranges_for_reference_sequence_bgzf<K: 'static + Send + Sync + Clone>(
     &self,
-    key: String,
+    key: K,
     reference_sequence: &Self::ReferenceSequenceHeader,
     ref_seq_id: usize,
     index: &Index,
@@ -356,9 +359,9 @@ where
   }
 
   /// Get unmapped bytes ranges.
-  async fn get_byte_ranges_for_unmapped(
+  async fn get_byte_ranges_for_unmapped<K: 'static + Send + Sync + Clone>(
     &self,
-    _key: &str,
+    _key: &K,
     _index: &Index,
   ) -> Result<Vec<BytesRange>> {
     Ok(Vec::new())
@@ -366,18 +369,18 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
-  SearchAll<K, S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
+impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
+  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
-  T: BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+  T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
-  async fn get_byte_ranges_for_all(&self, key: String, index: &Index) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_all<K: 'static + Send + Sync + Clone>(&self, key: K, index: &Index) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
     for ref_sequences in index.reference_sequences() {
       if let Some(metadata) = ref_sequences.metadata() {
@@ -412,7 +415,7 @@ where
     Ok(BytesRange::merge_all(byte_ranges))
   }
 
-  async fn get_byte_ranges_for_header(&self, key: &str) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_header<K: 'static + Send + Sync + Clone>(&self, key: &K) -> Result<Vec<BytesRange>> {
     let (mut reader, _) = self.create_reader(key).await?;
     let virtual_position = reader.virtual_position();
     Ok(vec![BytesRange::default().with_start(0).with_end(

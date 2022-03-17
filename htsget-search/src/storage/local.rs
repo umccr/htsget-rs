@@ -13,23 +13,22 @@ use crate::storage::key_extractor::KeyExtractor;
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
 #[async_trait]
-impl<K> AsyncStorage<K> for LocalStorage
-  where K: AsRef<str> + Send
+impl AsyncStorage for LocalStorage
 {
   type Streamable = File;
 
-  async fn get(&self, key: K, _options: GetOptions) -> Result<File> {
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
     File::open(path)
       .await
       .map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
   }
 
-  async fn url(&self, key: K, options: UrlOptions) -> Result<Url> {
+  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     storage::blocking::Storage::url(self, key, options)
   }
 
-  async fn head(&self, key: K) -> Result<u64> {
+  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let key: &str = key.as_ref();
     let path = self.get_path_from_key(key)?;
     Ok(
