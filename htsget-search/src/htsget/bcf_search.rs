@@ -46,11 +46,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+impl<K, S, ReaderType>
+  BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
   for BcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
@@ -61,11 +61,11 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+impl<K, S, ReaderType>
+  Search<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
   for BcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -81,9 +81,9 @@ where
     csi::AsyncReader::new(inner).read_index().await
   }
 
-  async fn get_byte_ranges_for_reference_name<K>(
+  async fn get_byte_ranges_for_reference_name(
     &self,
-    key: K,
+    key: String,
     reference_name: String,
     index: &Index,
     query: &Query,
@@ -142,9 +142,9 @@ where
   }
 }
 
-impl<S, ReaderType> BcfSearch<S>
+impl<K, S, ReaderType> BcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
