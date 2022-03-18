@@ -18,8 +18,6 @@ pub mod aws;
 pub mod blocking;
 #[cfg(feature = "async")]
 pub mod local;
-#[cfg(feature = "async")]
-pub mod key_extractor;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
@@ -36,10 +34,7 @@ pub enum StorageError {
 
   #[cfg(feature = "aws")]
   #[error("Aws error: {0}, with key: {1}")]
-  AwsError(String, String),
-
-  #[error("Invalid format: {0}")]
-  InvalidFormat(String)
+  AwsError(String, String)
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

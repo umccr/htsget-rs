@@ -11,7 +11,7 @@ use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
 #[derive(Debug)]
 pub struct LocalStorage {
   base_path: PathBuf,
-  id_resolver: RegexResolver,
+  id_resolver: RegexResolver
 }
 
 impl LocalStorage {

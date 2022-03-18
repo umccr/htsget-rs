@@ -26,17 +26,17 @@ pub(crate) struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  SearchAll<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn get_byte_ranges_for_all(&self, key: K, index: &Index) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_all(&self, query: &Query, index: &Index) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
       self,
-      &key,
+      &query,
       None,
       None,
       None,
@@ -46,8 +46,8 @@ where
     .await
   }
 
-  async fn get_byte_ranges_for_header(&self, key: &K) -> Result<Vec<BytesRange>> {
-    let (mut reader, _) = self.create_reader(key).await?;
+  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>> {
+    let (mut reader, _) = self.create_reader(&query).await?;
     Ok(vec![BytesRange::default()
       .with_start(Self::FILE_DEFINITION_LENGTH)
       .with_end(reader.position().await?)])
@@ -55,11 +55,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  SearchReads<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
@@ -72,12 +72,12 @@ where
 
   async fn get_byte_ranges_for_unmapped_reads(
     &self,
-    key: &K,
+    query: &Query,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
       self,
-      key,
+      &query,
       None,
       None,
       None,
@@ -89,7 +89,6 @@ where
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    key: K,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
@@ -99,7 +98,7 @@ where
       .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
     Self::bytes_ranges_from_index(
       self,
-      &key,
+      &query,
       Some(ref_seq),
       query.start.map(|start| start as i32),
       query.end.map(|end| end as i32),
@@ -112,10 +111,10 @@ where
 
 /// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<K, S, ReaderType> Search<K, S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -133,20 +132,13 @@ where
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: K,
     reference_name: String,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
     self
-      .get_byte_ranges_for_reference_name_reads(key, &reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
       .await
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let cram_key = format!("{}.cram", id);
-    let crai_key = format!("{}.crai", cram_key);
-    (cram_key, crai_key)
   }
 
   fn get_storage(&self) -> Arc<S> {
@@ -158,9 +150,9 @@ where
   }
 }
 
-impl<K, S, ReaderType> CramSearch<S>
+impl<S, ReaderType> CramSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;
@@ -171,9 +163,9 @@ where
   }
 
   /// Get bytes ranges using the index.
-  async fn bytes_ranges_from_index<F, K: 'static + Send + Sync + Clone>(
+  async fn bytes_ranges_from_index<F>(
     &self,
-    key: &K,
+    query: &Query,
     ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
@@ -223,7 +215,7 @@ where
     if predicate(last) {
       let file_size = self
         .storage
-        .head(key)
+        .head(&query.id, &query.format)
         .await
         .map_err(|_| HtsGetError::io_error("Reading CRAM file size."))?;
       let eof_position = file_size - Self::EOF_CONTAINER_LENGTH;

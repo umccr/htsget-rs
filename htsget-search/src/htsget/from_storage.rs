@@ -12,13 +12,14 @@ use crate::{
   htsget::bcf_search::BcfSearch,
   htsget::cram_search::CramSearch,
   htsget::vcf_search::VcfSearch,
-  htsget::{Format, HtsGet, HtsGetError, Query, Response, Result},
+  htsget::{HtsGet, HtsGetError, Query, Response, Result},
   storage::AsyncStorage,
 };
+use crate::htsget::Format;
 
 /// Implementation of the [HtsGet] trait using a [Storage].
 pub struct HtsGetFromStorage<S> {
-  storage_ref: Arc<S>,
+  storage_ref: Arc<S>
 }
 
 #[async_trait]
@@ -29,11 +30,10 @@ where
 {
   async fn search(&self, query: Query) -> Result<Response> {
     match query.format {
-      Some(Format::Bam) | None => BamSearch::new(self.storage()).search(query).await,
-      Some(Format::Cram) => CramSearch::new(self.storage()).search(query).await,
-      Some(Format::Vcf) => VcfSearch::new(self.storage()).search(query).await,
-      Some(Format::Bcf) => BcfSearch::new(self.storage()).search(query).await,
-      Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format)),
+      Format::Bam => BamSearch::new(self.storage()).search(query).await,
+      Format::Cram => CramSearch::new(self.storage()).search(query).await,
+      Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
+      Format::Bcf => BcfSearch::new(self.storage()).search(query).await
     }
   }
 
@@ -53,7 +53,7 @@ where
 impl<S> HtsGetFromStorage<S> {
   pub fn new(storage: S) -> Self {
     Self {
-      storage_ref: Arc::new(storage),
+      storage_ref: Arc::new(storage)
     }
   }
 

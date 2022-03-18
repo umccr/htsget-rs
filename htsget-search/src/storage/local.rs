@@ -1,69 +1,124 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
+use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use tokio::fs::File;
+use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
 
-use crate::htsget::{Format, Url};
-use crate::storage;
+use crate::htsget::{Format, Headers, Url};
 use crate::storage::async_storage::AsyncStorage;
-use crate::storage::blocking::local::LocalStorage;
-use crate::storage::key_extractor::KeyExtractor;
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
+/// Implementation for the [Storage] trait using the local file system.
+#[derive(Debug)]
+pub struct LocalStorage {
+  base_path: PathBuf,
+  id_resolver: RegexResolver,
+}
+
+impl LocalStorage {
+  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver) -> Result<Self> {
+    base_path
+      .as_ref()
+      .to_path_buf()
+      .canonicalize()
+      .map_err(|_| StorageError::KeyNotFound(base_path.as_ref().to_string_lossy().to_string()))
+      .map(|canonicalized_base_path| Self {
+        base_path: canonicalized_base_path,
+        id_resolver,
+      })
+  }
+
+  pub fn base_path(&self) -> &Path {
+    self.base_path.as_path()
+  }
+
+  pub(crate) fn get_path_from_key<K: AsRef<str>>(&self, key: K) -> Result<PathBuf> {
+    let key: &str = key.as_ref();
+    self
+      .base_path
+      .join(
+        self
+          .id_resolver
+          .resolve_id(key)
+          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))?,
+      )
+      .canonicalize()
+      .map_err(|_| StorageError::InvalidKey(key.to_string()))
+      .and_then(|path| {
+        path
+          .starts_with(&self.base_path)
+          .then(|| path)
+          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
+      })
+      .and_then(|path| {
+        path
+          .is_file()
+          .then(|| path)
+          .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
+      })
+  }
+}
+
 #[async_trait]
-impl<K> AsyncStorage<K> for LocalStorage
-where K: AsRef<str> + Send
+impl AsyncStorage for LocalStorage
 {
   type Streamable = File;
 
-  async fn get(&self, key: K, _options: GetOptions) -> Result<File> {
+  async fn get_index(&self, id: &str, format: &Format,  _options: GetOptions) -> Result<File> {
+    let key = format.fmt_index(id);
     let path = self.get_path_from_key(&key)?;
     File::open(path)
       .await
-      .map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
+      .map_err(|e| StorageError::IoError(e, key))
   }
 
-  async fn url(&self, key: K, options: UrlOptions) -> Result<Url> {
-    storage::blocking::Storage::url(self, key, options)
+  async fn get_file(&self, id: &str, format: &Format,  _options: GetOptions) -> Result<File> {
+    let key = format.fmt_file(id);
+    let path = self.get_path_from_key(&key)?;
+    File::open(path)
+      .await
+      .map_err(|e| StorageError::IoError(e, key))
   }
 
-  async fn head(&self, key: K) -> Result<u64> {
-    let key: &str = key.as_ref();
-    let path = self.get_path_from_key(key)?;
+  async fn url(&self, id: &str, format: &Format, options: UrlOptions) -> Result<Url> {
+    let range_start = options
+      .range
+      .start
+      .map(|start| start.to_string())
+      .unwrap_or_else(|| "".to_string());
+    let range_end = options
+      .range
+      .end
+      .map(|end| end.to_string())
+      .unwrap_or_else(|| "".to_string());
+
+    // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
+    let key = format.fmt_file(id);
+    let path = self.get_path_from_key(&key)?;
+    let url = Url::new(format!("file://{}", path.to_string_lossy()));
+    let url = if range_start.is_empty() && range_end.is_empty() {
+      url
+    } else {
+      url.with_headers(
+        Headers::default().with_header("Range", format!("bytes={}-{}", range_start, range_end)),
+      )
+    };
+    let url = url.with_class(options.class);
+    Ok(url)
+  }
+
+  async fn head(&self, id: &str, format: &Format) -> Result<u64> {
+    let key = format.fmt_file(id);
+    let path = self.get_path_from_key(&key)?;
     Ok(
       tokio::fs::metadata(path)
         .await
         .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
         .len(),
     )
-  }
-}
-
-struct SimpleKeyExtractor;
-
-impl<K> KeyExtractor<K> for SimpleKeyExtractor
-  where K: AsRef<str> + Send
-{
-  fn get_index_key<T: AsRef<str>>(&self, id: T, format: &Format) -> Result<K> {
-    match format {
-      Format::Bam => Ok(id + ".bam.bai"),
-      Format::Cram => Ok(id + ".cram.crai"),
-      Format::Vcf => Ok(id + ".vcf.gz.tbi"),
-      Format::Bcf => Ok(id + ".bcf.csi"),
-      Format::Unsupported(format) => Err(StorageError::InvalidFormat(format))
-    }
-  }
-
-  fn get_file_key<T: AsRef<str>>(&self, id: T, format: &Format) -> Result<K> {
-    match format {
-      Format::Bam => Ok(id + ".bam"),
-      Format::Cram => Ok(id + ".cram"),
-      Format::Vcf => Ok(id + ".vcf.gz"),
-      Format::Bcf => Ok(id + ".bcf"),
-      Format::Unsupported(format) => Err(StorageError::InvalidFormat(format))
-    }
   }
 }
 

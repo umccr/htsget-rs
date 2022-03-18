@@ -48,11 +48,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
@@ -63,10 +63,10 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType> Search<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -83,12 +83,11 @@ where
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: K,
     reference_name: String,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    let (_, vcf_header) = self.create_reader(&key).await?;
+    let (_, vcf_header) = self.create_reader(&query).await?;
     let maybe_len = vcf_header
       .contigs()
       .get(&reference_name)
@@ -121,7 +120,7 @@ where
     let seq_end = query.end.map(|end| end as i32).or(maybe_len);
     let byte_ranges = self
       .get_byte_ranges_for_reference_sequence_bgzf(
-        key,
+        &query,
         &PhantomData,
         ref_seq_index,
         index,
@@ -130,12 +129,6 @@ where
       )
       .await?;
     Ok(byte_ranges)
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let vcf_key = format!("{}.vcf.gz", id);
-    let tbi_key = format!("{}.vcf.gz.tbi", id);
-    (vcf_key, tbi_key)
   }
 
   fn get_storage(&self) -> Arc<S> {
@@ -147,9 +140,9 @@ where
   }
 }
 
-impl<K, S, ReaderType> VcfSearch<S>
+impl<S, ReaderType> VcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   // 1-based

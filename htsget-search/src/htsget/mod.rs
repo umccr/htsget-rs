@@ -98,7 +98,6 @@ impl From<StorageError> for HtsGetError {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
       StorageError::IoError(e, key) => Self::IoError(format!("Io error: {}, from ID: {}", e, key)),
-
       #[cfg(feature = "aws")]
       StorageError::AwsError { .. } => Self::IoError(format!("AWS error: {:?}", err)),
     }
@@ -122,7 +121,7 @@ impl From<io::Error> for HtsGetError {
 #[derive(Debug, PartialEq)]
 pub struct Query {
   pub id: String,
-  pub format: Option<Format>,
+  pub format: Format,
   pub class: Class,
   /// Reference name
   pub reference_name: Option<String>,
@@ -135,10 +134,10 @@ pub struct Query {
 }
 
 impl Query {
-  pub fn new(id: impl Into<String>) -> Self {
+  pub fn new(id: impl Into<String>, format: Format) -> Self {
     Self {
       id: id.into(),
-      format: None,
+      format,
       class: Class::Body,
       reference_name: None,
       start: None,
@@ -150,7 +149,7 @@ impl Query {
   }
 
   pub fn with_format(mut self, format: Format) -> Self {
-    self.format = Some(format);
+    self.format = format;
     self
   }
 
@@ -196,8 +195,28 @@ pub enum Format {
   Bam,
   Cram,
   Vcf,
-  Bcf,
-  Unsupported(String),
+  Bcf
+}
+
+// TODO Allow the user to change this.
+impl Format {
+  pub(crate) fn fmt_file(&self, id: &str) -> String {
+    match self {
+      Format::Bam => format!("{}.bam", id),
+      Format::Cram => format!("{}.cram", id),
+      Format::Vcf => format!("{}.vcf.gz", id),
+      Format::Bcf => format!("{}.bcf", id)
+    }
+  }
+
+  pub(crate) fn fmt_index(&self, id: &str) -> String {
+    match self {
+      Format::Bam => format!("{}.bam.bai", id),
+      Format::Cram => format!("{}.cram.crai", id),
+      Format::Vcf => format!("{}.vcf.gz.tbi", id),
+      Format::Bcf => format!("{}.bcf.csi", id)
+    }
+  }
 }
 
 impl From<Format> for String {
@@ -206,8 +225,7 @@ impl From<Format> for String {
       Format::Bam => "BAM".to_string(),
       Format::Cram => "CRAM".to_string(),
       Format::Vcf => "VCF".to_string(),
-      Format::Bcf => "BCF".to_string(),
-      Format::Unsupported(format) => format,
+      Format::Bcf => "BCF".to_string()
     }
   }
 }
@@ -218,8 +236,7 @@ impl fmt::Display for Format {
       Format::Bam => write!(f, "BAM"),
       Format::Cram => write!(f, "CRAM"),
       Format::Vcf => write!(f, "VCF"),
-      Format::Bcf => write!(f, "BCF"),
-      Format::Unsupported(format) => write!(f, "{}", format),
+      Format::Bcf => write!(f, "BCF")
     }
   }
 }

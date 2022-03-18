@@ -46,11 +46,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
   for BcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
@@ -61,11 +61,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  Search<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+impl<S, ReaderType>
+  Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
   for BcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -83,12 +83,11 @@ where
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: K,
     reference_name: String,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    let (_, header) = self.create_reader(&key).await?;
+    let (_, header) = self.create_reader(&query).await?;
 
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
@@ -116,7 +115,7 @@ where
     let seq_end = query.end.map(|end| end as i32).or(maybe_len);
     let byte_ranges = self
       .get_byte_ranges_for_reference_sequence_bgzf(
-        key,
+        &query,
         &PhantomData,
         ref_seq_index,
         index,
@@ -125,12 +124,6 @@ where
       )
       .await?;
     Ok(byte_ranges)
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let bcf_key = format!("{}.bcf", id);
-    let csi_key = format!("{}.bcf.csi", id);
-    (bcf_key, csi_key)
   }
 
   fn get_storage(&self) -> Arc<S> {
@@ -142,9 +135,9 @@ where
   }
 }
 
-impl<K, S, ReaderType> BcfSearch<S>
+impl<S, ReaderType> BcfSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298

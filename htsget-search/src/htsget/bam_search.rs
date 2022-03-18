@@ -1,6 +1,7 @@
 //! Module providing the search capability using BAM/BAI files
 //!
 
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -27,7 +28,7 @@ use crate::{
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
 pub(crate) struct BamSearch<S> {
-  storage: Arc<S>,
+  storage: Arc<S>
 }
 
 #[async_trait]
@@ -49,11 +50,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  BgzfSearch<K, S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
@@ -64,7 +65,7 @@ where
 
   async fn get_byte_ranges_for_unmapped(
     &self,
-    key: &K,
+    query: &Query,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
     let last_interval = index
@@ -76,14 +77,14 @@ where
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let (bam_reader, _) = self.create_reader(key).await?;
+        let (bam_reader, _) = self.create_reader(&query).await?;
         bam_reader.virtual_position()
       }
     };
 
     let file_size = self
       .storage
-      .head(key)
+      .head(&query.id, &query.format)
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
 
@@ -94,11 +95,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  Search<K, S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
+impl<S, ReaderType>
+  Search<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -119,20 +120,13 @@ where
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: K,
     reference_name: String,
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
     self
-      .get_byte_ranges_for_reference_name_reads(key, &reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
       .await
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let bam_key = format!("{}.bam", id);
-    let bai_key = format!("{}.bai", bam_key);
-    (bam_key, bai_key)
   }
 
   fn get_storage(&self) -> Arc<S> {
@@ -145,11 +139,11 @@ where
 }
 
 #[async_trait]
-impl<K, S, ReaderType>
-  SearchReads<K, S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
+impl<S, ReaderType>
+  SearchReads<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
@@ -162,15 +156,14 @@ where
 
   async fn get_byte_ranges_for_unmapped_reads(
     &self,
-    bam_key: &K,
+    query: &Query,
     bai_index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_unmapped(bam_key, bai_index).await
+    self.get_byte_ranges_for_unmapped(&query, bai_index).await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    key: K,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: &Query,
@@ -178,7 +171,7 @@ where
   ) -> Result<Vec<BytesRange>> {
     self
       .get_byte_ranges_for_reference_sequence_bgzf(
-        key,
+        &query,
         ref_seq,
         ref_seq_id,
         index,
@@ -189,9 +182,9 @@ where
   }
 }
 
-impl<K, S, ReaderType> BamSearch<S>
+impl<S, ReaderType> BamSearch<S>
 where
-  S: AsyncStorage<K, Streamable = ReaderType> + Send + Sync + 'static,
+  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   pub fn new(storage: Arc<S>) -> Self {
