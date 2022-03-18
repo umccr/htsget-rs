@@ -61,7 +61,7 @@ where
   Index: Send + Sync,
 {
   /// This returns mapped and placed unmapped ranges.
-  async fn get_byte_ranges_for_all(&self, query: &Query, index: &Index) -> Result<Vec<BytesRange>>;
+  async fn get_byte_ranges_for_all(&self, id: String, format: Format, index: &Index) -> Result<Vec<BytesRange>>;
 
   /// Returns the header bytes range.
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>>;
@@ -119,7 +119,7 @@ where
       return self.get_byte_ranges_for_unmapped_reads(&query, index).await;
     }
 
-    let (_, header) = self.create_reader(&query).await?;
+    let (_, header) = self.create_reader(&query.id, &query.format).await?;
     let maybe_ref_seq = self
       .get_reference_sequence_from_name(&header, reference_name)
       .await;
@@ -200,7 +200,7 @@ where
         let byte_ranges = match query.reference_name.as_ref() {
           None => {
             self
-              .get_byte_ranges_for_all(&query, &index)
+              .get_byte_ranges_for_all(query.id.clone(), query.format.clone(), &index)
               .await?
           }
           Some(reference_name) => {
@@ -249,15 +249,15 @@ where
   }
 
   /// Get the reader from the key.
-  async fn reader(query: &Query, storage: Arc<S>) -> Result<Reader> {
+  async fn reader(id: &str, format: &Format, storage: Arc<S>) -> Result<Reader> {
     let get_options = GetOptions::default();
-    let storage = storage.get_file(&query.id, &query.format, get_options).await?;
+    let storage = storage.get_file(id, format, get_options).await?;
     Ok(Self::init_reader(storage))
   }
 
   /// Get the reader and header using the key.
-  async fn create_reader(&self, query: &Query) -> Result<(Reader, Header)> {
-    let mut reader = Self::reader(&query, self.get_storage()).await?;
+  async fn create_reader(&self, id: &str, format: &Format) -> Result<(Reader, Header)> {
+    let mut reader = Self::reader(id, format, self.get_storage()).await?;
 
     let header = Self::read_raw_header(&mut reader)
       .await
@@ -299,7 +299,7 @@ where
   /// Get ranges for a reference sequence for the bgzf format.
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
-    query: &Query,
+    id: String, format: Format,
     reference_sequence: &Self::ReferenceSequenceHeader,
     ref_seq_id: usize,
     index: &Index,
@@ -317,8 +317,9 @@ where
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
     for chunk in merge_chunks(&chunks) {
       let storage = self.get_storage();
+      let id = id.clone();
       futures.push(tokio::spawn(async move {
-        let mut reader = Self::reader(&query, storage).await?;
+        let mut reader = Self::reader(&id, &format, storage).await?;
         Ok(
           BytesRange::default()
             .with_start(chunk.start().bytes_range_start())
@@ -341,7 +342,7 @@ where
   /// Get unmapped bytes ranges.
   async fn get_byte_ranges_for_unmapped(
     &self,
-    _query: &Query,
+    _id: &str, _format: &Format,
     _index: &Index,
   ) -> Result<Vec<BytesRange>> {
     Ok(Vec::new())
@@ -360,15 +361,16 @@ where
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
-  async fn get_byte_ranges_for_all(&self, query: &Query, index: &Index) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_all(&self, id: String, format: Format, index: &Index) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
     for ref_sequences in index.reference_sequences() {
       if let Some(metadata) = ref_sequences.metadata() {
         let storage = self.get_storage();
         let start_vpos = metadata.start_position();
         let end_vpos = metadata.end_position();
+        let id = id.clone();
         futures.push(tokio::spawn(async move {
-          let mut reader = Self::reader(&query, storage).await?;
+          let mut reader = Self::reader(&id, &format, storage).await?;
           let start_vpos = start_vpos.bytes_range_start();
           let end_vpos = end_vpos.bytes_range_end(&mut reader).await;
 
@@ -389,13 +391,13 @@ where
       }
     }
 
-    let unmapped_byte_ranges = self.get_byte_ranges_for_unmapped(&query, index).await?;
+    let unmapped_byte_ranges = self.get_byte_ranges_for_unmapped(&id, &format, index).await?;
     byte_ranges.extend(unmapped_byte_ranges.into_iter());
     Ok(BytesRange::merge_all(byte_ranges))
   }
 
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>> {
-    let (mut reader, _) = self.create_reader(&query).await?;
+    let (mut reader, _) = self.create_reader(&query.id, &query.format).await?;
     let virtual_position = reader.virtual_position();
     Ok(vec![BytesRange::default().with_start(0).with_end(
       virtual_position.bytes_range_end(&mut reader).await,

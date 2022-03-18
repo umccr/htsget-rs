@@ -33,10 +33,11 @@ where
   S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn get_byte_ranges_for_all(&self, query: &Query, index: &Index) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_all(&self, id: String, format: Format, index: &Index) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
       self,
-      &query,
+      &id,
+      &format,
       None,
       None,
       None,
@@ -47,7 +48,7 @@ where
   }
 
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>> {
-    let (mut reader, _) = self.create_reader(&query).await?;
+    let (mut reader, _) = self.create_reader(&query.id, &query.format).await?;
     Ok(vec![BytesRange::default()
       .with_start(Self::FILE_DEFINITION_LENGTH)
       .with_end(reader.position().await?)])
@@ -77,7 +78,8 @@ where
   ) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
       self,
-      &query,
+      &query.id,
+      &query.format,
       None,
       None,
       None,
@@ -98,7 +100,8 @@ where
       .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
     Self::bytes_ranges_from_index(
       self,
-      &query,
+      &query.id,
+      &query.format,
       Some(ref_seq),
       query.start.map(|start| start as i32),
       query.end.map(|end| end as i32),
@@ -165,7 +168,8 @@ where
   /// Get bytes ranges using the index.
   async fn bytes_ranges_from_index<F>(
     &self,
-    query: &Query,
+    id: &str,
+    format: &Format,
     ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_start: Option<i32>,
     seq_end: Option<i32>,
@@ -215,7 +219,7 @@ where
     if predicate(last) {
       let file_size = self
         .storage
-        .head(&query.id, &query.format)
+        .head(&id, &format)
         .await
         .map_err(|_| HtsGetError::io_error("Reading CRAM file size."))?;
       let eof_position = file_size - Self::EOF_CONTAINER_LENGTH;

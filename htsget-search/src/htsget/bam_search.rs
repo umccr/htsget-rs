@@ -65,7 +65,7 @@ where
 
   async fn get_byte_ranges_for_unmapped(
     &self,
-    query: &Query,
+    id: &str, format: &Format,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
     let last_interval = index
@@ -77,14 +77,14 @@ where
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let (bam_reader, _) = self.create_reader(&query).await?;
+        let (bam_reader, _) = self.create_reader(id, format).await?;
         bam_reader.virtual_position()
       }
     };
 
     let file_size = self
       .storage
-      .head(&query.id, &query.format)
+      .head(&id, &format)
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
 
@@ -159,7 +159,7 @@ where
     query: &Query,
     bai_index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_unmapped(&query, bai_index).await
+    self.get_byte_ranges_for_unmapped(&query.id, &query.format, bai_index).await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
@@ -171,7 +171,7 @@ where
   ) -> Result<Vec<BytesRange>> {
     self
       .get_byte_ranges_for_reference_sequence_bgzf(
-        &query,
+        query.id.clone(), query.format.clone(),
         ref_seq,
         ref_seq_id,
         index,

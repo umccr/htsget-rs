@@ -87,7 +87,7 @@ where
     index: &Index,
     query: &Query,
   ) -> Result<Vec<BytesRange>> {
-    let (_, header) = self.create_reader(&query).await?;
+    let (_, header) = self.create_reader(&query.id, &query.format).await?;
 
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
@@ -115,7 +115,7 @@ where
     let seq_end = query.end.map(|end| end as i32).or(maybe_len);
     let byte_ranges = self
       .get_byte_ranges_for_reference_sequence_bgzf(
-        &query,
+        query.id.clone(), query.format.clone(),
         &PhantomData,
         ref_seq_index,
         index,

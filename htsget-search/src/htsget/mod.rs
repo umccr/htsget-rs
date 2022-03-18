@@ -190,7 +190,7 @@ impl Query {
 }
 
 /// An enumeration with all the possible formats.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Format {
   Bam,
   Cram,
