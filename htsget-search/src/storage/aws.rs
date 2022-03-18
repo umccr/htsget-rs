@@ -4,15 +4,18 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use aws_config::Config;
 use aws_config::meta::region::RegionProviderChain;
+use aws_config::timeout::Config;
 use aws_sdk_s3::{Client as S3Client, Region};
 use aws_sdk_s3::input::GetObjectInput;
+use aws_sdk_s3::operation::GetObject;
 use aws_sdk_s3::presigning::config::PresigningConfig;
+use aws_types::SdkConfig;
 use bytes::Bytes;
 use futures::TryStreamExt;
 use tokio::io::BufReader;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
+use htsget_id_resolver::RegexResolver;
 
 use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;
@@ -41,42 +44,44 @@ enum AwsS3StorageTier {
 
 /// Implementation for the [Storage] trait utilising data from an S3 bucket.
 pub struct AwsS3Storage {
-  config: Config,
+  config: SdkConfig,
   client: S3Client,
   bucket: String,
+  id_resolver: RegexResolver,
 }
 
 impl AwsS3Storage {
-  pub fn new(client: S3Client, bucket: String) -> Self {
-    unimplemented!();
-    AwsS3Storage { client, bucket }
+  // Allow the user to set this?
+  pub const PRESIGNED_REQUEST_EXPIRY: u64 = 1000;
+
+  pub fn new(config: SdkConfig, bucket: String, id_resolver: RegexResolver) -> Self {
+    AwsS3Storage {
+      config,
+      client: S3Client::new(&config),
+      bucket,
+      id_resolver
+    }
   }
 
-  async fn get_shared_config() -> aws_config::Config {
-    let region_provider = RegionProviderChain::first_try("ap-southeast-2")
-      .or_default_provider()
-      .or_else(Region::new("us-east-1"));
-    aws_config::from_env().region(region_provider).load().await
+  pub async fn new_with_default_config(bucket: String, id_resolver: RegexResolver) -> Self {
+    AwsS3Storage::new(aws_config::load_from_env().await, bucket, id_resolver)
   }
 
-  async fn s3_presign_url(client: S3Client, bucket: String, key: String) -> Result<String> {
-    unimplemented!();
-    let expires_in = Duration::from_secs(900);
-
-    let shared_config = Self::get_shared_config().await;
-
-    let presigned_request = GetObjectInput::builder()
-      .bucket(bucket)
-      .key(key)
-      .build()
-      .unwrap()
+  async fn s3_presign_url(&self, key: String) -> Result<String> {
+    Ok(
+      self
+      .client
+      .get_object()
+      .bucket(&self.bucket)
       .presigned(
-        &Config::from(&shared_config),
-        PresigningConfig::expires_in(expires_in).unwrap(),
+        PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
+          .map_err(|err| StorageError::AwsError(err.to_string(), key.clone()))?
       )
-      .await;
-
-    Ok(presigned_request.unwrap().uri().to_string())
+      .await
+      .map_err(|err| StorageError::AwsError(err.to_string(), key.clone()))?
+      .uri()
+      .to_string()
+    )
   }
 
   async fn s3_head(client: S3Client, bucket: String, key: String) -> Result<u64> {
@@ -127,43 +132,43 @@ impl AwsS3Storage {
 // TODO: Determine if all three trait methods require Retrievavility testing before
 // reaching out to actual S3 objects or just the "head" operation.
 // i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
-// #[async_trait]
-// impl AsyncStorage for AwsS3Storage {
-//   type Streamable = BufReader<Cursor<Bytes>>;
-//
-//   /// Returns the S3 url (s3://bucket/key) for the given path (key).
-//   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
-//     let response = self.get_content(key, _options).await?;
-//     let cursor = Cursor::new(response);
-//     let reader = tokio::io::BufReader::new(cursor);
-//     Ok(reader)
-//   }
-//
-//   /// Returns a S3-presigned htsget URL
-//   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-//     let shared_config = Self::get_shared_config().await;
-//     let client = S3Client::new(&shared_config);
-//
-//     let presigned_url =
-//       AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
-//     let htsget_url = Url::new(presigned_url.await?);
-//
-//     Ok(htsget_url)
-//   }
-//
-//   /// Returns the size of the S3 object in bytes.
-//   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-//     let shared_config = Self::get_shared_config().await;
-//
-//     let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
-//     let client = S3Client::new(&shared_config);
-//
-//     let (_, s3key, _) = parse_s3_url(key)?;
-//
-//     let object_bytes = AwsS3Storage::s3_head(client, self.bucket.clone(), s3key).await?;
-//     Ok(object_bytes)
-//   }
-// }
+#[async_trait]
+impl AsyncStorage for AwsS3Storage {
+  type Streamable = BufReader<Cursor<Bytes>>;
+
+  /// Returns the S3 url (s3://bucket/key) for the given path (key).
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
+    let response = self.get_content(key, _options).await?;
+    let cursor = Cursor::new(response);
+    let reader = tokio::io::BufReader::new(cursor);
+    Ok(reader)
+  }
+
+  /// Returns a S3-presigned htsget URL
+  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
+    let shared_config = Self::get_shared_config().await;
+    let client = S3Client::new(&shared_config);
+
+    let presigned_url =
+      AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
+    let htsget_url = Url::new(presigned_url.await?);
+
+    Ok(htsget_url)
+  }
+
+  /// Returns the size of the S3 object in bytes.
+  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
+    let shared_config = Self::get_shared_config().await;
+
+    let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
+    let client = S3Client::new(&shared_config);
+
+    let (_, s3key, _) = parse_s3_url(key)?;
+
+    let object_bytes = AwsS3Storage::s3_head(client, self.bucket.clone(), s3key).await?;
+    Ok(object_bytes)
+  }
+}
 
 #[cfg(test)]
 mod tests {
