@@ -67,28 +67,29 @@ impl AwsS3Storage {
     AwsS3Storage::new(aws_config::load_from_env().await, bucket, id_resolver)
   }
 
-  async fn s3_presign_url(&self, key: String) -> Result<String> {
+  async fn s3_presign_url<K: AsRef<str> + Send>(&self, key: K) -> Result<String> {
     Ok(
       self
       .client
       .get_object()
       .bucket(&self.bucket)
+        .key(key.as_ref())
       .presigned(
         PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
-          .map_err(|err| StorageError::AwsError(err.to_string(), key.clone()))?
+          .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
       )
       .await
-      .map_err(|err| StorageError::AwsError(err.to_string(), key.clone()))?
+      .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
       .uri()
       .to_string()
     )
   }
 
-  async fn s3_head(client: S3Client, bucket: String, key: String) -> Result<u64> {
-    let content_length = client
+  async fn s3_head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
+    let content_length = self.client
       .head_object()
-      .bucket(bucket)
-      .key(key)
+      .bucket(&self.bucket)
+      .key(key.as_ref())
       .send()
       .await
       .unwrap()
@@ -97,7 +98,7 @@ impl AwsS3Storage {
     Ok(content_length)
   }
 
-  async fn get_storage_tier(s3_url: String) -> Result<AwsS3StorageTier> {
+  async fn get_storage_tier<K: AsRef<str> + Send>(key: K) -> Result<AwsS3StorageTier> {
     // 1. S3 head request to object
     // 2. Return status
     // Similar (Java) code I wrote here: https://github.com/igvteam/igv/blob/master/src/main/java/org/broad/igv/util/AmazonUtils.java#L257
@@ -106,8 +107,6 @@ impl AwsS3Storage {
   }
 
   async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
-    let key = key.as_ref();
-
     // It would be nice to use a ready-made type with a ByteStream that implements AsyncRead + AsyncSeek
     // in order to avoid reading the whole byte buffer into memory. A custom type could be made similar to
     // https://users.rust-lang.org/t/what-to-pin-when-implementing-asyncread/63019/2 which could be based off
@@ -115,7 +114,7 @@ impl AwsS3Storage {
     let response = self.client
       .get_object()
       .bucket(&self.bucket)
-      .key(key)
+      .key(key.as_ref())
       .send()
       .await
       .map_err(|err| StorageError::AwsError(err.to_string(), key.to_string()))?
