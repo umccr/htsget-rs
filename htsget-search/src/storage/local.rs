@@ -116,9 +116,10 @@ impl AsyncStorage for LocalStorage
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
+  use tempfile::TempDir;
 
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
@@ -260,13 +261,9 @@ mod tests {
     .await;
   }
 
-  async fn with_local_storage<F, Fut>(test: F)
-  where
-    F: FnOnce(LocalStorage) -> Fut,
-    Fut: Future<Output = ()>,
-  {
+  pub(crate) async fn create_local_test_files() -> TempDir {
     let base_path = tempfile::TempDir::new().unwrap();
-    let format = Format::Bam;
+
     File::create(base_path.path().join("key1"))
       .await
       .unwrap()
@@ -280,6 +277,16 @@ mod tests {
       .write_all(b"value2")
       .await
       .unwrap();
+
+    base_path
+  }
+
+  async fn with_local_storage<F, Fut>(test: F)
+  where
+    F: FnOnce(LocalStorage) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let base_path = create_local_test_files().await;
     test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
       .await
   }
