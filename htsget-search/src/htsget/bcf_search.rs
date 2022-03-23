@@ -154,7 +154,7 @@ pub mod tests {
   use htsget_id_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 

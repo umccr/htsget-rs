@@ -197,8 +197,7 @@ where
       })
       .collect::<Result<Vec<Url>>>()?;
 
-    let format = query.format.unwrap_or_else(|| self.get_format());
-    Ok(Response::new(format, urls))
+    Ok(Response::new(query.format, urls))
   }
 
   /// Get the reader from the key.

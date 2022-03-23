@@ -23,11 +23,10 @@ where
 {
   fn search(&self, query: Query) -> Result<Response> {
     match query.format {
-      Some(Format::Bam) | None => BamSearch::new(&self.storage).search(query),
-      Some(Format::Cram) => CramSearch::new(&self.storage).search(query),
-      Some(Format::Vcf) => VcfSearch::new(&self.storage).search(query),
-      Some(Format::Bcf) => BcfSearch::new(&self.storage).search(query),
-      Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format)),
+      Format::Bam => BamSearch::new(&self.storage).search(query),
+      Format::Cram => CramSearch::new(&self.storage).search(query),
+      Format::Vcf => VcfSearch::new(&self.storage).search(query),
+      Format::Bcf => BcfSearch::new(&self.storage).search(query)
     }
   }
 

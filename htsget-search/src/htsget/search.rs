@@ -234,8 +234,9 @@ where
         .with_range(range)
         .with_class(query.class.clone());
       let storage = self.get_storage();
+      let id = query.id.clone();
       storage_futures.push(tokio::spawn(async move {
-        storage.url(query.format.fmt_file(&query.id), options).await
+        storage.url(query.format.fmt_file(&id), options).await
       }));
     }
     let mut urls = Vec::new();

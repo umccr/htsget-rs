@@ -219,7 +219,7 @@ where
     if predicate(last) {
       let file_size = self
         .storage
-        .head(&id, &format)
+        .head(format.fmt_file(id))
         .await
         .map_err(|_| HtsGetError::io_error("Reading CRAM file size."))?;
       let eof_position = file_size - Self::EOF_CONTAINER_LENGTH;
@@ -274,7 +274,7 @@ pub mod tests {
   use htsget_id_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 

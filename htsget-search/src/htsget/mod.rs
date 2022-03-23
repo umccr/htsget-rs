@@ -190,7 +190,7 @@ impl Query {
 }
 
 /// An enumeration with all the possible formats.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Format {
   Bam,
   Cram,
@@ -400,7 +400,7 @@ mod tests {
   #[test]
   fn query_with_format() {
     let result = Query::new("NA12878").with_format(Format::Bam);
-    assert_eq!(result.format, Some(Format::Bam));
+    assert_eq!(result.format, Format::Bam);
   }
 
   #[test]
