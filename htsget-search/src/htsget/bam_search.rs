@@ -84,7 +84,7 @@ where
 
     let file_size = self
       .storage
-      .head(&id, &format)
+      .head(format.fmt_file(id))
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
 

@@ -185,7 +185,7 @@ where
 
   /// Read the index from the key.
   async fn read_index(&self, query: &Query) -> Result<Index> {
-    let storage = self.get_storage().get_index(&query.id, &query.format, GetOptions::default()).await?;
+    let storage = self.get_storage().get(query.format.fmt_index(&query.id), GetOptions::default()).await?;
     Self::read_index_inner(storage)
       .await
       .map_err(|err| HtsGetError::io_error(format!("Reading {} index: {}", self.get_format(), err)))
@@ -235,7 +235,7 @@ where
         .with_class(query.class.clone());
       let storage = self.get_storage();
       storage_futures.push(tokio::spawn(async move {
-        storage.url(&query.id, &query.format, options).await
+        storage.url(query.format.fmt_file(&query.id), options).await
       }));
     }
     let mut urls = Vec::new();
@@ -251,7 +251,7 @@ where
   /// Get the reader from the key.
   async fn reader(id: &str, format: &Format, storage: Arc<S>) -> Result<Reader> {
     let get_options = GetOptions::default();
-    let storage = storage.get_file(id, format, get_options).await?;
+    let storage = storage.get(format.fmt_file(&id), get_options).await?;
     Ok(Self::init_reader(storage))
   }
 

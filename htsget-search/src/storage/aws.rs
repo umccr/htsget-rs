@@ -158,23 +158,22 @@ impl AwsS3Storage {
 impl AsyncStorage for AwsS3Storage {
   type Streamable = BufReader<Cursor<Bytes>>;
 
-  async fn get_index(&self, id: &str, format: &Format, options: GetOptions) -> Result<Self::Streamable> {
-    self.create_buf_reader(format.fmt_index(id), options).await
-  }
-
-  async fn get_file(&self, id: &str, format: &Format, options: GetOptions) -> Result<Self::Streamable> {
-    self.create_buf_reader(format.fmt_file(id), options).await
+  async fn get<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Self::Streamable> {
+    let key = key.as_ref();
+    self.create_buf_reader(key, options).await
   }
 
   /// Returns a S3-presigned htsget URL
-  async fn url(&self, id: &str, format: &Format, _options: UrlOptions) -> Result<Url> {
-    let presigned_url = self.s3_presign_url(format.fmt_file(id));
-    Ok(Url::new(presigned_url.await?))
+  async fn url<K: AsRef<str> + Send>(&self, key: K, _options: UrlOptions) -> Result<Url> {
+    let key = key.as_ref();
+    let presigned_url = self.s3_presign_url(key).await?;
+    Ok(Url::new(presigned_url))
   }
 
   /// Returns the size of the S3 object in bytes.
-  async fn head(&self, id: &str, format: &Format) -> Result<u64> {
-    let head = self.s3_head(format.fmt_file(id)).await?;
+  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
+    let key = key.as_ref();
+    let head = self.s3_head(key).await?;
     Ok(head.content_length as u64)
   }
 }

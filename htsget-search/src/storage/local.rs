@@ -61,7 +61,7 @@ impl LocalStorage {
       })
   }
 
-  async fn create_file<K: AsRef<str>>(&self, key: K) -> Result<File> {
+  async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
     File::open(path)
       .await
@@ -74,15 +74,11 @@ impl AsyncStorage for LocalStorage
 {
   type Streamable = File;
 
-  async fn get_index(&self, id: &str, format: &Format,  _options: GetOptions) -> Result<File> {
-    self.create_file(format.fmt_index(id)).await
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
+    self.get(key).await
   }
 
-  async fn get_file(&self, id: &str, format: &Format,  _options: GetOptions) -> Result<File> {
-    self.create_file(format.fmt_file(id)).await
-  }
-
-  async fn url(&self, id: &str, format: &Format, options: UrlOptions) -> Result<Url> {
+  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let range_start = options
       .range
       .start
@@ -95,7 +91,6 @@ impl AsyncStorage for LocalStorage
       .unwrap_or_else(|| "".to_string());
 
     // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
-    let key = format.fmt_file(id);
     let path = self.get_path_from_key(&key)?;
     let url = Url::new(format!("file://{}", path.to_string_lossy()));
     let url = if range_start.is_empty() && range_end.is_empty() {
@@ -109,8 +104,7 @@ impl AsyncStorage for LocalStorage
     Ok(url)
   }
 
-  async fn head(&self, id: &str, format: &Format) -> Result<u64> {
-    let key = format.fmt_file(id);
+  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let path = self.get_path_from_key(&key)?;
     Ok(
       tokio::fs::metadata(path)
@@ -139,7 +133,7 @@ mod tests {
   #[tokio::test]
   async fn get_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "non-existing-key", GetOptions::default()).await;
+      let result = storage.get("non-existing-key").await;
       assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -272,6 +266,7 @@ mod tests {
     Fut: Future<Output = ()>,
   {
     let base_path = tempfile::TempDir::new().unwrap();
+    let format = Format::Bam;
     File::create(base_path.path().join("key1"))
       .await
       .unwrap()

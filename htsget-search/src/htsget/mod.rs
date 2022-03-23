@@ -134,10 +134,10 @@ pub struct Query {
 }
 
 impl Query {
-  pub fn new(id: impl Into<String>, format: Format) -> Self {
+  pub fn new(id: impl Into<String>) -> Self {
     Self {
       id: id.into(),
-      format,
+      format: Format::Bam,
       class: Class::Body,
       reference_name: None,
       start: None,

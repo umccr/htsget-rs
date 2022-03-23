@@ -15,21 +15,13 @@ use super::Result;
 pub trait AsyncStorage {
   type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
 
-  async fn get_index(
+  async fn get<K: AsRef<str> + Send>(
     &self,
-    id: &str,
-    format: &Format,
+    key: K,
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
-  async fn get_file(
-    &self,
-    id: &str,
-    format: &Format,
-    options: GetOptions,
-  ) -> Result<Self::Streamable>;
+  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url>;
 
-  async fn url(&self, id: &str, format: &Format, options: UrlOptions) -> Result<Url>;
-
-  async fn head(&self, id: &str, format: &Format) -> Result<u64>;
+  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
 }
