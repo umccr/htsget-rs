@@ -19,9 +19,9 @@ use bytes::Bytes;
 use futures::TryStreamExt;
 use tokio::io::BufReader;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
-use htsget_id_resolver::RegexResolver;
+use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
 
-use crate::htsget::Url;
+use crate::htsget::{Format, Url};
 use crate::storage::async_storage::AsyncStorage;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::aws::s3_url::parse_s3_url;
@@ -62,13 +62,17 @@ impl AwsS3Storage {
     AwsS3Storage::new(aws_config::load_from_env().await, bucket, id_resolver)
   }
 
+  fn resolve_key<K: AsRef<str> + Send>(&self, key: &K) -> Result<String> {
+    self.id_resolver.resolve_id(key.as_ref()).ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
+  }
+
   async fn s3_presign_url<K: AsRef<str> + Send>(&self, key: K) -> Result<String> {
     Ok(
       self
       .client
       .get_object()
       .bucket(&self.bucket)
-        .key(key.as_ref())
+        .key(&self.resolve_key(&key)?)
       .presigned(
         PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
           .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
@@ -85,7 +89,7 @@ impl AwsS3Storage {
       self.client
       .head_object()
       .bucket(&self.bucket)
-      .key(key.as_ref())
+      .key(&self.resolve_key(&key)?)
       .send()
       .await
       .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
@@ -93,14 +97,14 @@ impl AwsS3Storage {
   }
 
   async fn get_storage_tier<K: AsRef<str> + Send>(&self, key: K) -> Result<Retrieval> {
-    let head = self.s3_head(key).await?;
+    let head = self.s3_head(&self.resolve_key(&key)?).await?;
     Ok(
       // Default is Standard.
       match head.storage_class.unwrap_or_else(|| StorageClass::Standard) {
         class @ (StorageClass::DeepArchive | StorageClass::Glacier) => Self::check_restore_header(head.restore, class),
         class @ StorageClass::IntelligentTiering => {
           if let Some(_) = head.archive_status {
-            // Not sure if this check is necessary for the archived intelligence tiering classes but
+            // Not sure if this check is necessary for the archived intelligent tiering classes but
             // it shouldn't hurt.
             Self::check_restore_header(head.restore, class)
           } else {
@@ -129,58 +133,49 @@ impl AwsS3Storage {
     let response = self.client
       .get_object()
       .bucket(&self.bucket)
-      .key(key.as_ref())
+      .key(&self.resolve_key(&key)?)
       .send()
       .await
-      .map_err(|err| StorageError::AwsError(err.to_string(), key.to_string()))?
+      .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
       .body
       .collect()
       .await
-      .map_err(|err| StorageError::AwsError(err.to_string(), key.to_string()))?
+      .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
       .into_bytes();
 
     Ok(response)
   }
-}
 
-// TODO: Determine if all three trait methods require Retrievavility testing before
-// reaching out to actual S3 objects or just the "head" operation.
-// i.e: Should we even return a presigned URL if the object is not immediately retrievable?`
-#[async_trait]
-impl AsyncStorage for AwsS3Storage {
-  type Streamable = BufReader<Cursor<Bytes>>;
-
-  /// Returns the S3 url (s3://bucket/key) for the given path (key).
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
-    let response = self.get_content(key, _options).await?;
+  async fn create_buf_reader<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {
+    let response = self.get_content(key, options).await?;
     let cursor = Cursor::new(response);
     let reader = tokio::io::BufReader::new(cursor);
     Ok(reader)
   }
+}
+
+#[async_trait]
+impl AsyncStorage for AwsS3Storage {
+  type Streamable = BufReader<Cursor<Bytes>>;
+
+  async fn get_index(&self, id: &str, format: &Format, options: GetOptions) -> Result<Self::Streamable> {
+    self.create_buf_reader(format.fmt_index(id), options).await
+  }
+
+  async fn get_file(&self, id: &str, format: &Format, options: GetOptions) -> Result<Self::Streamable> {
+    self.create_buf_reader(format.fmt_file(id), options).await
+  }
 
   /// Returns a S3-presigned htsget URL
-  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    let shared_config = Self::get_shared_config().await;
-    let client = S3Client::new(&shared_config);
-
-    let presigned_url =
-      AwsS3Storage::s3_presign_url(client, self.bucket.clone(), key.as_ref().to_string());
-    let htsget_url = Url::new(presigned_url.await?);
-
-    Ok(htsget_url)
+  async fn url(&self, id: &str, format: &Format, _options: UrlOptions) -> Result<Url> {
+    let presigned_url = self.s3_presign_url(format.fmt_file(id));
+    Ok(Url::new(presigned_url.await?))
   }
 
   /// Returns the size of the S3 object in bytes.
-  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-    let shared_config = Self::get_shared_config().await;
-
-    let key: &str = key.as_ref(); // input URI or path, not S3 key... the trait naming is a bit misleading
-    let client = S3Client::new(&shared_config);
-
-    let (_, s3key, _) = parse_s3_url(key)?;
-
-    let object_bytes = AwsS3Storage::s3_head(client, self.bucket.clone(), s3key).await?;
-    Ok(object_bytes)
+  async fn head(&self, id: &str, format: &Format) -> Result<u64> {
+    let head = self.s3_head(format.fmt_file(id)).await?;
+    Ok(head.content_length as u64)
   }
 }
 
