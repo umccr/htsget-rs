@@ -60,6 +60,13 @@ impl LocalStorage {
           .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
       })
   }
+
+  async fn create_file<K: AsRef<str>>(&self, key: K) -> Result<File> {
+    let path = self.get_path_from_key(&key)?;
+    File::open(path)
+      .await
+      .map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
+  }
 }
 
 #[async_trait]
@@ -68,19 +75,11 @@ impl AsyncStorage for LocalStorage
   type Streamable = File;
 
   async fn get_index(&self, id: &str, format: &Format,  _options: GetOptions) -> Result<File> {
-    let key = format.fmt_index(id);
-    let path = self.get_path_from_key(&key)?;
-    File::open(path)
-      .await
-      .map_err(|e| StorageError::IoError(e, key))
+    self.create_file(format.fmt_index(id)).await
   }
 
   async fn get_file(&self, id: &str, format: &Format,  _options: GetOptions) -> Result<File> {
-    let key = format.fmt_file(id);
-    let path = self.get_path_from_key(&key)?;
-    File::open(path)
-      .await
-      .map_err(|e| StorageError::IoError(e, key))
+    self.create_file(format.fmt_file(id)).await
   }
 
   async fn url(&self, id: &str, format: &Format, options: UrlOptions) -> Result<Url> {
