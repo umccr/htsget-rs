@@ -1,5 +1,6 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
 use std::io::Cursor;
+use std::os::linux::raw::stat;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -8,7 +9,10 @@ use aws_config::meta::region::RegionProviderChain;
 use aws_config::timeout::Config;
 use aws_sdk_s3::{Client as S3Client, Region};
 use aws_sdk_s3::input::GetObjectInput;
+use aws_sdk_s3::model::{ArchiveStatus, StorageClass};
+use aws_sdk_s3::model::StorageClass::{DeepArchive, Glacier};
 use aws_sdk_s3::operation::GetObject;
+use aws_sdk_s3::output::HeadObjectOutput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
 use aws_types::SdkConfig;
 use bytes::Bytes;
@@ -19,6 +23,7 @@ use htsget_id_resolver::RegexResolver;
 
 use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;
+use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::aws::s3_url::parse_s3_url;
 use crate::storage::StorageError;
 
@@ -27,19 +32,9 @@ use super::{GetOptions, Result, UrlOptions};
 mod s3_testing_helper;
 mod s3_url;
 
-//use crate::storage::s3_testing::fs_write_object;
-
 enum Retrieval {
-  Immediate,
-  Delayed,
-}
-
-enum AwsS3StorageTier {
-  Standard(Retrieval),
-  StandardIa(Retrieval),
-  OnezoneIa(Retrieval),
-  Glacier(Retrieval),     // ~24-48 hours
-  DeepArchive(Retrieval), // ~48 hours
+  Immediate(StorageClass),
+  Delayed(StorageClass),
 }
 
 /// Implementation for the [Storage] trait utilising data from an S3 bucket.
@@ -85,25 +80,45 @@ impl AwsS3Storage {
     )
   }
 
-  async fn s3_head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-    let content_length = self.client
+  async fn s3_head<K: AsRef<str> + Send>(&self, key: K) -> Result<HeadObjectOutput> {
+    Ok(
+      self.client
       .head_object()
       .bucket(&self.bucket)
       .key(key.as_ref())
       .send()
       .await
-      .unwrap()
-      .content_length as u64;
-
-    Ok(content_length)
+      .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
+    )
   }
 
-  async fn get_storage_tier<K: AsRef<str> + Send>(key: K) -> Result<AwsS3StorageTier> {
-    // 1. S3 head request to object
-    // 2. Return status
-    // Similar (Java) code I wrote here: https://github.com/igvteam/igv/blob/master/src/main/java/org/broad/igv/util/AmazonUtils.java#L257
-    // Or with AWS cli with: $ aws s3api head-object --bucket awsexamplebucket --key dir1/example.obj
-    unimplemented!();
+  async fn get_storage_tier<K: AsRef<str> + Send>(&self, key: K) -> Result<Retrieval> {
+    let head = self.s3_head(key).await?;
+    Ok(
+      // Default is Standard.
+      match head.storage_class.unwrap_or_else(|| StorageClass::Standard) {
+        class @ (StorageClass::DeepArchive | StorageClass::Glacier) => Self::check_restore_header(head.restore, class),
+        class @ StorageClass::IntelligentTiering => {
+          if let Some(_) = head.archive_status {
+            // Not sure if this check is necessary for the archived intelligence tiering classes but
+            // it shouldn't hurt.
+            Self::check_restore_header(head.restore, class)
+          } else {
+            Immediate(class)
+          }
+        }
+        class => Immediate(class)
+      }
+    )
+  }
+
+  fn check_restore_header(restore_header: Option<String>, class: StorageClass) -> Retrieval {
+    if let Some(restore) = restore_header {
+      if restore.contains("ongoing-request=\"false\"") {
+        return Immediate(class);
+      }
+    }
+    return Delayed(class);
   }
 
   async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
