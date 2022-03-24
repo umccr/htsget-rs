@@ -2,7 +2,9 @@
 //!
 
 use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
 use std::io;
+use std::ptr::write;
 
 use thiserror::Error;
 
@@ -41,6 +43,20 @@ pub enum StorageError {
 pub struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
+}
+
+impl Into<String> for BytesRange {
+  fn into(self) -> String {
+    format!("{}", self)
+  }
+}
+
+impl Display for BytesRange {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    let start = self.start.map(|start| start.to_string()).unwrap_or_else(|| "".to_string());
+    let end = self.end.map(|end| end.to_string()).unwrap_or_else(|| "".to_string());
+    write!(f, "bytes={}-{}", start, end)
+  }
 }
 
 impl BytesRange {
