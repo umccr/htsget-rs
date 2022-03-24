@@ -179,6 +179,7 @@ impl AsyncStorage for AwsS3Storage {
 mod tests {
   use std::future::Future;
   use std::net::TcpListener;
+  use std::path::Path;
   use aws_sdk_s3::{Client, Endpoint};
   use aws_types::{Credentials, SdkConfig};
   use aws_types::credentials::SharedCredentialsProvider;
@@ -187,6 +188,7 @@ mod tests {
   use http::Uri;
   use hyper::Server;
   use hyper::service::make_service_fn;
+  use reqwest::get;
   use s3_server::headers::HeaderValue;
   use s3_server::headers::X_AMZ_CONTENT_SHA256;
   use s3_server::{S3Service, SimpleAuth};
@@ -203,150 +205,48 @@ mod tests {
 
   type Request = hyper::Request<hyper::Body>;
 
-  async fn with_aws_s3_storage<F, Fut>(test: F)
-    where
-      F: FnOnce(AwsS3Storage) -> Fut,
-      Fut: Future<Output = ()>,
-  {
-    let base_path = create_local_test_files().await;
-    let fs = FileSystem::new(base_path).unwrap();
-    let service = S3Service::new(fs);
-
-    let conf = aws_config::load_from_env().await;
-    let ep = Endpoint::immutable(Uri::from_static("http://localhost:8014"));
-    let s3_conf = aws_sdk_s3::config::Builder::from(&conf)
-      .endpoint_resolver(ep)
-      .build();
-    let s3 = Client::from_conf(s3_conf);
-    let buckets = s3.list_buckets().send().await;
-
-    println!("got buckets: {:#?}", buckets);
-    // test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
-    //   .await
-  }
-
-  async fn aws_s3_client() -> S3Client {
-    let region_provider = RegionProviderChain::first_try("ap-southeast-2")
-      .or_default_provider()
-      .or_else(Region::new("us-east-1"));
-
-    let shared_config = aws_config::from_env().region(region_provider).load().await;
-
-    S3Client::new(&shared_config)
-  }
-
-  #[tokio::test]
-  async fn test_get_htsget_url_from_s3() {
-    // let s3_storage = AwsS3Storage::new(aws_s3_client().await, String::from("bucket"));
-    //
-    // let htsget_url = s3_storage.url("key", UrlOptions::default()).await;
-    //
-    // assert!(htsget_url.unwrap().url.contains("X-Amz-Signature"));
-  }
-
-  // #[tokio::test]
-  // async fn test_get_head_bytes_from_s3() {
-  //   // Tilt up the local S3 server...
-  //   let (root, service) = setup_service().unwrap();
-
-  //   let bucket = "asd";
-  //   let key = "qwe";
-  //   let content = "Hello World!";
-
-  //   fs_write_object(root, bucket, key, content).unwrap();
-
-  //   let mut req = Request::new(Body::empty());
-  //   *req.method_mut() = Method::GET;
-  //   *req.uri_mut() = format!("http://localhost:8014/{}/{}", bucket, key)
-  //       .parse()
-  //       .unwrap();
-  //   req.headers_mut().insert(
-  //       X_AMZ_CONTENT_SHA256.clone(),
-  //       HeaderValue::from_static("UNSIGNED-PAYLOAD"),
-  //   );
-
-  //   let mut res = service.hyper_call(req).await.unwrap();
-  //   let body = recv_body_string(&mut res).await.unwrap();
-
-  //   // TODO: Find an aws_sdk_rust equivalent? Not sure this exists :_S
-  //   // let local_region = Region::Custom {
-  //   //   endpoint: "http://localhost:8014".to_owned(),
-  //   //   name: "local".to_owned(),
-  //   // };
-
-  //   let s3_storage = AwsS3Storage::new(
-  //     aws_s3_client().await,
-  //     bucket.to_string(),
-  //     key.to_string(),
-  //   );
-
-  //   let obj_head = format!("http://localhost:8014/{}/{}", bucket, key);
-  //   //dbg!(&obj_head);
-  //   let htsget_head = s3_storage.head(obj_head).await.unwrap();
-
-  //   // assert_eq!(res.status(), StatusCode::OK);
-  //   // assert_eq!(body, content);
-  // }
-
-  #[tokio::test]
-  async fn test_get_local_s3_server_object() {
-    let base_path = create_local_test_files().await;
-    let fs = FileSystem::new(base_path.path()).unwrap();
+  async fn s3_test_client(server_base_path: &Path) -> S3Client {
+    // Setup s3-server.
+    let fs = FileSystem::new(server_base_path).unwrap();
     let mut auth = SimpleAuth::new();
-    auth.register(String::from("a"), String::from("b"));
+    auth.register(String::from("access_key"), String::from("secret_key"));
     let mut service = S3Service::new(fs);
     service.set_auth(auth);
 
+    // Spawn hyper Server instance.
     let service = service.into_shared();
     let listener = TcpListener::bind(("localhost", 8014)).unwrap();
     let make_service: _ =
       make_service_fn(move |_| future::ready(Ok::<_, anyhow::Error>(service.clone())));
     tokio::spawn(Server::from_tcp(listener).unwrap().serve(make_service));
 
+    // Create S3Config.
     let config = SdkConfig::builder()
       .region(Region::new("us-east-1"))
-      .credentials_provider(SharedCredentialsProvider::new(Credentials::from_keys("a", "b", None)))
+      .credentials_provider(SharedCredentialsProvider::new(Credentials::from_keys("access_key", "secret_key", None)))
       .build();
-    println!("{:?}", config);
     let ep = Endpoint::immutable(Uri::from_static("http://localhost:8014"));
     let s3_conf = aws_sdk_s3::config::Builder::from(&config)
       .endpoint_resolver(ep)
       .build();
-    let s3 = Client::from_conf(s3_conf);
-    let buckets = s3.list_buckets().send().await;
-
-    println!("got buckets: {:#?}", buckets);
-    // let (root, service) = setup_service().unwrap();
-    //
-    // let bucket = "asd";
-    // let key = "qwe";
-    // let content = "Hello World!";
-    //
-    // fs_write_object(root, bucket, key, content).unwrap();
-    //
-    // let mut req = Request::new(Body::empty());
-    // *req.method_mut() = Method::GET;
-    // *req.uri_mut() = format!("http://localhost:8014/{}/{}", bucket, key)
-    //   .parse()
-    //   .unwrap();
-    // req.headers_mut().insert(
-    //   X_AMZ_CONTENT_SHA256.clone(),
-    //   HeaderValue::from_static("UNSIGNED-PAYLOAD"),
-    // );
-    //
-    // let mut res = service.hyper_call(req).await.unwrap();
-    // let body = recv_body_string(&mut res).await.unwrap();
-    //
-    // assert_eq!(res.status(), StatusCode::OK);
-    // assert_eq!(body, content);
+    Client::from_conf(s3_conf)
   }
 
-  #[tokio::test]
-  async fn local_s3_server_returns_htsget_url() {
-    let (root, service) = setup_service().unwrap();
+  async fn with_aws_s3_storage<F, Fut>(test: F)
+    where
+      F: FnOnce(AwsS3Storage) -> Fut,
+      Fut: Future<Output = ()>,
+  {
+    let (folder_path, base_path) = create_local_test_files().await;
+    test(AwsS3Storage::new(s3_test_client(base_path.path()).await, folder_path.to_string_lossy().to_string(), RegexResolver::new(".*", "$0").unwrap())).await
+  }
 
-    let bucket = "bucket";
-    let key = "key";
-    let content = "Hello World!";
+
+  #[tokio::test]
+  async fn test_non_existent_bucket() {
+    let (_, base_path) = create_local_test_files().await;
+    let storage = AwsS3Storage::new(s3_test_client(base_path.path()).await, "non-existent-bucket".to_string(), RegexResolver::new(".*", "$0").unwrap());
+    let result = storage.get("key", GetOptions::default()).await;
+    assert!(matches!(result, Err(StorageError::AwsError(_, _))));
   }
 }

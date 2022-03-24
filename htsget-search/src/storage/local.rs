@@ -261,7 +261,7 @@ pub(crate) mod tests {
     .await;
   }
 
-  pub(crate) async fn create_local_test_files() -> TempDir {
+  pub(crate) async fn create_local_test_files() -> (PathBuf, TempDir) {
     let base_path = tempfile::TempDir::new().unwrap();
 
     File::create(base_path.path().join("key1"))
@@ -278,7 +278,7 @@ pub(crate) mod tests {
       .await
       .unwrap();
 
-    base_path
+    (base_path.path().to_path_buf().join("folder"), base_path)
   }
 
   async fn with_local_storage<F, Fut>(test: F)
@@ -286,7 +286,7 @@ pub(crate) mod tests {
     F: FnOnce(LocalStorage) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let base_path = create_local_test_files().await;
+    let (_, base_path) = create_local_test_files().await;
     test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
       .await
   }
