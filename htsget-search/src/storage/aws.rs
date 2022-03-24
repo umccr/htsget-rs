@@ -222,7 +222,7 @@ mod tests {
 
     // Create S3Config.
     let config = SdkConfig::builder()
-      .region(Region::new("us-east-1"))
+      .region(Region::new("ap-southeast-2"))
       .credentials_provider(SharedCredentialsProvider::new(Credentials::from_keys("access_key", "secret_key", None)))
       .build();
     let ep = Endpoint::immutable(Uri::from_static("http://localhost:8014"));
@@ -237,16 +237,46 @@ mod tests {
       F: FnOnce(AwsS3Storage) -> Fut,
       Fut: Future<Output = ()>,
   {
-    let (folder_path, base_path) = create_local_test_files().await;
-    test(AwsS3Storage::new(s3_test_client(base_path.path()).await, folder_path.to_string_lossy().to_string(), RegexResolver::new(".*", "$0").unwrap())).await
+    let (folder_name, base_path) = create_local_test_files().await;
+    test(AwsS3Storage::new(s3_test_client(base_path.path()).await, folder_name, RegexResolver::new(".*", "$0").unwrap())).await
   }
 
+  #[tokio::test]
+  async fn test_existing_key() {
+    with_aws_s3_storage(|storage| async move {
+      let result = storage.get("key2", GetOptions::default()).await;
+      assert!(matches!(result, Ok(_)));
+    }).await;
+  }
 
   #[tokio::test]
-  async fn test_non_existent_bucket() {
-    let (_, base_path) = create_local_test_files().await;
-    let storage = AwsS3Storage::new(s3_test_client(base_path.path()).await, "non-existent-bucket".to_string(), RegexResolver::new(".*", "$0").unwrap());
-    let result = storage.get("key", GetOptions::default()).await;
-    assert!(matches!(result, Err(StorageError::AwsError(_, _))));
+  async fn test_non_existing_key() {
+    with_aws_s3_storage(|storage| async move {
+      let result = storage.get("non-existing-key", GetOptions::default()).await;
+      assert!(matches!(result, Err(StorageError::AwsError(_, _))));
+    }).await;
+  }
+
+  #[tokio::test]
+  async fn url_of_non_existing_key() {
+    with_aws_s3_storage(|storage| async move {
+      let result = storage.url("non-existing-key", UrlOptions::default()).await;
+      assert!(matches!(result, Err(StorageError::AwsError(_, _))));
+    })
+      .await;
+  }
+
+  #[tokio::test]
+  async fn url_of_existing_key() {
+    with_aws_s3_storage(|storage| async move {
+      let result = storage.url("key2", UrlOptions::default()).await;
+      println!("{:?}", result);
+      // let expected = Url::new(format!(
+      //   "file://{}",
+      //   storage.base_path().join("key1").to_string_lossy()
+      // ));
+      // assert!(matches!(result, Ok(url) if url == expected));
+    })
+      .await;
   }
 }

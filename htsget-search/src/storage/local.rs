@@ -261,24 +261,29 @@ pub(crate) mod tests {
     .await;
   }
 
-  pub(crate) async fn create_local_test_files() -> (PathBuf, TempDir) {
+  pub(crate) async fn create_local_test_files() -> (String, TempDir) {
     let base_path = tempfile::TempDir::new().unwrap();
 
-    File::create(base_path.path().join("key1"))
+    let folder_name = "folder";
+    let key1 = "key1";
+    let value1 = b"value1";
+    let key2 = "key2";
+    let value2 = b"value2";
+    File::create(base_path.path().join(key1))
       .await
       .unwrap()
-      .write_all(b"value1")
+      .write_all(value1)
       .await
       .unwrap();
-    create_dir(base_path.path().join("folder")).await.unwrap();
-    File::create(base_path.path().join("folder").join("key2"))
+    create_dir(base_path.path().join(folder_name)).await.unwrap();
+    File::create(base_path.path().join(folder_name).join(key2))
       .await
       .unwrap()
-      .write_all(b"value2")
+      .write_all(value2)
       .await
       .unwrap();
 
-    (base_path.path().to_path_buf().join("folder"), base_path)
+    (folder_name.to_string(), base_path)
   }
 
   async fn with_local_storage<F, Fut>(test: F)
