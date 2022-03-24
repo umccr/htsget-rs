@@ -189,7 +189,7 @@ mod tests {
   use hyper::service::make_service_fn;
   use s3_server::headers::HeaderValue;
   use s3_server::headers::X_AMZ_CONTENT_SHA256;
-  use s3_server::S3Service;
+  use s3_server::{S3Service, SimpleAuth};
   use s3_server::storages::fs::FileSystem;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
@@ -292,11 +292,16 @@ mod tests {
   async fn test_get_local_s3_server_object() {
     let base_path = create_local_test_files().await;
     let fs = FileSystem::new(base_path.path()).unwrap();
-    let service = S3Service::new(fs).into_shared();
+    let mut auth = SimpleAuth::new();
+    auth.register(String::from("a"), String::from("b"));
+    let mut service = S3Service::new(fs);
+    service.set_auth(auth);
+
+    let service = service.into_shared();
     let listener = TcpListener::bind(("localhost", 8014)).unwrap();
     let make_service: _ =
       make_service_fn(move |_| future::ready(Ok::<_, anyhow::Error>(service.clone())));
-    let server = Server::from_tcp(listener).unwrap().serve(make_service);
+    tokio::spawn(Server::from_tcp(listener).unwrap().serve(make_service));
 
     let config = SdkConfig::builder()
       .region(Region::new("us-east-1"))
