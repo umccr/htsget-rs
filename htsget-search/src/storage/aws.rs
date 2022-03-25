@@ -8,10 +8,11 @@ use async_trait::async_trait;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::timeout::Config;
 use aws_sdk_s3::{Client as S3Client, Client, Region};
+use aws_sdk_s3::client::fluent_builders;
 use aws_sdk_s3::input::GetObjectInput;
 use aws_sdk_s3::model::{ArchiveStatus, StorageClass};
 use aws_sdk_s3::model::StorageClass::{DeepArchive, Glacier};
-use aws_sdk_s3::operation::GetObject;
+use fluent_builders::GetObject;
 use aws_sdk_s3::output::HeadObjectOutput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
 use bytes::Bytes;
@@ -24,7 +25,7 @@ use crate::htsget::{Format, Url};
 use crate::storage::async_storage::AsyncStorage;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::aws::s3_url::parse_s3_url;
-use crate::storage::StorageError;
+use crate::storage::{BytesRange, StorageError};
 
 use super::{GetOptions, Result, UrlOptions};
 
@@ -64,13 +65,13 @@ impl AwsS3Storage {
   }
 
   async fn s3_presign_url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<String> {
-    Ok(
-      self
-      .client
+    let response = self.client
       .get_object()
       .bucket(&self.bucket)
-        .key(&self.resolve_key(&key)?)
-        .range(options.range)
+      .key(&self.resolve_key(&key)?);
+    let response = Self::apply_range(response, options.range);
+    Ok(
+      response
       .presigned(
         PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
           .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
@@ -123,6 +124,15 @@ impl AwsS3Storage {
     return Delayed(class);
   }
 
+  fn apply_range(builder: GetObject, range: BytesRange) -> GetObject {
+    let range: String = range.into();
+    if range.is_empty() {
+      builder
+    } else {
+      builder.range(range)
+    }
+  }
+
   async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
     // It would be nice to use a ready-made type with a ByteStream that implements AsyncRead + AsyncSeek
     // in order to avoid reading the whole byte buffer into memory. A custom type could be made similar to
@@ -131,18 +141,18 @@ impl AwsS3Storage {
     let response = self.client
       .get_object()
       .bucket(&self.bucket)
-      .key(&self.resolve_key(&key)?)
-      .range(options.range)
-      .send()
-      .await
-      .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
-      .body
-      .collect()
-      .await
-      .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
-      .into_bytes();
-
-    Ok(response)
+      .key(&self.resolve_key(&key)?);
+    let response = Self::apply_range(response, options.range);
+    Ok(
+      response.send()
+         .await
+         .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
+         .body
+         .collect()
+         .await
+         .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
+         .into_bytes()
+    )
   }
 
   async fn create_buf_reader<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<BufReader<Cursor<Bytes>>> {

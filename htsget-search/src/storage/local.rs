@@ -79,25 +79,15 @@ impl AsyncStorage for LocalStorage
   }
 
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    let range_start = options
-      .range
-      .start
-      .map(|start| start.to_string())
-      .unwrap_or_else(|| "".to_string());
-    let range_end = options
-      .range
-      .end
-      .map(|end| end.to_string())
-      .unwrap_or_else(|| "".to_string());
-
     // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
     let path = self.get_path_from_key(&key)?;
     let url = Url::new(format!("file://{}", path.to_string_lossy()));
-    let url = if range_start.is_empty() && range_end.is_empty() {
+    let range: String = options.range.into();
+    let url = if range.is_empty() {
       url
     } else {
       url.with_headers(
-        Headers::default().with_header("Range", format!("bytes={}-{}", range_start, range_end)),
+        Headers::default().with_header("Range", range),
       )
     };
     let url = url.with_class(options.class);

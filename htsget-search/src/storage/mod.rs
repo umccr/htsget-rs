@@ -47,13 +47,16 @@ pub struct BytesRange {
 
 impl Into<String> for BytesRange {
   fn into(self) -> String {
+    if self.start.is_none() && self.end.is_none() {
+      return "".to_string();
+    }
     format!("{}", self)
   }
 }
 
 impl Display for BytesRange {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    let start = self.start.map(|start| start.to_string()).unwrap_or_else(|| "".to_string());
+    let start = self.start.map(|start| start.to_string()).unwrap_or_else(|| "0".to_string());
     let end = self.end.map(|end| end.to_string()).unwrap_or_else(|| "".to_string());
     write!(f, "bytes={}-{}", start, end)
   }
