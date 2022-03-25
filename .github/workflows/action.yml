@@ -29,7 +29,7 @@ jobs:
           command: fmt
 
       - name: Run cargo clippy
-        uses: actions-rs/cargo@v1car
+        uses: actions-rs/cargo@v1
         with:
           command: clippy
       - name: Run cargo clippy with no default features
