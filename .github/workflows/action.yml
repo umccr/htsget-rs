@@ -25,24 +25,34 @@ jobs:
       - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
-        run: fmt
+        with:
+          command: fmt
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1car
         run: clippy
       - name: Run cargo clippy with no default features
         uses: actions-rs/cargo@v1
-        run: clippy --no-default-features
+        with:
+          command: clippy
+          args: --no-default-features
       - name: Run cargo clippy with aws enabled
         uses: actions-rs/cargo@v1
-        run: clippy --features aws
+        with:
+          command: clippy
+          args: --features aws
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
-        run: test
+        with:
+          command: test
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
-        run: test --no-default-features
+        with:
+          command: test
+          args: --no-default-features
       - name: Run cargo test with aws enabled
         uses: actions-rs/cargo@v1
-        run: test --features aws -- --test-threads=1
+        with:
+          command: test
+          args: --features aws -- --test-threads=1
