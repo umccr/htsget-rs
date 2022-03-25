@@ -82,16 +82,7 @@ impl AsyncStorage for LocalStorage
     // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
     let path = self.get_path_from_key(&key)?;
     let url = Url::new(format!("file://{}", path.to_string_lossy()));
-    let range: String = options.range.into();
-    let url = if range.is_empty() {
-      url
-    } else {
-      url.with_headers(
-        Headers::default().with_header("Range", range),
-      )
-    };
-    let url = url.with_class(options.class);
-    Ok(url)
+    Ok(options.apply(url))
   }
 
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {

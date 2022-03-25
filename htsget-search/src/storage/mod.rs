@@ -11,7 +11,7 @@ use thiserror::Error;
 #[cfg(feature = "async")]
 pub use async_storage::*;
 
-use crate::htsget::Class;
+use crate::htsget::{Class, Headers, Url};
 
 #[cfg(feature = "async")]
 pub mod async_storage;
@@ -177,6 +177,18 @@ impl UrlOptions {
   pub fn with_class(mut self, class: Class) -> Self {
     self.class = class;
     self
+  }
+  
+  pub fn apply(self, url: Url) -> Url {
+    let range: String = self.range.into();
+    let url = if range.is_empty() {
+      url
+    } else {
+      url.with_headers(
+        Headers::default().with_header("Range", range),
+      )
+    };
+    url.with_class(self.class)
   }
 }
 

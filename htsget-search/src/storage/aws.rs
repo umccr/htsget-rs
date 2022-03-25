@@ -64,12 +64,12 @@ impl AwsS3Storage {
     self.id_resolver.resolve_id(key.as_ref()).ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
   }
 
-  async fn s3_presign_url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<String> {
+  async fn s3_presign_url<K: AsRef<str> + Send>(&self, key: K, range: BytesRange) -> Result<String> {
     let response = self.client
       .get_object()
       .bucket(&self.bucket)
       .key(&self.resolve_key(&key)?);
-    let response = Self::apply_range(response, options.range);
+    let response = Self::apply_range(response, range);
     Ok(
       response
       .presigned(
@@ -175,8 +175,8 @@ impl AsyncStorage for AwsS3Storage {
   /// Returns a S3-presigned htsget URL
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let key = key.as_ref();
-    let presigned_url = self.s3_presign_url(key, options).await?;
-    Ok(Url::new(presigned_url))
+    let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
+    Ok(options.apply(Url::new(presigned_url)))
   }
 
   /// Returns the size of the S3 object in bytes.
