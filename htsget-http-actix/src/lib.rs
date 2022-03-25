@@ -21,7 +21,7 @@ use htsget_search::htsget::blocking::HtsGet;
 
 use htsget_id_resolver::RegexResolver;
 
-use htsget_search::storage::blocking::local::LocalStorage;
+use htsget_search::storage::local::LocalStorage;
 
 use crate::config::Config;
 

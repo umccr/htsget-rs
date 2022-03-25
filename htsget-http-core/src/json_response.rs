@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use htsget_search::htsget::{Class, Format, Response, Url};
+use htsget_search::htsget::{Class, Response, Url};
 
 /// A helper struct to convert [Responses](Response) to JSON. It implements [serde's Serialize trait](Serialize),
 /// so it's trivial to convert to JSON.
@@ -29,10 +29,7 @@ pub struct HtsGetResponse {
 
 impl HtsGetResponse {
   fn new(response: Response) -> Self {
-    let format = match response.format {
-      Format::Unsupported(_) => panic!("Response with an unsupported format"),
-      format => format.to_string(),
-    };
+    let format = response.format.to_string();
     let urls = response.urls.into_iter().map(JsonUrl::new).collect();
     HtsGetResponse { format, urls }
   }

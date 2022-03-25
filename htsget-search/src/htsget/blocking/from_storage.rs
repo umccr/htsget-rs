@@ -8,7 +8,7 @@ use crate::{
   htsget::blocking::cram_search::CramSearch,
   htsget::blocking::vcf_search::VcfSearch,
   htsget::blocking::HtsGet,
-  htsget::{Format, HtsGetError, Query, Response, Result},
+  htsget::{Format, Query, Response, Result},
   storage::blocking::Storage,
 };
 
@@ -26,7 +26,7 @@ where
       Format::Bam => BamSearch::new(&self.storage).search(query),
       Format::Cram => CramSearch::new(&self.storage).search(query),
       Format::Vcf => VcfSearch::new(&self.storage).search(query),
-      Format::Bcf => BcfSearch::new(&self.storage).search(query)
+      Format::Bcf => BcfSearch::new(&self.storage).search(query),
     }
   }
 

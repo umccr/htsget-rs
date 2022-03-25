@@ -2,11 +2,13 @@
 //!
 
 use std::path::{Path, PathBuf};
+
 use async_trait::async_trait;
 use tokio::fs::File;
+
 use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
 
-use crate::htsget::{Format, Headers, Url};
+use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
@@ -70,8 +72,7 @@ impl LocalStorage {
 }
 
 #[async_trait]
-impl AsyncStorage for LocalStorage
-{
+impl AsyncStorage for LocalStorage {
   type Streamable = File;
 
   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
@@ -100,8 +101,8 @@ impl AsyncStorage for LocalStorage
 pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
-  use tempfile::TempDir;
 
+  use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
@@ -256,7 +257,9 @@ pub(crate) mod tests {
       .write_all(value1)
       .await
       .unwrap();
-    create_dir(base_path.path().join(folder_name)).await.unwrap();
+    create_dir(base_path.path().join(folder_name))
+      .await
+      .unwrap();
     File::create(base_path.path().join(folder_name).join(key2))
       .await
       .unwrap()

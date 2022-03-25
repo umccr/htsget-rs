@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 
 use crate::storage::GetOptions;
 use crate::{
-  htsget::{Class, StorageError, Format, HtsGetError, Query, Response, Result},
+  htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{AsyncStorage, BytesRange, UrlOptions},
 };
 
@@ -61,7 +61,12 @@ where
   Index: Send + Sync,
 {
   /// This returns mapped and placed unmapped ranges.
-  async fn get_byte_ranges_for_all(&self, id: String, format: Format, index: &Index) -> Result<Vec<BytesRange>>;
+  async fn get_byte_ranges_for_all(
+    &self,
+    id: String,
+    format: Format,
+    index: &Index,
+  ) -> Result<Vec<BytesRange>>;
 
   /// Returns the header bytes range.
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>>;
@@ -104,7 +109,7 @@ where
     &self,
     reference_sequence: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
-    query: &Query,
+    query: Query,
     index: &Index,
   ) -> Result<Vec<BytesRange>>;
 
@@ -113,7 +118,7 @@ where
     &self,
     reference_name: &str,
     index: &Index,
-    query: &Query,
+    query: Query,
   ) -> Result<Vec<BytesRange>> {
     if reference_name == "*" {
       return self.get_byte_ranges_for_unmapped_reads(&query, index).await;
@@ -174,7 +179,7 @@ where
     &self,
     reference_name: String,
     index: &Index,
-    query: &Query,
+    query: Query,
   ) -> Result<Vec<BytesRange>>;
 
   /// Get the storage of this trait.
@@ -185,7 +190,10 @@ where
 
   /// Read the index from the key.
   async fn read_index(&self, query: &Query) -> Result<Index> {
-    let storage = self.get_storage().get(query.format.fmt_index(&query.id), GetOptions::default()).await?;
+    let storage = self
+      .get_storage()
+      .get(query.format.fmt_index(&query.id), GetOptions::default())
+      .await?;
     Self::read_index_inner(storage)
       .await
       .map_err(|err| HtsGetError::io_error(format!("Reading {} index: {}", self.get_format(), err)))
@@ -197,27 +205,28 @@ where
       Class::Body => {
         let index = self.read_index(&query).await?;
 
+        let format = query.format;
+        let id = query.id.clone();
+        let class = query.class.clone();
         let byte_ranges = match query.reference_name.as_ref() {
           None => {
             self
-              .get_byte_ranges_for_all(query.id.clone(), query.format.clone(), &index)
+              .get_byte_ranges_for_all(query.id.clone(), format, &index)
               .await?
           }
           Some(reference_name) => {
             self
-              .get_byte_ranges_for_reference_name(
-                reference_name.clone(),
-                &index,
-                &query,
-              )
+              .get_byte_ranges_for_reference_name(reference_name.clone(), &index, query)
               .await?
           }
         };
-        self.build_response(query, byte_ranges).await
+        self.build_response(class, id, format, byte_ranges).await
       }
       Class::Header => {
         let byte_ranges = self.get_byte_ranges_for_header(&query).await?;
-        self.build_response(query, byte_ranges).await
+        self
+          .build_response(query.class, query.id, query.format, byte_ranges)
+          .await
       }
     }
   }
@@ -225,18 +234,20 @@ where
   /// Build the response from the query using urls.
   async fn build_response(
     &self,
-    query: Query,
+    class: Class,
+    id: String,
+    format: Format,
     byte_ranges: Vec<BytesRange>,
   ) -> Result<Response> {
     let mut storage_futures = FuturesUnordered::new();
     for range in byte_ranges {
       let options = UrlOptions::default()
         .with_range(range)
-        .with_class(query.class.clone());
+        .with_class(class.clone());
       let storage = self.get_storage();
-      let id = query.id.clone();
+      let id = id.clone();
       storage_futures.push(tokio::spawn(async move {
-        storage.url(query.format.fmt_file(&id), options).await
+        storage.url(format.fmt_file(&id), options).await
       }));
     }
     let mut urls = Vec::new();
@@ -246,13 +257,13 @@ where
         else => break
       }
     }
-    return Ok(Response::new(query.format, urls));
+    return Ok(Response::new(format, urls));
   }
 
   /// Get the reader from the key.
   async fn reader(id: &str, format: &Format, storage: Arc<S>) -> Result<Reader> {
     let get_options = GetOptions::default();
-    let storage = storage.get(format.fmt_file(&id), get_options).await?;
+    let storage = storage.get(format.fmt_file(id), get_options).await?;
     Ok(Self::init_reader(storage))
   }
 
@@ -300,7 +311,7 @@ where
   /// Get ranges for a reference sequence for the bgzf format.
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
-    id: String, format: Format,
+    query: Query,
     reference_sequence: &Self::ReferenceSequenceHeader,
     ref_seq_id: usize,
     index: &Index,
@@ -318,9 +329,9 @@ where
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
     for chunk in merge_chunks(&chunks) {
       let storage = self.get_storage();
-      let id = id.clone();
+      let id = query.id.clone();
       futures.push(tokio::spawn(async move {
-        let mut reader = Self::reader(&id, &format, storage).await?;
+        let mut reader = Self::reader(&id, &query.format, storage).await?;
         Ok(
           BytesRange::default()
             .with_start(chunk.start().bytes_range_start())
@@ -343,7 +354,8 @@ where
   /// Get unmapped bytes ranges.
   async fn get_byte_ranges_for_unmapped(
     &self,
-    _id: &str, _format: &Format,
+    _id: &str,
+    _format: &Format,
     _index: &Index,
   ) -> Result<Vec<BytesRange>> {
     Ok(Vec::new())
@@ -362,7 +374,12 @@ where
   Index: BinningIndex<ReferenceSequence> + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
-  async fn get_byte_ranges_for_all(&self, id: String, format: Format, index: &Index) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_all(
+    &self,
+    id: String,
+    format: Format,
+    index: &Index,
+  ) -> Result<Vec<BytesRange>> {
     let mut futures: FuturesUnordered<JoinHandle<Result<BytesRange>>> = FuturesUnordered::new();
     for ref_sequences in index.reference_sequences() {
       if let Some(metadata) = ref_sequences.metadata() {
@@ -392,7 +409,9 @@ where
       }
     }
 
-    let unmapped_byte_ranges = self.get_byte_ranges_for_unmapped(&id, &format, index).await?;
+    let unmapped_byte_ranges = self
+      .get_byte_ranges_for_unmapped(&id, &format, index)
+      .await?;
     byte_ranges.extend(unmapped_byte_ranges.into_iter());
     Ok(BytesRange::merge_all(byte_ranges))
   }

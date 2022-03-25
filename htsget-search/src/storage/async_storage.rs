@@ -4,7 +4,7 @@
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncSeek};
 
-use crate::htsget::{Format, Url};
+use crate::htsget::Url;
 use crate::storage::{GetOptions, UrlOptions};
 
 use super::Result;

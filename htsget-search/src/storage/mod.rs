@@ -1,10 +1,8 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
-
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::io;
-use std::ptr::write;
 
 use thiserror::Error;
 
@@ -36,7 +34,7 @@ pub enum StorageError {
 
   #[cfg(feature = "aws")]
   #[error("Aws error: {0}, with key: {1}")]
-  AwsError(String, String)
+  AwsError(String, String),
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -45,19 +43,25 @@ pub struct BytesRange {
   end: Option<u64>,
 }
 
-impl Into<String> for BytesRange {
-  fn into(self) -> String {
-    if self.start.is_none() && self.end.is_none() {
+impl From<BytesRange> for String {
+  fn from(ranges: BytesRange) -> Self {
+    if ranges.start.is_none() && ranges.end.is_none() {
       return "".to_string();
     }
-    format!("{}", self)
+    format!("{}", ranges)
   }
 }
 
 impl Display for BytesRange {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    let start = self.start.map(|start| start.to_string()).unwrap_or_else(|| "0".to_string());
-    let end = self.end.map(|end| end.to_string()).unwrap_or_else(|| "".to_string());
+    let start = self
+      .start
+      .map(|start| start.to_string())
+      .unwrap_or_else(|| "0".to_string());
+    let end = self
+      .end
+      .map(|end| end.to_string())
+      .unwrap_or_else(|| "".to_string());
     write!(f, "bytes={}-{}", start, end)
   }
 }
@@ -178,15 +182,13 @@ impl UrlOptions {
     self.class = class;
     self
   }
-  
+
   pub fn apply(self, url: Url) -> Url {
     let range: String = self.range.into();
     let url = if range.is_empty() {
       url
     } else {
-      url.with_headers(
-        Headers::default().with_header("Range", range),
-      )
+      url.with_headers(Headers::default().with_header("Range", range))
     };
     url.with_class(self.class)
   }

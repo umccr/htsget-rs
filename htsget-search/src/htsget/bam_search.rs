@@ -1,7 +1,5 @@
 //! Module providing the search capability using BAM/BAI files
 //!
-
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -28,7 +26,7 @@ use crate::{
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
 pub(crate) struct BamSearch<S> {
-  storage: Arc<S>
+  storage: Arc<S>,
 }
 
 #[async_trait]
@@ -65,7 +63,8 @@ where
 
   async fn get_byte_ranges_for_unmapped(
     &self,
-    id: &str, format: &Format,
+    id: &str,
+    format: &Format,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
     let last_interval = index
@@ -122,7 +121,7 @@ where
     &self,
     reference_name: String,
     index: &Index,
-    query: &Query,
+    query: Query,
   ) -> Result<Vec<BytesRange>> {
     self
       .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
@@ -159,25 +158,22 @@ where
     query: &Query,
     bai_index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_unmapped(&query.id, &query.format, bai_index).await
+    self
+      .get_byte_ranges_for_unmapped(&query.id, &query.format, bai_index)
+      .await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
-    query: &Query,
+    query: Query,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
+    let start = query.start.map(|start| start as i32);
+    let end = query.end.map(|end| end as i32);
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(
-        query.id.clone(), query.format.clone(),
-        ref_seq,
-        ref_seq_id,
-        index,
-        query.start.map(|start| start as i32),
-        query.end.map(|end| end as i32),
-      )
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq, ref_seq_id, index, start, end)
       .await
   }
 }

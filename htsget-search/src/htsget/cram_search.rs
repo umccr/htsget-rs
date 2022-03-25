@@ -3,6 +3,7 @@
 
 use std::convert::TryFrom;
 use std::marker::PhantomData;
+use std::ops::Range;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -33,14 +34,18 @@ where
   S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn get_byte_ranges_for_all(&self, id: String, format: Format, index: &Index) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_all(
+    &self,
+    id: String,
+    format: Format,
+    index: &Index,
+  ) -> Result<Vec<BytesRange>> {
     Self::bytes_ranges_from_index(
       self,
       &id,
       &format,
       None,
-      None,
-      None,
+      Range::default(),
       index,
       Arc::new(|_: &Record| true),
     )
@@ -81,8 +86,7 @@ where
       &query.id,
       &query.format,
       None,
-      None,
-      None,
+      Range::default(),
       index,
       Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
     )
@@ -93,7 +97,7 @@ where
     &self,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
-    query: &Query,
+    query: Query,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
     let ref_seq_id = ReferenceSequenceId::try_from(ref_seq_id as i32)
@@ -103,8 +107,11 @@ where
       &query.id,
       &query.format,
       Some(ref_seq),
-      query.start.map(|start| start as i32),
-      query.end.map(|end| end as i32),
+      query
+        .start
+        .map(|start| start as i32)
+        .unwrap_or(Self::MIN_SEQ_POSITION as i32)
+        ..query.end.map(|end| end as i32).unwrap_or(ref_seq.len()),
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )
@@ -137,7 +144,7 @@ where
     &self,
     reference_name: String,
     index: &Index,
-    query: &Query,
+    query: Query,
   ) -> Result<Vec<BytesRange>> {
     self
       .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
@@ -171,8 +178,7 @@ where
     id: &str,
     format: &Format,
     ref_seq: Option<&sam::header::ReferenceSequence>,
-    seq_start: Option<i32>,
-    seq_end: Option<i32>,
+    seq_range: Range<i32>,
     crai_index: &[crai::Record],
     predicate: Arc<F>,
   ) -> Result<Vec<BytesRange>>
@@ -186,15 +192,10 @@ where
       let owned_next = next.clone();
       let ref_seq_owned = ref_seq.cloned();
       let owned_predicate = predicate.clone();
+      let range = seq_range.clone();
       futures.push(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
-          Self::bytes_ranges_for_record(
-            ref_seq_owned.as_ref(),
-            seq_start,
-            seq_end,
-            &owned_record,
-            &owned_next,
-          )
+          Self::bytes_ranges_for_record(ref_seq_owned.as_ref(), range, &owned_record, &owned_next)
         } else {
           None
         }
@@ -236,8 +237,7 @@ where
   /// Gets bytes ranges for a specific index entry.
   pub(crate) fn bytes_ranges_for_record(
     ref_seq: Option<&sam::header::ReferenceSequence>,
-    seq_start: Option<i32>,
-    seq_end: Option<i32>,
+    seq_range: Range<i32>,
     record: &Record,
     next: &Record,
   ) -> Option<BytesRange> {
@@ -247,12 +247,12 @@ where
           .with_start(record.offset())
           .with_end(next.offset()),
       ),
-      Some(ref_seq) => {
-        let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
-        let seq_end = seq_end.unwrap_or_else(|| ref_seq.len());
+      Some(_) => {
+        // let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
+        // let seq_end = seq_end.unwrap_or_else(|| ref_seq.len());
 
-        if seq_start <= record.alignment_start() + record.alignment_span()
-          && seq_end >= record.alignment_start()
+        if seq_range.start <= record.alignment_start() + record.alignment_span()
+          && seq_range.end >= record.alignment_start()
         {
           Some(
             BytesRange::default()

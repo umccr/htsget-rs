@@ -4,6 +4,5 @@ members = [
     "htsget-http-core",
     "htsget-http-actix",
     "htsget-devtools",
-    "htsget-id-resolver",
-    "htsget-integration-tests-s3",
+    "htsget-id-resolver"
 ]
