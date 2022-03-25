@@ -124,7 +124,7 @@ where
       return self.get_byte_ranges_for_unmapped_reads(&query, index).await;
     }
 
-    let (_, header) = self.create_reader(&query.id, &query.format).await?;
+    let (_, header) = self.create_reader(&query.id, &self.get_format()).await?;
     let maybe_ref_seq = self
       .get_reference_sequence_from_name(&header, reference_name)
       .await;
@@ -189,10 +189,10 @@ where
   fn get_format(&self) -> Format;
 
   /// Read the index from the key.
-  async fn read_index(&self, query: &Query) -> Result<Index> {
+  async fn read_index(&self, id: &str) -> Result<Index> {
     let storage = self
       .get_storage()
-      .get(query.format.fmt_index(&query.id), GetOptions::default())
+      .get(self.get_format().fmt_index(id), GetOptions::default())
       .await?;
     Self::read_index_inner(storage)
       .await
@@ -203,9 +203,9 @@ where
   async fn search(&self, query: Query) -> Result<Response> {
     match query.class {
       Class::Body => {
-        let index = self.read_index(&query).await?;
+        let index = self.read_index(&query.id).await?;
 
-        let format = query.format;
+        let format = self.get_format();
         let id = query.id.clone();
         let class = query.class.clone();
         let byte_ranges = match query.reference_name.as_ref() {
@@ -225,7 +225,7 @@ where
       Class::Header => {
         let byte_ranges = self.get_byte_ranges_for_header(&query).await?;
         self
-          .build_response(query.class, query.id, query.format, byte_ranges)
+          .build_response(query.class, query.id, self.get_format(), byte_ranges)
           .await
       }
     }
@@ -330,8 +330,9 @@ where
     for chunk in merge_chunks(&chunks) {
       let storage = self.get_storage();
       let id = query.id.clone();
+      let format = self.get_format();
       futures.push(tokio::spawn(async move {
-        let mut reader = Self::reader(&id, &query.format, storage).await?;
+        let mut reader = Self::reader(&id, &format, storage).await?;
         Ok(
           BytesRange::default()
             .with_start(chunk.start().bytes_range_start())
@@ -417,7 +418,7 @@ where
   }
 
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>> {
-    let (mut reader, _) = self.create_reader(&query.id, &query.format).await?;
+    let (mut reader, _) = self.create_reader(&query.id, &self.get_format()).await?;
     let virtual_position = reader.virtual_position();
     Ok(vec![BytesRange::default().with_start(0).with_end(
       virtual_position.bytes_range_end(&mut reader).await,

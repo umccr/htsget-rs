@@ -7,15 +7,9 @@ edition = "2021"
 [features]
 default = ["async"]
 async = ["tokio", "futures"]
-aws = ["s3-server", "aws-sdk-s3", "aws-config"]
+aws = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
-bytes = "1.1.0"
-regex = "1.5.5"
-anyhow = "1.0.56"
-log = "0.4.14"
-reqwest = { version = "0.11", features = ["stream"] }
-
 async-trait = "0.1.52"
 thiserror = "1.0.30"
 tokio = { version = "1.17.0", features = ["full"], optional = true }
@@ -25,31 +19,24 @@ futures = { version = "0.3.21", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
 
 noodles = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-#noodles-bgzf = { version = "0.8.0", features = ['async'] }
 noodles-bam = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
 noodles-bcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
 noodles-cram = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
-#noodles-csi = { version = "0.4.3", features = ['async'] }
-#noodles-tabix = { version = "0.7.3", features = ['async'] }
 noodles-vcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
 
-# AWS deps
 #[cfg(feature = "aws")]
-s3-server = { version = "0.1.0", optional = true }
+bytes = "1.1.0"
 #[cfg(feature = "aws")]
 aws-sdk-s3 = { version = "0.9.0", optional = true }
 #[cfg(feature = "aws")]
 aws-config = { version = "0.9.0", optional = true }
-#[cfg(feature = "aws")]
-lazy_static = "1.4.0"
-hyper = "0.14.17"
-tracing = "0.1.32"
-tracing-error = "0.2.0"
-tracing-futures = "0.2.5"
-tracing-subscriber = { version = "0.3.9", features = ["env-filter", "local-time"] }
 
 [dev-dependencies]
 tempfile = "3.2.0"
+#[cfg(feature = "aws")]
+hyper = "0.14.17"
+#[cfg(feature = "aws")]
+anyhow = "1.0.56"
 #[cfg(feature = "aws")]
 s3-server = "0.1.0"
 #[cfg(feature = "aws")]

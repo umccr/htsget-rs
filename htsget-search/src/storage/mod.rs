@@ -205,6 +205,7 @@ impl Default for UrlOptions {
 
 #[cfg(test)]
 mod tests {
+  use std::collections::HashMap;
   use crate::htsget::Class;
 
   use super::*;
@@ -531,5 +532,18 @@ mod tests {
     let result = UrlOptions::default().with_class(Class::Header);
     assert_eq!(result.range, BytesRange::default());
     assert_eq!(result.class, Class::Header);
+  }
+
+  #[test]
+  fn url_options_apply_with_bytes_range() {
+    let result = UrlOptions::default().with_class(Class::Header).with_range(BytesRange::new(Some(5), Some(10))).apply(Url::new(""));
+    println!("{:?}", result);
+    assert_eq!(result, Url::new("").with_headers(Headers::new(HashMap::new()).with_header("Range", "bytes=5-10")).with_class(Class::Header));
+  }
+
+  #[test]
+  fn url_options_apply_no_bytes_range() {
+    let result = UrlOptions::default().with_class(Class::Header).apply(Url::new(""));
+    assert_eq!(result, Url::new("").with_class(Class::Header));
   }
 }

@@ -87,7 +87,7 @@ where
     index: &Index,
     query: Query,
   ) -> Result<Vec<BytesRange>> {
-    let (_, vcf_header) = self.create_reader(&query.id, &query.format).await?;
+    let (_, vcf_header) = self.create_reader(&query.id, &self.get_format()).await?;
     let maybe_len = vcf_header
       .contigs()
       .get(&reference_name)

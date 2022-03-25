@@ -194,8 +194,7 @@ mod tests {
         .with_format(Some("VCF"))
         .unwrap()
         .build()
-        .format
-        .unwrap(),
+        .format,
       Format::Vcf
     );
   }

@@ -195,7 +195,7 @@ pub enum Format {
   Bam,
   Cram,
   Vcf,
-  Bcf
+  Bcf,
 }
 
 // TODO Allow the user to change this.
@@ -205,7 +205,7 @@ impl Format {
       Format::Bam => format!("{}.bam", id),
       Format::Cram => format!("{}.cram", id),
       Format::Vcf => format!("{}.vcf.gz", id),
-      Format::Bcf => format!("{}.bcf", id)
+      Format::Bcf => format!("{}.bcf", id),
     }
   }
 
@@ -214,7 +214,7 @@ impl Format {
       Format::Bam => format!("{}.bam.bai", id),
       Format::Cram => format!("{}.cram.crai", id),
       Format::Vcf => format!("{}.vcf.gz.tbi", id),
-      Format::Bcf => format!("{}.bcf.csi", id)
+      Format::Bcf => format!("{}.bcf.csi", id),
     }
   }
 }
@@ -225,7 +225,7 @@ impl From<Format> for String {
       Format::Bam => "BAM".to_string(),
       Format::Cram => "CRAM".to_string(),
       Format::Vcf => "VCF".to_string(),
-      Format::Bcf => "BCF".to_string()
+      Format::Bcf => "BCF".to_string(),
     }
   }
 }
@@ -236,7 +236,7 @@ impl fmt::Display for Format {
       Format::Bam => write!(f, "BAM"),
       Format::Cram => write!(f, "CRAM"),
       Format::Vcf => write!(f, "VCF"),
-      Format::Bcf => write!(f, "BCF")
+      Format::Bcf => write!(f, "BCF"),
     }
   }
 }

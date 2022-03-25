@@ -107,7 +107,7 @@ mod tests {
   use htsget_search::htsget::HtsGet;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
-    storage::blocking::local::LocalStorage,
+    storage::local::LocalStorage,
   };
 
   use super::*;

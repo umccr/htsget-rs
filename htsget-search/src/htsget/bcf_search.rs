@@ -87,7 +87,7 @@ where
     index: &Index,
     query: Query,
   ) -> Result<Vec<BytesRange>> {
-    let (_, header) = self.create_reader(&query.id, &query.format).await?;
+    let (_, header) = self.create_reader(&query.id, &self.get_format()).await?;
 
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same

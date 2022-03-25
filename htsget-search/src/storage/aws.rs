@@ -102,12 +102,12 @@ impl AwsS3Storage {
     let head = self.s3_head(&self.resolve_key(&key)?).await?;
     Ok(
       // Default is Standard.
-      match head.storage_class.unwrap_or_else(|| StorageClass::Standard) {
+      match head.storage_class.unwrap_or(StorageClass::Standard) {
         class @ (StorageClass::DeepArchive | StorageClass::Glacier) => {
           Self::check_restore_header(head.restore, class)
         }
         class @ StorageClass::IntelligentTiering => {
-          if let Some(_) = head.archive_status {
+          if head.archive_status.is_some() {
             // Not sure if this check is necessary for the archived intelligent tiering classes but
             // it shouldn't hurt.
             Self::check_restore_header(head.restore, class)
@@ -126,7 +126,7 @@ impl AwsS3Storage {
         return Immediate(class);
       }
     }
-    return Delayed(class);
+    Delayed(class)
   }
 
   fn apply_range(builder: GetObject, range: BytesRange) -> GetObject {
@@ -224,7 +224,11 @@ mod tests {
 
   use super::*;
 
-  async fn s3_test_client(server_base_path: &Path) -> Client {
+  async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
+  where
+    F: FnOnce(Client) -> Fut,
+    Fut: Future<Output = ()>,
+  {
     // Setup s3-server.
     let fs = FileSystem::new(server_base_path).unwrap();
     let mut auth = SimpleAuth::new();
@@ -237,7 +241,7 @@ mod tests {
     let listener = TcpListener::bind(("localhost", 8014)).unwrap();
     let make_service: _ =
       make_service_fn(move |_| future::ready(Ok::<_, anyhow::Error>(service.clone())));
-    tokio::spawn(Server::from_tcp(listener).unwrap().serve(make_service));
+    let handle = tokio::spawn(Server::from_tcp(listener).unwrap().serve(make_service));
 
     // Create S3Config.
     let config = SdkConfig::builder()
@@ -252,7 +256,10 @@ mod tests {
     let s3_conf = aws_sdk_s3::config::Builder::from(&config)
       .endpoint_resolver(ep)
       .build();
-    Client::from_conf(s3_conf)
+
+    test(Client::from_conf(s3_conf));
+
+    handle.abort();
   }
 
   async fn with_aws_s3_storage<F, Fut>(test: F)
@@ -261,16 +268,18 @@ mod tests {
     Fut: Future<Output = ()>,
   {
     let (folder_name, base_path) = create_local_test_files().await;
-    test(AwsS3Storage::new(
-      s3_test_client(base_path.path()).await,
-      folder_name,
-      RegexResolver::new(".*", "$0").unwrap(),
-    ))
-    .await
+    with_s3_test_server(base_path.path(), |client| async move {
+      test(AwsS3Storage::new(
+        client,
+        folder_name,
+        RegexResolver::new(".*", "$0").unwrap(),
+      ));
+    })
+    .await;
   }
 
   #[tokio::test]
-  async fn test_existing_key() {
+  async fn existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.get("key2", GetOptions::default()).await;
       assert!(matches!(result, Ok(_)));
@@ -279,7 +288,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_non_existing_key() {
+  async fn non_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.get("non-existing-key", GetOptions::default()).await;
       assert!(matches!(result, Err(StorageError::AwsError(_, _))));
@@ -288,7 +297,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_url_of_non_existing_key() {
+  async fn url_of_non_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.url("non-existing-key", UrlOptions::default()).await;
       assert!(matches!(result, Err(StorageError::AwsError(_, _))));
@@ -297,7 +306,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_url_of_existing_key() {
+  async fn url_of_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.url("key2", UrlOptions::default()).await.unwrap();
       assert!(result
@@ -305,14 +314,14 @@ mod tests {
         .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY.to_string()
+        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
     })
     .await;
   }
 
   #[tokio::test]
-  async fn test_url_with_specified_range() {
+  async fn url_with_specified_range() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
         .url(
@@ -326,7 +335,7 @@ mod tests {
         .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY.to_string()
+        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
       assert!(result.url.contains("range"));
       assert_eq!(
@@ -338,7 +347,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_url_with_specified_open_ended_range() {
+  async fn url_with_specified_open_ended_range() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
         .url(
@@ -352,7 +361,7 @@ mod tests {
         .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY.to_string()
+        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
       assert!(result.url.contains("range"));
       assert_eq!(
@@ -364,7 +373,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_file_size() {
+  async fn file_size() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.head("key2").await;
       let expected: u64 = 6;
@@ -374,7 +383,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_retrieval_type() {
+  async fn retrieval_type() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.get_retrieval_type("key2").await;
       println!("{:?}", result);

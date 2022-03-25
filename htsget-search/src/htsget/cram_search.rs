@@ -53,7 +53,7 @@ where
   }
 
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>> {
-    let (mut reader, _) = self.create_reader(&query.id, &query.format).await?;
+    let (mut reader, _) = self.create_reader(&query.id, &self.get_format()).await?;
     Ok(vec![BytesRange::default()
       .with_start(Self::FILE_DEFINITION_LENGTH)
       .with_end(reader.position().await?)])
@@ -84,7 +84,7 @@ where
     Self::bytes_ranges_from_index(
       self,
       &query.id,
-      &query.format,
+      &self.get_format(),
       None,
       Range::default(),
       index,
@@ -105,7 +105,7 @@ where
     Self::bytes_ranges_from_index(
       self,
       &query.id,
-      &query.format,
+      &self.get_format(),
       Some(ref_seq),
       query
         .start

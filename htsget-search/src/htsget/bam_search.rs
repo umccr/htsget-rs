@@ -159,7 +159,7 @@ where
     bai_index: &Index,
   ) -> Result<Vec<BytesRange>> {
     self
-      .get_byte_ranges_for_unmapped(&query.id, &query.format, bai_index)
+      .get_byte_ranges_for_unmapped(&query.id, &self.get_format(), bai_index)
       .await
   }
 
