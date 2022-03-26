@@ -21,6 +21,9 @@ use crate::storage::{BytesRange, StorageError};
 
 use super::{GetOptions, Result, UrlOptions};
 
+/// Represents data classes that can be retrieved immediately or after a delay.
+/// Specifically, Glacier Flexible, Glacier Deep Archive, and Intelligent Tiering archive
+/// tiers have delayed retrieval, unless they have been restored.
 #[derive(Debug)]
 pub enum Retrieval {
   Immediate(StorageClass),
@@ -98,6 +101,7 @@ impl AwsS3Storage {
     )
   }
 
+  /// Returns the retrieval type of the object stored with the key.
   pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: K) -> Result<Retrieval> {
     let head = self.s3_head(&self.resolve_key(&key)?).await?;
     Ok(
@@ -178,6 +182,7 @@ impl AwsS3Storage {
 impl AsyncStorage for AwsS3Storage {
   type Streamable = BufReader<Cursor<Bytes>>;
 
+  /// Gets the actual s3 object as a buffered reader.
   async fn get<K: AsRef<str> + Send>(
     &self,
     key: K,

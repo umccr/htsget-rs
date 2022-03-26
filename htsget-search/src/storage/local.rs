@@ -75,10 +75,12 @@ impl LocalStorage {
 impl AsyncStorage for LocalStorage {
   type Streamable = File;
 
+  /// Get the file at the location of the key.
   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
     self.get(key).await
   }
 
+  /// Get a url for the file at key.
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
     let path = self.get_path_from_key(&key)?;
@@ -86,6 +88,7 @@ impl AsyncStorage for LocalStorage {
     Ok(options.apply(url))
   }
 
+  /// Get the size of the file.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let path = self.get_path_from_key(&key)?;
     Ok(
