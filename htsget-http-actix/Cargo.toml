@@ -10,12 +10,12 @@ async = ["tokio", "futures", "htsget-search/async", "htsget-http-core/async"]
 
 [dependencies]
 actix-web = "4.0.1"
-envy = "0.4"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+envy = "0.4.2"
+serde = { version = "1.0.136", features = ["derive"] }
+serde_json = "1.0.79"
 futures-util = { version = "0.3.21", default-features = false }
 htsget-http-core = { path = "../htsget-http-core" }
 htsget-search = { path = "../htsget-search" }
 htsget-id-resolver = { path = "../htsget-id-resolver" }
-futures = { version = "0.3.16", optional = true }
-tokio = { version = "1.12.0", features = ["full"], optional = true }
+futures = { version = "0.3.21", optional = true }
+tokio = { version = "1.17.0", features = ["full"], optional = true }

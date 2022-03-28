@@ -10,11 +10,10 @@ async = ["tokio", "futures"]
 aws = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 thiserror = "1.0.30"
 tokio = { version = "1.17.0", features = ["full"], optional = true }
-tokio-util = { version = "0.7.0", features = ["io", "compat"] }
-async-stream = "0.3.3"
+tokio-util = { version = "0.7.1", features = ["io", "compat"] }
 futures = { version = "0.3.21", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
 
@@ -32,13 +31,13 @@ aws-sdk-s3 = { version = "0.9.0", optional = true }
 aws-config = { version = "0.9.0", optional = true }
 
 [dev-dependencies]
-tempfile = "3.2.0"
+tempfile = "3.3.0"
 #[cfg(feature = "aws")]
-hyper = "0.14.17"
+hyper = "0.14.18"
 #[cfg(feature = "aws")]
 anyhow = "1.0.56"
 #[cfg(feature = "aws")]
-s3-server = "0.1.0"
+s3-server = "0.2.0"
 #[cfg(feature = "aws")]
 http = "0.2.6"
 #[cfg(feature = "aws")]
