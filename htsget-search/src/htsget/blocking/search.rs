@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use noodles::bgzf::VirtualPosition;
+use noodles::core::Position;
 use noodles::csi::binning_index::merge_chunks;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
@@ -256,6 +257,10 @@ where
   ) -> Result<Vec<BytesRange>> {
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
     let seq_end = seq_end.unwrap_or_else(|| Self::max_seq_position(reference_sequence));
+    let invalid_range = || HtsGetError::InvalidRange(format!("{}-{}", seq_start, seq_end));
+
+    let seq_start = Position::try_from(seq_start as usize).map_err(|_| invalid_range())?;
+    let seq_end = Position::try_from(seq_end as usize).map_err(|_| invalid_range())?;
 
     let chunks = index
       .query(ref_seq_id, seq_start..=seq_end)

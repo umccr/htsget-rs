@@ -248,12 +248,11 @@ where
           .with_end(next.offset()),
       ),
       Some(_) => {
-        // let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
-        // let seq_end = seq_end.unwrap_or_else(|| ref_seq.len());
-
-        if seq_range.start <= record.alignment_start() + record.alignment_span()
-          && seq_range.end >= record.alignment_start()
-        {
+        let start = record
+          .alignment_start()
+          .map(usize::from)
+          .unwrap_or_default() as i32;
+        if seq_range.start <= start + record.alignment_span() as i32 && seq_range.end >= start {
           Some(
             BytesRange::default()
               .with_start(record.offset())

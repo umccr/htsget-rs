@@ -18,7 +18,7 @@ async-stream = "0.3.3"
 futures = { version = "0.3.21", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
 
-noodles = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 noodles-bam = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
 noodles-bcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
 noodles-cram = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
