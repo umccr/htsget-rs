@@ -12,8 +12,6 @@ use htsget_http_actix::USAGE;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-  color_backtrace::install();
-
   if args().len() > 1 {
     // Show help if command line options are provided
     println!("{}", USAGE);

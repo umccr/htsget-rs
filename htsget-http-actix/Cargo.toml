@@ -19,5 +19,3 @@ htsget-search = { path = "../htsget-search" }
 htsget-id-resolver = { path = "../htsget-id-resolver" }
 futures = { version = "0.3.16", optional = true }
 tokio = { version = "1.12.0", features = ["full"], optional = true }
-color-backtrace = "0.5.1"
-log = "0.4.14"
