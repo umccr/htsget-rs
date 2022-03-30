@@ -7,8 +7,7 @@ use htsget_http_actix::async_configure_server as configure_server;
 #[cfg(not(feature = "async"))]
 use htsget_http_actix::configure_server;
 
-use htsget_config::config::HtsgetConfig;
-use htsget_http_actix::USAGE;
+use htsget_config::config::{HtsgetConfig, USAGE};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
