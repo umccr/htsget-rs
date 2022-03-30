@@ -1,2 +1,2 @@
 pub mod config;
-pub mod regex_resolver;
+pub mod data_sources;

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix_web::web;
 use htsget_config::config::HtsgetConfig;
-use htsget_config::regex_resolver::RegexResolver;
+use htsget_config::data_sources::RegexResolver;
 
 // Async
 #[cfg(feature = "async")]

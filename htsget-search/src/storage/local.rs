@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
+use htsget_config::data_sources::{HtsGetIdResolver, RegexResolver};
 use tokio::fs::File;
 
 use crate::htsget::Url;
