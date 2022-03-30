@@ -157,7 +157,7 @@ where
 pub mod tests {
   use std::future::Future;
 
-  use htsget_config::data_sources::RegexResolver;
+  use htsget_config::regex_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
   use crate::storage::local::LocalStorage;

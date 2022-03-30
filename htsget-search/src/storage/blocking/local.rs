@@ -1,6 +1,6 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
-use htsget_config::data_sources::{HtsGetIdResolver, RegexResolver};
+use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 use std::path::{Path, PathBuf};
 
 use crate::htsget::{Headers, Url};

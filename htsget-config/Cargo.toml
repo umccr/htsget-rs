@@ -8,4 +8,3 @@ edition = "2021"
 
 regex = "1.5.5"
 serde = { version = "1.0.136", features = ["derive"] }
-serde_regex = "1.1.0"

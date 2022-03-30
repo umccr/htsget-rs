@@ -103,7 +103,7 @@ mod tests {
   use std::path::PathBuf;
   use std::sync::Arc;
 
-  use htsget_config::data_sources::RegexResolver;
+  use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
