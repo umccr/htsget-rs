@@ -1,5 +1,6 @@
 use std::path::PathBuf;
-use crate::data_sources::{DataSource, DataSourceType};
+
+use serde::Deserialize;
 
 pub const USAGE: &str = r#"
 This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
@@ -34,12 +35,16 @@ fn default_path() -> PathBuf {
   PathBuf::from(".")
 }
 
-fn default_data_sources() -> DataSource {
-  DataSource::new(DataSourceType::LocalStorage, ".*", "$0").expect("Expected valid regex pattern.")
+fn default_regex_match() -> String {
+  ".*".to_string()
+}
+
+fn default_regex_substitution() -> String {
+  "$0".to_string()
 }
 
 /// Configuration for the server. Each field will be read from environment variables
-#[derive(, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct HtsgetConfig {
   #[serde(default = "default_port")]
   pub htsget_port: String,
@@ -47,8 +52,10 @@ pub struct HtsgetConfig {
   pub htsget_ip: String,
   #[serde(default = "default_path")]
   pub htsget_path: PathBuf,
-  #[serde(default = "default_data_sources")]
-  pub htsget_data_sources: Vec<DataSource>,
+  #[serde(default = "default_regex_match")]
+  pub htsget_regex_match: String,
+  #[serde(default = "default_regex_substitution")]
+  pub htsget_regex_substitution: String,
   pub htsget_id: Option<String>,
   pub htsget_name: Option<String>,
   pub htsget_version: Option<String>,
