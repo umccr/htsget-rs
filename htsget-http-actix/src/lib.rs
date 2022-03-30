@@ -2,6 +2,8 @@
 use std::sync::Arc;
 
 use actix_web::web;
+use htsget_config::config::HtsgetConfig;
+use htsget_config::regex_resolver::RegexResolver;
 
 // Async
 #[cfg(feature = "async")]
@@ -19,16 +21,11 @@ use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
 #[cfg(not(feature = "async"))]
 use htsget_search::htsget::blocking::HtsGet;
 
-use htsget_id_resolver::RegexResolver;
-
 #[cfg(not(feature = "async"))]
 use htsget_search::storage::blocking::local::LocalStorage;
 #[cfg(feature = "async")]
 use htsget_search::storage::local::LocalStorage;
 
-use crate::config::Config;
-
-pub mod config;
 pub mod handlers;
 
 pub const USAGE: &str = r#"
@@ -60,17 +57,17 @@ pub type HtsGetStorage = HtsGetFromStorage<LocalStorage>;
 #[cfg(feature = "async")]
 pub struct AsyncAppState<H: HtsGet> {
   pub htsget: Arc<H>,
-  pub config: Config,
+  pub config: HtsgetConfig,
 }
 
 #[cfg(not(feature = "async"))]
 pub struct AppState<H: HtsGet> {
   pub htsget: H,
-  pub config: Config,
+  pub config: HtsgetConfig,
 }
 
 #[cfg(feature = "async")]
-pub fn async_configure_server(service_config: &mut web::ServiceConfig, config: Config) {
+pub fn async_configure_server(service_config: &mut web::ServiceConfig, config: HtsgetConfig) {
   let htsget_path = config.htsget_path.clone();
   let regex_match = config.htsget_regex_match.clone();
   let regex_substitution = config.htsget_regex_substitution.clone();
@@ -123,7 +120,7 @@ pub fn async_configure_server(service_config: &mut web::ServiceConfig, config: C
 }
 
 #[cfg(not(feature = "async"))]
-pub fn configure_server(service_config: &mut web::ServiceConfig, config: Config) {
+pub fn configure_server(service_config: &mut web::ServiceConfig, config: HtsgetConfig) {
   let htsget_path = config.htsget_path.clone();
   let regex_match = config.htsget_regex_match.clone();
   let regex_substitution = config.htsget_regex_substitution.clone();
@@ -300,7 +297,7 @@ mod tests {
     );
 
     let config =
-      envy::from_env::<Config>().expect("The environment variables weren't properly set!");
+      envy::from_env::<HtsgetConfig>().expect("The environment variables weren't properly set!");
     let app = test::init_service(App::new().configure(
       |service_config: &mut web::ServiceConfig| {
         configure_server(service_config, config.clone());

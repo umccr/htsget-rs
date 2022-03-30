@@ -5,7 +5,6 @@ use htsget_http_core::get_service_info_json as get_base_service_info_json;
 use htsget_http_core::Endpoint;
 use htsget_search::htsget::HtsGet;
 
-use crate::handlers::fill_out_service_info_json;
 use crate::handlers::pretty_json::PrettyJson;
 use crate::AsyncAppState;
 
@@ -14,8 +13,9 @@ pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
   app_state: &AsyncAppState<H>,
   endpoint: Endpoint,
 ) -> impl Responder {
-  PrettyJson(fill_out_service_info_json(
-    get_base_service_info_json(endpoint, app_state.htsget.clone()),
+  PrettyJson(get_base_service_info_json(
+    endpoint,
+    app_state.htsget.clone(),
     &app_state.config,
   ))
 }

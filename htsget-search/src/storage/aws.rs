@@ -12,7 +12,7 @@ use bytes::Bytes;
 use fluent_builders::GetObject;
 use tokio::io::BufReader;
 
-use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
+use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;

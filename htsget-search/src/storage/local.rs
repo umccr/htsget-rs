@@ -4,9 +4,8 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 use tokio::fs::File;
-
-use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;
@@ -108,8 +107,6 @@ pub(crate) mod tests {
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
-
-  use htsget_id_resolver::RegexResolver;
 
   use crate::htsget::{Headers, Url};
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};

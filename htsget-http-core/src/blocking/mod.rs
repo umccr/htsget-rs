@@ -50,7 +50,7 @@ pub fn get_response_for_post_request(
 mod tests {
   use std::path::PathBuf;
 
-  use htsget_id_resolver::RegexResolver;
+  use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::{
     htsget::blocking::from_storage::HtsGetFromStorage,
     htsget::{Format, Headers, Url},

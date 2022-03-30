@@ -12,9 +12,7 @@ async = ["tokio", "futures", "htsget-search/async"]
 thiserror = "1.0.30"
 serde = { version = "1.0.136", features = ["derive"] }
 htsget-search = { path = "../htsget-search" }
+htsget-config = { path = "../htsget-config" }
 futures = { version = "0.3.21", optional = true }
 tokio = { version = "1.17.0", features = ["full"], optional = true }
 log = "0.4.16"
-
-[dev-dependencies]
-htsget-id-resolver = { path = "../htsget-config" }

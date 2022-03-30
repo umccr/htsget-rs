@@ -24,7 +24,7 @@ fn default_regex_substitution() -> String {
 
 /// Configuration for the server. Each field will be read from environment variables
 #[derive(Deserialize, Debug, Clone)]
-pub struct Config {
+pub struct HtsgetConfig {
   #[serde(default = "default_port")]
   pub htsget_port: String,
   #[serde(default = "default_ip")]
