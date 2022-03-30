@@ -1,0 +1,13 @@
+[package]
+name = "htsget-http-lambda"
+version = "0.1.0"
+authors = ["Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+
+envy = "0.4.2"
+tokio = "1.17.0"
+lambda_http = { version = "0.5.1" }
+lambda_runtime = { version = "0.5.1" }
+htsget-config = { path = "../htsget-config" }
