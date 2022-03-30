@@ -1,5 +1,5 @@
 use regex::{Error, Regex};
-use serde::Deserialize;
+use serde::{Deserialize};
 
 pub trait HtsGetIdResolver {
   fn resolve_id(&self, id: &str) -> Option<String>;
@@ -14,7 +14,7 @@ pub enum DataSourceType {
 
 #[derive(Debug, Deserialize)]
 pub struct DataSource {
-  data_type: DataSourceType,
+  data_source_type: DataSourceType,
   #[serde(with = "serde_regex")]
   match_id_pattern: Regex,
   replacement_path: String,
@@ -29,7 +29,7 @@ pub struct MatchedDataSource<'a> {
 impl DataSource {
   pub fn new(data_type: DataSourceType, match_id_pattern: &str, points_to: &str) -> Result<Self, Error> {
     Ok(DataSource {
-      data_type,
+      data_source_type: data_type,
       match_id_pattern: Regex::new(match_id_pattern)?,
       replacement_path: points_to.to_string(),
     })
@@ -51,7 +51,7 @@ pub fn resolve_first<'a>(data_sources: Vec<&'a DataSource>, id: &str) -> Option<
   for data_source in data_sources {
     if let Some(path) = data_source.resolve_id(id) {
       return Some(MatchedDataSource {
-        data_type: &data_source.data_type,
+        data_type: &data_source.data_source_type,
         path
       })
     }
