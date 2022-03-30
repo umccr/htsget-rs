@@ -1,7 +1,4 @@
 use std::path::PathBuf;
-
-use serde::Deserialize;
-
 use crate::data_sources::{DataSource, DataSourceType};
 
 pub const USAGE: &str = r#"
@@ -33,20 +30,23 @@ fn default_ip() -> String {
   "127.0.0.1".to_string()
 }
 
-fn default_data_sources() -> Vec<DataSource> {
-  vec![
-    DataSource::new(DataSourceType::LocalStorage(PathBuf::from(".")), ".*", "$0")
-      .expect("Expected valid regex pattern."),
-  ]
+fn default_path() -> PathBuf {
+  PathBuf::from(".")
+}
+
+fn default_data_sources() -> DataSource {
+  DataSource::new(DataSourceType::LocalStorage, ".*", "$0").expect("Expected valid regex pattern.")
 }
 
 /// Configuration for the server. Each field will be read from environment variables
-#[derive(Deserialize, Debug)]
+#[derive(, Debug, Clone)]
 pub struct HtsgetConfig {
   #[serde(default = "default_port")]
   pub htsget_port: String,
   #[serde(default = "default_ip")]
   pub htsget_ip: String,
+  #[serde(default = "default_path")]
+  pub htsget_path: PathBuf,
   #[serde(default = "default_data_sources")]
   pub htsget_data_sources: Vec<DataSource>,
   pub htsget_id: Option<String>,
@@ -59,4 +59,6 @@ pub struct HtsgetConfig {
   pub htsget_created_at: Option<String>,
   pub htsget_updated_at: Option<String>,
   pub htsget_environment: Option<String>,
+  #[cfg(feature = "aws")]
+  pub htsget_s3_bucket: Option<String>,
 }

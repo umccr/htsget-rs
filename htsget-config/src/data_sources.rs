@@ -1,20 +1,15 @@
-use std::path::PathBuf;
-
 use regex::{Error, Regex};
-use serde::Deserialize;
+use serde::{Deserialize};
 
 pub trait HtsGetIdResolver {
   fn resolve_id(&self, id: &str) -> Option<String>;
 }
 
-/// Represents the data source type which maps directly to the storage types.
 #[derive(Debug, Deserialize)]
 pub enum DataSourceType {
-  /// Maps to the [LocalStorage] type, with a base directory path.
-  LocalStorage(PathBuf),
-  /// Maps to the [AwsS3Storage] type, with a bucket name.
+  LocalStorage,
   #[cfg(feature = "aws")]
-  AwsS3Storage(String),
+  AwsS3Storage(String)
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,15 +23,11 @@ pub struct DataSource {
 #[derive(Debug)]
 pub struct MatchedDataSource<'a> {
   data_type: &'a DataSourceType,
-  path: String,
+  path: String
 }
 
 impl DataSource {
-  pub fn new(
-    data_type: DataSourceType,
-    match_id_pattern: &str,
-    points_to: &str,
-  ) -> Result<Self, Error> {
+  pub fn new(data_type: DataSourceType, match_id_pattern: &str, points_to: &str) -> Result<Self, Error> {
     Ok(DataSource {
       data_source_type: data_type,
       match_id_pattern: Regex::new(match_id_pattern)?,
@@ -56,16 +47,13 @@ impl HtsGetIdResolver for DataSource {
 }
 
 /// Return the first matching data source.
-pub fn resolve_first<'a>(
-  data_sources: Vec<&'a DataSource>,
-  id: &str,
-) -> Option<MatchedDataSource<'a>> {
+pub fn resolve_first<'a>(data_sources: Vec<&'a DataSource>, id: &str) -> Option<MatchedDataSource<'a>> {
   for data_source in data_sources {
     if let Some(path) = data_source.resolve_id(id) {
       return Some(MatchedDataSource {
         data_type: &data_source.data_source_type,
-        path,
-      });
+        path
+      })
     }
   }
   None
