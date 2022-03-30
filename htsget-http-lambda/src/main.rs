@@ -1,5 +1,4 @@
-use lambda_http::{Request, service_fn};
-use lambda_runtime::Error;
+use lambda_http::{Error, Request, service_fn};
 use htsget_config::config::HtsgetConfig;
 use htsget_http_lambda::lambda_function;
 
@@ -9,9 +8,9 @@ async fn main() -> Result<(), Error> {
   let config_ref = &config;
 
   let handler = |event: Request| async move {
-    lambda_function(event, config_ref)
+    lambda_function(event, config_ref).await
   };
-  lambda_runtime::run(service_fn(handler)).await?;
+  lambda_http::run(service_fn(handler)).await?;
 
   Ok(())
 }
