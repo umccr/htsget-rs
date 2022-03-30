@@ -1,5 +1,8 @@
-use super::HtsGetIdResolver;
 use regex::{Error, Regex};
+
+pub trait HtsGetIdResolver {
+  fn resolve_id(&self, id: &str) -> Option<String>;
+}
 
 #[derive(Debug)]
 pub struct RegexResolver {
