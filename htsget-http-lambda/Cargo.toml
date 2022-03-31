@@ -11,3 +11,4 @@ tokio = "1.17.0"
 lambda_http = { version = "0.5.1" }
 lambda_runtime = { version = "0.5.1" }
 htsget-config = { path = "../htsget-config" }
+regex = "1.5.5"
