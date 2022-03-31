@@ -1,3 +1,5 @@
+pub mod handlers;
+
 use std::str::FromStr;
 use lambda_http::{Body, IntoResponse, Request, Response, Error};
 use lambda_http::http::{Method, Uri};
@@ -8,17 +10,27 @@ use htsget_http_core::Endpoint;
 use crate::RouteType::{Id, ServiceInfo};
 
 pub async fn lambda_function(request: Request, config: &HtsgetConfig, route_matcher: RouteMatcher) -> Result<impl IntoResponse, Error> {
-  // let route = route_matcher.get_route(request.uri());
-  // match (request.method(), route) {
-  //   (&Method::GET, Some(Route { endpoint: Endpoint::Reads, route_type: ServiceInfo })) => {
-  //     unimplemented!()
-  //   },
-  //   Method::POST => {
-  //     unimplemented!()
-  //   },
-  //   _ => Ok(Response::builder().status(405).body("").unwrap())
-  // }
-  Ok(Response::builder().status(405).body("").unwrap())
+  match route_matcher.get_route(request.method(), request.uri()) {
+    Some(Route { method: _, endpoint: Endpoint::Reads, route_type: ServiceInfo }) => {
+      unimplemented!()
+    },
+    Some(Route { method: _, endpoint: Endpoint::Variants, route_type: ServiceInfo }) => {
+      unimplemented!()
+    },
+    Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: Id(id) }) => {
+      unimplemented!()
+    },
+    Some(Route { method: HtsgetMethod::Post, endpoint: Endpoint::Reads, route_type: Id(id) }) => {
+      unimplemented!()
+    },
+    Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: Id(id) }) => {
+      unimplemented!()
+    },
+    Some(Route { method: HtsgetMethod::Post, endpoint: Endpoint::Variants, route_type: Id(id) }) => {
+      unimplemented!()
+    },
+    _ => Ok(Response::builder().status(405).body("").unwrap())
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -75,7 +87,7 @@ impl RouteMatcher {
     }
   }
 
-  /// Regex which matches the relevant parts of a htsget request.
+  /// Regex which matches the relevant parts of a htsget uri path.
   fn regex_path() -> Regex {
     let pattern= format!(r"^/(?P<{}>reads|variants)/(?:(?P<{}>service-info$)|(?P<{}>.+$))", Self::ENDPOINT_CAPTURE_NAME, Self::SERVICE_INFO_CAPTURE_NAME, Self::ID_CAPTURE_NAME);
     Regex::new(&pattern).expect("Expected valid regex pattern.")
