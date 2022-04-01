@@ -1,32 +1,31 @@
 pub mod handlers;
 
 use std::str::FromStr;
+use std::sync::Arc;
 use lambda_http::{Body, IntoResponse, Request, Response, Error};
 use lambda_http::http::{Method, Uri};
 use htsget_config::config::HtsgetConfig;
 use lambda_http::RequestExt;
 use regex::Regex;
-use htsget_http_core::Endpoint;
-use crate::RouteType::{Id, ServiceInfo};
+use htsget_http_core::{Endpoint};
+use htsget_search::htsget::HtsGet;
+use crate::handlers::get_service_info_json;
 
-pub async fn lambda_function(request: Request, config: &HtsgetConfig, route_matcher: RouteMatcher) -> Result<impl IntoResponse, Error> {
+pub async fn lambda_function<H: HtsGet + Send + Sync + 'static>(request: Request, searcher: Arc<H>, config: &HtsgetConfig, route_matcher: RouteMatcher) -> Result<impl IntoResponse, Error> {
   match route_matcher.get_route(request.method(), request.uri()) {
-    Some(Route { method: _, endpoint: Endpoint::Reads, route_type: ServiceInfo }) => {
+    Some(Route { method: _, endpoint, route_type: RouteType::ServiceInfo }) => {
+      Ok(get_service_info_json(searcher, endpoint, config))
+    },
+    Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: RouteType::Id(id) }) => {
       unimplemented!()
     },
-    Some(Route { method: _, endpoint: Endpoint::Variants, route_type: ServiceInfo }) => {
+    Some(Route { method: HtsgetMethod::Post, endpoint: Endpoint::Reads, route_type: RouteType::Id(id) }) => {
       unimplemented!()
     },
-    Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: Id(id) }) => {
+    Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::Id(id) }) => {
       unimplemented!()
     },
-    Some(Route { method: HtsgetMethod::Post, endpoint: Endpoint::Reads, route_type: Id(id) }) => {
-      unimplemented!()
-    },
-    Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: Id(id) }) => {
-      unimplemented!()
-    },
-    Some(Route { method: HtsgetMethod::Post, endpoint: Endpoint::Variants, route_type: Id(id) }) => {
+    Some(Route { method: HtsgetMethod::Post, endpoint: Endpoint::Variants, route_type: RouteType::Id(id) }) => {
       unimplemented!()
     },
     _ => Ok(Response::builder().status(405).body("").unwrap())
@@ -81,9 +80,9 @@ impl RouteMatcher {
     }?;
 
     if captures.name(Self::SERVICE_INFO_CAPTURE_NAME).is_some() {
-      Some(Route::new(method, endpoint, ServiceInfo))
+      Some(Route::new(method, endpoint, RouteType::ServiceInfo))
     } else {
-      Some(Route::new(method, endpoint, Id(captures.name(Self::ID_CAPTURE_NAME)?.as_str().to_string())))
+      Some(Route::new(method, endpoint, RouteType::Id(captures.name(Self::ID_CAPTURE_NAME)?.as_str().to_string())))
     }
   }
 

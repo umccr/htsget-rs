@@ -1,8 +1,11 @@
+mod service_info;
 
 use lambda_http::http::{header, StatusCode};
 use lambda_http::IntoResponse;
 use serde::Serialize;
 use crate::{Body, Response};
+
+pub use crate::handlers::service_info::get_service_info_json;
 
 pub struct FormatJson<T>(pub T);
 
