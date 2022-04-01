@@ -5,18 +5,25 @@ use lambda_http::http::{header, StatusCode};
 use lambda_http::IntoResponse;
 use lambda_http::tower::util::Either;
 use serde::Serialize;
-use htsget_http_core::{JsonResponse, Result};
+use serde_json::Error;
+use htsget_http_core::{HtsGetError, JsonResponse, Result};
 use crate::{Body, Response};
 
 pub use crate::handlers::service_info::get_service_info_json;
 
-pub struct FormatJson<T>(pub T);
+pub struct FormatJson<T>(T);
+
+impl<T> FormatJson<T> {
+  pub fn into_inner(self) -> T {
+    self.0
+  }
+}
 
 impl<T: Serialize> IntoResponse for FormatJson<T> {
   fn into_response(self) -> Response<Body> {
-    let mut body = match serde_json::to_string_pretty(&self.0) {
+    let mut body = match serde_json::to_string_pretty(&self.into_inner()) {
       Ok(body) => body,
-      Err(e) => return from_error(e),
+      Err(e) => return FormatJson::from(e).into_inner(),
     };
     body.push('\n');
 
@@ -24,23 +31,28 @@ impl<T: Serialize> IntoResponse for FormatJson<T> {
   }
 }
 
-fn from_error(error: serde_json::Error) -> Response<Body> {
-  // This should be the same as actix-web.
-  Response::builder()
-    .status(StatusCode::INTERNAL_SERVER_ERROR)
-    .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
-    .body(format!("{}", error)).expect("Expected valid response.").into_response()
+impl From<serde_json::Error> for FormatJson<Response<Body>> {
+  fn from(error: Error) -> Self {
+    Self { 0: Response::builder()
+      .status(StatusCode::INTERNAL_SERVER_ERROR)
+      .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
+      .body(format!("{}", error)).expect("Expected valid response.").into_response() }
+  }
+}
+
+impl From<HtsGetError> for FormatJson<Response<Body>> {
+  fn from(error: HtsGetError) -> Self {
+    let (json, status_code) = error.to_json_representation();
+    let mut response = FormatJson(json).into_response();
+    *response.status_mut() = StatusCode::from_u16(status_code).unwrap();
+    Self { 0: response }
+  }
 }
 
 /// Handles a response, converting errors to json and using the proper HTTP status code.
 fn handle_response(response: Result<JsonResponse>) -> impl IntoResponse {
   match response {
-    Err(error) => {
-      let (json, status_code) = error.to_json_representation();
-      let mut response = FormatJson(json).into_response();
-      *response.status_mut() = StatusCode::from_u16(status_code).unwrap();
-      response
-    }
+    Err(error) => FormatJson::from(error).into_inner(),
     Ok(json) => FormatJson(json).into_response()
   }
 }
