@@ -1,35 +1,59 @@
 pub mod handlers;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use lambda_http::{Body, IntoResponse, Request, Response, Error};
-use lambda_http::http::{Method, Uri};
+use lambda_http::http::{Method, StatusCode, Uri};
 use htsget_config::config::HtsgetConfig;
-use lambda_http::RequestExt;
 use regex::Regex;
-use htsget_http_core::{Endpoint};
+use lambda_http::ext::RequestExt;
+use lambda_http::http::header::CONTENT_TYPE;
+use serde::de::DeserializeOwned;
+use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
-use crate::handlers::get_service_info_json;
+use crate::handlers::service_info::get_service_info_json;
+use crate::handlers::get::get;
+use crate::handlers::post::post;
 
-pub async fn lambda_function<H: HtsGet + Send + Sync + 'static>(request: Request, searcher: Arc<H>, config: &HtsgetConfig, route_matcher: RouteMatcher) -> Result<impl IntoResponse, Error> {
+pub async fn lambda_function<H: HtsGet + Send + Sync + 'static>(request: Request, searcher: Arc<H>, config: &HtsgetConfig, route_matcher: RouteMatcher) -> Response<Body> {
   match route_matcher.get_route(request.method(), request.uri()) {
     Some(Route { method: _, endpoint, route_type: RouteType::ServiceInfo }) => {
-      Ok(get_service_info_json(searcher, endpoint, config))
+      get_service_info_json(searcher, endpoint, config).into_response()
     },
-    Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: RouteType::Id(id) }) => {
-      unimplemented!()
+    Some(Route { method: HtsgetMethod::Get, endpoint, route_type: RouteType::Id(id) }) => {
+      get(id, searcher, extract_query(&request), endpoint).await.into_response()
     },
-    Some(Route { method: HtsgetMethod::Post, endpoint: Endpoint::Reads, route_type: RouteType::Id(id) }) => {
-      unimplemented!()
+    Some(Route { method: HtsgetMethod::Post, endpoint, route_type: RouteType::Id(id) }) => {
+      match extract_query_from_payload(&request) {
+        None => Response::builder().status(StatusCode::UNSUPPORTED_MEDIA_TYPE).body("").unwrap().into_response(),
+        Some(query) => post(id, searcher, query, endpoint).await.into_response()
+      }
     },
-    Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::Id(id) }) => {
-      unimplemented!()
-    },
-    Some(Route { method: HtsgetMethod::Post, endpoint: Endpoint::Variants, route_type: RouteType::Id(id) }) => {
-      unimplemented!()
-    },
-    _ => Ok(Response::builder().status(405).body("").unwrap())
+    _ => Response::builder().status(StatusCode::METHOD_NOT_ALLOWED).body("").unwrap().into_response()
   }
+}
+
+fn extract_query_from_payload(request: &Request) -> Option<PostRequest> {
+  // Check if the content type is application/json
+  let content_type = request.headers().get(CONTENT_TYPE)?;
+  if content_type.to_str().ok()? != mime::APPLICATION_JSON.as_ref() {
+    return None;
+  }
+
+  request.payload().ok()?
+}
+
+/// Extract a query hashmap from a request.
+fn extract_query(request: &Request) -> HashMap<String, String> {
+  let mut query = HashMap::new();
+  // Silently ignores all but the last query key, for keys that are present more than once.
+  // This is the way actix-web does it, but should we return an error instead if a key is present
+  // more than once?
+  for (key, value) in request.query_string_parameters().iter() {
+    query.insert(key.to_string(), value.to_string());
+  }
+  query
 }
 
 #[derive(Debug, PartialEq)]
