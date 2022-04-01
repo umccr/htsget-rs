@@ -32,10 +32,10 @@ impl<T: Serialize> IntoResponse for FormatJson<T> {
 
 impl From<serde_json::Error> for FormatJson<Response<Body>> {
   fn from(error: Error) -> Self {
-    Self { 0: Response::builder()
+    Self(Response::builder()
       .status(StatusCode::INTERNAL_SERVER_ERROR)
       .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
-      .body(format!("{}", error)).expect("Expected valid response.").into_response() }
+      .body(format!("{}", error)).expect("Expected valid response.").into_response())
   }
 }
 
@@ -44,7 +44,7 @@ impl From<HtsGetError> for FormatJson<Response<Body>> {
     let (json, status_code) = error.to_json_representation();
     let mut response = FormatJson(json).into_response();
     *response.status_mut() = StatusCode::from_u16(status_code).unwrap();
-    Self { 0: response }
+    Self(response)
   }
 }
 
