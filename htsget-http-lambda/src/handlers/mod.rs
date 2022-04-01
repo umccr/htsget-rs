@@ -1,8 +1,11 @@
-mod service_info;
+pub mod service_info;
+pub mod get;
 
 use lambda_http::http::{header, StatusCode};
 use lambda_http::IntoResponse;
+use lambda_http::tower::util::Either;
 use serde::Serialize;
+use htsget_http_core::{JsonResponse, Result};
 use crate::{Body, Response};
 
 pub use crate::handlers::service_info::get_service_info_json;
@@ -28,6 +31,20 @@ fn from_error(error: serde_json::Error) -> Response<Body> {
     .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
     .body(format!("{}", error)).expect("Expected valid response.").into_response()
 }
+
+/// Handles a response, converting errors to json and using the proper HTTP status code.
+fn handle_response(response: Result<JsonResponse>) -> impl IntoResponse {
+  match response {
+    Err(error) => {
+      let (json, status_code) = error.to_json_representation();
+      let mut response = FormatJson(json).into_response();
+      *response.status_mut() = StatusCode::from_u16(status_code).unwrap();
+      response
+    }
+    Ok(json) => FormatJson(json).into_response()
+  }
+}
+
 
 #[cfg(test)]
 mod tests {
