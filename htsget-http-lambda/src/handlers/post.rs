@@ -1,22 +1,21 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use lambda_http::IntoResponse;
-use htsget_http_core::{Endpoint, get_response_for_get_request};
+use htsget_http_core::{Endpoint, get_response_for_post_request, PostRequest};
 use htsget_search::htsget::{HtsGet};
 use crate::handlers::handle_response;
 
 /// GET request reads endpoint
-pub async fn get<H: HtsGet + Send + Sync + 'static>(
+pub async fn post<H: HtsGet + Send + Sync + 'static>(
   id_path: String,
   searcher: Arc<H>,
-  mut query: HashMap<String, String>,
+  query: PostRequest,
   endpoint: Endpoint
 ) -> impl IntoResponse {
-  query.insert("id".to_string(), id_path);
   handle_response(
-    get_response_for_get_request(
+    get_response_for_post_request(
       searcher,
       query,
+      id_path,
       endpoint,
     ).await,
   )
