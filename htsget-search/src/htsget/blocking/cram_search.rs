@@ -1,21 +1,19 @@
 //! This module provides search capabilities for CRAM files.
 //!
 
-use std::convert::TryFrom;
 use std::fs::File;
 use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use noodles::bam::record::ReferenceSequenceId;
 use noodles::cram;
-use noodles::cram::crai::{Index, Record};
 use noodles::cram::{crai, Reader};
+use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
 
-use crate::htsget::blocking::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
+use crate::htsget::blocking::search::{Search, SearchAll, SearchReads};
 use crate::storage::blocking::Storage;
 use crate::storage::BytesRange;
 
@@ -70,8 +68,6 @@ where
     index: &Index,
     _reader: &mut Reader<File>,
   ) -> Result<Vec<BytesRange>> {
-    let ref_seq_id = ReferenceSequenceId::try_from(ref_seq_id as i32)
-      .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
     Self::bytes_ranges_from_index(
       self,
       key,
@@ -214,9 +210,10 @@ where
 
 #[cfg(test)]
 pub mod tests {
+  use htsget_id_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 

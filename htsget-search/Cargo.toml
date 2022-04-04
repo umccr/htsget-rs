@@ -17,11 +17,11 @@ tokio-util = { version = "0.7.1", features = ["io", "compat"] }
 futures = { version = "0.3.21", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
 
-noodles = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-noodles-bam = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
-noodles-bcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
-noodles-cram = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
-noodles-vcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
+noodles = { version = "0.21.0", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bam = { version = "0.17.0", features = ["async"] }
+noodles-bcf = { version = "0.13.2", features = ["async"] }
+noodles-cram = { version = "0.14.0", features = ["async"] }
+noodles-vcf = { version = "0.15.0", features = ["async"] }
 
 #[cfg(feature = "aws")]
 bytes = "1.1.0"
