@@ -34,7 +34,7 @@ pub enum StorageError {
 
   #[cfg(feature = "aws")]
   #[error("Aws error: {0}, with key: {1}")]
-  AwsError(String, String),
+  AwsS3Error(String, String),
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
