@@ -7,13 +7,13 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use noodles::cram;
-use noodles::cram::{crai, Reader};
 use noodles::cram::crai::{Index, Record};
+use noodles::cram::{crai, Reader};
 use noodles::sam;
 use noodles::sam::Header;
 
-use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::htsget::blocking::search::{Search, SearchAll, SearchReads};
+use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::blocking::Storage;
 use crate::storage::BytesRange;
 

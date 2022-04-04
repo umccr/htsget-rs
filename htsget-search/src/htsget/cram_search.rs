@@ -13,11 +13,11 @@ use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
 use noodles_cram::AsyncReader;
-use tokio::{io, select};
 use tokio::io::{AsyncRead, AsyncSeek};
+use tokio::{io, select};
 
-use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::htsget::search::{Search, SearchAll, SearchReads};
+use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{AsyncStorage, BytesRange};
 
 pub(crate) struct CramSearch<S> {
