@@ -1,4 +1,3 @@
-use log::trace;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -25,7 +24,6 @@ pub async fn get_response_for_get_request(
   let query = convert_to_query(&query_information)?;
   let search_result = searcher.search(query).await;
 
-  trace!("{:?}", search_result);
   search_result
     .map_err(|error| error.into())
     .map(JsonResponse::from_response)
