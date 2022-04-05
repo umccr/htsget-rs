@@ -79,7 +79,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 
   pub async fn route_request(&self, request: Request) -> Response<Body> {
-    println!(request);
+    println!("{:?}", request);
     match self.get_route(request.method(), request.uri()) {
       Some(Route { method: _, endpoint, route_type: RouteType::ServiceInfo }) => {
         get_service_info_json(self.searcher.clone(), endpoint, self.config).into_response()
@@ -123,6 +123,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 
 #[cfg(test)]
 mod tests {
+  use std::future::Future;
   use std::sync::Arc;
   use lambda_http::http::Uri;
   use lambda_http::Request;
@@ -133,76 +134,99 @@ mod tests {
   use htsget_search::storage::local::LocalStorage;
   use crate::{Body, HtsgetMethod, Method, Route, Router, RouteType};
 
-  fn get_router() -> Router<HtsGetFromStorage<LocalStorage>> {
-    Router::new(Arc::new(HtsGetFromStorage::new(
-      LocalStorage::new(htsget_path, RegexResolver::new(&config.htsget_regex_match, &config.htsget_regex_substitution).unwrap()).unwrap()
-    )), &HtsgetConfig::default())
+  async fn with_router<'a, F, Fut>(test: F, config: &'a HtsgetConfig)
+    where
+      F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage>>) -> Fut,
+      Fut: Future<Output = ()>
+  {
+    let router = Router::new(Arc::new(HtsGetFromStorage::new(
+      LocalStorage::new(&config.htsget_path, RegexResolver::new(&config.htsget_regex_match, &config.htsget_regex_substitution).unwrap()).unwrap()
+    )), config);
+    test(router).await
   }
 
-  #[test]
-  fn get_route_invalid_method() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
-    assert!(route_matcher.get_route(&Method::DELETE, &uri).is_none());
+  #[tokio::test]
+  async fn get_route_invalid_method() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
+      assert!(router.get_route(&Method::DELETE, &uri).is_none());
+    }, &config).await;
   }
 
-  #[test]
-  fn get_route_no_path() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("").build().unwrap();
-    assert!(route_matcher.get_route(&Method::GET, &uri).is_none());
+  #[tokio::test]
+  async fn get_route_no_path() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("").build().unwrap();
+      assert!(router.get_route(&Method::GET, &uri).is_none());
+    }, &config).await;
   }
 
-  #[test]
-  fn get_route_no_endpoint() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("/path/").build().unwrap();
-    assert!(route_matcher.get_route(&Method::GET, &uri).is_none());
+  #[tokio::test]
+  async fn get_route_no_endpoint() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("/path/").build().unwrap();
+      assert!(router.get_route(&Method::GET, &uri).is_none());
+    }, &config).await;
   }
 
-  #[test]
-  fn get_route_reads_no_id() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("/reads/").build().unwrap();
-    assert!(route_matcher.get_route(&Method::GET, &uri).is_none());
+  #[tokio::test]
+  async fn get_route_reads_no_id() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("/reads/").build().unwrap();
+      assert!(router.get_route(&Method::GET, &uri).is_none());
+    }, &config).await;
   }
 
-  #[test]
-  fn get_route_variants_no_id() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("/variants/").build().unwrap();
-    assert!(route_matcher.get_route(&Method::GET, &uri).is_none());
+  #[tokio::test]
+  async fn get_route_variants_no_id() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("/variants/").build().unwrap();
+      assert!(router.get_route(&Method::GET, &uri).is_none());
+    }, &config).await;
   }
 
-  #[test]
-  fn get_route_reads_service_info() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("/reads/service-info").build().unwrap();
-    let route = route_matcher.get_route(&Method::GET, &uri);
-    assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: RouteType::ServiceInfo }));
+  #[tokio::test]
+  async fn get_route_reads_service_info() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("/reads/service-info").build().unwrap();
+      let route = router.get_route(&Method::GET, &uri);
+      assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: RouteType::ServiceInfo }));
+    }, &config).await;
   }
 
-  #[test]
-  fn get_route_variants_service_info() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("/variants/service-info").build().unwrap();
-    let route = route_matcher.get_route(&Method::GET, &uri);
-    assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::ServiceInfo }));
+  #[tokio::test]
+  async fn get_route_variants_service_info() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("/variants/service-info").build().unwrap();
+      let route = router.get_route(&Method::GET, &uri);
+      assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::ServiceInfo }));
+    }, &config).await;
   }
 
-  #[test]
-  fn get_route_reads_id() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
-    let route = route_matcher.get_route(&Method::GET, &uri);
-    assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: RouteType::Id("id".to_string()) }));
+  #[tokio::test]
+  async fn get_route_reads_id() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
+      let route = router.get_route(&Method::GET, &uri);
+      assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: RouteType::Id("id".to_string()) }));
+    }, &config).await;
   }
 
-  #[test]
-  fn get_route_variants_id() {
-    let route_matcher = get_router();
-    let uri = Uri::builder().path_and_query("/variants/id").build().unwrap();
-    let route = route_matcher.get_route(&Method::GET, &uri);
-    assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::Id("id".to_string()) }));
+  #[tokio::test]
+  async fn get_route_variants_id() {
+    let config = HtsgetConfig::default();
+    with_router(|router| async move {
+      let uri = Uri::builder().path_and_query("/variants/id").build().unwrap();
+      let route = router.get_route(&Method::GET, &uri);
+      assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::Id("id".to_string()) }));
+    }, &config).await;
   }
 }
