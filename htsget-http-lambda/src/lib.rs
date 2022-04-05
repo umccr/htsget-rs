@@ -79,6 +79,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 
   pub async fn route_request(&self, request: Request) -> Response<Body> {
+    println!(request);
     match self.get_route(request.method(), request.uri()) {
       Some(Route { method: _, endpoint, route_type: RouteType::ServiceInfo }) => {
         get_service_info_json(self.searcher.clone(), endpoint, self.config).into_response()
@@ -143,6 +144,13 @@ mod tests {
     let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
     assert!(route_matcher.get_route(&Method::DELETE, &uri).is_none());
+  }
+
+  #[test]
+  fn get_route_no_path() {
+    let route_matcher = get_router();
+    let uri = Uri::builder().path_and_query("").build().unwrap();
+    assert!(route_matcher.get_route(&Method::GET, &uri).is_none());
   }
 
   #[test]
