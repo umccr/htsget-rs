@@ -68,3 +68,26 @@ pub struct HtsgetConfig {
   pub htsget_environment: Option<String>,
   pub htsget_s3_bucket: Option<String>,
 }
+
+impl Default for HtsgetConfig {
+  fn default() -> Self {
+    Self {
+      htsget_port: default_port(),
+      htsget_ip: default_ip(),
+      htsget_path: default_path(),
+      htsget_regex_match: default_regex_match(),
+      htsget_regex_substitution: default_regex_substitution(),
+      htsget_id: None,
+      htsget_name: None,
+      htsget_version: None,
+      htsget_organization_name: None,
+      htsget_organization_url: None,
+      htsget_contact_url: None,
+      htsget_documentation_url: None,
+      htsget_created_at: None,
+      htsget_updated_at: None,
+      htsget_environment: None,
+      htsget_s3_bucket: None
+    }
+  }
+}

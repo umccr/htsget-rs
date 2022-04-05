@@ -122,66 +122,77 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 
 #[cfg(test)]
 mod tests {
+  use std::sync::Arc;
   use lambda_http::http::Uri;
   use lambda_http::Request;
+  use htsget_config::config::HtsgetConfig;
+  use htsget_config::regex_resolver::RegexResolver;
   use htsget_http_core::Endpoint;
+  use htsget_search::htsget::from_storage::HtsGetFromStorage;
+  use htsget_search::storage::local::LocalStorage;
   use crate::{Body, HtsgetMethod, Method, Route, Router, RouteType};
 
+  fn get_router() -> Router<HtsGetFromStorage<LocalStorage>> {
+    Router::new(Arc::new(HtsGetFromStorage::new(
+      LocalStorage::new(htsget_path, RegexResolver::new(&config.htsget_regex_match, &config.htsget_regex_substitution).unwrap()).unwrap()
+    )), &HtsgetConfig::default())
+  }
+
   #[test]
-  fn test_route_matcher_invalid_method() {
-    let route_matcher = Router::new();
+  fn get_route_invalid_method() {
+    let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
     assert!(route_matcher.get_route(&Method::DELETE, &uri).is_none());
   }
 
   #[test]
-  fn test_route_matcher_no_endpoint() {
-    let route_matcher = Router::new();
+  fn get_route_no_endpoint() {
+    let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/path/").build().unwrap();
     assert!(route_matcher.get_route(&Method::GET, &uri).is_none());
   }
 
   #[test]
-  fn test_route_matcher_reads_no_id() {
-    let route_matcher = Router::new();
+  fn get_route_reads_no_id() {
+    let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/reads/").build().unwrap();
     assert!(route_matcher.get_route(&Method::GET, &uri).is_none());
   }
 
   #[test]
-  fn test_route_matcher_variants_no_id() {
-    let route_matcher = Router::new();
+  fn get_route_variants_no_id() {
+    let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/variants/").build().unwrap();
     assert!(route_matcher.get_route(&Method::GET, &uri).is_none());
   }
 
   #[test]
-  fn test_route_matcher_reads_service_info() {
-    let route_matcher = Router::new();
+  fn get_route_reads_service_info() {
+    let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/reads/service-info").build().unwrap();
     let route = route_matcher.get_route(&Method::GET, &uri);
     assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: RouteType::ServiceInfo }));
   }
 
   #[test]
-  fn test_route_matcher_variants_service_info() {
-    let route_matcher = Router::new();
+  fn get_route_variants_service_info() {
+    let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/variants/service-info").build().unwrap();
     let route = route_matcher.get_route(&Method::GET, &uri);
     assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::ServiceInfo }));
   }
 
   #[test]
-  fn test_route_matcher_reads_id() {
-    let route_matcher = Router::new();
+  fn get_route_reads_id() {
+    let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
     let route = route_matcher.get_route(&Method::GET, &uri);
     assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Reads, route_type: RouteType::Id("id".to_string()) }));
   }
 
   #[test]
-  fn test_route_matcher_variants_id() {
-    let route_matcher = Router::new();
+  fn get_route_variants_id() {
+    let route_matcher = get_router();
     let uri = Uri::builder().path_and_query("/variants/id").build().unwrap();
     let route = route_matcher.get_route(&Method::GET, &uri);
     assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::Id("id".to_string()) }));
