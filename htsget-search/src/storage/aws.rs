@@ -79,10 +79,10 @@ impl AwsS3Storage {
       response
         .presigned(
           PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
-            .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?,
+            .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
         )
         .await
-        .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .uri()
         .to_string(),
     )
@@ -97,7 +97,7 @@ impl AwsS3Storage {
         .key(&self.resolve_key(&key)?)
         .send()
         .await
-        .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?,
+        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
     )
   }
 
@@ -157,11 +157,11 @@ impl AwsS3Storage {
       response
         .send()
         .await
-        .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .body
         .collect()
         .await
-        .map_err(|err| StorageError::AwsError(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .into_bytes(),
     )
   }
@@ -296,7 +296,7 @@ mod tests {
   async fn non_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.get("non-existing-key", GetOptions::default()).await;
-      assert!(matches!(result, Err(StorageError::AwsError(_, _))));
+      assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
     })
     .await;
   }
@@ -305,7 +305,7 @@ mod tests {
   async fn url_of_non_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.url("non-existing-key", UrlOptions::default()).await;
-      assert!(matches!(result, Err(StorageError::AwsError(_, _))));
+      assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
     })
     .await;
   }

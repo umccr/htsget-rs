@@ -99,7 +99,7 @@ impl From<StorageError> for HtsGetError {
       }
       StorageError::IoError(e, key) => Self::IoError(format!("Io error: {}, from ID: {}", e, key)),
       #[cfg(feature = "aws")]
-      StorageError::AwsError { .. } => Self::IoError(format!("AWS error: {:?}", err)),
+      StorageError::AwsS3Error { .. } => Self::IoError(format!("AWS S3 error: {:?}", err)),
     }
   }
 }

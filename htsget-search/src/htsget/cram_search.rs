@@ -1,7 +1,6 @@
 //! This module provides search capabilities for CRAM files.
 //!
 
-use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::Arc;
@@ -9,7 +8,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
 use futures::StreamExt;
-use noodles::bam::record::ReferenceSequenceId;
 use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
 use noodles::sam;
@@ -100,8 +98,6 @@ where
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    let ref_seq_id = ReferenceSequenceId::try_from(ref_seq_id as i32)
-      .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
     Self::bytes_ranges_from_index(
       self,
       &query.id,

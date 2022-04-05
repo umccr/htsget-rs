@@ -1,7 +1,7 @@
 //! The following file defines commonalities between all the file formats. While each format has
-//! its own particularitieS, there are many shared components that can be abstracted.
+//! its own particularities, there are many shared components that can be abstracted.
 //!
-//! The generic types represent the specifics of the formatS, and allow the abstractions to be made,
+//! The generic types represent the specifics of the formats, and allow the abstractions to be made,
 //! where the names of the types indicate their purpose.
 //!
 
@@ -470,7 +470,7 @@ impl VirtualPositionExt for VirtualPosition {
   /// The compressed part refers always to the beginning of a BGZF block.
   /// But when we need to translate it into a byte range, we need to make sure
   /// the reads falling inside that block are also included, which requires to know
-  /// where that block endS, which is not trivial nor possible for the last block.
+  /// where that block ends, which is not trivial nor possible for the last block.
   ///
   /// The solution used here goes through reading the records starting at the compressed
   /// virtual offset (coffset) of the end position (remember this will always be the

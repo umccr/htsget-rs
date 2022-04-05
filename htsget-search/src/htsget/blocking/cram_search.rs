@@ -1,13 +1,11 @@
 //! This module provides search capabilities for CRAM files.
 //!
 
-use std::convert::TryFrom;
 use std::fs::File;
 use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use noodles::bam::record::ReferenceSequenceId;
 use noodles::cram;
 use noodles::cram::crai::{Index, Record};
 use noodles::cram::{crai, Reader};
@@ -70,8 +68,6 @@ where
     index: &Index,
     _reader: &mut Reader<File>,
   ) -> Result<Vec<BytesRange>> {
-    let ref_seq_id = ReferenceSequenceId::try_from(ref_seq_id as i32)
-      .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
     Self::bytes_ranges_from_index(
       self,
       key,
