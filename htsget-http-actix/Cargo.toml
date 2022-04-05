@@ -9,13 +9,13 @@ default = ["async", "htsget-search/default", "htsget-http-core/default"]
 async = ["tokio", "futures", "htsget-search/async", "htsget-http-core/async"]
 
 [dependencies]
-actix-web = "4.0.1"
-envy = "0.4.2"
+actix-web = "4.0"
+envy = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-futures-util = { version = "0.3.21", default-features = false }
+futures-util = { version = "0.3", default-features = false }
 htsget-http-core = { path = "../htsget-http-core" }
 htsget-search = { path = "../htsget-search" }
 htsget-id-resolver = { path = "../htsget-id-resolver" }
-futures = { version = "0.3.21", optional = true }
-tokio = { version = "1.17.0", features = ["full"], optional = true }
+futures = { version = "0.3", optional = true }
+tokio = { version = "1.17", features = ["full"], optional = true }

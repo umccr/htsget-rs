@@ -6,4 +6,4 @@ edition = "2021"
 
 [dependencies]
 
-regex = "1.5.5"
+regex = "1.5"
