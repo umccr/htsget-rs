@@ -207,6 +207,13 @@ where
         let index = self.read_index(&query.id).await?;
 
         let format = self.get_format();
+        if format != query.format {
+          return Err(HtsGetError::unsupported_format(format!(
+            "Using {} search, but query contains {} format.",
+            format, query.format
+          )));
+        }
+
         let id = query.id.clone();
         let class = query.class.clone();
         let byte_ranges = match query.reference_name.as_ref() {

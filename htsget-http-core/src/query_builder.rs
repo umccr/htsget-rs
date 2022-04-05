@@ -9,33 +9,31 @@ pub struct QueryBuilder {
 }
 
 impl QueryBuilder {
-  pub fn new(id: Option<impl Into<String>>) -> Result<Self> {
+  pub fn new(id: Option<impl Into<String>>, format: Option<impl Into<String>>) -> Result<Self> {
+    let format = format
+      .map(|s| s.into())
+      .ok_or_else(|| HtsGetError::InvalidInput("Format needed".to_string()))?;
     Ok(QueryBuilder {
-      query: Query::new(id.ok_or_else(|| HtsGetError::InvalidInput("ID needed".to_string()))?),
+      query: Query::new(
+        id.ok_or_else(|| HtsGetError::InvalidInput("ID needed".to_string()))?,
+        match format.as_str() {
+          "BAM" => Format::Bam,
+          "CRAM" => Format::Cram,
+          "VCF" => Format::Vcf,
+          "BCF" => Format::Bcf,
+          _ => {
+            return Err(HtsGetError::UnsupportedFormat(format!(
+              "The {} format isn't supported",
+              format
+            )))
+          }
+        },
+      ),
     })
   }
 
   pub fn build(self) -> Query {
     self.query
-  }
-
-  pub fn with_format(mut self, format: Option<impl Into<String>>) -> Result<Self> {
-    let format = format.map(|s| s.into());
-    if let Some(format) = format {
-      self.query = self.query.with_format(match format.as_str() {
-        "BAM" => Format::Bam,
-        "CRAM" => Format::Cram,
-        "VCF" => Format::Vcf,
-        "BCF" => Format::Bcf,
-        _ => {
-          return Err(HtsGetError::UnsupportedFormat(format!(
-            "The {} format isn't supported",
-            format
-          )))
-        }
-      })
-    }
-    Ok(self)
   }
 
   pub fn with_class(mut self, class: Option<impl Into<String>>) -> Result<Self> {
@@ -170,7 +168,7 @@ mod tests {
   fn query_without_id() {
     let option: Option<&str> = None;
     assert_eq!(
-      QueryBuilder::new(option).unwrap_err(),
+      QueryBuilder::new(option, Some("BAM")).unwrap_err(),
       HtsGetError::InvalidInput("ID needed".to_string())
     );
   }
@@ -178,7 +176,7 @@ mod tests {
   #[test]
   fn query_with_id() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidId".to_string()))
+      QueryBuilder::new(Some("ValidId".to_string()), Some("BAM"))
         .unwrap()
         .build()
         .id,
@@ -189,9 +187,7 @@ mod tests {
   #[test]
   fn query_with_format() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"))
-        .unwrap()
-        .with_format(Some("VCF"))
+      QueryBuilder::new(Some("ValidID"), Some("VCF"))
         .unwrap()
         .build()
         .format,
@@ -202,10 +198,7 @@ mod tests {
   #[test]
   fn query_with_invalid_format() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"))
-        .unwrap()
-        .with_format(Some("Invalid"))
-        .unwrap_err(),
+      QueryBuilder::new(Some("ValidID"), Some("Invalid")).unwrap_err(),
       HtsGetError::UnsupportedFormat("The Invalid format isn't supported".to_string())
     );
   }
@@ -213,7 +206,7 @@ mod tests {
   #[test]
   fn query_with_class() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"))
+      QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_class(Some("header"))
         .unwrap()
@@ -226,7 +219,7 @@ mod tests {
   #[test]
   fn query_with_reference_name() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"))
+      QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_reference_name(Some("ValidName"))
         .build()
@@ -237,7 +230,7 @@ mod tests {
 
   #[test]
   fn query_with_range() {
-    let query = QueryBuilder::new(Some("ValidID"))
+    let query = QueryBuilder::new(Some("ValidID"), Some("BAM"))
       .unwrap()
       .with_reference_name(Some("ValidName"))
       .with_range(Some("3"), Some("5"))
@@ -249,7 +242,7 @@ mod tests {
   #[test]
   fn query_with_range_but_without_reference_name() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"))
+      QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_range(Some("3"), Some("5"))
         .unwrap_err(),
@@ -262,7 +255,7 @@ mod tests {
   #[test]
   fn query_with_invalid_start() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"))
+      QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_reference_name(Some("ValidName"))
         .with_range(Some("a"), Some("5"))
@@ -274,7 +267,7 @@ mod tests {
   #[test]
   fn query_with_invalid_range() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"))
+      QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_reference_name(Some("ValidName"))
         .with_range(Some("5"), Some("3"))
@@ -286,7 +279,7 @@ mod tests {
   #[test]
   fn query_with_fields() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"))
+      QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_fields(Some("header,part1,part2"))
         .build()
@@ -301,7 +294,7 @@ mod tests {
 
   #[test]
   fn query_with_tags() {
-    let query = QueryBuilder::new(Some("ValidID"))
+    let query = QueryBuilder::new(Some("ValidID"), Some("BAM"))
       .unwrap()
       .with_tags(Some("header,part1,part2"), Some("part3"))
       .unwrap()
@@ -319,7 +312,7 @@ mod tests {
 
   #[test]
   fn query_with_invalid_tags() {
-    let query = QueryBuilder::new(Some("ValidID"))
+    let query = QueryBuilder::new(Some("ValidID"), Some("BAM"))
       .unwrap()
       .with_tags(Some("header,part1,part2"), Some("part3"))
       .unwrap()

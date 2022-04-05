@@ -77,8 +77,7 @@ pub(crate) fn match_endpoints_post_request(
 
 fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query> {
   Ok(
-    QueryBuilder::new(query_information.get("id"))?
-      .with_format(query_information.get("format"))?
+    QueryBuilder::new(query_information.get("id"), query_information.get("format"))?
       .with_class(query_information.get("class"))?
       .with_reference_name(query_information.get("referenceName"))
       .with_range(query_information.get("start"), query_information.get("end"))?
