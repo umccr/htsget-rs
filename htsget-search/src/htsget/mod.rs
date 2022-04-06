@@ -134,10 +134,10 @@ pub struct Query {
 }
 
 impl Query {
-  pub fn new(id: impl Into<String>) -> Self {
+  pub fn new(id: impl Into<String>, format: Format) -> Self {
     Self {
       id: id.into(),
-      format: Format::Bam,
+      format,
       class: Class::Body,
       reference_name: None,
       start: None,
@@ -393,43 +393,43 @@ mod tests {
 
   #[test]
   fn query_new() {
-    let result = Query::new("NA12878");
+    let result = Query::new("NA12878", Format::Bam);
     assert_eq!(result.id, "NA12878");
   }
 
   #[test]
   fn query_with_format() {
-    let result = Query::new("NA12878").with_format(Format::Bam);
+    let result = Query::new("NA12878", Format::Bam);
     assert_eq!(result.format, Format::Bam);
   }
 
   #[test]
   fn query_with_class() {
-    let result = Query::new("NA12878").with_class(Class::Header);
+    let result = Query::new("NA12878", Format::Bam).with_class(Class::Header);
     assert_eq!(result.class, Class::Header);
   }
 
   #[test]
   fn query_with_reference_name() {
-    let result = Query::new("NA12878").with_reference_name("chr1");
+    let result = Query::new("NA12878", Format::Bam).with_reference_name("chr1");
     assert_eq!(result.reference_name, Some("chr1".to_string()));
   }
 
   #[test]
   fn query_with_start() {
-    let result = Query::new("NA12878").with_start(0);
+    let result = Query::new("NA12878", Format::Bam).with_start(0);
     assert_eq!(result.start, Some(0));
   }
 
   #[test]
   fn query_with_end() {
-    let result = Query::new("NA12878").with_end(0);
+    let result = Query::new("NA12878", Format::Bam).with_end(0);
     assert_eq!(result.end, Some(0));
   }
 
   #[test]
   fn query_with_fields() {
-    let result = Query::new("NA12878")
+    let result = Query::new("NA12878", Format::Bam)
       .with_fields(Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()]));
     assert_eq!(
       result.fields,
@@ -439,13 +439,13 @@ mod tests {
 
   #[test]
   fn query_with_tags() {
-    let result = Query::new("NA12878").with_tags(Tags::All);
+    let result = Query::new("NA12878", Format::Bam).with_tags(Tags::All);
     assert_eq!(result.tags, Tags::All);
   }
 
   #[test]
   fn query_with_no_tags() {
-    let result = Query::new("NA12878").with_no_tags(vec!["RG", "OQ"]);
+    let result = Query::new("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
       result.no_tags,
       Some(vec!["RG".to_string(), "OQ".to_string()])

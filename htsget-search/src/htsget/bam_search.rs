@@ -203,7 +203,7 @@ pub mod tests {
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -221,7 +221,7 @@ pub mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_reference_name("*");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("*");
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -239,7 +239,7 @@ pub mod tests {
   async fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_reference_name("20");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -257,7 +257,7 @@ pub mod tests {
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878")
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000)
         .with_end(5050000);
@@ -284,7 +284,7 @@ pub mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_class(Class::Header);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Class::Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 

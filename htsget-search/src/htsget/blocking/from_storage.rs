@@ -69,7 +69,7 @@ mod tests {
   fn search_bam() {
     bam_with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
-      let query = Query::new("htsnexus_test_NA12878").with_format(Format::Bam);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_format(Format::Bam);
       let response = htsget.search(query);
       println!("{:#?}", response);
 
@@ -87,7 +87,7 @@ mod tests {
     vcf_with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
       let filename = "spec-v4.3";
-      let query = Query::new(filename).with_format(Format::Vcf);
+      let query = Query::new(filename, Format::Vcf).with_format(Format::Vcf);
       let response = htsget.search(query);
       println!("{:#?}", response);
 

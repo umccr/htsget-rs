@@ -78,7 +78,7 @@ mod tests {
   async fn search_bam() {
     with_bam_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
-      let query = Query::new("htsnexus_test_NA12878").with_format(Format::Bam);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam);
       let response = htsget.search(query).await;
       println!("{:#?}", response);
 
@@ -97,7 +97,7 @@ mod tests {
     with_vcf_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
       let filename = "spec-v4.3";
-      let query = Query::new(filename).with_format(Format::Vcf);
+      let query = Query::new(filename, Format::Vcf);
       let response = htsget.search(query).await;
       println!("{:#?}", response);
 
