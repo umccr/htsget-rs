@@ -1,6 +1,5 @@
 //! Module providing the search capability using BAM/BAI files
 //!
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -64,7 +63,8 @@ where
 
   async fn get_byte_ranges_for_unmapped(
     &self,
-    key: &str,
+    id: &str,
+    format: &Format,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
     let last_interval = index
@@ -76,14 +76,14 @@ where
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let (bam_reader, _) = self.create_reader(key).await?;
+        let (bam_reader, _) = self.create_reader(id, format).await?;
         bam_reader.virtual_position()
       }
     };
 
     let file_size = self
       .storage
-      .head(key)
+      .head(format.fmt_file(id))
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
 
@@ -119,20 +119,13 @@ where
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: String,
     reference_name: String,
     index: &Index,
-    query: &Query,
+    query: Query,
   ) -> Result<Vec<BytesRange>> {
     self
-      .get_byte_ranges_for_reference_name_reads(key, &reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
       .await
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let bam_key = format!("{}.bam", id);
-    let bai_key = format!("{}.bai", bam_key);
-    (bam_key, bai_key)
   }
 
   fn get_storage(&self) -> Arc<S> {
@@ -162,29 +155,25 @@ where
 
   async fn get_byte_ranges_for_unmapped_reads(
     &self,
-    bam_key: &str,
+    query: &Query,
     bai_index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_unmapped(bam_key, bai_index).await
+    self
+      .get_byte_ranges_for_unmapped(&query.id, &self.get_format(), bai_index)
+      .await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    key: String,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
-    query: &Query,
+    query: Query,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
+    let start = query.start.map(|start| start as i32);
+    let end = query.end.map(|end| end as i32);
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(
-        key,
-        ref_seq,
-        ref_seq_id,
-        index,
-        query.start.map(|start| start as i32),
-        query.end.map(|end| end as i32),
-      )
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq, ref_seq_id, index, start, end)
       .await
   }
 }
@@ -206,7 +195,7 @@ pub mod tests {
   use htsget_id_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 
@@ -214,7 +203,7 @@ pub mod tests {
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -232,7 +221,7 @@ pub mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_reference_name("*");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("*");
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -250,7 +239,7 @@ pub mod tests {
   async fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_reference_name("20");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -268,7 +257,7 @@ pub mod tests {
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878")
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000)
         .with_end(5050000);
@@ -295,7 +284,7 @@ pub mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_class(Class::Header);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Class::Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 

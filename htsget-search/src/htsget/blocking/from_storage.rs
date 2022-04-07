@@ -8,7 +8,7 @@ use crate::{
   htsget::blocking::cram_search::CramSearch,
   htsget::blocking::vcf_search::VcfSearch,
   htsget::blocking::HtsGet,
-  htsget::{Format, HtsGetError, Query, Response, Result},
+  htsget::{Format, Query, Response, Result},
   storage::blocking::Storage,
 };
 
@@ -23,11 +23,10 @@ where
 {
   fn search(&self, query: Query) -> Result<Response> {
     match query.format {
-      Some(Format::Bam) | None => BamSearch::new(&self.storage).search(query),
-      Some(Format::Cram) => CramSearch::new(&self.storage).search(query),
-      Some(Format::Vcf) => VcfSearch::new(&self.storage).search(query),
-      Some(Format::Bcf) => BcfSearch::new(&self.storage).search(query),
-      Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format)),
+      Format::Bam => BamSearch::new(&self.storage).search(query),
+      Format::Cram => CramSearch::new(&self.storage).search(query),
+      Format::Vcf => VcfSearch::new(&self.storage).search(query),
+      Format::Bcf => BcfSearch::new(&self.storage).search(query),
     }
   }
 
@@ -70,7 +69,7 @@ mod tests {
   fn search_bam() {
     bam_with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
-      let query = Query::new("htsnexus_test_NA12878").with_format(Format::Bam);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_format(Format::Bam);
       let response = htsget.search(query);
       println!("{:#?}", response);
 
@@ -88,7 +87,7 @@ mod tests {
     vcf_with_local_storage(|storage| {
       let htsget = HtsGetFromStorage::new(storage);
       let filename = "spec-v4.3";
-      let query = Query::new(filename).with_format(Format::Vcf);
+      let query = Query::new(filename, Format::Vcf).with_format(Format::Vcf);
       let response = htsget.search(query);
       println!("{:#?}", response);
 

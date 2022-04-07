@@ -21,7 +21,10 @@ use htsget_search::htsget::blocking::HtsGet;
 
 use htsget_id_resolver::RegexResolver;
 
+#[cfg(not(feature = "async"))]
 use htsget_search::storage::blocking::local::LocalStorage;
+#[cfg(feature = "async")]
+use htsget_search::storage::local::LocalStorage;
 
 use crate::config::Config;
 

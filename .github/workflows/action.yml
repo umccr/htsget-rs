@@ -2,6 +2,10 @@ name: tests
 
 on: [push]
 
+env:
+    AWS_ACCESS_KEY_ID: "FOO"
+    AWS_SECRET_ACCESS_KEY: "BAR"
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -17,6 +21,7 @@ jobs:
             toolchain: ${{ matrix.rust }}
             override: true
             components: rustfmt, clippy
+
       - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
@@ -32,18 +37,23 @@ jobs:
         with:
           command: clippy
           args: --no-default-features
+      - name: Run cargo clippy with aws enabled
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --features aws
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-      - name: Run cargo test with all features
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --no-default-features
+      - name: Run cargo test with aws enabled
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features aws -- --test-threads=1

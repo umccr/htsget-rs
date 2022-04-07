@@ -15,13 +15,16 @@ use super::Result;
 pub trait AsyncStorage {
   type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
 
+  /// Get the object using the key.
   async fn get<K: AsRef<str> + Send>(
     &self,
     key: K,
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
+  /// Get the url of the object represented by the key.
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url>;
 
+  /// Get the size of the object represented by the key.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
 }

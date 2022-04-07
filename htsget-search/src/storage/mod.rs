@@ -1,7 +1,7 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
-
 use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
 use std::io;
 
 use thiserror::Error;
@@ -9,10 +9,12 @@ use thiserror::Error;
 #[cfg(feature = "async")]
 pub use async_storage::*;
 
-use crate::htsget::Class;
+use crate::htsget::{Class, Headers, Url};
 
 #[cfg(feature = "async")]
 pub mod async_storage;
+#[cfg(feature = "aws")]
+pub mod aws;
 pub mod blocking;
 #[cfg(feature = "async")]
 pub mod local;
@@ -29,12 +31,39 @@ pub enum StorageError {
 
   #[error("Io error: {0}, with key: {1}")]
   IoError(io::Error, String),
+
+  #[cfg(feature = "aws")]
+  #[error("Aws error: {0}, with key: {1}")]
+  AwsS3Error(String, String),
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
+}
+
+impl From<BytesRange> for String {
+  fn from(ranges: BytesRange) -> Self {
+    if ranges.start.is_none() && ranges.end.is_none() {
+      return "".to_string();
+    }
+    format!("{}", ranges)
+  }
+}
+
+impl Display for BytesRange {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    let start = self
+      .start
+      .map(|start| start.to_string())
+      .unwrap_or_else(|| "0".to_string());
+    let end = self
+      .end
+      .map(|end| end.to_string())
+      .unwrap_or_else(|| "".to_string());
+    write!(f, "bytes={}-{}", start, end)
+  }
 }
 
 impl BytesRange {
@@ -153,6 +182,16 @@ impl UrlOptions {
     self.class = class;
     self
   }
+
+  pub fn apply(self, url: Url) -> Url {
+    let range: String = self.range.into();
+    let url = if range.is_empty() {
+      url
+    } else {
+      url.with_headers(Headers::default().with_header("Range", range))
+    };
+    url.with_class(self.class)
+  }
 }
 
 impl Default for UrlOptions {
@@ -167,6 +206,7 @@ impl Default for UrlOptions {
 #[cfg(test)]
 mod tests {
   use crate::htsget::Class;
+  use std::collections::HashMap;
 
   use super::*;
 
@@ -492,5 +532,28 @@ mod tests {
     let result = UrlOptions::default().with_class(Class::Header);
     assert_eq!(result.range, BytesRange::default());
     assert_eq!(result.class, Class::Header);
+  }
+
+  #[test]
+  fn url_options_apply_with_bytes_range() {
+    let result = UrlOptions::default()
+      .with_class(Class::Header)
+      .with_range(BytesRange::new(Some(5), Some(10)))
+      .apply(Url::new(""));
+    println!("{:?}", result);
+    assert_eq!(
+      result,
+      Url::new("")
+        .with_headers(Headers::new(HashMap::new()).with_header("Range", "bytes=5-10"))
+        .with_class(Class::Header)
+    );
+  }
+
+  #[test]
+  fn url_options_apply_no_bytes_range() {
+    let result = UrlOptions::default()
+      .with_class(Class::Header)
+      .apply(Url::new(""));
+    assert_eq!(result, Url::new("").with_class(Class::Header));
   }
 }

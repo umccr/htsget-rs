@@ -83,12 +83,11 @@ where
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: String,
     reference_name: String,
     index: &Index,
-    query: &Query,
+    query: Query,
   ) -> Result<Vec<BytesRange>> {
-    let (_, header) = self.create_reader(&key).await?;
+    let (_, header) = self.create_reader(&query.id, &self.get_format()).await?;
 
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
@@ -116,7 +115,7 @@ where
     let seq_end = query.end.map(|end| end as i32).or(maybe_len);
     let byte_ranges = self
       .get_byte_ranges_for_reference_sequence_bgzf(
-        key,
+        query,
         &PhantomData,
         ref_seq_index,
         index,
@@ -125,12 +124,6 @@ where
       )
       .await?;
     Ok(byte_ranges)
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let bcf_key = format!("{}.bcf", id);
-    let csi_key = format!("{}.bcf.csi", id);
-    (bcf_key, csi_key)
   }
 
   fn get_storage(&self) -> Arc<S> {
@@ -161,7 +154,7 @@ pub mod tests {
   use htsget_id_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 
@@ -170,7 +163,7 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = BcfSearch::new(storage.clone());
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename);
+      let query = Query::new(filename, Format::Bcf);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -189,7 +182,7 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = BcfSearch::new(storage.clone());
       let filename = "vcf-spec-v4.3";
-      let query = Query::new(filename).with_reference_name("20");
+      let query = Query::new(filename, Format::Bcf).with_reference_name("20");
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -208,7 +201,7 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = BcfSearch::new(storage.clone());
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename)
+      let query = Query::new(filename, Format::Bcf)
         .with_reference_name("chrM")
         .with_start(151)
         .with_end(153);
@@ -230,7 +223,7 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = BcfSearch::new(storage);
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename)
+      let query = Query::new(filename, Format::Bcf)
         .with_reference_name("chrM")
         .with_start(0)
         .with_end(153);
@@ -248,7 +241,7 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = BcfSearch::new(storage.clone());
       let filename = "vcf-spec-v4.3";
-      let query = Query::new(filename).with_class(Class::Header);
+      let query = Query::new(filename, Format::Bcf).with_class(Class::Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 

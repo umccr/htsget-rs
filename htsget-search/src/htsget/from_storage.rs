@@ -7,12 +7,13 @@ use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::htsget::search::Search;
+use crate::htsget::Format;
 use crate::{
   htsget::bam_search::BamSearch,
   htsget::bcf_search::BcfSearch,
   htsget::cram_search::CramSearch,
   htsget::vcf_search::VcfSearch,
-  htsget::{Format, HtsGet, HtsGetError, Query, Response, Result},
+  htsget::{HtsGet, Query, Response, Result},
   storage::AsyncStorage,
 };
 
@@ -29,11 +30,10 @@ where
 {
   async fn search(&self, query: Query) -> Result<Response> {
     match query.format {
-      Some(Format::Bam) | None => BamSearch::new(self.storage()).search(query).await,
-      Some(Format::Cram) => CramSearch::new(self.storage()).search(query).await,
-      Some(Format::Vcf) => VcfSearch::new(self.storage()).search(query).await,
-      Some(Format::Bcf) => BcfSearch::new(self.storage()).search(query).await,
-      Some(Format::Unsupported(format)) => Err(HtsGetError::unsupported_format(format)),
+      Format::Bam => BamSearch::new(self.storage()).search(query).await,
+      Format::Cram => CramSearch::new(self.storage()).search(query).await,
+      Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
+      Format::Bcf => BcfSearch::new(self.storage()).search(query).await,
     }
   }
 
@@ -78,7 +78,7 @@ mod tests {
   async fn search_bam() {
     with_bam_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
-      let query = Query::new("htsnexus_test_NA12878").with_format(Format::Bam);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam);
       let response = htsget.search(query).await;
       println!("{:#?}", response);
 
@@ -97,7 +97,7 @@ mod tests {
     with_vcf_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
       let filename = "spec-v4.3";
-      let query = Query::new(filename).with_format(Format::Vcf);
+      let query = Query::new(filename, Format::Vcf);
       let response = htsget.search(query).await;
       println!("{:#?}", response);
 

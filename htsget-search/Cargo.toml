@@ -7,23 +7,38 @@ edition = "2021"
 [features]
 default = ["async"]
 async = ["tokio", "futures"]
+aws = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
-async-trait = "0.1.52"
-thiserror = "1.0.30"
-tokio = { version = "1.17.0", features = ["full"], optional = true }
-futures = { version = "0.3.21", optional = true }
+async-trait = "0.1"
+thiserror = "1.0"
+tokio = { version = "1.17", features = ["full"], optional = true }
+tokio-util = { version = "0.7", features = ["io", "compat"] }
+futures = { version = "0.3", optional = true }
 htsget-id-resolver = { path = "../htsget-id-resolver"}
 
-noodles = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.21", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bam = { version = "0.17", features = ["async"] }
+noodles-bcf = { version = "0.13", features = ["async"] }
+noodles-cram = { version = "0.14", features = ["async"] }
+noodles-vcf = { version = "0.15", features = ["async"] }
 
-#noodles-bgzf = { version = "0.8.0", features = ['async'] }
-noodles-bam = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
-noodles-bcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
-noodles-cram = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
-#noodles-csi = { version = "0.4.3", features = ['async'] }
-#noodles-tabix = { version = "0.7.3", features = ['async'] }
-noodles-vcf = { git = "https://github.com/zaeleus/noodles", branch = "master", features = ["async"] }
+#[cfg(feature = "aws")]
+bytes = "1.1"
+#[cfg(feature = "aws")]
+aws-sdk-s3 = { version = "0.9", optional = true }
+#[cfg(feature = "aws")]
+aws-config = { version = "0.9", optional = true }
 
 [dev-dependencies]
-tempfile = "3.2.0"
+tempfile = "3.3"
+#[cfg(feature = "aws")]
+hyper = "0.14"
+#[cfg(feature = "aws")]
+anyhow = "1.0"
+#[cfg(feature = "aws")]
+s3-server = "0.2"
+#[cfg(feature = "aws")]
+http = "0.2"
+#[cfg(feature = "aws")]
+aws-types = { version = "0.9", features = ["hardcoded-credentials"] }

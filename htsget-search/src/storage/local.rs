@@ -1,34 +1,96 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
+use std::path::{Path, PathBuf};
+
 use async_trait::async_trait;
 use tokio::fs::File;
 
+use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
+
 use crate::htsget::Url;
-use crate::storage;
 use crate::storage::async_storage::AsyncStorage;
-use crate::storage::blocking::local::LocalStorage;
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
-#[async_trait]
-impl AsyncStorage for LocalStorage {
-  type Streamable = File;
+/// Implementation for the [Storage] trait using the local file system.
+#[derive(Debug)]
+pub struct LocalStorage {
+  base_path: PathBuf,
+  id_resolver: RegexResolver,
+}
 
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
+impl LocalStorage {
+  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver) -> Result<Self> {
+    base_path
+      .as_ref()
+      .to_path_buf()
+      .canonicalize()
+      .map_err(|_| StorageError::KeyNotFound(base_path.as_ref().to_string_lossy().to_string()))
+      .map(|canonicalized_base_path| Self {
+        base_path: canonicalized_base_path,
+        id_resolver,
+      })
+  }
+
+  pub fn base_path(&self) -> &Path {
+    self.base_path.as_path()
+  }
+
+  pub(crate) fn get_path_from_key<K: AsRef<str>>(&self, key: K) -> Result<PathBuf> {
+    let key: &str = key.as_ref();
+    self
+      .base_path
+      .join(
+        self
+          .id_resolver
+          .resolve_id(key)
+          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))?,
+      )
+      .canonicalize()
+      .map_err(|_| StorageError::InvalidKey(key.to_string()))
+      .and_then(|path| {
+        path
+          .starts_with(&self.base_path)
+          .then(|| path)
+          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
+      })
+      .and_then(|path| {
+        path
+          .is_file()
+          .then(|| path)
+          .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
+      })
+  }
+
+  async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
     File::open(path)
       .await
       .map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
   }
+}
 
-  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    storage::blocking::Storage::url(self, key, options)
+#[async_trait]
+impl AsyncStorage for LocalStorage {
+  type Streamable = File;
+
+  /// Get the file at the location of the key.
+  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
+    self.get(key).await
   }
 
+  /// Get a url for the file at key.
+  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
+    // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
+    let path = self.get_path_from_key(&key)?;
+    let url = Url::new(format!("file://{}", path.to_string_lossy()));
+    Ok(options.apply(url))
+  }
+
+  /// Get the size of the file.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-    let key: &str = key.as_ref();
-    let path = self.get_path_from_key(key)?;
+    let path = self.get_path_from_key(&key)?;
     Ok(
       tokio::fs::metadata(path)
         .await
@@ -39,10 +101,11 @@ impl AsyncStorage for LocalStorage {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
 
+  use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
@@ -56,7 +119,7 @@ mod tests {
   #[tokio::test]
   async fn get_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "non-existing-key", GetOptions::default()).await;
+      let result = storage.get("non-existing-key").await;
       assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -183,25 +246,39 @@ mod tests {
     .await;
   }
 
+  pub(crate) async fn create_local_test_files() -> (String, TempDir) {
+    let base_path = tempfile::TempDir::new().unwrap();
+
+    let folder_name = "folder";
+    let key1 = "key1";
+    let value1 = b"value1";
+    let key2 = "key2";
+    let value2 = b"value2";
+    File::create(base_path.path().join(key1))
+      .await
+      .unwrap()
+      .write_all(value1)
+      .await
+      .unwrap();
+    create_dir(base_path.path().join(folder_name))
+      .await
+      .unwrap();
+    File::create(base_path.path().join(folder_name).join(key2))
+      .await
+      .unwrap()
+      .write_all(value2)
+      .await
+      .unwrap();
+
+    (folder_name.to_string(), base_path)
+  }
+
   async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(LocalStorage) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let base_path = tempfile::TempDir::new().unwrap();
-    File::create(base_path.path().join("key1"))
-      .await
-      .unwrap()
-      .write_all(b"value1")
-      .await
-      .unwrap();
-    create_dir(base_path.path().join("folder")).await.unwrap();
-    File::create(base_path.path().join("folder").join("key2"))
-      .await
-      .unwrap()
-      .write_all(b"value2")
-      .await
-      .unwrap();
+    let (_, base_path) = create_local_test_files().await;
     test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
       .await
   }

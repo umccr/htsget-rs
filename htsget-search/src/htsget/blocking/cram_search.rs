@@ -1,13 +1,11 @@
 //! This module provides search capabilities for CRAM files.
 //!
 
-use std::convert::TryFrom;
 use std::fs::File;
 use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use noodles::bam::record::ReferenceSequenceId;
 use noodles::cram;
 use noodles::cram::crai::{Index, Record};
 use noodles::cram::{crai, Reader};
@@ -70,8 +68,6 @@ where
     index: &Index,
     _reader: &mut Reader<File>,
   ) -> Result<Vec<BytesRange>> {
-    let ref_seq_id = ReferenceSequenceId::try_from(ref_seq_id as i32)
-      .map_err(|_| HtsGetError::invalid_input("Invalid reference sequence id"))?;
     Self::bytes_ranges_from_index(
       self,
       key,
@@ -194,9 +190,11 @@ where
         let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
         let seq_end = seq_end.unwrap_or_else(|| ref_seq.len());
 
-        if seq_start <= record.alignment_start() + record.alignment_span()
-          && seq_end >= record.alignment_start()
-        {
+        let start = record
+          .alignment_start()
+          .map(usize::from)
+          .unwrap_or_default() as i32;
+        if seq_start <= start + record.alignment_span() as i32 && seq_end >= start {
           Some(
             BytesRange::default()
               .with_start(record.offset())
@@ -212,9 +210,10 @@ where
 
 #[cfg(test)]
 pub mod tests {
+  use htsget_id_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
 
   use super::*;
 
@@ -222,7 +221,7 @@ pub mod tests {
   fn search_all_reads() {
     with_local_storage(|storage| {
       let search = CramSearch::new(&storage);
-      let query = Query::new("htsnexus_test_NA12878");
+      let query = Query::new("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query);
       println!("{:#?}", response);
 
@@ -239,7 +238,7 @@ pub mod tests {
   fn search_unmapped_reads() {
     with_local_storage(|storage| {
       let search = CramSearch::new(&storage);
-      let query = Query::new("htsnexus_test_NA12878").with_reference_name("*");
+      let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_reference_name("*");
       let response = search.search(query);
       println!("{:#?}", response);
 
@@ -256,7 +255,7 @@ pub mod tests {
   fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| {
       let search = CramSearch::new(&storage);
-      let query = Query::new("htsnexus_test_NA12878").with_reference_name("20");
+      let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
       let response = search.search(query);
       println!("{:#?}", response);
 
@@ -273,7 +272,7 @@ pub mod tests {
   fn search_reference_name_with_seq_range_no_overlap() {
     with_local_storage(|storage| {
       let search = CramSearch::new(&storage);
-      let query = Query::new("htsnexus_test_NA12878")
+      let query = Query::new("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
         .with_end(5050000);
@@ -293,7 +292,7 @@ pub mod tests {
   fn search_reference_name_with_seq_range_overlap() {
     with_local_storage(|storage| {
       let search = CramSearch::new(&storage);
-      let query = Query::new("htsnexus_test_NA12878")
+      let query = Query::new("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
         .with_end(5100000);
@@ -313,7 +312,7 @@ pub mod tests {
   fn search_header() {
     with_local_storage(|storage| {
       let search = CramSearch::new(&storage);
-      let query = Query::new("htsnexus_test_NA12878").with_class(Class::Header);
+      let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_class(Class::Header);
       let response = search.search(query);
       println!("{:#?}", response);
 
