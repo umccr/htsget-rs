@@ -150,151 +150,95 @@ mod tests {
   use super::configure_server;
   use super::*;
 
-  use actix_web::http::StatusCode;
-  use actix_web::test::TestRequest;
   use actix_web::{test, web, App};
-  use htsget_http_core::get_service_info_with;
-  use htsget_http_core::{Endpoint, JsonResponse, ServiceInfo};
-  use htsget_search::htsget::Class::Header;
-  use htsget_search::htsget::{Format, Headers, Response, Url};
-  use serde::Deserialize;
-  use std::collections::HashMap;
-  use std::path::{Path, PathBuf};
+  use async_trait::async_trait;
+  use std::path::PathBuf;
+  use actix_web::dev::Service;
+  use actix_web::web::Bytes;
+  use htsget_test_utils::{server_tests, Header as TestHeader, TestRequest, TestServer, Response as TestResponse};
 
-  struct ActixTestServer<'a> {
-    config: &'a HtsgetConfig
+  struct ActixTestServer {
+    config: HtsgetConfig
   }
 
-  impl<'a> TestServer for ActixTestServer<'a> {
+  struct ActixTestRequest<T>(T);
 
+  impl TestRequest for ActixTestRequest<test::TestRequest> {
+    fn insert_header(self, header: TestHeader<impl Into<String>>) -> Self {
+      Self(self.0.insert_header(header.into_tuple()))
+    }
+
+    fn set_payload(self, payload: impl Into<String>) -> Self {
+      Self(self.0.set_payload(payload.into()))
+    }
+
+    fn uri(self, uri: impl Into<String>) -> Self {
+      Self(self.0.uri(&uri.into()))
+    }
+
+    fn method(self, method: impl Into<String>) -> Self {
+      Self(self.0.method(method.into().parse().unwrap()))
+    }
+  }
+
+  impl Default for ActixTestServer {
+    fn default() -> Self {
+      std::env::set_var(
+        "HTSGET_PATH",
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
+      );
+      let config =
+        envy::from_env::<HtsgetConfig>().expect("The environment variables weren't properly set!");
+      Self { config }
+    }
+  }
+
+  #[async_trait(?Send)]
+  impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
+    fn get_request(&self) -> ActixTestRequest<test::TestRequest> {
+      ActixTestRequest(test::TestRequest::default())
+    }
+
+    async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
+      let app = test::init_service(App::new().configure(
+        |service_config: &mut web::ServiceConfig| {
+          configure_server(service_config, self.config.clone());
+        },
+      )).await;
+      let response = request.0.send_request(&app).await;
+      let status: u16 = response.status().into();
+      let bytes: Bytes = test::read_body(response).await;
+      TestResponse::new(status, bytes)
+    }
   }
 
   #[actix_web::test]
   async fn test_get() {
-    let request = test::TestRequest::get().uri("/variants/data/vcf/sample1-bcbio-cancer").method();
-
-    with_response(request, |path, status, response: JsonResponse| {
-      assert!(status.is_success());
-      assert_eq!(example_response(&path), response);
-    })
-    .await;
+    let server = ActixTestServer::default();
+    server_tests::test_get(&server, &server.config.htsget_path).await;
   }
 
   #[actix_web::test]
   async fn test_post() {
-    let request = test::TestRequest::post()
-      .insert_header(("content-type", "application/json"))
-      .set_payload("{}")
-      .uri("/variants/data/vcf/sample1-bcbio-cancer");
-
-    with_response(request, |path, status, response: JsonResponse| {
-      assert!(status.is_success());
-      assert_eq!(example_response(&path), response);
-    })
-    .await;
+    let server = ActixTestServer::default();
+    server_tests::test_post(&server, &server.config.htsget_path).await;
   }
 
   #[actix_web::test]
   async fn test_parameterized_get() {
-    let request = test::TestRequest::get()
-      .uri("/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header");
-
-    with_response(request, |path, status, response: JsonResponse| {
-      assert!(status.is_success());
-      assert_eq!(example_response_header(&path), response);
-    })
-    .await;
+    let server = ActixTestServer::default();
+    server_tests::test_parameterized_get(&server, &server.config.htsget_path).await;
   }
 
   #[actix_web::test]
   async fn test_parameterized_post() {
-    let request = test::TestRequest::post()
-      .insert_header(("content-type", "application/json"))
-      .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}")
-      .uri("/variants/data/vcf/sample1-bcbio-cancer");
-
-    with_response(request, |path, status, response: JsonResponse| {
-      assert!(status.is_success());
-      assert_eq!(example_response(&path), response);
-    })
-    .await;
+    let server = ActixTestServer::default();
+    server_tests::test_parameterized_post(&server, &server.config.htsget_path).await;
   }
 
   #[actix_web::test]
   async fn test_service_info() {
-    let request = test::TestRequest::get().uri("/variants/service-info");
-
-    with_response(request, |_, status, response: ServiceInfo| {
-      let expected = get_service_info_with(
-        Endpoint::Variants,
-        &[Format::Vcf, Format::Bcf],
-        false,
-        false,
-      );
-
-      assert!(status.is_success());
-      assert_eq!(expected, response);
-    })
-    .await;
-  }
-
-  fn example_response(path: &Path) -> JsonResponse {
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3367".to_string());
-    JsonResponse::from_response(Response::new(
-      Format::Vcf,
-      vec![Url::new(format!(
-        "file://{}",
-        path
-          .join("data")
-          .join("vcf")
-          .join("sample1-bcbio-cancer.vcf.gz")
-          .to_string_lossy()
-      ))
-      .with_headers(Headers::new(headers))],
-    ))
-  }
-
-  fn example_response_header(path: &Path) -> JsonResponse {
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3367".to_string());
-    JsonResponse::from_response(Response::new(
-      Format::Vcf,
-      vec![Url::new(format!(
-        "file://{}",
-        path
-          .join("data")
-          .join("vcf")
-          .join("sample1-bcbio-cancer.vcf.gz")
-          .to_string_lossy()
-      ))
-      .with_headers(Headers::new(headers))
-      .with_class(Header)],
-    ))
-  }
-
-  async fn with_response<F, T>(request: TestRequest, test: F)
-  where
-    T: for<'de> Deserialize<'de>,
-    F: FnOnce(PathBuf, StatusCode, T),
-  {
-    std::env::set_var(
-      "HTSGET_PATH",
-      PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
-    );
-
-    let config =
-      envy::from_env::<HtsgetConfig>().expect("The environment variables weren't properly set!");
-    let app = test::init_service(App::new().configure(
-      |service_config: &mut web::ServiceConfig| {
-        configure_server(service_config, config.clone());
-      },
-    ))
-    .await;
-    let response = request.send_request(&app).await;
-    let status = response.status();
-    let response_json = test::read_body_json(response).await;
-
-    test(config.htsget_path, status, response_json);
+    let server = ActixTestServer::default();
+    server_tests::test_service_info(&server).await;
   }
 }

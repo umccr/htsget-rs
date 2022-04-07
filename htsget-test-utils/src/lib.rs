@@ -11,9 +11,16 @@ use bytes::Bytes;
 use http::{Method, StatusCode};
 use serde::{de, Deserializer};
 
+#[derive(Debug)]
 pub struct Header<T: Into<String>> {
   name: T,
   value: T
+}
+
+impl<T: Into<String>> Header<T> {
+  pub fn into_tuple(self) -> (String, String) {
+    (self.name.into(), self.value.into())
+  }
 }
 
 pub struct Response {
@@ -22,8 +29,12 @@ pub struct Response {
 }
 
 impl Response {
-  pub fn deserialize_body<'a, T>(&'a self) -> Result<T, serde_json::Error> where
-    T: de::Deserialize<'a> {
+  pub fn new(status: u16, body: Bytes) -> Self {
+    Self { status, body }
+  }
+
+  pub fn deserialize_body<T>(&self) -> Result<T, serde_json::Error> where
+    T: de::DeserializeOwned {
     serde_json::from_slice(&self.body)
   }
 
@@ -39,8 +50,8 @@ pub trait TestRequest {
   fn method(self, method: impl Into<String>) -> Self;
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait TestServer<T: TestRequest> {
   fn get_request(&self) -> T;
-  async fn test_server(&self, request: impl TestRequest) -> Response;
+  async fn test_server(&self, request: T) -> Response;
 }
