@@ -143,7 +143,7 @@ mod tests {
     let path = config.htsget_path.clone();
     with_router(|router| async move {
       let request = Request::builder().method(Method::GET).uri("/variants/data/vcf/sample1-bcbio-cancer").body(Body::Empty).unwrap();
-      let response = router.route_request(request).await;
+      let response:Response<Body> = router.route_request(request).await;
       let mut headers = HashMap::new();
       headers.insert("Range".to_string(), "bytes=0-3367".to_string());
       let example = JsonResponse::from_response(Response::new(

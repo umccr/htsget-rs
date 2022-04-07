@@ -9,6 +9,7 @@ use htsget_search::htsget::Response as HtsgetResponse;
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::{Method, StatusCode};
+use serde::{de, Deserializer};
 
 pub struct Header<T: Into<String>> {
   name: T,
@@ -18,6 +19,17 @@ pub struct Header<T: Into<String>> {
 pub struct Response {
   status: u16,
   body: Bytes
+}
+
+impl Response {
+  pub fn deserialize_body<'a, T>(&'a self) -> Result<T, serde_json::Error> where
+    T: de::Deserialize<'a> {
+    serde_json::from_slice(&self.body)
+  }
+
+  pub fn is_success(&self) -> bool {
+    300 > self.status && self.status >= 200
+  }
 }
 
 #[async_trait]
