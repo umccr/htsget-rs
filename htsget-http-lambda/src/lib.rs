@@ -79,7 +79,6 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 
   pub async fn route_request(&self, request: Request) -> Response<Body> {
-    println!("{:?}", request);
     match self.get_route(request.method(), request.uri()) {
       Some(Route { method: _, endpoint, route_type: RouteType::ServiceInfo }) => {
         get_service_info_json(self.searcher.clone(), endpoint, self.config).into_response()
@@ -123,26 +122,47 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 
 #[cfg(test)]
 mod tests {
+  use std::collections::HashMap;
   use std::future::Future;
   use std::sync::Arc;
+  use lambda_http::{http};
   use lambda_http::http::Uri;
-  use lambda_http::Request;
+  use http::Request;
+  use serde::Serialize;
   use htsget_config::config::HtsgetConfig;
   use htsget_config::regex_resolver::RegexResolver;
-  use htsget_http_core::Endpoint;
+  use htsget_http_core::{Endpoint, JsonResponse};
+  use htsget_search::htsget::{Format, Headers, Response, Url};
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::storage::local::LocalStorage;
-  use crate::{Body, HtsgetMethod, Method, Route, Router, RouteType};
+  use crate::{Body, HtsgetMethod, Method, Route, Router, RouteType, StatusCode};
 
-  async fn with_router<'a, F, Fut>(test: F, config: &'a HtsgetConfig)
-    where
-      F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage>>) -> Fut,
-      Fut: Future<Output = ()>
-  {
-    let router = Router::new(Arc::new(HtsGetFromStorage::new(
-      LocalStorage::new(&config.htsget_path, RegexResolver::new(&config.htsget_regex_match, &config.htsget_regex_substitution).unwrap()).unwrap()
-    )), config);
-    test(router).await
+  #[tokio::test]
+  async fn test_get() {
+    let config = HtsgetConfig::default();
+    let path = config.htsget_path.clone();
+    with_router(|router| async move {
+      let request = Request::builder().method(Method::GET).uri("/variants/data/vcf/sample1-bcbio-cancer").body(Body::Empty).unwrap();
+      let response = router.route_request(request).await;
+      let mut headers = HashMap::new();
+      headers.insert("Range".to_string(), "bytes=0-3367".to_string());
+      let example = JsonResponse::from_response(Response::new(
+        Format::Vcf,
+        vec![Url::new(format!(
+          "file://{}",
+          path
+            .join("data")
+            .join("vcf")
+            .join("sample1-bcbio-cancer.vcf.gz")
+            .to_string_lossy()
+        ))
+          .with_headers(Headers::new(headers))],
+      ));
+      let response = response.body().as_ref();
+      let response: Result<JsonResponse, _> = serde_json::from_slice(response);
+      println!("{:?}", example);
+      println!("{:?}", response);
+    }, &config).await;
   }
 
   #[tokio::test]
@@ -229,4 +249,16 @@ mod tests {
       assert_eq!(route, Some(Route { method: HtsgetMethod::Get, endpoint: Endpoint::Variants, route_type: RouteType::Id("id".to_string()) }));
     }, &config).await;
   }
+
+  async fn with_router<'a, F, Fut>(test: F, config: &'a HtsgetConfig)
+    where
+      F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage>>) -> Fut,
+      Fut: Future<Output = ()>
+  {
+    let router = Router::new(Arc::new(HtsGetFromStorage::new(
+      LocalStorage::new(&config.htsget_path, RegexResolver::new(&config.htsget_regex_match, &config.htsget_regex_substitution).unwrap()).unwrap()
+    )), config);
+    test(router).await
+  }
+
 }

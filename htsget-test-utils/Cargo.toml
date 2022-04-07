@@ -1,0 +1,9 @@
+[package]
+name = "htsget-test-utils"
+version = "0.1.0"
+authors = ["Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+htsget-http-core = { path = "../htsget-http-core" }
+htsget-search = { path = "../htsget-search" }
