@@ -163,7 +163,7 @@ mod tests {
 
   #[actix_web::test]
   async fn test_get() {
-    let request = test::TestRequest::get().uri("/variants/data/vcf/sample1-bcbio-cancer");
+    let request = test::TestRequest::get().uri("/variants/data/vcf/sample1-bcbio-cancer").method();
 
     with_response(request, |path, status, response: JsonResponse| {
       assert!(status.is_success());

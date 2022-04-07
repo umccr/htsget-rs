@@ -6,4 +6,7 @@ edition = "2021"
 
 [dependencies]
 htsget-http-core = { path = "../htsget-http-core" }
+htsget-config = { path = "../htsget-config" }
 htsget-search = { path = "../htsget-search" }
+async-trait = "0.1"
+http = "0.2"

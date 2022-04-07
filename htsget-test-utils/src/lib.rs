@@ -1,32 +1,29 @@
+pub mod server_tests;
+
 use std::collections::HashMap;
+use std::num::NonZeroU16;
 use std::path::Path;
 use htsget_http_core::JsonResponse;
-use htsget_search::htsget::{Format, Headers, Response, Url};
+use htsget_search::htsget::{Format, Headers, Url};
+use htsget_search::htsget::Response as HtsgetResponse;
+use async_trait::async_trait;
+use http::{Method, StatusCode};
 
-fn example_response(path: &Path, headers: Option<Headers>) -> JsonResponse {
-  let url = Url::new(format!(
-    "file://{}",
-    path
-      .join("data")
-      .join("vcf")
-      .join("sample1-bcbio-cancer.vcf.gz")
-      .to_string_lossy()
-  ));
-  if let Some(headers) = headers {
-    JsonResponse::from_response(Response::new(
-      Format::Vcf,
-      vec![url.with_headers(headers)]),
-    )
-  } else {
-    JsonResponse::from_response(Response::new(
-      Format::Vcf,
-      vec![url]),
-    )
-  }
+pub struct Header<T: Into<String>> {
+  name: T,
+  value: T
 }
 
-fn example_headers() -> Headers {
-  let mut headers = HashMap::new();
-  headers.insert("Range".to_string(), "bytes=0-3367".to_string());
-  Headers::new(headers)
+pub struct Response {
+  status: u16,
+  body: JsonResponse
+}
+
+#[async_trait]
+pub trait TestServer {
+  fn insert_header(self, header: Header<impl Into<String>>) -> Self;
+  fn set_payload(self, payload: impl Into<String>) -> Self;
+  fn uri(self, uri: impl Into<String>) -> Self;
+  fn method(self, method: impl Into<String>) -> Self;
+  async fn test_server(self) -> Response;
 }
