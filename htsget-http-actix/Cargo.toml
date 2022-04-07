@@ -19,3 +19,6 @@ htsget-search = { path = "../htsget-search" }
 htsget-config = { path = "../htsget-config" }
 futures = { version = "0.3", optional = true }
 tokio = { version = "1.17", features = ["full"], optional = true }
+
+[dev-dependencies]
+htsget-test-utils = { path = "../htsget-test-utils" }

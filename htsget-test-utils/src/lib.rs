@@ -32,11 +32,15 @@ impl Response {
   }
 }
 
-#[async_trait]
-pub trait TestServer {
+pub trait TestRequest {
   fn insert_header(self, header: Header<impl Into<String>>) -> Self;
   fn set_payload(self, payload: impl Into<String>) -> Self;
   fn uri(self, uri: impl Into<String>) -> Self;
   fn method(self, method: impl Into<String>) -> Self;
-  async fn test_server(self) -> Response;
+}
+
+#[async_trait]
+pub trait TestServer<T: TestRequest> {
+  fn get_request(&self) -> T;
+  async fn test_server(&self, request: impl TestRequest) -> Response;
 }

@@ -161,6 +161,14 @@ mod tests {
   use std::collections::HashMap;
   use std::path::{Path, PathBuf};
 
+  struct ActixTestServer<'a> {
+    config: &'a HtsgetConfig
+  }
+
+  impl<'a> TestServer for ActixTestServer<'a> {
+
+  }
+
   #[actix_web::test]
   async fn test_get() {
     let request = test::TestRequest::get().uri("/variants/data/vcf/sample1-bcbio-cancer").method();
