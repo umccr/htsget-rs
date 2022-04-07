@@ -10,3 +10,6 @@ htsget-config = { path = "../htsget-config" }
 htsget-search = { path = "../htsget-search" }
 async-trait = "0.1"
 http = "0.2"
+mime = "0.3"
+bytes = "1.1"
+serde_json = "1.0"

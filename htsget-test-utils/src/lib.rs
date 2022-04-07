@@ -7,6 +7,7 @@ use htsget_http_core::JsonResponse;
 use htsget_search::htsget::{Format, Headers, Url};
 use htsget_search::htsget::Response as HtsgetResponse;
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::{Method, StatusCode};
 
 pub struct Header<T: Into<String>> {
@@ -16,7 +17,7 @@ pub struct Header<T: Into<String>> {
 
 pub struct Response {
   status: u16,
-  body: JsonResponse
+  body: Bytes
 }
 
 #[async_trait]
