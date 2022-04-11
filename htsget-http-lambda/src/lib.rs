@@ -124,7 +124,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 mod tests {
   use std::collections::HashMap;
   use std::future::Future;
-  use std::path::PathBuf;
+  use std::path::{Path, PathBuf};
   use std::str::FromStr;
   use std::sync::Arc;
   use lambda_http::{http, Request};
@@ -184,6 +184,10 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<LambdaTestRequest<Request>> for LambdaTestServer {
+    fn get_config(&self) -> &HtsgetConfig {
+      &self.config
+    }
+
     fn get_request(&self) -> LambdaTestRequest<Request> {
       LambdaTestRequest(Request::default())
     }
@@ -204,26 +208,22 @@ mod tests {
 
   #[tokio::test]
   async fn test_get() {
-    let server = LambdaTestServer::default();
-    server_tests::test_get(&server, &server.config.htsget_path).await;
+    server_tests::test_get(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn test_post() {
-    let server = LambdaTestServer::default();
-    server_tests::test_post(&server, &server.config.htsget_path).await;
+    server_tests::test_post(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn test_parameterized_get() {
-    let server = LambdaTestServer::default();
-    server_tests::test_parameterized_get(&server, &server.config.htsget_path).await;
+    server_tests::test_parameterized_get(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn test_parameterized_post() {
-    let server = LambdaTestServer::default();
-    server_tests::test_parameterized_post(&server, &server.config.htsget_path).await;
+    server_tests::test_parameterized_post(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]

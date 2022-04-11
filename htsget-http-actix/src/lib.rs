@@ -152,7 +152,7 @@ mod tests {
 
   use actix_web::{test, web, App};
   use async_trait::async_trait;
-  use std::path::PathBuf;
+  use std::path::{Path, PathBuf};
   use actix_web::dev::Service;
   use actix_web::web::Bytes;
   use htsget_test_utils::{server_tests, Header as TestHeader, TestRequest, TestServer, Response as TestResponse};
@@ -195,6 +195,10 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
+    fn get_config(&self) -> &HtsgetConfig {
+      &self.config
+    }
+
     fn get_request(&self) -> ActixTestRequest<test::TestRequest> {
       ActixTestRequest(test::TestRequest::default())
     }
@@ -214,26 +218,22 @@ mod tests {
 
   #[actix_web::test]
   async fn test_get() {
-    let server = ActixTestServer::default();
-    server_tests::test_get(&server, &server.config.htsget_path).await;
+    server_tests::test_get(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn test_post() {
-    let server = ActixTestServer::default();
-    server_tests::test_post(&server, &server.config.htsget_path).await;
+    server_tests::test_post(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn test_parameterized_get() {
-    let server = ActixTestServer::default();
-    server_tests::test_parameterized_get(&server, &server.config.htsget_path).await;
+    server_tests::test_parameterized_get(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn test_parameterized_post() {
-    let server = ActixTestServer::default();
-    server_tests::test_parameterized_post(&server, &server.config.htsget_path).await;
+    server_tests::test_parameterized_post(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]

@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use http::{Method, StatusCode};
 use serde::{de, Deserializer};
+use htsget_config::config::HtsgetConfig;
 
 #[derive(Debug)]
 pub struct Header<T: Into<String>> {
@@ -52,6 +53,7 @@ pub trait TestRequest {
 
 #[async_trait(?Send)]
 pub trait TestServer<T: TestRequest> {
+  fn get_config(&self) -> &HtsgetConfig;
   fn get_request(&self) -> T;
   async fn test_server(&self, request: T) -> Response;
 }
