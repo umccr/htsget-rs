@@ -177,7 +177,7 @@ mod tests {
     }
 
     fn method(self, method: impl Into<String>) -> Self {
-      Self(self.0.method(method.into().parse().unwrap()))
+      Self(self.0.method(method.into().parse().expect("Expected valid method.")))
     }
   }
 
@@ -238,7 +238,6 @@ mod tests {
 
   #[actix_web::test]
   async fn test_service_info() {
-    let server = ActixTestServer::default();
-    server_tests::test_service_info(&server).await;
+    server_tests::test_service_info(&ActixTestServer::default()).await;
   }
 }

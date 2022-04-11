@@ -13,8 +13,8 @@ use serde::{de, Deserializer};
 
 #[derive(Debug)]
 pub struct Header<T: Into<String>> {
-  name: T,
-  value: T
+  pub name: T,
+  pub value: T
 }
 
 impl<T: Into<String>> Header<T> {

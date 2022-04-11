@@ -124,45 +124,111 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 mod tests {
   use std::collections::HashMap;
   use std::future::Future;
+  use std::path::PathBuf;
+  use std::str::FromStr;
   use std::sync::Arc;
-  use lambda_http::{http};
-  use lambda_http::http::Uri;
-  use http::Request;
+  use lambda_http::{http, Request};
+  use lambda_http::http::{HeaderValue, Uri};
   use serde::Serialize;
   use htsget_config::config::HtsgetConfig;
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_http_core::{Endpoint, JsonResponse};
-  use htsget_search::htsget::{Format, Headers, Response, Url};
+  use htsget_search::htsget::{Format, Headers, Url};
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::storage::local::LocalStorage;
+  use htsget_test_utils::{TestRequest, Header, TestServer, Response, server_tests};
   use crate::{Body, HtsgetMethod, Method, Route, Router, RouteType, StatusCode};
+  use async_trait::async_trait;
+  use lambda_http::Body::Text;
+  use lambda_http::http::header::HeaderName;
+
+  struct LambdaTestServer {
+    config: HtsgetConfig
+  }
+
+  struct LambdaTestRequest<T>(T);
+
+  impl TestRequest for LambdaTestRequest<Request> {
+    fn insert_header(mut self, header: Header<impl Into<String>>) -> Self {
+      self.0.headers_mut().insert(HeaderName::from_str(&header.name.into()).expect("Expected valid header name."), header.value.into().parse().expect("Expected valid header value."));
+      self
+    }
+
+    fn set_payload(mut self, payload: impl Into<String>) -> Self {
+      *self.0.body_mut() = Text(payload.into());
+      self
+    }
+
+    fn uri(mut self, uri: impl Into<String>) -> Self {
+      *self.0.uri_mut() = uri.into().parse().expect("Expected valid uri.");
+      self
+    }
+
+    fn method(mut self, method: impl Into<String>) -> Self {
+      *self.0.method_mut() = method.into().parse().expect("Expected valid method.");
+      self
+    }
+  }
+
+  impl Default for LambdaTestServer {
+    fn default() -> Self {
+      std::env::set_var(
+        "HTSGET_PATH",
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
+      );
+      let config =
+        envy::from_env::<HtsgetConfig>().expect("The environment variables weren't properly set!");
+      Self { config }
+    }
+  }
+
+  #[async_trait(?Send)]
+  impl TestServer<LambdaTestRequest<Request>> for LambdaTestServer {
+    fn get_request(&self) -> LambdaTestRequest<Request> {
+      LambdaTestRequest(Request::default())
+    }
+
+    async fn test_server(&self, request: LambdaTestRequest<Request>) -> Response {
+      let router = Router::new(Arc::new(HtsGetFromStorage::new(
+        LocalStorage::new(
+          &self.config.htsget_path,
+          RegexResolver::new(&self.config.htsget_regex_match, &self.config.htsget_regex_substitution).unwrap(),
+        ).expect("Couldn't create a Storage with the provided path"))), &self.config);
+
+      let response = router.route_request(request.0).await;
+      let status: u16 = response.status().into();
+      let body = response.body().to_vec().into();
+      Response::new(status, body)
+    }
+  }
 
   #[tokio::test]
   async fn test_get() {
-    let config = HtsgetConfig::default();
-    let path = config.htsget_path.clone();
-    with_router(|router| async move {
-      let request = Request::builder().method(Method::GET).uri("/variants/data/vcf/sample1-bcbio-cancer").body(Body::Empty).unwrap();
-      let response:Response<Body> = router.route_request(request).await;
-      let mut headers = HashMap::new();
-      headers.insert("Range".to_string(), "bytes=0-3367".to_string());
-      let example = JsonResponse::from_response(Response::new(
-        Format::Vcf,
-        vec![Url::new(format!(
-          "file://{}",
-          path
-            .join("data")
-            .join("vcf")
-            .join("sample1-bcbio-cancer.vcf.gz")
-            .to_string_lossy()
-        ))
-          .with_headers(Headers::new(headers))],
-      ));
-      let response = response.body().as_ref();
-      let response: Result<JsonResponse, _> = serde_json::from_slice(response);
-      println!("{:?}", example);
-      println!("{:?}", response);
-    }, &config).await;
+    let server = LambdaTestServer::default();
+    server_tests::test_get(&server, &server.config.htsget_path).await;
+  }
+
+  #[tokio::test]
+  async fn test_post() {
+    let server = LambdaTestServer::default();
+    server_tests::test_post(&server, &server.config.htsget_path).await;
+  }
+
+  #[tokio::test]
+  async fn test_parameterized_get() {
+    let server = LambdaTestServer::default();
+    server_tests::test_parameterized_get(&server, &server.config.htsget_path).await;
+  }
+
+  #[tokio::test]
+  async fn test_parameterized_post() {
+    let server = LambdaTestServer::default();
+    server_tests::test_parameterized_post(&server, &server.config.htsget_path).await;
+  }
+
+  #[tokio::test]
+  async fn test_service_info() {
+    server_tests::test_service_info(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]

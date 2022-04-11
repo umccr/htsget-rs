@@ -65,6 +65,8 @@ pub fn expected_response(path: &Path, class: Class) -> JsonResponse {
         .join("data")
         .join("vcf")
         .join("sample1-bcbio-cancer.vcf.gz")
+        .canonicalize()
+        .unwrap()
         .to_string_lossy()
     ))
       .with_headers(Headers::new(headers))
