@@ -127,7 +127,7 @@ mod tests {
   use std::path::{Path, PathBuf};
   use std::str::FromStr;
   use std::sync::Arc;
-  use lambda_http::{http, Request};
+  use lambda_http::{http, Request, RequestExt};
   use lambda_http::http::{HeaderValue, Uri};
   use serde::Serialize;
   use htsget_config::config::HtsgetConfig;
@@ -141,6 +141,7 @@ mod tests {
   use async_trait::async_trait;
   use lambda_http::Body::Text;
   use lambda_http::http::header::HeaderName;
+  use query_map::QueryMap;
 
   struct LambdaTestServer {
     config: HtsgetConfig
@@ -161,7 +162,11 @@ mod tests {
 
     fn uri(mut self, uri: impl Into<String>) -> Self {
       *self.0.uri_mut() = uri.into().parse().expect("Expected valid uri.");
-      self
+      if let Some(query) = self.0.uri().query().map(|s| s.to_string()) {
+        Self(self.0.with_query_string_parameters(query.parse::<QueryMap>().expect("Expected valid query parameters.")))
+      } else {
+        self
+      }
     }
 
     fn method(mut self, method: impl Into<String>) -> Self {
