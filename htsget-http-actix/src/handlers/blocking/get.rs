@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 #[cfg(not(feature = "async"))]
 use actix_web::{
-  web::{Data, Path, Query},
   Responder,
+  web::{Data, Path, Query},
 };
 
 #[cfg(not(feature = "async"))]
@@ -15,9 +15,9 @@ use htsget_http_core::Endpoint;
 use htsget_search::htsget::blocking::HtsGet;
 
 #[cfg(not(feature = "async"))]
-use crate::handlers::handle_response;
-#[cfg(not(feature = "async"))]
 use crate::AppState;
+#[cfg(not(feature = "async"))]
+use crate::handlers::handle_response;
 
 /// GET request reads endpoint
 #[cfg(not(feature = "async"))]

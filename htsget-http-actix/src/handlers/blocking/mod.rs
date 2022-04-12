@@ -1,5 +1,5 @@
 #[cfg(not(feature = "async"))]
-use actix_web::{web::Data, Responder};
+use actix_web::{Responder, web::Data};
 
 #[cfg(not(feature = "async"))]
 use htsget_http_core::blocking::service_info::get_service_info_json as base_service_info_json;
@@ -9,9 +9,9 @@ use htsget_http_core::Endpoint;
 use htsget_search::htsget::blocking::HtsGet;
 
 #[cfg(not(feature = "async"))]
-use crate::handlers::pretty_json::PrettyJson;
-#[cfg(not(feature = "async"))]
 use crate::AppState;
+#[cfg(not(feature = "async"))]
+use crate::handlers::pretty_json::PrettyJson;
 
 pub mod get;
 pub mod post;

@@ -1,4 +1,4 @@
-use actix_web::{http::StatusCode, Either, Responder};
+use actix_web::{Either, http::StatusCode, Responder};
 
 use htsget_http_core::{JsonResponse, Result};
 use pretty_json::PrettyJson;
