@@ -9,7 +9,7 @@ use htsget_search::htsget::HtsGet;
 
 use crate::handlers::FormatJson;
 
-/// Return the Json service info response.
+/// Service info endpoint.
 pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
   searcher: Arc<H>,
   endpoint: Endpoint,

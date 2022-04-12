@@ -1,3 +1,6 @@
+//! Module primarily providing http response functionality for the htsget endpoints.
+//!
+
 use lambda_http::http::{header, StatusCode};
 use lambda_http::IntoResponse;
 use serde::Serialize;
@@ -11,6 +14,7 @@ pub mod get;
 pub mod post;
 pub mod service_info;
 
+/// New type used for formatting a http response.
 pub struct FormatJson<T>(T);
 
 impl<T> FormatJson<T> {
@@ -68,11 +72,12 @@ fn handle_response(response: Result<JsonResponse>) -> impl IntoResponse {
 
 #[cfg(test)]
 mod tests {
-  use lambda_http::http::{header, HeaderMap, StatusCode};
-  use lambda_http::IntoResponse;
+  use lambda_http::http::{header, HeaderMap, Response, StatusCode};
+  use lambda_http::{Body, IntoResponse};
+  use mime::Mime;
   use serde::ser::Error;
   use serde::{Serialize, Serializer};
-  use serde_json::json;
+  use serde_json::{json, Value};
 
   use crate::handlers::FormatJson;
 
@@ -83,49 +88,50 @@ mod tests {
     where
       S: Serializer,
     {
-      Err(S::Error::custom("err"))
+      Err(S::Error::custom(json!({"value": "1"})))
     }
   }
 
   #[test]
   fn into_response() {
     let expected_body = json!({"value": "1"});
-    let expected_status_code = StatusCode::OK;
-    let mut expected_headers = HeaderMap::new();
-    expected_headers.insert(
-      header::CONTENT_TYPE,
-      mime::APPLICATION_JSON.as_ref().parse().unwrap(),
-    );
-
     let json = FormatJson(expected_body.clone());
-    let response = json.into_response();
-    assert_eq!(response.status(), expected_status_code);
-    assert_eq!(response.headers(), &expected_headers);
-
-    let json_value = serde_json::to_value(response.body()).unwrap();
-    let json_string = json_value.as_str().unwrap();
-    assert_eq!(
-      json_string,
-      serde_json::to_string_pretty(&expected_body).unwrap() + "\n"
+    test_response(
+      json.into_response(),
+      expected_body,
+      StatusCode::OK,
+      mime::APPLICATION_JSON,
     );
   }
 
   #[test]
   fn into_response_error() {
-    let expected_status_code = StatusCode::INTERNAL_SERVER_ERROR;
+    let json = FormatJson(TestError);
+    test_response(
+      json.into_response(),
+      json!({"value": "1"}),
+      StatusCode::INTERNAL_SERVER_ERROR,
+      mime::TEXT_PLAIN_UTF_8,
+    );
+  }
+
+  fn test_response(
+    response: Response<Body>,
+    expected_body: Value,
+    expected_status_code: StatusCode,
+    expected_content_type: Mime,
+  ) {
     let mut expected_headers = HeaderMap::new();
     expected_headers.insert(
       header::CONTENT_TYPE,
-      mime::TEXT_PLAIN_UTF_8.as_ref().parse().unwrap(),
+      expected_content_type.as_ref().parse().unwrap(),
     );
 
-    let json = FormatJson(TestError);
-    let response = json.into_response();
     assert_eq!(response.status(), expected_status_code);
     assert_eq!(response.headers(), &expected_headers);
 
-    let json_value = serde_json::to_value(response.body()).unwrap();
-    let json_string = json_value.as_str().unwrap();
-    assert_eq!(json_string, "err");
+    let bytes: &[u8] = response.body().as_ref();
+    let value: Value = serde_json::from_slice(bytes).unwrap();
+    assert_eq!(value, expected_body);
   }
 }

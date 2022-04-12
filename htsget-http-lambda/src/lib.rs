@@ -1,3 +1,6 @@
+//! Library providing the routing and http responses for aws lambda requests.
+//!
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -16,6 +19,7 @@ use crate::handlers::service_info::get_service_info_json;
 
 pub mod handlers;
 
+/// A request route, with a method, endpoint and route type.
 #[derive(Debug, PartialEq)]
 pub struct Route {
   method: HtsgetMethod,
@@ -23,12 +27,14 @@ pub struct Route {
   route_type: RouteType,
 }
 
+/// Valid htsget http request methods.
 #[derive(Debug, PartialEq)]
 pub enum HtsgetMethod {
   Get,
   Post,
 }
 
+/// A route type, which is either the service info endpoint, or an id represented by a string.
 #[derive(Debug, PartialEq)]
 pub enum RouteType {
   ServiceInfo,
@@ -45,6 +51,7 @@ impl Route {
   }
 }
 
+/// A Router is a struct which handles routing any htsget requests to the htsget search, using the config.
 pub struct Router<'a, H> {
   searcher: Arc<H>,
   config: &'a HtsgetConfig,
@@ -55,7 +62,8 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     Self { searcher, config }
   }
 
-  pub fn get_route(&self, method: &Method, uri: &Uri) -> Option<Route> {
+  /// Gets the Route if the request is valid, otherwise returns None.
+  fn get_route(&self, method: &Method, uri: &Uri) -> Option<Route> {
     let with_endpoint = |endpoint: Endpoint, endpoint_type: &str| {
       if !endpoint_type.is_empty() {
         let method = match *method {
@@ -86,6 +94,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     }
   }
 
+  /// Routes the request to the relevant htsget search endpoint using the lambda request, returning a http response.
   pub async fn route_request(&self, request: Request) -> Response<Body> {
     match self.get_route(request.method(), request.uri()) {
       Some(Route {
@@ -127,6 +136,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     }
   }
 
+  /// Extracts post request query parameters.
   fn extract_query_from_payload(request: &Request) -> Option<PostRequest> {
     // Check if the content type is application/json
     let content_type = request.headers().get(CONTENT_TYPE)?;
@@ -137,7 +147,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     request.payload().ok()?
   }
 
-  /// Extract a query hashmap from a request.
+  /// Extract get request query parameters.
   fn extract_query(request: &Request) -> HashMap<String, String> {
     let mut query = HashMap::new();
     // Silently ignores all but the last query key, for keys that are present more than once.

@@ -8,7 +8,7 @@ use htsget_search::htsget::HtsGet;
 
 use crate::handlers::handle_response;
 
-/// GET request reads endpoint
+/// Get request reads endpoint
 pub async fn get<H: HtsGet + Send + Sync + 'static>(
   id_path: String,
   searcher: Arc<H>,
