@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 use tokio::fs::File;
 
+use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
+
 use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;
 
