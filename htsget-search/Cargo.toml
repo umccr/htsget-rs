@@ -5,9 +5,9 @@ authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmaleni
 edition = "2021"
 
 [features]
-default = ["async"]
+default = ["async", "s3-storage"]
 async = ["tokio", "futures"]
-aws = ["aws-sdk-s3", "aws-config"]
+s3-storage = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
 async-trait = "0.1"
