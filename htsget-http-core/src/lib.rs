@@ -40,9 +40,9 @@ impl FromStr for Endpoint {
 
   fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
     match s {
-      "reads"  => Ok(Self::Reads),
-      "variants"  => Ok(Self::Variants),
-      _      => Err(())
+      "reads" => Ok(Self::Reads),
+      "variants" => Ok(Self::Variants),
+      _ => Err(()),
     }
   }
 }

@@ -1,36 +1,59 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use http::{Method, StatusCode};
+
+use http::Method;
+
 use htsget_config::config::HtsgetConfig;
-use htsget_http_core::{Endpoint, get_service_info_with, JsonResponse};
-use htsget_search::htsget::{Class, Format, Headers, Query, Url};
-use htsget_search::htsget::Class::Body;
+use htsget_http_core::{get_service_info_with, Endpoint, JsonResponse};
+use htsget_search::htsget::{Class, Format, Headers, Url};
+
 use crate::{Header, HtsgetResponse, TestRequest, TestServer};
 
 pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
-  let request = tester.get_request().method(Method::GET.to_string()).uri("/variants/data/vcf/sample1-bcbio-cancer");
+  let request = tester
+    .get_request()
+    .method(Method::GET.to_string())
+    .uri("/variants/data/vcf/sample1-bcbio-cancer");
   let response = tester.test_server(request).await;
   assert!(response.is_success());
-  assert_eq!(expected_response(&tester.get_config().htsget_path, Class::Body), response.deserialize_body().unwrap());
+  assert_eq!(
+    expected_response(&tester.get_config().htsget_path, Class::Body),
+    response.deserialize_body().unwrap()
+  );
 }
 
 fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
-  tester.get_request().method(Method::POST.to_string()).uri("/variants/data/vcf/sample1-bcbio-cancer")
-    .insert_header(Header {name: http::header::CONTENT_TYPE.to_string(), value: mime::APPLICATION_JSON.to_string() })
+  tester
+    .get_request()
+    .method(Method::POST.to_string())
+    .uri("/variants/data/vcf/sample1-bcbio-cancer")
+    .insert_header(Header {
+      name: http::header::CONTENT_TYPE.to_string(),
+      value: mime::APPLICATION_JSON.to_string(),
+    })
 }
 
 pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = post_request(tester).set_payload("{}");
   let response = tester.test_server(request).await;
   assert!(response.is_success());
-  assert_eq!(expected_response(&tester.get_config().htsget_path, Class::Body), response.deserialize_body().unwrap());
+  assert_eq!(
+    expected_response(&tester.get_config().htsget_path, Class::Body),
+    response.deserialize_body().unwrap()
+  );
 }
 
 pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>) {
-  let request = tester.get_request().method(Method::GET.to_string()).uri("/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header");
+  let request = tester
+    .get_request()
+    .method(Method::GET.to_string())
+    .uri("/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header");
   let response = tester.test_server(request).await;
   assert!(response.is_success());
-  assert_eq!(expected_response(&tester.get_config().htsget_path, Class::Header), response.deserialize_body().unwrap());
+  assert_eq!(
+    expected_response(&tester.get_config().htsget_path, Class::Header),
+    response.deserialize_body().unwrap()
+  );
 }
 
 pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>) {
@@ -38,11 +61,17 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
     .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}");
   let response = tester.test_server(request).await;
   assert!(response.is_success());
-  assert_eq!(expected_response(&tester.get_config().htsget_path, Class::Body), response.deserialize_body().unwrap());
+  assert_eq!(
+    expected_response(&tester.get_config().htsget_path, Class::Body),
+    response.deserialize_body().unwrap()
+  );
 }
 
 pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
-  let request = tester.get_request().method(Method::GET.to_string()).uri("/variants/service-info");
+  let request = tester
+    .get_request()
+    .method(Method::GET.to_string())
+    .uri("/variants/service-info");
   let response = tester.test_server(request).await;
   let expected = get_service_info_with(
     Endpoint::Variants,
@@ -53,7 +82,6 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
   assert!(response.is_success());
   assert_eq!(expected, response.deserialize_body().unwrap());
 }
-
 
 pub fn expected_response(path: &Path, class: Class) -> JsonResponse {
   let mut headers = HashMap::new();
@@ -70,8 +98,8 @@ pub fn expected_response(path: &Path, class: Class) -> JsonResponse {
         .unwrap()
         .to_string_lossy()
     ))
-      .with_headers(Headers::new(headers))
-      .with_class(class)],
+    .with_headers(Headers::new(headers))
+    .with_class(class)],
   ))
 }
 

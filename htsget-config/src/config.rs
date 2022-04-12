@@ -87,7 +87,7 @@ impl Default for HtsgetConfig {
       htsget_created_at: None,
       htsget_updated_at: None,
       htsget_environment: None,
-      htsget_s3_bucket: None
+      htsget_s3_bucket: None,
     }
   }
 }

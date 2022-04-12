@@ -1,21 +1,16 @@
-pub mod server_tests;
-
-use std::collections::HashMap;
-use std::num::NonZeroU16;
-use std::path::Path;
-use htsget_http_core::JsonResponse;
-use htsget_search::htsget::{Format, Headers, Url};
-use htsget_search::htsget::Response as HtsgetResponse;
 use async_trait::async_trait;
 use bytes::Bytes;
-use http::{Method, StatusCode};
-use serde::{de, Deserializer};
+use serde::de;
+
 use htsget_config::config::HtsgetConfig;
+use htsget_search::htsget::Response as HtsgetResponse;
+
+pub mod server_tests;
 
 #[derive(Debug)]
 pub struct Header<T: Into<String>> {
   pub name: T,
-  pub value: T
+  pub value: T,
 }
 
 impl<T: Into<String>> Header<T> {
@@ -26,7 +21,7 @@ impl<T: Into<String>> Header<T> {
 
 pub struct Response {
   status: u16,
-  body: Bytes
+  body: Bytes,
 }
 
 impl Response {
@@ -34,8 +29,10 @@ impl Response {
     Self { status, body }
   }
 
-  pub fn deserialize_body<T>(&self) -> Result<T, serde_json::Error> where
-    T: de::DeserializeOwned {
+  pub fn deserialize_body<T>(&self) -> Result<T, serde_json::Error>
+  where
+    T: de::DeserializeOwned,
+  {
     serde_json::from_slice(&self.body)
   }
 

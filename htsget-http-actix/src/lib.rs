@@ -2,29 +2,28 @@
 use std::sync::Arc;
 
 use actix_web::web;
+
 use htsget_config::config::HtsgetConfig;
 use htsget_config::regex_resolver::RegexResolver;
-
-// Async
-#[cfg(feature = "async")]
-use crate::handlers::{get, post, reads_service_info, variants_service_info};
-#[cfg(feature = "async")]
-use htsget_search::htsget::from_storage::HtsGetFromStorage;
-#[cfg(feature = "async")]
-use htsget_search::htsget::HtsGet;
-
-// Blocking
-#[cfg(not(feature = "async"))]
-use crate::handlers::blocking::{get, post, reads_service_info, variants_service_info};
 #[cfg(not(feature = "async"))]
 use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
 #[cfg(not(feature = "async"))]
 use htsget_search::htsget::blocking::HtsGet;
-
+#[cfg(feature = "async")]
+use htsget_search::htsget::from_storage::HtsGetFromStorage;
+#[cfg(feature = "async")]
+use htsget_search::htsget::HtsGet;
 #[cfg(not(feature = "async"))]
 use htsget_search::storage::blocking::local::LocalStorage;
 #[cfg(feature = "async")]
 use htsget_search::storage::local::LocalStorage;
+
+// Async
+#[cfg(feature = "async")]
+use crate::handlers::{get, post, reads_service_info, variants_service_info};
+// Blocking
+#[cfg(not(feature = "async"))]
+use crate::handlers::blocking::{get, post, reads_service_info, variants_service_info};
 
 pub mod handlers;
 
@@ -144,21 +143,22 @@ pub fn configure_server(service_config: &mut web::ServiceConfig, config: HtsgetC
 
 #[cfg(test)]
 mod tests {
+  use actix_web::web::Bytes;
+  use actix_web::{test, web, App};
+  use async_trait::async_trait;
+
+  use htsget_test_utils::{
+    server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
+  };
+
   #[cfg(feature = "async")]
   use super::async_configure_server as configure_server;
   #[cfg(not(feature = "async"))]
   use super::configure_server;
   use super::*;
 
-  use actix_web::{test, web, App};
-  use async_trait::async_trait;
-  use std::path::{Path, PathBuf};
-  use actix_web::dev::Service;
-  use actix_web::web::Bytes;
-  use htsget_test_utils::{server_tests, Header as TestHeader, TestRequest, TestServer, Response as TestResponse};
-
   struct ActixTestServer {
-    config: HtsgetConfig
+    config: HtsgetConfig,
   }
 
   struct ActixTestRequest<T>(T);
@@ -177,13 +177,19 @@ mod tests {
     }
 
     fn method(self, method: impl Into<String>) -> Self {
-      Self(self.0.method(method.into().parse().expect("Expected valid method.")))
+      Self(
+        self
+          .0
+          .method(method.into().parse().expect("Expected valid method.")),
+      )
     }
   }
 
   impl Default for ActixTestServer {
     fn default() -> Self {
-      Self { config: server_tests::default_test_config() }
+      Self {
+        config: server_tests::default_test_config(),
+      }
     }
   }
 
@@ -202,7 +208,8 @@ mod tests {
         |service_config: &mut web::ServiceConfig| {
           configure_server(service_config, self.config.clone());
         },
-      )).await;
+      ))
+      .await;
       let response = request.0.send_request(&app).await;
       let status: u16 = response.status().into();
       let bytes: Bytes = test::read_body(response).await;
