@@ -56,4 +56,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --features aws -- --test-threads=1
+          args: --features s3-storage -- --test-threads=1
