@@ -42,40 +42,40 @@ impl Route {
 }
 
 pub struct Router<'a, H> {
-  regex: Regex,
   searcher: Arc<H>,
   config: &'a HtsgetConfig
 }
 
 impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
-  const ENDPOINT_CAPTURE_NAME: &'static str = "endpoint";
-  const SERVICE_INFO_CAPTURE_NAME: &'static str = "service_info";
-  const ID_CAPTURE_NAME: &'static str = "id";
-
   pub fn new(searcher: Arc<H>, config: &'a HtsgetConfig) -> Self {
-    Self { regex: Self::regex_path(), searcher, config }
+    Self { searcher, config }
   }
 
   pub fn get_route(&self, method: &Method, uri: &Uri) -> Option<Route> {
-    let captures = self.regex.captures(uri.path())?;
-    let endpoint: Endpoint = Endpoint::from_str(captures.name(Self::ENDPOINT_CAPTURE_NAME)?.as_str()).expect("Expected valid endpoint.");
-    let method = match *method {
-      Method::GET => Some(HtsgetMethod::Get),
-      Method::POST => Some(HtsgetMethod::Post),
-      _ => None
-    }?;
+    let with_endpoint = |endpoint: Endpoint, endpoint_type: &str| {
+      if endpoint_type.is_empty() {
+        let method = match *method {
+          Method::GET => Some(HtsgetMethod::Get),
+          Method::POST => Some(HtsgetMethod::Post),
+          _ => None
+        }?;
+        if endpoint_type == "service-info" {
+          Some(Route::new(method, endpoint, RouteType::ServiceInfo))
+        } else {
+          Some(Route::new(method, endpoint, RouteType::Id(endpoint_type.to_string())))
+        }
+      } else {
+        None
+      }
+    };
 
-    if captures.name(Self::SERVICE_INFO_CAPTURE_NAME).is_some() {
-      Some(Route::new(method, endpoint, RouteType::ServiceInfo))
+    if let Some(reads) = uri.path().strip_prefix("/reads/") {
+      with_endpoint(Endpoint::Reads, reads)
+    } else if let Some(variants) = uri.path().strip_prefix("/variants/") {
+      with_endpoint(Endpoint::Variants, variants)
     } else {
-      Some(Route::new(method, endpoint, RouteType::Id(captures.name(Self::ID_CAPTURE_NAME)?.as_str().to_string())))
+      None
     }
-  }
-
-  /// Regex which matches the relevant parts of a htsget uri path.
-  fn regex_path() -> Regex {
-    let pattern= format!(r"^/(?P<{}>reads|variants)/(?:(?P<{}>service-info$)|(?P<{}>.+$))", Self::ENDPOINT_CAPTURE_NAME, Self::SERVICE_INFO_CAPTURE_NAME, Self::ID_CAPTURE_NAME);
-    Regex::new(&pattern).expect("Expected valid regex pattern.")
   }
 
   pub async fn route_request(&self, request: Request) -> Response<Body> {
