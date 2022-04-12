@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use http::{Method, StatusCode};
+use htsget_config::config::HtsgetConfig;
 use htsget_http_core::{Endpoint, get_service_info_with, JsonResponse};
 use htsget_search::htsget::{Class, Format, Headers, Query, Url};
 use htsget_search::htsget::Class::Body;
@@ -72,4 +73,12 @@ pub fn expected_response(path: &Path, class: Class) -> JsonResponse {
       .with_headers(Headers::new(headers))
       .with_class(class)],
   ))
+}
+
+pub fn default_test_config() -> HtsgetConfig {
+  std::env::set_var(
+    "HTSGET_PATH",
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
+  );
+  envy::from_env::<HtsgetConfig>().expect("Expected valid environment variables.")
 }

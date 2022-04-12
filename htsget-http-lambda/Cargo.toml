@@ -21,4 +21,4 @@ regex = "1.5.5"
 [dev-dependencies]
 htsget-test-utils = { path = "../htsget-test-utils" }
 async-trait = "0.1"
-query_map = "0.4.0"
+query_map = "0.4"

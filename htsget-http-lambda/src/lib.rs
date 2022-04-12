@@ -53,7 +53,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 
   pub fn get_route(&self, method: &Method, uri: &Uri) -> Option<Route> {
     let with_endpoint = |endpoint: Endpoint, endpoint_type: &str| {
-      if endpoint_type.is_empty() {
+      if !endpoint_type.is_empty() {
         let method = match *method {
           Method::GET => Some(HtsgetMethod::Get),
           Method::POST => Some(HtsgetMethod::Post),
@@ -177,13 +177,7 @@ mod tests {
 
   impl Default for LambdaTestServer {
     fn default() -> Self {
-      std::env::set_var(
-        "HTSGET_PATH",
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
-      );
-      let config =
-        envy::from_env::<HtsgetConfig>().expect("The environment variables weren't properly set!");
-      Self { config }
+      Self { config: server_tests::default_test_config() }
     }
   }
 

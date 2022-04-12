@@ -183,13 +183,7 @@ mod tests {
 
   impl Default for ActixTestServer {
     fn default() -> Self {
-      std::env::set_var(
-        "HTSGET_PATH",
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
-      );
-      let config =
-        envy::from_env::<HtsgetConfig>().expect("The environment variables weren't properly set!");
-      Self { config }
+      Self { config: server_tests::default_test_config() }
     }
   }
 
