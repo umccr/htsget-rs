@@ -9,6 +9,7 @@ use htsget_search::htsget::{Class, Format, Headers, Url};
 
 use crate::{Header, HtsgetResponse, TestRequest, TestServer};
 
+/// A get test.
 pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
     .get_request()
@@ -33,6 +34,7 @@ fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
     })
 }
 
+/// A post test.
 pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = post_request(tester).set_payload("{}");
   let response = tester.test_server(request).await;
@@ -43,6 +45,7 @@ pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   );
 }
 
+/// A parameterized get test.
 pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
     .get_request()
@@ -56,6 +59,7 @@ pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>)
   );
 }
 
+/// A parameterized post test.
 pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = post_request(tester)
     .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}");
@@ -67,6 +71,7 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
   );
 }
 
+/// A service info test.
 pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
     .get_request()
@@ -83,6 +88,7 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
   assert_eq!(expected, response.deserialize_body().unwrap());
 }
 
+/// An example VCF search response.
 pub fn expected_response(path: &Path, class: Class) -> JsonResponse {
   let mut headers = HashMap::new();
   headers.insert("Range".to_string(), "bytes=0-3367".to_string());
@@ -103,6 +109,7 @@ pub fn expected_response(path: &Path, class: Class) -> JsonResponse {
   ))
 }
 
+/// Default config using the current cargo manifest directory.
 pub fn default_test_config() -> HtsgetConfig {
   std::env::set_var(
     "HTSGET_PATH",
