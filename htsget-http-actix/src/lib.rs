@@ -143,19 +143,19 @@ pub fn configure_server(service_config: &mut web::ServiceConfig, config: HtsgetC
 
 #[cfg(test)]
 mod tests {
-  use actix_web::{App, test, web};
   use actix_web::web::Bytes;
+  use actix_web::{test, web, App};
   use async_trait::async_trait;
 
   use htsget_test_utils::{
-    Header as TestHeader, Response as TestResponse, server_tests, TestRequest, TestServer,
+    server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
 
-  use super::*;
   #[cfg(feature = "async")]
   use super::async_configure_server as configure_server;
   #[cfg(not(feature = "async"))]
   use super::configure_server;
+  use super::*;
 
   struct ActixTestServer {
     config: HtsgetConfig,

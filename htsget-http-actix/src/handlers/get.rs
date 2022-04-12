@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use actix_web::{
-  Responder,
   web::{Data, Path, Query},
+  Responder,
 };
 
-use htsget_http_core::{Endpoint, get_response_for_get_request};
+use htsget_http_core::{get_response_for_get_request, Endpoint};
 use htsget_search::htsget::HtsGet;
 
 use crate::AsyncAppState;

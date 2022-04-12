@@ -1,6 +1,6 @@
 use std::env::args;
 
-use actix_web::{App, HttpServer, web};
+use actix_web::{web, App, HttpServer};
 
 use htsget_config::config::{HtsgetConfig, USAGE};
 #[cfg(feature = "async")]

@@ -1,5 +1,5 @@
-use actix_web::{http::StatusCode, HttpRequest, HttpResponse, Responder};
 use actix_web::body::BoxBody;
+use actix_web::{http::StatusCode, HttpRequest, HttpResponse, Responder};
 use serde::Serialize;
 
 pub struct PrettyJson<T>(pub T);

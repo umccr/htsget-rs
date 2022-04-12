@@ -1,12 +1,12 @@
-use actix_web::Responder;
 use actix_web::web::Data;
+use actix_web::Responder;
 
-use htsget_http_core::Endpoint;
 use htsget_http_core::get_service_info_json as get_base_service_info_json;
+use htsget_http_core::Endpoint;
 use htsget_search::htsget::HtsGet;
 
-use crate::AsyncAppState;
 use crate::handlers::pretty_json::PrettyJson;
+use crate::AsyncAppState;
 
 /// Gets the JSON to return for a service-info endpoint
 pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(

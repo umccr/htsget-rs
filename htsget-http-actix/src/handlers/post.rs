@@ -1,9 +1,9 @@
 use actix_web::{
-  Responder,
   web::{Data, Json, Path},
+  Responder,
 };
 
-use htsget_http_core::{Endpoint, get_response_for_post_request, PostRequest};
+use htsget_http_core::{get_response_for_post_request, Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 
 use crate::AsyncAppState;

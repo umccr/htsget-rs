@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use http::Method;
 
 use htsget_config::config::HtsgetConfig;
-use htsget_http_core::{Endpoint, get_service_info_with, JsonResponse};
+use htsget_http_core::{get_service_info_with, Endpoint, JsonResponse};
 use htsget_search::htsget::{Class, Format, Headers, Url};
 
 use crate::{Header, HtsgetResponse, TestRequest, TestServer};
