@@ -96,7 +96,7 @@ mod tests {
   fn into_response() {
     let expected_body = json!({"value": "1"});
     let json = FormatJson(expected_body.clone());
-    test_response(
+    test_into_response(
       json.into_response(),
       expected_body,
       StatusCode::OK,
@@ -107,7 +107,7 @@ mod tests {
   #[test]
   fn into_response_error() {
     let json = FormatJson(TestError);
-    test_response(
+    test_into_response(
       json.into_response(),
       json!({"value": "1"}),
       StatusCode::INTERNAL_SERVER_ERROR,
@@ -115,7 +115,7 @@ mod tests {
     );
   }
 
-  fn test_response(
+  fn test_into_response(
     response: Response<Body>,
     expected_body: Value,
     expected_status_code: StatusCode,
