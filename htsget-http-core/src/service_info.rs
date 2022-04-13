@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
 use htsget_config::config::Config;
 use htsget_search::htsget::{Format, HtsGet};
+
+use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
 
 /// A struct representing the information that should be present in a service-info response
 #[derive(Debug, PartialEq, Serialize, Deserialize, Default)]

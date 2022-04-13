@@ -227,8 +227,6 @@ mod tests {
   use crate::htsget::Headers;
   use crate::storage::local::tests::create_local_test_files;
 
-  use super::*;
-
   async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
     F: FnOnce(Client) -> Fut,
