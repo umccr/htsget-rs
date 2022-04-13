@@ -15,8 +15,8 @@ use tokio::io::BufReader;
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::Url;
-use crate::storage::async_storage::AsyncStorage;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
+use crate::storage::Storage;
 use crate::storage::{BytesRange, StorageError};
 
 use super::{GetOptions, Result, UrlOptions};
@@ -89,16 +89,14 @@ impl AwsS3Storage {
   }
 
   async fn s3_head<K: AsRef<str> + Send>(&self, key: K) -> Result<HeadObjectOutput> {
-    Ok(
-      self
-        .client
-        .head_object()
-        .bucket(&self.bucket)
-        .key(&self.resolve_key(&key)?)
-        .send()
-        .await
-        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
-    )
+    self
+      .client
+      .head_object()
+      .bucket(&self.bucket)
+      .key(&self.resolve_key(&key)?)
+      .send()
+      .await
+      .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))
   }
 
   /// Returns the retrieval type of the object stored with the key.
@@ -179,7 +177,7 @@ impl AwsS3Storage {
 }
 
 #[async_trait]
-impl AsyncStorage for AwsS3Storage {
+impl Storage for AwsS3Storage {
   type Streamable = BufReader<Cursor<Bytes>>;
 
   /// Gets the actual s3 object as a buffered reader.
@@ -224,8 +222,13 @@ mod tests {
   use s3_server::storages::fs::FileSystem;
   use s3_server::{S3Service, SimpleAuth};
 
+  use htsget_config::regex_resolver::RegexResolver;
+
   use crate::htsget::Headers;
+  use crate::storage::aws::AwsS3Storage;
   use crate::storage::local::tests::create_local_test_files;
+  use crate::storage::StorageError;
+  use crate::storage::{BytesRange, GetOptions, Storage, UrlOptions};
 
   async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where

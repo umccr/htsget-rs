@@ -4,22 +4,37 @@ use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::io;
 
+use async_trait::async_trait;
 use thiserror::Error;
-
-#[cfg(feature = "async")]
-pub use async_storage::*;
+use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::htsget::{Class, Headers, Url};
 
-#[cfg(feature = "async")]
-pub mod async_storage;
-#[cfg(feature = "aws")]
+#[cfg(feature = "s3-storage")]
 pub mod aws;
-pub mod blocking;
-#[cfg(feature = "async")]
 pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
+
+/// A Storage represents some kind of object based storage (either locally or in the cloud)
+/// that can be used to retrieve files for alignments, variants or its respective indexes.
+#[async_trait]
+pub trait Storage {
+  type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
+
+  /// Get the object using the key.
+  async fn get<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    options: GetOptions,
+  ) -> Result<Self::Streamable>;
+
+  /// Get the url of the object represented by the key.
+  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url>;
+
+  /// Get the size of the object represented by the key.
+  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
+}
 
 #[derive(Error, Debug)]
 pub enum StorageError {
@@ -32,7 +47,7 @@ pub enum StorageError {
   #[error("Io error: {0}, with key: {1}")]
   IoError(io::Error, String),
 
-  #[cfg(feature = "aws")]
+  #[cfg(feature = "s3-storage")]
   #[error("Aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
 }

@@ -5,16 +5,15 @@ authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmaleni
 edition = "2021"
 
 [features]
-default = ["async", "s3-storage"]
-async = ["tokio", "futures"]
+default = ["s3-storage"]
 s3-storage = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
 async-trait = "0.1"
 thiserror = "1.0"
-tokio = { version = "1.17", features = ["full"], optional = true }
+tokio = { version = "1.17", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
-futures = { version = "0.3", optional = true }
+futures = { version = "0.3" }
 htsget-config = { path = "../htsget-config" }
 
 noodles = { version = "0.21", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }

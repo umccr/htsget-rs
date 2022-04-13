@@ -20,7 +20,7 @@ use crate::htsget::HtsGetError;
 use crate::{
   htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
-  storage::{AsyncStorage, BytesRange},
+  storage::{BytesRange, Storage},
 };
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
@@ -52,7 +52,7 @@ impl<S, ReaderType>
   BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
@@ -98,7 +98,7 @@ impl<S, ReaderType>
   Search<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -142,7 +142,7 @@ impl<S, ReaderType>
   SearchReads<S, ReaderType, ReferenceSequence, bai::Index, AsyncReader<ReaderType>, sam::Header>
   for BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
@@ -180,7 +180,7 @@ where
 
 impl<S, ReaderType> BamSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   pub fn new(storage: Arc<S>) -> Self {

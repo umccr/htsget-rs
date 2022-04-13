@@ -20,7 +20,7 @@ use tokio::io::AsyncSeek;
 use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
-  storage::{AsyncStorage, BytesRange},
+  storage::{BytesRange, Storage},
 };
 
 type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
@@ -52,7 +52,7 @@ impl<S, ReaderType>
   BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
@@ -66,7 +66,7 @@ where
 impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -142,7 +142,7 @@ where
 
 impl<S, ReaderType> VcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   // 1-based
