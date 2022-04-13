@@ -205,8 +205,9 @@ impl Default for UrlOptions {
 
 #[cfg(test)]
 mod tests {
-  use crate::htsget::Class;
   use std::collections::HashMap;
+
+  use crate::htsget::Class;
 
   use super::*;
 

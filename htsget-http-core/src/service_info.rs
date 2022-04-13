@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use htsget_config::config::Config;
 use htsget_search::htsget::{Format, HtsGet};
 
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
 
 /// A struct representing the information that should be present in a service-info response
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct ServiceInfo {
   pub id: String,
   pub name: String,
@@ -29,20 +30,20 @@ pub struct ServiceInfo {
   pub environment: String,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct ServiceInfoOrganization {
   pub name: String,
   pub url: String,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct ServiceInfoType {
   pub group: String,
   pub artifact: String,
   pub version: String,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct ServiceInfoHtsget {
   pub datatype: String,
   pub formats: Vec<String>,
@@ -58,7 +59,7 @@ pub fn get_service_info_with(
   fields_effective: bool,
   tags_effective: bool,
 ) -> ServiceInfo {
-  let hstget_info = ServiceInfoHtsget {
+  let htsget_info = ServiceInfoHtsget {
     datatype: match endpoint {
       Endpoint::Reads => "reads",
       Endpoint::Variants => "variants",
@@ -75,38 +76,72 @@ pub fn get_service_info_with(
     fields_parameters_effective: fields_effective,
     tags_parameters_effective: tags_effective,
   };
-  let type_info = ServiceInfoType {
-    group: "org.ga4gh".to_string(),
-    artifact: "htsget".to_string(),
-    version: "1.3.0".to_string(),
-  };
-  let organization_info = ServiceInfoOrganization {
-    name: "Snake oil".to_string(),
-    url: "https://en.wikipedia.org/wiki/Snake_oil".to_string(),
-  };
+
   ServiceInfo {
     id: "".to_string(),
-    name: "HtsGet service".to_string(),
+    name: "".to_string(),
     version: "".to_string(),
-    organization: organization_info,
-    service_type: type_info,
-    htsget: hstget_info,
+    organization: Default::default(),
+    service_type: Default::default(),
+    htsget: htsget_info,
     contact_url: "".to_string(),
-    documentation_url: "https://github.com/umccr/htsget-rs/tree/main/htsget-http-actix".to_string(),
+    documentation_url: "".to_string(),
     created_at: "".to_string(),
     updated_at: "".to_string(),
-    environment: "testing".to_string(),
+    environment: "".to_string(),
   }
 }
 
 pub fn get_service_info_json(
   endpoint: Endpoint,
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
+  config: &Config,
 ) -> ServiceInfo {
-  get_service_info_with(
-    endpoint,
-    &searcher.get_supported_formats(),
-    searcher.are_field_parameters_effective(),
-    searcher.are_tag_parameters_effective(),
+  fill_out_service_info_json(
+    get_service_info_with(
+      endpoint,
+      &searcher.get_supported_formats(),
+      searcher.are_field_parameters_effective(),
+      searcher.are_tag_parameters_effective(),
+    ),
+    config,
   )
+}
+
+/// Fills the service-info json with the data from the server config
+pub(crate) fn fill_out_service_info_json(
+  mut service_info_json: ServiceInfo,
+  config: &Config,
+) -> ServiceInfo {
+  if let Some(id) = &config.htsget_id {
+    service_info_json.id = id.clone();
+  }
+  if let Some(name) = &config.htsget_name {
+    service_info_json.name = name.clone();
+  }
+  if let Some(version) = &config.htsget_version {
+    service_info_json.version = version.clone();
+  }
+  if let Some(organization_name) = &config.htsget_organization_name {
+    service_info_json.organization.name = organization_name.clone();
+  }
+  if let Some(organization_url) = &config.htsget_organization_url {
+    service_info_json.organization.url = organization_url.clone();
+  }
+  if let Some(contact_url) = &config.htsget_contact_url {
+    service_info_json.contact_url = contact_url.clone();
+  }
+  if let Some(documentation_url) = &config.htsget_documentation_url {
+    service_info_json.documentation_url = documentation_url.clone();
+  }
+  if let Some(created_at) = &config.htsget_created_at {
+    service_info_json.created_at = created_at.clone();
+  }
+  if let Some(updated_at) = &config.htsget_updated_at {
+    service_info_json.updated_at = updated_at.clone();
+  }
+  if let Some(environment) = &config.htsget_environment {
+    service_info_json.environment = environment.clone();
+  }
+  service_info_json
 }

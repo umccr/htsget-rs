@@ -3,6 +3,8 @@ members = [
     "htsget-search",
     "htsget-http-core",
     "htsget-http-actix",
+    "htsget-http-lambda",
+    "htsget-test-utils",
     "htsget-devtools",
-    "htsget-id-resolver"
+    "htsget-config"
 ]

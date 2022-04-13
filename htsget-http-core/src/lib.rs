@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 #[cfg(feature = "async")]
 pub use async_http_core::{get_response_for_get_request, get_response_for_post_request};
@@ -28,9 +29,22 @@ const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
 
 /// A enum to distinguish between the two endpoint defined in the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
+#[derive(Debug, PartialEq)]
 pub enum Endpoint {
   Reads,
   Variants,
+}
+
+impl FromStr for Endpoint {
+  type Err = ();
+
+  fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    match s {
+      "reads" => Ok(Self::Reads),
+      "variants" => Ok(Self::Variants),
+      _ => Err(()),
+    }
+  }
 }
 
 pub(crate) fn match_endpoints_get_request(
@@ -102,7 +116,7 @@ mod tests {
   use std::path::PathBuf;
   use std::sync::Arc;
 
-  use htsget_id_resolver::RegexResolver;
+  use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},

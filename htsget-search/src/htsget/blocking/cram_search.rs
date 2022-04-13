@@ -210,10 +210,9 @@ where
 
 #[cfg(test)]
 pub mod tests {
-  use htsget_id_resolver::RegexResolver;
-
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::blocking::local::LocalStorage;
+  use htsget_config::regex_resolver::RegexResolver;
 
   use super::*;
 

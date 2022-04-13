@@ -12,7 +12,7 @@ use bytes::Bytes;
 use fluent_builders::GetObject;
 use tokio::io::BufReader;
 
-use htsget_id_resolver::{HtsGetIdResolver, RegexResolver};
+use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::Url;
 use crate::storage::async_storage::AsyncStorage;
@@ -226,8 +226,6 @@ mod tests {
 
   use crate::htsget::Headers;
   use crate::storage::local::tests::create_local_test_files;
-
-  use super::*;
 
   async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where

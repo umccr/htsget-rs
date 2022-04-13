@@ -9,8 +9,6 @@ use htsget_http_core::Endpoint;
 use htsget_search::htsget::blocking::HtsGet;
 
 #[cfg(not(feature = "async"))]
-use crate::handlers::fill_out_service_info_json;
-#[cfg(not(feature = "async"))]
 use crate::handlers::pretty_json::PrettyJson;
 #[cfg(not(feature = "async"))]
 use crate::AppState;
@@ -21,8 +19,9 @@ pub mod post;
 /// Gets the JSON to return for a service-info endpoint
 #[cfg(not(feature = "async"))]
 fn get_service_info_json<H: HtsGet>(app_state: &AppState<H>, endpoint: Endpoint) -> impl Responder {
-  PrettyJson(fill_out_service_info_json(
-    base_service_info_json(endpoint, &app_state.htsget),
+  PrettyJson(base_service_info_json(
+    endpoint,
+    &app_state.htsget,
     &app_state.config,
   ))
 }

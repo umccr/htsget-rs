@@ -1,9 +1,13 @@
 [package]
-name = "htsget-id-resolver"
+name = "htsget-config"
 version = "0.1.0"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>"]
 edition = "2021"
 
-[dependencies]
+[features]
+s3-storage = []
+default = ["s3-storage"]
 
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
 regex = "1.5"

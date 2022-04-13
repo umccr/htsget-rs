@@ -16,6 +16,10 @@ serde_json = "1.0"
 futures-util = { version = "0.3", default-features = false }
 htsget-http-core = { path = "../htsget-http-core" }
 htsget-search = { path = "../htsget-search" }
-htsget-id-resolver = { path = "../htsget-id-resolver" }
+htsget-config = { path = "../htsget-config" }
 futures = { version = "0.3", optional = true }
 tokio = { version = "1.17", features = ["full"], optional = true }
+
+[dev-dependencies]
+htsget-test-utils = { path = "../htsget-test-utils" }
+async-trait = "0.1"
