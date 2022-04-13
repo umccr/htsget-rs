@@ -210,6 +210,7 @@ mod tests {
   use std::future::Future;
   use std::net::TcpListener;
   use std::path::Path;
+  use std::sync::Once;
 
   use aws_sdk_s3::{Client, Endpoint};
   use aws_types::credentials::SharedCredentialsProvider;
@@ -230,24 +231,28 @@ mod tests {
   use crate::storage::StorageError;
   use crate::storage::{BytesRange, GetOptions, Storage, UrlOptions};
 
+  static INIT_SERVER: Once = Once::new();
+
   async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
     F: FnOnce(Client) -> Fut,
     Fut: Future<Output = ()>,
   {
-    // Setup s3-server.
-    let fs = FileSystem::new(server_base_path).unwrap();
-    let mut auth = SimpleAuth::new();
-    auth.register(String::from("access_key"), String::from("secret_key"));
-    let mut service = S3Service::new(fs);
-    service.set_auth(auth);
+    INIT_SERVER.call_once(|| {
+      // Setup s3-server.
+      let fs = FileSystem::new(server_base_path).unwrap();
+      let mut auth = SimpleAuth::new();
+      auth.register(String::from("access_key"), String::from("secret_key"));
+      let mut service = S3Service::new(fs);
+      service.set_auth(auth);
 
-    // Spawn hyper Server instance.
-    let service = service.into_shared();
-    let listener = TcpListener::bind(("localhost", 8014)).unwrap();
-    let make_service: _ =
-      make_service_fn(move |_| future::ready(Ok::<_, anyhow::Error>(service.clone())));
-    let handle = tokio::spawn(Server::from_tcp(listener).unwrap().serve(make_service));
+      // Spawn hyper Server instance.
+      let service = service.into_shared();
+      let listener = TcpListener::bind(("localhost", 8014)).unwrap();
+      let make_service: _ =
+        make_service_fn(move |_| future::ready(Ok::<_, anyhow::Error>(service.clone())));
+      tokio::spawn(Server::from_tcp(listener).unwrap().serve(make_service));
+    });
 
     // Create S3Config.
     let config = SdkConfig::builder()
@@ -264,8 +269,6 @@ mod tests {
       .build();
 
     test(Client::from_conf(s3_conf));
-
-    handle.abort();
   }
 
   async fn with_aws_s3_storage<F, Fut>(test: F)
