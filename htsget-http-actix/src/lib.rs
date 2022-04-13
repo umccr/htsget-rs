@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix_web::web;
 
-use htsget_config::config::HtsgetConfig;
+use htsget_config::config::Config;
 use htsget_config::regex_resolver::RegexResolver;
 #[cfg(not(feature = "async"))]
 use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
@@ -35,17 +35,17 @@ pub type HtsGetStorage = HtsGetFromStorage<LocalStorage>;
 #[cfg(feature = "async")]
 pub struct AsyncAppState<H: HtsGet> {
   pub htsget: Arc<H>,
-  pub config: HtsgetConfig,
+  pub config: Config,
 }
 
 #[cfg(not(feature = "async"))]
 pub struct AppState<H: HtsGet> {
   pub htsget: H,
-  pub config: HtsgetConfig,
+  pub config: Config,
 }
 
 #[cfg(feature = "async")]
-pub fn async_configure_server(service_config: &mut web::ServiceConfig, config: HtsgetConfig) {
+pub fn async_configure_server(service_config: &mut web::ServiceConfig, config: Config) {
   let htsget_path = config.htsget_path.clone();
   let regex_match = config.htsget_regex_match.clone();
   let regex_substitution = config.htsget_regex_substitution.clone();
@@ -98,7 +98,7 @@ pub fn async_configure_server(service_config: &mut web::ServiceConfig, config: H
 }
 
 #[cfg(not(feature = "async"))]
-pub fn configure_server(service_config: &mut web::ServiceConfig, config: HtsgetConfig) {
+pub fn configure_server(service_config: &mut web::ServiceConfig, config: Config) {
   let htsget_path = config.htsget_path.clone();
   let regex_match = config.htsget_regex_match.clone();
   let regex_substitution = config.htsget_regex_substitution.clone();
@@ -158,7 +158,7 @@ mod tests {
   use super::*;
 
   struct ActixTestServer {
-    config: HtsgetConfig,
+    config: Config,
   }
 
   struct ActixTestRequest<T>(T);
@@ -195,7 +195,7 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
-    fn get_config(&self) -> &HtsgetConfig {
+    fn get_config(&self) -> &Config {
       &self.config
     }
 

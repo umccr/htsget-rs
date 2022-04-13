@@ -1,4 +1,4 @@
-use htsget_config::config::HtsgetConfig;
+use htsget_config::config::Config;
 use htsget_search::htsget::blocking::HtsGet;
 
 use crate::service_info::{fill_out_service_info_json, get_service_info_with};
@@ -7,7 +7,7 @@ use crate::{Endpoint, ServiceInfo};
 pub fn get_service_info_json(
   endpoint: Endpoint,
   searcher: &impl HtsGet,
-  config: &HtsgetConfig,
+  config: &Config,
 ) -> ServiceInfo {
   fill_out_service_info_json(
     get_service_info_with(

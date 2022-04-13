@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use serde::de;
 
-use htsget_config::config::HtsgetConfig;
+use htsget_config::config::Config;
 use htsget_search::htsget::Response as HtsgetResponse;
 
 pub mod server_tests;
@@ -57,7 +57,7 @@ pub trait TestRequest {
 /// Mock server trait that should be implemented to use test functions.
 #[async_trait(?Send)]
 pub trait TestServer<T: TestRequest> {
-  fn get_config(&self) -> &HtsgetConfig;
+  fn get_config(&self) -> &Config;
   fn get_request(&self) -> T;
   async fn test_server(&self, request: T) -> Response;
 }

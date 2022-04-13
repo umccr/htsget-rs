@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use http::Method;
 
-use htsget_config::config::HtsgetConfig;
+use htsget_config::config::Config;
 use htsget_http_core::{get_service_info_with, Endpoint, JsonResponse};
 use htsget_search::htsget::{Class, Format, Headers, Url};
 
@@ -110,10 +110,10 @@ pub fn expected_response(path: &Path, class: Class) -> JsonResponse {
 }
 
 /// Default config using the current cargo manifest directory.
-pub fn default_test_config() -> HtsgetConfig {
+pub fn default_test_config() -> Config {
   std::env::set_var(
     "HTSGET_PATH",
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
   );
-  envy::from_env::<HtsgetConfig>().expect("Expected valid environment variables.")
+  envy::from_env::<Config>().expect("Expected valid environment variables.")
 }

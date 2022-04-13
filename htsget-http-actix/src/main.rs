@@ -2,7 +2,7 @@ use std::env::args;
 
 use actix_web::{web, App, HttpServer};
 
-use htsget_config::config::{HtsgetConfig, USAGE};
+use htsget_config::config::{Config, USAGE};
 #[cfg(feature = "async")]
 use htsget_http_actix::async_configure_server as configure_server;
 #[cfg(not(feature = "async"))]
@@ -16,8 +16,7 @@ async fn main() -> std::io::Result<()> {
     return Ok(());
   }
 
-  let config =
-    envy::from_env::<HtsgetConfig>().expect("The environment variables weren't properly set!");
+  let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
   let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
   HttpServer::new(move || {
     App::new().configure(|service_config: &mut web::ServiceConfig| {

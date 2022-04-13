@@ -9,7 +9,7 @@ use lambda_http::http::header::CONTENT_TYPE;
 use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::{Body, IntoResponse, Request, Response};
 
-use htsget_config::config::HtsgetConfig;
+use htsget_config::config::Config;
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 
@@ -54,11 +54,11 @@ impl Route {
 /// A Router is a struct which handles routing any htsget requests to the htsget search, using the config.
 pub struct Router<'a, H> {
   searcher: Arc<H>,
-  config: &'a HtsgetConfig,
+  config: &'a Config,
 }
 
 impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
-  pub fn new(searcher: Arc<H>, config: &'a HtsgetConfig) -> Self {
+  pub fn new(searcher: Arc<H>, config: &'a Config) -> Self {
     Self { searcher, config }
   }
 
@@ -173,7 +173,7 @@ mod tests {
   use lambda_http::{Request, RequestExt};
   use query_map::QueryMap;
 
-  use htsget_config::config::HtsgetConfig;
+  use htsget_config::config::Config;
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
@@ -183,7 +183,7 @@ mod tests {
   use crate::{HtsgetMethod, Method, Route, RouteType, Router};
 
   struct LambdaTestServer {
-    config: HtsgetConfig,
+    config: Config,
   }
 
   struct LambdaTestRequest<T>(T);
@@ -237,7 +237,7 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<LambdaTestRequest<Request>> for LambdaTestServer {
-    fn get_config(&self) -> &HtsgetConfig {
+    fn get_config(&self) -> &Config {
       &self.config
     }
 
@@ -295,7 +295,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_invalid_method() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
@@ -308,7 +308,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_no_path() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("").build().unwrap();
@@ -321,7 +321,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_no_endpoint() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/path/").build().unwrap();
@@ -334,7 +334,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_reads_no_id() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/reads/").build().unwrap();
@@ -347,7 +347,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_variants_no_id() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/variants/").build().unwrap();
@@ -360,7 +360,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_reads_service_info() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder()
@@ -384,7 +384,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_variants_service_info() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder()
@@ -408,7 +408,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_reads_id() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
@@ -429,7 +429,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_variants_id() {
-    let config = HtsgetConfig::default();
+    let config = Config::default();
     with_router(
       |router| async move {
         let uri = Uri::builder()
@@ -451,7 +451,7 @@ mod tests {
     .await;
   }
 
-  async fn with_router<'a, F, Fut>(test: F, config: &'a HtsgetConfig)
+  async fn with_router<'a, F, Fut>(test: F, config: &'a Config)
   where
     F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage>>) -> Fut,
     Fut: Future<Output = ()>,
