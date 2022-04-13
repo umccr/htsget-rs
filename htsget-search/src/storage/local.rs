@@ -9,7 +9,7 @@ use tokio::fs::File;
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::Url;
-use crate::storage::async_storage::AsyncStorage;
+use crate::storage::Storage;
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
@@ -72,7 +72,7 @@ impl LocalStorage {
 }
 
 #[async_trait]
-impl AsyncStorage for LocalStorage {
+impl Storage for LocalStorage {
   type Streamable = File;
 
   /// Get the file at the location of the key.
@@ -126,7 +126,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_folder() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "folder", GetOptions::default()).await;
+      let result = Storage::get(&storage, "folder", GetOptions::default()).await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -135,8 +135,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result =
-        AsyncStorage::get(&storage, "folder/../../passwords", GetOptions::default()).await;
+      let result = Storage::get(&storage, "folder/../../passwords", GetOptions::default()).await;
       assert!(
         matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
@@ -147,7 +146,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::get(&storage, "folder/../key1", GetOptions::default()).await;
+      let result = Storage::get(&storage, "folder/../key1", GetOptions::default()).await;
       assert!(matches!(result, Ok(_)));
     })
     .await;
@@ -156,7 +155,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::url(&storage, "non-existing-key", UrlOptions::default()).await;
+      let result = Storage::url(&storage, "non-existing-key", UrlOptions::default()).await;
       assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -165,7 +164,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_folder() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::url(&storage, "folder", UrlOptions::default()).await;
+      let result = Storage::url(&storage, "folder", UrlOptions::default()).await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -174,8 +173,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_with_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result =
-        AsyncStorage::url(&storage, "folder/../../passwords", UrlOptions::default()).await;
+      let result = Storage::url(&storage, "folder/../../passwords", UrlOptions::default()).await;
       assert!(
         matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
@@ -186,7 +184,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::url(&storage, "folder/../key1", UrlOptions::default()).await;
+      let result = Storage::url(&storage, "folder/../key1", UrlOptions::default()).await;
       let expected = Url::new(format!(
         "file://{}",
         storage.base_path().join("key1").to_string_lossy()
@@ -199,7 +197,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key_with_specified_range() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::url(
+      let result = Storage::url(
         &storage,
         "folder/../key1",
         UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
@@ -218,7 +216,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key_with_specified_open_ended_range() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::url(
+      let result = Storage::url(
         &storage,
         "folder/../key1",
         UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
@@ -237,7 +235,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn file_size() {
     with_local_storage(|storage| async move {
-      let result = AsyncStorage::head(&storage, "folder/../key1").await;
+      let result = Storage::head(&storage, "folder/../key1").await;
       let expected: u64 = 6;
       assert!(matches!(result, Ok(size) if size == expected));
     })

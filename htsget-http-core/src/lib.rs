@@ -1,22 +1,18 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-#[cfg(feature = "async")]
-pub use async_http_core::{get_response_for_get_request, get_response_for_post_request};
 pub use error::{HtsGetError, Result};
 use htsget_search::htsget::{Query, Response};
+pub use http_core::{get_response_for_get_request, get_response_for_post_request};
 pub use json_response::{JsonResponse, JsonUrl};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
-#[cfg(feature = "async")]
 pub use service_info::get_service_info_json;
 pub use service_info::get_service_info_with;
 pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
 
-#[cfg(feature = "async")]
-mod async_http_core;
-pub mod blocking;
 mod error;
+mod http_core;
 mod json_response;
 mod post_request;
 mod query_builder;

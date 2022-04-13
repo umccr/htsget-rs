@@ -18,7 +18,7 @@ use tokio::{io, select};
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
-use crate::storage::{AsyncStorage, BytesRange};
+use crate::storage::{BytesRange, Storage};
 
 pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
@@ -29,7 +29,7 @@ impl<S, ReaderType>
   SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_byte_ranges_for_all(
@@ -63,7 +63,7 @@ impl<S, ReaderType>
   SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
@@ -120,7 +120,7 @@ where
 impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -158,7 +158,7 @@ where
 
 impl<S, ReaderType> CramSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const FILE_DEFINITION_LENGTH: u64 = 26;

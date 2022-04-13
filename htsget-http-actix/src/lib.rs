@@ -1,116 +1,37 @@
-#[cfg(feature = "async")]
 use std::sync::Arc;
 
 use actix_web::web;
 
 use htsget_config::config::Config;
 use htsget_config::regex_resolver::RegexResolver;
-#[cfg(not(feature = "async"))]
-use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
-#[cfg(not(feature = "async"))]
-use htsget_search::htsget::blocking::HtsGet;
-#[cfg(feature = "async")]
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
-#[cfg(feature = "async")]
 use htsget_search::htsget::HtsGet;
-#[cfg(not(feature = "async"))]
-use htsget_search::storage::blocking::local::LocalStorage;
-#[cfg(feature = "async")]
 use htsget_search::storage::local::LocalStorage;
 
-// Async
-#[cfg(feature = "async")]
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
-// Blocking
-#[cfg(not(feature = "async"))]
-use crate::handlers::blocking::{get, post, reads_service_info, variants_service_info};
 
 pub mod handlers;
 
-#[cfg(feature = "async")]
-pub type AsyncHtsGetStorage = HtsGetFromStorage<LocalStorage>;
-#[cfg(not(feature = "async"))]
 pub type HtsGetStorage = HtsGetFromStorage<LocalStorage>;
 
-#[cfg(feature = "async")]
-pub struct AsyncAppState<H: HtsGet> {
+pub struct AppState<H: HtsGet> {
   pub htsget: Arc<H>,
   pub config: Config,
 }
 
-#[cfg(not(feature = "async"))]
-pub struct AppState<H: HtsGet> {
-  pub htsget: H,
-  pub config: Config,
-}
-
-#[cfg(feature = "async")]
-pub fn async_configure_server(service_config: &mut web::ServiceConfig, config: Config) {
-  let htsget_path = config.htsget_path.clone();
-  let regex_match = config.htsget_regex_match.clone();
-  let regex_substitution = config.htsget_regex_substitution.clone();
-  service_config
-    .app_data(web::Data::new(AsyncAppState {
-      htsget: Arc::new(AsyncHtsGetStorage::new(
-        LocalStorage::new(
-          htsget_path,
-          RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
-        )
-        .expect("Couldn't create a Storage with the provided path"),
-      )),
-      config,
-    }))
-    .service(
-      web::scope("/reads")
-        .route(
-          "/service-info",
-          web::get().to(reads_service_info::<AsyncHtsGetStorage>),
-        )
-        .route(
-          "/service-info",
-          web::post().to(reads_service_info::<AsyncHtsGetStorage>),
-        )
-        .route("/{id:.+}", web::get().to(get::reads::<AsyncHtsGetStorage>))
-        .route(
-          "/{id:.+}",
-          web::post().to(post::reads::<AsyncHtsGetStorage>),
-        ),
-    )
-    .service(
-      web::scope("/variants")
-        .route(
-          "/service-info",
-          web::get().to(variants_service_info::<AsyncHtsGetStorage>),
-        )
-        .route(
-          "/service-info",
-          web::post().to(variants_service_info::<AsyncHtsGetStorage>),
-        )
-        .route(
-          "/{id:.+}",
-          web::get().to(get::variants::<AsyncHtsGetStorage>),
-        )
-        .route(
-          "/{id:.+}",
-          web::post().to(post::variants::<AsyncHtsGetStorage>),
-        ),
-    );
-}
-
-#[cfg(not(feature = "async"))]
 pub fn configure_server(service_config: &mut web::ServiceConfig, config: Config) {
   let htsget_path = config.htsget_path.clone();
   let regex_match = config.htsget_regex_match.clone();
   let regex_substitution = config.htsget_regex_substitution.clone();
   service_config
     .app_data(web::Data::new(AppState {
-      htsget: HtsGetStorage::new(
+      htsget: Arc::new(HtsGetStorage::new(
         LocalStorage::new(
           htsget_path,
           RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
         )
         .expect("Couldn't create a Storage with the provided path"),
-      ),
+      )),
       config,
     }))
     .service(
@@ -151,10 +72,6 @@ mod tests {
     server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
 
-  #[cfg(feature = "async")]
-  use super::async_configure_server as configure_server;
-  #[cfg(not(feature = "async"))]
-  use super::configure_server;
   use super::*;
 
   struct ActixTestServer {

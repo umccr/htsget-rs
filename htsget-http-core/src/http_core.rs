@@ -5,7 +5,8 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use tokio::select;
 
-use htsget_search::htsget::{HtsGet, Response};
+use htsget_search::htsget::HtsGet;
+use htsget_search::htsget::Response;
 
 use crate::{
   convert_to_query, match_endpoints_get_request, match_endpoints_post_request, merge_responses,

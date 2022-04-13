@@ -18,7 +18,7 @@ use tokio::io::{AsyncRead, AsyncSeek};
 use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
-  storage::{AsyncStorage, BytesRange},
+  storage::{BytesRange, Storage},
 };
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
@@ -50,7 +50,7 @@ impl<S, ReaderType>
   BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
   for BcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
@@ -65,7 +65,7 @@ impl<S, ReaderType>
   Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
   for BcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
@@ -137,7 +137,7 @@ where
 
 impl<S, ReaderType> BcfSearch<S>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298

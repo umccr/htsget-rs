@@ -14,7 +14,7 @@ use crate::{
   htsget::cram_search::CramSearch,
   htsget::vcf_search::VcfSearch,
   htsget::{HtsGet, Query, Response, Result},
-  storage::AsyncStorage,
+  storage::Storage,
 };
 
 /// Implementation of the [HtsGet] trait using a [Storage].
@@ -26,7 +26,7 @@ pub struct HtsGetFromStorage<S> {
 impl<S, R> HtsGet for HtsGetFromStorage<S>
 where
   R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
-  S: AsyncStorage<Streamable = R> + Sync + Send + 'static,
+  S: Storage<Streamable = R> + Sync + Send + 'static,
 {
   async fn search(&self, query: Query) -> Result<Response> {
     match query.format {

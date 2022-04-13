@@ -6,7 +6,7 @@ use actix_web::{
 use htsget_http_core::{get_response_for_post_request, Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 
-use crate::AsyncAppState;
+use crate::AppState;
 
 use super::handle_response;
 
@@ -14,7 +14,7 @@ use super::handle_response;
 pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   request: Json<PostRequest>,
   path: Path<String>,
-  app_state: Data<AsyncAppState<H>>,
+  app_state: Data<AppState<H>>,
 ) -> impl Responder {
   handle_response(
     get_response_for_post_request(
@@ -31,7 +31,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   request: Json<PostRequest>,
   path: Path<String>,
-  app_state: Data<AsyncAppState<H>>,
+  app_state: Data<AppState<H>>,
 ) -> impl Responder {
   handle_response(
     get_response_for_post_request(

@@ -24,7 +24,7 @@ use tokio::task::JoinHandle;
 use crate::storage::GetOptions;
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
-  storage::{AsyncStorage, BytesRange, UrlOptions},
+  storage::{BytesRange, Storage, UrlOptions},
 };
 
 /// Helper function to find the first non-none value from a set of futures.
@@ -85,7 +85,7 @@ where
 pub(crate) trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
   Header: FromStr + Send + Sync,
@@ -162,7 +162,7 @@ where
 pub(crate) trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
   Header: FromStr + Send,
@@ -304,7 +304,7 @@ where
 pub(crate) trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
@@ -379,7 +379,7 @@ where
 impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
   SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
 where
-  S: AsyncStorage<Streamable = ReaderType> + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
