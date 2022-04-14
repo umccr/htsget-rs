@@ -27,6 +27,10 @@ fn default_port() -> String {
   "8080".to_string()
 }
 
+fn default_localstorage_port() -> String {
+  "8081".to_string()
+}
+
 fn default_ip() -> String {
   "127.0.0.1".to_string()
 }
@@ -67,6 +71,10 @@ pub struct Config {
   pub htsget_updated_at: Option<String>,
   pub htsget_environment: Option<String>,
   pub htsget_s3_bucket: Option<String>,
+  #[serde(default = "default_ip")]
+  pub htsget_localstorage_ip: String,
+  #[serde(default = "default_localstorage_port")]
+  pub htsget_localstorage_port: String
 }
 
 impl Default for Config {
@@ -88,6 +96,8 @@ impl Default for Config {
       htsget_updated_at: None,
       htsget_environment: None,
       htsget_s3_bucket: None,
+      htsget_localstorage_ip: default_ip(),
+      htsget_localstorage_port: default_localstorage_port()
     }
   }
 }
