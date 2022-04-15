@@ -1,10 +1,15 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use axum::handler::Handler;
+use axum::Router;
 use tokio::fs::File;
+use axum_extra::routing::SpaRouter;
+use tokio::task::JoinHandle;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
@@ -13,15 +18,41 @@ use crate::storage::Storage;
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
+/// The local storage static http server.
+#[derive(Debug)]
+pub struct LocalStorageServer {
+  ip: String,
+  port: String,
+  handle: JoinHandle<()>
+}
+
+impl LocalStorageServer {
+  pub fn start_server<P: AsRef<Path>>(path: P, ip: String, port: String) -> Self {
+    let app = Router::new().merge(SpaRouter::new("/data", path));
+    Self {
+      handle: tokio::spawn(
+        async move {
+          axum::Server::bind(&format!("{}:{}", ip, port).parse().unwrap())
+            .serve(app.into_make_service())
+            .await
+            .expect("Unable to start LocalStorage server.")
+        }),
+      ip,
+      port
+    }
+  }
+}
+
 /// Implementation for the [Storage] trait using the local file system.
 #[derive(Debug)]
 pub struct LocalStorage {
   base_path: PathBuf,
   id_resolver: RegexResolver,
+  server: LocalStorageServer
 }
 
 impl LocalStorage {
-  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver, ip: String, port: String) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -30,6 +61,7 @@ impl LocalStorage {
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         id_resolver,
+        server: LocalStorageServer::start_server(canonicalized_base_path.clone(), ip, port)
       })
   }
 
@@ -84,7 +116,7 @@ impl Storage for LocalStorage {
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
     let path = self.get_path_from_key(&key)?;
-    let url = Url::new(format!("file://{}", path.to_string_lossy()));
+    let url = Url::new(format!("https://{}", path.to_string_lossy()));
     Ok(options.apply(url))
   }
 

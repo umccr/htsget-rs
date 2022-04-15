@@ -9,6 +9,8 @@ default = ["s3-storage"]
 s3-storage = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
+axum = "0.5.1"
+axum-extra = { version = "0.2.1", features = ["spa"] }
 async-trait = "0.1"
 thiserror = "1.0"
 tokio = { version = "1.17", features = ["full"] }
