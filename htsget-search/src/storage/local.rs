@@ -13,7 +13,7 @@ use tokio::task::JoinHandle;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
-use crate::htsget::Url;
+use crate::htsget::{HtsGetError, Url};
 use crate::storage::Storage;
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
@@ -23,7 +23,7 @@ use super::{GetOptions, Result, StorageError, UrlOptions};
 pub struct LocalStorageServer {
   ip: String,
   port: String,
-  handle: JoinHandle<()>
+  handle: JoinHandle<Result<()>>
 }
 
 impl LocalStorageServer {
@@ -32,10 +32,9 @@ impl LocalStorageServer {
     Self {
       handle: tokio::spawn(
         async move {
-          axum::Server::bind(&format!("{}:{}", ip, port).parse().unwrap())
+          axum::Server::bind(&format!("{}:{}", ip.clone(), port.clone()).parse().unwrap())
             .serve(app.into_make_service())
-            .await
-            .expect("Unable to start LocalStorage server.")
+            .await.map_err(|err| StorageError::ResponseServerError(err.to_string()))
         }),
       ip,
       port

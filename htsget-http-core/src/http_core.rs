@@ -50,7 +50,7 @@ pub async fn get_response_for_post_request(
   let mut responses: Vec<Response> = Vec::new();
   loop {
     select! {
-      Some(next) = futures.next() => responses.push(next.map_err(|err| HtsGetError::ConcurrencyError(err.to_string()))?.map_err(HtsGetError::from)?),
+      Some(next) = futures.next() => responses.push(next.map_err(|err| HtsGetError::InternalError(err.to_string()))?.map_err(HtsGetError::from)?),
       else => break
     }
   }

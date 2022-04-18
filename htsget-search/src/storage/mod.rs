@@ -50,6 +50,9 @@ pub enum StorageError {
   #[cfg(feature = "s3-storage")]
   #[error("Aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
+
+  #[error("Url response server error: {0}")]
+  ResponseServerError(String)
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
