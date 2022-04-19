@@ -118,6 +118,7 @@ pub(crate) mod tests {
 
   use crate::htsget::{Headers, Url};
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
+  use crate::storage::local_server::LocalStorageServer;
 
   use super::*;
 
@@ -278,11 +279,11 @@ pub(crate) mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(LocalStorage) -> Fut,
+    F: FnOnce(LocalStorage<LocalStorageServer>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
-    test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
+    test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap(), LocalStorageServer::new("127.0.0.1", "8081")).unwrap())
       .await
   }
 }

@@ -270,6 +270,7 @@ pub mod tests {
 
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
+  use crate::storage::local_server::LocalStorageServer;
 
   use super::*;
 
@@ -390,7 +391,7 @@ pub mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<LocalStorageServer>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let base_path = std::env::current_dir()
@@ -399,12 +400,12 @@ pub mod tests {
       .unwrap()
       .join("data/cram");
     test(Arc::new(
-      LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+      LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap(), LocalStorageServer::new("127.0.0.1", "8081")).unwrap(),
     ))
     .await
   }
 
-  pub(crate) fn expected_url(storage: Arc<LocalStorage>) -> String {
+  pub(crate) fn expected_url(storage: Arc<LocalStorage<LocalStorageServer>>) -> String {
     format!(
       "file://{}",
       storage
