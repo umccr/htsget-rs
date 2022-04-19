@@ -13,6 +13,7 @@ use crate::htsget::{Class, Headers, Url};
 #[cfg(feature = "s3-storage")]
 pub mod aws;
 pub mod local;
+pub mod local_server;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
@@ -34,6 +35,18 @@ pub trait Storage {
 
   /// Get the size of the object represented by the key.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
+}
+
+/// Formats a url for use with storage.
+pub trait UrlFormatter {
+  /// Returns the url with the path.
+  fn format_url(&self, path: String) -> String;
+
+  /// Returns the scheme
+  fn format_scheme(&self) -> String;
+
+  /// Returns the authority
+  fn format_authority(&self) -> String;
 }
 
 #[derive(Error, Debug)]

@@ -14,44 +14,21 @@ use tokio::task::JoinHandle;
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::{HtsGetError, Url};
-use crate::storage::Storage;
+use crate::storage::{Storage, UrlFormatter};
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
-/// The local storage static http server.
+/// Implementation for the [Storage] trait using the local file system. [T] is the type of the
+/// server struct, which is used for formatting urls.
 #[derive(Debug)]
-pub struct LocalStorageServer {
-  ip: String,
-  port: String,
-  handle: JoinHandle<Result<()>>
-}
-
-impl LocalStorageServer {
-  pub fn start_server<P: AsRef<Path>>(path: P, ip: String, port: String) -> Self {
-    let app = Router::new().merge(SpaRouter::new("/data", path));
-    Self {
-      handle: tokio::spawn(
-        async move {
-          axum::Server::bind(&format!("{}:{}", ip.clone(), port.clone()).parse().unwrap())
-            .serve(app.into_make_service())
-            .await.map_err(|err| StorageError::ResponseServerError(err.to_string()))
-        }),
-      ip,
-      port
-    }
-  }
-}
-
-/// Implementation for the [Storage] trait using the local file system.
-#[derive(Debug)]
-pub struct LocalStorage {
+pub struct LocalStorage<T> {
   base_path: PathBuf,
   id_resolver: RegexResolver,
-  server: LocalStorageServer
+  server: T
 }
 
-impl LocalStorage {
-  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver, ip: String, port: String) -> Result<Self> {
+impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
+  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver, response_server: T) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -60,7 +37,7 @@ impl LocalStorage {
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         id_resolver,
-        server: LocalStorageServer::start_server(canonicalized_base_path.clone(), ip, port)
+        server: response_server
       })
   }
 
@@ -103,7 +80,7 @@ impl LocalStorage {
 }
 
 #[async_trait]
-impl Storage for LocalStorage {
+impl<T: UrlFormatter + Send + Sync> Storage for LocalStorage<T> {
   type Streamable = File;
 
   /// Get the file at the location of the key.
@@ -113,9 +90,8 @@ impl Storage for LocalStorage {
 
   /// Get a url for the file at key.
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
     let path = self.get_path_from_key(&key)?;
-    let url = Url::new(format!("https://{}", path.to_string_lossy()));
+    let url = Url::new(self.server.format_url(path.to_string_lossy().to_string()));
     Ok(options.apply(url))
   }
 
