@@ -1,8 +1,9 @@
+use std::net::{AddrParseError, SocketAddr, TcpListener};
 use std::path::Path;
-use axum::Router;
+use axum::{Error, Router};
 use axum_extra::routing::SpaRouter;
 use tokio::task::JoinHandle;
-use crate::storage::UrlFormatter;
+use crate::storage::{Storage, UrlFormatter};
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
 /// The local storage static http server.
@@ -19,16 +20,28 @@ impl LocalStorageServer {
     Self { ip: ip.into(), port: port.into() }
   }
 
-  pub fn start_server<P: AsRef<Path>>(path: P, ip: String, port: String) -> JoinHandle<Result<()>> {
+  pub fn start_server<P: AsRef<Path>>(&self, path: P) -> Result<JoinHandle<Result<()>>> {
     let app = Router::new().merge(SpaRouter::new(Self::SERVE_ASSETS_AT, path));
-    let ip_copy = ip.clone();
-    let port_copy = port.clone();
-    tokio::spawn(
+    let addr = format!("{}:{}", self.ip, self.port).parse::<SocketAddr>().map_err(|err| StorageError::ResponseServerError(err.to_string()))?;
+    let listener = TcpListener::bind(addr)?;
+    Ok(tokio::spawn(
         async move {
-          axum::Server::bind(&format!("{}:{}", ip_copy, port_copy).parse().unwrap())
+          Ok(axum::Server::from_tcp(listener)?
             .serve(app.into_make_service())
-            .await.map_err(|err| StorageError::ResponseServerError(err.to_string()))
-        })
+            .await?)
+        }))
+  }
+}
+
+impl From<hyper::Error> for StorageError {
+  fn from(error: hyper::Error) -> Self {
+    StorageError::ResponseServerError(error.to_string())
+  }
+}
+
+impl From<AddrParseError> for StorageError {
+  fn from(error: AddrParseError) -> Self {
+    StorageError::InvalidInput(error.to_string())
   }
 }
 

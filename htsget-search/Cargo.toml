@@ -9,6 +9,7 @@ default = ["s3-storage"]
 s3-storage = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
+hyper = "0.14"
 axum = "0.5.1"
 axum-extra = { version = "0.2.1", features = ["spa"] }
 async-trait = "0.1"

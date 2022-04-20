@@ -57,15 +57,18 @@ pub enum StorageError {
   #[error("Key not found: {0}")]
   KeyNotFound(String),
 
-  #[error("Io error: {0}, with key: {1}")]
-  IoError(io::Error, String),
+  #[error("Io error: {0}")]
+  IoError(#[from] io::Error),
 
   #[cfg(feature = "s3-storage")]
   #[error("Aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
 
   #[error("Url response server error: {0}")]
-  ResponseServerError(String)
+  ResponseServerError(String),
+
+  #[error("Invalid input: {0}")]
+  InvalidInput(String)
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
