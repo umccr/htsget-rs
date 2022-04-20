@@ -73,9 +73,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
 
   async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
-    File::open(path)
-      .await
-      .map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
+    Ok(File::open(path).await?)
   }
 }
 

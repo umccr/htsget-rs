@@ -95,10 +95,11 @@ impl From<StorageError> for HtsGetError {
       StorageError::InvalidKey(key) => {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
-      StorageError::IoError(e, key) => Self::IoError(format!("Io error: {}, from ID: {}", e, key)),
+      StorageError::IoError(e) => Self::IoError(format!("Io error: {}", e)),
       #[cfg(feature = "s3-storage")]
       StorageError::AwsS3Error { .. } => Self::IoError(format!("AWS S3 error: {:?}", err)),
-      StorageError::ResponseServerError(e)  => Self::InternalError(format!("Error using url response server {}", e))
+      StorageError::ResponseServerError(e)  => Self::InternalError(format!("Error using url response server: {}", e)),
+      StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e))
     }
   }
 }
