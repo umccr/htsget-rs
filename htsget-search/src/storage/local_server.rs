@@ -1,8 +1,10 @@
 use std::net::{AddrParseError, SocketAddr, TcpListener};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use axum::{Error, Router};
 use axum::routing::get;
 use axum_extra::routing::SpaRouter;
+use axum_server::tls_rustls::RustlsConfig;
+use http::uri::Scheme;
 use tokio::task::JoinHandle;
 use crate::storage::{Storage, UrlFormatter};
 use super::{GetOptions, Result, StorageError, UrlOptions};
@@ -11,26 +13,43 @@ use super::{GetOptions, Result, StorageError, UrlOptions};
 #[derive(Debug)]
 pub struct LocalStorageServer {
   ip: String,
-  port: String
+  port: String,
+  cert_path: Option<PathBuf>,
+  key_path: Option<PathBuf>,
+  scheme: axum::http::uri::Scheme
 }
 
 impl LocalStorageServer {
   const SERVE_ASSETS_AT: &'static str = "/data";
 
-  pub fn new(ip: impl Into<String>, port: impl Into<String>) -> Self {
-    Self { ip: ip.into(), port: port.into() }
+  pub fn new<P: AsRef<Path>>(ip: impl Into<String>, port: impl Into<String>, cert_path: Option<PathBuf>, key_path: Option<PathBuf>) -> Self {
+    let scheme = if let (Some(_), Some(_)) = (&cert_path, &key_path) {
+      axum::http::uri::Scheme::HTTPS
+    } else {
+      axum::http::uri::Scheme::HTTP
+    };
+
+    Self { ip: ip.into(), port: port.into(), cert_path, key_path, scheme }
   }
 
-  pub fn start_server<P: AsRef<Path>>(&self, path: P) -> Result<JoinHandle<Result<()>>> {
+  pub async fn start_server<P: AsRef<Path>>(&self, path: P) -> Result<JoinHandle<Result<()>>> {
     let app = Router::new().merge(SpaRouter::new(Self::SERVE_ASSETS_AT, path));
+
     let addr = format!("{}:{}", self.ip, self.port).parse::<SocketAddr>().map_err(|err| StorageError::ResponseServerError(err.to_string()))?;
-    let listener = TcpListener::bind(addr)?;
-    Ok(tokio::spawn(
-        async move {
-          Ok(axum::Server::from_tcp(listener)?
-            .serve(app.into_make_service())
-            .await?)
-        }))
+
+    let cert_path = self.cert_path.clone();
+    let key_path = self.key_path.clone();
+    Ok(tokio::spawn(async move { Ok(
+      if let (Some(cert_path), Some(key_path)) = (cert_path, key_path) {
+        let config = RustlsConfig::from_pem_file(
+          cert_path,
+          key_path,
+        ).await.map_err(|err| StorageError::ResponseServerError(err.to_string()))?;
+        axum_server::bind_rustls(addr, config).serve(app.into_make_service()).await?
+      } else {
+        axum_server::bind(addr).serve(app.into_make_service()).await?
+      }
+    )}))
   }
 }
 
@@ -53,7 +72,7 @@ impl UrlFormatter for LocalStorageServer {
   }
 
   fn format_scheme(&self) -> String {
-    axum::http::uri::Scheme::HTTP.to_string()
+    self.scheme.to_string()
   }
 
   fn format_authority(&self) -> String {

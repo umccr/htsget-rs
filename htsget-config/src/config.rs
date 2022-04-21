@@ -74,7 +74,9 @@ pub struct Config {
   #[serde(default = "default_ip")]
   pub htsget_localstorage_ip: String,
   #[serde(default = "default_localstorage_port")]
-  pub htsget_localstorage_port: String
+  pub htsget_localstorage_port: String,
+  pub htsget_localstorage_cert: Option<PathBuf>,
+  pub htsget_localstorage_key: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -97,7 +99,9 @@ impl Default for Config {
       htsget_environment: None,
       htsget_s3_bucket: None,
       htsget_localstorage_ip: default_ip(),
-      htsget_localstorage_port: default_localstorage_port()
+      htsget_localstorage_port: default_localstorage_port(),
+      htsget_localstorage_cert: None,
+      htsget_localstorage_key: None
     }
   }
 }
