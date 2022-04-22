@@ -7,12 +7,13 @@ use htsget_config::regex_resolver::RegexResolver;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::local::LocalStorage;
+use htsget_search::storage::local_server::LocalStorageServer;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
 
 pub mod handlers;
 
-pub type HtsGetStorage = HtsGetFromStorage<LocalStorage>;
+pub type HtsGetStorage = HtsGetFromStorage<LocalStorage<LocalStorageServer>>;
 
 pub struct AppState<H: HtsGet> {
   pub htsget: Arc<H>,
@@ -29,6 +30,7 @@ pub fn configure_server(service_config: &mut web::ServiceConfig, config: Config)
         LocalStorage::new(
           htsget_path,
           RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
+          LocalStorageServer::new(&config.htsget_localstorage_ip, &config.htsget_localstorage_port)
         )
         .expect("Couldn't create a Storage with the provided path"),
       )),
