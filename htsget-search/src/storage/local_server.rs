@@ -8,7 +8,7 @@ use crate::storage::{Storage, UrlFormatter};
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
 /// The local storage static http server.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalStorageServer {
   ip: String,
   port: String

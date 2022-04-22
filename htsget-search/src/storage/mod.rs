@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::io;
+use std::io::ErrorKind;
 
 use async_trait::async_trait;
 use thiserror::Error;
@@ -69,6 +70,12 @@ pub enum StorageError {
 
   #[error("Invalid input: {0}")]
   InvalidInput(String)
+}
+
+impl From<StorageError> for std::io::Error {
+  fn from(err: StorageError) -> Self {
+    Self::new(ErrorKind::Other, err)
+  }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

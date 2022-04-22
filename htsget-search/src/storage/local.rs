@@ -24,11 +24,11 @@ use super::{GetOptions, Result, StorageError, UrlOptions};
 pub struct LocalStorage<T> {
   base_path: PathBuf,
   id_resolver: RegexResolver,
-  server: T
+  url_formatter: T
 }
 
 impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
-  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver, response_server: T) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver, url_formatter: T) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -37,7 +37,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         id_resolver,
-        server: response_server
+        url_formatter
       })
   }
 
@@ -89,7 +89,7 @@ impl<T: UrlFormatter + Send + Sync> Storage for LocalStorage<T> {
   /// Get a url for the file at key.
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let path = self.get_path_from_key(&key)?;
-    let url = Url::new(self.server.format_url(path.to_string_lossy().to_string()));
+    let url = Url::new(self.url_formatter.format_url(path.to_string_lossy().to_string()));
     Ok(options.apply(url))
   }
 
