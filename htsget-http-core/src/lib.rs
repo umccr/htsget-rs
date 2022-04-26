@@ -118,6 +118,7 @@ mod tests {
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
     storage::local::LocalStorage,
   };
+  use htsget_search::storage::local_server::LocalStorageServer;
 
   use super::*;
 
@@ -132,7 +133,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
-          "file://{}",
+          "http://127.0.0.1:8081{}",
           get_base_path()
             .join("bam")
             .join("htsnexus_test_NA12878.bam")
@@ -170,7 +171,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
         vec![Url::new(format!(
-          "file://{}",
+          "http://127.0.0.1:8081{}",
           get_base_path()
             .join("vcf")
             .join("sample1-bcbio-cancer.vcf.gz")
@@ -204,7 +205,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
-          "file://{}",
+          "http://127.0.0.1:8081{}",
           get_base_path()
             .join("bam")
             .join("htsnexus_test_NA12878.bam")
@@ -266,7 +267,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
         vec![Url::new(format!(
-          "file://{}",
+          "http://127.0.0.1:8081{}",
           get_base_path()
             .join("vcf")
             .join("sample1-bcbio-cancer.vcf.gz")
@@ -287,7 +288,7 @@ mod tests {
 
   fn get_searcher() -> Arc<impl HtsGet> {
     Arc::new(HtsGetFromStorage::new(
-      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap(), LocalStorageServer::new("127.0.0.1", "8081")).unwrap(),
     ))
   }
 }

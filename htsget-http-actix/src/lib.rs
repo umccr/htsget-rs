@@ -78,7 +78,7 @@ mod tests {
   use super::*;
 
   struct ActixTestServer {
-    config: Config,
+    config: Config
   }
 
   struct ActixTestRequest<T>(T);

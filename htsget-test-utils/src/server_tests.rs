@@ -16,9 +16,10 @@ pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
     .method(Method::GET.to_string())
     .uri("/variants/data/vcf/sample1-bcbio-cancer");
   let response = tester.test_server(request).await;
+  let url_path = expected_local_storage_path(tester.get_config());
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&tester.get_config().htsget_path, Class::Body),
+    expected_response(&tester.get_config().htsget_path, Class::Body, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -38,9 +39,10 @@ fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
 pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = post_request(tester).set_payload("{}");
   let response = tester.test_server(request).await;
+  let url_path = expected_local_storage_path(tester.get_config());
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&tester.get_config().htsget_path, Class::Body),
+    expected_response(&tester.get_config().htsget_path, Class::Body, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -52,9 +54,10 @@ pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>)
     .method(Method::GET.to_string())
     .uri("/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header");
   let response = tester.test_server(request).await;
+  let url_path = expected_local_storage_path(tester.get_config());
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&tester.get_config().htsget_path, Class::Header),
+    expected_response(&tester.get_config().htsget_path, Class::Header, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -64,9 +67,10 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
   let request = post_request(tester)
     .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}");
   let response = tester.test_server(request).await;
+  let url_path = expected_local_storage_path(tester.get_config());
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&tester.get_config().htsget_path, Class::Body),
+    expected_response(&tester.get_config().htsget_path, Class::Body, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -88,14 +92,18 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
   assert_eq!(expected, response.deserialize_body().unwrap());
 }
 
+fn expected_local_storage_path(config: &Config) -> String {
+  format!("http://{}:{}", config.htsget_localstorage_ip, config.htsget_localstorage_port)
+}
+
 /// An example VCF search response.
-pub fn expected_response(path: &Path, class: Class) -> JsonResponse {
+pub fn expected_response(path: &Path, class: Class, url_path: String) -> JsonResponse {
   let mut headers = HashMap::new();
   headers.insert("Range".to_string(), "bytes=0-3367".to_string());
   JsonResponse::from_response(HtsgetResponse::new(
     Format::Vcf,
-    vec![Url::new(format!(
-      "file://{}",
+    vec![Url::new(format!("{}{}",
+      url_path,
       path
         .join("data")
         .join("vcf")
