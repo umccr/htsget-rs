@@ -93,7 +93,10 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 }
 
 fn expected_local_storage_path(config: &Config) -> String {
-  format!("http://{}:{}", config.htsget_localstorage_ip, config.htsget_localstorage_port)
+  format!(
+    "http://{}:{}",
+    config.htsget_localstorage_ip, config.htsget_localstorage_port
+  )
 }
 
 /// An example VCF search response.
@@ -102,7 +105,8 @@ pub fn expected_response(path: &Path, class: Class, url_path: String) -> JsonRes
   headers.insert("Range".to_string(), "bytes=0-3367".to_string());
   JsonResponse::from_response(HtsgetResponse::new(
     Format::Vcf,
-    vec![Url::new(format!("{}{}",
+    vec![Url::new(format!(
+      "{}{}",
       url_path,
       path
         .join("data")

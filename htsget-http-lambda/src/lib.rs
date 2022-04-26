@@ -256,7 +256,7 @@ mod tests {
               &self.config.htsget_regex_substitution,
             )
             .unwrap(),
-            LocalStorageServer::new("127.0.0.1", "8081")
+            LocalStorageServer::new("127.0.0.1", "8081"),
           )
           .expect("Couldn't create a Storage with the provided path"),
         )),
@@ -467,7 +467,7 @@ mod tests {
             &config.htsget_regex_substitution,
           )
           .unwrap(),
-          LocalStorageServer::new("127.0.0.1", "8081")
+          LocalStorageServer::new("127.0.0.1", "8081"),
         )
         .unwrap(),
       )),

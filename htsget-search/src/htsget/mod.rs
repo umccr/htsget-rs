@@ -98,8 +98,10 @@ impl From<StorageError> for HtsGetError {
       StorageError::IoError(e) => Self::IoError(format!("Io error: {}", e)),
       #[cfg(feature = "s3-storage")]
       StorageError::AwsS3Error { .. } => Self::IoError(format!("AWS S3 error: {:?}", err)),
-      StorageError::ResponseServerError(e)  => Self::InternalError(format!("Error using url response server: {}", e)),
-      StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e))
+      StorageError::ResponseServerError(e) => {
+        Self::InternalError(format!("Error using url response server: {}", e))
+      }
+      StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e)),
     }
   }
 }

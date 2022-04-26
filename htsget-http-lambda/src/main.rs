@@ -23,7 +23,10 @@ async fn main() -> Result<(), Error> {
         &config.htsget_regex_substitution,
       )
       .unwrap(),
-      LocalStorageServer::new(&config.htsget_localstorage_ip, &config.htsget_localstorage_port)
+      LocalStorageServer::new(
+        &config.htsget_localstorage_ip,
+        &config.htsget_localstorage_port,
+      ),
     )
     .unwrap(),
   ));

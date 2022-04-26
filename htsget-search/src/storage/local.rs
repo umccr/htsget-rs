@@ -1,19 +1,14 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use axum::handler::Handler;
-use axum::Router;
 use tokio::fs::File;
-use axum_extra::routing::SpaRouter;
-use tokio::task::JoinHandle;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
-use crate::htsget::{HtsGetError, Url};
+use crate::htsget::Url;
 use crate::storage::{Storage, UrlFormatter};
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
@@ -24,11 +19,15 @@ use super::{GetOptions, Result, StorageError, UrlOptions};
 pub struct LocalStorage<T> {
   base_path: PathBuf,
   id_resolver: RegexResolver,
-  url_formatter: T
+  url_formatter: T,
 }
 
 impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
-  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver, url_formatter: T) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(
+    base_path: P,
+    id_resolver: RegexResolver,
+    url_formatter: T,
+  ) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -37,7 +36,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         id_resolver,
-        url_formatter
+        url_formatter,
       })
   }
 
@@ -89,7 +88,11 @@ impl<T: UrlFormatter + Send + Sync> Storage for LocalStorage<T> {
   /// Get a url for the file at key.
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let path = self.get_path_from_key(&key)?;
-    let url = Url::new(self.url_formatter.format_url(path.to_string_lossy().to_string()));
+    let url = Url::new(
+      self
+        .url_formatter
+        .format_url(path.to_string_lossy().to_string()),
+    );
     Ok(options.apply(url))
   }
 
@@ -115,8 +118,8 @@ pub(crate) mod tests {
   use tokio::io::AsyncWriteExt;
 
   use crate::htsget::{Headers, Url};
-  use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
   use crate::storage::local_server::LocalStorageServer;
+  use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
 
   use super::*;
 
@@ -281,7 +284,14 @@ pub(crate) mod tests {
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
-    test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap(), LocalStorageServer::new("127.0.0.1", "8081")).unwrap())
-      .await
+    test(
+      LocalStorage::new(
+        base_path.path(),
+        RegexResolver::new(".*", "$0").unwrap(),
+        LocalStorageServer::new("127.0.0.1", "8081"),
+      )
+      .unwrap(),
+    )
+    .await
   }
 }

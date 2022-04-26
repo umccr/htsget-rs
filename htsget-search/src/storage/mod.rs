@@ -69,7 +69,7 @@ pub enum StorageError {
   ResponseServerError(String),
 
   #[error("Invalid input: {0}")]
-  InvalidInput(String)
+  InvalidInput(String),
 }
 
 impl From<StorageError> for std::io::Error {

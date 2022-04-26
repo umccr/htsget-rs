@@ -114,11 +114,11 @@ mod tests {
 
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
+  use htsget_search::storage::local_server::LocalStorageServer;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
     storage::local::LocalStorage,
   };
-  use htsget_search::storage::local_server::LocalStorageServer;
 
   use super::*;
 
@@ -288,7 +288,12 @@ mod tests {
 
   fn get_searcher() -> Arc<impl HtsGet> {
     Arc::new(HtsGetFromStorage::new(
-      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap(), LocalStorageServer::new("127.0.0.1", "8081")).unwrap(),
+      LocalStorage::new(
+        "../data",
+        RegexResolver::new(".*", "$0").unwrap(),
+        LocalStorageServer::new("127.0.0.1", "8081"),
+      )
+      .unwrap(),
     ))
   }
 }

@@ -400,7 +400,12 @@ pub mod tests {
       .unwrap()
       .join("data/cram");
     test(Arc::new(
-      LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap(), LocalStorageServer::new("127.0.0.1", "8081")).unwrap(),
+      LocalStorage::new(
+        base_path,
+        RegexResolver::new(".*", "$0").unwrap(),
+        LocalStorageServer::new("127.0.0.1", "8081"),
+      )
+      .unwrap(),
     ))
     .await
   }

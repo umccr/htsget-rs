@@ -7,7 +7,6 @@ use htsget_config::regex_resolver::RegexResolver;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::local::LocalStorage;
-use htsget_search::storage::local_server::LocalStorageServer;
 use htsget_search::storage::UrlFormatter;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
@@ -21,7 +20,11 @@ pub struct AppState<H: HtsGet> {
   pub config: Config,
 }
 
-pub fn configure_server<T: UrlFormatter + Send + Sync + 'static>(service_config: &mut web::ServiceConfig, config: Config, url_formatter: T) {
+pub fn configure_server<T: UrlFormatter + Send + Sync + 'static>(
+  service_config: &mut web::ServiceConfig,
+  config: Config,
+  url_formatter: T,
+) {
   let htsget_path = config.htsget_path.clone();
   let regex_match = config.htsget_regex_match.clone();
   let regex_substitution = config.htsget_regex_substitution.clone();
@@ -31,7 +34,7 @@ pub fn configure_server<T: UrlFormatter + Send + Sync + 'static>(service_config:
         LocalStorage::new(
           htsget_path,
           RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
-          url_formatter
+          url_formatter,
         )
         .expect("Couldn't create a Storage with the provided path"),
       )),
@@ -61,7 +64,10 @@ pub fn configure_server<T: UrlFormatter + Send + Sync + 'static>(service_config:
           web::post().to(variants_service_info::<HtsGetStorage<T>>),
         )
         .route("/{id:.+}", web::get().to(get::variants::<HtsGetStorage<T>>))
-        .route("/{id:.+}", web::post().to(post::variants::<HtsGetStorage<T>>)),
+        .route(
+          "/{id:.+}",
+          web::post().to(post::variants::<HtsGetStorage<T>>),
+        ),
     );
 }
 
@@ -71,6 +77,7 @@ mod tests {
   use actix_web::{test, web, App};
   use async_trait::async_trait;
 
+  use htsget_search::storage::local_server::LocalStorageServer;
   use htsget_test_utils::{
     server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
@@ -78,7 +85,7 @@ mod tests {
   use super::*;
 
   struct ActixTestServer {
-    config: Config
+    config: Config,
   }
 
   struct ActixTestRequest<T>(T);
@@ -127,7 +134,14 @@ mod tests {
       let config = self.get_config();
       let app = test::init_service(App::new().configure(
         |service_config: &mut web::ServiceConfig| {
-          configure_server(service_config, self.config.clone(), LocalStorageServer::new(&config.htsget_localstorage_ip, &config.htsget_localstorage_port));
+          configure_server(
+            service_config,
+            self.config.clone(),
+            LocalStorageServer::new(
+              &config.htsget_localstorage_ip,
+              &config.htsget_localstorage_port,
+            ),
+          );
         },
       ))
       .await;

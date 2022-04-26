@@ -17,7 +17,10 @@ async fn main() -> std::io::Result<()> {
 
   let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
   let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
-  let local_storage_server = LocalStorageServer::new(&config.htsget_localstorage_ip, &config.htsget_localstorage_port);
+  let local_storage_server = LocalStorageServer::new(
+    &config.htsget_localstorage_ip,
+    &config.htsget_localstorage_port,
+  );
   select! {
     local_server = local_storage_server.start_server("")? => Ok(local_server??),
     actix_server = HttpServer::new(move || {
