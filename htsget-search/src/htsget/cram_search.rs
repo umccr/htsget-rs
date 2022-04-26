@@ -407,7 +407,7 @@ pub mod tests {
 
   pub(crate) fn expected_url(storage: Arc<LocalStorage<LocalStorageServer>>) -> String {
     format!(
-      "file://{}",
+      "http://127.0.0.1:8081{}",
       storage
         .base_path()
         .join("htsnexus_test_NA12878.cram")

@@ -281,7 +281,7 @@ pub mod tests {
 
   pub(crate) fn expected_url(storage: Arc<LocalStorage<LocalStorageServer>>, name: &str) -> String {
     format!(
-      "file://{}",
+      "http://127.0.0.1:8081{}",
       storage
         .base_path()
         .join(format!("{}.vcf.gz", name))
