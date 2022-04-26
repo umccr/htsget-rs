@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
@@ -47,18 +47,22 @@ fn default_regex_substitution() -> String {
   "$0".to_string()
 }
 
+fn default_localstorage_cert() -> PathBuf {
+  default_path().join("self-signed-certs/cert.pem")
+}
+
+fn default_localstorage_key() -> PathBuf {
+  default_path().join("self-signed-certs/key.pem")
+}
+
 /// Configuration for the server. Each field will be read from environment variables
 #[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct Config {
-  #[serde(default = "default_port")]
   pub htsget_port: String,
-  #[serde(default = "default_ip")]
   pub htsget_ip: String,
-  #[serde(default = "default_path")]
   pub htsget_path: PathBuf,
-  #[serde(default = "default_regex_match")]
   pub htsget_regex_match: String,
-  #[serde(default = "default_regex_substitution")]
   pub htsget_regex_substitution: String,
   pub htsget_id: Option<String>,
   pub htsget_name: Option<String>,
@@ -71,18 +75,19 @@ pub struct Config {
   pub htsget_updated_at: Option<String>,
   pub htsget_environment: Option<String>,
   pub htsget_s3_bucket: Option<String>,
-  #[serde(default = "default_ip")]
   pub htsget_localstorage_ip: String,
-  #[serde(default = "default_localstorage_port")]
   pub htsget_localstorage_port: String,
+  pub htsget_localstorage_cert: PathBuf,
+  pub htsget_localstorage_key: PathBuf
 }
 
 impl Default for Config {
   fn default() -> Self {
+    let path = default_path();
     Self {
       htsget_port: default_port(),
       htsget_ip: default_ip(),
-      htsget_path: default_path(),
+      htsget_path: path,
       htsget_regex_match: default_regex_match(),
       htsget_regex_substitution: default_regex_substitution(),
       htsget_id: None,
@@ -98,6 +103,8 @@ impl Default for Config {
       htsget_s3_bucket: None,
       htsget_localstorage_ip: default_ip(),
       htsget_localstorage_port: default_localstorage_port(),
+      htsget_localstorage_cert: default_localstorage_cert(),
+      htsget_localstorage_key: default_localstorage_key(),
     }
   }
 }
