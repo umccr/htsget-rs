@@ -48,11 +48,11 @@ fn default_regex_substitution() -> String {
 }
 
 fn default_localstorage_cert() -> PathBuf {
-  default_path().join("self-signed-certs/cert.pem")
+  default_path().join("certs/cert.pem")
 }
 
 fn default_localstorage_key() -> PathBuf {
-  default_path().join("self-signed-certs/key.pem")
+  default_path().join("certs/key.pem")
 }
 
 /// Configuration for the server. Each field will be read from environment variables
@@ -83,11 +83,10 @@ pub struct Config {
 
 impl Default for Config {
   fn default() -> Self {
-    let path = default_path();
     Self {
       htsget_port: default_port(),
       htsget_ip: default_ip(),
-      htsget_path: path,
+      htsget_path: default_path(),
       htsget_regex_match: default_regex_match(),
       htsget_regex_substitution: default_regex_substitution(),
       htsget_id: None,
