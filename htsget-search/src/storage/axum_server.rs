@@ -6,6 +6,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::Router;
+use axum::http;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
 use hyper::server::accept::Accept;
@@ -86,7 +87,7 @@ impl AxumStorageServer {
       .with_safe_defaults()
       .with_no_client_auth()
       .with_single_cert(certs, key)
-      .map_err(|err| StorageError::ResponseServerError(err.to_string()))?;
+      .map_err(|err| ResponseServerError(err.to_string()))?;
 
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
@@ -102,8 +103,7 @@ impl From<hyper::Error> for StorageError {
 
 impl UrlFormatter for AxumStorageServer {
   fn format_url(&self, path: String) -> String {
-    let builder = axum::http::uri::Builder::new();
-    builder
+    http::uri::Builder::new()
       .scheme(self.format_scheme().as_str())
       .authority(self.format_authority())
       .path_and_query(path)
@@ -123,9 +123,12 @@ impl UrlFormatter for AxumStorageServer {
 
 #[cfg(test)]
 mod tests {
+  use std::fs;
   use http::Request;
   use hyper::Body;
+  use rcgen::generate_simple_self_signed;
 
+  use std::io::Write;
   use crate::storage::local::tests::create_local_test_files;
 
   use super::*;
@@ -133,14 +136,19 @@ mod tests {
   #[tokio::test]
   async fn test_start_server() {
     let (_, base_path) = create_local_test_files().await;
+    let key_path = base_path.path().join("key.pem");
+    let cert_path = base_path.path().join("cert.pem");
 
-    AxumStorageServer::new("127.0.0.1", "8080")
-      .start_server(base_path.path())
-      .unwrap();
+    let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    fs::write(key_path.clone(), cert.serialize_private_key_pem());
+    fs::write(cert_path.clone(), cert.serialize_pem().unwrap());
+
+    let mut server = AxumStorageServer::bind_addr("127.0.0.1", "8080").await.unwrap();
+    tokio::spawn(server.serve(base_path.path(), &key_path, &cert_path));
 
     let client = hyper::Client::new();
     let request = Request::builder()
-      .uri(format!("http://{}:{}/data/key1", "127.0.0.1", "8080"))
+      .uri(format!("https://{}:{}/data/key1", "127.0.0.1", "8080"))
       .body(Body::empty())
       .unwrap();
     let response = client.request(request).await.unwrap();

@@ -9,6 +9,7 @@ default = ["s3-storage"]
 s3-storage = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
+# Axum server dependencies.
 hyper = "0.14"
 axum = "0.5.1"
 axum-extra = { version = "0.2.1", features = ["spa"] }
@@ -50,3 +51,6 @@ s3-server = "0.2"
 http = "0.2"
 #[cfg(feature = "aws")]
 aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
+
+# Axum server dependencies
+rcgen = "0.9"
