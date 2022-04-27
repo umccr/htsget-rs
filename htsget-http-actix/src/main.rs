@@ -5,7 +5,7 @@ use tokio::select;
 
 use htsget_config::config::{Config, USAGE};
 use htsget_http_actix::configure_server;
-use htsget_search::storage::local_server::LocalStorageServer;
+use htsget_search::storage::axum_server::AxumStorageServer;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -17,7 +17,7 @@ async fn main() -> std::io::Result<()> {
 
   let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
   let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
-  let local_storage_server = LocalStorageServer::new(
+  let local_storage_server = AxumStorageServer::new(
     &config.htsget_localstorage_ip,
     &config.htsget_localstorage_port,
   );

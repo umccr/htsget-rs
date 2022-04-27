@@ -14,7 +14,7 @@ use crate::htsget::{Class, Headers, Url};
 #[cfg(feature = "s3-storage")]
 pub mod aws;
 pub mod local;
-pub mod local_server;
+pub mod axum_server;
 
 type Result<T> = core::result::Result<T, StorageError>;
 

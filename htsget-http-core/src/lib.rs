@@ -114,7 +114,7 @@ mod tests {
 
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
-  use htsget_search::storage::local_server::LocalStorageServer;
+  use htsget_search::storage::axum_server::AxumStorageServer;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
     storage::local::LocalStorage,
@@ -291,7 +291,7 @@ mod tests {
       LocalStorage::new(
         "../data",
         RegexResolver::new(".*", "$0").unwrap(),
-        LocalStorageServer::new("127.0.0.1", "8081"),
+        AxumStorageServer::new("127.0.0.1", "8081"),
       )
       .unwrap(),
     ))

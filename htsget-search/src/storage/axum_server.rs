@@ -11,12 +11,12 @@ use super::{Result, StorageError};
 
 /// The local storage static http server.
 #[derive(Debug, Clone)]
-pub struct LocalStorageServer {
+pub struct AxumStorageServer {
   ip: String,
   port: String,
 }
 
-impl LocalStorageServer {
+impl AxumStorageServer {
   const SERVE_ASSETS_AT: &'static str = "/data";
 
   pub fn new(ip: impl Into<String>, port: impl Into<String>) -> Self {
@@ -54,7 +54,7 @@ impl From<AddrParseError> for StorageError {
   }
 }
 
-impl UrlFormatter for LocalStorageServer {
+impl UrlFormatter for AxumStorageServer {
   fn format_url(&self, path: String) -> String {
     let builder = axum::http::uri::Builder::new();
     builder
@@ -88,7 +88,7 @@ mod tests {
   async fn test_start_server() {
     let (_, base_path) = create_local_test_files().await;
 
-    LocalStorageServer::new("127.0.0.1", "8080")
+    AxumStorageServer::new("127.0.0.1", "8080")
       .start_server(base_path.path())
       .unwrap();
 

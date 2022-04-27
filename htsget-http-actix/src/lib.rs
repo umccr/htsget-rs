@@ -77,7 +77,7 @@ mod tests {
   use actix_web::{test, web, App};
   use async_trait::async_trait;
 
-  use htsget_search::storage::local_server::LocalStorageServer;
+  use htsget_search::storage::axum_server::AxumStorageServer;
   use htsget_test_utils::{
     server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
@@ -137,7 +137,7 @@ mod tests {
           configure_server(
             service_config,
             self.config.clone(),
-            LocalStorageServer::new(
+            AxumStorageServer::new(
               &config.htsget_localstorage_ip,
               &config.htsget_localstorage_port,
             ),

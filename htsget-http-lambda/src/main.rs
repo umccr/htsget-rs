@@ -7,7 +7,7 @@ use htsget_config::regex_resolver::RegexResolver;
 use htsget_http_lambda::Router;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::storage::local::LocalStorage;
-use htsget_search::storage::local_server::LocalStorageServer;
+use htsget_search::storage::axum_server::AxumStorageServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Error> {
         &config.htsget_regex_substitution,
       )
       .unwrap(),
-      LocalStorageServer::new(
+      AxumStorageServer::new(
         &config.htsget_localstorage_ip,
         &config.htsget_localstorage_port,
       ),

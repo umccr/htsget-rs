@@ -178,7 +178,7 @@ mod tests {
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::storage::local::LocalStorage;
-  use htsget_search::storage::local_server::LocalStorageServer;
+  use htsget_search::storage::axum_server::AxumStorageServer;
   use htsget_test_utils::{server_tests, Header, Response, TestRequest, TestServer};
 
   use crate::{HtsgetMethod, Method, Route, RouteType, Router};
@@ -256,7 +256,7 @@ mod tests {
               &self.config.htsget_regex_substitution,
             )
             .unwrap(),
-            LocalStorageServer::new("127.0.0.1", "8081"),
+            AxumStorageServer::new("127.0.0.1", "8081"),
           )
           .expect("Couldn't create a Storage with the provided path"),
         )),
@@ -455,7 +455,7 @@ mod tests {
 
   async fn with_router<'a, F, Fut>(test: F, config: &'a Config)
   where
-    F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage<LocalStorageServer>>>) -> Fut,
+    F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage<AxumStorageServer>>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let router = Router::new(
@@ -467,7 +467,7 @@ mod tests {
             &config.htsget_regex_substitution,
           )
           .unwrap(),
-          LocalStorageServer::new("127.0.0.1", "8081"),
+          AxumStorageServer::new("127.0.0.1", "8081"),
         )
         .unwrap(),
       )),
