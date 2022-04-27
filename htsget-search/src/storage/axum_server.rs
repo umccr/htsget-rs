@@ -1,8 +1,9 @@
 use std::fs::File;
 use std::io::BufReader;
-use std::net::SocketAddr;
+use std::net::{AddrParseError, SocketAddr};
 use std::path::Path;
 use std::pin::Pin;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::Router;
@@ -13,7 +14,6 @@ use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use tokio::net::TcpListener;
-use tokio::task::JoinHandle;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
@@ -23,26 +23,37 @@ use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
 
+/// Https url formatter.
+#[derive(Debug, Clone)]
+pub struct HttpsFormatter {
+  addr: SocketAddr
+}
+
+impl HttpsFormatter {
+  pub fn new(addr: SocketAddr) -> Self {
+    Self { addr }
+  }
+
+  /// Eagerly bind the address, returning the AxumStorageServer.
+  pub async fn bind_axum_server(&self) -> Result<AxumStorageServer> {
+    AxumStorageServer::bind_addr(&self.addr).await
+  }
+}
+
 /// The local storage static http server.
 #[derive(Debug)]
 pub struct AxumStorageServer {
-  ip: String,
-  port: String,
   listener: AddrIncoming
 }
 
 impl AxumStorageServer {
   const SERVE_ASSETS_AT: &'static str = "/data";
 
-  /// Eagerly bind the the ip and port for use with the server, returning any errors.
-  pub async fn bind_addr(ip: impl Into<String>, port: impl Into<String>) -> Result<Self> {
-    let ip = ip.into();
-    let port = port.into();
-    let listener = TcpListener::bind(format!("{}:{}", ip, port)).await?;
+  /// Eagerly bind the the address for use with the server, returning any errors.
+  pub async fn bind_addr(addr: &SocketAddr) -> Result<Self> {
+    let listener = TcpListener::bind(addr).await?;
     let listener = AddrIncoming::from_listener(listener).unwrap();
     Ok(Self {
-      ip,
-      port,
       listener
     })
   }
@@ -101,15 +112,15 @@ impl From<hyper::Error> for StorageError {
   }
 }
 
-impl UrlFormatter for AxumStorageServer {
-  fn format_url(&self, path: String) -> String {
+impl UrlFormatter for HttpsFormatter {
+  fn format_url(&self, path: String) -> Result<String> {
     http::uri::Builder::new()
       .scheme(self.format_scheme().as_str())
       .authority(self.format_authority())
       .path_and_query(path)
       .build()
-      .expect("Expected valid uri.")
-      .to_string()
+      .map_err(|err| StorageError::InvalidUri(err.to_string()))
+      .map(|value| value.to_string())
   }
 
   fn format_scheme(&self) -> String {
@@ -117,7 +128,7 @@ impl UrlFormatter for AxumStorageServer {
   }
 
   fn format_authority(&self) -> String {
-    format!("{}:{}", self.ip, self.port)
+    self.addr.to_string()
   }
 }
 
@@ -143,7 +154,8 @@ mod tests {
     fs::write(key_path.clone(), cert.serialize_private_key_pem());
     fs::write(cert_path.clone(), cert.serialize_pem().unwrap());
 
-    let mut server = AxumStorageServer::bind_addr("127.0.0.1", "8080").await.unwrap();
+    let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
+    let mut server = AxumStorageServer::bind_addr(&addr).await.unwrap();
     tokio::spawn(server.serve(base_path.path(), &key_path, &cert_path));
 
     let client = hyper::Client::new();

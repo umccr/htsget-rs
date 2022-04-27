@@ -41,7 +41,7 @@ pub trait Storage {
 /// Formats a url for use with storage.
 pub trait UrlFormatter {
   /// Returns the url with the path.
-  fn format_url(&self, path: String) -> String;
+  fn format_url(&self, path: String) -> Result<String>;
 
   /// Returns the scheme
   fn format_scheme(&self) -> String;
@@ -70,6 +70,9 @@ pub enum StorageError {
 
   #[error("Invalid input: {0}")]
   InvalidInput(String),
+
+  #[error("Invalid uri: {0}")]
+  InvalidUri(String),
 }
 
 impl From<StorageError> for std::io::Error {
