@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
+use std::net::AddrParseError;
 
 use async_trait::async_trait;
 use thiserror::Error;
@@ -73,6 +74,9 @@ pub enum StorageError {
 
   #[error("Invalid uri: {0}")]
   InvalidUri(String),
+
+  #[error("Invalid address: {0}")]
+  InvalidAddress(AddrParseError)
 }
 
 impl From<StorageError> for std::io::Error {

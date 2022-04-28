@@ -91,7 +91,7 @@ impl<T: UrlFormatter + Send + Sync> Storage for LocalStorage<T> {
     let url = Url::new(
       self
         .url_formatter
-        .format_url(path.to_string_lossy().to_string()),
+        .format_url(path.to_string_lossy().to_string())?,
     );
     Ok(options.apply(url))
   }
@@ -118,7 +118,7 @@ pub(crate) mod tests {
   use tokio::io::AsyncWriteExt;
 
   use crate::htsget::{Headers, Url};
-  use crate::storage::axum_server::AxumStorageServer;
+  use crate::storage::axum_server::{AxumStorageServer, HttpsFormatter};
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
 
   use super::*;
@@ -280,7 +280,7 @@ pub(crate) mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(LocalStorage<AxumStorageServer>) -> Fut,
+    F: FnOnce(LocalStorage<HttpsFormatter>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
@@ -288,7 +288,7 @@ pub(crate) mod tests {
       LocalStorage::new(
         base_path.path(),
         RegexResolver::new(".*", "$0").unwrap(),
-        AxumStorageServer::new("127.0.0.1", "8081"),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
       )
       .unwrap(),
     )

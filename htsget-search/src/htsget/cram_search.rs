@@ -270,7 +270,7 @@ pub mod tests {
 
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
-  use crate::storage::axum_server::AxumStorageServer;
+  use crate::storage::axum_server::{AxumStorageServer, HttpsFormatter};
 
   use super::*;
 
@@ -391,7 +391,7 @@ pub mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<AxumStorageServer>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<HttpsFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let base_path = std::env::current_dir()
@@ -403,14 +403,14 @@ pub mod tests {
       LocalStorage::new(
         base_path,
         RegexResolver::new(".*", "$0").unwrap(),
-        AxumStorageServer::new("127.0.0.1", "8081"),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
       )
       .unwrap(),
     ))
     .await
   }
 
-  pub(crate) fn expected_url(storage: Arc<LocalStorage<AxumStorageServer>>) -> String {
+  pub(crate) fn expected_url(storage: Arc<LocalStorage<HttpsFormatter>>) -> String {
     format!(
       "http://127.0.0.1:8081{}",
       storage

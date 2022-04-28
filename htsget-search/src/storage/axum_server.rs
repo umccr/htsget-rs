@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::net::{AddrParseError, SocketAddr};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -30,13 +30,25 @@ pub struct HttpsFormatter {
 }
 
 impl HttpsFormatter {
-  pub fn new(addr: SocketAddr) -> Self {
-    Self { addr }
+  pub fn new(ip: impl Into<String>, port: impl Into<String>) -> Result<Self> {
+    Ok(Self { addr: SocketAddr::from_str(&format!("{}:{}", ip.into(), port.into()))? })
   }
 
   /// Eagerly bind the address, returning the AxumStorageServer.
   pub async fn bind_axum_server(&self) -> Result<AxumStorageServer> {
     AxumStorageServer::bind_addr(&self.addr).await
+  }
+}
+
+impl From<AddrParseError> for StorageError {
+  fn from(err: AddrParseError) -> Self {
+    StorageError::InvalidAddress(err)
+  }
+}
+
+impl From<SocketAddr> for HttpsFormatter {
+  fn from(addr: SocketAddr) -> Self {
+    Self { addr }
   }
 }
 
@@ -52,7 +64,7 @@ impl AxumStorageServer {
   /// Eagerly bind the the address for use with the server, returning any errors.
   pub async fn bind_addr(addr: &SocketAddr) -> Result<Self> {
     let listener = TcpListener::bind(addr).await?;
-    let listener = AddrIncoming::from_listener(listener).unwrap();
+    let listener = AddrIncoming::from_listener(listener)?;
     Ok(Self {
       listener
     })
@@ -74,7 +86,7 @@ impl AxumStorageServer {
         .map_err(|err| ResponseServerError(err.to_string()))?;
       let acceptor = acceptor.clone();
 
-      let app = app.make_service(&stream).await.unwrap();
+      let app = app.make_service(&stream).await.map_err(|err| ResponseServerError(err.to_string()))?;
 
       tokio::spawn(async move {
         if let Ok(stream) = acceptor.accept(stream).await {
@@ -135,11 +147,15 @@ impl UrlFormatter for HttpsFormatter {
 #[cfg(test)]
 mod tests {
   use std::fs;
-  use http::Request;
-  use hyper::Body;
+  use http::{Method, Request};
+  use hyper::{Body, Client};
   use rcgen::generate_simple_self_signed;
 
-  use std::io::Write;
+  use std::io::{Read, Write};
+  use futures_util::SinkExt;
+  use hyper::client::HttpConnector;
+  use hyper_tls::HttpsConnector;
+  use hyper_tls::native_tls::TlsConnector;
   use crate::storage::local::tests::create_local_test_files;
 
   use super::*;
@@ -150,22 +166,39 @@ mod tests {
     let key_path = base_path.path().join("key.pem");
     let cert_path = base_path.path().join("cert.pem");
 
+    // Generate self-signed certificate.
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
-    fs::write(key_path.clone(), cert.serialize_private_key_pem());
-    fs::write(cert_path.clone(), cert.serialize_pem().unwrap());
+    fs::write(key_path.clone(), cert.serialize_private_key_pem()).unwrap();
+    fs::write(cert_path.clone(), cert.serialize_pem().unwrap()).unwrap();
 
+    // Read certificate
+    let mut buf = vec![];
+    File::open(cert_path.clone()).unwrap().read_to_end(&mut buf).unwrap();
+    let cert = hyper_tls::native_tls::Certificate::from_pem(&buf).unwrap();
+
+    // Add self-signed certificate to connector.
+    let tls = TlsConnector::builder().add_root_certificate(cert).build().unwrap();
+    let mut http = HttpConnector::new();
+    http.enforce_http(false);
+    let https = HttpsConnector::from((http, tls.into()));
+
+    // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
     let mut server = AxumStorageServer::bind_addr(&addr).await.unwrap();
-    tokio::spawn(server.serve(base_path.path(), &key_path, &cert_path));
+    tokio::spawn(async move {
+      server.serve(base_path.path(), &key_path, &cert_path).await
+    });
 
-    let client = hyper::Client::new();
+    // Make request.
+    let client = Client::builder().build::<_, hyper::Body>(https);
     let request = Request::builder()
-      .uri(format!("https://{}:{}/data/key1", "127.0.0.1", "8080"))
+      .method(Method::GET)
+      .uri(format!("https://{}:{}/data/key1", "localhost", "8080"))
       .body(Body::empty())
       .unwrap();
-    let response = client.request(request).await.unwrap();
+    let response = client.request(request).await;
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = hyper::body::to_bytes(response.unwrap().into_body()).await.unwrap();
     assert_eq!(body.as_ref(), b"value1");
   }
 }
