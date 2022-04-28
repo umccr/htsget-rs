@@ -1,13 +1,13 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::net::{AddrParseError, SocketAddr};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use axum::Router;
 use axum::http;
+use axum::Router;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
 use hyper::server::accept::Accept;
@@ -17,8 +17,8 @@ use tokio::net::TcpListener;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
-use crate::storage::StorageError::ResponseServerError;
 
+use crate::storage::StorageError::ResponseServerError;
 use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
@@ -26,12 +26,14 @@ use super::{Result, StorageError};
 /// Https url formatter.
 #[derive(Debug, Clone)]
 pub struct HttpsFormatter {
-  addr: SocketAddr
+  addr: SocketAddr,
 }
 
 impl HttpsFormatter {
   pub fn new(ip: impl Into<String>, port: impl Into<String>) -> Result<Self> {
-    Ok(Self { addr: SocketAddr::from_str(&format!("{}:{}", ip.into(), port.into()))? })
+    Ok(Self {
+      addr: SocketAddr::from_str(&format!("{}:{}", ip.into(), port.into()))?,
+    })
   }
 
   /// Eagerly bind the address, returning the AxumStorageServer.
@@ -55,7 +57,7 @@ impl From<SocketAddr> for HttpsFormatter {
 /// The local storage static http server.
 #[derive(Debug)]
 pub struct AxumStorageServer {
-  listener: AddrIncoming
+  listener: AddrIncoming,
 }
 
 impl AxumStorageServer {
@@ -65,9 +67,7 @@ impl AxumStorageServer {
   pub async fn bind_addr(addr: &SocketAddr) -> Result<Self> {
     let listener = TcpListener::bind(addr).await?;
     let listener = AddrIncoming::from_listener(listener)?;
-    Ok(Self {
-      listener
-    })
+    Ok(Self { listener })
   }
 
   /// Run the actual server, using the provided path, key and certificate.
@@ -86,7 +86,10 @@ impl AxumStorageServer {
         .map_err(|err| ResponseServerError(err.to_string()))?;
       let acceptor = acceptor.clone();
 
-      let app = app.make_service(&stream).await.map_err(|err| ResponseServerError(err.to_string()))?;
+      let app = app
+        .make_service(&stream)
+        .await
+        .map_err(|err| ResponseServerError(err.to_string()))?;
 
       tokio::spawn(async move {
         if let Ok(stream) = acceptor.accept(stream).await {
@@ -147,15 +150,15 @@ impl UrlFormatter for HttpsFormatter {
 #[cfg(test)]
 mod tests {
   use std::fs;
+  use std::io::Read;
+
   use http::{Method, Request};
+  use hyper::client::HttpConnector;
   use hyper::{Body, Client};
+  use hyper_tls::native_tls::TlsConnector;
+  use hyper_tls::HttpsConnector;
   use rcgen::generate_simple_self_signed;
 
-  use std::io::{Read, Write};
-  use futures_util::SinkExt;
-  use hyper::client::HttpConnector;
-  use hyper_tls::HttpsConnector;
-  use hyper_tls::native_tls::TlsConnector;
   use crate::storage::local::tests::create_local_test_files;
 
   use super::*;
@@ -173,11 +176,17 @@ mod tests {
 
     // Read certificate.
     let mut buf = vec![];
-    File::open(cert_path.clone()).unwrap().read_to_end(&mut buf).unwrap();
+    File::open(cert_path.clone())
+      .unwrap()
+      .read_to_end(&mut buf)
+      .unwrap();
     let cert = hyper_tls::native_tls::Certificate::from_pem(&buf).unwrap();
 
     // Add self-signed certificate to connector.
-    let tls = TlsConnector::builder().add_root_certificate(cert).build().unwrap();
+    let tls = TlsConnector::builder()
+      .add_root_certificate(cert)
+      .build()
+      .unwrap();
     let mut http = HttpConnector::new();
     http.enforce_http(false);
     let https = HttpsConnector::from((http, tls.into()));
@@ -185,9 +194,7 @@ mod tests {
     // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
     let mut server = AxumStorageServer::bind_addr(&addr).await.unwrap();
-    tokio::spawn(async move {
-      server.serve(base_path.path(), &key_path, &cert_path).await
-    });
+    tokio::spawn(async move { server.serve(base_path.path(), &key_path, &cert_path).await });
 
     // Make request.
     let client = Client::builder().build::<_, hyper::Body>(https);
@@ -198,7 +205,9 @@ mod tests {
       .unwrap();
     let response = client.request(request).await;
 
-    let body = hyper::body::to_bytes(response.unwrap().into_body()).await.unwrap();
+    let body = hyper::body::to_bytes(response.unwrap().into_body())
+      .await
+      .unwrap();
     assert_eq!(body.as_ref(), b"value1");
   }
 }

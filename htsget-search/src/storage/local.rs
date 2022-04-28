@@ -195,7 +195,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let result = Storage::url(&storage, "folder/../key1", UrlOptions::default()).await;
       let expected = Url::new(format!(
-        "http://127.0.0.1:8081{}",
+        "https://127.0.0.1:8081{}",
         storage.base_path().join("key1").to_string_lossy()
       ));
       assert!(matches!(result, Ok(url) if url == expected));
@@ -213,7 +213,7 @@ pub(crate) mod tests {
       )
       .await;
       let expected = Url::new(format!(
-        "http://127.0.0.1:8081{}",
+        "https://127.0.0.1:8081{}",
         storage.base_path().join("key1").to_string_lossy()
       ))
       .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
@@ -232,7 +232,7 @@ pub(crate) mod tests {
       )
       .await;
       let expected = Url::new(format!(
-        "http://127.0.0.1:8081{}",
+        "https://127.0.0.1:8081{}",
         storage.base_path().join("key1").to_string_lossy()
       ))
       .with_headers(Headers::default().with_header("Range", "bytes=7-"));

@@ -6,8 +6,8 @@ use htsget_config::config::Config;
 use htsget_config::regex_resolver::RegexResolver;
 use htsget_http_lambda::Router;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
+use htsget_search::storage::axum_server::HttpsFormatter;
 use htsget_search::storage::local::LocalStorage;
-use htsget_search::storage::axum_server::{AxumStorageServer, HttpsFormatter};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {

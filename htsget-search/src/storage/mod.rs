@@ -14,8 +14,8 @@ use crate::htsget::{Class, Headers, Url};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
-pub mod local;
 pub mod axum_server;
+pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
@@ -76,7 +76,7 @@ pub enum StorageError {
   InvalidUri(String),
 
   #[error("Invalid address: {0}")]
-  InvalidAddress(AddrParseError)
+  InvalidAddress(AddrParseError),
 }
 
 impl From<StorageError> for std::io::Error {

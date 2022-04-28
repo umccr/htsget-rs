@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::Deserialize;
 
@@ -78,7 +78,7 @@ pub struct Config {
   pub htsget_localstorage_ip: String,
   pub htsget_localstorage_port: String,
   pub htsget_localstorage_cert: PathBuf,
-  pub htsget_localstorage_key: PathBuf
+  pub htsget_localstorage_key: PathBuf,
 }
 
 impl Default for Config {

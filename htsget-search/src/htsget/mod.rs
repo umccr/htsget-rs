@@ -103,7 +103,7 @@ impl From<StorageError> for HtsGetError {
       }
       StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e)),
       StorageError::InvalidUri(e) => Self::InternalError(format!("Invalid uri produced: {}", e)),
-      StorageError::InvalidAddress(e) => Self::InternalError(format!("Invalid address: {}", e))
+      StorageError::InvalidAddress(e) => Self::InternalError(format!("Invalid address: {}", e)),
     }
   }
 }

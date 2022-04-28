@@ -5,7 +5,7 @@ use tokio::select;
 
 use htsget_config::config::{Config, USAGE};
 use htsget_http_actix::configure_server;
-use htsget_search::storage::axum_server::{AxumStorageServer, HttpsFormatter};
+use htsget_search::storage::axum_server::HttpsFormatter;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

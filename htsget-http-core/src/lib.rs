@@ -114,7 +114,7 @@ mod tests {
 
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
-  use htsget_search::storage::axum_server::AxumStorageServer;
+  use htsget_search::storage::axum_server::{AxumStorageServer, HttpsFormatter};
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
     storage::local::LocalStorage,
@@ -133,7 +133,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
-          "http://127.0.0.1:8081{}",
+          "https://127.0.0.1:8081{}",
           get_base_path()
             .join("bam")
             .join("htsnexus_test_NA12878.bam")
@@ -171,7 +171,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
         vec![Url::new(format!(
-          "http://127.0.0.1:8081{}",
+          "https://127.0.0.1:8081{}",
           get_base_path()
             .join("vcf")
             .join("sample1-bcbio-cancer.vcf.gz")
@@ -205,7 +205,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
-          "http://127.0.0.1:8081{}",
+          "https://127.0.0.1:8081{}",
           get_base_path()
             .join("bam")
             .join("htsnexus_test_NA12878.bam")
@@ -267,7 +267,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
         vec![Url::new(format!(
-          "http://127.0.0.1:8081{}",
+          "https://127.0.0.1:8081{}",
           get_base_path()
             .join("vcf")
             .join("sample1-bcbio-cancer.vcf.gz")
@@ -291,7 +291,7 @@ mod tests {
       LocalStorage::new(
         "../data",
         RegexResolver::new(".*", "$0").unwrap(),
-        AxumStorageServer::new("127.0.0.1", "8081"),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
       )
       .unwrap(),
     ))
