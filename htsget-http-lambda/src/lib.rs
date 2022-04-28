@@ -4,10 +4,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use lambda_http::ext::RequestExt;
-use lambda_http::http::header::CONTENT_TYPE;
-use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::{Body, IntoResponse, Request, Response};
+use lambda_http::ext::RequestExt;
+use lambda_http::http::{Method, StatusCode, Uri};
+use lambda_http::http::header::CONTENT_TYPE;
 
 use htsget_config::config::Config;
 use htsget_http_core::{Endpoint, PostRequest};
@@ -167,21 +167,21 @@ mod tests {
   use std::sync::Arc;
 
   use async_trait::async_trait;
+  use lambda_http::{Request, RequestExt};
+  use lambda_http::Body::Text;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
-  use lambda_http::Body::Text;
-  use lambda_http::{Request, RequestExt};
   use query_map::QueryMap;
 
   use htsget_config::config::Config;
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
-  use htsget_search::storage::axum_server::{AxumStorageServer, HttpsFormatter};
+  use htsget_search::storage::axum_server::HttpsFormatter;
   use htsget_search::storage::local::LocalStorage;
-  use htsget_test_utils::{server_tests, Header, Response, TestRequest, TestServer};
+  use htsget_test_utils::{Header, Response, server_tests, TestRequest, TestServer};
 
-  use crate::{HtsgetMethod, Method, Route, RouteType, Router};
+  use crate::{HtsgetMethod, Method, Route, Router, RouteType};
 
   struct LambdaTestServer {
     config: Config,

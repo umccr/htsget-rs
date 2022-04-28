@@ -13,11 +13,11 @@ use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
 use noodles_cram::AsyncReader;
-use tokio::io::{AsyncRead, AsyncSeek};
 use tokio::{io, select};
+use tokio::io::{AsyncRead, AsyncSeek};
 
-use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
+use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::storage::{BytesRange, Storage};
 
 pub(crate) struct CramSearch<S> {
@@ -269,7 +269,7 @@ pub mod tests {
   use htsget_config::regex_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, Response, Url};
-  use crate::storage::axum_server::{AxumStorageServer, HttpsFormatter};
+  use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;

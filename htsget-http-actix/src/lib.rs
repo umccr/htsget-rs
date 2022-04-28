@@ -73,13 +73,13 @@ pub fn configure_server<T: UrlFormatter + Send + Sync + 'static>(
 
 #[cfg(test)]
 mod tests {
+  use actix_web::{App, test, web};
   use actix_web::web::Bytes;
-  use actix_web::{test, web, App};
   use async_trait::async_trait;
 
-  use htsget_search::storage::axum_server::{AxumStorageServer, HttpsFormatter};
+  use htsget_search::storage::axum_server::HttpsFormatter;
   use htsget_test_utils::{
-    server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
+    Header as TestHeader, Response as TestResponse, server_tests, TestRequest, TestServer,
   };
 
   use super::*;

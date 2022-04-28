@@ -118,8 +118,8 @@ pub(crate) mod tests {
   use tokio::io::AsyncWriteExt;
 
   use crate::htsget::{Headers, Url};
-  use crate::storage::axum_server::{AxumStorageServer, HttpsFormatter};
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
+  use crate::storage::axum_server::HttpsFormatter;
 
   use super::*;
 

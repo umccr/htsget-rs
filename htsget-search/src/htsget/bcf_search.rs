@@ -154,7 +154,7 @@ pub mod tests {
   use htsget_config::regex_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
-  use crate::storage::axum_server::{AxumStorageServer, HttpsFormatter};
+  use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;

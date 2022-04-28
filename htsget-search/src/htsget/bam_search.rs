@@ -3,25 +3,25 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use noodles::{bgzf, sam};
 use noodles::bam::bai;
-use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
+use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
 use noodles::sam::Header;
-use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt};
-use crate::htsget::HtsGetError;
 use crate::{
-  htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
+  htsget::search::BlockPosition,
   storage::{BytesRange, Storage},
 };
+use crate::htsget::HtsGetError;
+use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt};
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -195,7 +195,7 @@ pub mod tests {
   use htsget_config::regex_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, Response, Url};
-  use crate::storage::axum_server::{AxumStorageServer, HttpsFormatter};
+  use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;

@@ -43,12 +43,6 @@ pub trait Storage {
 pub trait UrlFormatter {
   /// Returns the url with the path.
   fn format_url(&self, path: String) -> Result<String>;
-
-  /// Returns the scheme
-  fn format_scheme(&self) -> String;
-
-  /// Returns the authority
-  fn format_authority(&self) -> String;
 }
 
 #[derive(Error, Debug)]

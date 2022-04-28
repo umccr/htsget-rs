@@ -130,20 +130,12 @@ impl From<hyper::Error> for StorageError {
 impl UrlFormatter for HttpsFormatter {
   fn format_url(&self, path: String) -> Result<String> {
     http::uri::Builder::new()
-      .scheme(self.format_scheme().as_str())
-      .authority(self.format_authority())
+      .scheme(http::uri::Scheme::HTTPS)
+      .authority(self.addr.to_string())
       .path_and_query(path)
       .build()
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
       .map(|value| value.to_string())
-  }
-
-  fn format_scheme(&self) -> String {
-    http::uri::Scheme::HTTPS.to_string()
-  }
-
-  fn format_authority(&self) -> String {
-    self.addr.to_string()
   }
 }
 
@@ -164,7 +156,7 @@ mod tests {
   use super::*;
 
   #[tokio::test]
-  async fn test_start_server() {
+  async fn test_server() {
     let (_, base_path) = create_local_test_files().await;
     let key_path = base_path.path().join("key.pem");
     let cert_path = base_path.path().join("cert.pem");
@@ -194,7 +186,7 @@ mod tests {
     // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
     let mut server = AxumStorageServer::bind_addr(&addr).await.unwrap();
-    tokio::spawn(async move { server.serve(base_path.path(), &key_path, &cert_path).await });
+    tokio::spawn(async move { server.serve(base_path.path(), &key_path, &cert_path).await.unwrap() });
 
     // Make request.
     let client = Client::builder().build::<_, hyper::Body>(https);
@@ -209,5 +201,11 @@ mod tests {
       .await
       .unwrap();
     assert_eq!(body.as_ref(), b"value1");
+  }
+
+  #[test]
+  fn https_formatter_format_authority() {
+    let formatter = HttpsFormatter::new("127.0.0.1", "8080").unwrap();
+    assert_eq!(formatter.format_url("/path".to_string()).unwrap(), "https://127.0.0.1:8080/path")
   }
 }
