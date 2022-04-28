@@ -171,7 +171,7 @@ mod tests {
     fs::write(key_path.clone(), cert.serialize_private_key_pem()).unwrap();
     fs::write(cert_path.clone(), cert.serialize_pem().unwrap()).unwrap();
 
-    // Read certificate
+    // Read certificate.
     let mut buf = vec![];
     File::open(cert_path.clone()).unwrap().read_to_end(&mut buf).unwrap();
     let cert = hyper_tls::native_tls::Certificate::from_pem(&buf).unwrap();

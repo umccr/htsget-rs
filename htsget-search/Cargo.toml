@@ -55,4 +55,3 @@ aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
 # Axum server dependencies
 rcgen = "0.9"
 hyper-tls = "0.5"
-tokio-native-tls = "0.3"
