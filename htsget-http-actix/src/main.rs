@@ -21,9 +21,16 @@ async fn main() -> std::io::Result<()> {
     &config.htsget_localstorage_ip,
     &config.htsget_localstorage_port,
   )?;
+
+  let path = config.htsget_path.clone();
+  let key = config.htsget_localstorage_key.clone();
+  let cert = config.htsget_localstorage_cert.clone();
+
   let mut local_server = formatter.bind_axum_server().await?;
   select! {
-    local_server = local_server.serve(config.htsget_path.clone(), config.htsget_localstorage_key.clone(), config.htsget_localstorage_cert.clone()) => Ok(local_server?),
+    local_server = tokio::spawn(async move {
+      local_server.serve(path, key, cert).await
+    }) => Ok(local_server??),
     actix_server = HttpServer::new(move || {
       App::new().configure(|service_config: &mut web::ServiceConfig| {
         configure_server(service_config, config.clone(), formatter.clone());
