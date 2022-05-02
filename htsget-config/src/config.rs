@@ -1,7 +1,9 @@
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use serde::Deserialize;
 use crate::config::StorageType::LocalStorage;
+use crate::regex_resolver::RegexResolver;
 
 pub const USAGE: &str = r#"
 This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
@@ -24,28 +26,20 @@ The next variables are used to configure the info for the service-info endpoints
 * HTSGET_ENVIRONMENT: The environment in which the service is running. Default: "Testing",
 "#;
 
-fn default_port() -> String {
-  "8080".to_string()
+fn default_localstorage_addr() -> SocketAddr {
+  "127.0.0.1:8081".parse().expect("Expected valid address.")
 }
 
-fn default_localstorage_port() -> String {
-  "8081".to_string()
-}
-
-fn default_ip() -> String {
-  "127.0.0.1".to_string()
+fn default_addr() -> SocketAddr {
+  "127.0.0.1:8080".parse().expect("Expected valid address.")
 }
 
 fn default_path() -> PathBuf {
   PathBuf::from(".")
 }
 
-fn default_regex_match() -> String {
-  ".*".to_string()
-}
-
-fn default_regex_substitution() -> String {
-  "$0".to_string()
+fn default_resolver() -> RegexResolver {
+  RegexResolver::new(".*", "$0").expect("Expected valid resolver.")
 }
 
 fn default_localstorage_cert() -> PathBuf {
@@ -68,11 +62,8 @@ pub enum StorageType {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
-  pub htsget_port: String,
-  pub htsget_ip: String,
-  pub htsget_path: PathBuf,
-  pub htsget_regex_match: String,
-  pub htsget_regex_substitution: String,
+  pub htsget_addr: SocketAddr,
+  pub htsget_resolver: RegexResolver,
   pub htsget_id: Option<String>,
   pub htsget_name: Option<String>,
   pub htsget_version: Option<String>,
@@ -83,8 +74,7 @@ pub struct Config {
   pub htsget_created_at: Option<String>,
   pub htsget_updated_at: Option<String>,
   pub htsget_environment: Option<String>,
-  pub htsget_localstorage_ip: String,
-  pub htsget_localstorage_port: String,
+  pub htsget_localstorage_addr: SocketAddr,
   pub htsget_localstorage_cert: PathBuf,
   pub htsget_localstorage_key: PathBuf,
   pub htsget_storage_type: StorageType,
@@ -95,11 +85,8 @@ pub struct Config {
 impl Default for Config {
   fn default() -> Self {
     Self {
-      htsget_port: default_port(),
-      htsget_ip: default_ip(),
-      htsget_path: default_path(),
-      htsget_regex_match: default_regex_match(),
-      htsget_regex_substitution: default_regex_substitution(),
+      htsget_addr: default_addr(),
+      htsget_resolver: default_resolver(),
       htsget_id: None,
       htsget_name: None,
       htsget_version: None,
@@ -110,8 +97,7 @@ impl Default for Config {
       htsget_created_at: None,
       htsget_updated_at: None,
       htsget_environment: None,
-      htsget_localstorage_ip: default_ip(),
-      htsget_localstorage_port: default_localstorage_port(),
+      htsget_localstorage_addr: default_localstorage_addr(),
       htsget_localstorage_cert: default_localstorage_cert(),
       htsget_localstorage_key: default_localstorage_key(),
       htsget_storage_type: LocalStorage,

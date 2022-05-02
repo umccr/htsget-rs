@@ -1,11 +1,13 @@
 use regex::{Error, Regex};
+use serde::Deserialize;
 
 pub trait HtsGetIdResolver {
   fn resolve_id(&self, id: &str) -> Option<String>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RegexResolver {
+  #[serde(with = "serde_regex")]
   regex: Regex,
   substitution_string: String,
 }
