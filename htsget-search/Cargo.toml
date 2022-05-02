@@ -9,6 +9,16 @@ default = ["s3-storage"]
 s3-storage = ["aws-sdk-s3", "aws-config"]
 
 [dependencies]
+# Axum server dependencies.
+hyper = "0.14"
+axum = "0.5.1"
+axum-extra = { version = "0.2.1", features = ["spa"] }
+rustls-pemfile = "0.3"
+tokio-tls = "0.3"
+tower = { version = "0.4", features = ["make"] }
+futures-util = "0.3"
+tokio-rustls = "0.23"
+
 async-trait = "0.1"
 thiserror = "1.0"
 tokio = { version = "1.17", features = ["full"] }
@@ -41,3 +51,7 @@ s3-server = "0.2"
 http = "0.2"
 #[cfg(feature = "aws")]
 aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
+
+# Axum server dependencies
+rcgen = "0.9"
+hyper-tls = "0.5"

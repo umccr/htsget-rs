@@ -154,6 +154,7 @@ pub mod tests {
   use htsget_config::regex_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
+  use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;
@@ -258,7 +259,7 @@ pub mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<HttpsFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let base_path = std::env::current_dir()
@@ -267,14 +268,19 @@ pub mod tests {
       .unwrap()
       .join("data/bcf");
     test(Arc::new(
-      LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+      LocalStorage::new(
+        base_path,
+        RegexResolver::new(".*", "$0").unwrap(),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+      )
+      .unwrap(),
     ))
     .await
   }
 
-  pub(crate) fn expected_url(storage: Arc<LocalStorage>, name: &str) -> String {
+  pub(crate) fn expected_url(storage: Arc<LocalStorage<HttpsFormatter>>, name: &str) -> String {
     format!(
-      "file://{}",
+      "https://127.0.0.1:8081{}",
       storage
         .base_path()
         .join(format!("{}.bcf", name))

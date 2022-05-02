@@ -7,9 +7,9 @@ pub use http_core::{get_response_for_get_request, get_response_for_post_request}
 pub use json_response::{JsonResponse, JsonUrl};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
+pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
 pub use service_info::get_service_info_json;
 pub use service_info::get_service_info_with;
-pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
 
 mod error;
 mod http_core;
@@ -113,11 +113,12 @@ mod tests {
   use std::sync::Arc;
 
   use htsget_config::regex_resolver::RegexResolver;
-  use htsget_search::htsget::HtsGet;
   use htsget_search::{
-    htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
+    htsget::{Format, from_storage::HtsGetFromStorage, Headers, Url},
     storage::local::LocalStorage,
   };
+  use htsget_search::htsget::HtsGet;
+  use htsget_search::storage::axum_server::HttpsFormatter;
 
   use super::*;
 
@@ -132,7 +133,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
-          "file://{}",
+          "https://127.0.0.1:8081{}",
           get_base_path()
             .join("bam")
             .join("htsnexus_test_NA12878.bam")
@@ -170,7 +171,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
         vec![Url::new(format!(
-          "file://{}",
+          "https://127.0.0.1:8081{}",
           get_base_path()
             .join("vcf")
             .join("sample1-bcbio-cancer.vcf.gz")
@@ -204,7 +205,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
         vec![Url::new(format!(
-          "file://{}",
+          "https://127.0.0.1:8081{}",
           get_base_path()
             .join("bam")
             .join("htsnexus_test_NA12878.bam")
@@ -266,7 +267,7 @@ mod tests {
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
         vec![Url::new(format!(
-          "file://{}",
+          "https://127.0.0.1:8081{}",
           get_base_path()
             .join("vcf")
             .join("sample1-bcbio-cancer.vcf.gz")
@@ -287,7 +288,12 @@ mod tests {
 
   fn get_searcher() -> Arc<impl HtsGet> {
     Arc::new(HtsGetFromStorage::new(
-      LocalStorage::new("../data", RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+      LocalStorage::new(
+        "../data",
+        RegexResolver::new(".*", "$0").unwrap(),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+      )
+      .unwrap(),
     ))
   }
 }

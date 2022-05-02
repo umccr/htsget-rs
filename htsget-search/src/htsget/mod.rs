@@ -52,8 +52,8 @@ pub enum HtsGetError {
   #[error("Parsing error: {0}")]
   ParseError(String),
 
-  #[error("Concurrency error: {0}")]
-  ConcurrencyError(String),
+  #[error("Internal error: {0}")]
+  InternalError(String),
 }
 
 impl HtsGetError {
@@ -82,7 +82,7 @@ impl HtsGetError {
   }
 
   pub fn concurrency_error<S: Into<String>>(message: S) -> Self {
-    Self::ConcurrencyError(message.into())
+    Self::InternalError(message.into())
   }
 }
 
@@ -95,9 +95,15 @@ impl From<StorageError> for HtsGetError {
       StorageError::InvalidKey(key) => {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
-      StorageError::IoError(e, key) => Self::IoError(format!("Io error: {}, from ID: {}", e, key)),
+      StorageError::IoError(e) => Self::IoError(format!("Io error: {}", e)),
       #[cfg(feature = "s3-storage")]
       StorageError::AwsS3Error { .. } => Self::IoError(format!("AWS S3 error: {:?}", err)),
+      StorageError::ResponseServerError(e) => {
+        Self::InternalError(format!("Error using url response server: {}", e))
+      }
+      StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e)),
+      StorageError::InvalidUri(e) => Self::InternalError(format!("Invalid uri produced: {}", e)),
+      StorageError::InvalidAddress(e) => Self::InternalError(format!("Invalid address: {}", e)),
     }
   }
 }
@@ -374,7 +380,7 @@ mod tests {
   #[test]
   fn htsget_error_concurrency_error() {
     let result = HtsGetError::concurrency_error("error");
-    assert!(matches!(result, HtsGetError::ConcurrencyError(message) if message == "error"));
+    assert!(matches!(result, HtsGetError::InternalError(message) if message == "error"));
   }
 
   #[test]

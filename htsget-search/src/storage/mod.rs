@@ -3,6 +3,8 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::io;
+use std::io::ErrorKind;
+use std::net::AddrParseError;
 
 use async_trait::async_trait;
 use thiserror::Error;
@@ -12,6 +14,7 @@ use crate::htsget::{Class, Headers, Url};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
+pub mod axum_server;
 pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
@@ -36,6 +39,12 @@ pub trait Storage {
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
 }
 
+/// Formats a url for use with storage.
+pub trait UrlFormatter {
+  /// Returns the url with the path.
+  fn format_url(&self, path: String) -> Result<String>;
+}
+
 #[derive(Error, Debug)]
 pub enum StorageError {
   #[error("Invalid key: {0}")]
@@ -44,12 +53,30 @@ pub enum StorageError {
   #[error("Key not found: {0}")]
   KeyNotFound(String),
 
-  #[error("Io error: {0}, with key: {1}")]
-  IoError(io::Error, String),
+  #[error("Io error: {0}")]
+  IoError(#[from] io::Error),
 
   #[cfg(feature = "s3-storage")]
   #[error("Aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
+
+  #[error("Url response server error: {0}")]
+  ResponseServerError(String),
+
+  #[error("Invalid input: {0}")]
+  InvalidInput(String),
+
+  #[error("Invalid uri: {0}")]
+  InvalidUri(String),
+
+  #[error("Invalid address: {0}")]
+  InvalidAddress(AddrParseError),
+}
+
+impl From<StorageError> for std::io::Error {
+  fn from(err: StorageError) -> Self {
+    Self::new(ErrorKind::Other, err)
+  }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

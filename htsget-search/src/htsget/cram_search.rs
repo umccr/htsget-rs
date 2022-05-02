@@ -13,11 +13,11 @@ use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
 use noodles_cram::AsyncReader;
-use tokio::io::{AsyncRead, AsyncSeek};
 use tokio::{io, select};
+use tokio::io::{AsyncRead, AsyncSeek};
 
-use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
+use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::storage::{BytesRange, Storage};
 
 pub(crate) struct CramSearch<S> {
@@ -269,6 +269,7 @@ pub mod tests {
   use htsget_config::regex_resolver::RegexResolver;
 
   use crate::htsget::{Class, Headers, Response, Url};
+  use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;
@@ -390,7 +391,7 @@ pub mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<HttpsFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let base_path = std::env::current_dir()
@@ -399,14 +400,19 @@ pub mod tests {
       .unwrap()
       .join("data/cram");
     test(Arc::new(
-      LocalStorage::new(base_path, RegexResolver::new(".*", "$0").unwrap()).unwrap(),
+      LocalStorage::new(
+        base_path,
+        RegexResolver::new(".*", "$0").unwrap(),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+      )
+      .unwrap(),
     ))
     .await
   }
 
-  pub(crate) fn expected_url(storage: Arc<LocalStorage>) -> String {
+  pub(crate) fn expected_url(storage: Arc<LocalStorage<HttpsFormatter>>) -> String {
     format!(
-      "file://{}",
+      "https://127.0.0.1:8081{}",
       storage
         .base_path()
         .join("htsnexus_test_NA12878.cram")

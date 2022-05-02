@@ -9,19 +9,25 @@ use tokio::fs::File;
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::Url;
-use crate::storage::Storage;
+use crate::storage::{Storage, UrlFormatter};
 
 use super::{GetOptions, Result, StorageError, UrlOptions};
 
-/// Implementation for the [Storage] trait using the local file system.
+/// Implementation for the [Storage] trait using the local file system. [T] is the type of the
+/// server struct, which is used for formatting urls.
 #[derive(Debug)]
-pub struct LocalStorage {
+pub struct LocalStorage<T> {
   base_path: PathBuf,
   id_resolver: RegexResolver,
+  url_formatter: T,
 }
 
-impl LocalStorage {
-  pub fn new<P: AsRef<Path>>(base_path: P, id_resolver: RegexResolver) -> Result<Self> {
+impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
+  pub fn new<P: AsRef<Path>>(
+    base_path: P,
+    id_resolver: RegexResolver,
+    url_formatter: T,
+  ) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -30,6 +36,7 @@ impl LocalStorage {
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         id_resolver,
+        url_formatter,
       })
   }
 
@@ -65,14 +72,12 @@ impl LocalStorage {
 
   async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
-    File::open(path)
-      .await
-      .map_err(|e| StorageError::IoError(e, key.as_ref().to_string()))
+    Ok(File::open(path).await?)
   }
 }
 
 #[async_trait]
-impl Storage for LocalStorage {
+impl<T: UrlFormatter + Send + Sync> Storage for LocalStorage<T> {
   type Streamable = File;
 
   /// Get the file at the location of the key.
@@ -82,9 +87,12 @@ impl Storage for LocalStorage {
 
   /// Get a url for the file at key.
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    // TODO file:// is not allowed by the spec. We should consider including an static http server for the base_path
     let path = self.get_path_from_key(&key)?;
-    let url = Url::new(format!("file://{}", path.to_string_lossy()));
+    let url = Url::new(
+      self
+        .url_formatter
+        .format_url(path.to_string_lossy().to_string())?,
+    );
     Ok(options.apply(url))
   }
 
@@ -111,6 +119,7 @@ pub(crate) mod tests {
 
   use crate::htsget::{Headers, Url};
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
+  use crate::storage::axum_server::HttpsFormatter;
 
   use super::*;
 
@@ -186,7 +195,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let result = Storage::url(&storage, "folder/../key1", UrlOptions::default()).await;
       let expected = Url::new(format!(
-        "file://{}",
+        "https://127.0.0.1:8081{}",
         storage.base_path().join("key1").to_string_lossy()
       ));
       assert!(matches!(result, Ok(url) if url == expected));
@@ -204,7 +213,7 @@ pub(crate) mod tests {
       )
       .await;
       let expected = Url::new(format!(
-        "file://{}",
+        "https://127.0.0.1:8081{}",
         storage.base_path().join("key1").to_string_lossy()
       ))
       .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
@@ -223,7 +232,7 @@ pub(crate) mod tests {
       )
       .await;
       let expected = Url::new(format!(
-        "file://{}",
+        "https://127.0.0.1:8081{}",
         storage.base_path().join("key1").to_string_lossy()
       ))
       .with_headers(Headers::default().with_header("Range", "bytes=7-"));
@@ -271,11 +280,18 @@ pub(crate) mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(LocalStorage) -> Fut,
+    F: FnOnce(LocalStorage<HttpsFormatter>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
-    test(LocalStorage::new(base_path.path(), RegexResolver::new(".*", "$0").unwrap()).unwrap())
-      .await
+    test(
+      LocalStorage::new(
+        base_path.path(),
+        RegexResolver::new(".*", "$0").unwrap(),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+      )
+      .unwrap(),
+    )
+    .await
   }
 }
