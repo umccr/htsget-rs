@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use serde::Deserialize;
+use crate::config::StorageType::LocalStorage;
 
 pub const USAGE: &str = r#"
 This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
@@ -55,6 +56,14 @@ fn default_localstorage_key() -> PathBuf {
   default_path().join("certs/key.pem")
 }
 
+/// Specify the storage type to use.
+#[derive(Deserialize, Debug, Clone)]
+pub enum StorageType {
+  LocalStorage,
+  #[cfg(feature = "s3-storage")]
+  AwsS3Storage
+}
+
 /// Configuration for the server. Each field will be read from environment variables
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -74,11 +83,13 @@ pub struct Config {
   pub htsget_created_at: Option<String>,
   pub htsget_updated_at: Option<String>,
   pub htsget_environment: Option<String>,
-  pub htsget_s3_bucket: Option<String>,
   pub htsget_localstorage_ip: String,
   pub htsget_localstorage_port: String,
   pub htsget_localstorage_cert: PathBuf,
   pub htsget_localstorage_key: PathBuf,
+  pub htsget_storage_type: StorageType,
+  #[cfg(feature = "s3-storage")]
+  pub htsget_s3_bucket: Option<String>,
 }
 
 impl Default for Config {
@@ -99,11 +110,13 @@ impl Default for Config {
       htsget_created_at: None,
       htsget_updated_at: None,
       htsget_environment: None,
-      htsget_s3_bucket: None,
       htsget_localstorage_ip: default_ip(),
       htsget_localstorage_port: default_localstorage_port(),
       htsget_localstorage_cert: default_localstorage_cert(),
       htsget_localstorage_key: default_localstorage_key(),
+      htsget_storage_type: LocalStorage,
+      #[cfg(feature = "s3-storage")]
+      htsget_s3_bucket: None,
     }
   }
 }
