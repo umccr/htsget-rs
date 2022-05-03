@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use htsget_config::config::Config;
+use htsget_config::config::{Config, ConfigServiceInfo};
 use htsget_search::htsget::{Format, HtsGet};
 
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
@@ -95,7 +95,7 @@ pub fn get_service_info_with(
 pub fn get_service_info_json(
   endpoint: Endpoint,
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
-  config: &Config,
+  config: &ConfigServiceInfo,
 ) -> ServiceInfo {
   fill_out_service_info_json(
     get_service_info_with(
@@ -111,7 +111,7 @@ pub fn get_service_info_json(
 /// Fills the service-info json with the data from the server config
 pub(crate) fn fill_out_service_info_json(
   mut service_info_json: ServiceInfo,
-  config: &Config,
+  config: &ConfigServiceInfo,
 ) -> ServiceInfo {
   if let Some(id) = &config.htsget_id {
     service_info_json.id = id.clone();

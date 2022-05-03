@@ -1,6 +1,8 @@
 use std::env::args;
+use std::io::ErrorKind;
 
 use actix_web::{web, App, HttpServer};
+use futures_util::future::err;
 use tokio::select;
 
 use htsget_config::config::{Config, USAGE};
@@ -15,12 +17,9 @@ async fn main() -> std::io::Result<()> {
     return Ok(());
   }
 
-  let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
-  let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
-  let formatter = HttpsFormatter::new(
-    &config.htsget_localstorage_ip,
-    &config.htsget_localstorage_port,
-  )?;
+  let config = envy::from_env::<Config>().map_err(|err| std::io::Error::new(ErrorKind::Other, format!("Config not properly set: {}", err.to_string())))?;
+  let addr = config.htsget_addr;
+  let formatter = HttpsFormatter::from(addr);
 
   let path = config.htsget_path.clone();
   let key = config.htsget_localstorage_key.clone();
@@ -36,7 +35,7 @@ async fn main() -> std::io::Result<()> {
         configure_server(service_config, config.clone(), formatter.clone());
       })
     })
-    .bind(address)?
+    .bind(addr)?
     .run() => actix_server
   }
 }

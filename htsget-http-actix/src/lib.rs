@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::web;
 
-use htsget_config::config::Config;
+use htsget_config::config::{Config, ConfigServiceInfo};
 use htsget_config::regex_resolver::RegexResolver;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
@@ -17,7 +17,7 @@ pub type HtsGetStorage<T> = HtsGetFromStorage<LocalStorage<T>>;
 
 pub struct AppState<H: HtsGet> {
   pub htsget: Arc<H>,
-  pub config: Config,
+  pub config_service_info: ConfigServiceInfo,
 }
 
 pub fn configure_server<T: UrlFormatter + Send + Sync + 'static>(
@@ -25,20 +25,17 @@ pub fn configure_server<T: UrlFormatter + Send + Sync + 'static>(
   config: Config,
   url_formatter: T,
 ) {
-  let htsget_path = config.htsget_path.clone();
-  let regex_match = config.htsget_regex_match.clone();
-  let regex_substitution = config.htsget_regex_substitution.clone();
   service_config
     .app_data(web::Data::new(AppState {
       htsget: Arc::new(HtsGetStorage::new(
         LocalStorage::new(
-          htsget_path,
-          RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
+          config.htsget_path,
+          config.htsget_resolver,
           url_formatter,
         )
         .expect("Couldn't create a Storage with the provided path"),
       )),
-      config,
+      config_service_info: config.htsget_config_service_info,
     }))
     .service(
       web::scope("/reads")

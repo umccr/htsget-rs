@@ -64,6 +64,19 @@ pub enum StorageType {
 pub struct Config {
   pub htsget_addr: SocketAddr,
   pub htsget_resolver: RegexResolver,
+  pub htsget_path: PathBuf,
+  #[serde(flatten)]
+  pub htsget_config_service_info: ConfigServiceInfo,
+  pub htsget_localstorage_addr: SocketAddr,
+  pub htsget_localstorage_cert: PathBuf,
+  pub htsget_localstorage_key: PathBuf,
+  pub htsget_storage_type: StorageType,
+  #[cfg(feature = "s3-storage")]
+  pub htsget_s3_bucket: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct ConfigServiceInfo {
   pub htsget_id: Option<String>,
   pub htsget_name: Option<String>,
   pub htsget_version: Option<String>,
@@ -74,12 +87,6 @@ pub struct Config {
   pub htsget_created_at: Option<String>,
   pub htsget_updated_at: Option<String>,
   pub htsget_environment: Option<String>,
-  pub htsget_localstorage_addr: SocketAddr,
-  pub htsget_localstorage_cert: PathBuf,
-  pub htsget_localstorage_key: PathBuf,
-  pub htsget_storage_type: StorageType,
-  #[cfg(feature = "s3-storage")]
-  pub htsget_s3_bucket: Option<String>,
 }
 
 impl Default for Config {
@@ -87,16 +94,8 @@ impl Default for Config {
     Self {
       htsget_addr: default_addr(),
       htsget_resolver: default_resolver(),
-      htsget_id: None,
-      htsget_name: None,
-      htsget_version: None,
-      htsget_organization_name: None,
-      htsget_organization_url: None,
-      htsget_contact_url: None,
-      htsget_documentation_url: None,
-      htsget_created_at: None,
-      htsget_updated_at: None,
-      htsget_environment: None,
+      htsget_path: default_path(),
+      htsget_config_service_info: ConfigServiceInfo::default(),
       htsget_localstorage_addr: default_localstorage_addr(),
       htsget_localstorage_cert: default_localstorage_cert(),
       htsget_localstorage_key: default_localstorage_key(),

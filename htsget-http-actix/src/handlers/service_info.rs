@@ -16,7 +16,7 @@ pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
   PrettyJson(get_base_service_info_json(
     endpoint,
     app_state.htsget.clone(),
-    &app_state.config,
+    &app_state.config_service_info,
   ))
 }
 
