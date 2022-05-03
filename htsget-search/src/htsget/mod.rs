@@ -7,8 +7,10 @@ use core::fmt;
 use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io;
+use std::io::ErrorKind;
 
 use async_trait::async_trait;
+use futures_util::future::err;
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -83,6 +85,12 @@ impl HtsGetError {
 
   pub fn concurrency_error<S: Into<String>>(message: S) -> Self {
     Self::InternalError(message.into())
+  }
+}
+
+impl From<HtsGetError> for std::io::Error {
+  fn from(error: HtsGetError) -> Self {
+    Self::new(ErrorKind::Other, error)
   }
 }
 

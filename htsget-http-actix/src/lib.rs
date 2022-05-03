@@ -1,11 +1,15 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use actix_web::web;
+use actix_web::{App, HttpServer, web};
+use actix_web::dev::Server;
 
-use htsget_config::config::{Config, ConfigServiceInfo};
+use htsget_config::config::{Config, ConfigServiceInfo, StorageType};
 use htsget_config::regex_resolver::RegexResolver;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
+use htsget_search::storage::aws::AwsS3Storage;
+use htsget_search::storage::axum_server::HttpsFormatter;
 use htsget_search::storage::local::LocalStorage;
 use htsget_search::storage::UrlFormatter;
 
@@ -59,6 +63,18 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
           web::post().to(post::variants::<H>),
         ),
     );
+}
+
+pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(htsget: H, config_service_info: ConfigServiceInfo, addr: SocketAddr) -> std::io::Result<Server> {
+  Ok(HttpServer::new(Box::new(move || {
+    App::new().configure(|service_config: &mut web::ServiceConfig| {
+      configure_server(
+        service_config,
+        htsget.clone(),
+        config_service_info.clone()
+      );
+    })
+  })).bind(addr)?.run())
 }
 
 #[cfg(test)]

@@ -5,7 +5,8 @@ authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>
 edition = "2021"
 
 [features]
-default = ["htsget-config/default", "htsget-search/default", "htsget-http-core/default"]
+s3-storage = []
+default = ["s3-storage", "htsget-config/default", "htsget-search/default", "htsget-http-core/default"]
 
 [dependencies]
 actix-web = "4.0"
