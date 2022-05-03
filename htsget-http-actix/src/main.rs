@@ -1,5 +1,6 @@
 use std::env::args;
 use std::io::ErrorKind;
+use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
 use futures_util::future::err;
@@ -7,7 +8,9 @@ use tokio::select;
 
 use htsget_config::config::{Config, USAGE};
 use htsget_http_actix::configure_server;
+use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::storage::axum_server::HttpsFormatter;
+use htsget_search::storage::local::LocalStorage;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -17,25 +20,32 @@ async fn main() -> std::io::Result<()> {
     return Ok(());
   }
 
-  let config = envy::from_env::<Config>().map_err(|err| std::io::Error::new(ErrorKind::Other, format!("Config not properly set: {}", err.to_string())))?;
-  let addr = config.htsget_addr;
-  let formatter = HttpsFormatter::from(addr);
+  let config = Config::from_env()?;
 
-  let path = config.htsget_path.clone();
-  let key = config.htsget_localstorage_key.clone();
-  let cert = config.htsget_localstorage_cert.clone();
-
+  let formatter = HttpsFormatter::from(config.htsget_addr);
   let mut local_server = formatter.bind_axum_server().await?;
+
+  let searcher = HtsGetFromStorage::new(
+    LocalStorage::new(
+      config.htsget_path.clone(),
+      config.htsget_resolver,
+        formatter
+    )?,
+  );
+  let path = config.htsget_path;
+  let key = config.htsget_localstorage_key;
+  let cert = config.htsget_localstorage_cert;
+
   select! {
     local_server = tokio::spawn(async move {
       local_server.serve(path, key, cert).await
     }) => Ok(local_server??),
     actix_server = HttpServer::new(move || {
       App::new().configure(|service_config: &mut web::ServiceConfig| {
-        configure_server(service_config, config.clone(), formatter.clone());
+        configure_server(service_config, searcher.clone(), config.htsget_config_service_info.clone());
       })
     })
-    .bind(addr)?
+    .bind(config.htsget_addr)?
     .run() => actix_server
   }
 }

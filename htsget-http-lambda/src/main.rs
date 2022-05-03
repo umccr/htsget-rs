@@ -11,27 +11,18 @@ use htsget_search::storage::local::LocalStorage;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-  let config =
-    &envy::from_env::<Config>().expect("The environment variables weren't properly set!");
+  let config = Config::from_env()?;
 
-  let htsget_path = config.htsget_path.clone();
   let searcher = Arc::new(HtsGetFromStorage::new(
     LocalStorage::new(
-      htsget_path,
-      RegexResolver::new(
-        &config.htsget_regex_match,
-        &config.htsget_regex_substitution,
-      )
-      .unwrap(),
-      HttpsFormatter::new(
-        &config.htsget_localstorage_ip,
-        &config.htsget_localstorage_port,
-      )?,
+      config.htsget_path,
+      config.htsget_resolver,
+      HttpsFormatter::from(config.htsget_addr)
     )
     .unwrap(),
   ));
 
-  let router = &Router::new(searcher, config);
+  let router = &Router::new(searcher, &config.htsget_config_service_info);
 
   let handler = |event: Request| async move { Ok(router.route_request(event).await) };
   lambda_http::run(service_fn(handler)).await?;

@@ -18,6 +18,7 @@ use crate::{
 };
 
 /// Implementation of the [HtsGet] trait using a [Storage].
+#[derive(Debug, Clone)]
 pub struct HtsGetFromStorage<S> {
   storage_ref: Arc<S>,
 }

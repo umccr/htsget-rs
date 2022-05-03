@@ -20,50 +20,43 @@ pub struct AppState<H: HtsGet> {
   pub config_service_info: ConfigServiceInfo,
 }
 
-pub fn configure_server<T: UrlFormatter + Send + Sync + 'static>(
+pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
   service_config: &mut web::ServiceConfig,
-  config: Config,
-  url_formatter: T,
+  htsget: H,
+  config_service_info: ConfigServiceInfo
 ) {
   service_config
     .app_data(web::Data::new(AppState {
-      htsget: Arc::new(HtsGetStorage::new(
-        LocalStorage::new(
-          config.htsget_path,
-          config.htsget_resolver,
-          url_formatter,
-        )
-        .expect("Couldn't create a Storage with the provided path"),
-      )),
-      config_service_info: config.htsget_config_service_info,
+      htsget: Arc::new(htsget),
+      config_service_info
     }))
     .service(
       web::scope("/reads")
         .route(
           "/service-info",
-          web::get().to(reads_service_info::<HtsGetStorage<T>>),
+          web::get().to(reads_service_info::<H>),
         )
         .route(
           "/service-info",
-          web::post().to(reads_service_info::<HtsGetStorage<T>>),
+          web::post().to(reads_service_info::<H>),
         )
-        .route("/{id:.+}", web::get().to(get::reads::<HtsGetStorage<T>>))
-        .route("/{id:.+}", web::post().to(post::reads::<HtsGetStorage<T>>)),
+        .route("/{id:.+}", web::get().to(get::reads::<H>))
+        .route("/{id:.+}", web::post().to(post::reads::<H>)),
     )
     .service(
       web::scope("/variants")
         .route(
           "/service-info",
-          web::get().to(variants_service_info::<HtsGetStorage<T>>),
+          web::get().to(variants_service_info::<H>),
         )
         .route(
           "/service-info",
-          web::post().to(variants_service_info::<HtsGetStorage<T>>),
+          web::post().to(variants_service_info::<H>),
         )
-        .route("/{id:.+}", web::get().to(get::variants::<HtsGetStorage<T>>))
+        .route("/{id:.+}", web::get().to(get::variants::<H>))
         .route(
           "/{id:.+}",
-          web::post().to(post::variants::<HtsGetStorage<T>>),
+          web::post().to(post::variants::<H>),
         ),
     );
 }
@@ -133,12 +126,14 @@ mod tests {
         |service_config: &mut web::ServiceConfig| {
           configure_server(
             service_config,
-            self.config.clone(),
-            HttpsFormatter::new(
-              &config.htsget_localstorage_ip,
-              &config.htsget_localstorage_port,
-            )
-            .unwrap(),
+            HtsGetFromStorage::new(
+              LocalStorage::new(
+                self.config.htsget_path.clone(),
+                self.config.htsget_resolver.clone(),
+                HttpsFormatter::from(self.config.htsget_addr)
+              ).unwrap(),
+            ),
+            self.config.htsget_config_service_info.clone()
           );
         },
       ))

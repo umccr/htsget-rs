@@ -9,7 +9,7 @@ use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::http::header::CONTENT_TYPE;
 
-use htsget_config::config::Config;
+use htsget_config::config::{Config, ConfigServiceInfo};
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 
@@ -54,12 +54,12 @@ impl Route {
 /// A Router is a struct which handles routing any htsget requests to the htsget search, using the config.
 pub struct Router<'a, H> {
   searcher: Arc<H>,
-  config: &'a Config,
+  config_service_info: &'a ConfigServiceInfo,
 }
 
 impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
-  pub fn new(searcher: Arc<H>, config: &'a Config) -> Self {
-    Self { searcher, config }
+  pub fn new(searcher: Arc<H>, config_service_info: &'a ConfigServiceInfo) -> Self {
+    Self { searcher, config_service_info }
   }
 
   /// Gets the Route if the request is valid, otherwise returns None.
@@ -101,7 +101,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         method: _,
         endpoint,
         route_type: RouteType::ServiceInfo,
-      }) => get_service_info_json(self.searcher.clone(), endpoint, self.config).into_response(),
+      }) => get_service_info_json(self.searcher.clone(), endpoint, &self.config_service_info).into_response(),
       Some(Route {
         method: HtsgetMethod::Get,
         endpoint,
@@ -251,16 +251,12 @@ mod tests {
         Arc::new(HtsGetFromStorage::new(
           LocalStorage::new(
             &self.config.htsget_path,
-            RegexResolver::new(
-              &self.config.htsget_regex_match,
-              &self.config.htsget_regex_substitution,
-            )
-            .unwrap(),
+            self.config.htsget_resolver.clone(),
             HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
           )
           .expect("Couldn't create a Storage with the provided path"),
         )),
-        &self.config,
+        &self.config.htsget_config_service_info,
       );
 
       let response = router.route_request(request.0).await;
@@ -462,16 +458,12 @@ mod tests {
       Arc::new(HtsGetFromStorage::new(
         LocalStorage::new(
           &config.htsget_path,
-          RegexResolver::new(
-            &config.htsget_regex_match,
-            &config.htsget_regex_substitution,
-          )
-          .unwrap(),
+          config.htsget_resolver.clone(),
           HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
         )
         .unwrap(),
       )),
-      config,
+      &config.htsget_config_service_info,
     );
     test(router).await
   }

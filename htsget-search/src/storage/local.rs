@@ -15,7 +15,7 @@ use super::{GetOptions, Result, StorageError, UrlOptions};
 
 /// Implementation for the [Storage] trait using the local file system. [T] is the type of the
 /// server struct, which is used for formatting urls.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalStorage<T> {
   base_path: PathBuf,
   id_resolver: RegexResolver,

@@ -94,8 +94,8 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 
 fn expected_local_storage_path(config: &Config) -> String {
   format!(
-    "https://{}:{}",
-    config.htsget_localstorage_ip, config.htsget_localstorage_port
+    "https://{}",
+    config.htsget_addr
   )
 }
 

@@ -1,3 +1,4 @@
+use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -103,5 +104,11 @@ impl Default for Config {
       #[cfg(feature = "s3-storage")]
       htsget_s3_bucket: None,
     }
+  }
+}
+
+impl Config {
+  pub fn from_env() -> std::io::Result<Self> {
+    envy::from_env().map_err(|err| std::io::Error::new(ErrorKind::Other, format!("Config not properly set: {}", err.to_string())))
   }
 }
