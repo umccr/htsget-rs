@@ -32,13 +32,10 @@ async fn main() -> std::io::Result<()> {
         formatter
     )?,
   );
-  let path = config.htsget_path;
-  let key = config.htsget_localstorage_key;
-  let cert = config.htsget_localstorage_cert;
 
   select! {
     local_server = tokio::spawn(async move {
-      local_server.serve(path, key, cert).await
+      local_server.serve(&config.htsget_path, &config.htsget_localstorage_key, &config.htsget_localstorage_cert).await
     }) => Ok(local_server??),
     actix_server = HttpServer::new(move || {
       App::new().configure(|service_config: &mut web::ServiceConfig| {
