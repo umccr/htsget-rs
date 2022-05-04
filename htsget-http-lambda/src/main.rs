@@ -2,36 +2,40 @@ use std::sync::Arc;
 
 use lambda_http::{service_fn, Error, Request};
 
-use htsget_config::config::Config;
-use htsget_config::regex_resolver::RegexResolver;
+use htsget_config::config::{Config, StorageType};
 use htsget_http_lambda::Router;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::storage::axum_server::HttpsFormatter;
-use htsget_search::storage::local::LocalStorage;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-  let config =
-    &envy::from_env::<Config>().expect("The environment variables weren't properly set!");
+  let config = Config::from_env()?;
 
-  let htsget_path = config.htsget_path.clone();
-  let searcher = Arc::new(HtsGetFromStorage::new(
-    LocalStorage::new(
-      htsget_path,
-      RegexResolver::new(
-        &config.htsget_regex_match,
-        &config.htsget_regex_substitution,
-      )
-      .unwrap(),
-      HttpsFormatter::new(
-        &config.htsget_localstorage_ip,
-        &config.htsget_localstorage_port,
-      )?,
-    )
-    .unwrap(),
-  ));
+  match config.storage_type {
+    StorageType::LocalStorage => local_storage_server(config).await,
+    #[cfg(feature = "s3-storage")]
+    StorageType::AwsS3Storage => s3_storage_server(config).await,
+  }
+}
 
-  let router = &Router::new(searcher, config);
+async fn local_storage_server(config: Config) -> Result<(), Error> {
+  let searcher = Arc::new(HtsGetFromStorage::local_from(
+    config.path,
+    config.resolver,
+    HttpsFormatter::from(config.addr),
+  )?);
+  let router = &Router::new(searcher, &config.service_info);
+
+  let handler = |event: Request| async move { Ok(router.route_request(event).await) };
+  lambda_http::run(service_fn(handler)).await?;
+
+  Ok(())
+}
+
+#[cfg(feature = "s3-storage")]
+async fn s3_storage_server(config: Config) -> Result<(), Error> {
+  let searcher = Arc::new(HtsGetFromStorage::s3_from(config.s3_bucket, config.resolver).await);
+  let router = &Router::new(searcher, &config.service_info);
 
   let handler = |event: Request| async move { Ok(router.route_request(event).await) };
   lambda_http::run(service_fn(handler)).await?;

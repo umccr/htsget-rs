@@ -19,7 +19,7 @@ pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
   let url_path = expected_local_storage_path(tester.get_config());
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&tester.get_config().htsget_path, Class::Body, url_path),
+    expected_response(&tester.get_config().path, Class::Body, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -42,7 +42,7 @@ pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let url_path = expected_local_storage_path(tester.get_config());
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&tester.get_config().htsget_path, Class::Body, url_path),
+    expected_response(&tester.get_config().path, Class::Body, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -57,7 +57,7 @@ pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>)
   let url_path = expected_local_storage_path(tester.get_config());
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&tester.get_config().htsget_path, Class::Header, url_path),
+    expected_response(&tester.get_config().path, Class::Header, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -70,7 +70,7 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
   let url_path = expected_local_storage_path(tester.get_config());
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&tester.get_config().htsget_path, Class::Body, url_path),
+    expected_response(&tester.get_config().path, Class::Body, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -93,10 +93,7 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 }
 
 fn expected_local_storage_path(config: &Config) -> String {
-  format!(
-    "https://{}:{}",
-    config.htsget_localstorage_ip, config.htsget_localstorage_port
-  )
+  format!("https://{}", config.addr)
 }
 
 /// An example VCF search response.
@@ -127,5 +124,5 @@ pub fn default_test_config() -> Config {
     "HTSGET_PATH",
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
   );
-  envy::from_env::<Config>().expect("Expected valid environment variables.")
+  Config::from_env().expect("Expected valid environment variables.")
 }

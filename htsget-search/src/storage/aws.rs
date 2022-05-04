@@ -31,6 +31,7 @@ pub enum Retrieval {
 }
 
 /// Implementation for the [Storage] trait utilising data from an S3 bucket.
+#[derive(Debug, Clone)]
 pub struct AwsS3Storage {
   client: Client,
   bucket: String,

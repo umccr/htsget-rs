@@ -60,8 +60,8 @@ pub enum StorageError {
   #[error("Aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
 
-  #[error("Url response server error: {0}")]
-  ResponseServerError(String),
+  #[error("Url response ticket server error: {0}")]
+  TicketServerError(String),
 
   #[error("Invalid input: {0}")]
   InvalidInput(String),

@@ -9,19 +9,19 @@ use futures::prelude::stream::FuturesUnordered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
 use noodles::tabix;
-use noodles::tabix::Index;
 use noodles::tabix::index::ReferenceSequence;
+use noodles::tabix::Index;
 use noodles::vcf::Header;
 use noodles_vcf as vcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
+use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesRange, Storage},
 };
-use crate::htsget::search::{BgzfSearch, BlockPosition, find_first, Search};
 
 type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 

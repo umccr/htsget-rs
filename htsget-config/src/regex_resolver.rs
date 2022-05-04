@@ -1,13 +1,25 @@
 use regex::{Error, Regex};
+use serde::Deserialize;
 
+/// Represents an id resolver, which matches the id, replacing the match in the substitution text.
 pub trait HtsGetIdResolver {
+  /// Resolve the id, returning the substituted string if there is a match.
   fn resolve_id(&self, id: &str) -> Option<String>;
 }
 
-#[derive(Debug)]
+/// A regex resolver is a resolver that matches ids using Regex.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
 pub struct RegexResolver {
-  regex: Regex,
-  substitution_string: String,
+  #[serde(with = "serde_regex")]
+  pub(crate) regex: Regex,
+  pub(crate) substitution_string: String,
+}
+
+impl Default for RegexResolver {
+  fn default() -> Self {
+    Self::new(".*", "$0").expect("Expected valid resolver.")
+  }
 }
 
 impl RegexResolver {
@@ -31,5 +43,16 @@ impl HtsGetIdResolver for RegexResolver {
     } else {
       None
     }
+  }
+}
+
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+
+  #[test]
+  fn resolver_resolve_id() {
+    let resolver = RegexResolver::new(".*", "$0-test").unwrap();
+    assert_eq!(resolver.resolve_id("id").unwrap(), "id-test");
   }
 }

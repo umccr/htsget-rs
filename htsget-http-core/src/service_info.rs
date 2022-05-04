@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use htsget_config::config::Config;
+use htsget_config::config::ConfigServiceInfo;
 use htsget_search::htsget::{Format, HtsGet};
 
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
@@ -95,7 +95,7 @@ pub fn get_service_info_with(
 pub fn get_service_info_json(
   endpoint: Endpoint,
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
-  config: &Config,
+  config: &ConfigServiceInfo,
 ) -> ServiceInfo {
   fill_out_service_info_json(
     get_service_info_with(
@@ -111,36 +111,36 @@ pub fn get_service_info_json(
 /// Fills the service-info json with the data from the server config
 pub(crate) fn fill_out_service_info_json(
   mut service_info_json: ServiceInfo,
-  config: &Config,
+  config: &ConfigServiceInfo,
 ) -> ServiceInfo {
-  if let Some(id) = &config.htsget_id {
+  if let Some(id) = &config.id {
     service_info_json.id = id.clone();
   }
-  if let Some(name) = &config.htsget_name {
+  if let Some(name) = &config.name {
     service_info_json.name = name.clone();
   }
-  if let Some(version) = &config.htsget_version {
+  if let Some(version) = &config.version {
     service_info_json.version = version.clone();
   }
-  if let Some(organization_name) = &config.htsget_organization_name {
+  if let Some(organization_name) = &config.organization_name {
     service_info_json.organization.name = organization_name.clone();
   }
-  if let Some(organization_url) = &config.htsget_organization_url {
+  if let Some(organization_url) = &config.organization_url {
     service_info_json.organization.url = organization_url.clone();
   }
-  if let Some(contact_url) = &config.htsget_contact_url {
+  if let Some(contact_url) = &config.contact_url {
     service_info_json.contact_url = contact_url.clone();
   }
-  if let Some(documentation_url) = &config.htsget_documentation_url {
+  if let Some(documentation_url) = &config.documentation_url {
     service_info_json.documentation_url = documentation_url.clone();
   }
-  if let Some(created_at) = &config.htsget_created_at {
+  if let Some(created_at) = &config.created_at {
     service_info_json.created_at = created_at.clone();
   }
-  if let Some(updated_at) = &config.htsget_updated_at {
+  if let Some(updated_at) = &config.updated_at {
     service_info_json.updated_at = updated_at.clone();
   }
-  if let Some(environment) = &config.htsget_environment {
+  if let Some(environment) = &config.environment {
     service_info_json.environment = environment.clone();
   }
   service_info_json

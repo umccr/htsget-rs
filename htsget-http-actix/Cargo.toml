@@ -5,11 +5,11 @@ authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>
 edition = "2021"
 
 [features]
-default = ["htsget-search/default", "htsget-http-core/default"]
+s3-storage = []
+default = ["s3-storage", "htsget-config/default", "htsget-search/default", "htsget-http-core/default"]
 
 [dependencies]
 actix-web = "4.0"
-envy = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 futures-util = { version = "0.3", default-features = false }

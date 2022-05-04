@@ -15,7 +15,7 @@ use super::{GetOptions, Result, StorageError, UrlOptions};
 
 /// Implementation for the [Storage] trait using the local file system. [T] is the type of the
 /// server struct, which is used for formatting urls.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalStorage<T> {
   base_path: PathBuf,
   id_resolver: RegexResolver,
@@ -118,8 +118,8 @@ pub(crate) mod tests {
   use tokio::io::AsyncWriteExt;
 
   use crate::htsget::{Headers, Url};
-  use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
   use crate::storage::axum_server::HttpsFormatter;
+  use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
 
   use super::*;
 

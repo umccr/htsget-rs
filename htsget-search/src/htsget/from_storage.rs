@@ -1,13 +1,19 @@
 //! Module providing an implementation of the [HtsGet] trait using a [Storage].
 //!
 
+use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncSeek};
 
+use htsget_config::regex_resolver::RegexResolver;
+
 use crate::htsget::search::Search;
 use crate::htsget::Format;
+use crate::storage::aws::AwsS3Storage;
+use crate::storage::local::LocalStorage;
+use crate::storage::UrlFormatter;
 use crate::{
   htsget::bam_search::BamSearch,
   htsget::bcf_search::BcfSearch,
@@ -18,6 +24,7 @@ use crate::{
 };
 
 /// Implementation of the [HtsGet] trait using a [Storage].
+#[derive(Debug, Clone)]
 pub struct HtsGetFromStorage<S> {
   storage_ref: Arc<S>,
 }
@@ -59,6 +66,25 @@ impl<S> HtsGetFromStorage<S> {
 
   pub fn storage(&self) -> Arc<S> {
     Arc::clone(&self.storage_ref)
+  }
+}
+
+#[cfg(feature = "s3-storage")]
+impl HtsGetFromStorage<AwsS3Storage> {
+  pub async fn s3_from(bucket: String, resolver: RegexResolver) -> Self {
+    HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket, resolver).await)
+  }
+}
+
+impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
+  pub fn local_from<P: AsRef<Path>>(
+    path: P,
+    resolver: RegexResolver,
+    formatter: T,
+  ) -> Result<Self> {
+    Ok(HtsGetFromStorage::new(LocalStorage::new(
+      path, resolver, formatter,
+    )?))
   }
 }
 

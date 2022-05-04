@@ -6,7 +6,7 @@ edition = "2021"
 
 [features]
 s3-storage = []
-default = ["s3-storage", "htsget-search/default", "htsget-http-core/default", "htsget-config/s3-storage"]
+default = ["s3-storage", "htsget-search/default", "htsget-http-core/default", "htsget-config/default"]
 
 [dependencies]
 envy = "0.4.2"
