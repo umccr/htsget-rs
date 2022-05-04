@@ -2,9 +2,10 @@ use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+use serde::Deserialize;
+
 use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
-use serde::Deserialize;
 
 pub const USAGE: &str = r#"
 This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
@@ -63,55 +64,55 @@ pub enum StorageType {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
-  pub htsget_addr: SocketAddr,
+  pub addr: SocketAddr,
   #[serde(flatten)]
-  pub htsget_resolver: RegexResolver,
-  pub htsget_path: PathBuf,
+  pub resolver: RegexResolver,
+  pub path: PathBuf,
   #[serde(flatten)]
-  pub htsget_config_service_info: ConfigServiceInfo,
-  pub htsget_storage_type: StorageType,
-  pub htsget_localstorage_addr: SocketAddr,
-  pub htsget_localstorage_key: PathBuf,
-  pub htsget_localstorage_cert: PathBuf,
+  pub service_info: ConfigServiceInfo,
+  pub storage_type: StorageType,
+  pub ticket_server_addr: SocketAddr,
+  pub ticket_server_key: PathBuf,
+  pub ticket_server_cert: PathBuf,
   #[cfg(feature = "s3-storage")]
-  pub htsget_s3_bucket: Option<String>,
+  pub s3_bucket: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct ConfigServiceInfo {
-  pub htsget_id: Option<String>,
-  pub htsget_name: Option<String>,
-  pub htsget_version: Option<String>,
-  pub htsget_organization_name: Option<String>,
-  pub htsget_organization_url: Option<String>,
-  pub htsget_contact_url: Option<String>,
-  pub htsget_documentation_url: Option<String>,
-  pub htsget_created_at: Option<String>,
-  pub htsget_updated_at: Option<String>,
-  pub htsget_environment: Option<String>,
+  pub id: Option<String>,
+  pub name: Option<String>,
+  pub version: Option<String>,
+  pub organization_name: Option<String>,
+  pub organization_url: Option<String>,
+  pub contact_url: Option<String>,
+  pub documentation_url: Option<String>,
+  pub created_at: Option<String>,
+  pub updated_at: Option<String>,
+  pub environment: Option<String>,
 }
 
 impl Default for Config {
   fn default() -> Self {
     Self {
-      htsget_addr: default_addr(),
-      htsget_resolver: RegexResolver::default(),
-      htsget_path: default_path(),
-      htsget_config_service_info: ConfigServiceInfo::default(),
-      htsget_storage_type: LocalStorage,
-      htsget_localstorage_addr: default_localstorage_addr(),
-      htsget_localstorage_key: default_localstorage_key(),
-      htsget_localstorage_cert: default_localstorage_cert(),
+      addr: default_addr(),
+      resolver: RegexResolver::default(),
+      path: default_path(),
+      service_info: ConfigServiceInfo::default(),
+      storage_type: LocalStorage,
+      ticket_server_addr: default_localstorage_addr(),
+      ticket_server_key: default_localstorage_key(),
+      ticket_server_cert: default_localstorage_cert(),
       #[cfg(feature = "s3-storage")]
-      htsget_s3_bucket: None,
+      s3_bucket: None,
     }
   }
 }
 
 impl Config {
   pub fn from_env() -> std::io::Result<Self> {
-    envy::from_env().map_err(|err| {
+    envy::prefixed("HTSGET_").from_env().map_err(|err| {
       std::io::Error::new(
         ErrorKind::Other,
         format!("Config not properly set: {}", err),
@@ -120,43 +121,44 @@ impl Config {
   }
 }
 
+#[cfg(test)]
 mod tests {
-  use crate::config::Config;
   use crate::config::StorageType::AwsS3Storage;
 
+  use super::*;
 
   #[test]
   fn config_addr() {
     std::env::set_var("HTSGET_ADDR", "127.0.0.1:8081");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.htsget_addr, "127.0.0.1:8081".parse().unwrap());
+    assert_eq!(config.addr, "127.0.0.1:8081".parse().unwrap());
   }
 
   #[test]
   fn config_regex() {
     std::env::set_var("HTSGET_REGEX", ".+");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.htsget_resolver.htsget_regex.to_string(), ".+");
+    assert_eq!(config.resolver.regex.to_string(), ".+");
   }
 
   #[test]
   fn config_substitution_string() {
     std::env::set_var("HTSGET_SUBSTITUTION_STRING", "$0-test");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.htsget_resolver.htsget_substitution_string, "$0-test");
+    assert_eq!(config.resolver.substitution_string, "$0-test");
   }
 
   #[test]
   fn config_service_info_id() {
     std::env::set_var("HTSGET_ID", "id");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.htsget_config_service_info.htsget_id.unwrap(), "id");
+    assert_eq!(config.service_info.id.unwrap(), "id");
   }
 
   #[test]
   fn config_storage_type() {
     std::env::set_var("HTSGET_STORAGE_TYPE", "AwsS3Storage");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.htsget_storage_type, AwsS3Storage);
+    assert_eq!(config.storage_type, AwsS3Storage);
   }
 }

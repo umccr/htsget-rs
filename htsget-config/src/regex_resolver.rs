@@ -9,8 +9,8 @@ pub trait HtsGetIdResolver {
 #[serde(default)]
 pub struct RegexResolver {
   #[serde(with = "serde_regex")]
-  pub(crate) htsget_regex: Regex,
-  pub(crate) htsget_substitution_string: String,
+  pub(crate) regex: Regex,
+  pub(crate) substitution_string: String,
 }
 
 impl Default for RegexResolver {
@@ -22,19 +22,19 @@ impl Default for RegexResolver {
 impl RegexResolver {
   pub fn new(regex: &str, replacement_string: &str) -> Result<Self, Error> {
     Ok(RegexResolver {
-      htsget_regex: Regex::new(regex)?,
-      htsget_substitution_string: replacement_string.to_string(),
+      regex: Regex::new(regex)?,
+      substitution_string: replacement_string.to_string(),
     })
   }
 }
 
 impl HtsGetIdResolver for RegexResolver {
   fn resolve_id(&self, id: &str) -> Option<String> {
-    if self.htsget_regex.is_match(id) {
+    if self.regex.is_match(id) {
       Some(
         self
-          .htsget_regex
-          .replace(id, &self.htsget_substitution_string)
+          .regex
+          .replace(id, &self.substitution_string)
           .to_string(),
       )
     } else {
@@ -43,8 +43,9 @@ impl HtsGetIdResolver for RegexResolver {
   }
 }
 
+#[cfg(test)]
 pub mod tests {
-  use crate::regex_resolver::{HtsGetIdResolver, RegexResolver};
+  use super::*;
 
   #[test]
   fn resolver_resolve_id() {

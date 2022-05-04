@@ -13,7 +13,7 @@ use htsget_search::storage::local::LocalStorage;
 async fn main() -> Result<(), Error> {
   let config = Config::from_env()?;
 
-  match config.htsget_storage_type {
+  match config.storage_type {
     StorageType::LocalStorage => local_storage_server(config).await,
     #[cfg(feature = "s3-storage")]
     StorageType::AwsS3Storage => s3_storage_server(config).await,
@@ -23,13 +23,13 @@ async fn main() -> Result<(), Error> {
 async fn local_storage_server(config: Config) -> Result<(), Error> {
   let searcher = Arc::new(HtsGetFromStorage::new(
     LocalStorage::new(
-      config.htsget_path,
-      config.htsget_resolver,
-      HttpsFormatter::from(config.htsget_addr),
+      config.path,
+      config.resolver,
+      HttpsFormatter::from(config.addr),
     )
     .unwrap(),
   ));
-  let router = &Router::new(searcher, &config.htsget_config_service_info);
+  let router = &Router::new(searcher, &config.service_info);
 
   let handler = |event: Request| async move { Ok(router.route_request(event).await) };
   lambda_http::run(service_fn(handler)).await?;
@@ -39,11 +39,9 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
 
 #[cfg(feature = "s3-storage")]
 async fn s3_storage_server(config: Config) -> Result<(), Error> {
-  let searcher = Arc::new(
-    HtsGetFromStorage::<AwsS3Storage>::from(config.htsget_s3_bucket, config.htsget_resolver)
-      .await?,
-  );
-  let router = &Router::new(searcher, &config.htsget_config_service_info);
+  let searcher =
+    Arc::new(HtsGetFromStorage::<AwsS3Storage>::from(config.s3_bucket, config.resolver).await?);
+  let router = &Router::new(searcher, &config.service_info);
 
   let handler = |event: Request| async move { Ok(router.route_request(event).await) };
   lambda_http::run(service_fn(handler)).await?;

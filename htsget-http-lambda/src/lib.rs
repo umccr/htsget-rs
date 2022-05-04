@@ -253,13 +253,13 @@ mod tests {
       let router = Router::new(
         Arc::new(HtsGetFromStorage::new(
           LocalStorage::new(
-            &self.config.htsget_path,
-            self.config.htsget_resolver.clone(),
+            &self.config.path,
+            self.config.resolver.clone(),
             HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
           )
           .expect("Couldn't create a Storage with the provided path"),
         )),
-        &self.config.htsget_config_service_info,
+        &self.config.service_info,
       );
 
       let response = router.route_request(request.0).await;
@@ -460,13 +460,13 @@ mod tests {
     let router = Router::new(
       Arc::new(HtsGetFromStorage::new(
         LocalStorage::new(
-          &config.htsget_path,
-          config.htsget_resolver.clone(),
+          &config.path,
+          config.resolver.clone(),
           HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
         )
         .unwrap(),
       )),
-      &config.htsget_config_service_info,
+      &config.service_info,
     );
     test(router).await
   }

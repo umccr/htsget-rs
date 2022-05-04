@@ -19,7 +19,7 @@ async fn main() -> std::io::Result<()> {
 
   let config = Config::from_env()?;
 
-  match config.htsget_storage_type {
+  match config.storage_type {
     StorageType::LocalStorage => local_storage_server(config).await,
     #[cfg(feature = "s3-storage")]
     StorageType::AwsS3Storage => s3_storage_server(config).await,
@@ -27,39 +27,32 @@ async fn main() -> std::io::Result<()> {
 }
 
 async fn local_storage_server(config: Config) -> std::io::Result<()> {
-  let formatter = HttpsFormatter::from(config.htsget_addr);
+  let formatter = HttpsFormatter::from(config.addr);
   let mut local_server = formatter.bind_axum_server().await?;
 
   let searcher = HtsGetFromStorage::<LocalStorage<HttpsFormatter>>::from(
-    config.htsget_path.clone(),
-    config.htsget_resolver.clone(),
+    config.path.clone(),
+    config.resolver.clone(),
     formatter.clone(),
   )?;
   let local_server = tokio::spawn(async move {
     local_server
       .serve(
-        &config.htsget_path,
-        &config.htsget_localstorage_key,
-        &config.htsget_localstorage_cert,
+        &config.path,
+        &config.ticket_server_key,
+        &config.ticket_server_cert,
       )
       .await
   });
 
   select! {
     local_server = local_server => Ok(local_server??),
-    actix_server = run_server(searcher, config.htsget_config_service_info, config.htsget_addr)? => actix_server
+    actix_server = run_server(searcher, config.service_info, config.addr)? => actix_server
   }
 }
 
 #[cfg(feature = "s3-storage")]
 async fn s3_storage_server(config: Config) -> std::io::Result<()> {
-  let searcher =
-    HtsGetFromStorage::<AwsS3Storage>::from(config.htsget_s3_bucket, config.htsget_resolver)
-      .await?;
-  run_server(
-    searcher,
-    config.htsget_config_service_info,
-    config.htsget_addr,
-  )?
-  .await
+  let searcher = HtsGetFromStorage::<AwsS3Storage>::from(config.s3_bucket, config.resolver).await?;
+  run_server(searcher, config.service_info, config.addr)?.await
 }

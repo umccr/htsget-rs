@@ -129,13 +129,13 @@ mod tests {
             service_config,
             HtsGetFromStorage::new(
               LocalStorage::new(
-                self.config.htsget_path.clone(),
-                self.config.htsget_resolver.clone(),
-                HttpsFormatter::from(self.config.htsget_addr),
+                self.config.path.clone(),
+                self.config.resolver.clone(),
+                HttpsFormatter::from(self.config.addr),
               )
               .unwrap(),
             ),
-            self.config.htsget_config_service_info.clone(),
+            self.config.service_info.clone(),
           );
         },
       ))
