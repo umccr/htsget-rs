@@ -127,14 +127,12 @@ mod tests {
         |service_config: &mut web::ServiceConfig| {
           configure_server(
             service_config,
-            HtsGetFromStorage::new(
-              LocalStorage::new(
-                self.config.path.clone(),
-                self.config.resolver.clone(),
-                HttpsFormatter::from(self.config.addr),
-              )
-              .unwrap(),
-            ),
+            HtsGetFromStorage::local_from(
+              self.config.path.clone(),
+              self.config.resolver.clone(),
+              HttpsFormatter::from(self.config.addr),
+            )
+            .unwrap(),
             self.config.service_info.clone(),
           );
         },

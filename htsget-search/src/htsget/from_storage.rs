@@ -71,15 +71,17 @@ impl<S> HtsGetFromStorage<S> {
 
 #[cfg(feature = "s3-storage")]
 impl HtsGetFromStorage<AwsS3Storage> {
-  pub async fn from(bucket: String, resolver: RegexResolver) -> Result<Self> {
-    Ok(HtsGetFromStorage::new(
-      AwsS3Storage::new_with_default_config(bucket, resolver).await,
-    ))
+  pub async fn s3_from(bucket: String, resolver: RegexResolver) -> Self {
+    HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket, resolver).await)
   }
 }
 
 impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
-  pub fn from<P: AsRef<Path>>(path: P, resolver: RegexResolver, formatter: T) -> Result<Self> {
+  pub fn local_from<P: AsRef<Path>>(
+    path: P,
+    resolver: RegexResolver,
+    formatter: T,
+  ) -> Result<Self> {
     Ok(HtsGetFromStorage::new(LocalStorage::new(
       path, resolver, formatter,
     )?))

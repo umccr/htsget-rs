@@ -124,5 +124,5 @@ pub fn default_test_config() -> Config {
     "HTSGET_PATH",
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap(),
   );
-  envy::from_env::<Config>().expect("Expected valid environment variables.")
+  Config::from_env().expect("Expected valid environment variables.")
 }

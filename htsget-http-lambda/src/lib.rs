@@ -251,14 +251,14 @@ mod tests {
 
     async fn test_server(&self, request: LambdaTestRequest<Request>) -> Response {
       let router = Router::new(
-        Arc::new(HtsGetFromStorage::new(
-          LocalStorage::new(
+        Arc::new(
+          HtsGetFromStorage::local_from(
             &self.config.path,
             self.config.resolver.clone(),
-            HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+            HttpsFormatter::from(self.config.addr),
           )
           .expect("Couldn't create a Storage with the provided path"),
-        )),
+        ),
         &self.config.service_info,
       );
 
@@ -462,7 +462,7 @@ mod tests {
         LocalStorage::new(
           &config.path,
           config.resolver.clone(),
-          HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+          HttpsFormatter::new("127.0.0.1", "8080").unwrap(),
         )
         .unwrap(),
       )),
