@@ -1,10 +1,13 @@
 use regex::{Error, Regex};
 use serde::Deserialize;
 
+/// Represents an id resolver, which matches the id, replacing the match in the substitution text.
 pub trait HtsGetIdResolver {
+  /// Resolve the id, returning the substituted string if there is a match.
   fn resolve_id(&self, id: &str) -> Option<String>;
 }
 
+/// A regex resolver is a resolver that matches ids using Regex.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct RegexResolver {

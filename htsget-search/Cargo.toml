@@ -6,7 +6,7 @@ edition = "2021"
 
 [features]
 default = ["s3-storage"]
-s3-storage = ["aws-sdk-s3", "aws-config"]
+s3-storage = ["bytes", "aws-sdk-s3", "aws-config"]
 
 [dependencies]
 # Axum server dependencies.
@@ -14,7 +14,6 @@ hyper = "0.14"
 axum = "0.5.1"
 axum-extra = { version = "0.2.1", features = ["spa"] }
 rustls-pemfile = "0.3"
-tokio-tls = "0.3"
 tower = { version = "0.4", features = ["make"] }
 futures-util = "0.3"
 tokio-rustls = "0.23"
@@ -32,24 +31,18 @@ noodles-bcf = { version = "0.13", features = ["async"] }
 noodles-cram = { version = "0.14", features = ["async"] }
 noodles-vcf = { version = "0.15", features = ["async"] }
 
-#[cfg(feature = "aws")]
-bytes = "1.1"
-#[cfg(feature = "aws")]
+# Aws S3 storage dependencies.
+bytes = { version = "1.1", optional = true }
 aws-sdk-s3 = { version = "0.9", optional = true }
-#[cfg(feature = "aws")]
 aws-config = { version = "0.9", optional = true }
 
 [dev-dependencies]
 tempfile = "3.3"
-#[cfg(feature = "aws")]
-hyper = "0.14"
-#[cfg(feature = "aws")]
+
+# Aws S3 storage dependencies.
 anyhow = "1.0"
-#[cfg(feature = "aws")]
 s3-server = "0.2"
-#[cfg(feature = "aws")]
 http = "0.2"
-#[cfg(feature = "aws")]
 aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies

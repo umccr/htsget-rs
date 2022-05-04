@@ -113,6 +113,7 @@ impl Default for Config {
 }
 
 impl Config {
+  /// Read the environment variables into a Config struct.
   pub fn from_env() -> std::io::Result<Self> {
     envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
       .from_env()
