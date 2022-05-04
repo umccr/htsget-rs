@@ -29,8 +29,10 @@ The next variables are used to configure the info for the service-info endpoints
 * HTSGET_TICKET_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
 * HTSGET_TICKET_SERVER_KEY: The path to the PEM formatted X.509 private key used by the ticket response server. Default: "${HTSGET_PATH}/key.pem". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
 * HTSGET_TICKET_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the ticket response server. Default: "${HTSGET_PATH}/cert.pem". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_S3_BUCKET: The name of the AWS S3 bucket. Default: None. Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage". Must be specified if using AwsS3Storage.
+* HTSGET_S3_BUCKET: The name of the AWS S3 bucket. Default: "". Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".
 "#;
+
+const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
 
 fn default_localstorage_addr() -> SocketAddr {
   "127.0.0.1:8081".parse().expect("Expected valid address.")
@@ -75,7 +77,7 @@ pub struct Config {
   pub ticket_server_key: PathBuf,
   pub ticket_server_cert: PathBuf,
   #[cfg(feature = "s3-storage")]
-  pub s3_bucket: Option<String>,
+  pub s3_bucket: String,
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -105,19 +107,21 @@ impl Default for Config {
       ticket_server_key: default_localstorage_key(),
       ticket_server_cert: default_localstorage_cert(),
       #[cfg(feature = "s3-storage")]
-      s3_bucket: None,
+      s3_bucket: "".to_string(),
     }
   }
 }
 
 impl Config {
   pub fn from_env() -> std::io::Result<Self> {
-    envy::prefixed("HTSGET_").from_env().map_err(|err| {
-      std::io::Error::new(
-        ErrorKind::Other,
-        format!("Config not properly set: {}", err),
-      )
-    })
+    envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
+      .from_env()
+      .map_err(|err| {
+        std::io::Error::new(
+          ErrorKind::Other,
+          format!("Config not properly set: {}", err),
+        )
+      })
   }
 }
 

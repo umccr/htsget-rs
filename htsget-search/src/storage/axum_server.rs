@@ -24,7 +24,7 @@ use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
 
-use crate::storage::StorageError::ResponseServerError;
+use crate::storage::StorageError::TicketServerError;
 use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
@@ -88,14 +88,14 @@ impl AxumStorageServer {
     loop {
       let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
         .await
-        .ok_or_else(|| ResponseServerError("Poll accept failed.".to_string()))?
-        .map_err(|err| ResponseServerError(err.to_string()))?;
+        .ok_or_else(|| TicketServerError("Poll accept failed.".to_string()))?
+        .map_err(|err| TicketServerError(err.to_string()))?;
       let acceptor = acceptor.clone();
 
       let app = app
         .make_service(&stream)
         .await
-        .map_err(|err| ResponseServerError(err.to_string()))?;
+        .map_err(|err| TicketServerError(err.to_string()))?;
 
       tokio::spawn(async move {
         if let Ok(stream) = acceptor.accept(stream).await {
@@ -119,7 +119,7 @@ impl AxumStorageServer {
       .with_safe_defaults()
       .with_no_client_auth()
       .with_single_cert(certs, key)
-      .map_err(|err| ResponseServerError(err.to_string()))?;
+      .map_err(|err| TicketServerError(err.to_string()))?;
 
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
@@ -129,7 +129,7 @@ impl AxumStorageServer {
 
 impl From<hyper::Error> for StorageError {
   fn from(error: hyper::Error) -> Self {
-    ResponseServerError(error.to_string())
+    TicketServerError(error.to_string())
   }
 }
 

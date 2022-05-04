@@ -10,7 +10,7 @@ use tokio::io::{AsyncRead, AsyncSeek};
 use htsget_config::regex_resolver::RegexResolver;
 
 use crate::htsget::search::Search;
-use crate::htsget::{Format, HtsGetError};
+use crate::htsget::Format;
 use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
 use crate::storage::UrlFormatter;
@@ -71,13 +71,9 @@ impl<S> HtsGetFromStorage<S> {
 
 #[cfg(feature = "s3-storage")]
 impl HtsGetFromStorage<AwsS3Storage> {
-  pub async fn from(bucket: Option<String>, resolver: RegexResolver) -> Result<Self> {
+  pub async fn from(bucket: String, resolver: RegexResolver) -> Result<Self> {
     Ok(HtsGetFromStorage::new(
-      AwsS3Storage::new_with_default_config(
-        bucket.ok_or_else(|| HtsGetError::io_error("Aws S3 Storage bucket not specified."))?,
-        resolver,
-      )
-      .await,
+      AwsS3Storage::new_with_default_config(bucket, resolver).await,
     ))
   }
 }
