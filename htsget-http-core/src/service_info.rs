@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use htsget_config::config::{Config, ConfigServiceInfo};
+use htsget_config::config::ConfigServiceInfo;
 use htsget_search::htsget::{Format, HtsGet};
 
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};

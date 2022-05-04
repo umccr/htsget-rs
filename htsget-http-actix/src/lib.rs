@@ -1,17 +1,13 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use actix_web::{App, HttpServer, web};
 use actix_web::dev::Server;
+use actix_web::{web, App, HttpServer};
 
-use htsget_config::config::{Config, ConfigServiceInfo, StorageType};
-use htsget_config::regex_resolver::RegexResolver;
+use htsget_config::config::ConfigServiceInfo;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
-use htsget_search::storage::aws::AwsS3Storage;
-use htsget_search::storage::axum_server::HttpsFormatter;
 use htsget_search::storage::local::LocalStorage;
-use htsget_search::storage::UrlFormatter;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
 
@@ -27,65 +23,55 @@ pub struct AppState<H: HtsGet> {
 pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
   service_config: &mut web::ServiceConfig,
   htsget: H,
-  config_service_info: ConfigServiceInfo
+  config_service_info: ConfigServiceInfo,
 ) {
   service_config
     .app_data(web::Data::new(AppState {
       htsget: Arc::new(htsget),
-      config_service_info
+      config_service_info,
     }))
     .service(
       web::scope("/reads")
-        .route(
-          "/service-info",
-          web::get().to(reads_service_info::<H>),
-        )
-        .route(
-          "/service-info",
-          web::post().to(reads_service_info::<H>),
-        )
+        .route("/service-info", web::get().to(reads_service_info::<H>))
+        .route("/service-info", web::post().to(reads_service_info::<H>))
         .route("/{id:.+}", web::get().to(get::reads::<H>))
         .route("/{id:.+}", web::post().to(post::reads::<H>)),
     )
     .service(
       web::scope("/variants")
-        .route(
-          "/service-info",
-          web::get().to(variants_service_info::<H>),
-        )
-        .route(
-          "/service-info",
-          web::post().to(variants_service_info::<H>),
-        )
+        .route("/service-info", web::get().to(variants_service_info::<H>))
+        .route("/service-info", web::post().to(variants_service_info::<H>))
         .route("/{id:.+}", web::get().to(get::variants::<H>))
-        .route(
-          "/{id:.+}",
-          web::post().to(post::variants::<H>),
-        ),
+        .route("/{id:.+}", web::post().to(post::variants::<H>)),
     );
 }
 
-pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(htsget: H, config_service_info: ConfigServiceInfo, addr: SocketAddr) -> std::io::Result<Server> {
-  Ok(HttpServer::new(Box::new(move || {
-    App::new().configure(|service_config: &mut web::ServiceConfig| {
-      configure_server(
-        service_config,
-        htsget.clone(),
-        config_service_info.clone()
-      );
-    })
-  })).bind(addr)?.run())
+pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
+  htsget: H,
+  config_service_info: ConfigServiceInfo,
+  addr: SocketAddr,
+) -> std::io::Result<Server> {
+  Ok(
+    HttpServer::new(Box::new(move || {
+      App::new().configure(|service_config: &mut web::ServiceConfig| {
+        configure_server(service_config, htsget.clone(), config_service_info.clone());
+      })
+    }))
+    .bind(addr)?
+    .run(),
+  )
 }
 
 #[cfg(test)]
 mod tests {
-  use actix_web::{App, test, web};
   use actix_web::web::Bytes;
+  use actix_web::{test, web, App};
   use async_trait::async_trait;
 
+  use htsget_config::config::Config;
   use htsget_search::storage::axum_server::HttpsFormatter;
   use htsget_test_utils::{
-    Header as TestHeader, Response as TestResponse, server_tests, TestRequest, TestServer,
+    server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
 
   use super::*;
@@ -137,7 +123,6 @@ mod tests {
     }
 
     async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
-      let config = self.get_config();
       let app = test::init_service(App::new().configure(
         |service_config: &mut web::ServiceConfig| {
           configure_server(
@@ -146,10 +131,11 @@ mod tests {
               LocalStorage::new(
                 self.config.htsget_path.clone(),
                 self.config.htsget_resolver.clone(),
-                HttpsFormatter::from(self.config.htsget_addr)
-              ).unwrap(),
+                HttpsFormatter::from(self.config.htsget_addr),
+              )
+              .unwrap(),
             ),
-            self.config.htsget_config_service_info.clone()
+            self.config.htsget_config_service_info.clone(),
           );
         },
       ))

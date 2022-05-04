@@ -7,9 +7,9 @@ pub use http_core::{get_response_for_get_request, get_response_for_post_request}
 pub use json_response::{JsonResponse, JsonUrl};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
-pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
 pub use service_info::get_service_info_json;
 pub use service_info::get_service_info_with;
+pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
 
 mod error;
 mod http_core;
@@ -113,12 +113,12 @@ mod tests {
   use std::sync::Arc;
 
   use htsget_config::regex_resolver::RegexResolver;
-  use htsget_search::{
-    htsget::{Format, from_storage::HtsGetFromStorage, Headers, Url},
-    storage::local::LocalStorage,
-  };
   use htsget_search::htsget::HtsGet;
   use htsget_search::storage::axum_server::HttpsFormatter;
+  use htsget_search::{
+    htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
+    storage::local::LocalStorage,
+  };
 
   use super::*;
 

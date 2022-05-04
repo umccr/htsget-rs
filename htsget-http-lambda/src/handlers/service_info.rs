@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use lambda_http::IntoResponse;
 
-use htsget_config::config::{Config, ConfigServiceInfo};
+use htsget_config::config::ConfigServiceInfo;
 use htsget_http_core::get_service_info_json as get_base_service_info_json;
 use htsget_http_core::Endpoint;
 use htsget_search::htsget::HtsGet;

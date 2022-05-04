@@ -192,7 +192,12 @@ mod tests {
     // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
     let mut server = AxumStorageServer::bind_addr(&addr).await.unwrap();
-    tokio::spawn(async move { server.serve(base_path.path(), &key_path, &cert_path).await.unwrap() });
+    tokio::spawn(async move {
+      server
+        .serve(base_path.path(), &key_path, &cert_path)
+        .await
+        .unwrap()
+    });
 
     // Make request.
     let client = Client::builder().build::<_, hyper::Body>(https);
@@ -212,6 +217,9 @@ mod tests {
   #[test]
   fn https_formatter_format_authority() {
     let formatter = HttpsFormatter::new("127.0.0.1", "8080").unwrap();
-    assert_eq!(formatter.format_url("/path".to_string()).unwrap(), "https://127.0.0.1:8080/path")
+    assert_eq!(
+      formatter.format_url("/path".to_string()).unwrap(),
+      "https://127.0.0.1:8080/path"
+    )
   }
 }

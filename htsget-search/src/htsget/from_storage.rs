@@ -1,17 +1,19 @@
 //! Module providing an implementation of the [HtsGet] trait using a [Storage].
 //!
 
-use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncSeek};
-use htsget_config::config::{Config, StorageType};
+
 use htsget_config::regex_resolver::RegexResolver;
 
 use crate::htsget::search::Search;
 use crate::htsget::{Format, HtsGetError};
+use crate::storage::aws::AwsS3Storage;
+use crate::storage::local::LocalStorage;
+use crate::storage::UrlFormatter;
 use crate::{
   htsget::bam_search::BamSearch,
   htsget::bcf_search::BcfSearch,
@@ -20,10 +22,6 @@ use crate::{
   htsget::{HtsGet, Query, Response, Result},
   storage::Storage,
 };
-use crate::storage::aws::AwsS3Storage;
-use crate::storage::axum_server::HttpsFormatter;
-use crate::storage::local::LocalStorage;
-use crate::storage::UrlFormatter;
 
 /// Implementation of the [HtsGet] trait using a [Storage].
 #[derive(Debug, Clone)]
@@ -75,22 +73,20 @@ impl<S> HtsGetFromStorage<S> {
 impl HtsGetFromStorage<AwsS3Storage> {
   pub async fn from(bucket: Option<String>, resolver: RegexResolver) -> Result<Self> {
     Ok(HtsGetFromStorage::new(
-      AwsS3Storage::new_with_default_config(bucket.ok_or_else(|| {
-        HtsGetError::io_error("Aws S3 Storage bucket not specified.")
-      })?, resolver).await
+      AwsS3Storage::new_with_default_config(
+        bucket.ok_or_else(|| HtsGetError::io_error("Aws S3 Storage bucket not specified."))?,
+        resolver,
+      )
+      .await,
     ))
   }
 }
 
 impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
   pub fn from<P: AsRef<Path>>(path: P, resolver: RegexResolver, formatter: T) -> Result<Self> {
-    Ok(HtsGetFromStorage::new(
-      LocalStorage::new(
-        path,
-        resolver,
-        formatter
-      )?,
-    ))
+    Ok(HtsGetFromStorage::new(LocalStorage::new(
+      path, resolver, formatter,
+    )?))
   }
 }
 

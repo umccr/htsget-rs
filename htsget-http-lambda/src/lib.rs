@@ -4,12 +4,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use lambda_http::{Body, IntoResponse, Request, Response};
 use lambda_http::ext::RequestExt;
-use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::http::header::CONTENT_TYPE;
+use lambda_http::http::{Method, StatusCode, Uri};
+use lambda_http::{Body, IntoResponse, Request, Response};
 
-use htsget_config::config::{Config, ConfigServiceInfo};
+use htsget_config::config::ConfigServiceInfo;
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 
@@ -59,7 +59,10 @@ pub struct Router<'a, H> {
 
 impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   pub fn new(searcher: Arc<H>, config_service_info: &'a ConfigServiceInfo) -> Self {
-    Self { searcher, config_service_info }
+    Self {
+      searcher,
+      config_service_info,
+    }
   }
 
   /// Gets the Route if the request is valid, otherwise returns None.
@@ -101,7 +104,8 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         method: _,
         endpoint,
         route_type: RouteType::ServiceInfo,
-      }) => get_service_info_json(self.searcher.clone(), endpoint, &self.config_service_info).into_response(),
+      }) => get_service_info_json(self.searcher.clone(), endpoint, self.config_service_info)
+        .into_response(),
       Some(Route {
         method: HtsgetMethod::Get,
         endpoint,
@@ -167,21 +171,20 @@ mod tests {
   use std::sync::Arc;
 
   use async_trait::async_trait;
-  use lambda_http::{Request, RequestExt};
-  use lambda_http::Body::Text;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
+  use lambda_http::Body::Text;
+  use lambda_http::{Request, RequestExt};
   use query_map::QueryMap;
 
   use htsget_config::config::Config;
-  use htsget_config::regex_resolver::RegexResolver;
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::storage::axum_server::HttpsFormatter;
   use htsget_search::storage::local::LocalStorage;
-  use htsget_test_utils::{Header, Response, server_tests, TestRequest, TestServer};
+  use htsget_test_utils::{server_tests, Header, Response, TestRequest, TestServer};
 
-  use crate::{HtsgetMethod, Method, Route, Router, RouteType};
+  use crate::{HtsgetMethod, Method, Route, RouteType, Router};
 
   struct LambdaTestServer {
     config: Config,

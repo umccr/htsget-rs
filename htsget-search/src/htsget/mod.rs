@@ -10,7 +10,6 @@ use std::io;
 use std::io::ErrorKind;
 
 use async_trait::async_trait;
-use futures_util::future::err;
 use thiserror::Error;
 use tokio::task::JoinError;
 

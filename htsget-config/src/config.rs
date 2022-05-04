@@ -2,9 +2,9 @@ use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use serde::Deserialize;
 use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
+use serde::Deserialize;
 
 pub const USAGE: &str = r#"
 This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
@@ -56,7 +56,7 @@ fn default_localstorage_key() -> PathBuf {
 pub enum StorageType {
   LocalStorage,
   #[cfg(feature = "s3-storage")]
-  AwsS3Storage
+  AwsS3Storage,
 }
 
 /// Configuration for the server. Each field will be read from environment variables
@@ -109,6 +109,11 @@ impl Default for Config {
 
 impl Config {
   pub fn from_env() -> std::io::Result<Self> {
-    envy::from_env().map_err(|err| std::io::Error::new(ErrorKind::Other, format!("Config not properly set: {}", err.to_string())))
+    envy::from_env().map_err(|err| {
+      std::io::Error::new(
+        ErrorKind::Other,
+        format!("Config not properly set: {}", err),
+      )
+    })
   }
 }
