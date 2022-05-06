@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use lambda_http::IntoResponse;
+use tracing::info;
 
 use htsget_config::config::ConfigServiceInfo;
 use htsget_http_core::get_service_info_json as get_base_service_info_json;
@@ -15,5 +16,6 @@ pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
   endpoint: Endpoint,
   config: &ConfigServiceInfo,
 ) -> impl IntoResponse {
+  info!(endpoint = ?endpoint, "Service info request with endpoint");
   FormatJson(get_base_service_info_json(endpoint, searcher, config))
 }

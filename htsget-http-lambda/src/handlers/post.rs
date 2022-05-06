@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use lambda_http::IntoResponse;
+use tracing::info;
 
 use htsget_http_core::{get_response_for_post_request, Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
@@ -14,5 +15,6 @@ pub async fn post<H: HtsGet + Send + Sync + 'static>(
   query: PostRequest,
   endpoint: Endpoint,
 ) -> impl IntoResponse {
+  info!(query = ?query, "POST request with query");
   handle_response(get_response_for_post_request(searcher, query, id_path, endpoint).await)
 }
