@@ -11,6 +11,7 @@ use htsget_search::storage::axum_server::HttpsFormatter;
 async fn main() -> Result<(), Error> {
   let config = Config::from_env()?;
 
+  println!("{:?}", config);
   match config.storage_type {
     StorageType::LocalStorage => local_storage_server(config).await,
     #[cfg(feature = "s3-storage")]
@@ -26,7 +27,10 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
   )?);
   let router = &Router::new(searcher, &config.service_info);
 
-  let handler = |event: Request| async move { Ok(router.route_request(event).await) };
+  let handler = |event: Request| async move {
+    println!("{:?}", event);
+    Ok(router.route_request(event).await)
+  };
   lambda_http::run(service_fn(handler)).await?;
 
   Ok(())
