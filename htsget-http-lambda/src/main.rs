@@ -13,7 +13,7 @@ async fn main() -> Result<(), Error> {
   tracing_subscriber::fmt::init();
   let config = Config::from_env()?;
 
-  info!(config = ?config);
+  info!(config = ?config, "Started lambda function");
   match config.storage_type {
     StorageType::LocalStorage => local_storage_server(config).await,
     #[cfg(feature = "s3-storage")]
@@ -30,7 +30,7 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
   let router = &Router::new(searcher, &config.service_info);
 
   let handler = |event: Request| async move {
-    info!(event = ?event);
+    info!(event = ?event, "Received request");
     Ok(router.route_request(event).await)
   };
   lambda_http::run(service_fn(handler)).await?;
@@ -44,7 +44,7 @@ async fn s3_storage_server(config: Config) -> Result<(), Error> {
   let router = &Router::new(searcher, &config.service_info);
 
   let handler = |event: Request| async move {
-    info!(event = ?event);
+    info!(event = ?event, "Received request");
     Ok(router.route_request(event).await)
   };
   lambda_http::run(service_fn(handler)).await?;

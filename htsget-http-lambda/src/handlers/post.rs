@@ -15,6 +15,6 @@ pub async fn post<H: HtsGet + Send + Sync + 'static>(
   query: PostRequest,
   endpoint: Endpoint,
 ) -> impl IntoResponse {
-  info!(query = ?query, "POST request with query");
+  info!(query = ?query, "POST request");
   handle_response(get_response_for_post_request(searcher, query, id_path, endpoint).await)
 }

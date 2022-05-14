@@ -16,7 +16,7 @@ pub async fn get<H: HtsGet + Send + Sync + 'static>(
   mut query: HashMap<String, String>,
   endpoint: Endpoint,
 ) -> impl IntoResponse {
-  info!(query = ?query, "GET request with query");
+  info!(query = ?query, "GET request");
   query.insert("id".to_string(), id_path);
   handle_response(get_response_for_get_request(searcher, query, endpoint).await)
 }
