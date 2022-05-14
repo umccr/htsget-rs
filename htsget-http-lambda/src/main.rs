@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use lambda_http::{service_fn, Error, Request};
-use tracing::{event, trace, warn, Level, info};
+use tracing::info;
 
 use htsget_config::config::{Config, StorageType};
 use htsget_http_lambda::Router;
