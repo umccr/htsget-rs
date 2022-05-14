@@ -28,5 +28,7 @@ htsget-test-utils = { path = "../htsget-test-utils" }
 async-trait = "0.1"
 query_map = "0.4"
 
+# For testing cargo lambda locally.
 [package.metadata.lambda.env]
 RUST_LOG = "info"
+HTSGET_PATH = "data/"

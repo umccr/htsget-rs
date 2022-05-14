@@ -1,6 +1,6 @@
 {
   "resource": "/{proxy+}",
-  "path": "/reads/bam/htsnexus_test_NA12878.bam",
+  "path": "/reads/bam/htsnexus_test_NA12878",
   "httpMethod": "GET",
   "headers": {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
@@ -72,10 +72,9 @@
     "httpMethod": "GET",
     "extendedRequestId": "JJbxmplHYosFVYQ=",
     "requestTime": "10/Mar/2020:00:03:59 +0000",
-    "path": "/Prod/",
+    "path": "/",
     "accountId": "123456789012",
     "protocol": "HTTP/1.1",
-    "stage": "Prod",
     "domainPrefix": "70ixmpl4fl",
     "requestTimeEpoch": 1583798639428,
     "requestId": "77375676-xmpl-4b79-853a-f982474efe18",
