@@ -9,24 +9,24 @@ s3-storage = []
 default = ["s3-storage", "htsget-search/default", "htsget-http-core/default", "htsget-config/default"]
 
 [dependencies]
-envy = "0.4.2"
-tokio = "1.17.0"
-lambda_http = { version = "0.5.1" }
-lambda_runtime = { version = "0.5.1" }
+envy = "0.4"
+tokio = "1.18"
+lambda_http = { version = "0.5" }
+lambda_runtime = { version = "0.5" }
 htsget-config = { path = "../htsget-config" }
 htsget-search = { path = "../htsget-search" }
 htsget-http-core = { path = "../htsget-http-core" }
-serde = { version = "1.0.136" }
-serde_json = "1.0.79"
-mime = "0.3.16"
-regex = "1.5.5"
+serde = { version = "1.0" }
+serde_json = "1.0"
+mime = "0.3"
+regex = "1.5"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
 [dev-dependencies]
 htsget-test-utils = { path = "../htsget-test-utils" }
 async-trait = "0.1"
-query_map = "0.4"
+query_map = { version = "0.5", features = ["url-query"] }
 
 # For testing cargo lambda locally.
 [package.metadata.lambda.env]
