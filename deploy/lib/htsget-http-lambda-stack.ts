@@ -1,12 +1,12 @@
 import {Duration, Stack, StackProps} from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as iam from "aws-cdk-lib/aws-iam";
-import {RustFunction} from "rust.aws-cdk-lambda";
-import {Architecture} from "aws-cdk-lib/aws-lambda";
-import * as apigw from "aws-cdk-lib/aws-apigateway";
-import {AuthorizationType} from "aws-cdk-lib/aws-apigateway";
+import * as iam from 'aws-cdk-lib/aws-iam';
+import {RustFunction, Settings} from 'rust.aws-cdk-lambda';
+import {Architecture} from 'aws-cdk-lib/aws-lambda';
+import * as apigw from 'aws-cdk-lib/aws-apigateway';
+import {AuthorizationType} from 'aws-cdk-lib/aws-apigateway';
 
-export class HtsgetAppStack extends Stack {
+export class HtsgetHttpLambdaStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
@@ -20,21 +20,28 @@ export class HtsgetAppStack extends Stack {
       resources: ['arn:aws:s3:::*'],
     });
 
-    lambdaRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"));
+    lambdaRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'));
     lambdaRole.addToPolicy(s3BucketPolicy);
 
+    // Set the workspace directory of htsget.
+    Settings.WORKSPACE_DIR = '../';
+    // Don't build htsget packages other than htsget-http-lambda.
+    Settings.BUILD_INDIVIDUALLY = true;
+
     let htsgetLambda = new RustFunction(this, id, {
-      directory: '../../htsget-http-lambda/Cargo.toml',
+      // Build htsget-http-lambda only.
+      package: 'htsget-http-lambda',
+      target: 'aarch64-unknown-linux-gnu',
+      setupLogging: true,
+
       memorySize: 128,
       timeout: Duration.seconds(10),
       environment: {
         HTSGET_BUCKET_NAME: 'htsget-rs-data',
         HTSGET_STORAGE_TYPE: 'AwsS3Storage'
       },
-      setupLogging: true,
       architecture: Architecture.ARM_64,
-      role: lambdaRole,
-      target: "aarch64-unknown-linux-gnu"
+      role: lambdaRole
     });
 
     new apigw.LambdaRestApi(this, id + '-api', {
