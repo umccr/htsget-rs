@@ -10,7 +10,7 @@ export class HtsgetHttpLambdaStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const lambdaRole = new iam.Role(this, id + '-role', {
+    const lambdaRole = new iam.Role(this, id + 'Role', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       description: 'Lambda execution role for ' + id,
     });
@@ -28,7 +28,7 @@ export class HtsgetHttpLambdaStack extends Stack {
     // Don't build htsget packages other than htsget-http-lambda.
     Settings.BUILD_INDIVIDUALLY = true;
 
-    let htsgetLambda = new RustFunction(this, id, {
+    let htsgetLambda = new RustFunction(this, id + 'Function', {
       // Build htsget-http-lambda only.
       package: 'htsget-http-lambda',
       target: 'aarch64-unknown-linux-gnu',
@@ -44,7 +44,7 @@ export class HtsgetHttpLambdaStack extends Stack {
       role: lambdaRole
     });
 
-    new apigw.LambdaRestApi(this, id + '-api', {
+    new apigw.LambdaRestApi(this, id + 'ApiGw', {
       handler: htsgetLambda,
       proxy: true,
       defaultMethodOptions: {
