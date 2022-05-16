@@ -4,6 +4,7 @@ use std::sync::Arc;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use tokio::select;
+use tracing::debug;
 
 use htsget_search::htsget::HtsGet;
 use htsget_search::htsget::Response;
@@ -22,6 +23,14 @@ pub async fn get_response_for_get_request(
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
   match_endpoints_get_request(&endpoint, &mut query_information)?;
+  debug!(
+    ?endpoint,
+    ?query_information,
+    "Getting GET response for endpoint {:?}, with query {:?}.",
+    endpoint,
+    query_information
+  );
+
   let query = convert_to_query(&query_information)?;
   let search_result = searcher.search(query).await;
 
@@ -39,6 +48,13 @@ pub async fn get_response_for_post_request(
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
   match_endpoints_post_request(&endpoint, &mut request)?;
+  debug!(
+    ?endpoint,
+    ?request,
+    "Getting POST response for endpoint {:?}, with query {:?}.",
+    endpoint,
+    request
+  );
 
   let mut futures = FuturesUnordered::new();
   for query in request.get_queries(id)? {

@@ -11,6 +11,7 @@ use aws_sdk_s3::Client;
 use bytes::Bytes;
 use fluent_builders::GetObject;
 use tokio::io::BufReader;
+use tracing::debug;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
@@ -188,6 +189,7 @@ impl Storage for AwsS3Storage {
     options: GetOptions,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
+    debug!(calling_from = ?self, key, "Getting file with key {:?}", key);
     self.create_buf_reader(key, options).await
   }
 
@@ -195,14 +197,18 @@ impl Storage for AwsS3Storage {
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let key = key.as_ref();
     let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
-    Ok(options.apply(Url::new(presigned_url)))
+    let url = options.apply(Url::new(presigned_url));
+    debug!(calling_from = ?self, key, ?url, "Getting url with key {:?}", key);
+    Ok(url)
   }
 
   /// Returns the size of the S3 object in bytes.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let key = key.as_ref();
     let head = self.s3_head(key).await?;
-    Ok(head.content_length as u64)
+    let len = head.content_length as u64;
+    debug!(calling_from = ?self, key, len, "Size of key {:?} is {}", key, len);
+    Ok(len)
   }
 }
 

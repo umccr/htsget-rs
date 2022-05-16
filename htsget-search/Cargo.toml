@@ -24,6 +24,7 @@ tokio = { version = "1.17", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 htsget-config = { path = "../htsget-config" }
+tracing = "0.1"
 
 noodles = { version = "0.21", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 noodles-bam = { version = "0.17", features = ["async"] }
