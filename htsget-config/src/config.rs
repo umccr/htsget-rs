@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use serde::Deserialize;
+use tracing::debug;
 
 use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
@@ -115,14 +116,16 @@ impl Default for Config {
 impl Config {
   /// Read the environment variables into a Config struct.
   pub fn from_env() -> std::io::Result<Self> {
-    envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
+    let config = envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
       .from_env()
       .map_err(|err| {
         std::io::Error::new(
           ErrorKind::Other,
           format!("Config not properly set: {}", err),
         )
-      })
+      });
+    debug!(config = ?config, "Config created from environment variables.");
+    config
   }
 }
 

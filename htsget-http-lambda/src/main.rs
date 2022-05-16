@@ -13,7 +13,6 @@ async fn main() -> Result<(), Error> {
   tracing_subscriber::fmt::init();
   let config = Config::from_env()?;
 
-  info!(config = ?config, "Started lambda function");
   match config.storage_type {
     StorageType::LocalStorage => local_storage_server(config).await,
     #[cfg(feature = "s3-storage")]
