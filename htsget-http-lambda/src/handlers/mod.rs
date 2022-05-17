@@ -1,6 +1,7 @@
 //! Module primarily providing http response functionality for the htsget endpoints.
 //!
 
+use lambda_http::http;
 use lambda_http::http::{header, StatusCode};
 use lambda_http::IntoResponse;
 use serde::Serialize;
@@ -23,57 +24,63 @@ impl<T> FormatJson<T> {
   }
 }
 
-impl<T: Serialize> IntoResponse for FormatJson<T> {
-  fn into_response(self) -> Response<Body> {
-    let mut body = match serde_json::to_string_pretty(&self.into_inner()) {
+impl<T: Serialize> TryFrom<FormatJson<T>> for Response<Body> {
+  type Error = http::Error;
+
+  fn try_from(value: FormatJson<T>) -> http::Result<Response<Body>> {
+    let mut body = match serde_json::to_string_pretty(&value.into_inner()) {
       Ok(body) => body,
-      Err(e) => return FormatJson::from(e).into_inner(),
+      Err(e) => return Ok(FormatJson::try_from(e)?.into_inner()),
     };
     body.push('\n');
 
-    Response::builder()
-      .status(StatusCode::OK)
-      .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-      .body(body)
-      .expect("Expected valid response.")
-      .into_response()
-  }
-}
-
-impl From<Error> for FormatJson<Response<Body>> {
-  fn from(error: Error) -> Self {
-    Self(
+    Ok(
       Response::builder()
-        .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
-        .body(format!("{}", error))
-        .expect("Expected valid response.")
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+        .body(body)?
         .into_response(),
     )
   }
 }
 
-impl From<HtsGetError> for FormatJson<Response<Body>> {
-  fn from(error: HtsGetError) -> Self {
+impl TryFrom<Error> for FormatJson<Response<Body>> {
+  type Error = http::Error;
+
+  fn try_from(error: Error) -> http::Result<Self> {
+    Ok(Self(
+      Response::builder()
+        .status(StatusCode::INTERNAL_SERVER_ERROR)
+        .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
+        .body(format!("{}", error))?
+        .into_response(),
+    ))
+  }
+}
+
+impl TryFrom<HtsGetError> for FormatJson<Response<Body>> {
+  type Error = http::Error;
+
+  fn try_from(error: HtsGetError) -> http::Result<Self> {
     let (json, status_code) = error.to_json_representation();
-    let mut response = FormatJson(json).into_response();
+    let mut response: Response<Body> = FormatJson(json).try_into()?;
     *response.status_mut() = StatusCode::from_u16(status_code).unwrap();
-    Self(response)
+    Ok(Self(response))
   }
 }
 
 /// Handles a response, converting errors to json and using the proper HTTP status code.
-fn handle_response(response: Result<JsonResponse>) -> impl IntoResponse {
+fn handle_response(response: Result<JsonResponse>) -> http::Result<Response<Body>> {
   match response {
-    Err(error) => FormatJson::from(error).into_inner(),
-    Ok(json) => FormatJson(json).into_response(),
+    Err(error) => Ok(FormatJson::try_from(error)?.into_inner()),
+    Ok(json) => FormatJson(json).try_into(),
   }
 }
 
 #[cfg(test)]
 mod tests {
   use lambda_http::http::{header, HeaderMap, Response, StatusCode};
-  use lambda_http::{Body, IntoResponse};
+  use lambda_http::Body;
   use mime::Mime;
   use serde::ser::Error;
   use serde::{Serialize, Serializer};
@@ -97,7 +104,7 @@ mod tests {
     let expected_body = json!({"value": "1"});
     let json = FormatJson(expected_body.clone());
     test_into_response(
-      json.into_response(),
+      json.try_into().unwrap(),
       expected_body,
       StatusCode::OK,
       mime::APPLICATION_JSON,
@@ -108,7 +115,7 @@ mod tests {
   fn into_response_error() {
     let json = FormatJson(TestError);
     test_into_response(
-      json.into_response(),
+      json.try_into().unwrap(),
       json!({"value": "1"}),
       StatusCode::INTERNAL_SERVER_ERROR,
       mime::TEXT_PLAIN_UTF_8,

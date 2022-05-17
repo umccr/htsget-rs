@@ -30,7 +30,7 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
 
   let handler = |event: Request| async move {
     info!(event = ?event, "Received request");
-    Ok(router.route_request(event).await)
+    Ok(router.route_request(event).await?)
   };
   lambda_http::run(service_fn(handler)).await?;
 
@@ -44,7 +44,7 @@ async fn s3_storage_server(config: Config) -> Result<(), Error> {
 
   let handler = |event: Request| async move {
     info!(event = ?event, "Received request");
-    Ok(router.route_request(event).await)
+    Ok(router.route_request(event).await?)
   };
   lambda_http::run(service_fn(handler)).await?;
 

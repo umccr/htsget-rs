@@ -7,7 +7,7 @@ use std::sync::Arc;
 use lambda_http::ext::RequestExt;
 use lambda_http::http::header::CONTENT_TYPE;
 use lambda_http::http::{Method, StatusCode, Uri};
-use lambda_http::{Body, IntoResponse, Request, Response};
+use lambda_http::{http, Body, IntoResponse, Request, Response};
 
 use htsget_config::config::ConfigServiceInfo;
 use htsget_http_core::{Endpoint, PostRequest};
@@ -58,12 +58,6 @@ pub struct Router<'a, H> {
 }
 
 impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
-  const READS_ENDPOINT: &'static str = "/reads/";
-  const READS_ENDPOINT_LENGTH: usize = Self::READS_ENDPOINT.len();
-  const VARIANTS_ENDPOINT: &'static str = "/variants/";
-  const VARIANTS_ENDPOINT_LENGTH: usize = Self::VARIANTS_ENDPOINT.len();
-  const SERVICE_INFO_ENDPOINT: &'static str = "service-info";
-
   pub fn new(searcher: Arc<H>, config_service_info: &'a ConfigServiceInfo) -> Self {
     Self {
       searcher,
@@ -80,7 +74,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           Method::POST => Some(HtsgetMethod::Post),
           _ => None,
         }?;
-        if endpoint_type == Self::SERVICE_INFO_ENDPOINT {
+        if endpoint_type == "service-info" {
           Some(Route::new(method, endpoint, RouteType::ServiceInfo))
         } else {
           Some(Route::new(
@@ -94,61 +88,55 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
       }
     };
 
-    if let Some(strip) = uri.path().find(Self::READS_ENDPOINT) {
-      with_endpoint(
-        Endpoint::Reads,
-        &uri.path()[strip + Self::READS_ENDPOINT_LENGTH..],
-      )
-    } else if let Some(strip) = uri.path().find(Self::VARIANTS_ENDPOINT) {
-      with_endpoint(
-        Endpoint::Variants,
-        &uri.path()[strip + Self::VARIANTS_ENDPOINT_LENGTH..],
-      )
+    if let Some(reads) = uri.path().strip_prefix("/reads/") {
+      with_endpoint(Endpoint::Reads, reads)
+    } else if let Some(variants) = uri.path().strip_prefix("/variants/") {
+      with_endpoint(Endpoint::Variants, variants)
     } else {
       None
     }
   }
 
   /// Routes the request to the relevant htsget search endpoint using the lambda request, returning a http response.
-  pub async fn route_request(&self, request: Request) -> Response<Body> {
-    match self.get_route(request.method(), request.uri()) {
+  pub async fn route_request(&self, request: Request) -> http::Result<Response<Body>> {
+    match self.get_route(request.method(), &request.raw_http_path().parse::<Uri>()?) {
       Some(Route {
         method: _,
         endpoint,
         route_type: RouteType::ServiceInfo,
-      }) => get_service_info_json(self.searcher.clone(), endpoint, self.config_service_info)
-        .into_response(),
+      }) => get_service_info_json(self.searcher.clone(), endpoint, self.config_service_info),
       Some(Route {
         method: HtsgetMethod::Get,
         endpoint,
         route_type: RouteType::Id(id),
-      }) => get(
-        id,
-        self.searcher.clone(),
-        Self::extract_query(&request),
-        endpoint,
-      )
-      .await
-      .into_response(),
+      }) => {
+        get(
+          id,
+          self.searcher.clone(),
+          Self::extract_query(&request),
+          endpoint,
+        )
+        .await
+      }
       Some(Route {
         method: HtsgetMethod::Post,
         endpoint,
         route_type: RouteType::Id(id),
       }) => match Self::extract_query_from_payload(&request) {
-        None => Response::builder()
-          .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
-          .body("")
-          .unwrap()
-          .into_response(),
-        Some(query) => post(id, self.searcher.clone(), query, endpoint)
-          .await
-          .into_response(),
+        None => Ok(
+          Response::builder()
+            .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
+            .body("")?
+            .into_response(),
+        ),
+        Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
       },
-      _ => Response::builder()
-        .status(StatusCode::METHOD_NOT_ALLOWED)
-        .body("")
-        .unwrap()
-        .into_response(),
+      _ => Ok(
+        Response::builder()
+          .status(StatusCode::METHOD_NOT_ALLOWED)
+          .body("")?
+          .into_response(),
+      ),
     }
   }
 
@@ -223,17 +211,21 @@ mod tests {
     }
 
     fn uri(mut self, uri: impl Into<String>) -> Self {
-      *self.0.uri_mut() = uri.into().parse().expect("Expected valid uri.");
+      let uri = uri.into();
+      *self.0.uri_mut() = uri.parse().expect("Expected valid uri.");
       if let Some(query) = self.0.uri().query().map(|s| s.to_string()) {
         Self(
-          self.0.with_query_string_parameters(
-            query
-              .parse::<QueryMap>()
-              .expect("Expected valid query parameters."),
-          ),
+          self
+            .0
+            .with_query_string_parameters(
+              query
+                .parse::<QueryMap>()
+                .expect("Expected valid query parameters."),
+            )
+            .with_raw_http_path(&uri),
         )
       } else {
-        self
+        Self(self.0.with_raw_http_path(&uri))
       }
     }
 
@@ -274,7 +266,7 @@ mod tests {
         &self.config.service_info,
       );
 
-      let response = router.route_request(request.0).await;
+      let response = router.route_request(request.0).await.unwrap();
       let status: u16 = response.status().into();
       let body = response.body().to_vec().into();
       Response::new(status, body)
