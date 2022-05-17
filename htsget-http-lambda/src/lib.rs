@@ -58,6 +58,12 @@ pub struct Router<'a, H> {
 }
 
 impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
+  const READS_ENDPOINT: &'static str = "/reads/";
+  const READS_ENDPOINT_LENGTH: usize = Self::READS_ENDPOINT.len();
+  const VARIANTS_ENDPOINT: &'static str = "/variants/";
+  const VARIANTS_ENDPOINT_LENGTH: usize = Self::VARIANTS_ENDPOINT.len();
+  const SERVICE_INFO_ENDPOINT: &'static str = "service-info";
+
   pub fn new(searcher: Arc<H>, config_service_info: &'a ConfigServiceInfo) -> Self {
     Self {
       searcher,
@@ -74,7 +80,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           Method::POST => Some(HtsgetMethod::Post),
           _ => None,
         }?;
-        if endpoint_type == "service-info" {
+        if endpoint_type == Self::SERVICE_INFO_ENDPOINT {
           Some(Route::new(method, endpoint, RouteType::ServiceInfo))
         } else {
           Some(Route::new(
@@ -88,10 +94,16 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
       }
     };
 
-    if let Some(reads) = uri.path().strip_prefix("/reads/") {
-      with_endpoint(Endpoint::Reads, reads)
-    } else if let Some(variants) = uri.path().strip_prefix("/variants/") {
-      with_endpoint(Endpoint::Variants, variants)
+    if let Some(strip) = uri.path().find(Self::READS_ENDPOINT) {
+      with_endpoint(
+        Endpoint::Reads,
+        &uri.path()[strip + Self::READS_ENDPOINT_LENGTH..],
+      )
+    } else if let Some(strip) = uri.path().find(Self::VARIANTS_ENDPOINT) {
+      with_endpoint(
+        Endpoint::Variants,
+        &uri.path()[strip + Self::VARIANTS_ENDPOINT_LENGTH..],
+      )
     } else {
       None
     }
