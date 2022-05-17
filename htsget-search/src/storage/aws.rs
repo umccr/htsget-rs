@@ -18,6 +18,7 @@ use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::Storage;
+use crate::storage::StorageError::AwsS3Error;
 use crate::storage::{BytesRange, StorageError};
 
 use super::{GetOptions, Result, UrlOptions};
@@ -102,8 +103,8 @@ impl AwsS3Storage {
   }
 
   /// Returns the retrieval type of the object stored with the key.
-  pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: K) -> Result<Retrieval> {
-    let head = self.s3_head(&self.resolve_key(&key)?).await?;
+  pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: &K) -> Result<Retrieval> {
+    let head = self.s3_head(&self.resolve_key(key)?).await?;
     Ok(
       // Default is Standard.
       match head.storage_class.unwrap_or(StorageClass::Standard) {
@@ -147,6 +148,13 @@ impl AwsS3Storage {
     // in order to avoid reading the whole byte buffer into memory. A custom type could be made similar to
     // https://users.rust-lang.org/t/what-to-pin-when-implementing-asyncread/63019/2 which could be based off
     // StreamReader.
+    if let Delayed(class) = self.get_retrieval_type(&key).await? {
+      return Err(AwsS3Error(
+        format!("Cannot retrieve object immediately, class is {:?}.", class),
+        key.as_ref().to_string(),
+      ));
+    }
+
     let response = self
       .client
       .get_object()
@@ -401,7 +409,7 @@ mod tests {
   #[tokio::test]
   async fn retrieval_type() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.get_retrieval_type("key2").await;
+      let result = storage.get_retrieval_type(&"key2".to_string()).await;
       println!("{:?}", result);
     })
     .await;

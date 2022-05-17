@@ -35,7 +35,6 @@ export class HtsgetHttpLambdaStack extends Stack {
       // Build htsget-http-lambda only.
       package: 'htsget-http-lambda',
       target: 'aarch64-unknown-linux-gnu',
-      setupLogging: true,
 
       memorySize: 128,
       timeout: Duration.seconds(10),
