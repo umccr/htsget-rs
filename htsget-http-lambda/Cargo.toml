@@ -29,6 +29,7 @@ async-trait = "0.1"
 query_map = { version = "0.5", features = ["url-query"] }
 
 # For testing cargo lambda locally.
-[package.metadata.lambda.env]
-RUST_LOG = "info"
-HTSGET_PATH = "data/"
+#[package.metadata.lambda.env]
+#RUST_LOG = "info,htsget_http_lambda=debug,htsget_config=debug,htsget_http_core=debug,htsget_search=debug"
+#HTSGET_BUCKET_NAME = "htsget-rs-data"
+#HTSGET_STORAGE_TYPE = "AwsS3Storage"

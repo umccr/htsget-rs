@@ -66,9 +66,9 @@ impl From<HtsGetSearchError> for HtsGetError {
       HtsGetSearchError::UnsupportedFormat(s) => HtsGetError::UnsupportedFormat(s),
       HtsGetSearchError::InvalidInput(s) => HtsGetError::InvalidInput(s),
       HtsGetSearchError::InvalidRange(s) => HtsGetError::InvalidRange(s),
-      HtsGetSearchError::IoError(_) => HtsGetError::NotFound("There was an IO error".to_string()),
-      HtsGetSearchError::ParseError(_) => {
-        HtsGetError::NotFound("The requested content couldn't be parsed correctly".to_string())
+      HtsGetSearchError::IoError(s) => HtsGetError::NotFound(format!("There was an IO error: {}", s)),
+      HtsGetSearchError::ParseError(s) => {
+        HtsGetError::NotFound(format!("The requested content couldn't be parsed correctly {}", s))
       }
       HtsGetSearchError::InternalError(s) => HtsGetError::InternalError(s),
     }

@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use serde::Deserialize;
-use tracing::debug;
+use tracing::info;
 
 use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
@@ -124,7 +124,7 @@ impl Config {
           format!("Config not properly set: {}", err),
         )
       });
-    debug!(config = ?config, "Config created from environment variables.");
+    info!(config = ?config, "Config created from environment variables.");
     config
   }
 }
