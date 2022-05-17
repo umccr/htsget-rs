@@ -1,11 +1,11 @@
-import {Duration, Stack, StackProps, Tags} from 'aws-cdk-lib';
+import { Duration, Stack, StackProps, Tags } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import {RustFunction, Settings} from 'rust.aws-cdk-lambda';
-import {Architecture} from 'aws-cdk-lib/aws-lambda';
+import { RustFunction, Settings } from 'rust.aws-cdk-lambda';
+import { Architecture } from 'aws-cdk-lib/aws-lambda';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
-import {AuthorizationType} from 'aws-cdk-lib/aws-apigateway';
-import {STACK_NAME} from "../bin/htsget-http-lambda";
+import { AuthorizationType } from 'aws-cdk-lib/aws-apigateway';
+import { STACK_NAME } from "../bin/htsget-http-lambda";
 
 export class HtsgetHttpLambdaStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
