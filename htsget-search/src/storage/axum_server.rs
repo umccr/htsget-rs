@@ -202,7 +202,7 @@ mod tests {
     });
 
     // Make request.
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = Client::builder().build::<_, Body>(https);
     let request = Request::builder()
       .method(Method::GET)
       .uri(format!("https://{}:{}/data/key1", "localhost", "8080"))

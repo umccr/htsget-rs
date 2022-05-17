@@ -82,10 +82,10 @@ impl AwsS3Storage {
       response
         .presigned(
           PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
-            .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
+            .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
         )
         .await
-        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .uri()
         .to_string(),
     )
@@ -99,7 +99,7 @@ impl AwsS3Storage {
       .key(&self.resolve_key(&key)?)
       .send()
       .await
-      .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))
+      .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))
   }
 
   /// Returns the retrieval type of the object stored with the key.
@@ -165,11 +165,11 @@ impl AwsS3Storage {
       response
         .send()
         .await
-        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .body
         .collect()
         .await
-        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .into_bytes(),
     )
   }
@@ -181,7 +181,7 @@ impl AwsS3Storage {
   ) -> Result<BufReader<Cursor<Bytes>>> {
     let response = self.get_content(key, options).await?;
     let cursor = Cursor::new(response);
-    let reader = tokio::io::BufReader::new(cursor);
+    let reader = BufReader::new(cursor);
     Ok(reader)
   }
 }

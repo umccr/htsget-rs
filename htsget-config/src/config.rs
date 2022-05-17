@@ -11,15 +11,20 @@ use crate::regex_resolver::RegexResolver;
 pub const USAGE: &str = r#"
 This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
 * HTSGET_ADDR: The socket address to use for the server which creates response tickets. Default: "127.0.0.1:8080".
-* HTSGET_PATH: The path to the directory where the server should be started. Default: "."
+* HTSGET_PATH: The path to the directory where the server should be started. Default: ".". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
 * HTSGET_REGEX: The regular expression that should match an ID. Default: ".*".
+For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
 * HTSGET_SUBSTITUTION_STRING: The replacement expression. Default: "$0".
 * HTSGET_STORAGE_TYPE: Either LocalStorage or AwsS3Storage. Default: "LocalStorage".
+
+The following options are used for the ticket server.
 * HTSGET_TICKET_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
 * HTSGET_TICKET_SERVER_KEY: The path to the PEM formatted X.509 private key used by the ticket response server. Default: "key.pem". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
 * HTSGET_TICKET_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the ticket response server. Default: "cert.pem". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+
+The following options are used to configure AWS S3 storage.
 * HTSGET_S3_BUCKET: The name of the AWS S3 bucket. Default: "". Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".
-For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
+
 The next variables are used to configure the info for the service-info endpoints.
 * HTSGET_ID: The id of the service. Default: "None".
 * HTSGET_NAME: The name of the service. Default: "None".

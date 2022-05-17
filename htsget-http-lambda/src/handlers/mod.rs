@@ -40,7 +40,7 @@ impl<T: Serialize> IntoResponse for FormatJson<T> {
   }
 }
 
-impl From<serde_json::Error> for FormatJson<Response<Body>> {
+impl From<Error> for FormatJson<Response<Body>> {
   fn from(error: Error) -> Self {
     Self(
       Response::builder()
@@ -88,7 +88,7 @@ mod tests {
     where
       S: Serializer,
     {
-      Err(S::Error::custom(json!({"value": "1"})))
+      Err(Error::custom(json!({"value": "1"})))
     }
   }
 
