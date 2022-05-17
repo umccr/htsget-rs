@@ -39,7 +39,7 @@ export class HtsgetHttpLambdaStack extends Stack {
       memorySize: 128,
       timeout: Duration.seconds(10),
       environment: {
-        HTSGET_BUCKET_NAME: 'htsget-rs-data',
+        HTSGET_S3_BUCKET: 'htsget-rs-data',
         HTSGET_STORAGE_TYPE: 'AwsS3Storage',
         RUST_LOG: "info,htsget_http_lambda=debug,htsget_config=debug,htsget_http_core=debug,htsget_search=debug"
       },
