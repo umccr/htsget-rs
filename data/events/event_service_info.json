@@ -1,7 +1,9 @@
 {
-  "resource": "/{proxy+}",
-  "path": "/reads/bam/htsnexus_test_NA12878",
   "httpMethod": "GET",
+  "path": "/variants/service-info",
+  "body": null,
+
+  "resource": "/{proxy+}",
   "headers": {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
     "accept-encoding": "gzip, deflate, br",
@@ -72,7 +74,7 @@
     "httpMethod": "GET",
     "extendedRequestId": "JJbxmplHYosFVYQ=",
     "requestTime": "10/Mar/2020:00:03:59 +0000",
-    "path": "/",
+    "path": "/variants/service-info",
     "accountId": "123456789012",
     "protocol": "HTTP/1.1",
     "stage": "Prod",
@@ -96,6 +98,5 @@
     "domainName": "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
     "apiId": "70ixmpl4fl"
   },
-  "body": null,
   "isBase64Encoded": false
 }

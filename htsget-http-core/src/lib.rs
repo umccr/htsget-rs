@@ -58,7 +58,7 @@ pub(crate) fn match_endpoints_get_request(
     (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
     (_, Some(s)) => {
       return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format",
+        "{} isn't a supported format for this endpoint.",
         s
       )))
     }
@@ -77,7 +77,7 @@ pub(crate) fn match_endpoints_post_request(
     (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
     (_, Some(s)) => {
       return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format",
+        "{} isn't a supported format for this endpoint.",
         s
       )))
     }
@@ -149,12 +149,10 @@ mod tests {
     let mut request = HashMap::new();
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     request.insert("format".to_string(), "VCF".to_string());
-    assert_eq!(
+    assert!(matches!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
-      Err(HtsGetError::UnsupportedFormat(
-        "VCF isn't a supported format".to_string()
-      ))
-    )
+      Err(HtsGetError::UnsupportedFormat(_))
+    ))
   }
 
   #[tokio::test]
@@ -226,7 +224,7 @@ mod tests {
       notags: None,
       regions: None,
     };
-    assert_eq!(
+    assert!(matches!(
       get_response_for_post_request(
         get_searcher(),
         request,
@@ -234,10 +232,8 @@ mod tests {
         Endpoint::Variants
       )
       .await,
-      Err(HtsGetError::UnsupportedFormat(
-        "BAM isn't a supported format".to_string()
-      ))
-    )
+      Err(HtsGetError::UnsupportedFormat(_))
+    ))
   }
 
   #[tokio::test]

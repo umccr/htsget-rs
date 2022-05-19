@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use lambda_http::ext::RequestExt;
-use lambda_http::http::header::CONTENT_TYPE;
 use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::{http, Body, IntoResponse, Request, Response};
+use tracing::info;
 
 use htsget_config::config::ConfigServiceInfo;
 use htsget_http_core::{Endpoint, PostRequest};
@@ -142,13 +142,12 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 
   /// Extracts post request query parameters.
   fn extract_query_from_payload(request: &Request) -> Option<PostRequest> {
-    // Check if the content type is application/json
-    let content_type = request.headers().get(CONTENT_TYPE)?;
-    if content_type.to_str().ok()? != mime::APPLICATION_JSON.as_ref() {
-      return None;
+    // Allows null/empty bodies.
+    if let Some(payload) = request.payload().ok()? {
+      Some(payload)
+    } else {
+      Some(PostRequest::default())
     }
-
-    request.payload().ok()?
   }
 
   /// Extract get request query parameters.
@@ -160,6 +159,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     for (key, value) in request.query_string_parameters().iter() {
       query.insert(key.to_string(), value.to_string());
     }
+    info!("{:?}", query);
     query
   }
 }
