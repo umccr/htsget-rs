@@ -169,6 +169,11 @@ mod tests {
   }
 
   #[actix_web::test]
+  async fn test_parameterized_post_class_header() {
+    server_tests::test_parameterized_post_class_header(&ActixTestServer::default()).await;
+  }
+
+  #[actix_web::test]
   async fn test_service_info() {
     server_tests::test_service_info(&ActixTestServer::default()).await;
   }

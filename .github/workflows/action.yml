@@ -25,8 +25,8 @@ jobs:
       - name: Install cargo-lambda
         uses: actions-rs/cargo@v1
         with:
-          command: cargo
-          args: install cargo-lambda
+          command: install
+          args: cargo-lambda
 
       - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
