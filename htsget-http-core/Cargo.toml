@@ -14,3 +14,4 @@ htsget-search = { path = "../htsget-search" }
 htsget-config = { path = "../htsget-config" }
 futures = { version = "0.3" }
 tokio = { version = "1.17", features = ["full"] }
+tracing = "0.1"

@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use lambda_http::IntoResponse;
+use lambda_http::http;
+use tracing::info;
 
 use htsget_http_core::{get_response_for_get_request, Endpoint};
 use htsget_search::htsget::HtsGet;
 
 use crate::handlers::handle_response;
+use crate::{Body, Response};
 
 /// Get request reads endpoint
 pub async fn get<H: HtsGet + Send + Sync + 'static>(
@@ -14,7 +16,8 @@ pub async fn get<H: HtsGet + Send + Sync + 'static>(
   searcher: Arc<H>,
   mut query: HashMap<String, String>,
   endpoint: Endpoint,
-) -> impl IntoResponse {
+) -> http::Result<Response<Body>> {
+  info!(query = ?query, "GET request");
   query.insert("id".to_string(), id_path);
   handle_response(get_response_for_get_request(searcher, query, endpoint).await)
 }

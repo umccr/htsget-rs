@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
+use tracing_actix_web::TracingLogger;
 
 use htsget_config::config::ConfigServiceInfo;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
@@ -53,9 +54,11 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
 ) -> std::io::Result<Server> {
   Ok(
     HttpServer::new(Box::new(move || {
-      App::new().configure(|service_config: &mut web::ServiceConfig| {
-        configure_server(service_config, htsget.clone(), config_service_info.clone());
-      })
+      App::new()
+        .configure(|service_config: &mut web::ServiceConfig| {
+          configure_server(service_config, htsget.clone(), config_service_info.clone());
+        })
+        .wrap(TracingLogger::default())
     }))
     .bind(addr)?
     .run(),
@@ -163,6 +166,11 @@ mod tests {
   #[actix_web::test]
   async fn test_parameterized_post() {
     server_tests::test_parameterized_post(&ActixTestServer::default()).await;
+  }
+
+  #[actix_web::test]
+  async fn test_parameterized_post_class_header() {
+    server_tests::test_parameterized_post_class_header(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]

@@ -7,7 +7,7 @@ use crate::{QueryBuilder, Result};
 /// A struct to represent a POST request according to the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html). It implements
 /// [Deserialize] to make it more ergonomic. Each [PostRequest] can contain several [Regions](Region)
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct PostRequest {
   pub format: Option<String>,
   pub class: Option<String>,

@@ -69,7 +69,7 @@ where
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    bcf::AsyncReader::new(inner)
+    AsyncReader::new(inner)
   }
 
   async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {

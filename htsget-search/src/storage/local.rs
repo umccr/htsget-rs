@@ -1,10 +1,12 @@
 //! Module providing an implementation for the [Storage] trait using the local file system.
 //!
 
+use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use tokio::fs::File;
+use tracing::debug;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
@@ -77,11 +79,12 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
 }
 
 #[async_trait]
-impl<T: UrlFormatter + Send + Sync> Storage for LocalStorage<T> {
+impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   type Streamable = File;
 
   /// Get the file at the location of the key.
   async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
+    debug!(calling_from = ?self, key = key.as_ref(), "Getting file with key {:?}", key.as_ref());
     self.get(key).await
   }
 
@@ -93,18 +96,20 @@ impl<T: UrlFormatter + Send + Sync> Storage for LocalStorage<T> {
         .url_formatter
         .format_url(path.to_string_lossy().to_string())?,
     );
-    Ok(options.apply(url))
+    let url = options.apply(url);
+    debug!(calling_from = ?self, key = key.as_ref(), ?url, "Getting url with key {:?}", key.as_ref());
+    Ok(url)
   }
 
   /// Get the size of the file.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let path = self.get_path_from_key(&key)?;
-    Ok(
-      tokio::fs::metadata(path)
-        .await
-        .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
-        .len(),
-    )
+    let len = tokio::fs::metadata(path)
+      .await
+      .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
+      .len();
+    debug!(calling_from = ?self, key = key.as_ref(), len, "Size of key {:?} is {}", key.as_ref(), len);
+    Ok(len)
   }
 }
 
@@ -252,7 +257,7 @@ pub(crate) mod tests {
   }
 
   pub(crate) async fn create_local_test_files() -> (String, TempDir) {
-    let base_path = tempfile::TempDir::new().unwrap();
+    let base_path = TempDir::new().unwrap();
 
     let folder_name = "folder";
     let key1 = "key1";

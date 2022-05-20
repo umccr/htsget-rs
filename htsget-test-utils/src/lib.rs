@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde::de;
+use serde::Deserialize;
 
 use htsget_config::config::Config;
 use htsget_search::htsget::Response as HtsgetResponse;
@@ -21,10 +22,11 @@ impl<T: Into<String>> Header<T> {
 }
 
 /// Represents a http response.
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct Response {
-  status: u16,
-  body: Bytes,
+  #[serde(alias = "statusCode")]
+  pub status: u16,
+  pub body: Bytes,
 }
 
 impl Response {

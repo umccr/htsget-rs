@@ -73,7 +73,7 @@ pub enum StorageError {
   InvalidAddress(AddrParseError),
 }
 
-impl From<StorageError> for std::io::Error {
+impl From<StorageError> for io::Error {
   fn from(err: StorageError) -> Self {
     Self::new(ErrorKind::Other, err)
   }

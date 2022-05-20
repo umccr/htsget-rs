@@ -87,7 +87,7 @@ impl HtsGetError {
   }
 }
 
-impl From<HtsGetError> for std::io::Error {
+impl From<HtsGetError> for io::Error {
   fn from(error: HtsGetError) -> Self {
     Self::new(ErrorKind::Other, error)
   }
@@ -242,7 +242,7 @@ impl From<Format> for String {
 }
 
 impl fmt::Display for Format {
-  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
       Format::Bam => write!(f, "BAM"),
       Format::Cram => write!(f, "CRAM"),

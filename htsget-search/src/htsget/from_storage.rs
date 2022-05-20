@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncSeek};
+use tracing::debug;
 
 use htsget_config::regex_resolver::RegexResolver;
 
@@ -36,12 +37,15 @@ where
   S: Storage<Streamable = R> + Sync + Send + 'static,
 {
   async fn search(&self, query: Query) -> Result<Response> {
-    match query.format {
+    debug!(?query.format, ?query, "Searching {:?}, with query {:?}.", query.format, query);
+    let response = match query.format {
       Format::Bam => BamSearch::new(self.storage()).search(query).await,
       Format::Cram => CramSearch::new(self.storage()).search(query).await,
       Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
       Format::Bcf => BcfSearch::new(self.storage()).search(query).await,
-    }
+    };
+    debug!(?response, "Response obtained {:?}", response);
+    response
   }
 
   fn get_supported_formats(&self) -> Vec<Format> {

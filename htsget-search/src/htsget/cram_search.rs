@@ -175,7 +175,7 @@ where
     format: &Format,
     ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_range: Range<i32>,
-    crai_index: &[crai::Record],
+    crai_index: &[Record],
     predicate: Arc<F>,
   ) -> Result<Vec<BytesRange>>
   where

@@ -18,6 +18,8 @@ htsget-search = { path = "../htsget-search" }
 htsget-config = { path = "../htsget-config" }
 futures = { version = "0.3" }
 tokio = { version = "1.17", features = ["full"] }
+tracing-actix-web = "0.5"
+tracing = "0.1"
 
 [dev-dependencies]
 htsget-test-utils = { path = "../htsget-test-utils" }

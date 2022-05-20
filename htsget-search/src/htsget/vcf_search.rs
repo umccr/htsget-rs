@@ -38,7 +38,7 @@ where
     self.read_record(&mut String::new()).await.ok()
   }
 
-  async fn seek_vpos(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
     self.seek(pos).await
   }
 
@@ -70,7 +70,7 @@ where
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    vcf::AsyncReader::new(bgzf::AsyncReader::new(inner))
+    AsyncReader::new(bgzf::AsyncReader::new(inner))
   }
 
   async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {

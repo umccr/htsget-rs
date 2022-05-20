@@ -11,12 +11,14 @@ use aws_sdk_s3::Client;
 use bytes::Bytes;
 use fluent_builders::GetObject;
 use tokio::io::BufReader;
+use tracing::debug;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::Storage;
+use crate::storage::StorageError::AwsS3Error;
 use crate::storage::{BytesRange, StorageError};
 
 use super::{GetOptions, Result, UrlOptions};
@@ -80,10 +82,10 @@ impl AwsS3Storage {
       response
         .presigned(
           PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
-            .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
+            .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
         )
         .await
-        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .uri()
         .to_string(),
     )
@@ -97,12 +99,12 @@ impl AwsS3Storage {
       .key(&self.resolve_key(&key)?)
       .send()
       .await
-      .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))
+      .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))
   }
 
   /// Returns the retrieval type of the object stored with the key.
-  pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: K) -> Result<Retrieval> {
-    let head = self.s3_head(&self.resolve_key(&key)?).await?;
+  pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: &K) -> Result<Retrieval> {
+    let head = self.s3_head(&self.resolve_key(key)?).await?;
     Ok(
       // Default is Standard.
       match head.storage_class.unwrap_or(StorageClass::Standard) {
@@ -146,6 +148,13 @@ impl AwsS3Storage {
     // in order to avoid reading the whole byte buffer into memory. A custom type could be made similar to
     // https://users.rust-lang.org/t/what-to-pin-when-implementing-asyncread/63019/2 which could be based off
     // StreamReader.
+    if let Delayed(class) = self.get_retrieval_type(&key).await? {
+      return Err(AwsS3Error(
+        format!("Cannot retrieve object immediately, class is {:?}.", class),
+        key.as_ref().to_string(),
+      ));
+    }
+
     let response = self
       .client
       .get_object()
@@ -156,11 +165,11 @@ impl AwsS3Storage {
       response
         .send()
         .await
-        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .body
         .collect()
         .await
-        .map_err(|err| StorageError::AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .into_bytes(),
     )
   }
@@ -172,7 +181,7 @@ impl AwsS3Storage {
   ) -> Result<BufReader<Cursor<Bytes>>> {
     let response = self.get_content(key, options).await?;
     let cursor = Cursor::new(response);
-    let reader = tokio::io::BufReader::new(cursor);
+    let reader = BufReader::new(cursor);
     Ok(reader)
   }
 }
@@ -188,6 +197,7 @@ impl Storage for AwsS3Storage {
     options: GetOptions,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
+    debug!(calling_from = ?self, key, "Getting file with key {:?}", key);
     self.create_buf_reader(key, options).await
   }
 
@@ -195,14 +205,18 @@ impl Storage for AwsS3Storage {
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let key = key.as_ref();
     let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
-    Ok(options.apply(Url::new(presigned_url)))
+    let url = options.apply(Url::new(presigned_url));
+    debug!(calling_from = ?self, key, ?url, "Getting url with key {:?}", key);
+    Ok(url)
   }
 
   /// Returns the size of the S3 object in bytes.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let key = key.as_ref();
     let head = self.s3_head(key).await?;
-    Ok(head.content_length as u64)
+    let len = head.content_length as u64;
+    debug!(calling_from = ?self, key, len, "Size of key {:?} is {}", key, len);
+    Ok(len)
   }
 }
 
@@ -395,7 +409,7 @@ mod tests {
   #[tokio::test]
   async fn retrieval_type() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.get_retrieval_type("key2").await;
+      let result = storage.get_retrieval_type(&"key2".to_string()).await;
       println!("{:?}", result);
     })
     .await;

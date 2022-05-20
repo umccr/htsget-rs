@@ -23,6 +23,7 @@ use tokio::net::TcpListener;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
+use tracing::debug;
 
 use crate::storage::StorageError::TicketServerError;
 use crate::storage::UrlFormatter;
@@ -92,6 +93,7 @@ impl AxumStorageServer {
         .map_err(|err| TicketServerError(err.to_string()))?;
       let acceptor = acceptor.clone();
 
+      debug!(from = ?stream.remote_addr(), "Incoming request from {:?}", stream.remote_addr());
       let app = app
         .make_service(&stream)
         .await
@@ -200,7 +202,7 @@ mod tests {
     });
 
     // Make request.
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = Client::builder().build::<_, Body>(https);
     let request = Request::builder()
       .method(Method::GET)
       .uri(format!("https://{}:{}/data/key1", "localhost", "8080"))
