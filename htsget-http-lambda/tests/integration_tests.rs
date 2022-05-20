@@ -3,6 +3,8 @@
 
 use std::process::Stdio;
 use std::sync::Once;
+use std::thread::sleep;
+use std::time::Duration;
 
 use tokio::process::Command;
 
@@ -37,7 +39,8 @@ async fn cargo_lambda_invoke(data: &str) -> String {
     ])
     .stdout(Stdio::null())
     .stderr(Stdio::null());
-  loop {
+  for _ in 0..20 {
+    sleep(Duration::from_secs(1));
     if invoke.status().await.unwrap().success() {
       return String::from_utf8(
         invoke
@@ -49,6 +52,7 @@ async fn cargo_lambda_invoke(data: &str) -> String {
       .expect("Expected valid output.");
     }
   }
+  panic!("Failed to invoke request.");
 }
 
 async fn execute_cargo_lambda(data: &str) -> String {
@@ -97,6 +101,18 @@ async fn test_parameterized_post() {
     &serde_json::from_slice(response.as_bytes()).unwrap(),
     &default_test_config(),
     Class::Body,
+  );
+}
+
+#[tokio::test]
+async fn test_parameterized_post_class_header() {
+  let event = get_test_file("data/events/event_parameterized_post_class_header.json");
+  let response = execute_cargo_lambda(&event).await;
+  println!("{:?}", response);
+  test_response(
+    &serde_json::from_slice(response.as_bytes()).unwrap(),
+    &default_test_config(),
+    Class::Header,
   );
 }
 

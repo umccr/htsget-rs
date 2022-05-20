@@ -38,6 +38,7 @@ export class HtsgetHttpLambdaStack extends Stack {
 
       memorySize: 128,
       timeout: Duration.seconds(10),
+      // Change environment variables passed to htsget-http-lambda.
       environment: {
         HTSGET_S3_BUCKET: 'htsget-rs-data',
         HTSGET_STORAGE_TYPE: 'AwsS3Storage',

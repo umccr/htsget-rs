@@ -7,7 +7,7 @@ use std::sync::Arc;
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::{http, Body, IntoResponse, Request, Response};
-use tracing::info;
+use tracing::debug;
 
 use htsget_config::config::ConfigServiceInfo;
 use htsget_http_core::{Endpoint, PostRequest};
@@ -142,11 +142,13 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 
   /// Extracts post request query parameters.
   fn extract_query_from_payload(request: &Request) -> Option<PostRequest> {
-    // Allows null/empty bodies.
-    if let Some(payload) = request.payload().ok()? {
-      Some(payload)
-    } else {
+    if request.body().is_empty() {
       Some(PostRequest::default())
+    } else {
+      let payload = request.payload::<PostRequest>();
+      debug!(payload = ?payload, "POST request payload");
+      // Allows null/empty bodies.
+      payload.ok()?
     }
   }
 
@@ -159,7 +161,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     for (key, value) in request.query_string_parameters().iter() {
       query.insert(key.to_string(), value.to_string());
     }
-    info!("{:?}", query);
+    debug!(query = ?query, "GET request query");
     query
   }
 }
@@ -291,6 +293,11 @@ mod tests {
   #[tokio::test]
   async fn test_parameterized_post() {
     server_tests::test_parameterized_post(&LambdaTestServer::default()).await;
+  }
+
+  #[tokio::test]
+  async fn test_parameterized_post_class_header() {
+    server_tests::test_parameterized_post_class_header(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]

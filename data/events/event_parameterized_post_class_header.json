@@ -1,7 +1,7 @@
 {
   "httpMethod": "POST",
   "path": "/variants/vcf/sample1-bcbio-cancer",
-  "body": "{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
+  "body": "{\"format\": \"VCF\", \"class\": \"header\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
 
   "resource": "/{proxy+}",
   "headers": {

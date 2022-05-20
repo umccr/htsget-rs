@@ -22,6 +22,12 @@ jobs:
             override: true
             components: rustfmt, clippy
 
+      - name: Install cargo-lambda
+        uses: actions-rs/cargo@v1
+        with:
+          command: cargo
+          args: install cargo-lambda
+
       - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1

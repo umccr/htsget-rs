@@ -78,6 +78,15 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
   test_response(&response, tester.get_config(), Class::Body);
 }
 
+/// A parameterized post test with header as the class.
+pub async fn test_parameterized_post_class_header<T: TestRequest>(tester: &impl TestServer<T>) {
+  let request = post_request(tester).set_payload(
+    "{\"format\": \"VCF\", \"class\": \"header\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
+  );
+  let response = tester.test_server(request).await;
+  test_response(&response, tester.get_config(), Class::Header);
+}
+
 /// A service info test.
 pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
