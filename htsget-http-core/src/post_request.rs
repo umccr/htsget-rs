@@ -7,7 +7,7 @@ use crate::{QueryBuilder, Result};
 /// A struct to represent a POST request according to the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html). It implements
 /// [Deserialize] to make it more ergonomic. Each [PostRequest] can contain several [Regions](Region)
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct PostRequest {
   pub format: Option<String>,
   pub class: Option<String>,
@@ -50,8 +50,7 @@ impl PostRequest {
   }
 
   fn get_base_query_builder(&self, id: impl Into<String>) -> Result<QueryBuilder> {
-    QueryBuilder::new(Some(id.into()))?
-      .with_format(self.format.clone())?
+    QueryBuilder::new(Some(id.into()), self.format.clone())?
       .with_class(self.class.clone())?
       .with_fields_from_vec(self.fields.clone())
       .with_tags_from_vec(self.tags.clone(), self.notags.clone())
@@ -77,9 +76,7 @@ mod tests {
       }
       .get_queries("id")
       .unwrap(),
-      vec![Query::new("id")
-        .with_format(Format::Vcf)
-        .with_class(Class::Header)]
+      vec![Query::new("id", Format::Vcf).with_class(Class::Header)]
     );
   }
 
@@ -100,8 +97,7 @@ mod tests {
       }
       .get_queries("id")
       .unwrap(),
-      vec![Query::new("id")
-        .with_format(Format::Vcf)
+      vec![Query::new("id", Format::Vcf)
         .with_class(Class::Header)
         .with_reference_name("20".to_string())
         .with_start(150)
@@ -134,14 +130,12 @@ mod tests {
       .get_queries("id")
       .unwrap(),
       vec![
-        Query::new("id")
-          .with_format(Format::Vcf)
+        Query::new("id", Format::Vcf)
           .with_class(Class::Header)
           .with_reference_name("20".to_string())
           .with_start(150)
           .with_end(153),
-        Query::new("id")
-          .with_format(Format::Vcf)
+        Query::new("id", Format::Vcf)
           .with_class(Class::Header)
           .with_reference_name("11".to_string())
           .with_start(152)

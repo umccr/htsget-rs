@@ -2,7 +2,6 @@
 //!
 
 use std::marker::PhantomData;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,30 +11,34 @@ use noodles::bgzf::VirtualPosition;
 use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
-use noodles::vcf;
-use noodles::vcf::AsyncReader;
 use noodles::vcf::Header;
-use tokio::fs::File;
+use noodles_vcf as vcf;
+use tokio::io;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{
-  find_first, AsyncHeaderResult, AsyncIndexResult, BgzfSearch, BlockPosition, Search,
-};
+use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
-  storage::{AsyncStorage, BytesRange},
+  storage::{BytesRange, Storage},
 };
+
+type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
 pub(crate) struct VcfSearch<S> {
   storage: Arc<S>,
 }
 
 #[async_trait]
-impl BlockPosition for vcf::AsyncReader<bgzf::AsyncReader<File>> {
+impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
+where
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+{
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut String::new()).await.ok()
   }
 
-  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
     self.seek(pos).await
   }
 
@@ -45,11 +48,12 @@ impl BlockPosition for vcf::AsyncReader<bgzf::AsyncReader<File>> {
 }
 
 #[async_trait]
-impl<S>
-  BgzfSearch<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -59,27 +63,31 @@ where
 }
 
 #[async_trait]
-impl<S>
-  Search<S, ReferenceSequence, tabix::Index, vcf::AsyncReader<bgzf::AsyncReader<File>>, Header>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for VcfSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  const READER_FN: fn(File) -> AsyncReader<bgzf::AsyncReader<File>> =
-    |file| vcf::AsyncReader::new(bgzf::AsyncReader::new(file));
-  const HEADER_FN: fn(&'_ mut AsyncReader<bgzf::AsyncReader<File>>) -> AsyncHeaderResult =
-    |reader| Box::pin(async move { reader.read_header().await });
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { tabix::r#async::read(path).await });
+  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+    AsyncReader::new(bgzf::AsyncReader::new(inner))
+  }
+
+  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+    reader.read_header().await
+  }
+
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
+    tabix::AsyncReader::new(inner).read_index().await
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: String,
     reference_name: String,
     index: &Index,
-    query: &Query,
+    query: Query,
   ) -> Result<Vec<BytesRange>> {
-    let (_, vcf_header) = self.create_reader(&key).await?;
+    let (_, vcf_header) = self.create_reader(&query.id, &self.get_format()).await?;
     let maybe_len = vcf_header
       .contigs()
       .get(&reference_name)
@@ -112,7 +120,7 @@ where
     let seq_end = query.end.map(|end| end as i32).or(maybe_len);
     let byte_ranges = self
       .get_byte_ranges_for_reference_sequence_bgzf(
-        key,
+        query,
         &PhantomData,
         ref_seq_index,
         index,
@@ -121,12 +129,6 @@ where
       )
       .await?;
     Ok(byte_ranges)
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let vcf_key = format!("{}.vcf.gz", id);
-    let tbi_key = format!("{}.vcf.gz.tbi", id);
-    (vcf_key, tbi_key)
   }
 
   fn get_storage(&self) -> Arc<S> {
@@ -138,9 +140,10 @@ where
   }
 }
 
-impl<S> VcfSearch<S>
+impl<S, ReaderType> VcfSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
@@ -154,9 +157,11 @@ where
 pub mod tests {
   use std::future::Future;
 
+  use htsget_config::regex_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
+  use crate::storage::axum_server::HttpsFormatter;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 
@@ -165,13 +170,13 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename);
+      let query = Query::new(filename, Format::Vcf);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
+        vec![Url::new(expected_url(storage, filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-3367"))],
       ));
       assert_eq!(response, expected_response)
@@ -184,13 +189,13 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "spec-v4.3";
-      let query = Query::new(filename).with_reference_name("20");
+      let query = Query::new(filename, Format::Vcf).with_reference_name("20");
       let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
+        vec![Url::new(expected_url(storage, filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-823"))],
       ));
       assert_eq!(response, expected_response)
@@ -203,7 +208,7 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename)
+      let query = Query::new(filename, Format::Vcf)
         .with_reference_name("chrM")
         .with_start(151)
         .with_end(153);
@@ -212,7 +217,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
+        vec![Url::new(expected_url(storage, filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-3367"))],
       ));
       assert_eq!(response, expected_response)
@@ -225,7 +230,7 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage);
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename)
+      let query = Query::new(filename, Format::Vcf)
         .with_reference_name("chrM")
         .with_start(0)
         .with_end(153);
@@ -243,13 +248,13 @@ pub mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "spec-v4.3";
-      let query = Query::new(filename).with_class(Class::Header);
+      let query = Query::new(filename, Format::Vcf).with_class(Class::Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
+        vec![Url::new(expected_url(storage, filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-823"))
           .with_class(Class::Header)],
       ));
@@ -260,7 +265,7 @@ pub mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<HttpsFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let base_path = std::env::current_dir()
@@ -271,15 +276,21 @@ pub mod tests {
     test(Arc::new(
       LocalStorage::new(
         base_path,
-        "localhost/data",
         RegexResolver::new(".*", "$0").unwrap(),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
       )
       .unwrap(),
     ))
     .await
   }
 
-  pub(crate) fn expected_url(name: &str) -> String {
-    format!("http://localhost/data/{}.vcf.gz", name)
+  pub(crate) fn expected_url(storage: Arc<LocalStorage<HttpsFormatter>>, name: &str) -> String {
+    format!(
+      "https://127.0.0.1:8081{}",
+      storage
+        .base_path()
+        .join(format!("{}.vcf.gz", name))
+        .to_string_lossy()
+    )
   }
 }

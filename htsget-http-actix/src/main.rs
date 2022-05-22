@@ -1,37 +1,12 @@
 use std::env::args;
 
-#[cfg(feature = "async")]
-use std::sync::Arc;
+use tokio::select;
 
-use actix_files::Files;
-use actix_web::{web, App, HttpServer};
+use htsget_config::config::{Config, StorageType, USAGE};
+use htsget_http_actix::run_server;
+use htsget_search::htsget::from_storage::HtsGetFromStorage;
+use htsget_search::storage::axum_server::HttpsFormatter;
 
-// Async
-#[cfg(feature = "async")]
-use htsget_http_actix::handlers::{get, post, reads_service_info, variants_service_info};
-#[cfg(feature = "async")]
-use htsget_http_actix::AsyncAppState;
-#[cfg(feature = "async")]
-use htsget_http_actix::AsyncHtsGetStorage;
-
-// Blocking
-#[cfg(not(feature = "async"))]
-use htsget_http_actix::handlers::blocking::{get, post, reads_service_info, variants_service_info};
-#[cfg(not(feature = "async"))]
-use htsget_http_actix::AppState;
-#[cfg(not(feature = "async"))]
-use htsget_http_actix::HtsGetStorage;
-#[cfg(not(feature = "async"))]
-use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
-
-use htsget_id_resolver::RegexResolver;
-
-use htsget_search::storage::blocking::local::LocalStorage;
-
-use htsget_http_actix::config::Config;
-use htsget_http_actix::USAGE;
-
-#[cfg(feature = "async")]
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
   if args().len() > 1 {
@@ -39,125 +14,43 @@ async fn main() -> std::io::Result<()> {
     println!("{}", USAGE);
     return Ok(());
   }
-  let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
-  let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
-  let storage_base_address = format!("{}/data", address);
-  let htsget_path = config.htsget_path.clone();
-  let regex_match = config.htsget_regex_match.clone();
-  let regex_substitution = config.htsget_regex_substitution.clone();
-  HttpServer::new(move || {
-    App::new()
-      .data(AsyncAppState {
-        htsget: Arc::new(AsyncHtsGetStorage::new(
-          LocalStorage::new(
-            htsget_path.clone(),
-            &storage_base_address,
-            RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
-          )
-          .expect("Couldn't create a Storage with the provided path"),
-        )),
-        config: config.clone(),
-      })
-      .service(
-        web::scope("/reads")
-          .route(
-            "/service-info",
-            web::get().to(reads_service_info::<AsyncHtsGetStorage>),
-          )
-          .route(
-            "/service-info",
-            web::post().to(reads_service_info::<AsyncHtsGetStorage>),
-          )
-          .route("/{id:.+}", web::get().to(get::reads::<AsyncHtsGetStorage>))
-          .route(
-            "/{id:.+}",
-            web::post().to(post::reads::<AsyncHtsGetStorage>),
-          ),
-      )
-      .service(
-        web::scope("/variants")
-          .route(
-            "/service-info",
-            web::get().to(variants_service_info::<AsyncHtsGetStorage>),
-          )
-          .route(
-            "/service-info",
-            web::post().to(variants_service_info::<AsyncHtsGetStorage>),
-          )
-          .route(
-            "/{id:.+}",
-            web::get().to(get::variants::<AsyncHtsGetStorage>),
-          )
-          .route(
-            "/{id:.+}",
-            web::post().to(post::variants::<AsyncHtsGetStorage>),
-          ),
-      )
-      .service(Files::new("/data", htsget_path.clone()))
-  })
-  .bind(address)?
-  .run()
-  .await
+
+  let config = Config::from_env()?;
+
+  match config.storage_type {
+    StorageType::LocalStorage => local_storage_server(config).await,
+    #[cfg(feature = "s3-storage")]
+    StorageType::AwsS3Storage => s3_storage_server(config).await,
+  }
 }
 
-#[cfg(not(feature = "async"))]
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-  if args().len() > 1 {
-    // Show help if command line options are provided
-    println!("{}", USAGE);
-    return Ok(());
+async fn local_storage_server(config: Config) -> std::io::Result<()> {
+  let formatter = HttpsFormatter::from(config.addr);
+  let mut local_server = formatter.bind_axum_server().await?;
+
+  let searcher = HtsGetFromStorage::local_from(
+    config.path.clone(),
+    config.resolver.clone(),
+    formatter.clone(),
+  )?;
+  let local_server = tokio::spawn(async move {
+    local_server
+      .serve(
+        &config.path,
+        &config.ticket_server_key,
+        &config.ticket_server_cert,
+      )
+      .await
+  });
+
+  select! {
+    local_server = local_server => Ok(local_server??),
+    actix_server = run_server(searcher, config.service_info, config.addr)? => actix_server
   }
-  let config = envy::from_env::<Config>().expect("The environment variables weren't properly set!");
-  let address = format!("{}:{}", config.htsget_ip, config.htsget_port);
-  let storage_base_address = format!("{}/data", address);
-  let htsget_path = config.htsget_path.clone();
-  let regex_match = config.htsget_regex_match.clone();
-  let regex_substitution = config.htsget_regex_substitution.clone();
-  HttpServer::new(move || {
-    App::new()
-      .data(AppState {
-        htsget: HtsGetFromStorage::new(
-          //LocalStorage::new(&htsget_path, &storage_base_address)
-          //  .expect("Couldn't create a Storage with the provided path"),
-          LocalStorage::new(
-            htsget_path.clone(),
-            &storage_base_address,
-            RegexResolver::new(&regex_match, &regex_substitution).unwrap(),
-          )
-          .expect("Couldn't create a Storage with the provided path"),
-        ),
-        config: config.clone(),
-      })
-      .service(
-        web::scope("/reads")
-          .route(
-            "/service-info",
-            web::get().to(reads_service_info::<HtsGetStorage>),
-          )
-          .route(
-            "/service-info",
-            web::post().to(reads_service_info::<HtsGetStorage>),
-          )
-          .route("/{id:.+}", web::get().to(get::reads::<HtsGetStorage>))
-          .route("/{id:.+}", web::post().to(post::reads::<HtsGetStorage>)),
-      )
-      .service(
-        web::scope("/variants")
-          .route(
-            "/service-info",
-            web::get().to(variants_service_info::<HtsGetStorage>),
-          )
-          .route(
-            "/service-info",
-            web::post().to(variants_service_info::<HtsGetStorage>),
-          )
-          .route("/{id:.+}", web::get().to(get::variants::<HtsGetStorage>))
-          .route("/{id:.+}", web::post().to(post::variants::<HtsGetStorage>)),
-      )
-      .service(Files::new("/data", htsget_path.clone()))
-  })
-  .bind(address)?
-  .run()
-  .await
+}
+
+#[cfg(feature = "s3-storage")]
+async fn s3_storage_server(config: Config) -> std::io::Result<()> {
+  let searcher = HtsGetFromStorage::s3_from(config.s3_bucket, config.resolver).await;
+  run_server(searcher, config.service_info, config.addr)?.await
 }

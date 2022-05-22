@@ -1,0 +1,17 @@
+[package]
+name = "htsget-test-utils"
+version = "0.1.0"
+authors = ["Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+htsget-http-core = { path = "../htsget-http-core" }
+htsget-config = { path = "../htsget-config" }
+htsget-search = { path = "../htsget-search" }
+async-trait = "0.1"
+http = "0.2"
+mime = "0.3"
+serde_json = "1.0"
+serde = "1.0"
+envy = "0.4"
+bytes = "1.1"

@@ -7,32 +7,31 @@ use core::fmt;
 use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io;
+use std::io::ErrorKind;
 
+use async_trait::async_trait;
 use thiserror::Error;
 use tokio::task::JoinError;
 
-#[cfg(feature = "async")]
-pub use async_htsget::*;
-
 use crate::storage::StorageError;
 
-#[cfg(feature = "async")]
-pub mod async_htsget;
-#[cfg(feature = "async")]
 pub mod bam_search;
-#[cfg(feature = "async")]
 pub mod bcf_search;
-pub mod blocking;
-#[cfg(feature = "async")]
 pub mod cram_search;
-#[cfg(feature = "async")]
 pub mod from_storage;
-#[cfg(feature = "async")]
 pub mod search;
-#[cfg(feature = "async")]
 pub mod vcf_search;
 
 type Result<T> = core::result::Result<T, HtsGetError>;
+
+/// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
+#[async_trait]
+pub trait HtsGet {
+  async fn search(&self, query: Query) -> Result<Response>;
+  fn get_supported_formats(&self) -> Vec<Format>;
+  fn are_field_parameters_effective(&self) -> bool;
+  fn are_tag_parameters_effective(&self) -> bool;
+}
 
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
@@ -54,8 +53,8 @@ pub enum HtsGetError {
   #[error("Parsing error: {0}")]
   ParseError(String),
 
-  #[error("Concurrency error: {0}")]
-  ConcurrencyError(String),
+  #[error("Internal error: {0}")]
+  InternalError(String),
 }
 
 impl HtsGetError {
@@ -84,17 +83,34 @@ impl HtsGetError {
   }
 
   pub fn concurrency_error<S: Into<String>>(message: S) -> Self {
-    Self::ConcurrencyError(message.into())
+    Self::InternalError(message.into())
+  }
+}
+
+impl From<HtsGetError> for io::Error {
+  fn from(error: HtsGetError) -> Self {
+    Self::new(ErrorKind::Other, error)
   }
 }
 
 impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
-      StorageError::NotFound(key) => Self::NotFound(format!("Not found in storage: {}", key)),
+      StorageError::KeyNotFound(key) => {
+        Self::NotFound(format!("Key not found in storage: {}", key))
+      }
       StorageError::InvalidKey(key) => {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
+      StorageError::IoError(e) => Self::IoError(format!("Io error: {}", e)),
+      #[cfg(feature = "s3-storage")]
+      StorageError::AwsS3Error { .. } => Self::IoError(format!("AWS S3 error: {:?}", err)),
+      StorageError::TicketServerError(e) => {
+        Self::InternalError(format!("Error using url response server: {}", e))
+      }
+      StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e)),
+      StorageError::InvalidUri(e) => Self::InternalError(format!("Invalid uri produced: {}", e)),
+      StorageError::InvalidAddress(e) => Self::InternalError(format!("Invalid address: {}", e)),
     }
   }
 }
@@ -106,8 +122,8 @@ impl From<JoinError> for HtsGetError {
 }
 
 impl From<io::Error> for HtsGetError {
-  fn from(_: io::Error) -> Self {
-    Self::io_error("IO Error")
+  fn from(err: io::Error) -> Self {
+    Self::io_error(err.to_string())
   }
 }
 
@@ -116,7 +132,7 @@ impl From<io::Error> for HtsGetError {
 #[derive(Debug, PartialEq)]
 pub struct Query {
   pub id: String,
-  pub format: Option<Format>,
+  pub format: Format,
   pub class: Class,
   /// Reference name
   pub reference_name: Option<String>,
@@ -129,10 +145,10 @@ pub struct Query {
 }
 
 impl Query {
-  pub fn new(id: impl Into<String>) -> Self {
+  pub fn new(id: impl Into<String>, format: Format) -> Self {
     Self {
       id: id.into(),
-      format: None,
+      format,
       class: Class::Body,
       reference_name: None,
       start: None,
@@ -144,7 +160,7 @@ impl Query {
   }
 
   pub fn with_format(mut self, format: Format) -> Self {
-    self.format = Some(format);
+    self.format = format;
     self
   }
 
@@ -185,13 +201,33 @@ impl Query {
 }
 
 /// An enumeration with all the possible formats.
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Format {
   Bam,
   Cram,
   Vcf,
   Bcf,
-  Unsupported(String),
+}
+
+// TODO Allow the user to change this.
+impl Format {
+  pub(crate) fn fmt_file(&self, id: &str) -> String {
+    match self {
+      Format::Bam => format!("{}.bam", id),
+      Format::Cram => format!("{}.cram", id),
+      Format::Vcf => format!("{}.vcf.gz", id),
+      Format::Bcf => format!("{}.bcf", id),
+    }
+  }
+
+  pub(crate) fn fmt_index(&self, id: &str) -> String {
+    match self {
+      Format::Bam => format!("{}.bam.bai", id),
+      Format::Cram => format!("{}.cram.crai", id),
+      Format::Vcf => format!("{}.vcf.gz.tbi", id),
+      Format::Bcf => format!("{}.bcf.csi", id),
+    }
+  }
 }
 
 impl From<Format> for String {
@@ -201,19 +237,17 @@ impl From<Format> for String {
       Format::Cram => "CRAM".to_string(),
       Format::Vcf => "VCF".to_string(),
       Format::Bcf => "BCF".to_string(),
-      Format::Unsupported(format) => format,
     }
   }
 }
 
 impl fmt::Display for Format {
-  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
       Format::Bam => write!(f, "BAM"),
       Format::Cram => write!(f, "CRAM"),
       Format::Vcf => write!(f, "VCF"),
       Format::Bcf => write!(f, "BCF"),
-      Format::Unsupported(format) => write!(f, "{}", format),
     }
   }
 }
@@ -243,7 +277,7 @@ pub enum Tags {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
@@ -266,12 +300,6 @@ impl Headers {
 
   pub fn get_inner(self) -> HashMap<String, String> {
     self.0
-  }
-}
-
-impl Default for Headers {
-  fn default() -> Self {
-    Self(HashMap::new())
   }
 }
 
@@ -359,12 +387,12 @@ mod tests {
   #[test]
   fn htsget_error_concurrency_error() {
     let result = HtsGetError::concurrency_error("error");
-    assert!(matches!(result, HtsGetError::ConcurrencyError(message) if message == "error"));
+    assert!(matches!(result, HtsGetError::InternalError(message) if message == "error"));
   }
 
   #[test]
   fn htsget_error_from_storage_not_found() {
-    let result = HtsGetError::from(StorageError::NotFound("error".to_string()));
+    let result = HtsGetError::from(StorageError::KeyNotFound("error".to_string()));
     assert!(matches!(result, HtsGetError::NotFound(_)));
   }
 
@@ -376,43 +404,43 @@ mod tests {
 
   #[test]
   fn query_new() {
-    let result = Query::new("NA12878");
+    let result = Query::new("NA12878", Format::Bam);
     assert_eq!(result.id, "NA12878");
   }
 
   #[test]
   fn query_with_format() {
-    let result = Query::new("NA12878").with_format(Format::Bam);
-    assert_eq!(result.format, Some(Format::Bam));
+    let result = Query::new("NA12878", Format::Bam);
+    assert_eq!(result.format, Format::Bam);
   }
 
   #[test]
   fn query_with_class() {
-    let result = Query::new("NA12878").with_class(Class::Header);
+    let result = Query::new("NA12878", Format::Bam).with_class(Class::Header);
     assert_eq!(result.class, Class::Header);
   }
 
   #[test]
   fn query_with_reference_name() {
-    let result = Query::new("NA12878").with_reference_name("chr1");
+    let result = Query::new("NA12878", Format::Bam).with_reference_name("chr1");
     assert_eq!(result.reference_name, Some("chr1".to_string()));
   }
 
   #[test]
   fn query_with_start() {
-    let result = Query::new("NA12878").with_start(0);
+    let result = Query::new("NA12878", Format::Bam).with_start(0);
     assert_eq!(result.start, Some(0));
   }
 
   #[test]
   fn query_with_end() {
-    let result = Query::new("NA12878").with_end(0);
+    let result = Query::new("NA12878", Format::Bam).with_end(0);
     assert_eq!(result.end, Some(0));
   }
 
   #[test]
   fn query_with_fields() {
-    let result = Query::new("NA12878")
+    let result = Query::new("NA12878", Format::Bam)
       .with_fields(Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()]));
     assert_eq!(
       result.fields,
@@ -422,13 +450,13 @@ mod tests {
 
   #[test]
   fn query_with_tags() {
-    let result = Query::new("NA12878").with_tags(Tags::All);
+    let result = Query::new("NA12878", Format::Bam).with_tags(Tags::All);
     assert_eq!(result.tags, Tags::All);
   }
 
   #[test]
   fn query_with_no_tags() {
-    let result = Query::new("NA12878").with_no_tags(vec!["RG", "OQ"]);
+    let result = Query::new("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
       result.no_tags,
       Some(vec!["RG".to_string(), "OQ".to_string()])

@@ -23,8 +23,8 @@ pub enum HtsGetError {
   InvalidInput(String),
   #[error("InvalidRange")]
   InvalidRange(String),
-  #[error("Concurrency error")]
-  ConcurrencyError(String),
+  #[error("Internal error")]
+  InternalError(String),
 }
 
 /// A helper struct implementing [serde's Serialize trait](Serialize) to allow
@@ -47,7 +47,7 @@ impl HtsGetError {
       HtsGetError::UnsupportedFormat(s) => (s, 400),
       HtsGetError::InvalidInput(s) => (s, 400),
       HtsGetError::InvalidRange(s) => (s, 400),
-      HtsGetError::ConcurrencyError(s) => (s, 500),
+      HtsGetError::InternalError(s) => (s, 500),
     };
     (
       JsonHtsGetError {
@@ -66,11 +66,14 @@ impl From<HtsGetSearchError> for HtsGetError {
       HtsGetSearchError::UnsupportedFormat(s) => HtsGetError::UnsupportedFormat(s),
       HtsGetSearchError::InvalidInput(s) => HtsGetError::InvalidInput(s),
       HtsGetSearchError::InvalidRange(s) => HtsGetError::InvalidRange(s),
-      HtsGetSearchError::IoError(_) => HtsGetError::NotFound("There was an IO error".to_string()),
-      HtsGetSearchError::ParseError(_) => {
-        HtsGetError::NotFound("The requested content couldn't be parsed correctly".to_string())
+      HtsGetSearchError::IoError(s) => {
+        HtsGetError::NotFound(format!("There was an IO error: {}", s))
       }
-      HtsGetSearchError::ConcurrencyError(s) => HtsGetError::ConcurrencyError(s),
+      HtsGetSearchError::ParseError(s) => HtsGetError::NotFound(format!(
+        "The requested content couldn't be parsed correctly {}",
+        s
+      )),
+      HtsGetSearchError::InternalError(s) => HtsGetError::InternalError(s),
     }
   }
 }

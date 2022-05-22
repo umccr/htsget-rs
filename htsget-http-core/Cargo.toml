@@ -1,19 +1,17 @@
 [package]
 name = "htsget-http-core"
 version = "0.1.0"
-authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>"]
-edition = "2018"
+authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
 
 [features]
-default = ["async", "htsget-search/default"]
-async = ["tokio", "futures", "htsget-search/async"]
+default = ["htsget-search/default"]
 
 [dependencies]
-thiserror = "~1.0"
-serde = { version = "1", features = ["derive"] }
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 htsget-search = { path = "../htsget-search" }
-futures = { version = "0.3.16", optional = true }
-tokio = { version = "1.9.0", features = ["full"], optional = true }
-
-[dev-dependencies]
-htsget-id-resolver = { path = "../htsget-id-resolver" }
+htsget-config = { path = "../htsget-config" }
+futures = { version = "0.3" }
+tokio = { version = "1.17", features = ["full"] }
+tracing = "0.1"

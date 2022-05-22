@@ -1,38 +1,44 @@
 //! Module providing the search capability using BAM/BAI files
 //!
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use noodles::bam;
+use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
-use noodles::bam::{bai, AsyncReader};
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
-use noodles::sam;
 use noodles::sam::Header;
-use tokio::fs::File;
+use noodles::{bgzf, sam};
+use noodles_bam as bam;
+use tokio::io;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{AsyncHeaderResult, AsyncIndexResult, BgzfSearch, Search, SearchReads};
+use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt};
 use crate::htsget::HtsGetError;
 use crate::{
-  htsget::search::{BlockPosition, VirtualPositionExt},
+  htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
-  storage::{AsyncStorage, BytesRange},
+  storage::{BytesRange, Storage},
 };
+
+type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
 pub(crate) struct BamSearch<S> {
   storage: Arc<S>,
 }
 
 #[async_trait]
-impl BlockPosition for bam::AsyncReader<File> {
+impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
+where
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+{
   async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bam::Record::default()).await.ok()
   }
 
-  async fn seek(&mut self, pos: VirtualPosition) -> std::io::Result<VirtualPosition> {
+  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
     self.seek(pos).await
   }
 
@@ -42,10 +48,12 @@ impl BlockPosition for bam::AsyncReader<File> {
 }
 
 #[async_trait]
-impl<S> BgzfSearch<S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
+impl<S, ReaderType>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
@@ -55,8 +63,9 @@ where
 
   async fn get_byte_ranges_for_unmapped(
     &self,
-    key: &str,
-    index: &bai::Index,
+    id: &str,
+    format: &Format,
+    index: &Index,
   ) -> Result<Vec<BytesRange>> {
     let last_interval = index
       .reference_sequences()
@@ -67,16 +76,17 @@ where
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let (bam_reader, _) = self.create_reader(key).await?;
+        let (bam_reader, _) = self.create_reader(id, format).await?;
         bam_reader.virtual_position()
       }
     };
 
     let file_size = self
       .storage
-      .head(key)
+      .head(format.fmt_file(id))
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
+
     Ok(vec![BytesRange::default()
       .with_start(start.bytes_range_start())
       .with_end(file_size)])
@@ -84,38 +94,37 @@ where
 }
 
 #[async_trait]
-impl<S> Search<S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  const READER_FN: fn(File) -> AsyncReader<File> = bam::AsyncReader::new;
-  const HEADER_FN: fn(&'_ mut AsyncReader<File>) -> AsyncHeaderResult = |reader| {
-    Box::pin(async move {
-      let header = reader.read_header().await;
-      reader.read_reference_sequences().await?;
-      header
-    })
-  };
-  const INDEX_FN: fn(PathBuf) -> AsyncIndexResult<'static, Index> =
-    |path| Box::pin(async move { bai::r#async::read(path).await });
+  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+    AsyncReader::new(inner)
+  }
+
+  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+    let header = reader.read_header().await;
+    reader.read_reference_sequences().await?;
+    header
+  }
+
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
+    let mut reader = bai::AsyncReader::new(inner);
+    reader.read_header().await?;
+    reader.read_index().await
+  }
 
   async fn get_byte_ranges_for_reference_name(
     &self,
-    key: String,
     reference_name: String,
     index: &Index,
-    query: &Query,
+    query: Query,
   ) -> Result<Vec<BytesRange>> {
     self
-      .get_byte_ranges_for_reference_name_reads(key, &reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
       .await
-  }
-
-  fn get_keys_from_id(&self, id: &str) -> (String, String) {
-    let bam_key = format!("{}.bam", id);
-    let bai_key = format!("{}.bai", bam_key);
-    (bam_key, bai_key)
   }
 
   fn get_storage(&self) -> Arc<S> {
@@ -128,51 +137,50 @@ where
 }
 
 #[async_trait]
-impl<S> SearchReads<S, ReferenceSequence, bai::Index, bam::AsyncReader<File>, sam::Header>
+impl<S, ReaderType>
+  SearchReads<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn get_reference_sequence_from_name<'b>(
+  async fn get_reference_sequence_from_name<'a>(
     &self,
-    header: &'b Header,
+    header: &'a Header,
     name: &str,
-  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)> {
+  ) -> Option<(usize, &'a String, &'a sam::header::ReferenceSequence)> {
     header.reference_sequences().get_full(name)
   }
 
   async fn get_byte_ranges_for_unmapped_reads(
     &self,
-    bam_key: &str,
+    query: &Query,
     bai_index: &Index,
   ) -> Result<Vec<BytesRange>> {
-    self.get_byte_ranges_for_unmapped(bam_key, bai_index).await
+    self
+      .get_byte_ranges_for_unmapped(&query.id, &self.get_format(), bai_index)
+      .await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    key: String,
     ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
-    query: &Query,
+    query: Query,
     index: &Index,
   ) -> Result<Vec<BytesRange>> {
+    let start = query.start.map(|start| start as i32);
+    let end = query.end.map(|end| end as i32);
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(
-        key,
-        ref_seq,
-        ref_seq_id,
-        index,
-        query.start.map(|start| start as i32),
-        query.end.map(|end| end as i32),
-      )
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq, ref_seq_id, index, start, end)
       .await
   }
 }
 
-impl<S> BamSearch<S>
+impl<S, ReaderType> BamSearch<S>
 where
-  S: AsyncStorage + Send + Sync + 'static,
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
@@ -183,25 +191,25 @@ where
 pub mod tests {
   use std::future::Future;
 
+  use htsget_config::regex_resolver::RegexResolver;
+
   use crate::htsget::{Class, Headers, Response, Url};
-  use crate::storage::blocking::local::LocalStorage;
-  use htsget_id_resolver::RegexResolver;
+  use crate::storage::axum_server::HttpsFormatter;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
-
-  pub const EXPECTED_URL: &str = "http://localhost/data/htsnexus_test_NA12878.bam";
 
   #[tokio::test]
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(EXPECTED_URL)
+        vec![Url::new(expected_url(storage))
           .with_headers(Headers::default().with_header("Range", "bytes=4668-2596799"))],
       ));
       assert_eq!(response, expected_response)
@@ -213,13 +221,13 @@ pub mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_reference_name("*");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("*");
       let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(EXPECTED_URL)
+        vec![Url::new(expected_url(storage))
           .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596799"))],
       ));
       assert_eq!(response, expected_response)
@@ -231,13 +239,13 @@ pub mod tests {
   async fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_reference_name("20");
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
       let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(EXPECTED_URL)
+        vec![Url::new(expected_url(storage))
           .with_headers(Headers::default().with_header("Range", "bytes=977196-2128166"))],
       ));
       assert_eq!(response, expected_response)
@@ -249,7 +257,7 @@ pub mod tests {
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878")
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000)
         .with_end(5050000);
@@ -259,11 +267,11 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![
-          Url::new(EXPECTED_URL)
+          Url::new(expected_url(storage.clone()))
             .with_headers(Headers::default().with_header("Range", "bytes=256721-647346")),
-          Url::new(EXPECTED_URL)
+          Url::new(expected_url(storage.clone()))
             .with_headers(Headers::default().with_header("Range", "bytes=824361-842101")),
-          Url::new(EXPECTED_URL)
+          Url::new(expected_url(storage))
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996015")),
         ],
       ));
@@ -276,13 +284,13 @@ pub mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878").with_class(Class::Header);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Class::Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(EXPECTED_URL)
+        vec![Url::new(expected_url(storage))
           .with_headers(Headers::default().with_header("Range", "bytes=0-4668"))
           .with_class(Class::Header)],
       ));
@@ -293,7 +301,7 @@ pub mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<HttpsFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let base_path = std::env::current_dir()
@@ -304,11 +312,21 @@ pub mod tests {
     test(Arc::new(
       LocalStorage::new(
         base_path,
-        "localhost/data",
         RegexResolver::new(".*", "$0").unwrap(),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
       )
       .unwrap(),
     ))
     .await
+  }
+
+  pub(crate) fn expected_url(storage: Arc<LocalStorage<HttpsFormatter>>) -> String {
+    format!(
+      "https://127.0.0.1:8081{}",
+      storage
+        .base_path()
+        .join("htsnexus_test_NA12878.bam")
+        .to_string_lossy()
+    )
   }
 }

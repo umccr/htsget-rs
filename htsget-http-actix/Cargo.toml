@@ -1,35 +1,26 @@
 [package]
 name = "htsget-http-actix"
 version = "0.1.0"
-authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>"]
-edition = "2018"
+authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
 
 [features]
-default = ["async", "htsget-search/default", "htsget-http-core/default"]
-async = ["tokio", "futures", "htsget-search/async", "htsget-http-core/async"]
+s3-storage = []
+default = ["s3-storage", "htsget-config/default", "htsget-search/default", "htsget-http-core/default"]
 
 [dependencies]
-actix-web = "3"
-actix-files = "0.5"
-envy = "0.4"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-futures-util = { version = "0.3.5", default-features = false }
+actix-web = "4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+futures-util = { version = "0.3", default-features = false }
 htsget-http-core = { path = "../htsget-http-core" }
 htsget-search = { path = "../htsget-search" }
-htsget-id-resolver = { path = "../htsget-id-resolver" }
-futures = { version = "0.3.16", optional = true }
-tokio = { version = "1.9.0", features = ["full"], optional = true }
+htsget-config = { path = "../htsget-config" }
+futures = { version = "0.3" }
+tokio = { version = "1.17", features = ["full"] }
+tracing-actix-web = "0.5"
+tracing = "0.1"
 
 [dev-dependencies]
-criterion = { version = "0.3", features = [ "html_reports" ]}
-#criterion = "0.3"
-reqwest = { version = "0.11", features = ["blocking", "json"] }
-
-[[bin]]
-name = "htsget-http-actix"
-bench = false
-
-[[bench]]
-name = "request-benchmark"
-harness = false
+htsget-test-utils = { path = "../htsget-test-utils" }
+async-trait = "0.1"

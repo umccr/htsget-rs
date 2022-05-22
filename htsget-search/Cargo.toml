@@ -1,47 +1,51 @@
 [package]
 name = "htsget-search"
 version = "0.1.0"
-authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
-edition = "2018"
-
-[lib]
-bench = false
+authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
+edition = "2021"
 
 [features]
-default = ["async"]
-async = ["tokio", "futures"]
+default = ["s3-storage"]
+s3-storage = ["bytes", "aws-sdk-s3", "aws-config"]
 
 [dependencies]
-async-trait = "0.1.50"
-thiserror = "~1.0"
-tokio = { version = "1.9.0", features = ["full"], optional = true }
-futures = { version = "0.3.16", optional = true }
-htsget-id-resolver = { path = "../htsget-id-resolver"}
+# Axum server dependencies.
+hyper = "0.14"
+axum = "0.5.1"
+axum-extra = { version = "0.2.1", features = ["spa"] }
+rustls-pemfile = "0.3"
+tower = { version = "0.4", features = ["make"] }
+futures-util = "0.3"
+tokio-rustls = "0.23"
 
-#noodles = { version = "0.5.0", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-#
-#noodles-bgzf = { version = "0.3.0", features = ['async'] }
-#noodles-bam = { version = "0.3.0", features = ['async'] }
-#noodles-bcf = { version = "0.4.0", features = ['async'] }
-#noodles-cram = { version = "0.2.2", features = ['async'] }
-#noodles-csi = { version = "0.2.2", features = ['async'] }
-#noodles-tabix = { version = "0.5.0", features = ['async'] }
-#noodles-vcf = { version = "0.4.0", features = ['async'] }
+async-trait = "0.1"
+thiserror = "1.0"
+tokio = { version = "1.17", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io", "compat"] }
+futures = { version = "0.3" }
+htsget-config = { path = "../htsget-config" }
+tracing = "0.1"
 
-noodles = { git = "https://github.com/zaeleus/noodles", features = ["bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.21", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bam = { version = "0.17", features = ["async"] }
+noodles-bcf = { version = "0.13", features = ["async"] }
+noodles-cram = { version = "0.14", features = ["async"] }
+noodles-vcf = { version = "0.15", features = ["async"] }
 
-noodles-bgzf = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
-noodles-bam = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
-noodles-bcf = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
-noodles-cram = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
-noodles-csi = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
-noodles-tabix = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
-noodles-vcf = { git = "https://github.com/zaeleus/noodles", features = ['async'] }
+# Aws S3 storage dependencies.
+bytes = { version = "1.1", optional = true }
+aws-sdk-s3 = { version = "0.9", optional = true }
+aws-config = { version = "0.9", optional = true }
 
 [dev-dependencies]
-tempfile = "3.2.0"
-criterion = "0.3"
+tempfile = "3.3"
 
-[[bench]]
-name = "benchmark"
-harness = false
+# Aws S3 storage dependencies.
+anyhow = "1.0"
+s3-server = "0.2"
+http = "0.2"
+aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
+
+# Axum server dependencies
+rcgen = "0.9"
+hyper-tls = "0.5"

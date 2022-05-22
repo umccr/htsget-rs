@@ -1,35 +1,111 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
+use std::io;
+use std::io::ErrorKind;
+use std::net::AddrParseError;
 
+use async_trait::async_trait;
 use thiserror::Error;
+use tokio::io::{AsyncRead, AsyncSeek};
 
-#[cfg(feature = "async")]
-pub use async_storage::*;
+use crate::htsget::{Class, Headers, Url};
 
-use crate::htsget::Class;
-
-#[cfg(feature = "async")]
-pub mod async_storage;
-pub mod blocking;
-#[cfg(feature = "async")]
+#[cfg(feature = "s3-storage")]
+pub mod aws;
+pub mod axum_server;
 pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
-#[derive(Error, PartialEq, Debug)]
+/// A Storage represents some kind of object based storage (either locally or in the cloud)
+/// that can be used to retrieve files for alignments, variants or its respective indexes.
+#[async_trait]
+pub trait Storage {
+  type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
+
+  /// Get the object using the key.
+  async fn get<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    options: GetOptions,
+  ) -> Result<Self::Streamable>;
+
+  /// Get the url of the object represented by the key.
+  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url>;
+
+  /// Get the size of the object represented by the key.
+  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
+}
+
+/// Formats a url for use with storage.
+pub trait UrlFormatter {
+  /// Returns the url with the path.
+  fn format_url(&self, path: String) -> Result<String>;
+}
+
+#[derive(Error, Debug)]
 pub enum StorageError {
   #[error("Invalid key: {0}")]
   InvalidKey(String),
 
-  #[error("Not found: {0}")]
-  NotFound(String),
+  #[error("Key not found: {0}")]
+  KeyNotFound(String),
+
+  #[error("Io error: {0}")]
+  IoError(#[from] io::Error),
+
+  #[cfg(feature = "s3-storage")]
+  #[error("Aws error: {0}, with key: {1}")]
+  AwsS3Error(String, String),
+
+  #[error("Url response ticket server error: {0}")]
+  TicketServerError(String),
+
+  #[error("Invalid input: {0}")]
+  InvalidInput(String),
+
+  #[error("Invalid uri: {0}")]
+  InvalidUri(String),
+
+  #[error("Invalid address: {0}")]
+  InvalidAddress(AddrParseError),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl From<StorageError> for io::Error {
+  fn from(err: StorageError) -> Self {
+    Self::new(ErrorKind::Other, err)
+  }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
+}
+
+impl From<BytesRange> for String {
+  fn from(ranges: BytesRange) -> Self {
+    if ranges.start.is_none() && ranges.end.is_none() {
+      return "".to_string();
+    }
+    format!("{}", ranges)
+  }
+}
+
+impl Display for BytesRange {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    let start = self
+      .start
+      .map(|start| start.to_string())
+      .unwrap_or_else(|| "0".to_string());
+    let end = self
+      .end
+      .map(|end| end.to_string())
+      .unwrap_or_else(|| "".to_string());
+    write!(f, "bytes={}-{}", start, end)
+  }
 }
 
 impl BytesRange {
@@ -116,15 +192,7 @@ impl BytesRange {
   }
 }
 
-impl Default for BytesRange {
-  fn default() -> Self {
-    Self {
-      start: None,
-      end: None,
-    }
-  }
-}
-
+#[derive(Default)]
 pub struct GetOptions {
   range: BytesRange,
 }
@@ -138,14 +206,6 @@ impl GetOptions {
   pub fn with_range(mut self, range: BytesRange) -> Self {
     self.range = range;
     self
-  }
-}
-
-impl Default for GetOptions {
-  fn default() -> Self {
-    Self {
-      range: BytesRange::default(),
-    }
   }
 }
 
@@ -164,6 +224,16 @@ impl UrlOptions {
     self.class = class;
     self
   }
+
+  pub fn apply(self, url: Url) -> Url {
+    let range: String = self.range.into();
+    let url = if range.is_empty() {
+      url
+    } else {
+      url.with_headers(Headers::default().with_header("Range", range))
+    };
+    url.with_class(self.class)
+  }
 }
 
 impl Default for UrlOptions {
@@ -177,6 +247,8 @@ impl Default for UrlOptions {
 
 #[cfg(test)]
 mod tests {
+  use std::collections::HashMap;
+
   use crate::htsget::Class;
 
   use super::*;
@@ -503,5 +575,28 @@ mod tests {
     let result = UrlOptions::default().with_class(Class::Header);
     assert_eq!(result.range, BytesRange::default());
     assert_eq!(result.class, Class::Header);
+  }
+
+  #[test]
+  fn url_options_apply_with_bytes_range() {
+    let result = UrlOptions::default()
+      .with_class(Class::Header)
+      .with_range(BytesRange::new(Some(5), Some(10)))
+      .apply(Url::new(""));
+    println!("{:?}", result);
+    assert_eq!(
+      result,
+      Url::new("")
+        .with_headers(Headers::new(HashMap::new()).with_header("Range", "bytes=5-10"))
+        .with_class(Class::Header)
+    );
+  }
+
+  #[test]
+  fn url_options_apply_no_bytes_range() {
+    let result = UrlOptions::default()
+      .with_class(Class::Header)
+      .apply(Url::new(""));
+    assert_eq!(result, Url::new("").with_class(Class::Header));
   }
 }

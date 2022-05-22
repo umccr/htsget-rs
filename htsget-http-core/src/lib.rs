@@ -1,20 +1,18 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
-#[cfg(feature = "async")]
-pub use async_http_core::{get_response_for_get_request, get_response_for_post_request};
 pub use error::{HtsGetError, Result};
 use htsget_search::htsget::{Query, Response};
+pub use http_core::{get_response_for_get_request, get_response_for_post_request};
 pub use json_response::{JsonResponse, JsonUrl};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
-#[cfg(feature = "async")]
 pub use service_info::get_service_info_json;
+pub use service_info::get_service_info_with;
 pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
 
-#[cfg(feature = "async")]
-mod async_http_core;
-pub mod blocking;
 mod error;
+mod http_core;
 mod json_response;
 mod post_request;
 mod query_builder;
@@ -27,9 +25,22 @@ const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
 
 /// A enum to distinguish between the two endpoint defined in the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
+#[derive(Debug, PartialEq)]
 pub enum Endpoint {
   Reads,
   Variants,
+}
+
+impl FromStr for Endpoint {
+  type Err = ();
+
+  fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    match s {
+      "reads" => Ok(Self::Reads),
+      "variants" => Ok(Self::Variants),
+      _ => Err(()),
+    }
+  }
 }
 
 pub(crate) fn match_endpoints_get_request(
@@ -47,7 +58,7 @@ pub(crate) fn match_endpoints_get_request(
     (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
     (_, Some(s)) => {
       return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format",
+        "{} isn't a supported format for this endpoint.",
         s
       )))
     }
@@ -66,7 +77,7 @@ pub(crate) fn match_endpoints_post_request(
     (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
     (_, Some(s)) => {
       return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format",
+        "{} isn't a supported format for this endpoint.",
         s
       )))
     }
@@ -76,8 +87,7 @@ pub(crate) fn match_endpoints_post_request(
 
 fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query> {
   Ok(
-    QueryBuilder::new(query_information.get("id"))?
-      .with_format(query_information.get("format"))?
+    QueryBuilder::new(query_information.get("id"), query_information.get("format"))?
       .with_class(query_information.get("class"))?
       .with_reference_name(query_information.get("referenceName"))
       .with_range(query_information.get("start"), query_information.get("end"))?
@@ -99,13 +109,15 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
+  use std::path::PathBuf;
   use std::sync::Arc;
 
-  use htsget_id_resolver::RegexResolver;
+  use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
+  use htsget_search::storage::axum_server::HttpsFormatter;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, Url},
-    storage::blocking::local::LocalStorage,
+    storage::local::LocalStorage,
   };
 
   use super::*;
@@ -120,10 +132,14 @@ mod tests {
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
-        vec![
-          Url::new("http://localhost/data/bam/htsnexus_test_NA12878.bam")
-            .with_headers(Headers::new(headers))
-        ]
+        vec![Url::new(format!(
+          "https://127.0.0.1:8081{}",
+          get_base_path()
+            .join("bam")
+            .join("htsnexus_test_NA12878.bam")
+            .to_string_lossy()
+        ))
+        .with_headers(Headers::new(headers))]
       )))
     )
   }
@@ -133,12 +149,10 @@ mod tests {
     let mut request = HashMap::new();
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     request.insert("format".to_string(), "VCF".to_string());
-    assert_eq!(
+    assert!(matches!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
-      Err(HtsGetError::UnsupportedFormat(
-        "VCF isn't a supported format".to_string()
-      ))
-    )
+      Err(HtsGetError::UnsupportedFormat(_))
+    ))
   }
 
   #[tokio::test]
@@ -154,10 +168,14 @@ mod tests {
       get_response_for_get_request(get_searcher(), request, Endpoint::Variants).await,
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
-        vec![
-          Url::new("http://localhost/data/vcf/sample1-bcbio-cancer.vcf.gz")
-            .with_headers(Headers::new(headers))
-        ]
+        vec![Url::new(format!(
+          "https://127.0.0.1:8081{}",
+          get_base_path()
+            .join("vcf")
+            .join("sample1-bcbio-cancer.vcf.gz")
+            .to_string_lossy()
+        ))
+        .with_headers(Headers::new(headers))]
       )))
     )
   }
@@ -184,10 +202,14 @@ mod tests {
       .await,
       Ok(JsonResponse::from_response(Response::new(
         Format::Bam,
-        vec![
-          Url::new("http://localhost/data/bam/htsnexus_test_NA12878.bam")
-            .with_headers(Headers::new(headers))
-        ]
+        vec![Url::new(format!(
+          "https://127.0.0.1:8081{}",
+          get_base_path()
+            .join("bam")
+            .join("htsnexus_test_NA12878.bam")
+            .to_string_lossy()
+        ))
+        .with_headers(Headers::new(headers))]
       )))
     )
   }
@@ -202,7 +224,7 @@ mod tests {
       notags: None,
       regions: None,
     };
-    assert_eq!(
+    assert!(matches!(
       get_response_for_post_request(
         get_searcher(),
         request,
@@ -210,10 +232,8 @@ mod tests {
         Endpoint::Variants
       )
       .await,
-      Err(HtsGetError::UnsupportedFormat(
-        "BAM isn't a supported format".to_string()
-      ))
-    )
+      Err(HtsGetError::UnsupportedFormat(_))
+    ))
   }
 
   #[tokio::test]
@@ -242,20 +262,32 @@ mod tests {
       .await,
       Ok(JsonResponse::from_response(Response::new(
         Format::Vcf,
-        vec![
-          Url::new("http://localhost/data/vcf/sample1-bcbio-cancer.vcf.gz")
-            .with_headers(Headers::new(headers))
-        ]
+        vec![Url::new(format!(
+          "https://127.0.0.1:8081{}",
+          get_base_path()
+            .join("vcf")
+            .join("sample1-bcbio-cancer.vcf.gz")
+            .to_string_lossy()
+        ))
+        .with_headers(Headers::new(headers))]
       )))
     )
+  }
+
+  fn get_base_path() -> PathBuf {
+    std::env::current_dir()
+      .unwrap()
+      .parent()
+      .unwrap()
+      .join("data")
   }
 
   fn get_searcher() -> Arc<impl HtsGet> {
     Arc::new(HtsGetFromStorage::new(
       LocalStorage::new(
         "../data",
-        "localhost/data",
         RegexResolver::new(".*", "$0").unwrap(),
+        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
       )
       .unwrap(),
     ))

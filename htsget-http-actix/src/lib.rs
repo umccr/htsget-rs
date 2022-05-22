@@ -1,56 +1,180 @@
-#[cfg(feature = "async")]
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use config::Config;
+use actix_web::dev::Server;
+use actix_web::{web, App, HttpServer};
+use tracing_actix_web::TracingLogger;
 
-#[cfg(not(feature = "async"))]
-use htsget_search::htsget::blocking::from_storage::HtsGetFromStorage;
-#[cfg(not(feature = "async"))]
-use htsget_search::htsget::blocking::HtsGet;
-#[cfg(not(feature = "async"))]
-use htsget_search::storage::blocking::local::LocalStorage;
-#[cfg(feature = "async")]
-use htsget_search::{
-  htsget::{from_storage::HtsGetFromStorage, HtsGet},
-  storage::blocking::local::LocalStorage,
-};
+use htsget_config::config::ConfigServiceInfo;
+use htsget_search::htsget::from_storage::HtsGetFromStorage;
+use htsget_search::htsget::HtsGet;
+use htsget_search::storage::local::LocalStorage;
 
-pub mod config;
+use crate::handlers::{get, post, reads_service_info, variants_service_info};
+
 pub mod handlers;
 
-pub const USAGE: &str = r#"
-This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
-* HTSGET_IP: The ip to use. Default: 127.0.0.1
-* HTSGET_PORT: The port to use. Default: 8080
-* HTSGET_PATH: The path to the directory where the server should be started. Default: Actual directory
-* HTSGET_REGEX: The regular expression that should match an ID. Default: ".*"
-* HTSGET_REPLACEMENT: The replacement expression. Default: "$0"
-For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
-The next variables are used to configure the info for the service-info endpoints
-* HTSGET_ID: The id of the service. Default: ""
-* HTSGET_NAME: The name of the service. Default: "HtsGet service"
-* HTSGET_VERSION: The version of the service. Default: ""
-* HTSGET_ORGANIZATION_NAME: The name of the organization. Default: "Snake oil"
-* HTSGET_ORGANIZATION_URL: The url of the organization. Default: "https://en.wikipedia.org/wiki/Snake_oil"
-* HTSGET_CONTACT_URL: A url to provide contact to the users. Default: "",
-* HTSGET_DOCUMENTATION_URL: A link to the documentation. Default: "https://github.com/umccr/htsget-rs/tree/main/htsget-http-actix",
-* HTSGET_CREATED_AT: Date of the creation of the service. Default: "",
-* HTSGET_UPDATED_AT: Date of the last update of the service. Default: "",
-* HTSGET_ENVIRONMENT: The environment in which the service is running. Default: "Testing",
-"#;
+pub type HtsGetStorage<T> = HtsGetFromStorage<LocalStorage<T>>;
 
-#[cfg(feature = "async")]
-pub type AsyncHtsGetStorage = HtsGetFromStorage<LocalStorage>;
-pub type HtsGetStorage = HtsGetFromStorage<LocalStorage>;
-
-#[cfg(feature = "async")]
-pub struct AsyncAppState<H: HtsGet> {
+pub struct AppState<H: HtsGet> {
   pub htsget: Arc<H>,
-  pub config: Config,
+  pub config_service_info: ConfigServiceInfo,
 }
 
-#[cfg(not(feature = "async"))]
-pub struct AppState<H: HtsGet> {
-  pub htsget: H,
-  pub config: Config,
+pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
+  service_config: &mut web::ServiceConfig,
+  htsget: H,
+  config_service_info: ConfigServiceInfo,
+) {
+  service_config
+    .app_data(web::Data::new(AppState {
+      htsget: Arc::new(htsget),
+      config_service_info,
+    }))
+    .service(
+      web::scope("/reads")
+        .route("/service-info", web::get().to(reads_service_info::<H>))
+        .route("/service-info", web::post().to(reads_service_info::<H>))
+        .route("/{id:.+}", web::get().to(get::reads::<H>))
+        .route("/{id:.+}", web::post().to(post::reads::<H>)),
+    )
+    .service(
+      web::scope("/variants")
+        .route("/service-info", web::get().to(variants_service_info::<H>))
+        .route("/service-info", web::post().to(variants_service_info::<H>))
+        .route("/{id:.+}", web::get().to(get::variants::<H>))
+        .route("/{id:.+}", web::post().to(post::variants::<H>)),
+    );
+}
+
+pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
+  htsget: H,
+  config_service_info: ConfigServiceInfo,
+  addr: SocketAddr,
+) -> std::io::Result<Server> {
+  Ok(
+    HttpServer::new(Box::new(move || {
+      App::new()
+        .configure(|service_config: &mut web::ServiceConfig| {
+          configure_server(service_config, htsget.clone(), config_service_info.clone());
+        })
+        .wrap(TracingLogger::default())
+    }))
+    .bind(addr)?
+    .run(),
+  )
+}
+
+#[cfg(test)]
+mod tests {
+  use actix_web::web::Bytes;
+  use actix_web::{test, web, App};
+  use async_trait::async_trait;
+
+  use htsget_config::config::Config;
+  use htsget_search::storage::axum_server::HttpsFormatter;
+  use htsget_test_utils::{
+    server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
+  };
+
+  use super::*;
+
+  struct ActixTestServer {
+    config: Config,
+  }
+
+  struct ActixTestRequest<T>(T);
+
+  impl TestRequest for ActixTestRequest<test::TestRequest> {
+    fn insert_header(self, header: TestHeader<impl Into<String>>) -> Self {
+      Self(self.0.insert_header(header.into_tuple()))
+    }
+
+    fn set_payload(self, payload: impl Into<String>) -> Self {
+      Self(self.0.set_payload(payload.into()))
+    }
+
+    fn uri(self, uri: impl Into<String>) -> Self {
+      Self(self.0.uri(&uri.into()))
+    }
+
+    fn method(self, method: impl Into<String>) -> Self {
+      Self(
+        self
+          .0
+          .method(method.into().parse().expect("Expected valid method.")),
+      )
+    }
+  }
+
+  impl Default for ActixTestServer {
+    fn default() -> Self {
+      Self {
+        config: server_tests::default_test_config(),
+      }
+    }
+  }
+
+  #[async_trait(?Send)]
+  impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
+    fn get_config(&self) -> &Config {
+      &self.config
+    }
+
+    fn get_request(&self) -> ActixTestRequest<test::TestRequest> {
+      ActixTestRequest(test::TestRequest::default())
+    }
+
+    async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
+      let app = test::init_service(App::new().configure(
+        |service_config: &mut web::ServiceConfig| {
+          configure_server(
+            service_config,
+            HtsGetFromStorage::local_from(
+              self.config.path.clone(),
+              self.config.resolver.clone(),
+              HttpsFormatter::from(self.config.addr),
+            )
+            .unwrap(),
+            self.config.service_info.clone(),
+          );
+        },
+      ))
+      .await;
+      let response = request.0.send_request(&app).await;
+      let status: u16 = response.status().into();
+      let bytes: Bytes = test::read_body(response).await;
+      TestResponse::new(status, bytes)
+    }
+  }
+
+  #[actix_web::test]
+  async fn test_get() {
+    server_tests::test_get(&ActixTestServer::default()).await;
+  }
+
+  #[actix_web::test]
+  async fn test_post() {
+    server_tests::test_post(&ActixTestServer::default()).await;
+  }
+
+  #[actix_web::test]
+  async fn test_parameterized_get() {
+    server_tests::test_parameterized_get(&ActixTestServer::default()).await;
+  }
+
+  #[actix_web::test]
+  async fn test_parameterized_post() {
+    server_tests::test_parameterized_post(&ActixTestServer::default()).await;
+  }
+
+  #[actix_web::test]
+  async fn test_parameterized_post_class_header() {
+    server_tests::test_parameterized_post_class_header(&ActixTestServer::default()).await;
+  }
+
+  #[actix_web::test]
+  async fn test_service_info() {
+    server_tests::test_service_info(&ActixTestServer::default()).await;
+  }
 }

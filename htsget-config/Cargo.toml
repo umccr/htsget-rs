@@ -1,0 +1,16 @@
+[package]
+name = "htsget-config"
+version = "0.1.0"
+authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
+
+[features]
+s3-storage = []
+default = ["s3-storage"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_regex = "1.1"
+regex = "1.5"
+envy = "0.4"
+tracing = "0.1"

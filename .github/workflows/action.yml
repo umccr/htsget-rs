@@ -1,6 +1,10 @@
-name: Run Rust tests
+name: tests
 
 on: [push]
+
+env:
+    AWS_ACCESS_KEY_ID: "FOO"
+    AWS_SECRET_ACCESS_KEY: "BAR"
 
 jobs:
   test:
@@ -17,26 +21,27 @@ jobs:
             toolchain: ${{ matrix.rust }}
             override: true
             components: rustfmt, clippy
+
+      - name: Install cargo-lambda
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-lambda
+
       - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
+
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
+          args: --all-targets --all-features
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-      - name: Run cargo test with all features
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
-      - name: Run cargo test with no default features
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --no-default-features
+          args: --all-targets --all-features
