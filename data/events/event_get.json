@@ -1,6 +1,6 @@
 {
   "httpMethod": "GET",
-  "path": "/variants/vcf/sample1-bcbio-cancer",
+  "path": "/variants/data/vcf/sample1-bcbio-cancer",
   "body": null,
 
   "resource": "/{proxy+}",
