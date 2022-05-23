@@ -4,10 +4,14 @@ version = "0.1.0"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 
+[features]
+s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http-core/s3-storage"]
+default = ["s3-storage"]
+
 [dependencies]
-htsget-http-core = { path = "../htsget-http-core" }
-htsget-config = { path = "../htsget-config" }
-htsget-search = { path = "../htsget-search" }
+htsget-http-core = { path = "../htsget-http-core", default-features = false }
+htsget-config = { path = "../htsget-config", default-features = false }
+htsget-search = { path = "../htsget-search", default-features = false }
 async-trait = "0.1"
 http = "0.2"
 mime = "0.3"

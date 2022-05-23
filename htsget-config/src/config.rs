@@ -136,8 +136,6 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-  use crate::config::StorageType::AwsS3Storage;
-
   use super::*;
 
   #[test]
@@ -168,10 +166,11 @@ mod tests {
     assert_eq!(config.service_info.id.unwrap(), "id");
   }
 
+  #[cfg(feature = "s3-storage")]
   #[test]
   fn config_storage_type() {
     std::env::set_var("HTSGET_STORAGE_TYPE", "AwsS3Storage");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.storage_type, AwsS3Storage);
+    assert_eq!(config.storage_type, StorageType::AwsS3Storage);
   }
 }

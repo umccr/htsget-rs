@@ -12,7 +12,6 @@ use htsget_config::regex_resolver::RegexResolver;
 
 use crate::htsget::search::Search;
 use crate::htsget::Format;
-use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
 use crate::storage::UrlFormatter;
 use crate::{
@@ -23,6 +22,8 @@ use crate::{
   htsget::{HtsGet, Query, Response, Result},
   storage::Storage,
 };
+#[cfg(feature = "s3-storage")]
+use crate::storage::aws::AwsS3Storage;
 
 /// Implementation of the [HtsGet] trait using a [Storage].
 #[derive(Debug, Clone)]
