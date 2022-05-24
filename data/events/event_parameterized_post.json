@@ -1,6 +1,6 @@
 {
   "httpMethod": "POST",
-  "path": "/variants/vcf/sample1-bcbio-cancer",
+  "path": "/variants/data/vcf/sample1-bcbio-cancer",
   "body": "{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
 
   "resource": "/{proxy+}",
