@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use bytes::Bytes;
 use serde::de;
 use serde::Deserialize;
 
@@ -26,11 +25,12 @@ impl<T: Into<String>> Header<T> {
 pub struct Response {
   #[serde(alias = "statusCode")]
   pub status: u16,
-  pub body: Bytes,
+  #[serde(with = "serde_bytes")]
+  pub body: Vec<u8>,
 }
 
 impl Response {
-  pub fn new(status: u16, body: Bytes) -> Self {
+  pub fn new(status: u16, body: Vec<u8>) -> Self {
     Self { status, body }
   }
 

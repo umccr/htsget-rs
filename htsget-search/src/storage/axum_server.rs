@@ -163,6 +163,12 @@ mod tests {
 
   use super::*;
 
+  pub fn generate_test_certificates<P: AsRef<Path>>(key_path: &P, cert_path: &P) {
+    let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    fs::write(key_path, cert.serialize_private_key_pem()).unwrap();
+    fs::write(cert_path, cert.serialize_pem().unwrap()).unwrap();
+  }
+
   #[tokio::test]
   async fn test_server() {
     let (_, base_path) = create_local_test_files().await;
@@ -170,9 +176,7 @@ mod tests {
     let cert_path = base_path.path().join("cert.pem");
 
     // Generate self-signed certificate.
-    let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
-    fs::write(key_path.clone(), cert.serialize_private_key_pem()).unwrap();
-    fs::write(cert_path.clone(), cert.serialize_pem().unwrap()).unwrap();
+    generate_test_certificates(&key_path, &cert_path);
 
     // Read certificate.
     let mut buf = vec![];

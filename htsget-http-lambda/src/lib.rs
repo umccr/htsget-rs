@@ -309,20 +309,20 @@ mod tests {
   #[tokio::test]
   async fn test_get_from_file() {
     let config = default_test_config();
-    endpoint_from_file("data/events/event_get.json", Class::Body, &config).await;
+    endpoint_from_file("events/event_get.json", Class::Body, &config).await;
   }
 
   #[tokio::test]
   async fn test_post_from_file() {
     let config = default_test_config();
-    endpoint_from_file("data/events/event_post.json", Class::Body, &config).await;
+    endpoint_from_file("events/event_post.json", Class::Body, &config).await;
   }
 
   #[tokio::test]
   async fn test_parameterized_get_from_file() {
     let config = default_test_config();
     endpoint_from_file(
-      "data/events/event_parameterized_get.json",
+      "events/event_parameterized_get.json",
       Class::Header,
       &config,
     )
@@ -333,7 +333,7 @@ mod tests {
   async fn test_parameterized_post_from_file() {
     let config = default_test_config();
     endpoint_from_file(
-      "data/events/event_parameterized_post.json",
+      "events/event_parameterized_post.json",
       Class::Body,
       &config,
     )
@@ -344,7 +344,7 @@ mod tests {
   async fn test_parameterized_post_class_header_from_file() {
     let config = default_test_config();
     endpoint_from_file(
-      "data/events/event_parameterized_post_class_header.json",
+      "events/event_parameterized_post_class_header.json",
       Class::Header,
       &config,
     )
@@ -354,7 +354,7 @@ mod tests {
   #[tokio::test]
   async fn test_service_info_from_file() {
     let config = default_test_config();
-    service_info_from_file("data/events/event_service_info.json", &config).await;
+    service_info_from_file("events/event_service_info.json", &config).await;
   }
 
   #[tokio::test]
@@ -570,7 +570,7 @@ mod tests {
       .await
       .expect("Failed to route request.");
     let status: u16 = response.status().into();
-    let body = response.body().to_vec().into();
+    let body = response.body().to_vec();
     Response::new(status, body)
   }
 }

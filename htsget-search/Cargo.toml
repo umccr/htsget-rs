@@ -38,6 +38,7 @@ aws-sdk-s3 = { version = "0.9", optional = true }
 aws-config = { version = "0.9", optional = true }
 
 [dev-dependencies]
+rcgen = "0.9"
 tempfile = "3.3"
 
 # Aws S3 storage dependencies.
@@ -47,5 +48,10 @@ http = "0.2"
 aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies
-rcgen = "0.9"
 hyper-tls = "0.5"
+
+criterion = { version = "0.3", features = ["async_tokio"] }
+
+[[bench]]
+name = "benchmark"
+harness = false

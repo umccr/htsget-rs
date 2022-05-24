@@ -1,8 +1,8 @@
 {
     "htsgetConfig": {
         "props": {
-            "port": 8081,
-            "host": "http://localhost:8081/"
+            "port": 8082,
+            "host": "http://localhost:8082/"
         },
         "reads": {
             "dataSourceRegistry": {

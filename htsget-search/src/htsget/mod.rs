@@ -129,7 +129,7 @@ impl From<io::Error> for HtsGetError {
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Query {
   pub id: String,
   pub format: Format,
@@ -259,7 +259,7 @@ pub enum Class {
 }
 
 /// Possible values for the fields parameter.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Fields {
   /// Include all fields
   All,
@@ -268,7 +268,7 @@ pub enum Fields {
 }
 
 /// Possible values for the tags parameter.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Tags {
   /// Include all tags
   All,

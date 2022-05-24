@@ -67,7 +67,6 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
 
 #[cfg(test)]
 mod tests {
-  use actix_web::web::Bytes;
   use actix_web::{test, web, App};
   use async_trait::async_trait;
 
@@ -143,7 +142,7 @@ mod tests {
       .await;
       let response = request.0.send_request(&app).await;
       let status: u16 = response.status().into();
-      let bytes: Bytes = test::read_body(response).await;
+      let bytes = test::read_body(response).await.to_vec();
       TestResponse::new(status, bytes)
     }
   }

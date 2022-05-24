@@ -1,68 +1,88 @@
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use futures_util::future::join_all;
 use htsget_http_core::{JsonResponse, PostRequest, Region};
-use reqwest::{blocking::Client, Error as ActixError};
-use serde::Serialize;
-use std::collections::HashMap;
-use std::{convert::TryInto, time::Duration};
+use htsget_test_utils::server_tests::{default_dir, default_test_config};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::borrow::Borrow;
+use std::{convert::TryInto, fs, time::Duration};
+use std::path::PathBuf;
+use tokio::runtime::Runtime;
 
 #[derive(Serialize)]
 struct Empty {}
 
+#[derive(Deserialize)]
+struct RefserverConfig {
+  #[serde(rename = "htsgetConfig")]
+  htsget_config: RefserverProps,
+}
+
+#[derive(Deserialize)]
+struct RefserverProps {
+  props: RefserverAddr,
+}
+
+#[derive(Deserialize)]
+struct RefserverAddr {
+  #[serde(rename = "port")]
+  _port: u64,
+  host: String,
+}
+
 const BENCHMARK_DURATION_SECONDS: u64 = 15;
 const NUMBER_OF_EXECUTIONS: usize = 150;
 
-const HTSGET_RS_URL: &str = "http://localhost:8080/reads/data/bam/htsnexus_test_NA12878";
-const HTSGET_REFSERVER_URL: &str = "http://localhost:8081/reads/htsnexus_test_NA12878";
-const HTSGET_RS_VCF_URL: &str = "http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer";
-const HTSGET_REFSERVER_VCF_URL: &str = "http://localhost:8081/variants/sample1-bcbio-cancer";
-const HTSGET_RS_BIG_VCF_URL: &str =
-  "http://localhost:8080/variants/data/vcf/internationalgenomesample";
-const HTSGET_REFSERVER_BIG_VCF_URL: &str =
-  "http://localhost:8081/variants/internationalgenomesample";
-
-fn request(url: &str, json_content: &impl Serialize) -> Result<usize, ActixError> {
+async fn request(url: reqwest::Url, json_content: &impl Serialize) -> reqwest::Result<usize> {
   let client = Client::new();
-  let response: JsonResponse = client.get(url).json(json_content).send()?.json()?;
+  let response: JsonResponse = client
+    .get(url)
+    .json(json_content)
+    .send()
+    .await?
+    .json()
+    .await?;
   Ok(
-    response
-      .htsget
-      .urls
-      .iter()
-      .map(|json_url| {
-        Ok(
-          client
-            .get(&json_url.url)
-            .headers(
-              json_url
-                .headers
-                .as_ref()
-                .unwrap_or(&HashMap::new())
-                .try_into()
-                .unwrap(),
-            )
-            .send()?
-            .bytes()?
-            .len(),
-        )
-      })
-      .collect::<Result<Vec<_>, ActixError>>()?
-      .into_iter()
-      .sum(),
+    join_all(response.htsget.urls.iter().map(|json_url| async {
+      client
+        .get(&json_url.url)
+        .headers(json_url.headers.borrow().try_into().unwrap())
+        .send()
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap()
+        .len()
+    }))
+    .await
+    .into_iter()
+    .sum(),
   )
 }
 
-fn bench_request(
+fn format_url(url: &str, path: &str) -> reqwest::Url {
+  reqwest::Url::parse(url).expect("Invalid url").join(path).expect("Invalid url")
+}
+
+fn bench_pair(
   group: &mut BenchmarkGroup<WallTime>,
   name: &str,
-  url: &str,
+  htsget_url: reqwest::Url,
+  refserver_url: reqwest::Url,
   json_content: &impl Serialize,
 ) {
-  println!(
-    "\n\nDownload size: {} bytes",
-    request(url, json_content).expect("Error during the request")
-  );
-  group.bench_function(name, |b| b.iter(|| request(url, json_content)));
+  group.bench_with_input(format!("{} {}", name, "htsget-rs"), &htsget_url, |b, input| {
+    b.to_async(Runtime::new().unwrap()).iter(|| request(input.clone(), json_content))
+  });
+  group.bench_with_input(format!("{} {}", name, "htsget-refserver"), &refserver_url, |b, input| {
+    b.to_async(Runtime::new().unwrap()).iter(|| request(input.clone(), json_content))
+  });
+}
+
+fn start_htsget_rs(config: &Config) {
+  
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -71,16 +91,23 @@ fn criterion_benchmark(c: &mut Criterion) {
     .sample_size(NUMBER_OF_EXECUTIONS)
     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
-  bench_request(
+  let config = default_test_config();
+  let refserver_config: RefserverConfig =
+    serde_json::from_str(&fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches").join("htsget-refserver-config.json")).unwrap()).unwrap();
+
+  let htsget_rs_url = format!("https://{}", config.addr);
+  let htsget_refserver_url = refserver_config.htsget_config.props.host;
+  bench_pair(
     &mut group,
-    "[LIGHT] htsget-rs simple request",
-    HTSGET_RS_URL,
-    &Empty {},
-  );
-  bench_request(
-    &mut group,
-    "[LIGHT] htsget-refserver simple request",
-    HTSGET_REFSERVER_URL,
+    "[LIGHT] simple request",
+    format_url(
+      &htsget_rs_url,
+      "reads/bam/htsnexus_test_NA12878",
+    ),
+    format_url(
+      &htsget_refserver_url,
+      "reads/htsnexus_test_NA12878",
+    ),
     &Empty {},
   );
 
@@ -96,16 +123,17 @@ fn criterion_benchmark(c: &mut Criterion) {
       end: None,
     }]),
   };
-  bench_request(
+  bench_pair(
     &mut group,
-    "[LIGHT] htsget-rs with region",
-    HTSGET_RS_URL,
-    &json_content,
-  );
-  bench_request(
-    &mut group,
-    "[LIGHT] htsget-refserver with region",
-    HTSGET_REFSERVER_URL,
+    "[LIGHT] with region",
+    format_url(
+      &htsget_rs_url,
+      "reads/bam/htsnexus_test_NA12878",
+    ),
+    format_url(
+      &htsget_refserver_url,
+      "reads/htsnexus_test_NA12878",
+    ),
     &json_content,
   );
 
@@ -128,16 +156,17 @@ fn criterion_benchmark(c: &mut Criterion) {
       },
     ]),
   };
-  bench_request(
+  bench_pair(
     &mut group,
-    "[LIGHT] htsget-rs with two regions",
-    HTSGET_RS_URL,
-    &json_content,
-  );
-  bench_request(
-    &mut group,
-    "[LIGHT] htsget-refserver with two regions",
-    HTSGET_REFSERVER_URL,
+    "[LIGHT] with two regions",
+    format_url(
+      &htsget_rs_url,
+      "reads/bam/htsnexus_test_NA12878",
+    ),
+    format_url(
+      &htsget_refserver_url,
+      "reads/htsnexus_test_NA12878",
+    ),
     &json_content,
   );
 
@@ -153,20 +182,19 @@ fn criterion_benchmark(c: &mut Criterion) {
       end: Some(153),
     }]),
   };
-  bench_request(
+  bench_pair(
     &mut group,
-    "[LIGHT] htsget-rs with VCF",
-    HTSGET_RS_VCF_URL,
+    "[LIGHT] with VCF",
+    format_url(
+      &htsget_rs_url,
+      "variants/vcf/sample1-bcbio-cancer",
+    ),
+    format_url(
+      &htsget_refserver_url,
+      "variants/sample1-bcbio-cancer",
+    ),
     &json_content,
   );
-  bench_request(
-    &mut group,
-    "[LIGHT] htsget-refserver with VCF",
-    HTSGET_REFSERVER_VCF_URL,
-    &json_content,
-  );
-
-  // The following ones are HEAVY requests
 
   let json_content = PostRequest {
     format: None,
@@ -180,16 +208,17 @@ fn criterion_benchmark(c: &mut Criterion) {
       end: None,
     }]),
   };
-  bench_request(
+  bench_pair(
     &mut group,
-    "[HEAVY] htsget-rs big VCF file",
-    HTSGET_RS_BIG_VCF_URL,
-    &json_content,
-  );
-  bench_request(
-    &mut group,
-    "[HEAVY] htsget-refserver big VCF file",
-    HTSGET_REFSERVER_BIG_VCF_URL,
+    "[HEAVY] with big VCF",
+    format_url(
+      &htsget_rs_url,
+      "variants/vcf/internationalgenomesample",
+    ),
+    format_url(
+      &htsget_refserver_url,
+      "variants/internationalgenomesample",
+    ),
     &json_content,
   );
 

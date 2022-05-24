@@ -37,7 +37,7 @@ pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
     .get_request()
     .method(Method::GET.to_string())
-    .uri("/variants/data/vcf/sample1-bcbio-cancer");
+    .uri("/variants/vcf/sample1-bcbio-cancer");
   let response = tester.test_server(request).await;
   test_response(&response, tester.get_config(), Class::Body);
 }
@@ -46,7 +46,7 @@ fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
   tester
     .get_request()
     .method(Method::POST.to_string())
-    .uri("/variants/data/vcf/sample1-bcbio-cancer")
+    .uri("/variants/vcf/sample1-bcbio-cancer")
     .insert_header(Header {
       name: http::header::CONTENT_TYPE.to_string(),
       value: mime::APPLICATION_JSON.to_string(),
@@ -65,7 +65,7 @@ pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>)
   let request = tester
     .get_request()
     .method(Method::GET.to_string())
-    .uri("/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header");
+    .uri("/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header");
   let response = tester.test_server(request).await;
   test_response(&response, tester.get_config(), Class::Header);
 }
@@ -111,7 +111,6 @@ pub fn expected_response(path: &Path, class: Class, url_path: String) -> JsonRes
       "{}{}",
       url_path,
       path
-        .join("data")
         .join("vcf")
         .join("sample1-bcbio-cancer.vcf.gz")
         .canonicalize()
@@ -128,19 +127,18 @@ pub fn default_dir() -> PathBuf {
   PathBuf::from(env!("CARGO_MANIFEST_DIR"))
     .parent()
     .unwrap()
-    .to_path_buf()
     .canonicalize()
     .unwrap()
 }
 
 /// Default config using the current cargo manifest directory.
 pub fn default_test_config() -> Config {
-  std::env::set_var("HTSGET_PATH", default_dir());
+  std::env::set_var("HTSGET_PATH", default_dir().join("data"));
   Config::from_env().expect("Expected valid environment variables.")
 }
 
 /// Get the event associated with the file.
 pub fn get_test_file<P: AsRef<Path>>(path: P) -> String {
-  let path = default_dir().join(path);
+  let path = default_dir().join("data").join(path);
   fs::read_to_string(path).expect("Failed to read file.")
 }
