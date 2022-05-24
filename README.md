@@ -37,6 +37,7 @@ Our Rust implementation distinguishes itself from others in the following ways:
 | BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | storage[2]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
 | [safe][safe-unsafe] | ❌  | ❌                  | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
+| testsuite         |  ❌     | ❌                  | ❌    |   ✅    |  ✅ |   ✅    |    ✅    |
 | benchmarks      |  ❌     | ❌                  | ❌    |  ❌    | ❌ |   [🚧][benches]     |   ❌    |
 | language        | C++     | Go                 | Go    |  Perl  | Python |  Rust          | Python  |
 
