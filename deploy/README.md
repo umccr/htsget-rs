@@ -45,6 +45,42 @@ cdk synth
 cdk deploy
 ```
 
+Towards the end of the deployment you should get an API Gateway endpoint URL, and then one can use `awscurl` to query an endpoint like so:
+
+```
+% awscurl --region ap-southeast-2 https://<RANDOM_ID>.execute-api.ap-southeast-2.amazonaws.com/prod/reads/service-info
+{
+  "id": "",
+  "name": "",
+  "version": "",
+  "organization": {
+    "name": "",
+    "url": ""
+  },
+  "type": {
+    "group": "",
+    "artifact": "",
+    "version": ""
+  },
+  "htsget": {
+    "datatype": "reads",
+    "formats": [
+      "BAM",
+      "CRAM"
+    ],
+    "fieldsParametersEffective": false,
+    "TagsParametersEffective": false
+  },
+  "contactUrl": "",
+  "documentationUrl": "",
+  "createdAt": "",
+  "UpdatedAt": "",
+  "environment": ""
+}
+```
+
+Note: One can pass the `--region` accordingly to `awscurl` or use `AWS_DEFAULT_REGION` environment variable, but `AWS_REGION` is not honored.
+
 ### Local testing
 
 The lambda function can also be run locally using cargo-lambda. From the root project directory, execute the following command.
