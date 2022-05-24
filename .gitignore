@@ -3,3 +3,5 @@ Cargo.lock
 *.code-workspace
 .vscode
 .idea
+package-lock.json
+deploy/.build
