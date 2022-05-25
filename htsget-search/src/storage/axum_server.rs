@@ -25,7 +25,7 @@ use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
 use tracing::debug;
 
-use crate::storage::StorageError::TicketServerError;
+use crate::storage::StorageError::{IoError, TicketServerError};
 use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
@@ -72,7 +72,7 @@ impl AxumStorageServer {
 
   /// Eagerly bind the the address for use with the server, returning any errors.
   pub async fn bind_addr(addr: &SocketAddr) -> Result<Self> {
-    let listener = TcpListener::bind(addr).await?;
+    let listener = TcpListener::bind(addr).await.map_err(|err| IoError("Failed to bind ticket server addr".to_string(), err))?;
     let listener = AddrIncoming::from_listener(listener)?;
     Ok(Self { listener })
   }
@@ -89,7 +89,7 @@ impl AxumStorageServer {
     loop {
       let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
         .await
-        .ok_or_else(|| TicketServerError("Poll accept failed.".to_string()))?
+        .ok_or_else(|| TicketServerError("Poll accept failed".to_string()))?
         .map_err(|err| TicketServerError(err.to_string()))?;
       let acceptor = acceptor.clone();
 
@@ -108,11 +108,11 @@ impl AxumStorageServer {
   }
 
   fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
-    let mut key_reader = BufReader::new(File::open(key)?);
-    let mut cert_reader = BufReader::new(File::open(cert)?);
+    let mut key_reader = BufReader::new(File::open(key).map_err(|err| IoError("Failed to open key file".to_string(), err))?);
+    let mut cert_reader = BufReader::new(File::open(cert).map_err(|err| IoError("Failed to open cert file".to_string(), err))?);
 
-    let key = PrivateKey(pkcs8_private_keys(&mut key_reader)?.remove(0));
-    let certs = certs(&mut cert_reader)?
+    let key = PrivateKey(pkcs8_private_keys(&mut key_reader).map_err(|err| IoError("Failed to read private keys".to_string(), err))?.remove(0));
+    let certs = certs(&mut cert_reader).map_err(|err| IoError("Failed to read certificate".to_string(), err))?
       .into_iter()
       .map(Certificate)
       .collect();
@@ -153,10 +153,10 @@ mod tests {
   use std::io::Read;
 
   use http::{Method, Request};
-  use hyper::client::HttpConnector;
   use hyper::{Body, Client};
-  use hyper_tls::native_tls::TlsConnector;
+  use hyper::client::HttpConnector;
   use hyper_tls::HttpsConnector;
+  use hyper_tls::native_tls::TlsConnector;
   use rcgen::generate_simple_self_signed;
 
   use crate::storage::local::tests::create_local_test_files;

@@ -25,7 +25,7 @@ async fn main() -> std::io::Result<()> {
 }
 
 async fn local_storage_server(config: Config) -> std::io::Result<()> {
-  let formatter = HttpsFormatter::from(config.addr);
+  let formatter = HttpsFormatter::from(config.ticket_server_addr);
   let mut local_server = formatter.bind_axum_server().await?;
 
   let searcher = HtsGetFromStorage::local_from(

@@ -53,8 +53,8 @@ pub enum StorageError {
   #[error("Key not found: {0}")]
   KeyNotFound(String),
 
-  #[error("Io error: {0}")]
-  IoError(#[from] io::Error),
+  #[error("Io error: {0} {1}")]
+  IoError(String, io::Error),
 
   #[cfg(feature = "s3-storage")]
   #[error("Aws error: {0}, with key: {1}")]
@@ -75,7 +75,10 @@ pub enum StorageError {
 
 impl From<StorageError> for io::Error {
   fn from(err: StorageError) -> Self {
-    Self::new(ErrorKind::Other, err)
+    match err {
+      StorageError::IoError(_, ref io_error) => Self::new(io_error.kind(), err),
+      err => Self::new(ErrorKind::Other, err)
+    }
   }
 }
 

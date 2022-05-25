@@ -74,7 +74,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
 
   async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
-    Ok(File::open(path).await?)
+    File::open(path).await.map_err(|_| StorageError::KeyNotFound(key.as_ref().to_string()))
   }
 }
 
@@ -123,8 +123,8 @@ pub(crate) mod tests {
   use tokio::io::AsyncWriteExt;
 
   use crate::htsget::{Headers, Url};
-  use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
+  use crate::storage::axum_server::HttpsFormatter;
 
   use super::*;
 
