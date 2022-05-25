@@ -4,7 +4,7 @@
 
 # htsget-rs
 
-A 100% Rust implementation of the [htsget protocol][htsget-spec].
+A Rust **server** implementation of the [htsget protocol][htsget-spec].
 
 ## Quickstart
 
