@@ -38,7 +38,7 @@ aws-sdk-s3 = { version = "0.9", optional = true }
 aws-config = { version = "0.9", optional = true }
 
 [dev-dependencies]
-rcgen = "0.9"
+htsget-test-utils = { path = "../htsget-test-utils", default-features = false }
 tempfile = "3.3"
 
 # Aws S3 storage dependencies.

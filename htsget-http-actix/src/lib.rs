@@ -72,8 +72,9 @@ mod tests {
 
   use htsget_config::config::Config;
   use htsget_search::storage::axum_server::HttpsFormatter;
-  use htsget_test_utils::{
-    server_tests, Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
+  use htsget_test_utils::server_tests;
+  use htsget_test_utils::server_tests::{
+    Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
 
   use super::*;

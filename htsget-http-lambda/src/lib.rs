@@ -185,10 +185,11 @@ mod tests {
   use htsget_search::htsget::{Class, HtsGet};
   use htsget_search::storage::axum_server::HttpsFormatter;
   use htsget_search::storage::local::LocalStorage;
+  use htsget_test_utils::server_tests;
   use htsget_test_utils::server_tests::{
-    default_test_config, get_test_file, test_response, test_response_service_info,
+    default_test_config, get_test_file, test_response, test_response_service_info, Header,
+    Response, TestRequest, TestServer,
   };
-  use htsget_test_utils::{server_tests, Header, Response, TestRequest, TestServer};
 
   use crate::{HtsgetMethod, Method, Route, RouteType, Router};
 
@@ -332,12 +333,7 @@ mod tests {
   #[tokio::test]
   async fn test_parameterized_post_from_file() {
     let config = default_test_config();
-    endpoint_from_file(
-      "events/event_parameterized_post.json",
-      Class::Body,
-      &config,
-    )
-    .await;
+    endpoint_from_file("events/event_parameterized_post.json", Class::Body, &config).await;
   }
 
   #[tokio::test]
