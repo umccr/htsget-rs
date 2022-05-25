@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::{convert::TryInto, fs, time::Duration};
 use std::path::PathBuf;
+use tempdir::TempDir;
 use tokio::runtime::Runtime;
 
 #[derive(Serialize)]
@@ -81,8 +82,11 @@ fn bench_pair(
   });
 }
 
-fn start_htsget_rs(config: &Config) {
-  
+fn start_htsget_rs() {
+  let rcgen_path = TempDir::new().unwrap();
+  let key_path = base_path.path().join("key.pem");
+  let cert_path = base_path.path().join("cert.pem");
+  let project_dir = default_dir();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

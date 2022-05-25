@@ -151,6 +151,7 @@ impl UrlFormatter for HttpsFormatter {
 mod tests {
   use std::fs;
   use std::io::Read;
+  use std::path::PathBuf;
 
   use http::{Method, Request};
   use hyper::client::HttpConnector;
@@ -163,20 +164,22 @@ mod tests {
 
   use super::*;
 
-  pub fn generate_test_certificates<P: AsRef<Path>>(key_path: &P, cert_path: &P) {
+  pub fn generate_test_certificates<P: AsRef<Path>>(in_path: P, key_name: &str, cert_name: &str) -> (PathBuf, PathBuf) {
+    let key_path = in_path.as_ref().join("key.pem");
+    let cert_path = in_path.as_ref().join("cert.pem");
+
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
-    fs::write(key_path, cert.serialize_private_key_pem()).unwrap();
-    fs::write(cert_path, cert.serialize_pem().unwrap()).unwrap();
+    fs::write(&key_path, cert.serialize_private_key_pem()).unwrap();
+    fs::write(&cert_path, cert.serialize_pem().unwrap()).unwrap();
+
+    (key_path, cert_path)
   }
 
   #[tokio::test]
   async fn test_server() {
     let (_, base_path) = create_local_test_files().await;
-    let key_path = base_path.path().join("key.pem");
-    let cert_path = base_path.path().join("cert.pem");
-
     // Generate self-signed certificate.
-    generate_test_certificates(&key_path, &cert_path);
+    let (key_path, cert_path) = generate_test_certificates( base_path.path(), "key.pem", "cert.pem");
 
     // Read certificate.
     let mut buf = vec![];
