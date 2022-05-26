@@ -25,7 +25,7 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
     config.path,
     config.resolver,
     HttpsFormatter::from(config.addr),
-  ));
+  )?);
   let router = &Router::new(searcher, &config.service_info);
 
   let handler = |event: Request| async move {

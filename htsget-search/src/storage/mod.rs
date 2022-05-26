@@ -42,7 +42,7 @@ pub trait Storage {
 /// Formats a url for use with storage.
 pub trait UrlFormatter {
   /// Returns the url with the path.
-  fn format_url(&self, path: String) -> Result<String>;
+  fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String>;
 }
 
 #[derive(Error, Debug)]
@@ -71,13 +71,16 @@ pub enum StorageError {
 
   #[error("Invalid address: {0}")]
   InvalidAddress(AddrParseError),
+
+  #[error("Internal error: {0}")]
+  InternalError(String),
 }
 
 impl From<StorageError> for io::Error {
   fn from(err: StorageError) -> Self {
     match err {
       StorageError::IoError(_, ref io_error) => Self::new(io_error.kind(), err),
-      err => Self::new(ErrorKind::Other, err)
+      err => Self::new(ErrorKind::Other, err),
     }
   }
 }

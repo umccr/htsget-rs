@@ -32,7 +32,7 @@ async fn local_storage_server(config: Config) -> std::io::Result<()> {
     config.path.clone(),
     config.resolver.clone(),
     formatter.clone(),
-  );
+  )?;
   let local_server = tokio::spawn(async move {
     local_server
       .serve(

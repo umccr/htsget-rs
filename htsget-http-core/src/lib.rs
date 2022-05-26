@@ -237,28 +237,20 @@ mod tests {
   fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
     JsonResponse::from_response(Response::new(
       Format::Vcf,
-      vec![Url::new(format!(
-        "https://127.0.0.1:8081{}",
-        get_base_path()
-          .join("vcf")
-          .join("sample1-bcbio-cancer.vcf.gz")
-          .to_string_lossy()
-      ))
-      .with_headers(Headers::new(headers))],
+      vec![
+        Url::new("https://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
+          .with_headers(Headers::new(headers)),
+      ],
     ))
   }
 
   fn example_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
     JsonResponse::from_response(Response::new(
       Format::Bam,
-      vec![Url::new(format!(
-        "https://127.0.0.1:8081{}",
-        get_base_path()
-          .join("bam")
-          .join("htsnexus_test_NA12878.bam")
-          .to_string_lossy()
-      ))
-      .with_headers(Headers::new(headers))],
+      vec![
+        Url::new("https://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
+          .with_headers(Headers::new(headers)),
+      ],
     ))
   }
 
@@ -273,10 +265,11 @@ mod tests {
   fn get_searcher() -> Arc<impl HtsGet> {
     Arc::new(HtsGetFromStorage::new(
       LocalStorage::new(
-        "../data",
+        get_base_path(),
         RegexResolver::new(".*", "$0").unwrap(),
         HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
-      ),
+      )
+      .unwrap(),
     ))
   }
 }
