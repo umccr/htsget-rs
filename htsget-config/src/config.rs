@@ -9,13 +9,13 @@ use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
 
 pub const USAGE: &str = r#"
-This executable doesn't use command line arguments, but there are some environment variables that can be set to configure the HtsGet server:
-* HTSGET_ADDR: The socket address to use for the server which creates response tickets. Default: "127.0.0.1:8080".
+The HtsGet server executables don't use command line arguments, but there are some environment variables that can be set to configure them:
+* HTSGET_ADDR: The socket address for the server which creates response tickets. Default: "127.0.0.1:8080".
 * HTSGET_PATH: The path to the directory where the server should be started. Default: ".". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
 * HTSGET_REGEX: The regular expression that should match an ID. Default: ".*".
 For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
 * HTSGET_SUBSTITUTION_STRING: The replacement expression. Default: "$0".
-* HTSGET_STORAGE_TYPE: Either LocalStorage or AwsS3Storage. Default: "LocalStorage".
+* HTSGET_STORAGE_TYPE: Either "LocalStorage" or "AwsS3Storage", representing which storage type to use. Default: "LocalStorage".
 
 The following options are used for the ticket server.
 * HTSGET_TICKET_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
