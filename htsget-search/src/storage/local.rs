@@ -29,17 +29,14 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
     base_path: P,
     id_resolver: RegexResolver,
     url_formatter: T,
-  ) -> Result<Self> {
-    base_path
-      .as_ref()
-      .to_path_buf()
-      .canonicalize()
-      .map_err(|_| StorageError::KeyNotFound(base_path.as_ref().to_string_lossy().to_string()))
-      .map(|canonicalized_base_path| Self {
-        base_path: canonicalized_base_path,
-        id_resolver,
-        url_formatter,
-      })
+  ) -> Self {
+    Self {
+      base_path: base_path
+          .as_ref()
+          .to_path_buf(),
+      id_resolver,
+      url_formatter
+    }
   }
 
   pub fn base_path(&self) -> &Path {
@@ -48,16 +45,14 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
 
   pub(crate) fn get_path_from_key<K: AsRef<str>>(&self, key: K) -> Result<PathBuf> {
     let key: &str = key.as_ref();
-    self
+    Ok(self
       .base_path
       .join(
         self
           .id_resolver
           .resolve_id(key)
           .ok_or_else(|| StorageError::InvalidKey(key.to_string()))?,
-      )
-      .canonicalize()
-      .map_err(|_| StorageError::InvalidKey(key.to_string()))
+      ))
       .and_then(|path| {
         path
           .starts_with(&self.base_path)
@@ -90,7 +85,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
 
   /// Get a url for the file at key.
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    let path = self.get_path_from_key(&key)?;
+    let path = PathBuf::from("/").join(self.get_path_from_key(&key)?);
     let url = Url::new(
       self
         .url_formatter
@@ -294,8 +289,7 @@ pub(crate) mod tests {
         base_path.path(),
         RegexResolver::new(".*", "$0").unwrap(),
         HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
-      )
-      .unwrap(),
+      ),
     )
     .await
   }

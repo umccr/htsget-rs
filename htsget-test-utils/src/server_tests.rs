@@ -114,8 +114,6 @@ pub fn expected_response(path: &Path, class: Class, url_path: String) -> JsonRes
         .join("data")
         .join("vcf")
         .join("sample1-bcbio-cancer.vcf.gz")
-        .canonicalize()
-        .unwrap()
         .to_string_lossy()
     ))
     .with_headers(Headers::new(headers))
@@ -129,8 +127,6 @@ pub fn default_dir() -> PathBuf {
     .parent()
     .unwrap()
     .to_path_buf()
-    .canonicalize()
-    .unwrap()
 }
 
 /// Default config using the current cargo manifest directory.

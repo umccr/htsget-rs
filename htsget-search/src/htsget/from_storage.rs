@@ -86,10 +86,10 @@ impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
     path: P,
     resolver: RegexResolver,
     formatter: T,
-  ) -> Result<Self> {
-    Ok(HtsGetFromStorage::new(LocalStorage::new(
+  ) -> Self {
+    HtsGetFromStorage::new(LocalStorage::new(
       path, resolver, formatter,
-    )?))
+    ))
   }
 }
 

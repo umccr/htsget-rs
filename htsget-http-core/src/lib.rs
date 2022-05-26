@@ -276,8 +276,7 @@ mod tests {
         "../data",
         RegexResolver::new(".*", "$0").unwrap(),
         HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
-      )
-      .unwrap(),
+      ),
     ))
   }
 }

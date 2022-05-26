@@ -2,6 +2,7 @@ use actix_web::{
   web::{Data, Json, Path},
   Responder,
 };
+use tracing::info;
 
 use htsget_http_core::{get_response_for_post_request, Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
@@ -16,6 +17,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   path: Path<String>,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
+  info!(request = ?request, "Reads endpoint POST request");
   handle_response(
     get_response_for_post_request(
       app_state.get_ref().htsget.clone(),
@@ -33,6 +35,7 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   path: Path<String>,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
+  info!(request = ?request, "Variants endpoint POST request");
   handle_response(
     get_response_for_post_request(
       app_state.get_ref().htsget.clone(),

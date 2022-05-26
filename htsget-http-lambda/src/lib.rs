@@ -266,8 +266,7 @@ mod tests {
             &self.config.path,
             self.config.resolver.clone(),
             HttpsFormatter::from(self.config.addr),
-          )
-          .expect("Couldn't create a Storage with the provided path"),
+          ),
         ),
         &self.config.service_info,
       );
@@ -526,8 +525,7 @@ mod tests {
           &config.path,
           config.resolver.clone(),
           HttpsFormatter::new("127.0.0.1", "8080").unwrap(),
-        )
-        .unwrap(),
+        ),
       )),
       &config.service_info,
     );

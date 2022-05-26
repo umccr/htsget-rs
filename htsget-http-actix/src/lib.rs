@@ -134,8 +134,7 @@ mod tests {
               self.config.path.clone(),
               self.config.resolver.clone(),
               HttpsFormatter::from(self.config.addr),
-            )
-            .unwrap(),
+            ),
             self.config.service_info.clone(),
           );
         },
