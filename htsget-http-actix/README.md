@@ -38,11 +38,11 @@ Since this service can be used in serverless environments, no `dotenv` configura
 | HTSGET_S3_BUCKET           | The name of the AWS S3 bucket. Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".                                                      | ""               |
 | HTSGET_ID                  | ID of the service.                                                                                                                       | "None"           |
 | HTSGET_NAME                | Name of the service.                                                                                                                     | "None"           |
-| HTSGET_VERSION             | Version of the service                                                                                                                   | "None"           |
-| HTSGET_ORGANIZATION_NAME   | Name of the organization                                                                                                                 | "None"           |
-| HTSGET_ORGANIZATION_URL    | URL of the organization                                                                                                                  | "None"           |
-| HTSGET_CONTACT_URL         | URL to provide contact to the users                                                                                                      | "None"           |
-| HTSGET_DOCUMENTATION_URL   | Link to documentation                                                                                                                    | "None"           |
+| HTSGET_VERSION             | Version of the service.                                                                                                                  | "None"           |
+| HTSGET_ORGANIZATION_NAME   | Name of the organization.                                                                                                                | "None"           |
+| HTSGET_ORGANIZATION_URL    | URL of the organization.                                                                                                                 | "None"           |
+| HTSGET_CONTACT_URL         | URL to provide contact to the users.                                                                                                     | "None"           |
+| HTSGET_DOCUMENTATION_URL   | Link to documentation.                                                                                                                   | "None"           |
 | HTSGET_CREATED_AT          | Date of the creation of the service.                                                                                                     | "None"           |
 | HTSGET_UPDATED_AT          | Date of the last update of the service.                                                                                                  | "None"           |
 | HTSGET_ENVIRONMENT         | Environment in which the service is running.                                                                                             | "None"           |
@@ -85,6 +85,6 @@ $ curl 127.0.0.1:8080/variants/service-info
 ## Example Regular expressions
 In this example 'data/' is added after the first '/'.
 ```shell
-$ HTSGET_REGEX='(?P<group1>.*?)/(?P<group2>.*)' HTSGET_REPLACEMENT='$group1/data/$group2' cargo run --release -p htsget-http-actix
+$ HTSGET_REGEX='(?P<group1>.*?)/(?P<group2>.*)' HTSGET_SUBSTITUTION_STRING='$group1/data/$group2' cargo run --release -p htsget-http-actix
 ```
 For more information about the regex options look in the [documentation of the regex crate](https://docs.rs/regex/).
