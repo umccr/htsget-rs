@@ -55,25 +55,25 @@ As mentioned above, please keep in mind that the server will take the path where
 ### GET
 
 ```shell
-$ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+$ curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 ### POST
 
 ```shell
-$ curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+$ curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 ### Parametrised GET
 
 ```shell
-$ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header'
+$ curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header'
 ```
 
 ### Parametrised POST
 
 ```shell
-$ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+$ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 ### Service-info
