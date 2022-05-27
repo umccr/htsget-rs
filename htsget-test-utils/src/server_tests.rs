@@ -15,7 +15,7 @@ pub fn test_response(response: &Response, config: &Config, class: Class) {
   let url_path = expected_local_storage_path(config);
   assert!(response.is_success());
   assert_eq!(
-    expected_response(&config.path, class, url_path),
+    expected_response(class, url_path),
     response.deserialize_body().unwrap()
   );
 }
@@ -37,7 +37,7 @@ pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
     .get_request()
     .method(Method::GET.to_string())
-    .uri("/variants/data/vcf/sample1-bcbio-cancer");
+    .uri("/variants/vcf/sample1-bcbio-cancer");
   let response = tester.test_server(request).await;
   test_response(&response, tester.get_config(), Class::Body);
 }
@@ -46,7 +46,7 @@ fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
   tester
     .get_request()
     .method(Method::POST.to_string())
-    .uri("/variants/data/vcf/sample1-bcbio-cancer")
+    .uri("/variants/vcf/sample1-bcbio-cancer")
     .insert_header(Header {
       name: http::header::CONTENT_TYPE.to_string(),
       value: mime::APPLICATION_JSON.to_string(),
@@ -65,7 +65,7 @@ pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>)
   let request = tester
     .get_request()
     .method(Method::GET.to_string())
-    .uri("/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header");
+    .uri("/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header");
   let response = tester.test_server(request).await;
   test_response(&response, tester.get_config(), Class::Header);
 }
@@ -98,28 +98,20 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 }
 
 fn expected_local_storage_path(config: &Config) -> String {
-  format!("https://{}", config.addr)
+  format!("https://{}", config.ticket_server_addr)
 }
 
 /// An example VCF search response.
-pub fn expected_response(path: &Path, class: Class, url_path: String) -> JsonResponse {
+pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
   let mut headers = HashMap::new();
   headers.insert("Range".to_string(), "bytes=0-3367".to_string());
   JsonResponse::from_response(HtsgetResponse::new(
     Format::Vcf,
-    vec![Url::new(format!(
-      "{}{}",
-      url_path,
-      path
-        .join("data")
-        .join("vcf")
-        .join("sample1-bcbio-cancer.vcf.gz")
-        .canonicalize()
-        .unwrap()
-        .to_string_lossy()
-    ))
-    .with_headers(Headers::new(headers))
-    .with_class(class)],
+    vec![
+      Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path))
+        .with_headers(Headers::new(headers))
+        .with_class(class),
+    ],
   ))
 }
 
@@ -129,13 +121,11 @@ pub fn default_dir() -> PathBuf {
     .parent()
     .unwrap()
     .to_path_buf()
-    .canonicalize()
-    .unwrap()
 }
 
 /// Default config using the current cargo manifest directory.
 pub fn default_test_config() -> Config {
-  std::env::set_var("HTSGET_PATH", default_dir());
+  std::env::set_var("HTSGET_PATH", default_dir().join("data"));
   Config::from_env().expect("Expected valid environment variables.")
 }
 

@@ -133,7 +133,7 @@ mod tests {
             HtsGetFromStorage::local_from(
               self.config.path.clone(),
               self.config.resolver.clone(),
-              HttpsFormatter::from(self.config.addr),
+              HttpsFormatter::from(self.config.ticket_server_addr),
             )
             .unwrap(),
             self.config.service_info.clone(),

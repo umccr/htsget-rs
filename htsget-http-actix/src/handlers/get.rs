@@ -4,6 +4,7 @@ use actix_web::{
   web::{Data, Path, Query},
   Responder,
 };
+use tracing::info;
 
 use htsget_http_core::{get_response_for_get_request, Endpoint};
 use htsget_search::htsget::HtsGet;
@@ -20,6 +21,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 ) -> impl Responder {
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), path.into_inner());
+  info!(query = ?query_information, "Reads endpoint GET request");
   handle_response(
     get_response_for_get_request(
       app_state.get_ref().htsget.clone(),
@@ -38,6 +40,7 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
 ) -> impl Responder {
   let mut query_information = request.into_inner();
   query_information.insert("id".to_string(), path.into_inner());
+  info!(query = ?query_information, "Variants endpoint GET request");
   handle_response(
     get_response_for_get_request(
       app_state.get_ref().htsget.clone(),

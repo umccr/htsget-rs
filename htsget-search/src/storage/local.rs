@@ -50,12 +50,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
     let key: &str = key.as_ref();
     self
       .base_path
-      .join(
-        self
-          .id_resolver
-          .resolve_id(key)
-          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))?,
-      )
+      .join(self.resolve_key(key)?)
       .canonicalize()
       .map_err(|_| StorageError::InvalidKey(key.to_string()))
       .and_then(|path| {
@@ -72,9 +67,19 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       })
   }
 
+  pub(crate) fn resolve_key<K: AsRef<str>>(&self, key: K) -> Result<String> {
+    let key: &str = key.as_ref();
+    self
+      .id_resolver
+      .resolve_id(key)
+      .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
+  }
+
   async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
-    Ok(File::open(path).await?)
+    File::open(path)
+      .await
+      .map_err(|_| StorageError::KeyNotFound(key.as_ref().to_string()))
   }
 }
 
@@ -91,11 +96,11 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   /// Get a url for the file at key.
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let path = self.get_path_from_key(&key)?;
-    let url = Url::new(
-      self
-        .url_formatter
-        .format_url(path.to_string_lossy().to_string())?,
-    );
+    let path = path
+      .strip_prefix(&self.base_path)
+      .map_err(|err| StorageError::InternalError(err.to_string()))?
+      .to_string_lossy();
+    let url = Url::new(self.url_formatter.format_url(&path)?);
     let url = options.apply(url);
     debug!(calling_from = ?self, key = key.as_ref(), ?url, "Getting url with key {:?}", key.as_ref());
     Ok(url)
@@ -199,10 +204,7 @@ pub(crate) mod tests {
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
       let result = Storage::url(&storage, "folder/../key1", UrlOptions::default()).await;
-      let expected = Url::new(format!(
-        "https://127.0.0.1:8081{}",
-        storage.base_path().join("key1").to_string_lossy()
-      ));
+      let expected = Url::new("https://127.0.0.1:8081/data/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
@@ -217,11 +219,8 @@ pub(crate) mod tests {
         UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
       )
       .await;
-      let expected = Url::new(format!(
-        "https://127.0.0.1:8081{}",
-        storage.base_path().join("key1").to_string_lossy()
-      ))
-      .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
+      let expected = Url::new("https://127.0.0.1:8081/data/key1")
+        .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
@@ -236,11 +235,8 @@ pub(crate) mod tests {
         UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
       )
       .await;
-      let expected = Url::new(format!(
-        "https://127.0.0.1:8081{}",
-        storage.base_path().join("key1").to_string_lossy()
-      ))
-      .with_headers(Headers::default().with_header("Range", "bytes=7-"));
+      let expected = Url::new("https://127.0.0.1:8081/data/key1")
+        .with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;

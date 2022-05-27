@@ -265,9 +265,9 @@ mod tests {
           HtsGetFromStorage::local_from(
             &self.config.path,
             self.config.resolver.clone(),
-            HttpsFormatter::from(self.config.addr),
+            HttpsFormatter::from(self.config.ticket_server_addr),
           )
-          .expect("Couldn't create a Storage with the provided path"),
+          .unwrap(),
         ),
         &self.config.service_info,
       );
@@ -521,14 +521,14 @@ mod tests {
     Fut: Future<Output = ()>,
   {
     let router = Router::new(
-      Arc::new(HtsGetFromStorage::new(
-        LocalStorage::new(
+      Arc::new(
+        HtsGetFromStorage::local_from(
           &config.path,
           config.resolver.clone(),
-          HttpsFormatter::new("127.0.0.1", "8080").unwrap(),
+          HttpsFormatter::from(config.ticket_server_addr),
         )
         .unwrap(),
-      )),
+      ),
       &config.service_info,
     );
     test(router).await

@@ -25,23 +25,27 @@ There are reasonable defaults to allow the user to spin up the server as fast as
 
 Since this service can be used in serverless environments, no `dotenv` configuration is needed, [adjusting the environment variables below prevent accidental leakage of settings and sensitive information](https://medium.com/@softprops/configuration-envy-a09584386705).
 
-| Variable | Description | Default |
-|---|---|---|
-| HTSGET_IP| IP address | 127.0.0.1 |
-| HTSGET_PORT| TCP Port | 8080 |
-| HTSGET_PATH| The path to the directory where the server starts | `$PWD` | 
-| HTSGET_REGEX| The regular expression an ID should match. | ".*" |
-| HTSGET_REPLACEMENT| The replacement expression, to produce a key from an ID. | "$0" |
-| HTSGET_ID| ID of the service. | "" |
-| HTSGET_NAME| Name of the service. | HtsGet service |
-| HTSGET_VERSION | Version of the service | ""
-| HTSGET_ORGANIZATION_NAME| Name of the organization | Snake oil
-| HTSGET_ORGANIZATION_URL| URL of the organization | https://en.wikipedia.org/wiki/Snake_oil |
-| HTSGET_CONTACT_URL | URL to provide contact to the users | "" |
-| HTSGET_DOCUMENTATION_URL| Link to documentation | https://github.com/umccr/htsget-rs/tree/main/htsget-http-actix |
-| HTSGET_CREATED_AT | Date of the creation of the service. | "" |
-| HTSGET_UPDATED_AT | Date of the last update of the service. | "" |
-| HTSGET_ENVIRONMENT | Environment in which the service is running. | Testing |
+| Variable                   | Description                                                                                                                              | Default          |
+|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|------------------|
+| HTSGET_ADDR                | The socket address for the server which creates response tickets.                                                                        | "127.0.0.1:8080" |
+| HTSGET_PATH                | The path to the directory where the server starts                                                                                        | "."              | 
+| HTSGET_REGEX               | The regular expression an ID should match.                                                                                               | ".*"             |
+| HTSGET_SUBSTITUTION_STRING | The replacement expression, to produce a key from an ID.                                                                                 | "$0"             |
+| HTSGET_STORAGE_TYPE        | Either "LocalStorage" or "AwsS3Storage", representing which storage type to use.                                                         | "LocalStorage"   |
+| HTSGET_TICKET_SERVER_ADDR  | The socket address to use for the server which responds to tickets. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".                 | "127.0.0.1:8081" |
+| HTSGET_TICKET_SERVER_KEY   | The path to the PEM formatted X.509 private key used by the ticket response server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "key.pem"        |
+| HTSGET_TICKET_SERVER_CERT  | The path to the PEM formatted X.509 certificate used by the ticket response server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "cert.pem"       |
+| HTSGET_S3_BUCKET           | The name of the AWS S3 bucket. Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".                                                      | ""               |
+| HTSGET_ID                  | ID of the service.                                                                                                                       | "None"           |
+| HTSGET_NAME                | Name of the service.                                                                                                                     | "None"           |
+| HTSGET_VERSION             | Version of the service.                                                                                                                  | "None"           |
+| HTSGET_ORGANIZATION_NAME   | Name of the organization.                                                                                                                | "None"           |
+| HTSGET_ORGANIZATION_URL    | URL of the organization.                                                                                                                 | "None"           |
+| HTSGET_CONTACT_URL         | URL to provide contact to the users.                                                                                                     | "None"           |
+| HTSGET_DOCUMENTATION_URL   | Link to documentation.                                                                                                                   | "None"           |
+| HTSGET_CREATED_AT          | Date of the creation of the service.                                                                                                     | "None"           |
+| HTSGET_UPDATED_AT          | Date of the last update of the service.                                                                                                  | "None"           |
+| HTSGET_ENVIRONMENT         | Environment in which the service is running.                                                                                             | "None"           |
 For more information about the regex options look in the [documentation of the regex crate](https://docs.rs/regex/).
 
 ## Example cURL requests
@@ -51,25 +55,25 @@ As mentioned above, please keep in mind that the server will take the path where
 ### GET
 
 ```shell
-$ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+$ curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 ### POST
 
 ```shell
-$ curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+$ curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 ### Parametrised GET
 
 ```shell
-$ curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header'
+$ curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header'
 ```
 
 ### Parametrised POST
 
 ```shell
-$ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+$ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 ### Service-info
@@ -81,6 +85,6 @@ $ curl 127.0.0.1:8080/variants/service-info
 ## Example Regular expressions
 In this example 'data/' is added after the first '/'.
 ```shell
-$ HTSGET_REGEX='(?P<group1>.*?)/(?P<group2>.*)' HTSGET_REPLACEMENT='$group1/data/$group2' cargo run --release -p htsget-http-actix
+$ HTSGET_REGEX='(?P<group1>.*?)/(?P<group2>.*)' HTSGET_SUBSTITUTION_STRING='$group1/data/$group2' cargo run --release -p htsget-http-actix
 ```
 For more information about the regex options look in the [documentation of the regex crate](https://docs.rs/regex/).
