@@ -6,10 +6,14 @@ use htsget_test_utils::util::generate_test_certificates;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::thread::sleep;
 use std::{convert::TryInto, fs, time::Duration};
+use std::fs::File;
+use std::io::Read;
+use reqwest::blocking::ClientBuilder;
+use reqwest::Certificate;
 use tempfile::TempDir;
 
 #[derive(Serialize)]
@@ -37,7 +41,7 @@ const BENCHMARK_DURATION_SECONDS: u64 = 15;
 const NUMBER_OF_EXECUTIONS: usize = 150;
 
 fn request(url: reqwest::Url, json_content: &impl Serialize) -> reqwest::Result<usize> {
-  let client = Client::new();
+  let client = ClientBuilder::new().danger_accept_invalid_certs(true).use_rustls_tls().build().unwrap();
   let response: JsonResponse = client.get(url).json(json_content).send()?.json()?;
   Ok(
     response
@@ -70,7 +74,7 @@ fn bench_pair(
   name: &str,
   htsget_url: reqwest::Url,
   refserver_url: reqwest::Url,
-  json_content: &impl Serialize,
+  json_content: &impl Serialize
 ) {
   group.bench_with_input(
     format!("{} {}", name, "htsget-rs"),
@@ -122,7 +126,7 @@ fn start_htsget_rs() -> (Child, String) {
     .arg("-p")
     .arg("htsget-http-actix")
     .env("HTSGET_TICKET_SERVER_KEY", key_path)
-    .env("HTSGET_TICKET_SERVER_CERT", cert_path)
+    .env("HTSGET_TICKET_SERVER_CERT", &cert_path)
     .spawn()
     .unwrap();
 
@@ -204,7 +208,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] simple request",
     format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
-    &Empty {},
+    &Empty {}
   );
 
   let json_content = PostRequest {
@@ -224,7 +228,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] with region",
     format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
-    &json_content,
+    &json_content
   );
 
   let json_content = PostRequest {
@@ -251,7 +255,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] with two regions",
     format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
-    &json_content,
+    &json_content
   );
 
   let json_content = PostRequest {
@@ -271,7 +275,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] with VCF",
     format_url(&htsget_rs_url, "variants/vcf/sample1-bcbio-cancer"),
     format_url(&htsget_refserver_url, "variants/sample1-bcbio-cancer"),
-    &json_content,
+    &json_content
   );
 
   let json_content = PostRequest {
@@ -291,7 +295,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     "[HEAVY] with big VCF",
     format_url(&htsget_rs_url, "variants/vcf/internationalgenomesample"),
     format_url(&htsget_refserver_url, "variants/internationalgenomesample"),
-    &json_content,
+    &json_content
   );
 
   group.finish();

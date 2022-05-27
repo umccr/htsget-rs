@@ -191,6 +191,6 @@ pub fn default_test_config() -> Config {
 
 /// Get the event associated with the file.
 pub fn get_test_file<P: AsRef<Path>>(path: P) -> String {
-  let path = default_dir().join(path);
+  let path = default_dir().join("data").join(path);
   fs::read_to_string(path).expect("Failed to read file.")
 }
