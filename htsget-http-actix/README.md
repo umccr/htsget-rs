@@ -82,6 +82,21 @@ $ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions"
 $ curl 127.0.0.1:8080/variants/service-info
 ```
 
+## Running the benchmarks
+There are benchmarks for the htsget-search crate and for the htsget-http-actix crate. The first ones work like normal benchmarks, but the latter ones try to compare the performance of this implementation and the [reference implementation](https://github.com/ga4gh/htsget-refserver). For that, it is needed to start both servers before running `cargo bench`:
+
+### Steps to perform 
+From inside the htsget-http-actix directory, start the htsget-rs server:
+```
+HTSGET_PATH=../ cargo run --release  &
+```
+Then start the htsget-refserver. There is a simple script prepared for that matter. Docker should be installed and `docker.service` should be running:
+```
+sudo bash benches/docker-htsget-refserver.sh
+```
+Now you should be able to run the benchmarks with `cargo bench`!
+
+
 ## Example Regular expressions
 In this example 'data/' is added after the first '/'.
 ```shell

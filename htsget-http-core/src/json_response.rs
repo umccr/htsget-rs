@@ -8,7 +8,7 @@ use htsget_search::htsget::{Class, Response, Url};
 /// so it's trivial to convert to JSON.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonResponse {
-  htsget: HtsGetResponse,
+  pub htsget: HtsGetResponse,
 }
 
 impl JsonResponse {
@@ -23,8 +23,8 @@ impl JsonResponse {
 /// on its own, but with [JsonResponse]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct HtsGetResponse {
-  format: String,
-  urls: Vec<JsonUrl>,
+  pub format: String,
+  pub urls: Vec<JsonUrl>,
 }
 
 impl HtsGetResponse {
@@ -39,9 +39,9 @@ impl HtsGetResponse {
 /// on its own, but with [JsonResponse]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonUrl {
-  url: String,
-  headers: HashMap<String, String>,
-  class: String,
+  pub url: String,
+  pub headers: HashMap<String, String>,
+  pub class: String,
 }
 
 impl JsonUrl {

@@ -16,6 +16,7 @@ async fn main() -> std::io::Result<()> {
   }
 
   let config = Config::from_env()?;
+  println!("{:?}", config);
 
   match config.storage_type {
     StorageType::LocalStorage => local_storage_server(config).await,
