@@ -11,6 +11,7 @@ default = ["s3-storage"]
 [dependencies]
 # Axum server dependencies.
 hyper = "0.14"
+tower-http = { version = "0.3", features = ["trace"] }
 axum = "0.5.1"
 axum-extra = { version = "0.2.1", features = ["spa"] }
 rustls-pemfile = "0.3"

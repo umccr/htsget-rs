@@ -129,6 +129,12 @@ impl BytesRange {
     self
   }
 
+  /// Convert an ending byte position (exclusive) to a ending byte range (inclusive).
+  /// Byte ranges are inclusive, e.g. 0-499 represents the first 500 bytes.
+  pub fn with_end_from_pos(self, pos: u64) -> Self {
+    self.with_end(pos - 1)
+  }
+
   pub fn get_start(&self) -> Option<u64> {
     self.start
   }
@@ -161,6 +167,7 @@ impl BytesRange {
     self
   }
 
+  /// Merge ranges, assuming ending byte ranges are exclusive.
   pub fn merge_all(mut ranges: Vec<BytesRange>) -> Vec<BytesRange> {
     if ranges.len() < 2 {
       ranges
@@ -186,7 +193,7 @@ impl BytesRange {
         if current_range.overlaps(range) {
           current_range.merge_with(range);
         } else {
-          optimized_ranges.push(current_range.clone());
+          optimized_ranges.push(current_range);
           current_range = range.clone();
         }
       }
@@ -195,6 +202,15 @@ impl BytesRange {
 
       optimized_ranges
     }
+  }
+
+  pub fn merge_all_from_pos(ranges: Vec<BytesRange>) -> Vec<BytesRange> {
+    ranges.into_iter().map(|range| {
+      match range.end {
+        None => range,
+        Some(pos) => range.with_end_from_pos(pos)
+      }
+    }).collect()
   }
 }
 
@@ -552,6 +568,13 @@ mod tests {
     ];
 
     assert_eq!(BytesRange::merge_all(ranges), expected_ranges);
+  }
+
+  #[test]
+  fn byte_ranges_with_end_pos() {
+    let result = BytesRange::default().with_start(5).with_end_from_pos(10);
+    let expected = BytesRange::new(Some(5), Some(9));
+    assert_eq!(result, expected);
   }
 
   #[test]

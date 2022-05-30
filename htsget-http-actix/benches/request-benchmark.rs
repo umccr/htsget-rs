@@ -6,14 +6,13 @@ use htsget_test_utils::util::generate_test_certificates;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::path::PathBuf;
+use tokio::process::{Child, Command};
 use std::thread::sleep;
 use std::{convert::TryInto, fs, time::Duration};
-use std::fs::File;
-use std::io::Read;
+use std::collections::HashMap;
+use actix_web::web::head;
 use reqwest::blocking::ClientBuilder;
-use reqwest::Certificate;
 use tempfile::TempDir;
 
 #[derive(Serialize)]
@@ -40,26 +39,24 @@ const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 15;
 const NUMBER_OF_EXECUTIONS: usize = 150;
 
-fn request(url: reqwest::Url, json_content: &impl Serialize) -> reqwest::Result<usize> {
-  let client = ClientBuilder::new().danger_accept_invalid_certs(true).use_rustls_tls().build().unwrap();
-  let response: JsonResponse = client.get(url).json(json_content).send()?.json()?;
-  Ok(
-    response
+fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) -> usize {
+  let response: JsonResponse = client.post(url).json(json_content).send().unwrap().json().unwrap();
+  let a = response
       .htsget
       .urls
       .iter()
       .map(|json_url| {
         client
           .get(&json_url.url)
-          .headers(json_url.headers.borrow().try_into().unwrap())
+          .headers(json_url.headers.as_ref().unwrap_or(&HashMap::default()).try_into().unwrap())
           .send()
           .unwrap()
           .bytes()
           .unwrap()
           .len()
       })
-      .sum(),
-  )
+      .sum();
+  a
 }
 
 fn format_url(url: &str, path: &str) -> reqwest::Url {
@@ -76,16 +73,17 @@ fn bench_pair(
   refserver_url: reqwest::Url,
   json_content: &impl Serialize
 ) {
+  let client = ClientBuilder::new().danger_accept_invalid_certs(true).use_rustls_tls().build().unwrap();
   group.bench_with_input(
     format!("{} {}", name, "htsget-rs"),
     &htsget_url,
-    |b, input| b.iter(|| request(input.clone(), json_content)),
+    |b, input| b.iter(|| request(input.clone(), json_content, &client)),
   );
-  group.bench_with_input(
-    format!("{} {}", name, "htsget-refserver"),
-    &refserver_url,
-    |b, input| b.iter(|| request(input.clone(), json_content)),
-  );
+  // group.bench_with_input(
+  //   format!("{} {}", name, "htsget-refserver"),
+  //   &refserver_url,
+  //   |b, input| b.iter(|| request(input.clone(), json_content, &client)),
+  // );
 }
 
 #[cfg(target_os = "windows")]
@@ -101,7 +99,7 @@ pub fn new_command(cmd: &str) -> Command {
   Command::new(cmd)
 }
 
-fn query_server_until_response(url: reqwest::Url) {
+async fn query_server_until_response(url: reqwest::Url) {
   let client = Client::new();
   for _ in 0..120 {
     sleep(Duration::from_secs(1));
@@ -114,7 +112,7 @@ fn query_server_until_response(url: reqwest::Url) {
   }
 }
 
-fn start_htsget_rs() -> (Child, String) {
+async fn start_htsget_rs() -> (Child, String) {
   let config = default_test_config();
 
   let base_path = TempDir::new().unwrap();
@@ -127,16 +125,18 @@ fn start_htsget_rs() -> (Child, String) {
     .arg("htsget-http-actix")
     .env("HTSGET_TICKET_SERVER_KEY", key_path)
     .env("HTSGET_TICKET_SERVER_CERT", &cert_path)
+    .env("RUST_LOG", "debug")
+    .kill_on_drop(true)
     .spawn()
     .unwrap();
 
   let htsget_rs_url = format!("http://{}", config.addr);
-  query_server_until_response(format_url(&htsget_rs_url, "reads/service-info"));
+  query_server_until_response(format_url(&htsget_rs_url, "reads/service-info")).await;
 
   (child, htsget_rs_url)
 }
 
-fn start_htsget_refserver() -> (Child, String) {
+async fn start_htsget_refserver() -> (Child, String) {
   let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
     .join("benches")
     .join("htsget-refserver-config.json");
@@ -150,13 +150,13 @@ fn start_htsget_refserver() -> (Child, String) {
     .spawn()
     .unwrap()
     .wait()
+    .await
     .unwrap();
 
   let child = new_command("docker")
     .current_dir(default_dir())
     .arg("container")
     .arg("run")
-    .arg("-d")
     .arg("-p")
     .arg(format!(
       "{}:3000",
@@ -185,30 +185,40 @@ fn start_htsget_refserver() -> (Child, String) {
     .arg("./htsget-refserver")
     .arg("-config")
     .arg("/config/htsget-refserver-config.json")
+    .kill_on_drop(true)
     .spawn()
     .unwrap();
 
   let refserver_url = refserver_config.htsget_config.props.host;
-  query_server_until_response(format_url(&refserver_url, "reads/service-info"));
+  query_server_until_response(format_url(&refserver_url, "reads/service-info")).await;
 
   (child, refserver_url)
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
+#[tokio::main]
+async fn criterion_benchmark(c: &mut Criterion) {
   let mut group = c.benchmark_group("Requests");
   group
     .sample_size(NUMBER_OF_EXECUTIONS)
     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
-  let (mut htsget_rs_server, htsget_rs_url) = start_htsget_rs();
-  let (mut htsget_refserver_server, htsget_refserver_url) = start_htsget_refserver();
+  let (mut htsget_rs_server, htsget_rs_url) = start_htsget_rs().await;
+  let (mut htsget_refserver_server, htsget_refserver_url) = start_htsget_refserver().await;
 
+  let json_content = PostRequest {
+    format: None,
+    class: None,
+    fields: None,
+    tags: None,
+    notags: None,
+    regions: None,
+  };
   bench_pair(
     &mut group,
     "[LIGHT] simple request",
     format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
-    &Empty {}
+    &json_content
   );
 
   let json_content = PostRequest {
@@ -300,8 +310,8 @@ fn criterion_benchmark(c: &mut Criterion) {
 
   group.finish();
 
-  htsget_rs_server.kill().unwrap();
-  htsget_refserver_server.kill().unwrap();
+  htsget_rs_server.kill().await.unwrap();
+  htsget_refserver_server.kill().await.unwrap();
 }
 
 criterion_group!(benches, criterion_benchmark);

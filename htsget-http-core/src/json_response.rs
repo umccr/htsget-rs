@@ -40,23 +40,23 @@ impl HtsGetResponse {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonUrl {
   pub url: String,
-  pub headers: HashMap<String, String>,
-  pub class: String,
+  pub headers: Option<HashMap<String, String>>,
+  pub class: Option<String>,
 }
 
 impl JsonUrl {
   fn new(url: Url) -> Self {
     JsonUrl {
       url: url.url,
-      headers: match url.headers {
+      headers: Some(match url.headers {
         Some(headers) => headers.get_inner(),
         None => HashMap::new(),
-      },
-      class: match url.class {
+      }),
+      class: Some(match url.class {
         Class::Body => "body",
         Class::Header => "header",
       }
-      .to_string(),
+      .to_string()),
     }
   }
 }

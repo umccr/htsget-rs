@@ -23,7 +23,7 @@ use tokio::net::TcpListener;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
-use tracing::debug;
+use tower_http::trace::TraceLayer;
 
 use crate::storage::StorageError::{IoError, TicketServerError};
 use crate::storage::UrlFormatter;
@@ -86,6 +86,7 @@ impl AxumStorageServer {
   /// Run the actual server, using the provided path, key and certificate.
   pub async fn serve<P: AsRef<Path>>(&mut self, path: P, key: P, cert: P) -> Result<()> {
     let mut app = Router::new()
+      .layer(TraceLayer::new_for_http())
       .merge(SpaRouter::new(&self.serve_assets_at, path))
       .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -99,7 +100,6 @@ impl AxumStorageServer {
         .map_err(|err| TicketServerError(err.to_string()))?;
       let acceptor = acceptor.clone();
 
-      debug!(from = ?stream.remote_addr(), "Incoming request from {:?}", stream.remote_addr());
       let app = app
         .make_service(&stream)
         .await
