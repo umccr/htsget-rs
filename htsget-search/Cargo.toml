@@ -54,5 +54,6 @@ hyper-tls = "0.5"
 criterion = { version = "0.3", features = ["async_tokio"] }
 
 [[bench]]
-name = "benchmark"
+name = "search-benchmarks"
 harness = false
+path = "benches/search_benchmarks.rs"

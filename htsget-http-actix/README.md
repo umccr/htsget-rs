@@ -3,21 +3,25 @@ This crate should allow to setup an [htsget](http://samtools.github.io/hts-specs
 
 ## Quickstart 
 
-These are some examples with [curl](https://github.com/curl/curl). **For the curl examples shown below to work, we assume that the server is being started from the root of the [htsget-rs project](https://github.com/umccr/htsget-rs)**, so we can use the example files inside the `data` directory.
+These are some examples with [curl](https://github.com/curl/curl). **For the curl examples shown 
+below to work, we assume that the server is being started from the root of
+the [htsget-rs project](https://github.com/umccr/htsget-rs)**, and `HTSGET_PATH="data/"`.
 
-To test them you can run:
+The htsget-http-actix server also requires pem formatted X.509 certificates to access the response tickets.
+
+For example, to generate self-signed certificates, run:
+
+```shell
+$ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj '/CN=localhost'
+```
+
+To test the curl example below, run:
 
 ```shell
 $ cargo run -p htsget-http-actix
 ```
 
-From **the top of the project**. Alternatively, the `HTSGET_PATH` environment variable can be set accordingly if the current working directory is `htsget-http-actix`, i.e:
 
-```shell
-$ HTSGET_PATH=../ cargo run
-```
-
-Otherwise we could have problems as [directory traversal](https://en.wikipedia.org/wiki/Directory_traversal_attack) isn't allowed.
 
 ## Environment variables 
 
