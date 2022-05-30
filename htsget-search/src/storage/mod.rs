@@ -14,6 +14,8 @@ use crate::htsget::{Class, Headers, Url};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
+#[cfg(feature = "gds-storage")]
+pub mod gds;
 pub mod axum_server;
 pub mod local;
 

@@ -12,6 +12,7 @@ use htsget_config::regex_resolver::RegexResolver;
 
 use crate::htsget::search::Search;
 use crate::htsget::Format;
+use crate::storage::gds::GDSStorage;
 use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
 use crate::storage::UrlFormatter;
@@ -77,6 +78,13 @@ impl<S> HtsGetFromStorage<S> {
 impl HtsGetFromStorage<AwsS3Storage> {
   pub async fn s3_from(bucket: String, resolver: RegexResolver) -> Self {
     HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket, resolver).await)
+  }
+}
+
+#[cfg(feature = "gds-storage")]
+impl HtsGetFromStorage<GDSStorage> {
+  pub async fn gds_from(volume: String, resolver: RegexResolver) -> Self {
+    HtsGetFromStorage::new(GDSStorage::new_with_default_config(volume, resolver).await)
   }
 }
 

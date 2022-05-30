@@ -5,8 +5,9 @@ authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmaleni
 edition = "2021"
 
 [features]
-default = ["s3-storage"]
+default = ["s3-storage", "gds-storage"]
 s3-storage = ["bytes", "aws-sdk-s3", "aws-config"]
+gds-storage = ["ica-gds"]
 
 [dependencies]
 # Axum server dependencies.
@@ -36,6 +37,9 @@ noodles-vcf = { version = "0.15", features = ["async"] }
 bytes = { version = "1.1", optional = true }
 aws-sdk-s3 = { version = "0.9", optional = true }
 aws-config = { version = "0.9", optional = true }
+
+# Illumina GDS storage
+ica-gds = { path = "../../ica-rs/gds", optional = true}
 
 [dev-dependencies]
 tempfile = "3.3"
