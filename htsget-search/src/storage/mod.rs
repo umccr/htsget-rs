@@ -205,12 +205,13 @@ impl BytesRange {
   }
 
   pub fn merge_all_from_pos(ranges: Vec<BytesRange>) -> Vec<BytesRange> {
-    ranges.into_iter().map(|range| {
-      match range.end {
+    ranges
+      .into_iter()
+      .map(|range| match range.end {
         None => range,
-        Some(pos) => range.with_end_from_pos(pos)
-      }
-    }).collect()
+        Some(pos) => range.with_end_from_pos(pos),
+      })
+      .collect()
   }
 }
 

@@ -52,11 +52,13 @@ impl JsonUrl {
         Some(headers) => headers.get_inner(),
         None => HashMap::new(),
       }),
-      class: Some(match url.class {
-        Class::Body => "body",
-        Class::Header => "header",
-      }
-      .to_string()),
+      class: Some(
+        match url.class {
+          Class::Body => "body",
+          Class::Header => "header",
+        }
+        .to_string(),
+      ),
     }
   }
 }

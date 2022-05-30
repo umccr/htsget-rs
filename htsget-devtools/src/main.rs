@@ -1,7 +1,6 @@
 mod bam;
 mod bcf;
 mod vcf;
-mod test_server;
 
 fn main() {
   let path = std::env::current_dir()

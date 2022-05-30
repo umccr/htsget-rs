@@ -4,16 +4,18 @@ use htsget_http_core::{JsonResponse, PostRequest, Region};
 use htsget_test_utils::server_tests::{default_dir, default_test_config};
 use htsget_test_utils::util::generate_test_certificates;
 use reqwest::blocking::Client;
+use reqwest::blocking::ClientBuilder;
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use tokio::process::{Child, Command};
+use std::process::{Child, Command};
 use std::thread::sleep;
 use std::{convert::TryInto, fs, time::Duration};
-use std::collections::HashMap;
-use actix_web::web::head;
-use reqwest::blocking::ClientBuilder;
 use tempfile::TempDir;
+
+const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
+const BENCHMARK_DURATION_SECONDS: u64 = 30;
+const NUMBER_OF_EXECUTIONS: usize = 150;
 
 #[derive(Serialize)]
 struct Empty {}
@@ -35,28 +37,39 @@ struct RefserverAddr {
   host: String,
 }
 
-const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
-const BENCHMARK_DURATION_SECONDS: u64 = 15;
-const NUMBER_OF_EXECUTIONS: usize = 150;
+struct DropGuard(Child);
+
+impl Drop for DropGuard {
+  fn drop(&mut self) {
+    drop(self.0.kill());
+  }
+}
 
 fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) -> usize {
-  let response: JsonResponse = client.post(url).json(json_content).send().unwrap().json().unwrap();
-  let a = response
-      .htsget
-      .urls
-      .iter()
-      .map(|json_url| {
-        client
-          .get(&json_url.url)
-          .headers(json_url.headers.as_ref().unwrap_or(&HashMap::default()).try_into().unwrap())
-          .send()
-          .unwrap()
-          .bytes()
-          .unwrap()
-          .len()
-      })
-      .sum();
-  a
+  let response = client.post(url).json(json_content).send().unwrap();
+  let response: JsonResponse = response.json().unwrap();
+  response
+    .htsget
+    .urls
+    .iter()
+    .map(|json_url| {
+      client
+        .get(&json_url.url)
+        .headers(
+          json_url
+            .headers
+            .as_ref()
+            .unwrap_or(&HashMap::default())
+            .try_into()
+            .unwrap(),
+        )
+        .send()
+        .unwrap()
+        .bytes()
+        .unwrap()
+        .len()
+    })
+    .sum()
 }
 
 fn format_url(url: &str, path: &str) -> reqwest::Url {
@@ -71,19 +84,23 @@ fn bench_pair(
   name: &str,
   htsget_url: reqwest::Url,
   refserver_url: reqwest::Url,
-  json_content: &impl Serialize
+  json_content: &impl Serialize,
 ) {
-  let client = ClientBuilder::new().danger_accept_invalid_certs(true).use_rustls_tls().build().unwrap();
+  let client = ClientBuilder::new()
+    .danger_accept_invalid_certs(true)
+    .use_rustls_tls()
+    .build()
+    .unwrap();
   group.bench_with_input(
     format!("{} {}", name, "htsget-rs"),
     &htsget_url,
     |b, input| b.iter(|| request(input.clone(), json_content, &client)),
   );
-  // group.bench_with_input(
-  //   format!("{} {}", name, "htsget-refserver"),
-  //   &refserver_url,
-  //   |b, input| b.iter(|| request(input.clone(), json_content, &client)),
-  // );
+  group.bench_with_input(
+    format!("{} {}", name, "htsget-refserver"),
+    &refserver_url,
+    |b, input| b.iter(|| request(input.clone(), json_content, &client)),
+  );
 }
 
 #[cfg(target_os = "windows")]
@@ -99,7 +116,7 @@ pub fn new_command(cmd: &str) -> Command {
   Command::new(cmd)
 }
 
-async fn query_server_until_response(url: reqwest::Url) {
+fn query_server_until_response(url: reqwest::Url) {
   let client = Client::new();
   for _ in 0..120 {
     sleep(Duration::from_secs(1));
@@ -112,7 +129,7 @@ async fn query_server_until_response(url: reqwest::Url) {
   }
 }
 
-async fn start_htsget_rs() -> (Child, String) {
+fn start_htsget_rs() -> (DropGuard, String) {
   let config = default_test_config();
 
   let base_path = TempDir::new().unwrap();
@@ -125,18 +142,16 @@ async fn start_htsget_rs() -> (Child, String) {
     .arg("htsget-http-actix")
     .env("HTSGET_TICKET_SERVER_KEY", key_path)
     .env("HTSGET_TICKET_SERVER_CERT", &cert_path)
-    .env("RUST_LOG", "debug")
-    .kill_on_drop(true)
     .spawn()
     .unwrap();
 
   let htsget_rs_url = format!("http://{}", config.addr);
-  query_server_until_response(format_url(&htsget_rs_url, "reads/service-info")).await;
+  query_server_until_response(format_url(&htsget_rs_url, "reads/service-info"));
 
-  (child, htsget_rs_url)
+  (DropGuard(child), htsget_rs_url)
 }
 
-async fn start_htsget_refserver() -> (Child, String) {
+fn start_htsget_refserver() -> (DropGuard, String) {
   let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
     .join("benches")
     .join("htsget-refserver-config.json");
@@ -150,7 +165,6 @@ async fn start_htsget_refserver() -> (Child, String) {
     .spawn()
     .unwrap()
     .wait()
-    .await
     .unwrap();
 
   let child = new_command("docker")
@@ -185,25 +199,23 @@ async fn start_htsget_refserver() -> (Child, String) {
     .arg("./htsget-refserver")
     .arg("-config")
     .arg("/config/htsget-refserver-config.json")
-    .kill_on_drop(true)
     .spawn()
     .unwrap();
 
   let refserver_url = refserver_config.htsget_config.props.host;
-  query_server_until_response(format_url(&refserver_url, "reads/service-info")).await;
+  query_server_until_response(format_url(&refserver_url, "reads/service-info"));
 
-  (child, refserver_url)
+  (DropGuard(child), refserver_url)
 }
 
-#[tokio::main]
-async fn criterion_benchmark(c: &mut Criterion) {
+fn criterion_benchmark(c: &mut Criterion) {
   let mut group = c.benchmark_group("Requests");
   group
     .sample_size(NUMBER_OF_EXECUTIONS)
     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
-  let (mut htsget_rs_server, htsget_rs_url) = start_htsget_rs().await;
-  let (mut htsget_refserver_server, htsget_refserver_url) = start_htsget_refserver().await;
+  let (mut _htsget_rs_server, htsget_rs_url) = start_htsget_rs();
+  let (mut _htsget_refserver_server, htsget_refserver_url) = start_htsget_refserver();
 
   let json_content = PostRequest {
     format: None,
@@ -218,7 +230,7 @@ async fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] simple request",
     format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
-    &json_content
+    &json_content,
   );
 
   let json_content = PostRequest {
@@ -238,7 +250,7 @@ async fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] with region",
     format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
-    &json_content
+    &json_content,
   );
 
   let json_content = PostRequest {
@@ -265,7 +277,7 @@ async fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] with two regions",
     format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
-    &json_content
+    &json_content,
   );
 
   let json_content = PostRequest {
@@ -276,7 +288,7 @@ async fn criterion_benchmark(c: &mut Criterion) {
     notags: None,
     regions: Some(vec![Region {
       reference_name: "chrM".to_string(),
-      start: Some(0),
+      start: Some(1),
       end: Some(153),
     }]),
   };
@@ -285,7 +297,7 @@ async fn criterion_benchmark(c: &mut Criterion) {
     "[LIGHT] with VCF",
     format_url(&htsget_rs_url, "variants/vcf/sample1-bcbio-cancer"),
     format_url(&htsget_refserver_url, "variants/sample1-bcbio-cancer"),
-    &json_content
+    &json_content,
   );
 
   let json_content = PostRequest {
@@ -305,13 +317,10 @@ async fn criterion_benchmark(c: &mut Criterion) {
     "[HEAVY] with big VCF",
     format_url(&htsget_rs_url, "variants/vcf/internationalgenomesample"),
     format_url(&htsget_refserver_url, "variants/internationalgenomesample"),
-    &json_content
+    &json_content,
   );
 
   group.finish();
-
-  htsget_rs_server.kill().await.unwrap();
-  htsget_refserver_server.kill().await.unwrap();
 }
 
 criterion_group!(benches, criterion_benchmark);
