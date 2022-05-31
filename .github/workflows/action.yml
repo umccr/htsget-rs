@@ -2,10 +2,6 @@ name: tests
 
 on: [push]
 
-env:
-    AWS_ACCESS_KEY_ID: "FOO"
-    AWS_SECRET_ACCESS_KEY: "BAR"
-
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -14,6 +10,7 @@ jobs:
         rust: [stable]
         os: [ubuntu-latest]
     steps:
+      # Run tests
       - uses: actions/checkout@v2
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -21,12 +18,6 @@ jobs:
             toolchain: ${{ matrix.rust }}
             override: true
             components: rustfmt, clippy
-
-      - name: Install cargo-lambda
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-lambda
 
       - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
@@ -62,4 +53,20 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-targets --all-features
+          args: --all-features
+
+      # Run benchmarks
+      - name: Run benchmarks
+        run: cargo bench --bench search-benchmarks --bench request-benchmarks -- LIGHT --output-format bencher | tee output.txt
+      - name: Download previous benchmark data
+        uses: actions/cache@v1
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          external-data-json-path: ./cache/benchmark-data.json
+          fail-on-alert: false

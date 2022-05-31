@@ -9,6 +9,7 @@ use htsget_search::storage::axum_server::HttpsFormatter;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+  tracing_subscriber::fmt::init();
   if args().len() > 1 {
     // Show help if command line options are provided
     println!("{}", USAGE);

@@ -5,12 +5,13 @@ authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmaleni
 edition = "2021"
 
 [features]
-s3-storage = ["bytes", "aws-sdk-s3", "aws-config", "htsget-config/s3-storage"]
+s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test-utils/s3-storage"]
 default = ["s3-storage"]
 
 [dependencies]
 # Axum server dependencies.
 hyper = "0.14"
+tower-http = { version = "0.3", features = ["trace"] }
 axum = "0.5.1"
 axum-extra = { version = "0.2.1", features = ["spa"] }
 rustls-pemfile = "0.3"
@@ -38,6 +39,7 @@ aws-sdk-s3 = { version = "0.9", optional = true }
 aws-config = { version = "0.9", optional = true }
 
 [dev-dependencies]
+htsget-test-utils = { path = "../htsget-test-utils", default-features = false }
 tempfile = "3.3"
 
 # Aws S3 storage dependencies.
@@ -47,5 +49,11 @@ http = "0.2"
 aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies
-rcgen = "0.9"
 hyper-tls = "0.5"
+
+criterion = { version = "0.3", features = ["async_tokio"] }
+
+[[bench]]
+name = "search-benchmarks"
+harness = false
+path = "benches/search_benchmarks.rs"

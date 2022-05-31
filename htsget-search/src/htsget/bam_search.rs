@@ -210,7 +210,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=4668-2596799"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=4668-2596798"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -228,7 +228,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596799"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -246,7 +246,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=977196-2128166"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -268,11 +268,11 @@ pub mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=256721-647346")),
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-647345")),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=824361-842101")),
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-996015")),
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -291,7 +291,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-4668"))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
           .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)

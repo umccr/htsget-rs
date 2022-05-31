@@ -248,7 +248,7 @@ where
     byte_ranges: Vec<BytesRange>,
   ) -> Result<Response> {
     let mut storage_futures = FuturesUnordered::new();
-    for range in byte_ranges {
+    for range in BytesRange::merge_all_from_pos(byte_ranges) {
       let options = UrlOptions::default()
         .with_range(range)
         .with_class(class.clone());

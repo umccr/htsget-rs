@@ -3,21 +3,25 @@ This crate should allow to setup an [htsget](http://samtools.github.io/hts-specs
 
 ## Quickstart 
 
-These are some examples with [curl](https://github.com/curl/curl). **For the curl examples shown below to work, we assume that the server is being started from the root of the [htsget-rs project](https://github.com/umccr/htsget-rs)**, so we can use the example files inside the `data` directory.
+These are some examples with [curl](https://github.com/curl/curl). **For the curl examples shown 
+below to work, we assume that the server is being started from the root of
+the [htsget-rs project](https://github.com/umccr/htsget-rs)**, and `HTSGET_PATH="data/"`.
 
-To test them you can run:
+The htsget-http-actix server also requires pem formatted X.509 certificates to access the response tickets.
+
+For example, to generate self-signed certificates, run:
+
+```shell
+$ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj '/CN=localhost'
+```
+
+To test the curl example below, run:
 
 ```shell
 $ cargo run -p htsget-http-actix
 ```
 
-From **the top of the project**. Alternatively, the `HTSGET_PATH` environment variable can be set accordingly if the current working directory is `htsget-http-actix`, i.e:
 
-```shell
-$ HTSGET_PATH=../ cargo run
-```
-
-Otherwise we could have problems as [directory traversal](https://en.wikipedia.org/wiki/Directory_traversal_attack) isn't allowed.
 
 ## Environment variables 
 
@@ -80,6 +84,26 @@ $ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions"
 
 ```shell
 $ curl 127.0.0.1:8080/variants/service-info
+```
+
+## Running the benchmarks
+There are benchmarks for the htsget-search crate and for the htsget-http-actix crate. The first ones work like normal benchmarks, but the latter ones try to compare the performance of this implementation and the [reference implementation](https://github.com/ga4gh/htsget-refserver).
+There are a set of light benchmarks, and one heavy benchmark. Light benchmarks can be performed by executing:
+
+```
+cargo bench -p htsget-http-actix -- LIGHT
+```
+
+In order to run the heavy benchmark, an additional vcf file should be downloaded, and placed in the `data/vcf` directory:
+
+```
+curl ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000_genomes_project/release/20190312_biallelic_SNV_and_INDEL/ALL.chr14.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.vcf.gz > data/vcf/internationalgenomesample.vcf.gz
+```
+
+Then to run the heavy benchmark:
+
+```
+cargo bench -p htsget-http-actix -- HEAVY
 ```
 
 ## Example Regular expressions

@@ -23,7 +23,7 @@ use tokio::net::TcpListener;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
-use tracing::debug;
+use tower_http::trace::TraceLayer;
 
 use crate::storage::StorageError::{IoError, TicketServerError};
 use crate::storage::UrlFormatter;
@@ -86,6 +86,7 @@ impl AxumStorageServer {
   /// Run the actual server, using the provided path, key and certificate.
   pub async fn serve<P: AsRef<Path>>(&mut self, path: P, key: P, cert: P) -> Result<()> {
     let mut app = Router::new()
+      .layer(TraceLayer::new_for_http())
       .merge(SpaRouter::new(&self.serve_assets_at, path))
       .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -99,7 +100,6 @@ impl AxumStorageServer {
         .map_err(|err| TicketServerError(err.to_string()))?;
       let acceptor = acceptor.clone();
 
-      debug!(from = ?stream.remote_addr(), "Incoming request from {:?}", stream.remote_addr());
       let app = app
         .make_service(&stream)
         .await
@@ -164,15 +164,14 @@ impl UrlFormatter for HttpsFormatter {
 
 #[cfg(test)]
 mod tests {
-  use std::fs;
   use std::io::Read;
 
+  use htsget_test_utils::util::generate_test_certificates;
   use http::{Method, Request};
   use hyper::client::HttpConnector;
   use hyper::{Body, Client};
   use hyper_tls::native_tls::TlsConnector;
   use hyper_tls::HttpsConnector;
-  use rcgen::generate_simple_self_signed;
 
   use crate::storage::local::tests::create_local_test_files;
 
@@ -181,13 +180,9 @@ mod tests {
   #[tokio::test]
   async fn test_server() {
     let (_, base_path) = create_local_test_files().await;
-    let key_path = base_path.path().join("key.pem");
-    let cert_path = base_path.path().join("cert.pem");
 
     // Generate self-signed certificate.
-    let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
-    fs::write(key_path.clone(), cert.serialize_private_key_pem()).unwrap();
-    fs::write(cert_path.clone(), cert.serialize_pem().unwrap()).unwrap();
+    let (key_path, cert_path) = generate_test_certificates(base_path.path(), "key.pem", "cert.pem");
 
     // Read certificate.
     let mut buf = vec![];
