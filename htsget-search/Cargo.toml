@@ -5,7 +5,7 @@ authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmaleni
 edition = "2021"
 
 [features]
-s3-storage = ["bytes", "aws-sdk-s3", "aws-config", "htsget-config/s3-storage"]
+s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test-utils/s3-storage"]
 default = ["s3-storage"]
 
 [dependencies]

@@ -5,7 +5,7 @@ authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 
 [features]
-server-tests = ["htsget-config", "htsget-search", "htsget-http-core"]
+server-tests = ["dep:htsget-config", "dep:htsget-search", "dep:htsget-http-core"]
 s3-storage = ["htsget-config?/s3-storage", "htsget-search?/s3-storage", "htsget-http-core?/s3-storage"]
 default = ["s3-storage"]
 
