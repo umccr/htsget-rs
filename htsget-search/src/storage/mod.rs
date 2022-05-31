@@ -85,6 +85,12 @@ impl From<StorageError> for io::Error {
   }
 }
 
+/// A DataBlock is either a range of bytes, or a data blob that gets transformed into a data uri.
+pub enum DataBlock {
+  Range(BytesRange),
+  Data(Vec<u8>)
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BytesRange {
   start: Option<u64>,
