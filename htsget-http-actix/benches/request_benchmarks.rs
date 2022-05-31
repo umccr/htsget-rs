@@ -15,7 +15,7 @@ use tempfile::TempDir;
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
-const NUMBER_OF_EXECUTIONS: usize = 150;
+const NUMBER_OF_SAMPLES: usize = 100;
 
 #[derive(Serialize)]
 struct Empty {}
@@ -142,6 +142,7 @@ fn start_htsget_rs() -> (DropGuard, String) {
     .arg("htsget-http-actix")
     .env("HTSGET_TICKET_SERVER_KEY", key_path)
     .env("HTSGET_TICKET_SERVER_CERT", &cert_path)
+    .env("RUST_LOG", "warn")
     .spawn()
     .unwrap();
 
@@ -211,7 +212,7 @@ fn start_htsget_refserver() -> (DropGuard, String) {
 fn criterion_benchmark(c: &mut Criterion) {
   let mut group = c.benchmark_group("Requests");
   group
-    .sample_size(NUMBER_OF_EXECUTIONS)
+    .sample_size(NUMBER_OF_SAMPLES)
     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
   let (mut _htsget_rs_server, htsget_rs_url) = start_htsget_rs();

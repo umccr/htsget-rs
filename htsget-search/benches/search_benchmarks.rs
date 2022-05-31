@@ -12,7 +12,7 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 
 const BENCHMARK_DURATION_SECONDS: u64 = 15;
-const NUMBER_OF_EXECUTIONS: usize = 150;
+const NUMBER_OF_SAMPLES: usize = 150;
 
 async fn perform_query(query: Query) -> Result<(), HtsGetError> {
   let htsget = HtsGetFromStorage::local_from(
@@ -39,7 +39,7 @@ fn bench_query(group: &mut BenchmarkGroup<WallTime>, name: &str, query: Query) {
 fn criterion_benchmark(c: &mut Criterion) {
   let mut group = c.benchmark_group("Queries");
   group
-    .sample_size(NUMBER_OF_EXECUTIONS)
+    .sample_size(NUMBER_OF_SAMPLES)
     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
   bench_query(
