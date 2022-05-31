@@ -21,7 +21,7 @@ use crate::storage::StorageError::AwsS3Error;
 use crate::storage::{BytesPosition, StorageError};
 use crate::storage::{BytesRange, Storage};
 
-use super::{GetOptions, Result, UrlOptions};
+use super::{GetOptions, RangeUrlOptions, Result};
 
 /// Represents data classes that can be retrieved immediately or after a delay.
 /// Specifically, Glacier Flexible, Glacier Deep Archive, and Intelligent Tiering archive
@@ -203,7 +203,7 @@ impl Storage for AwsS3Storage {
   }
 
   /// Returns a S3-presigned htsget URL
-  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
+  async fn range_url<K: AsRef<str> + Send>(&self, key: K, options: RangeUrlOptions) -> Result<Url> {
     let key = key.as_ref();
     let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
     let url = options.apply(Url::new(presigned_url));
@@ -245,7 +245,7 @@ mod tests {
   use crate::storage::aws::AwsS3Storage;
   use crate::storage::local::tests::create_local_test_files;
   use crate::storage::StorageError;
-  use crate::storage::{BytesPosition, GetOptions, Storage, UrlOptions};
+  use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
 
   static INIT_SERVER: Once = Once::new();
 
@@ -324,7 +324,9 @@ mod tests {
   #[tokio::test]
   async fn url_of_non_existing_key() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.url("non-existing-key", UrlOptions::default()).await;
+      let result = storage
+        .range_url("non-existing-key", RangeUrlOptions::default())
+        .await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
     })
     .await;
@@ -333,7 +335,10 @@ mod tests {
   #[tokio::test]
   async fn url_of_existing_key() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.url("key2", UrlOptions::default()).await.unwrap();
+      let result = storage
+        .range_url("key2", RangeUrlOptions::default())
+        .await
+        .unwrap();
       assert!(result
         .url
         .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
@@ -349,9 +354,9 @@ mod tests {
   async fn url_with_specified_range() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
-        .url(
+        .range_url(
           "key2",
-          UrlOptions::default().with_range(BytesPosition::new(Some(7), Some(9))),
+          RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(9))),
         )
         .await
         .unwrap();
@@ -375,9 +380,9 @@ mod tests {
   async fn url_with_specified_open_ended_range() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
-        .url(
+        .range_url(
           "key2",
-          UrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
+          RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
         )
         .await
         .unwrap();

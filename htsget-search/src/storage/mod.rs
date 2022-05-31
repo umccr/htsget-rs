@@ -7,6 +7,7 @@ use std::io::ErrorKind;
 use std::net::AddrParseError;
 
 use async_trait::async_trait;
+use base64::encode;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncSeek};
 
@@ -32,11 +33,16 @@ pub trait Storage {
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
-  /// Get the url of the object represented by the key.
-  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url>;
+  /// Get the url of the object represented by the key using a bytes range.
+  async fn range_url<K: AsRef<str> + Send>(&self, key: K, options: RangeUrlOptions) -> Result<Url>;
 
   /// Get the size of the object represented by the key.
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
+
+  /// Get the url of the object using an inline data uri.
+  fn data_url(data: Vec<u8>, class: Class) -> Url {
+    Url::new(format!("data:;base64,{}", encode(data))).with_class(class)
+  }
 }
 
 /// Formats a url for use with storage.
@@ -243,12 +249,12 @@ impl GetOptions {
   }
 }
 
-pub struct UrlOptions {
+pub struct RangeUrlOptions {
   range: BytesPosition,
   class: Class,
 }
 
-impl UrlOptions {
+impl RangeUrlOptions {
   pub fn with_range(mut self, range: BytesPosition) -> Self {
     self.range = range;
     self
@@ -271,7 +277,7 @@ impl UrlOptions {
   }
 }
 
-impl Default for UrlOptions {
+impl Default for RangeUrlOptions {
   fn default() -> Self {
     Self {
       range: BytesPosition::default(),
@@ -285,6 +291,8 @@ mod tests {
   use std::collections::HashMap;
 
   use crate::htsget::Class;
+  use crate::storage::axum_server::HttpsFormatter;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 
@@ -584,6 +592,14 @@ mod tests {
   }
 
   #[test]
+  fn data_url() {
+    let result = LocalStorage::<HttpsFormatter>::data_url(b"Hello World!".to_vec(), Class::Header);
+    let url = data_url::DataUrl::process(&result.url);
+    let (result, _) = url.unwrap().decode_to_vec().unwrap();
+    assert_eq!(result, b"Hello World!");
+  }
+
+  #[test]
   fn byte_range_from_byte_position() {
     let result: BytesRange = BytesPosition::default().with_start(5).with_end(10).into();
     let expected = BytesRange::new(Some(5), Some(9));
@@ -607,21 +623,21 @@ mod tests {
 
   #[test]
   fn url_options_with_range() {
-    let result = UrlOptions::default().with_range(BytesPosition::default());
+    let result = RangeUrlOptions::default().with_range(BytesPosition::default());
     assert_eq!(result.range, BytesPosition::default());
     assert_eq!(result.class, Class::Body);
   }
 
   #[test]
   fn url_options_with_class() {
-    let result = UrlOptions::default().with_class(Class::Header);
+    let result = RangeUrlOptions::default().with_class(Class::Header);
     assert_eq!(result.range, BytesPosition::default());
     assert_eq!(result.class, Class::Header);
   }
 
   #[test]
   fn url_options_apply_with_bytes_range() {
-    let result = UrlOptions::default()
+    let result = RangeUrlOptions::default()
       .with_class(Class::Header)
       .with_range(BytesPosition::new(Some(5), Some(11)))
       .apply(Url::new(""));
@@ -636,7 +652,7 @@ mod tests {
 
   #[test]
   fn url_options_apply_no_bytes_range() {
-    let result = UrlOptions::default()
+    let result = RangeUrlOptions::default()
       .with_class(Class::Header)
       .apply(Url::new(""));
     assert_eq!(result, Url::new("").with_class(Class::Header));

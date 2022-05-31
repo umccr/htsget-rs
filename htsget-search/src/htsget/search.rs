@@ -24,7 +24,7 @@ use tokio::task::JoinHandle;
 use crate::storage::GetOptions;
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
-  storage::{BytesPosition, Storage, UrlOptions},
+  storage::{BytesPosition, RangeUrlOptions, Storage},
 };
 
 /// Helper function to find the first non-none value from a set of futures.
@@ -249,13 +249,13 @@ where
   ) -> Result<Response> {
     let mut storage_futures = FuturesUnordered::new();
     for range in byte_ranges {
-      let options = UrlOptions::default()
+      let options = RangeUrlOptions::default()
         .with_range(range)
         .with_class(class.clone());
       let storage = self.get_storage();
       let id = id.clone();
       storage_futures.push(tokio::spawn(async move {
-        storage.url(format.fmt_file(&id), options).await
+        storage.range_url(format.fmt_file(&id), options).await
       }));
     }
     let mut urls = Vec::new();
