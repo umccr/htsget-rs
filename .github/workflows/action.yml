@@ -60,7 +60,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: bench
-          args: --bench search-benchmarks --bench --request-benchmarks -- LIGHT --output-format bencher | tee output.txt
+          args: --bench search-benchmarks --bench request-benchmarks -- LIGHT --output-format bencher | tee output.txt
       - name: Download previous benchmark data
         uses: actions/cache@v1
         with:
