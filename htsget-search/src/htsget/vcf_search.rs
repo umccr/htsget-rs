@@ -20,7 +20,7 @@ use tokio::io::AsyncSeek;
 use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
-  storage::{BytesRange, Storage},
+  storage::{BytesPosition, Storage},
 };
 
 type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
@@ -86,7 +86,7 @@ where
     reference_name: String,
     index: &Index,
     query: Query,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     let (_, vcf_header) = self.create_reader(&query.id, &self.get_format()).await?;
     let maybe_len = vcf_header
       .contigs()

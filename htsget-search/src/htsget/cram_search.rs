@@ -18,7 +18,7 @@ use tokio::{io, select};
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
-use crate::storage::{BytesRange, Storage};
+use crate::storage::{BytesPosition, Storage};
 
 pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
@@ -37,7 +37,7 @@ where
     id: String,
     format: Format,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       &id,
@@ -50,9 +50,9 @@ where
     .await
   }
 
-  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     let (mut reader, _) = self.create_reader(&query.id, &self.get_format()).await?;
-    Ok(vec![BytesRange::default()
+    Ok(vec![BytesPosition::default()
       .with_start(Self::FILE_DEFINITION_LENGTH)
       .with_end(reader.position().await?)])
   }
@@ -78,7 +78,7 @@ where
     &self,
     query: &Query,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       &query.id,
@@ -97,7 +97,7 @@ where
     ref_seq_id: usize,
     query: Query,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       &query.id,
@@ -141,7 +141,7 @@ where
     reference_name: String,
     index: &Index,
     query: Query,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     self
       .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
       .await
@@ -177,7 +177,7 @@ where
     seq_range: Range<i32>,
     crai_index: &[Record],
     predicate: Arc<F>,
-  ) -> Result<Vec<BytesRange>>
+  ) -> Result<Vec<BytesPosition>>
   where
     F: Fn(&Record) -> bool + Send + Sync + 'static,
   {
@@ -221,13 +221,13 @@ where
         .map_err(|_| HtsGetError::io_error("Reading CRAM file size."))?;
       let eof_position = file_size - Self::EOF_CONTAINER_LENGTH;
       byte_ranges.push(
-        BytesRange::default()
+        BytesPosition::default()
           .with_start(last.offset())
           .with_end(eof_position),
       );
     }
 
-    Ok(BytesRange::merge_all(byte_ranges))
+    Ok(BytesPosition::merge_all(byte_ranges))
   }
 
   /// Gets bytes ranges for a specific index entry.
@@ -236,10 +236,10 @@ where
     seq_range: Range<i32>,
     record: &Record,
     next: &Record,
-  ) -> Option<BytesRange> {
+  ) -> Option<BytesPosition> {
     match ref_seq {
       None => Some(
-        BytesRange::default()
+        BytesPosition::default()
           .with_start(record.offset())
           .with_end(next.offset()),
       ),
@@ -250,7 +250,7 @@ where
           .unwrap_or_default() as i32;
         if seq_range.start <= start + record.alignment_span() as i32 && seq_range.end >= start {
           Some(
-            BytesRange::default()
+            BytesPosition::default()
               .with_start(record.offset())
               .with_end(next.offset()),
           )

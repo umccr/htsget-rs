@@ -129,7 +129,7 @@ pub(crate) mod tests {
 
   use crate::htsget::{Headers, Url};
   use crate::storage::axum_server::HttpsFormatter;
-  use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
+  use crate::storage::{BytesPosition, GetOptions, StorageError, UrlOptions};
 
   use super::*;
 
@@ -216,7 +216,7 @@ pub(crate) mod tests {
       let result = Storage::url(
         &storage,
         "folder/../key1",
-        UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
+        UrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10))),
       )
       .await;
       let expected = Url::new("https://127.0.0.1:8081/data/key1")
@@ -232,7 +232,7 @@ pub(crate) mod tests {
       let result = Storage::url(
         &storage,
         "folder/../key1",
-        UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
+        UrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
       )
       .await;
       let expected = Url::new("https://127.0.0.1:8081/data/key1")

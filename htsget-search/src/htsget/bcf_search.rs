@@ -18,7 +18,7 @@ use tokio::io::{AsyncRead, AsyncSeek};
 use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
-  storage::{BytesRange, Storage},
+  storage::{BytesPosition, Storage},
 };
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
@@ -86,7 +86,7 @@ where
     reference_name: String,
     index: &Index,
     query: Query,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     let (_, header) = self.create_reader(&query.id, &self.get_format()).await?;
 
     // We are assuming the order of the contigs in the header and the references sequences

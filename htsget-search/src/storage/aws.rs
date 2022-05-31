@@ -17,9 +17,9 @@ use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
-use crate::storage::Storage;
 use crate::storage::StorageError::AwsS3Error;
-use crate::storage::{BytesRange, StorageError};
+use crate::storage::{BytesPosition, StorageError};
+use crate::storage::{BytesRange, Storage};
 
 use super::{GetOptions, Result, UrlOptions};
 
@@ -70,7 +70,7 @@ impl AwsS3Storage {
   async fn s3_presign_url<K: AsRef<str> + Send>(
     &self,
     key: K,
-    range: BytesRange,
+    range: BytesPosition,
   ) -> Result<String> {
     let response = self
       .client
@@ -134,7 +134,8 @@ impl AwsS3Storage {
     Delayed(class)
   }
 
-  fn apply_range(builder: GetObject, range: BytesRange) -> GetObject {
+  fn apply_range(builder: GetObject, range: BytesPosition) -> GetObject {
+    let range: BytesRange = range.into();
     let range: String = range.into();
     if range.is_empty() {
       builder
@@ -244,7 +245,7 @@ mod tests {
   use crate::storage::aws::AwsS3Storage;
   use crate::storage::local::tests::create_local_test_files;
   use crate::storage::StorageError;
-  use crate::storage::{BytesRange, GetOptions, Storage, UrlOptions};
+  use crate::storage::{BytesPosition, GetOptions, Storage, UrlOptions};
 
   static INIT_SERVER: Once = Once::new();
 
@@ -350,7 +351,7 @@ mod tests {
       let result = storage
         .url(
           "key2",
-          UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
+          UrlOptions::default().with_range(BytesPosition::new(Some(7), Some(9))),
         )
         .await
         .unwrap();
@@ -376,7 +377,7 @@ mod tests {
       let result = storage
         .url(
           "key2",
-          UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
+          UrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
         )
         .await
         .unwrap();

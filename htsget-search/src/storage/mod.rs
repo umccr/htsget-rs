@@ -87,12 +87,21 @@ impl From<StorageError> for io::Error {
 
 /// A DataBlock is either a range of bytes, or a data blob that gets transformed into a data uri.
 pub enum DataBlock {
-  Range(BytesRange),
-  Data(Vec<u8>)
+  Range(BytesPosition),
+  Data(Vec<u8>),
 }
 
+/// A byte position has an inclusive start value, and an exclusive end value. This is analogous to
+/// query start and end parameters.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct BytesRange {
+pub struct BytesPosition {
+  start: Option<u64>,
+  end: Option<u64>,
+}
+
+/// A bytes range has an inclusive start and end value. This is analogous to http bytes ranges.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
 }
@@ -120,7 +129,19 @@ impl Display for BytesRange {
   }
 }
 
+impl From<BytesPosition> for BytesRange {
+  fn from(pos: BytesPosition) -> Self {
+    Self::new(pos.start, pos.end.map(|value| value - 1))
+  }
+}
+
 impl BytesRange {
+  pub fn new(start: Option<u64>, end: Option<u64>) -> Self {
+    Self { start, end }
+  }
+}
+
+impl BytesPosition {
   pub fn new(start: Option<u64>, end: Option<u64>) -> Self {
     Self { start, end }
   }
@@ -135,12 +156,6 @@ impl BytesRange {
     self
   }
 
-  /// Convert an ending byte position (exclusive) to a ending byte range (inclusive).
-  /// Byte ranges are inclusive, e.g. 0-499 represents the first 500 bytes.
-  pub fn with_end_from_pos(self, pos: u64) -> Self {
-    self.with_end(pos - 1)
-  }
-
   pub fn get_start(&self) -> Option<u64> {
     self.start
   }
@@ -149,7 +164,7 @@ impl BytesRange {
     self.end
   }
 
-  pub fn overlaps(&self, range: &BytesRange) -> bool {
+  pub fn overlaps(&self, range: &BytesPosition) -> bool {
     let cond1 = match (self.start.as_ref(), range.end.as_ref()) {
       (None, None) | (None, Some(_)) | (Some(_), None) => true,
       (Some(start), Some(end)) => end >= start,
@@ -161,7 +176,7 @@ impl BytesRange {
     cond1 && cond2
   }
 
-  pub fn merge_with(&mut self, range: &BytesRange) -> &Self {
+  pub fn merge_with(&mut self, range: &BytesPosition) -> &Self {
     self.start = match (self.start.as_ref(), range.start.as_ref()) {
       (None, None) | (None, Some(_)) | (Some(_), None) => None,
       (Some(a), Some(b)) => Some(*a.min(b)),
@@ -174,7 +189,7 @@ impl BytesRange {
   }
 
   /// Merge ranges, assuming ending byte ranges are exclusive.
-  pub fn merge_all(mut ranges: Vec<BytesRange>) -> Vec<BytesRange> {
+  pub fn merge_all(mut ranges: Vec<BytesPosition>) -> Vec<BytesPosition> {
     if ranges.len() < 2 {
       ranges
     } else {
@@ -209,42 +224,32 @@ impl BytesRange {
       optimized_ranges
     }
   }
-
-  pub fn merge_all_from_pos(ranges: Vec<BytesRange>) -> Vec<BytesRange> {
-    ranges
-      .into_iter()
-      .map(|range| match range.end {
-        None => range,
-        Some(pos) => range.with_end_from_pos(pos),
-      })
-      .collect()
-  }
 }
 
 #[derive(Default)]
 pub struct GetOptions {
-  range: BytesRange,
+  range: BytesPosition,
 }
 
 impl GetOptions {
   pub fn with_max_length(mut self, max_length: u64) -> Self {
-    self.range = BytesRange::default().with_start(0).with_end(max_length);
+    self.range = BytesPosition::default().with_start(0).with_end(max_length);
     self
   }
 
-  pub fn with_range(mut self, range: BytesRange) -> Self {
+  pub fn with_range(mut self, range: BytesPosition) -> Self {
     self.range = range;
     self
   }
 }
 
 pub struct UrlOptions {
-  range: BytesRange,
+  range: BytesPosition,
   class: Class,
 }
 
 impl UrlOptions {
-  pub fn with_range(mut self, range: BytesRange) -> Self {
+  pub fn with_range(mut self, range: BytesPosition) -> Self {
     self.range = range;
     self
   }
@@ -255,7 +260,8 @@ impl UrlOptions {
   }
 
   pub fn apply(self, url: Url) -> Url {
-    let range: String = self.range.into();
+    let range: BytesRange = self.range.into();
+    let range: String = range.into();
     let url = if range.is_empty() {
       url
     } else {
@@ -268,7 +274,7 @@ impl UrlOptions {
 impl Default for UrlOptions {
   fn default() -> Self {
     Self {
-      range: BytesRange::default(),
+      range: BytesPosition::default(),
       class: Class::Body,
     }
   }
@@ -287,231 +293,231 @@ mod tests {
     let test_cases = vec![
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),    //         <--]
-        BytesRange::new(Some(3), Some(5)), //             [-]
+        BytesPosition::new(None, Some(2)),    //         <--]
+        BytesPosition::new(Some(3), Some(5)), //             [-]
         None,
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)), //            <--]
-        BytesRange::new(Some(3), None), //                [------>
+        BytesPosition::new(None, Some(2)), //            <--]
+        BytesPosition::new(Some(3), None), //                [------>
         None,
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),       //      <--]
-        BytesRange::new(Some(2), Some(4)),    //         [-]
-        Some(BytesRange::new(None, Some(4))), //      <----]
+        BytesPosition::new(None, Some(2)),       //      <--]
+        BytesPosition::new(Some(2), Some(4)),    //         [-]
+        Some(BytesPosition::new(None, Some(4))), //      <----]
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),    //         <--]
-        BytesRange::new(Some(2), None),    //            [------->
-        Some(BytesRange::new(None, None)), //         <---------->
+        BytesPosition::new(None, Some(2)),    //         <--]
+        BytesPosition::new(Some(2), None),    //            [------->
+        Some(BytesPosition::new(None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),       //      <--]
-        BytesRange::new(Some(1), Some(3)),    //        [-]
-        Some(BytesRange::new(None, Some(3))), //      <---]
+        BytesPosition::new(None, Some(2)),       //      <--]
+        BytesPosition::new(Some(1), Some(3)),    //        [-]
+        Some(BytesPosition::new(None, Some(3))), //      <---]
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),    //         <--]
-        BytesRange::new(Some(1), None),    //           [-------->
-        Some(BytesRange::new(None, None)), //         <---------->
+        BytesPosition::new(None, Some(2)),    //         <--]
+        BytesPosition::new(Some(1), None),    //           [-------->
+        Some(BytesPosition::new(None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),       //      <--]
-        BytesRange::new(Some(0), Some(2)),    //       [-]
-        Some(BytesRange::new(None, Some(2))), //      <--]
+        BytesPosition::new(None, Some(2)),       //      <--]
+        BytesPosition::new(Some(0), Some(2)),    //       [-]
+        Some(BytesPosition::new(None, Some(2))), //      <--]
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),       //      <--]
-        BytesRange::new(None, Some(2)),       //      <--]
-        Some(BytesRange::new(None, Some(2))), //      <--]
+        BytesPosition::new(None, Some(2)),       //      <--]
+        BytesPosition::new(None, Some(2)),       //      <--]
+        Some(BytesPosition::new(None, Some(2))), //      <--]
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),       //      <--]
-        BytesRange::new(Some(0), Some(1)),    //       []
-        Some(BytesRange::new(None, Some(2))), //      <--]
+        BytesPosition::new(None, Some(2)),       //      <--]
+        BytesPosition::new(Some(0), Some(1)),    //       []
+        Some(BytesPosition::new(None, Some(2))), //      <--]
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),       //      <--]
-        BytesRange::new(None, Some(1)),       //      <-]
-        Some(BytesRange::new(None, Some(2))), //      <--]
+        BytesPosition::new(None, Some(2)),       //      <--]
+        BytesPosition::new(None, Some(1)),       //      <-]
+        Some(BytesPosition::new(None, Some(2))), //      <--]
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, Some(2)),    //         <--]
-        BytesRange::new(None, None),       //         <---------->
-        Some(BytesRange::new(None, None)), //         <---------->
+        BytesPosition::new(None, Some(2)),    //         <--]
+        BytesPosition::new(None, None),       //         <---------->
+        Some(BytesPosition::new(None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)), //            [-]
-        BytesRange::new(Some(6), Some(8)), //                [-]
+        BytesPosition::new(Some(2), Some(4)), //            [-]
+        BytesPosition::new(Some(6), Some(8)), //                [-]
         None,
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)), //            [-]
-        BytesRange::new(Some(6), None),    //                [--->
+        BytesPosition::new(Some(2), Some(4)), //            [-]
+        BytesPosition::new(Some(6), None),    //                [--->
         None,
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),       //      [-]
-        BytesRange::new(Some(4), Some(6)),       //        [-]
-        Some(BytesRange::new(Some(2), Some(6))), //      [---]
+        BytesPosition::new(Some(2), Some(4)),       //      [-]
+        BytesPosition::new(Some(4), Some(6)),       //        [-]
+        Some(BytesPosition::new(Some(2), Some(6))), //      [---]
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),    //         [-]
-        BytesRange::new(Some(4), None),       //           [----->
-        Some(BytesRange::new(Some(2), None)), //         [------->
+        BytesPosition::new(Some(2), Some(4)),    //         [-]
+        BytesPosition::new(Some(4), None),       //           [----->
+        Some(BytesPosition::new(Some(2), None)), //         [------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),       //      [-]
-        BytesRange::new(Some(3), Some(5)),       //       [-]
-        Some(BytesRange::new(Some(2), Some(5))), //      [--]
+        BytesPosition::new(Some(2), Some(4)),       //      [-]
+        BytesPosition::new(Some(3), Some(5)),       //       [-]
+        Some(BytesPosition::new(Some(2), Some(5))), //      [--]
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),    //         [-]
-        BytesRange::new(Some(3), None),       //          [------>
-        Some(BytesRange::new(Some(2), None)), //         [------->
+        BytesPosition::new(Some(2), Some(4)),    //         [-]
+        BytesPosition::new(Some(3), None),       //          [------>
+        Some(BytesPosition::new(Some(2), None)), //         [------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),       //      [-]
-        BytesRange::new(Some(2), Some(3)),       //      []
-        Some(BytesRange::new(Some(2), Some(4))), //      [-]
+        BytesPosition::new(Some(2), Some(4)),       //      [-]
+        BytesPosition::new(Some(2), Some(3)),       //      []
+        Some(BytesPosition::new(Some(2), Some(4))), //      [-]
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),    //         [-]
-        BytesRange::new(None, Some(3)),       //      <---]
-        Some(BytesRange::new(None, Some(4))), //      <----]
+        BytesPosition::new(Some(2), Some(4)),    //         [-]
+        BytesPosition::new(None, Some(3)),       //      <---]
+        Some(BytesPosition::new(None, Some(4))), //      <----]
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),       //      [-]
-        BytesRange::new(Some(1), Some(3)),       //     [-]
-        Some(BytesRange::new(Some(1), Some(4))), //     [--]
+        BytesPosition::new(Some(2), Some(4)),       //      [-]
+        BytesPosition::new(Some(1), Some(3)),       //     [-]
+        Some(BytesPosition::new(Some(1), Some(4))), //     [--]
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),    //         [-]
-        BytesRange::new(None, Some(3)),       //      <---]
-        Some(BytesRange::new(None, Some(4))), //      <----]
+        BytesPosition::new(Some(2), Some(4)),    //         [-]
+        BytesPosition::new(None, Some(3)),       //      <---]
+        Some(BytesPosition::new(None, Some(4))), //      <----]
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),       //      [-]
-        BytesRange::new(Some(0), Some(2)),       //    [-]
-        Some(BytesRange::new(Some(0), Some(4))), //    [---]
+        BytesPosition::new(Some(2), Some(4)),       //      [-]
+        BytesPosition::new(Some(0), Some(2)),       //    [-]
+        Some(BytesPosition::new(Some(0), Some(4))), //    [---]
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)),    //         [-]
-        BytesRange::new(None, Some(2)),       //      <--]
-        Some(BytesRange::new(None, Some(4))), //      <----]
+        BytesPosition::new(Some(2), Some(4)),    //         [-]
+        BytesPosition::new(None, Some(2)),       //      <--]
+        Some(BytesPosition::new(None, Some(4))), //      <----]
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)), //            [-]
-        BytesRange::new(Some(0), Some(1)), //          []
+        BytesPosition::new(Some(2), Some(4)), //            [-]
+        BytesPosition::new(Some(0), Some(1)), //          []
         None,
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)), //            [-]
-        BytesRange::new(None, Some(1)),    //         <-]
+        BytesPosition::new(Some(2), Some(4)), //            [-]
+        BytesPosition::new(None, Some(1)),    //         <-]
         None,
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), Some(4)), //            [-]
-        BytesRange::new(None, None),       //         <---------->
-        Some(BytesRange::new(None, None)), //         <---------->
+        BytesPosition::new(Some(2), Some(4)), //            [-]
+        BytesPosition::new(None, None),       //         <---------->
+        Some(BytesPosition::new(None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),       //         [------->
-        BytesRange::new(Some(4), Some(6)),    //           [-]
-        Some(BytesRange::new(Some(2), None)), //         [------->
+        BytesPosition::new(Some(2), None),    //         [------->
+        BytesPosition::new(Some(4), Some(6)), //           [-]
+        Some(BytesPosition::new(Some(2), None)), //         [------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),       //         [------->
-        BytesRange::new(Some(4), None),       //           [----->
-        Some(BytesRange::new(Some(2), None)), //         [------->
+        BytesPosition::new(Some(2), None), //         [------->
+        BytesPosition::new(Some(4), None), //           [----->
+        Some(BytesPosition::new(Some(2), None)), //         [------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),       //         [------->
-        BytesRange::new(Some(2), Some(4)),    //         [-]
-        Some(BytesRange::new(Some(2), None)), //         [------->
+        BytesPosition::new(Some(2), None),    //         [------->
+        BytesPosition::new(Some(2), Some(4)), //         [-]
+        Some(BytesPosition::new(Some(2), None)), //         [------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),       //         [------->
-        BytesRange::new(Some(2), None),       //         [------->
-        Some(BytesRange::new(Some(2), None)), //         [------->
+        BytesPosition::new(Some(2), None), //         [------->
+        BytesPosition::new(Some(2), None), //         [------->
+        Some(BytesPosition::new(Some(2), None)), //         [------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),       //         [------->
-        BytesRange::new(Some(1), Some(3)),    //        [-]
-        Some(BytesRange::new(Some(1), None)), //        [-------->
+        BytesPosition::new(Some(2), None),    //         [------->
+        BytesPosition::new(Some(1), Some(3)), //        [-]
+        Some(BytesPosition::new(Some(1), None)), //        [-------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),    //            [------->
-        BytesRange::new(None, Some(3)),    //         <---]
-        Some(BytesRange::new(None, None)), //         <---------->
+        BytesPosition::new(Some(2), None), //            [------->
+        BytesPosition::new(None, Some(3)), //         <---]
+        Some(BytesPosition::new(None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),       //         [------->
-        BytesRange::new(Some(0), Some(2)),    //       [-]
-        Some(BytesRange::new(Some(0), None)), //       [--------->
+        BytesPosition::new(Some(2), None),    //         [------->
+        BytesPosition::new(Some(0), Some(2)), //       [-]
+        Some(BytesPosition::new(Some(0), None)), //       [--------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),    //            [------->
-        BytesRange::new(None, Some(2)),    //         <--]
-        Some(BytesRange::new(None, None)), //         <---------->
+        BytesPosition::new(Some(2), None), //            [------->
+        BytesPosition::new(None, Some(2)), //         <--]
+        Some(BytesPosition::new(None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),    //            [------->
-        BytesRange::new(Some(0), Some(1)), //          []
+        BytesPosition::new(Some(2), None), //            [------->
+        BytesPosition::new(Some(0), Some(1)), //          []
         None,
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None), //               [------->
-        BytesRange::new(None, Some(1)), //            <-]
+        BytesPosition::new(Some(2), None), //               [------->
+        BytesPosition::new(None, Some(1)), //            <-]
         None,
       ),
       (
         //                                             0123456789
-        BytesRange::new(Some(2), None),    //            [------->
-        BytesRange::new(None, None),       //         <---------->
-        Some(BytesRange::new(None, None)), //         <---------->
+        BytesPosition::new(Some(2), None), //            [------->
+        BytesPosition::new(None, None),    //         <---------->
+        Some(BytesPosition::new(None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesRange::new(None, None),       //         <---------->
-        BytesRange::new(None, None),       //         <---------->
-        Some(BytesRange::new(None, None)), //         <---------->
+        BytesPosition::new(None, None),       //         <---------->
+        BytesPosition::new(None, None),       //         <---------->
+        Some(BytesPosition::new(None, None)), //         <---------->
       ),
     ];
 
@@ -531,55 +537,55 @@ mod tests {
 
   #[test]
   fn bytes_range_merge_all_when_list_is_empty() {
-    assert_eq!(BytesRange::merge_all(Vec::new()), Vec::new());
+    assert_eq!(BytesPosition::merge_all(Vec::new()), Vec::new());
   }
 
   #[test]
   fn bytes_range_merge_all_when_list_has_one_range() {
     assert_eq!(
-      BytesRange::merge_all(vec![BytesRange::default()]),
-      vec![BytesRange::default()]
+      BytesPosition::merge_all(vec![BytesPosition::default()]),
+      vec![BytesPosition::default()]
     );
   }
 
   #[test]
   fn bytes_range_merge_all_when_list_has_many_ranges() {
     let ranges = vec![
-      BytesRange::new(None, Some(1)),
-      BytesRange::new(Some(1), Some(2)),
-      BytesRange::new(Some(5), Some(6)),
-      BytesRange::new(Some(5), Some(8)),
-      BytesRange::new(Some(6), Some(7)),
-      BytesRange::new(Some(4), Some(5)),
-      BytesRange::new(Some(3), Some(6)),
-      BytesRange::new(Some(10), Some(12)),
-      BytesRange::new(Some(10), Some(12)),
-      BytesRange::new(Some(10), Some(14)),
-      BytesRange::new(Some(14), Some(15)),
-      BytesRange::new(Some(12), Some(16)),
-      BytesRange::new(Some(17), Some(19)),
-      BytesRange::new(Some(21), Some(23)),
-      BytesRange::new(Some(18), Some(22)),
-      BytesRange::new(Some(24), None),
-      BytesRange::new(Some(24), Some(30)),
-      BytesRange::new(Some(31), Some(33)),
-      BytesRange::new(Some(35), None),
+      BytesPosition::new(None, Some(1)),
+      BytesPosition::new(Some(1), Some(2)),
+      BytesPosition::new(Some(5), Some(6)),
+      BytesPosition::new(Some(5), Some(8)),
+      BytesPosition::new(Some(6), Some(7)),
+      BytesPosition::new(Some(4), Some(5)),
+      BytesPosition::new(Some(3), Some(6)),
+      BytesPosition::new(Some(10), Some(12)),
+      BytesPosition::new(Some(10), Some(12)),
+      BytesPosition::new(Some(10), Some(14)),
+      BytesPosition::new(Some(14), Some(15)),
+      BytesPosition::new(Some(12), Some(16)),
+      BytesPosition::new(Some(17), Some(19)),
+      BytesPosition::new(Some(21), Some(23)),
+      BytesPosition::new(Some(18), Some(22)),
+      BytesPosition::new(Some(24), None),
+      BytesPosition::new(Some(24), Some(30)),
+      BytesPosition::new(Some(31), Some(33)),
+      BytesPosition::new(Some(35), None),
     ];
 
     let expected_ranges = vec![
-      BytesRange::new(None, Some(2)),
-      BytesRange::new(Some(3), Some(8)),
-      BytesRange::new(Some(10), Some(16)),
-      BytesRange::new(Some(17), Some(23)),
-      BytesRange::new(Some(24), None),
+      BytesPosition::new(None, Some(2)),
+      BytesPosition::new(Some(3), Some(8)),
+      BytesPosition::new(Some(10), Some(16)),
+      BytesPosition::new(Some(17), Some(23)),
+      BytesPosition::new(Some(24), None),
     ];
 
-    assert_eq!(BytesRange::merge_all(ranges), expected_ranges);
+    assert_eq!(BytesPosition::merge_all(ranges), expected_ranges);
   }
 
   #[test]
-  fn byte_ranges_with_end_pos() {
-    let result = BytesRange::default().with_start(5).with_end_from_pos(10);
+  fn byte_range_from_byte_position() {
+    let result: BytesRange = BytesPosition::default().with_start(5).with_end(10).into();
     let expected = BytesRange::new(Some(5), Some(9));
     assert_eq!(result, expected);
   }
@@ -589,27 +595,27 @@ mod tests {
     let result = GetOptions::default().with_max_length(1);
     assert_eq!(
       result.range,
-      BytesRange::default().with_start(0).with_end(1)
+      BytesPosition::default().with_start(0).with_end(1)
     );
   }
 
   #[test]
   fn get_options_with_range() {
-    let result = GetOptions::default().with_range(BytesRange::default());
-    assert_eq!(result.range, BytesRange::default());
+    let result = GetOptions::default().with_range(BytesPosition::default());
+    assert_eq!(result.range, BytesPosition::default());
   }
 
   #[test]
   fn url_options_with_range() {
-    let result = UrlOptions::default().with_range(BytesRange::default());
-    assert_eq!(result.range, BytesRange::default());
+    let result = UrlOptions::default().with_range(BytesPosition::default());
+    assert_eq!(result.range, BytesPosition::default());
     assert_eq!(result.class, Class::Body);
   }
 
   #[test]
   fn url_options_with_class() {
     let result = UrlOptions::default().with_class(Class::Header);
-    assert_eq!(result.range, BytesRange::default());
+    assert_eq!(result.range, BytesPosition::default());
     assert_eq!(result.class, Class::Header);
   }
 
@@ -617,7 +623,7 @@ mod tests {
   fn url_options_apply_with_bytes_range() {
     let result = UrlOptions::default()
       .with_class(Class::Header)
-      .with_range(BytesRange::new(Some(5), Some(10)))
+      .with_range(BytesPosition::new(Some(5), Some(11)))
       .apply(Url::new(""));
     println!("{:?}", result);
     assert_eq!(

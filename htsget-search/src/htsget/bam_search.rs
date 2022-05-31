@@ -20,7 +20,7 @@ use crate::htsget::HtsGetError;
 use crate::{
   htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
-  storage::{BytesRange, Storage},
+  storage::{BytesPosition, Storage},
 };
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
@@ -66,7 +66,7 @@ where
     id: &str,
     format: &Format,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     let last_interval = index
       .reference_sequences()
       .iter()
@@ -87,7 +87,7 @@ where
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
 
-    Ok(vec![BytesRange::default()
+    Ok(vec![BytesPosition::default()
       .with_start(start.bytes_range_start())
       .with_end(file_size)])
   }
@@ -121,7 +121,7 @@ where
     reference_name: String,
     index: &Index,
     query: Query,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     self
       .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
       .await
@@ -156,7 +156,7 @@ where
     &self,
     query: &Query,
     bai_index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     self
       .get_byte_ranges_for_unmapped(&query.id, &self.get_format(), bai_index)
       .await
@@ -168,7 +168,7 @@ where
     ref_seq_id: usize,
     query: Query,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     let start = query.start.map(|start| start as i32);
     let end = query.end.map(|end| end as i32);
     self
