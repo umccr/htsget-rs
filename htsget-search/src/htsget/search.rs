@@ -21,7 +21,7 @@ use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
 
-use crate::storage::GetOptions;
+use crate::storage::{DataBlock, GetOptions};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{BytesPosition, RangeUrlOptions, Storage},
@@ -183,11 +183,14 @@ where
     query: Query,
   ) -> Result<Vec<BytesPosition>>;
 
-  /// Get the storage of this trait.
+  /// Get the storage of this format.
   fn get_storage(&self) -> Arc<S>;
 
-  /// Get the format of this trait.
+  /// Get the format of this format.
   fn get_format(&self) -> Format;
+
+  /// Get the eof marker for this format.
+  fn get_eof_marker(&self) -> Option<DataBlock>;
 
   /// Read the index from the key.
   async fn read_index(&self, id: &str) -> Result<Index> {
@@ -230,13 +233,24 @@ where
               .await?
           }
         };
+
         header_byte_ranges.append(&mut byte_ranges);
-        let byte_ranges = BytesPosition::merge_all(header_byte_ranges);
-        self.build_response(class, id, format, byte_ranges).await
+        let mut blocks =
+          DataBlock::from_bytes_positions(BytesPosition::merge_all(header_byte_ranges));
+        if let Some(eof) = self.get_eof_marker() {
+          blocks.push(eof);
+        }
+
+        self.build_response(class, id, format, blocks).await
       }
       Class::Header => {
         self
-          .build_response(query.class, query.id, self.get_format(), header_byte_ranges)
+          .build_response(
+            query.class,
+            query.id,
+            self.get_format(),
+            DataBlock::from_bytes_positions(header_byte_ranges),
+          )
           .await
       }
     }
@@ -248,18 +262,27 @@ where
     class: Class,
     id: String,
     format: Format,
-    byte_ranges: Vec<BytesPosition>,
+    byte_ranges: Vec<DataBlock>,
   ) -> Result<Response> {
     let mut storage_futures = FuturesUnordered::new();
-    for range in byte_ranges {
-      let options = RangeUrlOptions::default()
-        .with_range(range)
-        .with_class(class.clone());
-      let storage = self.get_storage();
-      let id = id.clone();
-      storage_futures.push(tokio::spawn(async move {
-        storage.range_url(format.fmt_file(&id), options).await
-      }));
+    for block in byte_ranges {
+      match block {
+        DataBlock::Range(range) => {
+          let options = RangeUrlOptions::default()
+            .with_range(range)
+            .with_class(class.clone());
+          let storage = self.get_storage();
+          let id = id.clone();
+          storage_futures.push(tokio::spawn(async move {
+            storage.range_url(format.fmt_file(&id), options).await
+          }));
+        }
+        DataBlock::Data(data) => {
+          storage_futures.push(tokio::spawn(
+            async move { Ok(S::data_url(data, class.clone())) },
+          ));
+        }
+      }
     }
     let mut urls = Vec::new();
     loop {
@@ -336,7 +359,6 @@ where
     let seq_start = Position::try_from(seq_start as usize).map_err(|_| invalid_range())?;
     let seq_end = Position::try_from(seq_end as usize).map_err(|_| invalid_range())?;
 
-    // TODO convert to async if supported later.
     let chunks = index
       .query(ref_seq_id, seq_start..=seq_end)
       .map_err(|_| invalid_range())?;

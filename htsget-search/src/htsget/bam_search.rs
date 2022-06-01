@@ -22,6 +22,7 @@ use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
+use crate::storage::DataBlock;
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 

@@ -97,6 +97,16 @@ pub enum DataBlock {
   Data(Vec<u8>),
 }
 
+impl DataBlock {
+  /// Convert a vec of bytes positions to a vec of data blocks.
+  pub fn from_bytes_positions(positions: Vec<BytesPosition>) -> Vec<Self> {
+    positions
+      .into_iter()
+      .map(|pos| DataBlock::Range(pos))
+      .collect()
+  }
+}
+
 /// A byte position has an inclusive start value, and an exclusive end value. This is analogous to
 /// query start and end parameters.
 #[derive(Clone, Debug, Default, PartialEq)]
