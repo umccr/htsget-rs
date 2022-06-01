@@ -116,7 +116,7 @@ mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(bam_expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=4668-2596798"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
       ));
       assert_eq!(response, expected_response)
     })

@@ -210,7 +210,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=4668-2596798"))],
+          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -227,8 +227,12 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798"))],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798")),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -245,8 +249,12 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165"))],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165")),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -267,6 +275,8 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=256721-647345")),
           Url::new(expected_url())

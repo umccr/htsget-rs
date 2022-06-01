@@ -202,6 +202,8 @@ where
 
   /// Search based on the query.
   async fn search(&self, query: Query) -> Result<Response> {
+    let mut header_byte_ranges = self.get_byte_ranges_for_header(&query).await?;
+
     match query.class {
       Class::Body => {
         let index = self.read_index(&query.id).await?;
@@ -216,7 +218,7 @@ where
 
         let id = query.id.clone();
         let class = query.class.clone();
-        let byte_ranges = match query.reference_name.as_ref() {
+        let mut byte_ranges = match query.reference_name.as_ref() {
           None => {
             self
               .get_byte_ranges_for_all(query.id.clone(), format, &index)
@@ -228,12 +230,13 @@ where
               .await?
           }
         };
+        header_byte_ranges.append(&mut byte_ranges);
+        let byte_ranges = BytesPosition::merge_all(header_byte_ranges);
         self.build_response(class, id, format, byte_ranges).await
       }
       Class::Header => {
-        let byte_ranges = self.get_byte_ranges_for_header(&query).await?;
         self
-          .build_response(query.class, query.id, self.get_format(), byte_ranges)
+          .build_response(query.class, query.id, self.get_format(), header_byte_ranges)
           .await
       }
     }
@@ -422,10 +425,10 @@ where
       }
     }
 
-    let unmapped_byte_ranges = self
+    let mut unmapped_byte_ranges = self
       .get_byte_ranges_for_unmapped(&id, &format, index)
       .await?;
-    byte_ranges.extend(unmapped_byte_ranges.into_iter());
+    byte_ranges.append(&mut unmapped_byte_ranges);
     Ok(BytesPosition::merge_all(byte_ranges))
   }
 
