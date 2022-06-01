@@ -103,14 +103,18 @@ impl From<StorageError> for HtsGetError {
         Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
       }
       StorageError::IoError(e) => Self::IoError(format!("Io error: {}", e)),
-      #[cfg(feature = "s3-storage")]
-      StorageError::AwsS3Error { .. } => Self::IoError(format!("AWS S3 error: {:?}", err)),
       StorageError::TicketServerError(e) => {
         Self::InternalError(format!("Error using url response server: {}", e))
       }
       StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e)),
       StorageError::InvalidUri(e) => Self::InternalError(format!("Invalid uri produced: {}", e)),
       StorageError::InvalidAddress(e) => Self::InternalError(format!("Invalid address: {}", e)),
+      #[cfg(feature = "s3-storage")]
+      StorageError::AwsS3Error { .. } => Self::IoError(format!("AWS S3 error: {:?}", err)),
+      #[cfg(feature = "gds-storage")]
+      StorageError::GDSError { .. } => Self::IoError(format!("GDS error: {:?}", err)),
+      #[cfg(feature = "gds-storage")]
+      StorageError::UrlError { .. } => Self::IoError(format!("Url parsing error: {:?}", err)),
     }
   }
 }

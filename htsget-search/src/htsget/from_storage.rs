@@ -12,8 +12,10 @@ use htsget_config::regex_resolver::RegexResolver;
 
 use crate::htsget::search::Search;
 use crate::htsget::Format;
-use crate::storage::gds::GDSStorage;
+#[cfg(feature = "s3-storage")]
 use crate::storage::aws::AwsS3Storage;
+#[cfg(feature = "gds-storage")]
+use crate::storage::gds::GDSStorage;
 use crate::storage::local::LocalStorage;
 use crate::storage::UrlFormatter;
 use crate::{

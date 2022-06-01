@@ -7,9 +7,15 @@ edition = "2021"
 [features]
 default = ["s3-storage", "gds-storage"]
 s3-storage = ["bytes", "aws-sdk-s3", "aws-config"]
-gds-storage = ["ica-gds"]
+gds-storage = ["ica-gds", "dirs", "url", "serde", "serde_yaml"]
 
 [dependencies]
+# Illumina GDS Storage backend credentials and url parsing
+dirs = { version = "4.0", optional = true }
+url = { version = "2.2", optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_yaml = { version = "0.8", optional = true }
+
 # Axum server dependencies.
 hyper = "0.14"
 axum = "0.5.1"
@@ -39,7 +45,8 @@ aws-sdk-s3 = { version = "0.9", optional = true }
 aws-config = { version = "0.9", optional = true }
 
 # Illumina GDS storage
-ica-gds = { path = "../../ica-rs/gds", optional = true}
+#ica-gds = { path = "../../ica-rs/gds", optional = true}
+ica-gds = { git = "https://github.com/umccr-illumina/ica-rs", optional = true }
 
 [dev-dependencies]
 tempfile = "3.3"

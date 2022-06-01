@@ -12,11 +12,13 @@ use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::htsget::{Class, Headers, Url};
 
+use self::gds::GDSStorage;
+
 #[cfg(feature = "s3-storage")]
 pub mod aws;
+pub mod axum_server;
 #[cfg(feature = "gds-storage")]
 pub mod gds;
-pub mod axum_server;
 pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
@@ -61,6 +63,22 @@ pub enum StorageError {
   #[cfg(feature = "s3-storage")]
   #[error("Aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
+
+  #[cfg(feature = "gds-storage")]
+  #[error("GDS error: {0}")]
+  GDSError(#[from] ica_gds::apis::Error<GDSStorage>),
+
+  #[cfg(feature = "gds-storage")]
+  #[error("Url parsing error: {0}")]
+  UrlError(#[from] url::ParseError),
+
+  // #[cfg(feature = "gds-storage")]
+  // #[error("GDS ListFiles error: {0}")]
+  // GDSFilesError(#[from] ica_gds::apis::Error<ica_gds::apis::files_api::ListFilesError>),
+
+  // #[cfg(feature = "gds-storage")]
+  // #[error("GDS GetVolume error: {0}")]
+  // GDSVolumesError(#[from] ica_gds::apis::Error<ica_gds::apis::volumes_api::GetVolumeError>),
 
   #[error("Url response ticket server error: {0}")]
   TicketServerError(String),
