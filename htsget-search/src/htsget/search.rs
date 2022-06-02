@@ -27,6 +27,12 @@ use crate::{
   storage::{BytesPosition, RangeUrlOptions, Storage},
 };
 
+// § 4.1.2 End-of-file marker <https://samtools.github.io/hts-specs/SAMv1.pdf>.
+static BGZF_EOF: &[u8] = &[
+  0x1f, 0x8b, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x06, 0x00, 0x42, 0x43, 0x02, 0x00,
+  0x1b, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
 /// Helper function to find the first non-none value from a set of futures.
 pub(crate) async fn find_first<T>(
   msg: &str,
@@ -71,6 +77,9 @@ where
 
   /// Returns the header bytes range.
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>>;
+
+  /// Get the eof marker for this format.
+  fn get_eof_marker(&self) -> Option<DataBlock>;
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -189,9 +198,6 @@ where
   /// Get the format of this format.
   fn get_format(&self) -> Format;
 
-  /// Get the eof marker for this format.
-  fn get_eof_marker(&self) -> Option<DataBlock>;
-
   /// Read the index from the key.
   async fn read_index(&self, id: &str) -> Result<Index> {
     let storage = self
@@ -278,8 +284,9 @@ where
           }));
         }
         DataBlock::Data(data) => {
+          let class_copy = class.clone();
           storage_futures.push(tokio::spawn(
-            async move { Ok(S::data_url(data, class.clone())) },
+            async move { Ok(S::data_url(data, class_copy)) },
           ));
         }
       }
@@ -460,6 +467,10 @@ where
     Ok(vec![BytesPosition::default().with_start(0).with_end(
       virtual_position.bytes_range_end(&mut reader).await,
     )])
+  }
+
+  fn get_eof_marker(&self) -> Option<DataBlock> {
+    Some(DataBlock::Data(Vec::from(BGZF_EOF)))
   }
 }
 

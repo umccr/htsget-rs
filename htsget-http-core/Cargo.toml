@@ -5,7 +5,7 @@ authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>
 edition = "2021"
 
 [features]
-s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage"]
+s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-test-utils/s3-storage"]
 default = ["s3-storage"]
 
 [dependencies]
@@ -16,3 +16,6 @@ htsget-config = { path = "../htsget-config", default-features = false }
 futures = { version = "0.3" }
 tokio = { version = "1.17", features = ["full"] }
 tracing = "0.1"
+
+[dev-dependencies]
+htsget-test-utils = { path = "../htsget-test-utils", default-features = false }

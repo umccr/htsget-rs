@@ -18,7 +18,14 @@ use tokio::{io, select};
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
-use crate::storage::{BytesPosition, Storage};
+use crate::storage::{BytesPosition, DataBlock, Storage};
+
+// § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
+static CRAM_EOF: &[u8] = &[
+  0x0f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x0f, 0xe0, 0x45, 0x4f, 0x46, 0x00, 0x00, 0x00,
+  0x00, 0x01, 0x00, 0x05, 0xbd, 0xd9, 0x4f, 0x00, 0x01, 0x00, 0x06, 0x06, 0x01, 0x00, 0x01, 0x00,
+  0x01, 0x00, 0xee, 0x63, 0x01, 0x4b,
+];
 
 pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
@@ -55,6 +62,10 @@ where
     Ok(vec![
       BytesPosition::default().with_end(reader.position().await?)
     ])
+  }
+
+  fn get_eof_marker(&self) -> Option<DataBlock> {
+    Some(DataBlock::Data(Vec::from(CRAM_EOF)))
   }
 }
 
@@ -266,8 +277,9 @@ pub mod tests {
   use std::future::Future;
 
   use htsget_config::regex_resolver::RegexResolver;
+  use htsget_test_utils::util::expected_cram_eof_data_url;
 
-  use crate::htsget::{Class, Headers, Response, Url};
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -283,8 +295,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-1627755"))],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-1627755")),
+          Url::new(expected_cram_eof_data_url()).with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -306,6 +321,7 @@ pub mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-6086")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627755")),
+          Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -328,6 +344,7 @@ pub mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-6086")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=604231-1280105")),
+          Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -348,8 +365,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-465708"))],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-465708")),
+          Url::new(expected_cram_eof_data_url()).with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -369,8 +389,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-604230"))],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-604230")),
+          Url::new(expected_cram_eof_data_url()).with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })

@@ -166,12 +166,13 @@ impl UrlFormatter for HttpsFormatter {
 mod tests {
   use std::io::Read;
 
-  use htsget_test_utils::util::generate_test_certificates;
   use http::{Method, Request};
   use hyper::client::HttpConnector;
   use hyper::{Body, Client};
   use hyper_tls::native_tls::TlsConnector;
   use hyper_tls::HttpsConnector;
+
+  use htsget_test_utils::util::generate_test_certificates;
 
   use crate::storage::local::tests::create_local_test_files;
 

@@ -152,8 +152,9 @@ pub mod tests {
   use std::future::Future;
 
   use htsget_config::regex_resolver::RegexResolver;
+  use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
+  use crate::htsget::{Class, Class::Body, Headers, HtsGetError, Response, Url};
   use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -168,11 +169,7 @@ pub mod tests {
       let response = search.search(query).await;
       println!("{:#?}", response);
 
-      let expected_response = Ok(Response::new(
-        Format::Bcf,
-        vec![Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3529"))],
-      ));
+      let expected_response = Ok(expected_bcf_response(filename));
       assert_eq!(response, expected_response)
     })
     .await
@@ -189,8 +186,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bcf,
-        vec![Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-949"))],
+        vec![
+          Url::new(expected_url(filename))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-949")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -209,11 +209,7 @@ pub mod tests {
       let response = search.search(query).await;
       println!("{:#?}", response);
 
-      let expected_response = Ok(Response::new(
-        Format::Bcf,
-        vec![Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3529"))],
-      ));
+      let expected_response = Ok(expected_bcf_response(filename));
       assert_eq!(response, expected_response)
     })
     .await
@@ -235,6 +231,17 @@ pub mod tests {
       assert_eq!(response, expected_response)
     })
     .await
+  }
+
+  fn expected_bcf_response(filename: &str) -> Response {
+    Response::new(
+      Format::Bcf,
+      vec![
+        Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3529")),
+        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+      ],
+    )
   }
 
   #[tokio::test]

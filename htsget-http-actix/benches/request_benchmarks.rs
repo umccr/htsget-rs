@@ -1,17 +1,19 @@
-use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
-use htsget_http_core::{JsonResponse, PostRequest, Region};
-use htsget_test_utils::server_tests::{default_dir, default_test_config};
-use htsget_test_utils::util::generate_test_certificates;
-use reqwest::blocking::Client;
-use reqwest::blocking::ClientBuilder;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::thread::sleep;
 use std::{convert::TryInto, fs, time::Duration};
+
+use criterion::measurement::WallTime;
+use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use reqwest::blocking::Client;
+use reqwest::blocking::ClientBuilder;
+use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
+
+use htsget_http_core::{JsonResponse, PostRequest, Region};
+use htsget_test_utils::server_tests::{default_dir, default_test_config};
+use htsget_test_utils::util::generate_test_certificates;
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;

@@ -22,7 +22,6 @@ use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
-use crate::storage::DataBlock;
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -193,8 +192,9 @@ pub mod tests {
   use std::future::Future;
 
   use htsget_config::regex_resolver::RegexResolver;
+  use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::{Class, Headers, Response, Url};
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -210,8 +210,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-2596798")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -233,6 +236,7 @@ pub mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -255,6 +259,7 @@ pub mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -284,6 +289,7 @@ pub mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
