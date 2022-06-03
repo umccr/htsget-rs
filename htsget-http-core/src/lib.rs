@@ -128,7 +128,7 @@ mod tests {
     let mut request = HashMap::new();
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-2596798".to_string());
+    headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
       Ok(example_bam_json_response(headers))
@@ -172,7 +172,7 @@ mod tests {
       regions: None,
     };
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-2596798".to_string());
+    headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
     assert_eq!(
       get_response_for_post_request(
         get_searcher(),
@@ -241,7 +241,6 @@ mod tests {
       vec![
         Url::new("https://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
           .with_headers(Headers::new(headers)),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
       ],
     ))
   }

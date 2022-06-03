@@ -171,9 +171,8 @@ pub mod tests {
   use std::future::Future;
 
   use htsget_config::regex_resolver::RegexResolver;
-  use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::{Class, Class::Body, Headers, HtsGetError, Response, Url};
+  use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
   use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -205,11 +204,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![
-          Url::new(expected_url(filename))
-            .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
-        ],
+        vec![Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-822"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -275,11 +271,8 @@ pub mod tests {
   fn expected_vcf_response(filename: &str) -> Response {
     Response::new(
       Format::Vcf,
-      vec![
-        Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3366")),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
-      ],
+      vec![Url::new(expected_url(filename))
+        .with_headers(Headers::default().with_header("Range", "bytes=0-3366"))],
     )
   }
 

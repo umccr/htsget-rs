@@ -9,11 +9,8 @@ use serde::Deserialize;
 
 use htsget_config::config::Config;
 use htsget_http_core::{get_service_info_with, Endpoint, JsonResponse};
-use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
 use htsget_search::htsget::{Class, Format, Headers, Url};
-
-use crate::util::expected_bgzf_eof_data_url;
 
 /// Represents a http header.
 #[derive(Debug)]
@@ -170,14 +167,8 @@ pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
 
   let http_url = Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path))
     .with_headers(Headers::new(headers))
-    .with_class(class.clone());
-  let urls = match class {
-    Class::Header => vec![http_url],
-    Class::Body => vec![
-      http_url,
-      Url::new(expected_bgzf_eof_data_url()).with_class(Body),
-    ],
-  };
+    .with_class(class);
+  let urls = vec![http_url];
 
   JsonResponse::from_response(HtsgetResponse::new(Format::Vcf, urls))
 }

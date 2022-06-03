@@ -104,7 +104,7 @@ where
 
     Ok(vec![BytesPosition::default()
       .with_start(start.bytes_range_start())
-      .with_end(file_size)])
+      .with_end(file_size - BGZF_EOF.len() as u64)])
   }
 }
 
@@ -227,7 +227,7 @@ pub mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-2596798")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
@@ -250,7 +250,7 @@ pub mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798")),
+            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596770")),
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
