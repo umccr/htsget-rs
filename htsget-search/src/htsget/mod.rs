@@ -115,7 +115,9 @@ impl From<StorageError> for HtsGetError {
       #[cfg(feature = "gds-storage")]
       StorageError::GDSError { .. } => Self::IoError(format!("GDS error: {:?}", err)),
       #[cfg(feature = "gds-storage")]
-      StorageError::GDSRetrievalError { .. } => Self::IoError(format!("GDS retrieval error: {:?}", err)),
+      StorageError::GDSRetrievalError { .. } => {
+        Self::IoError(format!("GDS retrieval error: {:?}", err))
+      }
     }
   }
 }
@@ -317,7 +319,7 @@ pub struct Url {
 }
 
 impl Url {
-  pub fn new<S: Into<String>>(url: S) -> Self {
+  pub async fn new<S: Into<String> + Send>(url: S) -> Self {
     Self {
       url: url.into(),
       headers: None,

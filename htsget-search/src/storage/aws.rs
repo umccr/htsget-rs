@@ -205,7 +205,7 @@ impl Storage for AwsS3Storage {
   async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
     let key = key.as_ref();
     let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
-    let url = options.apply(Url::new(presigned_url));
+    let url = options.apply(Url::new(presigned_url).await);
     debug!(calling_from = ?self, key, ?url, "Getting url with key {:?}", key);
     Ok(url)
   }
