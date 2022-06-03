@@ -9,20 +9,19 @@ use futures::prelude::stream::FuturesUnordered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
 use noodles::tabix;
-use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
+use noodles::tabix::index::ReferenceSequence;
 use noodles::vcf::Header;
 use noodles_vcf as vcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search, SearchEof};
-use crate::storage::DataBlock;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
+use crate::htsget::search::{BgzfSearch, BlockPosition, find_first, Search};
 
 type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -45,18 +44,6 @@ where
 
   fn virtual_position(&self) -> VirtualPosition {
     self.virtual_position()
-  }
-}
-
-impl<S, ReaderType>
-  SearchEof<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
-  for VcfSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
-{
-  fn get_eof_marker(&self) -> Option<DataBlock> {
-    None
   }
 }
 

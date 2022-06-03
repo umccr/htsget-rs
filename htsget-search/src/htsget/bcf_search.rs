@@ -6,21 +6,20 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
-use noodles::bgzf::VirtualPosition;
-use noodles::csi::index::ReferenceSequence;
-use noodles::csi::Index;
-use noodles::vcf;
 use noodles::{bgzf, csi};
+use noodles::bgzf::VirtualPosition;
+use noodles::csi::Index;
+use noodles::csi::index::ReferenceSequence;
+use noodles::vcf;
 use noodles_bcf as bcf;
 use tokio::io;
 use tokio::io::{AsyncRead, AsyncSeek};
 
-use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search, SearchEof, BGZF_EOF};
-use crate::storage::DataBlock;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
+use crate::htsget::search::{BgzfSearch, BlockPosition, find_first, Search};
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -43,18 +42,6 @@ where
 
   fn virtual_position(&self) -> VirtualPosition {
     self.virtual_position()
-  }
-}
-
-impl<S, ReaderType>
-  SearchEof<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
-  for BcfSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
-{
-  fn get_eof_marker(&self) -> Option<DataBlock> {
-    Some(DataBlock::Data(Vec::from(BGZF_EOF)))
   }
 }
 

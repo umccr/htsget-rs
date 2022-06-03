@@ -481,6 +481,22 @@ where
   }
 }
 
+impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
+SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
+  where
+    S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+    ReaderType: AsyncRead + Unpin + Send + Sync,
+    Reader: BlockPosition + Send + Sync,
+    Header: FromStr + Send,
+    ReferenceSequence: BinningIndexReferenceSequence + Sync,
+    Index: BinningIndex<ReferenceSequence> + Send + Sync,
+    T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+{
+  fn get_eof_marker(&self) -> Option<DataBlock> {
+    Some(DataBlock::Data(Vec::from(BGZF_EOF)))
+  }
+}
+
 /// A block position extends the concept of a virtual position for readers.
 #[async_trait]
 pub(crate) trait BlockPosition {
