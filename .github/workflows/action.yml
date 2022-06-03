@@ -37,11 +37,17 @@ jobs:
           command: build
           args: --all-targets --no-default-features
 
-      - name: Build s3-storage feature
+      - name: Build aws-s3-storage feature
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --all-targets --features s3-storage
+
+      - name: Build illumina-gds-storage feature
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-targets --features gds-storage
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
