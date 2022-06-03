@@ -5,9 +5,9 @@ authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmaleni
 edition = "2021"
 
 [features]
-default = ["s3-storage", "gds-storage"]
+default = ["s3-storage"]
 s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test-utils/s3-storage"]
-gds-storage = ["ica-gds", "dirs", "url", "reqwest", "serde", "serde_yaml"]
+gds-storage = ["ica-gds", "dirs", "url", "serde", "serde_yaml"]
 
 [dependencies]
 # Illumina GDS Storage backend credentials and url parsing
@@ -17,7 +17,7 @@ serde = { version = "1.0", features = ["derive"], optional = true }
 serde_yaml = { version = "0.8", optional = true }
 #ica-gds = { path = "../../ica-rs/gds", optional = true}
 ica-gds = { version = "0.3", git = "https://github.com/umccr-illumina/ica-rs", optional = true }
-reqwest = { version = "0.11", optional = true }
+reqwest = { version = "0.11" } # TODO: Ideally remove this dep with hyper instead of introducing another one
 
 # Axum server dependencies.
 hyper = "0.14"

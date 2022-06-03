@@ -11,6 +11,7 @@ use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::htsget::{Class, Headers, Url};
+#[cfg(feature = "gds-storage")] // TODO: Remove this dependency in favor of hyper, for instance
 use reqwest;
 
 #[cfg(feature = "s3-storage")]
@@ -65,7 +66,6 @@ pub enum StorageError {
   #[cfg(feature = "gds-storage")]
   #[error("GDS request error: {0}")]
   GDSRetrievalError(#[from] reqwest::Error),
-  #[cfg(feature = "gds-storage")]
   #[error("Url response ticket server error: {0}")]
   TicketServerError(String),
   #[error("Invalid input: {0}")]

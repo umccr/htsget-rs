@@ -99,7 +99,7 @@ impl Storage for GDSStorage {
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let conf = setup_conf().await;
     let key = key.as_ref();
-    let presigned = presigned_url(key).await?;
+    let presigned = self.gds_presign_url(key).await?.url;
     Ok(
       conf
         .client
