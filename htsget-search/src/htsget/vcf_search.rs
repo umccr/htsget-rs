@@ -9,19 +9,19 @@ use futures::prelude::stream::FuturesUnordered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
 use noodles::tabix;
-use noodles::tabix::Index;
 use noodles::tabix::index::ReferenceSequence;
+use noodles::tabix::Index;
 use noodles::vcf::Header;
 use noodles_vcf as vcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
+use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
-use crate::htsget::search::{BgzfSearch, BlockPosition, find_first, Search};
 
 type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -158,8 +158,9 @@ pub mod tests {
   use std::future::Future;
 
   use htsget_config::regex_resolver::RegexResolver;
+  use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::{Class, Headers, HtsGetError, Response, Url};
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -191,8 +192,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-822"))],
+        vec![
+          Url::new(expected_url(filename))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -212,24 +216,6 @@ pub mod tests {
       println!("{:#?}", response);
 
       let expected_response = Ok(expected_vcf_response(filename));
-      assert_eq!(response, expected_response)
-    })
-    .await;
-  }
-
-  #[tokio::test]
-  async fn search_reference_name_with_invalid_seq_range() {
-    with_local_storage(|storage| async move {
-      let search = VcfSearch::new(storage);
-      let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Vcf)
-        .with_reference_name("chrM")
-        .with_start(0)
-        .with_end(153);
-      let response = search.search(query).await;
-      println!("{:#?}", response);
-
-      let expected_response = Err(HtsGetError::InvalidRange("0-153".to_string()));
       assert_eq!(response, expected_response)
     })
     .await;
@@ -258,8 +244,11 @@ pub mod tests {
   fn expected_vcf_response(filename: &str) -> Response {
     Response::new(
       Format::Vcf,
-      vec![Url::new(expected_url(filename))
-        .with_headers(Headers::default().with_header("Range", "bytes=0-3366"))],
+      vec![
+        Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3366")),
+        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+      ],
     )
   }
 

@@ -53,6 +53,13 @@ pub(crate) async fn find_first<T>(
   result.ok_or_else(|| HtsGetError::not_found(msg))
 }
 
+/// Helper function to convert a 0-based position to a 1-based position.
+pub(crate) fn into_one_based_position(value: i32) -> Result<i32> {
+  value.checked_add(1).ok_or_else(|| {
+    HtsGetError::InvalidRange(format!("Could not convert {} to 1-based position.", value))
+  })
+}
+
 /// [SearchEof] handles data blocks that specify the end of the file for formats.
 ///
 /// [S] is the storage type.
@@ -370,6 +377,9 @@ where
     seq_start: Option<i32>,
     seq_end: Option<i32>,
   ) -> Result<Vec<BytesPosition>> {
+    let seq_start = seq_start.map(into_one_based_position).transpose()?;
+    let seq_end = seq_end.map(into_one_based_position).transpose()?;
+
     let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
     let seq_end = seq_end.unwrap_or_else(|| Self::max_seq_position(reference_sequence));
     let invalid_range = || HtsGetError::InvalidRange(format!("{}-{}", seq_start, seq_end));
@@ -482,15 +492,15 @@ where
 }
 
 impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
-SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
-  where
-    S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-    ReaderType: AsyncRead + Unpin + Send + Sync,
-    Reader: BlockPosition + Send + Sync,
-    Header: FromStr + Send,
-    ReferenceSequence: BinningIndexReferenceSequence + Sync,
-    Index: BinningIndex<ReferenceSequence> + Send + Sync,
-    T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+  SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
+where
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
+  Reader: BlockPosition + Send + Sync,
+  Header: FromStr + Send,
+  ReferenceSequence: BinningIndexReferenceSequence + Sync,
+  Index: BinningIndex<ReferenceSequence> + Send + Sync,
+  T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   fn get_eof_marker(&self) -> Option<DataBlock> {
     Some(DataBlock::Data(Vec::from(BGZF_EOF)))

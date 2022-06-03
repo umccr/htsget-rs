@@ -16,7 +16,7 @@ use noodles_cram::AsyncReader;
 use tokio::io::{AsyncRead, AsyncSeek};
 use tokio::{io, select};
 
-use crate::htsget::search::{Search, SearchAll, SearchEof, SearchReads};
+use crate::htsget::search::{into_one_based_position, Search, SearchAll, SearchEof, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
@@ -125,8 +125,15 @@ where
       query
         .start
         .map(|start| start as i32)
+        .map(into_one_based_position)
+        .transpose()?
         .unwrap_or(Self::MIN_SEQ_POSITION as i32)
-        ..query.end.map(|end| end as i32).unwrap_or(ref_seq.len()),
+        ..query
+          .end
+          .map(|end| end as i32)
+          .map(into_one_based_position)
+          .transpose()?
+          .unwrap_or(ref_seq.len()),
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )

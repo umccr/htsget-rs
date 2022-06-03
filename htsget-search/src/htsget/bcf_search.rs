@@ -6,20 +6,20 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::prelude::stream::FuturesUnordered;
-use noodles::{bgzf, csi};
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::Index;
 use noodles::csi::index::ReferenceSequence;
+use noodles::csi::Index;
 use noodles::vcf;
+use noodles::{bgzf, csi};
 use noodles_bcf as bcf;
 use tokio::io;
 use tokio::io::{AsyncRead, AsyncSeek};
 
+use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
-use crate::htsget::search::{BgzfSearch, BlockPosition, find_first, Search};
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -154,7 +154,7 @@ pub mod tests {
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::{Class, Class::Body, Headers, HtsGetError, Response, Url};
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -210,24 +210,6 @@ pub mod tests {
       println!("{:#?}", response);
 
       let expected_response = Ok(expected_bcf_response(filename));
-      assert_eq!(response, expected_response)
-    })
-    .await
-  }
-
-  #[tokio::test]
-  async fn search_reference_name_with_invalid_seq_range() {
-    with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage);
-      let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Bcf)
-        .with_reference_name("chrM")
-        .with_start(0)
-        .with_end(153);
-      let response = search.search(query).await;
-      println!("{:#?}", response);
-
-      let expected_response = Err(HtsGetError::InvalidRange("0-153".to_string()));
       assert_eq!(response, expected_response)
     })
     .await

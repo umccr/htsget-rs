@@ -3,26 +3,24 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use noodles::{bgzf, sam};
 use noodles::bam::bai;
-use noodles::bam::bai::Index;
 use noodles::bam::bai::index::ReferenceSequence;
+use noodles::bam::bai::Index;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
 use noodles::sam::Header;
+use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
-use crate::{
-  htsget::{Format, Query, Result},
-  htsget::search::BlockPosition,
-  storage::{BytesPosition, Storage},
-};
+use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt, BGZF_EOF};
 use crate::htsget::HtsGetError;
-use crate::htsget::search::{
-  BGZF_EOF, BgzfSearch, Search, SearchReads, VirtualPositionExt,
+use crate::{
+  htsget::search::BlockPosition,
+  htsget::{Format, Query, Result},
+  storage::{BytesPosition, Storage},
 };
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
