@@ -15,8 +15,11 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt};
+use crate::htsget::search::{
+  BgzfSearch, Search, SearchEof, SearchReads, VirtualPositionExt, BGZF_EOF,
+};
 use crate::htsget::HtsGetError;
+use crate::storage::DataBlock;
 use crate::{
   htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
@@ -44,6 +47,18 @@ where
 
   fn virtual_position(&self) -> VirtualPosition {
     self.virtual_position()
+  }
+}
+
+impl<S, ReaderType>
+  SearchEof<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+  for BamSearch<S>
+where
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+{
+  fn get_eof_marker(&self) -> Option<DataBlock> {
+    Some(DataBlock::Data(Vec::from(BGZF_EOF)))
   }
 }
 

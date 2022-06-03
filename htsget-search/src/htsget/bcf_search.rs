@@ -15,7 +15,8 @@ use noodles_bcf as bcf;
 use tokio::io;
 use tokio::io::{AsyncRead, AsyncSeek};
 
-use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
+use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search, SearchEof, BGZF_EOF};
+use crate::storage::DataBlock;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -42,6 +43,18 @@ where
 
   fn virtual_position(&self) -> VirtualPosition {
     self.virtual_position()
+  }
+}
+
+impl<S, ReaderType>
+  SearchEof<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+  for BcfSearch<S>
+where
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+{
+  fn get_eof_marker(&self) -> Option<DataBlock> {
+    Some(DataBlock::Data(Vec::from(BGZF_EOF)))
   }
 }
 

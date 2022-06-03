@@ -28,7 +28,7 @@ use crate::{
 };
 
 // § 4.1.2 End-of-file marker <https://samtools.github.io/hts-specs/SAMv1.pdf>.
-static BGZF_EOF: &[u8] = &[
+pub(crate) static BGZF_EOF: &[u8] = &[
   0x1f, 0x8b, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x06, 0x00, 0x42, 0x43, 0x02, 0x00,
   0x1b, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
@@ -53,6 +53,19 @@ pub(crate) async fn find_first<T>(
   result.ok_or_else(|| HtsGetError::not_found(msg))
 }
 
+/// [SearchEof] handles data blocks that specify the end of the file for formats.
+///
+/// [S] is the storage type.
+/// [ReaderType] is the inner type used for [Reader].
+/// [ReferenceSequence] is the reference sequence type of the format's index.
+/// [Index] is the format's index type.
+/// [Reader] is the format's reader type.
+/// [Header] is the format's header type.
+pub(crate) trait SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header> {
+  /// Get the eof marker for this format. Defaults to BGZF eof.
+  fn get_eof_marker(&self) -> Option<DataBlock>;
+}
+
 /// [SearchAll] represents searching bytes ranges that are applicable to all formats. Specifically,
 /// range for the whole file, and the header.
 ///
@@ -63,7 +76,8 @@ pub(crate) async fn find_first<T>(
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -77,9 +91,6 @@ where
 
   /// Returns the header bytes range.
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>>;
-
-  /// Get the eof marker for this format.
-  fn get_eof_marker(&self) -> Option<DataBlock>;
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -467,10 +478,6 @@ where
     Ok(vec![BytesPosition::default().with_start(0).with_end(
       virtual_position.bytes_range_end(&mut reader).await,
     )])
-  }
-
-  fn get_eof_marker(&self) -> Option<DataBlock> {
-    Some(DataBlock::Data(Vec::from(BGZF_EOF)))
   }
 }
 
