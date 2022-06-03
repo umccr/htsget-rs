@@ -11,8 +11,7 @@ use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::htsget::{Class, Headers, Url};
-
-use self::gds::GDSStorage;
+use reqwest;
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -53,42 +52,26 @@ pub trait UrlFormatter {
 pub enum StorageError {
   #[error("Invalid key: {0}")]
   InvalidKey(String),
-
   #[error("Key not found: {0}")]
   KeyNotFound(String),
-
   #[error("Io error: {0}")]
   IoError(#[from] io::Error),
-
   #[cfg(feature = "s3-storage")]
   #[error("Aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
-
   #[cfg(feature = "gds-storage")]
   #[error("GDS error: {0}")]
-  GDSError(#[from] ica_gds::apis::Error<GDSStorage>),
-
+  GDSError(#[from] ica_gds::util::GDSError),
   #[cfg(feature = "gds-storage")]
-  #[error("Url parsing error: {0}")]
-  UrlError(#[from] url::ParseError),
-
-  // #[cfg(feature = "gds-storage")]
-  // #[error("GDS ListFiles error: {0}")]
-  // GDSFilesError(#[from] ica_gds::apis::Error<ica_gds::apis::files_api::ListFilesError>),
-
-  // #[cfg(feature = "gds-storage")]
-  // #[error("GDS GetVolume error: {0}")]
-  // GDSVolumesError(#[from] ica_gds::apis::Error<ica_gds::apis::volumes_api::GetVolumeError>),
-
+  #[error("GDS request error: {0}")]
+  GDSRetrievalError(#[from] reqwest::Error),
+  #[cfg(feature = "gds-storage")]
   #[error("Url response ticket server error: {0}")]
   TicketServerError(String),
-
   #[error("Invalid input: {0}")]
   InvalidInput(String),
-
   #[error("Invalid uri: {0}")]
   InvalidUri(String),
-
   #[error("Invalid address: {0}")]
   InvalidAddress(AddrParseError),
 }

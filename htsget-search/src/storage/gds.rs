@@ -1,7 +1,8 @@
 use tracing::debug;
+use async_trait::async_trait;
 
 // GDS
-use ica_gds::util::{ setup_conf, get_presigned_url };
+use ica_gds::util::{ setup_conf, presigned_url };
 use ica_gds::apis::configuration::Configuration;
 
 // Streamable
@@ -9,15 +10,12 @@ use bytes::Bytes;
 use std::io::Cursor;
 use tokio::io::BufReader;
 
-use async_trait::async_trait;
-
-use htsget_config::regex_resolver::HtsGetIdResolver;
+// Htsget
+use crate::htsget::Url;
+//use htsget_config::regex_resolver::HtsGetIdResolver;
 use htsget_config::regex_resolver::RegexResolver;
 
-use crate::htsget::Url;
-use crate::storage::Storage;
-use crate::storage::{BytesRange, StorageError};
-
+use crate::storage::{Storage};
 use super::{GetOptions, Result, UrlOptions};
 
 /// Implementation for the [Storage] trait utilising data from an Illumina GDS storage server.
@@ -44,12 +42,12 @@ impl GDSStorage {
     )
   }
 
-  fn resolve_key<K: AsRef<str> + Send>(&self, key: &K) -> Result<String> {
-    self
-      .id_resolver
-      .resolve_id(key.as_ref())
-      .ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
-  }
+  // fn resolve_key<K: AsRef<str> + Send>(&self, key: &K) -> Result<String> {
+  //   self
+  //     .id_resolver
+  //     .resolve_id(key.as_ref())
+  //     .ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
+  // }
 
   // fn apply_range(builder: GetObject, range: BytesRange) -> GetObject {
   //   // let range: String = range.into();
@@ -61,11 +59,10 @@ impl GDSStorage {
   //   unimplemented!()
   // }
 
-  async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
-    // What about just getting the contents out of the already presigned URL? Via hyper/reqwest?
-    // let conf = self.new_with_default_config().await;
-    // get_presigned_url()
-    unimplemented!()
+  async fn get_content<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<Bytes> {
+    let conf = setup_conf().await;
+    let url = presigned_url(key.as_ref()).await?;
+    Ok(conf.client.get(url).send().await?.bytes().await?)
   }
 
   async fn create_buf_reader<K: AsRef<str> + Send>(
@@ -79,10 +76,6 @@ impl GDSStorage {
     Ok(reader)
   }
 }
-  // fn resolve_path<K: AsRef<str> + Send>(&self, key: K) -> Result<String> {
-  //   unimplemented!()
-  // }
-
 
 #[async_trait]
 impl Storage for GDSStorage {
@@ -97,10 +90,16 @@ impl Storage for GDSStorage {
     debug!(calling_from = ?self, key, "Getting file with key {:?}", key);
     self.create_buf_reader(key, options).await
   }
-  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
-    unimplemented!()
+  async fn url<K: AsRef<str> + Send>(&self, key: K, _options: UrlOptions) -> Result<Url> {
+    let key = key.as_ref();
+    let presigned = presigned_url(key).await?;
+    let htsget_url = Url::new(presigned);
+    Ok(htsget_url)
   }
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-    unimplemented!()
+    let conf = setup_conf().await;
+    let key = key.as_ref();
+    let presigned = presigned_url(key).await?;
+    Ok(conf.client.get(presigned).send().await?.content_length().unwrap())
   }
 }

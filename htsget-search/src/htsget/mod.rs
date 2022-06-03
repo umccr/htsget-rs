@@ -114,7 +114,7 @@ impl From<StorageError> for HtsGetError {
       #[cfg(feature = "gds-storage")]
       StorageError::GDSError { .. } => Self::IoError(format!("GDS error: {:?}", err)),
       #[cfg(feature = "gds-storage")]
-      StorageError::UrlError { .. } => Self::IoError(format!("Url parsing error: {:?}", err)),
+      StorageError::GDSRetrievalError { .. } => Self::IoError(format!("GDS retrieval error: {:?}", err)),
     }
   }
 }
