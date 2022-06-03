@@ -16,12 +16,31 @@ use noodles_cram::AsyncReader;
 use tokio::io::{AsyncRead, AsyncSeek};
 use tokio::{io, select};
 
-use crate::htsget::search::{Search, SearchAll, SearchReads};
+use crate::htsget::search::{into_one_based_position, Search, SearchAll, SearchEof, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
-use crate::storage::{BytesRange, Storage};
+use crate::storage::{BytesPosition, DataBlock, Storage};
+
+// § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
+static CRAM_EOF: &[u8] = &[
+  0x0f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x0f, 0xe0, 0x45, 0x4f, 0x46, 0x00, 0x00, 0x00,
+  0x00, 0x01, 0x00, 0x05, 0xbd, 0xd9, 0x4f, 0x00, 0x01, 0x00, 0x06, 0x06, 0x01, 0x00, 0x01, 0x00,
+  0x01, 0x00, 0xee, 0x63, 0x01, 0x4b,
+];
 
 pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
+}
+
+impl<S, ReaderType>
+  SearchEof<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
+where
+  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+{
+  fn get_eof_marker(&self) -> Option<DataBlock> {
+    Some(DataBlock::Data(Vec::from(CRAM_EOF)))
+  }
 }
 
 #[async_trait]
@@ -37,7 +56,7 @@ where
     id: String,
     format: Format,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       &id,
@@ -50,11 +69,11 @@ where
     .await
   }
 
-  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesRange>> {
+  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     let (mut reader, _) = self.create_reader(&query.id, &self.get_format()).await?;
-    Ok(vec![BytesRange::default()
-      .with_start(Self::FILE_DEFINITION_LENGTH)
-      .with_end(reader.position().await?)])
+    Ok(vec![
+      BytesPosition::default().with_end(reader.position().await?)
+    ])
   }
 }
 
@@ -78,7 +97,7 @@ where
     &self,
     query: &Query,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       &query.id,
@@ -97,7 +116,7 @@ where
     ref_seq_id: usize,
     query: Query,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       &query.id,
@@ -106,8 +125,15 @@ where
       query
         .start
         .map(|start| start as i32)
+        .map(into_one_based_position)
+        .transpose()?
         .unwrap_or(Self::MIN_SEQ_POSITION as i32)
-        ..query.end.map(|end| end as i32).unwrap_or(ref_seq.len()),
+        ..query
+          .end
+          .map(|end| end as i32)
+          .map(into_one_based_position)
+          .transpose()?
+          .unwrap_or(ref_seq.len()),
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )
@@ -141,7 +167,7 @@ where
     reference_name: String,
     index: &Index,
     query: Query,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     self
       .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
       .await
@@ -161,7 +187,6 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  const FILE_DEFINITION_LENGTH: u64 = 26;
   const EOF_CONTAINER_LENGTH: u64 = 38;
 
   pub fn new(storage: Arc<S>) -> Self {
@@ -177,7 +202,7 @@ where
     seq_range: Range<i32>,
     crai_index: &[Record],
     predicate: Arc<F>,
-  ) -> Result<Vec<BytesRange>>
+  ) -> Result<Vec<BytesPosition>>
   where
     F: Fn(&Record) -> bool + Send + Sync + 'static,
   {
@@ -221,13 +246,13 @@ where
         .map_err(|_| HtsGetError::io_error("Reading CRAM file size."))?;
       let eof_position = file_size - Self::EOF_CONTAINER_LENGTH;
       byte_ranges.push(
-        BytesRange::default()
+        BytesPosition::default()
           .with_start(last.offset())
           .with_end(eof_position),
       );
     }
 
-    Ok(BytesRange::merge_all(byte_ranges))
+    Ok(BytesPosition::merge_all(byte_ranges))
   }
 
   /// Gets bytes ranges for a specific index entry.
@@ -236,10 +261,10 @@ where
     seq_range: Range<i32>,
     record: &Record,
     next: &Record,
-  ) -> Option<BytesRange> {
+  ) -> Option<BytesPosition> {
     match ref_seq {
       None => Some(
-        BytesRange::default()
+        BytesPosition::default()
           .with_start(record.offset())
           .with_end(next.offset()),
       ),
@@ -250,7 +275,7 @@ where
           .unwrap_or_default() as i32;
         if seq_range.start <= start + record.alignment_span() as i32 && seq_range.end >= start {
           Some(
-            BytesRange::default()
+            BytesPosition::default()
               .with_start(record.offset())
               .with_end(next.offset()),
           )
@@ -267,8 +292,9 @@ pub mod tests {
   use std::future::Future;
 
   use htsget_config::regex_resolver::RegexResolver;
+  use htsget_test_utils::util::expected_cram_eof_data_url;
 
-  use crate::htsget::{Class, Headers, Response, Url};
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -284,8 +310,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=6087-1627755"))],
+        vec![
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-1627755")),
+          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -302,8 +331,13 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627755"))],
+        vec![
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-6086")),
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627755")),
+          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -320,8 +354,13 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=604231-1280105"))],
+        vec![
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-6086")),
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=604231-1280105")),
+          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -341,8 +380,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=6087-465708"))],
+        vec![
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-465708")),
+          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -362,8 +404,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=6087-604230"))],
+        vec![
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-604230")),
+          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -381,7 +426,7 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Cram,
         vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=26-6086"))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
           .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)

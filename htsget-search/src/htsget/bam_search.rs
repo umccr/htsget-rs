@@ -15,12 +15,12 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt};
+use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt, BGZF_EOF};
 use crate::htsget::HtsGetError;
 use crate::{
   htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
-  storage::{BytesRange, Storage},
+  storage::{BytesPosition, Storage},
 };
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
@@ -66,7 +66,7 @@ where
     id: &str,
     format: &Format,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     let last_interval = index
       .reference_sequences()
       .iter()
@@ -87,9 +87,9 @@ where
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
 
-    Ok(vec![BytesRange::default()
+    Ok(vec![BytesPosition::default()
       .with_start(start.bytes_range_start())
-      .with_end(file_size)])
+      .with_end(file_size - BGZF_EOF.len() as u64)])
   }
 }
 
@@ -121,7 +121,7 @@ where
     reference_name: String,
     index: &Index,
     query: Query,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     self
       .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
       .await
@@ -156,7 +156,7 @@ where
     &self,
     query: &Query,
     bai_index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     self
       .get_byte_ranges_for_unmapped(&query.id, &self.get_format(), bai_index)
       .await
@@ -168,7 +168,7 @@ where
     ref_seq_id: usize,
     query: Query,
     index: &Index,
-  ) -> Result<Vec<BytesRange>> {
+  ) -> Result<Vec<BytesPosition>> {
     let start = query.start.map(|start| start as i32);
     let end = query.end.map(|end| end as i32);
     self
@@ -192,8 +192,9 @@ pub mod tests {
   use std::future::Future;
 
   use htsget_config::regex_resolver::RegexResolver;
+  use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::{Class, Headers, Response, Url};
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -209,8 +210,11 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=4668-2596798"))],
+        vec![
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
+          Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -227,8 +231,13 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798"))],
+        vec![
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596770")),
+          Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -245,8 +254,13 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165"))],
+        vec![
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+          Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165")),
+          Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -268,11 +282,14 @@ pub mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+          Url::new(expected_url()).await
             .with_headers(Headers::default().with_header("Range", "bytes=256721-647345")),
           Url::new(expected_url()).await
             .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
           Url::new(expected_url()).await
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)

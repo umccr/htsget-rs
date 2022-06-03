@@ -104,13 +104,15 @@ impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
 
 #[cfg(test)]
 mod tests {
+  use htsget_test_utils::util::expected_bgzf_eof_data_url;
+
   use crate::htsget::bam_search::tests::{
     expected_url as bam_expected_url, with_local_storage as with_bam_local_storage,
   };
   use crate::htsget::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
-  use crate::htsget::{Headers, Url};
+  use crate::htsget::{Class::Body, Headers, Url};
 
   use super::*;
 
@@ -124,8 +126,11 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(bam_expected_url()).await
-          .with_headers(Headers::default().with_header("Range", "bytes=4668-2596798"))],
+        vec![
+          Url::new(bam_expected_url()).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
+          Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
@@ -143,8 +148,11 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(vcf_expected_url(filename)).await
-          .with_headers(Headers::default().with_header("Range", "bytes=0-822"))],
+        vec![
+          Url::new(vcf_expected_url(filename)).await
+            .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
+          Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
+        ],
       ));
       assert_eq!(response, expected_response)
     })

@@ -36,6 +36,7 @@ tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 htsget-config = { path = "../htsget-config", default-features = false }
 tracing = "0.1"
+base64 = "0.13"
 
 noodles = { version = "0.21", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 noodles-bam = { version = "0.17", features = ["async"] }
@@ -51,6 +52,7 @@ aws-config = { version = "0.9", optional = true }
 [dev-dependencies]
 htsget-test-utils = { path = "../htsget-test-utils", default-features = false }
 tempfile = "3.3"
+data-url = "0.1"
 
 # Aws S3 storage dependencies.
 anyhow = "1.0"

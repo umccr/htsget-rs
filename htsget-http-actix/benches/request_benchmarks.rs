@@ -1,17 +1,20 @@
-use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
-use htsget_http_core::{JsonResponse, PostRequest, Region};
-use htsget_test_utils::server_tests::{default_dir, default_test_config};
-use htsget_test_utils::util::generate_test_certificates;
-use reqwest::blocking::Client;
-use reqwest::blocking::ClientBuilder;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::thread::sleep;
 use std::{convert::TryInto, fs, time::Duration};
+
+use criterion::measurement::WallTime;
+use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use reqwest::blocking::Client;
+use reqwest::blocking::ClientBuilder;
+use reqwest::Result;
+use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
+
+use htsget_http_core::{JsonResponse, PostRequest, Region};
+use htsget_test_utils::server_tests::{default_dir, default_test_config};
+use htsget_test_utils::util::generate_test_certificates;
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
@@ -45,31 +48,33 @@ impl Drop for DropGuard {
   }
 }
 
-fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) -> usize {
+fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) -> Result<usize> {
   let response = client.post(url).json(json_content).send().unwrap();
   let response: JsonResponse = response.json().unwrap();
-  response
-    .htsget
-    .urls
-    .iter()
-    .map(|json_url| {
-      client
-        .get(&json_url.url)
-        .headers(
-          json_url
-            .headers
-            .as_ref()
-            .unwrap_or(&HashMap::default())
-            .try_into()
-            .unwrap(),
+  Ok(
+    response
+      .htsget
+      .urls
+      .iter()
+      .map(|json_url| {
+        Ok(
+          client
+            .get(&json_url.url)
+            .headers(
+              json_url
+                .headers
+                .as_ref()
+                .unwrap_or(&HashMap::default())
+                .try_into()
+                .unwrap(),
+            )
+            .send()?
+            .bytes()?
+            .len(),
         )
-        .send()
-        .unwrap()
-        .bytes()
-        .unwrap()
-        .len()
-    })
-    .sum()
+      })
+      .fold(0, |acc, x: Result<usize>| acc + x.unwrap_or(0)),
+  )
 }
 
 fn format_url(url: &str, path: &str) -> reqwest::Url {
