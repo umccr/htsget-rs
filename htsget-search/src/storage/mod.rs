@@ -610,26 +610,26 @@ mod tests {
     assert_eq!(result.class, Class::Header);
   }
 
-  #[test]
-  fn url_options_apply_with_bytes_range() {
+  #[tokio::test]
+  async fn url_options_apply_with_bytes_range() {
     let result = UrlOptions::default()
       .with_class(Class::Header)
       .with_range(BytesRange::new(Some(5), Some(10)))
-      .apply(Url::new(""));
+      .apply(Url::new("").await);
     println!("{:?}", result);
     assert_eq!(
       result,
-      Url::new("")
+      Url::new("").await
         .with_headers(Headers::new(HashMap::new()).with_header("Range", "bytes=5-10"))
         .with_class(Class::Header)
     );
   }
 
-  #[test]
-  fn url_options_apply_no_bytes_range() {
+  #[tokio::test]
+  async fn url_options_apply_no_bytes_range() {
     let result = UrlOptions::default()
       .with_class(Class::Header)
-      .apply(Url::new(""));
-    assert_eq!(result, Url::new("").with_class(Class::Header));
+      .apply(Url::new("").await);
+    assert_eq!(result, Url::new("").await.with_class(Class::Header));
   }
 }

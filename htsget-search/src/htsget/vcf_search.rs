@@ -176,7 +176,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
+        vec![Url::new(expected_url(filename)).await
           .with_headers(Headers::default().with_header("Range", "bytes=0-3366"))],
       ));
       assert_eq!(response, expected_response)
@@ -195,7 +195,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
+        vec![Url::new(expected_url(filename)).await
           .with_headers(Headers::default().with_header("Range", "bytes=0-822"))],
       ));
       assert_eq!(response, expected_response)
@@ -217,7 +217,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
+        vec![Url::new(expected_url(filename)).await
           .with_headers(Headers::default().with_header("Range", "bytes=0-3366"))],
       ));
       assert_eq!(response, expected_response)
@@ -254,7 +254,7 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
+        vec![Url::new(expected_url(filename)).await
           .with_headers(Headers::default().with_header("Range", "bytes=0-822"))
           .with_class(Class::Header)],
       ));

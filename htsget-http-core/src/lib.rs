@@ -130,7 +130,7 @@ mod tests {
     headers.insert("Range".to_string(), "bytes=4668-2596798".to_string());
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
-      Ok(example_bam_json_response(headers))
+      Ok(example_bam_json_response(headers).await)
     )
   }
 
@@ -156,7 +156,7 @@ mod tests {
     headers.insert("Range".to_string(), "bytes=0-3366".to_string());
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Variants).await,
-      Ok(example_vcf_json_response(headers))
+      Ok(example_vcf_json_response(headers).await)
     )
   }
 
@@ -180,7 +180,7 @@ mod tests {
         Endpoint::Reads
       )
       .await,
-      Ok(example_bam_json_response(headers))
+      Ok(example_bam_json_response(headers).await)
     )
   }
 
@@ -230,25 +230,25 @@ mod tests {
         Endpoint::Variants
       )
       .await,
-      Ok(example_vcf_json_response(headers))
+      Ok(example_vcf_json_response(headers).await)
     )
   }
 
-  fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
+  async fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
     JsonResponse::from_response(Response::new(
       Format::Vcf,
       vec![
-        Url::new("https://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
+        Url::new("https://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string()).await
           .with_headers(Headers::new(headers)),
       ],
     ))
   }
 
-  fn example_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
+  async fn example_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
     JsonResponse::from_response(Response::new(
       Format::Bam,
       vec![
-        Url::new("https://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
+        Url::new("https://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string()).await
           .with_headers(Headers::new(headers)),
       ],
     ))

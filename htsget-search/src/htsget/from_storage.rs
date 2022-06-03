@@ -124,7 +124,7 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(bam_expected_url())
+        vec![Url::new(bam_expected_url()).await
           .with_headers(Headers::default().with_header("Range", "bytes=4668-2596798"))],
       ));
       assert_eq!(response, expected_response)
@@ -143,7 +143,7 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(vcf_expected_url(filename))
+        vec![Url::new(vcf_expected_url(filename)).await
           .with_headers(Headers::default().with_header("Range", "bytes=0-822"))],
       ));
       assert_eq!(response, expected_response)

@@ -71,7 +71,7 @@ impl GDSStorage {
     Ok(reader)
   }
 
-  async fn gds_presign_url<K: AsRef<str> + Send>(self, key: K) -> Result<Url> {
+  async fn gds_presign_url<K: AsRef<str> + Send>(&self, key: K) -> Result<Url> {
     let resolved_key = self.resolve_key(&key).await?;
     let presigned = presigned_url(resolved_key.as_str());
     let htsget_url = Url::new(presigned.await?).await;

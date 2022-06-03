@@ -71,11 +71,11 @@ pub trait TestServer<T: TestRequest> {
 }
 
 /// Test response with with class.
-pub fn test_response(response: &Response, config: &Config, class: Class) {
+pub async fn test_response(response: &Response, config: &Config, class: Class) {
   let url_path = expected_local_storage_path(config);
   assert!(response.is_success());
   assert_eq!(
-    expected_response(class, url_path),
+    expected_response(class, url_path).await,
     response.deserialize_body().unwrap()
   );
 }
@@ -99,7 +99,7 @@ pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
     .method(Method::GET.to_string())
     .uri("/variants/vcf/sample1-bcbio-cancer");
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config(), Class::Body);
+  test_response(&response, tester.get_config(), Class::Body).await;
 }
 
 fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
@@ -117,7 +117,7 @@ fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
 pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = post_request(tester).set_payload("{}");
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config(), Class::Body);
+  test_response(&response, tester.get_config(), Class::Body).await;
 }
 
 /// A parameterized get test.
@@ -127,7 +127,7 @@ pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>)
     .method(Method::GET.to_string())
     .uri("/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header");
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config(), Class::Header);
+  test_response(&response, tester.get_config(), Class::Header).await;
 }
 
 /// A parameterized post test.
@@ -135,7 +135,7 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
   let request = post_request(tester)
     .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}");
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config(), Class::Body);
+  test_response(&response, tester.get_config(), Class::Body).await;
 }
 
 /// A parameterized post test with header as the class.
@@ -144,7 +144,7 @@ pub async fn test_parameterized_post_class_header<T: TestRequest>(tester: &impl 
     "{\"format\": \"VCF\", \"class\": \"header\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
   );
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config(), Class::Header);
+  test_response(&response, tester.get_config(), Class::Header).await;
 }
 
 /// A service info test.
@@ -162,13 +162,13 @@ fn expected_local_storage_path(config: &Config) -> String {
 }
 
 /// An example VCF search response.
-pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
+pub async fn expected_response(class: Class, url_path: String) -> JsonResponse {
   let mut headers = HashMap::new();
   headers.insert("Range".to_string(), "bytes=0-3366".to_string());
   JsonResponse::from_response(HtsgetResponse::new(
     Format::Vcf,
     vec![
-      Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path))
+      Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path)).await
         .with_headers(Headers::new(headers))
         .with_class(class),
     ],

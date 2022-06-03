@@ -514,30 +514,30 @@ mod tests {
     assert_eq!(result, Some(&"bytes=0-1023".to_string()));
   }
 
-  #[test]
-  fn url_with_headers() {
-    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
+  #[tokio::test]
+  async fn url_with_headers() {
+    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").await
       .with_headers(Headers::new(HashMap::new()));
     assert_eq!(result.headers, None);
   }
 
-  #[test]
-  fn url_with_class() {
+  #[tokio::test]
+  async fn url_with_class() {
     let result =
-      Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").with_class(Class::Header);
+      Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").await.with_class(Class::Header);
     assert_eq!(result.class, Class::Header);
   }
 
-  #[test]
-  fn response_new() {
+  #[tokio::test]
+  async fn response_new() {
     let result = Response::new(
       Format::Bam,
-      vec![Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")],
+      vec![Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").await],
     );
     assert_eq!(result.format, Format::Bam);
     assert_eq!(
       result.urls,
-      vec![Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")]
+      vec![Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").await]
     );
   }
 }
