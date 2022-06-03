@@ -304,7 +304,7 @@ where
         DataBlock::Data(data) => {
           let class_copy = class.clone();
           storage_futures.push(tokio::spawn(
-            async move { Ok(S::data_url(data, class_copy)) },
+            async move { Ok(S::data_url(data, class_copy).await) },
           ));
         }
       }

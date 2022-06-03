@@ -14,8 +14,8 @@ use tokio::io::BufReader;
 use crate::htsget::Url;
 use htsget_config::regex_resolver::{RegexResolver, HtsGetIdResolver};
 
-use super::{GetOptions, Result, UrlOptions};
-use crate::storage::{Storage, StorageError};
+use super::{GetOptions, Result};
+use crate::storage::{Storage, RangeUrlOptions, StorageError};
 
 /// Implementation for the [Storage] trait utilising data from an Illumina GDS storage server.
 #[derive(Debug, Clone)]
@@ -92,7 +92,7 @@ impl Storage for GDSStorage {
     debug!(calling_from = ?self, key, "Getting file with key {:?}", key);
     self.create_buf_reader(key, options).await
   }
-  async fn url<K: AsRef<str> + Send>(&self, key: K, _options: UrlOptions) -> Result<Url> {
+  async fn range_url<K: AsRef<str> + Send>(&self, key: K, _options: RangeUrlOptions) -> Result<Url> {
     let foo = key.as_ref().to_owned();
     self.gds_presign_url(foo).await
   }

@@ -175,7 +175,7 @@ pub async fn expected_response(class: Class, url_path: String) -> JsonResponse {
     Class::Header => vec![http_url],
     Class::Body => vec![
       http_url,
-      Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+      Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
     ],
   };
 

@@ -289,7 +289,7 @@ pub mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
           Url::new(expected_url()).await
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)

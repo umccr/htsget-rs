@@ -44,8 +44,8 @@ pub trait Storage {
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
 
   /// Get the url of the object using an inline data uri.
-  fn data_url(data: Vec<u8>, class: Class) -> Url {
-    Url::new(format!("data:;base64,{}", encode(data))).with_class(class)
+  async fn data_url(data: Vec<u8>, class: Class) -> Url {
+    Url::new(format!("data:;base64,{}", encode(data))).await.with_class(class)
   }
 }
 
@@ -601,10 +601,11 @@ mod tests {
     assert_eq!(BytesPosition::merge_all(ranges), expected_ranges);
   }
 
-  #[test]
-  fn data_url() {
+  #[tokio::test]
+  async fn data_url() {
     let result = LocalStorage::<HttpsFormatter>::data_url(b"Hello World!".to_vec(), Class::Header);
-    let url = data_url::DataUrl::process(&result.url);
+    let url = &result.await.url;
+    let url = data_url::DataUrl::process(url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
   }

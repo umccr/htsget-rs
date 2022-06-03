@@ -241,7 +241,7 @@ mod tests {
       vec![
         Url::new("https://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string()).await
           .with_headers(Headers::new(headers)),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
       ],
     ))
   }
@@ -252,7 +252,7 @@ mod tests {
       vec![
         Url::new("https://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string()).await
           .with_headers(Headers::new(headers)),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
       ],
     ))
   }

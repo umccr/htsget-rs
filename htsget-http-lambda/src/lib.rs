@@ -539,7 +539,7 @@ mod tests {
     with_router(
       |router| async move {
         let response = route_request_to_response(get_request_from_file(file_path), router).await;
-        test_response(&response, config, class);
+        test_response(&response, config, class).await;
       },
       config,
     )
