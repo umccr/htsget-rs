@@ -1,3 +1,5 @@
+//! Module providing an implementation for the [Storage] trait using Illumina's ICA GDS object storage service.
+
 use async_trait::async_trait;
 use tracing::debug;
 
@@ -17,11 +19,11 @@ use htsget_config::regex_resolver::{RegexResolver, HtsGetIdResolver};
 use super::{GetOptions, Result};
 use crate::storage::{Storage, RangeUrlOptions, StorageError};
 
-/// Implementation for the [Storage] trait utilising data from an Illumina GDS storage server.
+/// Implementation for the [Storage] trait utilising data from an Illumina ICA GDS storage server.
 #[derive(Debug, Clone)]
 pub struct GDSStorage {
   client: Configuration,
-  volume: String, // TODO: Perhaps a Cargo feature instead? Would it make sense to target both versions from a single htsget server?
+  volume: String,
   id_resolver: RegexResolver,
 }
 
@@ -93,8 +95,8 @@ impl Storage for GDSStorage {
     self.create_buf_reader(key, options).await
   }
   async fn range_url<K: AsRef<str> + Send>(&self, key: K, _options: RangeUrlOptions) -> Result<Url> {
-    let foo = key.as_ref().to_owned();
-    self.gds_presign_url(foo).await
+    let key = key.as_ref().to_owned();
+    self.gds_presign_url(key).await
   }
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let conf = setup_conf().await;

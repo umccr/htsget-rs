@@ -63,7 +63,7 @@ aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
 # Axum server dependencies
 hyper-tls = "0.5"
 
-criterion = { version = "0.3", features = ["async_tokio"] }
+criterion = { version = "0.3", features = ["async_tokio", "html_reports"] }
 
 [[bench]]
 name = "search-benchmarks"
