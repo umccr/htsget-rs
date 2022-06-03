@@ -170,8 +170,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bcf,
-        vec![Url::new(expected_url(storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3530"))],
+        vec![Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3529"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -189,8 +189,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bcf,
-        vec![Url::new(expected_url(storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-950"))],
+        vec![Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-949"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -211,8 +211,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bcf,
-        vec![Url::new(expected_url(storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3530"))],
+        vec![Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3529"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -248,8 +248,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bcf,
-        vec![Url::new(expected_url(storage, filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-950"))
+        vec![Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-949"))
           .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)
@@ -278,13 +278,7 @@ pub mod tests {
     .await
   }
 
-  pub(crate) fn expected_url(storage: Arc<LocalStorage<HttpsFormatter>>, name: &str) -> String {
-    format!(
-      "https://127.0.0.1:8081{}",
-      storage
-        .base_path()
-        .join(format!("{}.bcf", name))
-        .to_string_lossy()
-    )
+  pub(crate) fn expected_url(name: &str) -> String {
+    format!("https://127.0.0.1:8081/data/{}.bcf", name)
   }
 }

@@ -45,7 +45,7 @@ pub trait Storage {
 /// Formats a url for use with storage.
 pub trait UrlFormatter {
   /// Returns the url with the path.
-  fn format_url(&self, path: String) -> Result<String>;
+  fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String>;
 }
 
 #[derive(Error, Debug)]
@@ -54,8 +54,8 @@ pub enum StorageError {
   InvalidKey(String),
   #[error("Key not found: {0}")]
   KeyNotFound(String),
-  #[error("Io error: {0}")]
-  IoError(#[from] io::Error),
+  #[error("Io error: {0} {1}")]
+  IoError(String, io::Error),
   #[cfg(feature = "s3-storage")]
   #[error("Aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
@@ -74,11 +74,17 @@ pub enum StorageError {
   InvalidUri(String),
   #[error("Invalid address: {0}")]
   InvalidAddress(AddrParseError),
+
+  #[error("Internal error: {0}")]
+  InternalError(String),
 }
 
 impl From<StorageError> for io::Error {
   fn from(err: StorageError) -> Self {
-    Self::new(ErrorKind::Other, err)
+    match err {
+      StorageError::IoError(_, ref io_error) => Self::new(io_error.kind(), err),
+      err => Self::new(ErrorKind::Other, err),
+    }
   }
 }
 
@@ -126,6 +132,12 @@ impl BytesRange {
     self
   }
 
+  /// Convert an ending byte position (exclusive) to a ending byte range (inclusive).
+  /// Byte ranges are inclusive, e.g. 0-499 represents the first 500 bytes.
+  pub fn with_end_from_pos(self, pos: u64) -> Self {
+    self.with_end(pos - 1)
+  }
+
   pub fn get_start(&self) -> Option<u64> {
     self.start
   }
@@ -158,6 +170,7 @@ impl BytesRange {
     self
   }
 
+  /// Merge ranges, assuming ending byte ranges are exclusive.
   pub fn merge_all(mut ranges: Vec<BytesRange>) -> Vec<BytesRange> {
     if ranges.len() < 2 {
       ranges
@@ -183,7 +196,7 @@ impl BytesRange {
         if current_range.overlaps(range) {
           current_range.merge_with(range);
         } else {
-          optimized_ranges.push(current_range.clone());
+          optimized_ranges.push(current_range);
           current_range = range.clone();
         }
       }
@@ -192,6 +205,16 @@ impl BytesRange {
 
       optimized_ranges
     }
+  }
+
+  pub fn merge_all_from_pos(ranges: Vec<BytesRange>) -> Vec<BytesRange> {
+    ranges
+      .into_iter()
+      .map(|range| match range.end {
+        None => range,
+        Some(pos) => range.with_end_from_pos(pos),
+      })
+      .collect()
   }
 }
 
@@ -549,6 +572,13 @@ mod tests {
     ];
 
     assert_eq!(BytesRange::merge_all(ranges), expected_ranges);
+  }
+
+  #[test]
+  fn byte_ranges_with_end_pos() {
+    let result = BytesRange::default().with_start(5).with_end_from_pos(10);
+    let expected = BytesRange::new(Some(5), Some(9));
+    assert_eq!(result, expected);
   }
 
   #[test]

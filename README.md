@@ -4,10 +4,13 @@
 
 # htsget-rs
 
-A 100% Rust implementation of the [htsget protocol][htsget-spec].
+A Rust **server** implementation of the [htsget protocol][htsget-spec].
 
 ## Quickstart
 
+Htsget-rs is ready hit the ground running locally or deployed to commercial cloud providers such as Amazon Web Services.
+
+### Local
 Instantiating a demo htsget-rs server is as simple as running:
 
 ```
@@ -15,6 +18,10 @@ $ cargo run -p htsget-http-actix
 ```
 
 Then the server is ready to listen to your requests on port 8080, please refer to the [htsget-http-actix crate README.md for furhter details][htsget-http-actix-readme].
+
+### Cŀoud
+
+To deploy to an AWS account, please refer to the `deploy/README.md` for further instructions.
 
 ## Intro
 
@@ -28,7 +35,7 @@ Our Rust implementation distinguishes itself from others in the following ways:
 |---	    	  |---      | ---                |  ---	 |  ---	  | --- |	---             |   ---   |
 | maintained[1]   | ❌      | ❌ 	                | ✅    |  ❌    | ✅  |  ✅                |   ✅    |
 | local           | ✅      | ❌ 	                | ✅	   |  ✅	   | ✅ |   ✅                |   ✅    |
-| serverless      | ❌      | ❌	                | ❌    |  ❌    | ❌ |   [🚧][aws-fixing]  |   ❌    |
+| serverless      | ❌      | ❌	                | ❌    |  ❌    | ❌ |     ✅|   ❌    |
 | BAM             | ✅      | ✅ 	                | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | CRAM            | ✅	   | ❌ 	                | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
 | VCF             | ✅	   | [❌][google-novcf]  | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
@@ -36,6 +43,7 @@ Our Rust implementation distinguishes itself from others in the following ways:
 | storage[2]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
 | [safe][safe-unsafe] | ❌  | ❌                  | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
 | benchmarks      |  ❌     | ❌                  | ❌    |  ❌    | ❌ |  ✅ |   ❌    |
+| testsuite         |  ❌     | ❌                  | ✅    |   ✅    |  ✅ |   ✅    |    ✅    |
 | language        | C++     | Go                 | Go    |  Perl  | Python |  Rust          | Python  |
 
 Hover over some of the tick marks for a reference of the issues 👆 Regarding some of the criteria annotations in the table:

@@ -9,6 +9,7 @@ use htsget_search::storage::axum_server::HttpsFormatter;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+  tracing_subscriber::fmt::init();
   if args().len() > 1 {
     // Show help if command line options are provided
     println!("{}", USAGE);
@@ -25,7 +26,7 @@ async fn main() -> std::io::Result<()> {
 }
 
 async fn local_storage_server(config: Config) -> std::io::Result<()> {
-  let formatter = HttpsFormatter::from(config.addr);
+  let formatter = HttpsFormatter::from(config.ticket_server_addr);
   let mut local_server = formatter.bind_axum_server().await?;
 
   let searcher = HtsGetFromStorage::local_from(

@@ -284,8 +284,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=6087-1627756"))],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=6087-1627755"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -302,8 +302,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627756"))],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627755"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -320,8 +320,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=604231-1280106"))],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=604231-1280105"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -341,8 +341,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=6087-465709"))],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=6087-465708"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -362,8 +362,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=6087-604231"))],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=6087-604230"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -380,8 +380,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url(storage))
-          .with_headers(Headers::default().with_header("Range", "bytes=26-6087"))
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=26-6086"))
           .with_class(Class::Header)],
       ));
       assert_eq!(response, expected_response)
@@ -410,13 +410,7 @@ pub mod tests {
     .await
   }
 
-  pub(crate) fn expected_url(storage: Arc<LocalStorage<HttpsFormatter>>) -> String {
-    format!(
-      "https://127.0.0.1:8081{}",
-      storage
-        .base_path()
-        .join("htsnexus_test_NA12878.cram")
-        .to_string_lossy()
-    )
+  pub(crate) fn expected_url() -> String {
+    "https://127.0.0.1:8081/data/htsnexus_test_NA12878.cram".to_string()
   }
 }

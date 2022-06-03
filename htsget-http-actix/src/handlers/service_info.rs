@@ -1,5 +1,6 @@
 use actix_web::web::Data;
 use actix_web::Responder;
+use tracing::info;
 
 use htsget_http_core::get_service_info_json as get_base_service_info_json;
 use htsget_http_core::Endpoint;
@@ -13,6 +14,7 @@ pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
   app_state: &AppState<H>,
   endpoint: Endpoint,
 ) -> impl Responder {
+  info!(endpoint = ?endpoint, "Service info request");
   PrettyJson(get_base_service_info_json(
     endpoint,
     app_state.htsget.clone(),

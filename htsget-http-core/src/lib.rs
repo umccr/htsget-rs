@@ -127,20 +127,10 @@ mod tests {
     let mut request = HashMap::new();
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=4668-2596799".to_string());
+    headers.insert("Range".to_string(), "bytes=4668-2596798".to_string());
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
-      Ok(JsonResponse::from_response(Response::new(
-        Format::Bam,
-        vec![Url::new(format!(
-          "https://127.0.0.1:8081{}",
-          get_base_path()
-            .join("bam")
-            .join("htsnexus_test_NA12878.bam")
-            .to_string_lossy()
-        ))
-        .with_headers(Headers::new(headers))]
-      )))
+      Ok(example_bam_json_response(headers))
     )
   }
 
@@ -163,20 +153,10 @@ mod tests {
     request.insert("start".to_string(), "149".to_string());
     request.insert("end".to_string(), "200".to_string());
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3367".to_string());
+    headers.insert("Range".to_string(), "bytes=0-3366".to_string());
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Variants).await,
-      Ok(JsonResponse::from_response(Response::new(
-        Format::Vcf,
-        vec![Url::new(format!(
-          "https://127.0.0.1:8081{}",
-          get_base_path()
-            .join("vcf")
-            .join("sample1-bcbio-cancer.vcf.gz")
-            .to_string_lossy()
-        ))
-        .with_headers(Headers::new(headers))]
-      )))
+      Ok(example_vcf_json_response(headers))
     )
   }
 
@@ -191,7 +171,7 @@ mod tests {
       regions: None,
     };
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=4668-2596799".to_string());
+    headers.insert("Range".to_string(), "bytes=4668-2596798".to_string());
     assert_eq!(
       get_response_for_post_request(
         get_searcher(),
@@ -200,17 +180,7 @@ mod tests {
         Endpoint::Reads
       )
       .await,
-      Ok(JsonResponse::from_response(Response::new(
-        Format::Bam,
-        vec![Url::new(format!(
-          "https://127.0.0.1:8081{}",
-          get_base_path()
-            .join("bam")
-            .join("htsnexus_test_NA12878.bam")
-            .to_string_lossy()
-        ))
-        .with_headers(Headers::new(headers))]
-      )))
+      Ok(example_bam_json_response(headers))
     )
   }
 
@@ -251,7 +221,7 @@ mod tests {
       }]),
     };
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3367".to_string());
+    headers.insert("Range".to_string(), "bytes=0-3366".to_string());
     assert_eq!(
       get_response_for_post_request(
         get_searcher(),
@@ -260,18 +230,28 @@ mod tests {
         Endpoint::Variants
       )
       .await,
-      Ok(JsonResponse::from_response(Response::new(
-        Format::Vcf,
-        vec![Url::new(format!(
-          "https://127.0.0.1:8081{}",
-          get_base_path()
-            .join("vcf")
-            .join("sample1-bcbio-cancer.vcf.gz")
-            .to_string_lossy()
-        ))
-        .with_headers(Headers::new(headers))]
-      )))
+      Ok(example_vcf_json_response(headers))
     )
+  }
+
+  fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
+    JsonResponse::from_response(Response::new(
+      Format::Vcf,
+      vec![
+        Url::new("https://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
+          .with_headers(Headers::new(headers)),
+      ],
+    ))
+  }
+
+  fn example_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
+    JsonResponse::from_response(Response::new(
+      Format::Bam,
+      vec![
+        Url::new("https://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
+          .with_headers(Headers::new(headers)),
+      ],
+    ))
   }
 
   fn get_base_path() -> PathBuf {
@@ -285,7 +265,7 @@ mod tests {
   fn get_searcher() -> Arc<impl HtsGet> {
     Arc::new(HtsGetFromStorage::new(
       LocalStorage::new(
-        "../data",
+        get_base_path(),
         RegexResolver::new(".*", "$0").unwrap(),
         HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
       )

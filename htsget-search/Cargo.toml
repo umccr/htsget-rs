@@ -6,7 +6,7 @@ edition = "2021"
 
 [features]
 default = ["s3-storage", "gds-storage"]
-s3-storage = ["bytes", "aws-sdk-s3", "aws-config"]
+s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test-utils/s3-storage"]
 gds-storage = ["ica-gds", "dirs", "url", "reqwest", "serde", "serde_yaml"]
 
 [dependencies]
@@ -21,6 +21,7 @@ reqwest = { version = "0.11", optional = true }
 
 # Axum server dependencies.
 hyper = "0.14"
+tower-http = { version = "0.3", features = ["trace"] }
 axum = "0.5.1"
 axum-extra = { version = "0.2.1", features = ["spa"] }
 rustls-pemfile = "0.3"
@@ -33,7 +34,7 @@ thiserror = "1.0"
 tokio = { version = "1.17", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
-htsget-config = { path = "../htsget-config" }
+htsget-config = { path = "../htsget-config", default-features = false }
 tracing = "0.1"
 
 noodles = { version = "0.21", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
@@ -48,6 +49,7 @@ aws-sdk-s3 = { version = "0.9", optional = true }
 aws-config = { version = "0.9", optional = true }
 
 [dev-dependencies]
+htsget-test-utils = { path = "../htsget-test-utils", default-features = false }
 tempfile = "3.3"
 
 # Aws S3 storage dependencies.
@@ -57,5 +59,11 @@ http = "0.2"
 aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies
-rcgen = "0.9"
 hyper-tls = "0.5"
+
+criterion = { version = "0.3", features = ["async_tokio"] }
+
+[[bench]]
+name = "search-benchmarks"
+harness = false
+path = "benches/search_benchmarks.rs"

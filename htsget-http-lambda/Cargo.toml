@@ -5,17 +5,17 @@ authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 
 [features]
-s3-storage = []
-default = ["s3-storage", "htsget-search/default", "htsget-http-core/default", "htsget-config/default"]
+s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http-core/s3-storage", "htsget-test-utils/s3-storage"]
+default = ["s3-storage"]
 
 [dependencies]
 envy = "0.4"
 tokio = "1.18"
 lambda_http = { version = "0.5" }
 lambda_runtime = { version = "0.5" }
-htsget-config = { path = "../htsget-config" }
-htsget-search = { path = "../htsget-search" }
-htsget-http-core = { path = "../htsget-http-core" }
+htsget-config = { path = "../htsget-config", default-features = false }
+htsget-search = { path = "../htsget-search", default-features = false }
+htsget-http-core = { path = "../htsget-http-core", default-features = false }
 serde = { version = "1.0" }
 serde_json = "1.0"
 mime = "0.3"
@@ -25,12 +25,6 @@ tracing-subscriber = "0.3"
 bytes = "1.1"
 
 [dev-dependencies]
-htsget-test-utils = { path = "../htsget-test-utils" }
+htsget-test-utils = { path = "../htsget-test-utils", features = ["server-tests"], default-features = false }
 async-trait = "0.1"
 query_map = { version = "0.5", features = ["url-query"] }
-
-# For testing locally with cargo lambda.
-[package.metadata.lambda.env]
-RUST_LOG = "info,htsget_http_lambda=debug,htsget_config=debug,htsget_http_core=debug,htsget_search=debug"
-HTSGET_PATH = "data/"
-HTSGET_STORAGE_TYPE = "LocalStorage"

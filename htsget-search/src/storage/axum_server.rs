@@ -23,9 +23,9 @@ use tokio::net::TcpListener;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
-use tracing::debug;
+use tower_http::trace::TraceLayer;
 
-use crate::storage::StorageError::TicketServerError;
+use crate::storage::StorageError::{IoError, TicketServerError};
 use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
@@ -37,6 +37,8 @@ pub struct HttpsFormatter {
 }
 
 impl HttpsFormatter {
+  const SERVE_ASSETS_AT: &'static str = "/data";
+
   pub fn new(ip: impl Into<String>, port: impl Into<String>) -> Result<Self> {
     Ok(Self {
       addr: SocketAddr::from_str(&format!("{}:{}", ip.into(), port.into()))?,
@@ -45,7 +47,7 @@ impl HttpsFormatter {
 
   /// Eagerly bind the address by returing an AxumStorageServer.
   pub async fn bind_axum_server(&self) -> Result<AxumStorageServer> {
-    AxumStorageServer::bind_addr(&self.addr).await
+    AxumStorageServer::bind_addr(&self.addr, Self::SERVE_ASSETS_AT).await
   }
 }
 
@@ -65,22 +67,27 @@ impl From<SocketAddr> for HttpsFormatter {
 #[derive(Debug)]
 pub struct AxumStorageServer {
   listener: AddrIncoming,
+  serve_assets_at: String,
 }
 
 impl AxumStorageServer {
-  const SERVE_ASSETS_AT: &'static str = "/data";
-
   /// Eagerly bind the the address for use with the server, returning any errors.
-  pub async fn bind_addr(addr: &SocketAddr) -> Result<Self> {
-    let listener = TcpListener::bind(addr).await?;
+  pub async fn bind_addr(addr: &SocketAddr, serve_assets_at: impl Into<String>) -> Result<Self> {
+    let listener = TcpListener::bind(addr)
+      .await
+      .map_err(|err| IoError("Failed to bind ticket server addr".to_string(), err))?;
     let listener = AddrIncoming::from_listener(listener)?;
-    Ok(Self { listener })
+    Ok(Self {
+      serve_assets_at: serve_assets_at.into(),
+      listener,
+    })
   }
 
   /// Run the actual server, using the provided path, key and certificate.
   pub async fn serve<P: AsRef<Path>>(&mut self, path: P, key: P, cert: P) -> Result<()> {
     let mut app = Router::new()
-      .merge(SpaRouter::new(Self::SERVE_ASSETS_AT, path))
+      .layer(TraceLayer::new_for_http())
+      .merge(SpaRouter::new(&self.serve_assets_at, path))
       .into_make_service_with_connect_info::<SocketAddr>();
 
     let rustls_config = Self::rustls_server_config(key, cert)?;
@@ -89,11 +96,10 @@ impl AxumStorageServer {
     loop {
       let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
         .await
-        .ok_or_else(|| TicketServerError("Poll accept failed.".to_string()))?
+        .ok_or_else(|| TicketServerError("Poll accept failed".to_string()))?
         .map_err(|err| TicketServerError(err.to_string()))?;
       let acceptor = acceptor.clone();
 
-      debug!(from = ?stream.remote_addr(), "Incoming request from {:?}", stream.remote_addr());
       let app = app
         .make_service(&stream)
         .await
@@ -108,11 +114,20 @@ impl AxumStorageServer {
   }
 
   fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
-    let mut key_reader = BufReader::new(File::open(key)?);
-    let mut cert_reader = BufReader::new(File::open(cert)?);
+    let mut key_reader = BufReader::new(
+      File::open(key).map_err(|err| IoError("Failed to open key file".to_string(), err))?,
+    );
+    let mut cert_reader = BufReader::new(
+      File::open(cert).map_err(|err| IoError("Failed to open cert file".to_string(), err))?,
+    );
 
-    let key = PrivateKey(pkcs8_private_keys(&mut key_reader)?.remove(0));
-    let certs = certs(&mut cert_reader)?
+    let key = PrivateKey(
+      pkcs8_private_keys(&mut key_reader)
+        .map_err(|err| IoError("Failed to read private keys".to_string(), err))?
+        .remove(0),
+    );
+    let certs = certs(&mut cert_reader)
+      .map_err(|err| IoError("Failed to read certificate".to_string(), err))?
       .into_iter()
       .map(Certificate)
       .collect();
@@ -136,11 +151,11 @@ impl From<hyper::Error> for StorageError {
 }
 
 impl UrlFormatter for HttpsFormatter {
-  fn format_url(&self, path: String) -> Result<String> {
+  fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     http::uri::Builder::new()
       .scheme(http::uri::Scheme::HTTPS)
       .authority(self.addr.to_string())
-      .path_and_query(path)
+      .path_and_query(format!("{}/{}", Self::SERVE_ASSETS_AT, key.as_ref()))
       .build()
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
       .map(|value| value.to_string())
@@ -149,15 +164,14 @@ impl UrlFormatter for HttpsFormatter {
 
 #[cfg(test)]
 mod tests {
-  use std::fs;
   use std::io::Read;
 
+  use htsget_test_utils::util::generate_test_certificates;
   use http::{Method, Request};
   use hyper::client::HttpConnector;
   use hyper::{Body, Client};
   use hyper_tls::native_tls::TlsConnector;
   use hyper_tls::HttpsConnector;
-  use rcgen::generate_simple_self_signed;
 
   use crate::storage::local::tests::create_local_test_files;
 
@@ -166,13 +180,9 @@ mod tests {
   #[tokio::test]
   async fn test_server() {
     let (_, base_path) = create_local_test_files().await;
-    let key_path = base_path.path().join("key.pem");
-    let cert_path = base_path.path().join("cert.pem");
 
     // Generate self-signed certificate.
-    let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
-    fs::write(key_path.clone(), cert.serialize_private_key_pem()).unwrap();
-    fs::write(cert_path.clone(), cert.serialize_pem().unwrap()).unwrap();
+    let (key_path, cert_path) = generate_test_certificates(base_path.path(), "key.pem", "cert.pem");
 
     // Read certificate.
     let mut buf = vec![];
@@ -193,7 +203,7 @@ mod tests {
 
     // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
-    let mut server = AxumStorageServer::bind_addr(&addr).await.unwrap();
+    let mut server = AxumStorageServer::bind_addr(&addr, "/data").await.unwrap();
     tokio::spawn(async move {
       server
         .serve(base_path.path(), &key_path, &cert_path)
@@ -220,8 +230,11 @@ mod tests {
   fn https_formatter_format_authority() {
     let formatter = HttpsFormatter::new("127.0.0.1", "8080").unwrap();
     assert_eq!(
-      formatter.format_url("/path".to_string()).unwrap(),
-      "https://127.0.0.1:8080/path"
+      formatter.format_url("path").unwrap(),
+      format!(
+        "https://127.0.0.1:8080{}/path",
+        HttpsFormatter::SERVE_ASSETS_AT
+      )
     )
   }
 }
