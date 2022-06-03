@@ -13,7 +13,7 @@ use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 use crate::htsget::Url;
 use crate::storage::{Storage, UrlFormatter};
 
-use super::{GetOptions, Result, StorageError, UrlOptions};
+use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
 /// Implementation for the [Storage] trait using the local file system. [T] is the type of the
 /// server struct, which is used for formatting urls.
@@ -94,7 +94,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   }
 
   /// Get a url for the file at key.
-  async fn url<K: AsRef<str> + Send>(&self, key: K, options: UrlOptions) -> Result<Url> {
+  async fn range_url<K: AsRef<str> + Send>(&self, key: K, options: RangeUrlOptions) -> Result<Url> {
     let path = self.get_path_from_key(&key)?;
     let path = path
       .strip_prefix(&self.base_path)
@@ -129,7 +129,7 @@ pub(crate) mod tests {
 
   use crate::htsget::{Headers, Url};
   use crate::storage::axum_server::HttpsFormatter;
-  use crate::storage::{BytesRange, GetOptions, StorageError, UrlOptions};
+  use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
 
   use super::*;
 
@@ -174,7 +174,8 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::url(&storage, "non-existing-key", UrlOptions::default()).await;
+      let result =
+        Storage::range_url(&storage, "non-existing-key", RangeUrlOptions::default()).await;
       assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -183,7 +184,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_folder() {
     with_local_storage(|storage| async move {
-      let result = Storage::url(&storage, "folder", UrlOptions::default()).await;
+      let result = Storage::range_url(&storage, "folder", RangeUrlOptions::default()).await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -192,7 +193,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_with_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result = Storage::url(&storage, "folder/../../passwords", UrlOptions::default()).await;
+      let result = Storage::range_url(
+        &storage,
+        "folder/../../passwords",
+        RangeUrlOptions::default(),
+      )
+      .await;
       assert!(
         matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
@@ -203,7 +209,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::url(&storage, "folder/../key1", UrlOptions::default()).await;
+      let result = Storage::range_url(&storage, "folder/../key1", RangeUrlOptions::default()).await;
       let expected = Url::new("https://127.0.0.1:8081/data/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -213,10 +219,10 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key_with_specified_range() {
     with_local_storage(|storage| async move {
-      let result = Storage::url(
+      let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        UrlOptions::default().with_range(BytesRange::new(Some(7), Some(9))),
+        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10))),
       )
       .await;
       let expected = Url::new("https://127.0.0.1:8081/data/key1")
@@ -229,10 +235,10 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key_with_specified_open_ended_range() {
     with_local_storage(|storage| async move {
-      let result = Storage::url(
+      let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        UrlOptions::default().with_range(BytesRange::new(Some(7), None)),
+        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
       )
       .await;
       let expected = Url::new("https://127.0.0.1:8081/data/key1")

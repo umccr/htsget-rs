@@ -1,5 +1,10 @@
+use std::net::SocketAddr;
+use std::time::Duration;
+
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use tokio::runtime::Runtime;
+
 use htsget_config::regex_resolver::RegexResolver;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::Class::Header;
@@ -7,9 +12,6 @@ use htsget_search::htsget::Format::{Bam, Bcf, Cram, Vcf};
 use htsget_search::htsget::HtsGet;
 use htsget_search::htsget::{HtsGetError, Query};
 use htsget_search::storage::axum_server::HttpsFormatter;
-use std::net::SocketAddr;
-use std::time::Duration;
-use tokio::runtime::Runtime;
 
 const BENCHMARK_DURATION_SECONDS: u64 = 15;
 const NUMBER_OF_SAMPLES: usize = 150;
