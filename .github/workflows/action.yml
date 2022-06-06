@@ -27,7 +27,6 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      Run tests
       - uses: actions/checkout@v2
       - name: Install Rust
         uses: actions-rs/toolchain@v1
