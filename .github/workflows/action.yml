@@ -9,10 +9,10 @@ jobs:
       matrix:
         rust: [stable]
         os: [ubuntu-latest]
+    steps:
 #### This step is only needed for GHA local runner, act:
 ## https://github.com/nektos/act
 #### Leave commented for Actions running on GitHub
-#    steps:
 #      - name: Install curl (for nektos/act local CI testing) 
 #        run: apt-get update && apt-get install build-essential curl pkg-config libssl-dev -y
 ####
