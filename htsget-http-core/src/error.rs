@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Serialize};
 use thiserror::Error;
 
 use htsget_search::htsget::HtsGetError as HtsGetSearchError;
@@ -35,10 +35,17 @@ pub struct JsonHtsGetError {
   message: String,
 }
 
+/// The "htsget" container wrapping the actual error response above
+#[derive(Serialize)]
+pub struct ContainerHtsGetError{
+  htsget: JsonHtsGetError,
+}
+
+
 impl HtsGetError {
   /// Allows converting the error to JSON and the correspondent
   /// status code
-  pub fn to_json_representation(&self) -> (JsonHtsGetError, u16) {
+  pub fn to_json_representation(&self) -> (ContainerHtsGetError, u16) {
     let (message, status_code) = match self {
       HtsGetError::InvalidAuthentication(s) => (s, 401),
       HtsGetError::PermissionDenied(s) => (s, 403),
@@ -49,10 +56,17 @@ impl HtsGetError {
       HtsGetError::InvalidRange(s) => (s, 400),
       HtsGetError::InternalError(s) => (s, 500),
     };
+
+    // Actual error and message...
+    let inner_json = JsonHtsGetError {
+      error: self.to_string(),
+      message: message.clone(),
+    };
+
+    // ...and "htsget" wrapping
     (
-      JsonHtsGetError {
-        error: self.to_string(),
-        message: message.clone(),
+      ContainerHtsGetError {
+        htsget: inner_json
       },
       status_code,
     )
