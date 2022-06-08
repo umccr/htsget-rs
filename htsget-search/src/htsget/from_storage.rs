@@ -85,8 +85,8 @@ impl HtsGetFromStorage<AwsS3Storage> {
 
 #[cfg(feature = "gds-storage")]
 impl HtsGetFromStorage<GDSStorage> {
-  pub async fn gds_from(volume: String, resolver: RegexResolver) -> Self {
-    HtsGetFromStorage::new(GDSStorage::new_with_default_config(volume, resolver).await)
+  pub async fn gds_from(resolver: RegexResolver) -> Self {
+    HtsGetFromStorage::new(GDSStorage::new(resolver).await)
   }
 }
 

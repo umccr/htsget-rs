@@ -1,7 +1,7 @@
 //! Module providing an implementation for the [Storage] trait using Illumina's ICA GDS object storage service.
 
 use async_trait::async_trait;
-use tracing::debug;
+//use tracing::debug;
 
 // GDS
 use ica_gds::apis::configuration::Configuration;
@@ -22,21 +22,18 @@ use crate::storage::{Storage, RangeUrlOptions, StorageError};
 /// Implementation for the [Storage] trait utilising data from an Illumina ICA GDS storage server.
 #[derive(Debug, Clone)]
 pub struct GDSStorage {
-  client: Configuration,
-  volume: String,
+  conf: Configuration,
   id_resolver: RegexResolver,
 }
 
 impl GDSStorage {
-  pub fn new(client: Configuration, volume: String, id_resolver: RegexResolver) -> Self {
+  pub async fn new(id_resolver: RegexResolver) -> Self {
+    let conf = setup_conf().await;
     GDSStorage {
-      client,
-      volume,
+      conf, // Stores auth data, client and endpoint. URLs (keys) don't go here but 
+            // provided to the Storage trait below, directly.
       id_resolver,
     }
-  }
-  pub async fn new_with_default_config(volume: String, id_resolver: RegexResolver) -> Self {
-    GDSStorage::new(setup_conf().await, volume, id_resolver)
   }
 
   async fn resolve_key<K: AsRef<str>>(&self, key: &K) -> Result<String> {
@@ -57,9 +54,8 @@ impl GDSStorage {
   // }
 
   async fn get_content<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<Bytes> {
-    let conf = setup_conf().await;
     let url = presigned_url(key.as_ref()).await?;
-    Ok(conf.client.get(url).send().await?.bytes().await?)
+    Ok(self.conf.client.get(url).send().await?.bytes().await?)
   }
 
   async fn create_buf_reader<K: AsRef<str> + Send>(
@@ -91,19 +87,20 @@ impl Storage for GDSStorage {
     options: GetOptions,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
-    debug!(calling_from = ?self, key, "Getting file with key {:?}", key);
+    //debug!(calling_from = self, key, "Getting GDS file from gds://{:?}", key);
     self.create_buf_reader(key, options).await
   }
   async fn range_url<K: AsRef<str> + Send>(&self, key: K, _options: RangeUrlOptions) -> Result<Url> {
     let key = key.as_ref().to_owned();
     self.gds_presign_url(key).await
+    // TODO: Add range support on ica-rs side so that presign is aware of the option.
+    // it might require a new presign function that takes a range or even re-presigning.
   }
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
-    let conf = setup_conf().await;
     let key = key.as_ref();
     let presigned = self.gds_presign_url(key).await?.url;
     Ok(
-      conf
+      self.conf
         .client
         .get(presigned)
         .send()
