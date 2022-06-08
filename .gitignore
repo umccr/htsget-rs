@@ -6,3 +6,4 @@ Cargo.lock
 .idea
 package-lock.json
 deploy/.build
+output.txt
