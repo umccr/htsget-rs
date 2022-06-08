@@ -121,7 +121,7 @@ pub fn new_command(cmd: &str) -> Command {
   Command::new(cmd)
 }
 
-fn query_server_until_response(url: reqwest::Url, certificate_path: PathBuf) {
+fn query_server_until_response(url: reqwest::Url) {
   let client = Client::new();
   for _ in 0..120 {
     sleep(Duration::from_secs(1));
@@ -132,29 +132,27 @@ fn query_server_until_response(url: reqwest::Url, certificate_path: PathBuf) {
     }
     break;
   }
-  // TODO: Figure a better way to have TempDir not nuking those certs while they are in use
-  println!("Self-signed certs still alive and well on {}, dropping them next", certificate_path.display());
 }
 
-fn start_htsget_rs() -> (DropGuard, String) {
+fn start_htsget_rs(certs: TempDir) -> (DropGuard, String) {
   let config = default_test_config();
-
-  let base_path = TempDir::new().unwrap();
-  let (key_path, cert_path) = generate_test_certificates(base_path.path(), "key.pem", "cert.pem");
+  let (key_path, cert_path) = generate_test_certificates(certs.path(), "key.pem", "cert.pem");
 
   let child = new_command("cargo")
     .current_dir(default_dir())
     .arg("run")
     .arg("-p")
     .arg("htsget-http-actix")
-    .env("HTSGET_TICKET_SERVER_KEY", key_path)
+    .env("HTSGET_TICKET_SERVER_KEY", &key_path)
     .env("HTSGET_TICKET_SERVER_CERT", &cert_path)
     .env("RUST_LOG", "warn")
     .spawn()
     .unwrap();
 
   let htsget_rs_url = format!("http://{}", config.addr);
-  query_server_until_response(format_url(&htsget_rs_url, "reads/service-info"), base_path.into_path());
+  query_server_until_response(format_url(&htsget_rs_url, "reads/service-info"));
+  let htsget_rs_ticket_url = format!("http://{}", config.ticket_server_addr);
+  query_server_until_response(format_url(&htsget_rs_ticket_url, ""));
 
   (DropGuard(child), htsget_rs_url)
 }
@@ -211,18 +209,21 @@ fn start_htsget_refserver() -> (DropGuard, String) {
     .unwrap();
 
   let refserver_url = refserver_config.htsget_config.props.host;
-  query_server_until_response(format_url(&refserver_url, "reads/service-info"), PathBuf::new());
+  query_server_until_response(format_url(&refserver_url, "reads/service-info"));
 
   (DropGuard(child), refserver_url)
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
+
+  let certs = TempDir::new().unwrap();
+
   let mut group = c.benchmark_group("Requests");
   group
     .sample_size(NUMBER_OF_SAMPLES)
     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
-  let (mut _htsget_rs_server, htsget_rs_url) = start_htsget_rs();
+  let (mut _htsget_rs_server, htsget_rs_url) = start_htsget_rs(certs);
   let (mut _htsget_refserver_server, htsget_refserver_url) = start_htsget_refserver();
 
   let json_content = PostRequest {
