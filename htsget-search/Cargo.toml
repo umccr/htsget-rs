@@ -43,6 +43,7 @@ noodles-bam = { version = "0.17", features = ["async"] }
 noodles-bcf = { version = "0.13", features = ["async"] }
 noodles-cram = { version = "0.14", features = ["async"] }
 noodles-vcf = { version = "0.15", features = ["async"] }
+noodles-tabix = { version = "=0.9.0", features = ["async"] }
 
 # Aws S3 storage dependencies.
 bytes = { version = "1.1", optional = true }
