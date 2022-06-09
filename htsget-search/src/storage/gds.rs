@@ -1,7 +1,11 @@
 //! Module providing an implementation for the [Storage] trait using Illumina's ICA GDS object storage service.
 
 use async_trait::async_trait;
-//use tracing::debug;
+use std::collections::HashMap;
+
+// Reqwest
+use reqwest::header::RANGE;
+use reqwest::header::{HeaderMap, HeaderValue};
 
 // GDS
 use ica_gds::apis::configuration::Configuration;
@@ -14,10 +18,10 @@ use tokio::io::BufReader;
 
 // Htsget
 use crate::htsget::Url;
-use htsget_config::regex_resolver::{RegexResolver, HtsGetIdResolver};
+use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use super::{GetOptions, Result};
-use crate::storage::{Storage, RangeUrlOptions, StorageError};
+use crate::storage::{Headers, RangeUrlOptions, Storage, StorageError};
 
 /// Implementation for the [Storage] trait utilising data from an Illumina ICA GDS storage server.
 #[derive(Debug, Clone)]
@@ -28,10 +32,10 @@ pub struct GDSStorage {
 
 impl GDSStorage {
   pub async fn new(id_resolver: RegexResolver) -> Self {
-    let conf = setup_conf().await;
+    let conf = setup_conf().await.unwrap();
     GDSStorage {
-      conf, // Stores auth data, client and endpoint. URLs (keys) don't go here but 
-            // provided to the Storage trait below, directly.
+      conf, // Stores auth data, client and endpoint. URLs (keys) don't go here but
+      // provided to the Storage trait below, directly.
       id_resolver,
     }
   }
@@ -43,19 +47,30 @@ impl GDSStorage {
       .ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
   }
 
-  // fn apply_range(builder: GetObject, range: BytesRange) -> GetObject {
-  //   // let range: String = range.into();
-  //   // if range.is_empty() {
-  //   //   builder
-  //   // } else {
-  //   //   builder.range(range)
-  //   // }
-  //   unimplemented!()
-  // }
-
-  async fn get_content<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<Bytes> {
+  async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
     let url = presigned_url(key.as_ref()).await?;
-    Ok(self.conf.client.get(url).send().await?.bytes().await?)
+    let client = &self.conf.client;
+    let mut headers = HeaderMap::new();
+    // TODO: Hyper or Reqwest here?
+    let range = HeaderValue::from_str(
+      format!(
+        "{}-{}",
+        options.range.start.unwrap(),
+        options.range.end.unwrap()
+      )
+      .as_str(),
+    )
+    .unwrap();
+    headers.insert(RANGE, range);
+
+    client
+      .request(reqwest::Method::GET, url)
+      .headers(headers)
+      .send()
+      .await?
+      .bytes()
+      .await
+      .map_err(|e| StorageError::GDSRetrievalError(e))
   }
 
   async fn create_buf_reader<K: AsRef<str> + Send>(
@@ -88,19 +103,33 @@ impl Storage for GDSStorage {
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
     //debug!(calling_from = self, key, "Getting GDS file from gds://{:?}", key);
+    //let bufreader = self.create_buf_reader(key, options).await?;
+    //let bytes = self.get_content(key, options);
     self.create_buf_reader(key, options).await
   }
-  async fn range_url<K: AsRef<str> + Send>(&self, key: K, _options: RangeUrlOptions) -> Result<Url> {
+  async fn range_url<K: AsRef<str> + Send>(&self, key: K, options: RangeUrlOptions) -> Result<Url> {
     let key = key.as_ref().to_owned();
-    self.gds_presign_url(key).await
-    // TODO: Add range support on ica-rs side so that presign is aware of the option.
-    // it might require a new presign function that takes a range or even re-presigning.
+    let hashmap = HashMap::new();
+    let bytes_range = format!(
+      "{}-{}",
+      options.range.start.unwrap(),
+      options.range.end.unwrap()
+    );
+    let headers = Headers::new(hashmap).with_header("Range".to_string(), bytes_range);
+    let gds_presigned_url = self
+      .gds_presign_url(key)
+      .await?
+      .with_headers(headers)
+      .with_class(options.class);
+    //debug!(calling_from = ?self, key, ?url, "Getting url with key {:?}", key);
+    Ok(gds_presigned_url)
   }
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
     let key = key.as_ref();
     let presigned = self.gds_presign_url(key).await?.url;
     Ok(
-      self.conf
+      self
+        .conf
         .client
         .get(presigned)
         .send()

@@ -133,7 +133,10 @@ fn query_server_until_response(url: reqwest::Url, certificate_path: PathBuf) {
     break;
   }
   // TODO: Figure a better way to have TempDir not nuking those certs while they are in use
-  println!("Self-signed certs still alive and well on {}, dropping them next", certificate_path.display());
+  println!(
+    "Self-signed certs still alive and well on {}, dropping them next",
+    certificate_path.display()
+  );
 }
 
 fn start_htsget_rs() -> (DropGuard, String) {
@@ -154,7 +157,10 @@ fn start_htsget_rs() -> (DropGuard, String) {
     .unwrap();
 
   let htsget_rs_url = format!("http://{}", config.addr);
-  query_server_until_response(format_url(&htsget_rs_url, "reads/service-info"), base_path.into_path());
+  query_server_until_response(
+    format_url(&htsget_rs_url, "reads/service-info"),
+    base_path.into_path(),
+  );
 
   (DropGuard(child), htsget_rs_url)
 }
@@ -211,7 +217,10 @@ fn start_htsget_refserver() -> (DropGuard, String) {
     .unwrap();
 
   let refserver_url = refserver_config.htsget_config.props.host;
-  query_server_until_response(format_url(&refserver_url, "reads/service-info"), PathBuf::new());
+  query_server_until_response(
+    format_url(&refserver_url, "reads/service-info"),
+    PathBuf::new(),
+  );
 
   (DropGuard(child), refserver_url)
 }

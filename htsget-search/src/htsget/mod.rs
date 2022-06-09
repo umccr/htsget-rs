@@ -516,15 +516,17 @@ mod tests {
 
   #[tokio::test]
   async fn url_with_headers() {
-    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").await
+    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
+      .await
       .with_headers(Headers::new(HashMap::new()));
     assert_eq!(result.headers, None);
   }
 
   #[tokio::test]
   async fn url_with_class() {
-    let result =
-      Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").await.with_class(Class::Header);
+    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
+      .await
+      .with_class(Class::Header);
     assert_eq!(result.class, Class::Header);
   }
 

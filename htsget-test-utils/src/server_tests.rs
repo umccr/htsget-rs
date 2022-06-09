@@ -168,14 +168,17 @@ pub async fn expected_response(class: Class, url_path: String) -> JsonResponse {
   let mut headers = HashMap::new();
   headers.insert("Range".to_string(), "bytes=0-3366".to_string());
 
-  let http_url = Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path)).await
+  let http_url = Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path))
+    .await
     .with_headers(Headers::new(headers))
     .with_class(class.clone());
   let urls = match class {
     Class::Header => vec![http_url],
     Class::Body => vec![
       http_url,
-      Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
+      Url::new(expected_bgzf_eof_data_url())
+        .await
+        .with_class(Body),
     ],
   };
 

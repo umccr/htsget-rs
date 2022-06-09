@@ -127,9 +127,12 @@ mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![
-          Url::new(bam_expected_url()).await
+          Url::new(bam_expected_url())
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
-          Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
+          Url::new(expected_bgzf_eof_data_url())
+            .await
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -149,9 +152,12 @@ mod tests {
       let expected_response = Ok(Response::new(
         Format::Vcf,
         vec![
-          Url::new(vcf_expected_url(filename)).await
+          Url::new(vcf_expected_url(filename))
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
-          Url::new(expected_bgzf_eof_data_url()).await.with_class(Body),
+          Url::new(expected_bgzf_eof_data_url())
+            .await
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)

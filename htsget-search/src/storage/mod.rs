@@ -45,7 +45,9 @@ pub trait Storage {
 
   /// Get the url of the object using an inline data uri.
   async fn data_url(data: Vec<u8>, class: Class) -> Url {
-    Url::new(format!("data:;base64,{}", encode(data))).await.with_class(class)
+    Url::new(format!("data:;base64,{}", encode(data)))
+      .await
+      .with_class(class)
   }
 }
 
@@ -80,7 +82,6 @@ pub enum StorageError {
   InvalidUri(String),
   #[error("Invalid address: {0}")]
   InvalidAddress(AddrParseError),
-
   #[error("Internal error: {0}")]
   InternalError(String),
 }
@@ -655,7 +656,8 @@ mod tests {
     println!("{:?}", result);
     assert_eq!(
       result,
-      Url::new("").await
+      Url::new("")
+        .await
         .with_headers(Headers::new(HashMap::new()).with_header("Range", "bytes=5-10"))
         .with_class(Class::Header)
     );

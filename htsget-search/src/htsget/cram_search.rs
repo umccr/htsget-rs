@@ -311,9 +311,12 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Cram,
         vec![
-          Url::new(expected_url()).await
+          Url::new(expected_url())
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=0-1627755")),
-          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+          Url::new(expected_cram_eof_data_url())
+            .await
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -332,11 +335,15 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Cram,
         vec![
-          Url::new(expected_url()).await
+          Url::new(expected_url())
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=0-6086")),
-          Url::new(expected_url()).await
+          Url::new(expected_url())
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627755")),
-          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+          Url::new(expected_cram_eof_data_url())
+            .await
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -355,11 +362,15 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Cram,
         vec![
-          Url::new(expected_url()).await
+          Url::new(expected_url())
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=0-6086")),
-          Url::new(expected_url()).await
+          Url::new(expected_url())
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=604231-1280105")),
-          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+          Url::new(expected_cram_eof_data_url())
+            .await
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -381,9 +392,12 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Cram,
         vec![
-          Url::new(expected_url()).await
+          Url::new(expected_url())
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=0-465708")),
-          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+          Url::new(expected_cram_eof_data_url())
+            .await
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -405,9 +419,12 @@ pub mod tests {
       let expected_response = Ok(Response::new(
         Format::Cram,
         vec![
-          Url::new(expected_url()).await
+          Url::new(expected_url())
+            .await
             .with_headers(Headers::default().with_header("Range", "bytes=0-604230")),
-          Url::new(expected_cram_eof_data_url()).await.with_class(Body),
+          Url::new(expected_cram_eof_data_url())
+            .await
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -425,7 +442,8 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url()).await
+        vec![Url::new(expected_url())
+          .await
           .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
           .with_class(Class::Header)],
       ));
