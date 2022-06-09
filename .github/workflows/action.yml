@@ -19,7 +19,6 @@ jobs:
             override: true
             components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@v1
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
@@ -59,7 +58,7 @@ jobs:
       - name: Run benchmarks
         run: cargo bench --bench search-benchmarks --bench request-benchmarks -- LIGHT --output-format bencher | tee output.txt
       - name: Download previous benchmark data
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ./cache
           key: ${{ runner.os }}-benchmark
