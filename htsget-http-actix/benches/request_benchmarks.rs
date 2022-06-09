@@ -121,7 +121,7 @@ pub fn new_command(cmd: &str) -> Command {
   Command::new(cmd)
 }
 
-fn query_server_until_response(url: reqwest::Url, certificate_path: PathBuf) {
+fn query_server_until_response(url: reqwest::Url) {
   let client = Client::new();
   for _ in 0..120 {
     sleep(Duration::from_secs(1));
@@ -132,11 +132,6 @@ fn query_server_until_response(url: reqwest::Url, certificate_path: PathBuf) {
     }
     break;
   }
-  // TODO: Figure a better way to have TempDir not nuking those certs while they are in use
-  println!(
-    "Self-signed certs still alive and well on {}, dropping them next",
-    certificate_path.display()
-  );
 }
 
 fn start_htsget_rs(certs: TempDir) -> (DropGuard, String) {
@@ -214,16 +209,12 @@ fn start_htsget_refserver() -> (DropGuard, String) {
     .unwrap();
 
   let refserver_url = refserver_config.htsget_config.props.host;
-  query_server_until_response(
-    format_url(&refserver_url, "reads/service-info"),
-    PathBuf::new(),
-  );
+  query_server_until_response(format_url(&refserver_url, "reads/service-info"));
 
   (DropGuard(child), refserver_url)
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-
   let certs = TempDir::new().unwrap();
 
   let mut group = c.benchmark_group("Requests");
