@@ -215,7 +215,6 @@ fn start_htsget_refserver() -> (DropGuard, String) {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-
   let certs = TempDir::new().unwrap();
 
   let mut group = c.benchmark_group("Requests");

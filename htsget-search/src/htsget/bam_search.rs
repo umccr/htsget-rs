@@ -301,7 +301,10 @@ pub mod tests {
   async fn search_many_response_urls() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("11").with_start(4999976).with_end(5003981);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(4999976)
+        .with_end(5003981);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -322,7 +325,8 @@ pub mod tests {
         ],
       ));
       assert_eq!(response, expected_response)
-    }).await
+    })
+    .await
   }
 
   #[tokio::test]

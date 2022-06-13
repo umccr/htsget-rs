@@ -1,4 +1,4 @@
-use serde::{Serialize};
+use serde::Serialize;
 use thiserror::Error;
 
 use htsget_search::htsget::HtsGetError as HtsGetSearchError;
@@ -37,10 +37,9 @@ pub struct JsonHtsGetError {
 
 /// The "htsget" container wrapping the actual error response above
 #[derive(Serialize)]
-pub struct ContainerHtsGetError{
+pub struct ContainerHtsGetError {
   htsget: JsonHtsGetError,
 }
-
 
 impl HtsGetError {
   /// Allows converting the error to JSON and the correspondent
@@ -64,12 +63,7 @@ impl HtsGetError {
     };
 
     // ...and "htsget" wrapping
-    (
-      ContainerHtsGetError {
-        htsget: inner_json
-      },
-      status_code,
-    )
+    (ContainerHtsGetError { htsget: inner_json }, status_code)
   }
 }
 
