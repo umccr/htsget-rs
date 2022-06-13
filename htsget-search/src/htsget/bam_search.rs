@@ -298,6 +298,34 @@ pub mod tests {
   }
 
   #[tokio::test]
+  async fn search_many_response_urls() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("11").with_start(4999976).with_end(5003981);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-273085")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=499249-574358")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=627987-647345")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    }).await
+  }
+
+  #[tokio::test]
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
