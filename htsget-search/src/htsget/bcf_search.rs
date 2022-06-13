@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::prelude::stream::FuturesUnordered;
+use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
@@ -91,7 +91,7 @@ where
 
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
-    let futures = FuturesUnordered::new();
+    let mut futures = FuturesOrdered::new();
     for (ref_seq_index, (name, contig)) in header.contigs().iter().enumerate() {
       let owned_contig = contig.clone();
       let owned_name = name.to_owned();

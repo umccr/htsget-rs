@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::prelude::stream::FuturesUnordered;
+use futures_util::stream::FuturesOrdered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
 use noodles::tabix;
@@ -95,7 +95,7 @@ where
 
     // We are assuming the order of the names and the references sequences
     // in the index is the same
-    let futures = FuturesUnordered::new();
+    let mut futures = FuturesOrdered::new();
     for (index, name) in index.reference_sequence_names().iter().enumerate() {
       let owned_name = name.to_owned();
       let owned_reference_name = reference_name.clone();

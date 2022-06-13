@@ -6,8 +6,8 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::prelude::stream::FuturesUnordered;
 use futures::StreamExt;
+use futures_util::stream::FuturesOrdered;
 use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
 use noodles::sam;
@@ -207,7 +207,7 @@ where
     F: Fn(&Record) -> bool + Send + Sync + 'static,
   {
     // This could be improved by using some sort of index mapping.
-    let mut futures = FuturesUnordered::new();
+    let mut futures = FuturesOrdered::new();
     for (record, next) in crai_index.iter().zip(crai_index.iter().skip(1)) {
       let owned_record = record.clone();
       let owned_next = next.clone();
