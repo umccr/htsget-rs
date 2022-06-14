@@ -35,7 +35,10 @@ where
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut sam::alignment::Record::default()).await.ok()
+    self
+      .read_record(&mut sam::alignment::Record::default())
+      .await
+      .ok()
   }
 
   async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
