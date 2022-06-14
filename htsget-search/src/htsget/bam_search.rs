@@ -35,7 +35,10 @@ where
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut bam::Record::default()).await.ok()
+    self
+      .read_record(&mut sam::alignment::Record::default())
+      .await
+      .ok()
   }
 
   async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
@@ -58,7 +61,7 @@ where
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
-    ref_seq.len()
+    ref_seq.len().get() as i32
   }
 
   async fn get_byte_ranges_for_unmapped(
@@ -295,6 +298,38 @@ pub mod tests {
       assert_eq!(response, expected_response)
     })
     .await;
+  }
+
+  #[tokio::test]
+  async fn search_many_response_urls() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(4999976)
+        .with_end(5003981);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-273085")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=499249-574358")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=627987-647345")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    })
+    .await
   }
 
   #[tokio::test]

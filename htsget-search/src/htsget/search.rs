@@ -9,8 +9,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::VirtualPosition;
 use noodles::core::Position;
 use noodles::csi::binning_index::merge_chunks;
@@ -36,7 +36,7 @@ pub(crate) static BGZF_EOF: &[u8] = &[
 /// Helper function to find the first non-none value from a set of futures.
 pub(crate) async fn find_first<T>(
   msg: &str,
-  mut futures: FuturesUnordered<JoinHandle<Option<T>>>,
+  mut futures: FuturesOrdered<JoinHandle<Option<T>>>,
 ) -> Result<T> {
   let mut result = None;
   loop {
@@ -288,7 +288,7 @@ where
     format: Format,
     byte_ranges: Vec<DataBlock>,
   ) -> Result<Response> {
-    let mut storage_futures = FuturesUnordered::new();
+    let mut storage_futures = FuturesOrdered::new();
     for block in byte_ranges {
       match block {
         DataBlock::Range(range) => {
@@ -359,7 +359,7 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
-  Index: BinningIndex<ReferenceSequence> + Send + Sync,
+  Index: BinningIndex + Send + Sync,
   Header: FromStr + Send,
 {
   type ReferenceSequenceHeader: Sync;
@@ -391,7 +391,7 @@ where
       .query(ref_seq_id, seq_start..=seq_end)
       .map_err(|_| invalid_range())?;
 
-    let mut futures: FuturesUnordered<JoinHandle<Result<BytesPosition>>> = FuturesUnordered::new();
+    let mut futures: FuturesOrdered<JoinHandle<Result<BytesPosition>>> = FuturesOrdered::new();
     for chunk in merge_chunks(&chunks) {
       let storage = self.get_storage();
       let id = query.id.clone();
@@ -437,7 +437,7 @@ where
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
-  Index: BinningIndex<ReferenceSequence> + Send + Sync,
+  Index: BinningIndex + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(
@@ -446,7 +446,7 @@ where
     format: Format,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let mut futures: FuturesUnordered<JoinHandle<Result<BytesPosition>>> = FuturesUnordered::new();
+    let mut futures: FuturesOrdered<JoinHandle<Result<BytesPosition>>> = FuturesOrdered::new();
     for ref_sequences in index.reference_sequences() {
       if let Some(metadata) = ref_sequences.metadata() {
         let storage = self.get_storage();
@@ -499,7 +499,7 @@ where
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
-  Index: BinningIndex<ReferenceSequence> + Send + Sync,
+  Index: BinningIndex + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   fn get_eof_marker(&self) -> Option<DataBlock> {

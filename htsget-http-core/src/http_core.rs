@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures::stream::FuturesUnordered;
+use futures::stream::FuturesOrdered;
 use futures::StreamExt;
 use tokio::select;
 use tracing::debug;
@@ -56,7 +56,7 @@ pub async fn get_response_for_post_request(
     request
   );
 
-  let mut futures = FuturesUnordered::new();
+  let mut futures = FuturesOrdered::new();
   for query in request.get_queries(id)? {
     let owned_searcher = searcher.clone();
     futures.push(tokio::spawn(
