@@ -61,7 +61,7 @@ fn default_localstorage_key() -> PathBuf {
 }
 
 /// Specify the storage type to use.
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum StorageType {
   LocalStorage,
   #[cfg(feature = "s3-storage")]
