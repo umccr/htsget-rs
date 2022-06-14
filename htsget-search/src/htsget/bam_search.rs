@@ -35,7 +35,7 @@ where
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
   async fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut bam::Record::default()).await.ok()
+    self.read_record(&mut sam::alignment::Record::default()).await.ok()
   }
 
   async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
@@ -58,7 +58,7 @@ where
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
-    ref_seq.len()
+    ref_seq.len().get() as i32
   }
 
   async fn get_byte_ranges_for_unmapped(

@@ -133,7 +133,7 @@ where
           .map(|end| end as i32)
           .map(into_one_based_position)
           .transpose()?
-          .unwrap_or(ref_seq.len()),
+          .unwrap_or(ref_seq.len().get() as i32),
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )

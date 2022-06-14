@@ -359,7 +359,7 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
-  Index: BinningIndex<ReferenceSequence> + Send + Sync,
+  Index: BinningIndex + Send + Sync,
   Header: FromStr + Send,
 {
   type ReferenceSequenceHeader: Sync;
@@ -437,7 +437,7 @@ where
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
-  Index: BinningIndex<ReferenceSequence> + Send + Sync,
+  Index: BinningIndex + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(
@@ -499,7 +499,7 @@ where
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
-  Index: BinningIndex<ReferenceSequence> + Send + Sync,
+  Index: BinningIndex + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   fn get_eof_marker(&self) -> Option<DataBlock> {
