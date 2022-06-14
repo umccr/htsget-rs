@@ -1,71 +1,14 @@
 name: tests
 
-on: [push]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 jobs:
+  check:
+    uses: umccr/reusable-github-actions/rust-check.yaml@master
   test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        rust: [stable]
-        os: [ubuntu-latest]
-    steps:
-      # Run tests
-      - uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: ${{ matrix.rust }}
-            override: true
-            components: rustfmt, clippy
-
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-
-      - name: Build all features
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-targets --all-features
-
-      - name: Build no default features
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-targets --no-default-features
-
-      - name: Build s3-storage feature
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-targets --features s3-storage
-
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --all-features
-
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
-
-      # Run benchmarks
-      - name: Run benchmarks
-        run: cargo bench --bench search-benchmarks --bench request-benchmarks -- LIGHT --output-format bencher | tee output.txt
-      - name: Download previous benchmark data
-        uses: actions/cache@v3
-        with:
-          path: ./cache
-          key: ${{ runner.os }}-benchmark
-      - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: 'cargo'
-          output-file-path: output.txt
-          external-data-json-path: ./cache/benchmark-data.json
-          fail-on-alert: false
+    uses: umccr/reusable-github-actions/rust-test.yaml@master
+  benchmark:
+    uses: umccr/reusable-github-actions/rust-benchmark.yaml@master
