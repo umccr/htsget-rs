@@ -14,7 +14,7 @@ serde = { version = "1.0", features = ["derive"] }
 htsget-search = { path = "../htsget-search", default-features = false }
 htsget-config = { path = "../htsget-config", default-features = false }
 futures = { version = "0.3" }
-tokio = { version = "1.17", features = ["full"] }
+tokio = { version = "1.19", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 
 [dev-dependencies]
