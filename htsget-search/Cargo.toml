@@ -9,35 +9,39 @@ s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3
 default = ["s3-storage"]
 
 [dependencies]
-# Axum server dependencies.
+# Axum server
 hyper = "0.14"
 tower-http = { version = "0.3", features = ["trace"] }
 axum = "0.5.1"
-axum-extra = { version = "0.2.1", features = ["spa"] }
-rustls-pemfile = "0.3"
+axum-extra = { version = "0.3", features = ["spa"] }
+rustls-pemfile = "1"
 tower = { version = "0.4", features = ["make"] }
-futures-util = "0.3"
-tokio-rustls = "0.23"
 
-async-trait = "0.1"
-thiserror = "1.0"
-tokio = { version = "1.17", features = ["full"] }
+# Async
+tokio-rustls = "0.23"
+tokio = { version = "1.19", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
-htsget-config = { path = "../htsget-config", default-features = false }
-tracing = "0.1"
-base64 = "0.13"
+futures-util = "0.3"
+async-trait = "0.1"
 
+# Noodles
 noodles = { version = "0.24", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 noodles-bam = { version = "0.19", features = ["async"] }
 noodles-bcf = { version = "0.13", features = ["async"] }
 noodles-cram = { version = "0.16", features = ["async"] }
 noodles-vcf = { version = "0.16", features = ["async"] }
 
-# Aws S3 storage dependencies.
+# Amazon S3
 bytes = { version = "1.1", optional = true }
-aws-sdk-s3 = { version = "0.9", optional = true }
-aws-config = { version = "0.9", optional = true }
+aws-sdk-s3 = { version = "0.13", optional = true }
+aws-config = { version = "0.13", optional = true }
+
+# Error control, tracing, config..
+thiserror = "1.0"
+htsget-config = { path = "../htsget-config", default-features = false }
+tracing = "0.1"
+base64 = "0.13"
 
 [dev-dependencies]
 htsget-test-utils = { path = "../htsget-test-utils", default-features = false }
@@ -48,7 +52,7 @@ data-url = "0.1"
 anyhow = "1.0"
 s3-server = "0.2"
 http = "0.2"
-aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
+aws-types = { version = "0.13", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies
 hyper-tls = "0.5"
