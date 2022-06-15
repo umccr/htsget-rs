@@ -275,12 +275,7 @@ where
         }
 
         self
-          .build_response(
-            query.class,
-            query.id,
-            self.get_format(),
-            blocks,
-          )
+          .build_response(query.class, query.id, self.get_format(), blocks)
           .await
       }
     }

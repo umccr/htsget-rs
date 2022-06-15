@@ -9,7 +9,6 @@ use serde::Deserialize;
 
 use htsget_config::config::Config;
 use htsget_http_core::{get_service_info_with, Endpoint, JsonResponse};
-use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
 use htsget_search::htsget::{Class, Format, Headers, Url};
 
@@ -172,10 +171,13 @@ pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
     .with_headers(Headers::new(headers))
     .with_class(class.clone());
   let urls = match class {
-    Class::Header => vec![http_url],
+    Class::Header => vec![
+      http_url,
+      Url::new(expected_bgzf_eof_data_url()).with_class(Class::Header),
+    ],
     Class::Body => vec![
       http_url,
-      Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+      Url::new(expected_bgzf_eof_data_url()).with_class(Class::Body),
     ],
   };
 

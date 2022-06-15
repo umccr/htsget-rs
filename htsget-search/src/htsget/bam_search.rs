@@ -342,9 +342,10 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
-          .with_class(Class::Header),
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Class::Header),
           Url::new(expected_bgzf_eof_data_url()).with_class(Class::Header),
         ],
       ));

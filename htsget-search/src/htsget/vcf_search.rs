@@ -232,9 +232,12 @@ pub mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-822"))
-          .with_class(Class::Header)],
+        vec![
+          Url::new(expected_url(filename))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-822"))
+            .with_class(Class::Header),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Class::Header),
+        ],
       ));
       assert_eq!(response, expected_response)
     })
