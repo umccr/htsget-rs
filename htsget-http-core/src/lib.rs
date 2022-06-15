@@ -25,7 +25,7 @@ const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
 
 /// A enum to distinguish between the two endpoint defined in the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Endpoint {
   Reads,
   Variants,

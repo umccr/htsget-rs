@@ -106,14 +106,14 @@ impl DataBlock {
 
 /// A byte position has an inclusive start value, and an exclusive end value. This is analogous to
 /// query start and end parameters.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BytesPosition {
   start: Option<u64>,
   end: Option<u64>,
 }
 
 /// A bytes range has an inclusive start and end value. This is analogous to http bytes ranges.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,

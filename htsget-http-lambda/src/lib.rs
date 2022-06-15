@@ -20,7 +20,7 @@ use crate::handlers::service_info::get_service_info_json;
 pub mod handlers;
 
 /// A request route, with a method, endpoint and route type.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Route {
   method: HtsgetMethod,
   endpoint: Endpoint,
@@ -28,14 +28,14 @@ pub struct Route {
 }
 
 /// Valid htsget http request methods.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum HtsgetMethod {
   Get,
   Post,
 }
 
 /// A route type, which is either the service info endpoint, or an id represented by a string.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum RouteType {
   ServiceInfo,
   Id(String),

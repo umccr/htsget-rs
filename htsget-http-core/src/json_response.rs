@@ -6,7 +6,7 @@ use htsget_search::htsget::{Class, Response, Url};
 
 /// A helper struct to convert [Responses](Response) to JSON. It implements [serde's Serialize trait](Serialize),
 /// so it's trivial to convert to JSON.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsonResponse {
   pub htsget: HtsGetResponse,
 }
@@ -21,7 +21,7 @@ impl JsonResponse {
 
 /// A helper struct to represent a JSON response. It shouldn't be used
 /// on its own, but with [JsonResponse]
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HtsGetResponse {
   pub format: String,
   pub urls: Vec<JsonUrl>,
@@ -37,7 +37,7 @@ impl HtsGetResponse {
 
 /// A helper struct to convert [Urls](Url) to JSON. It shouldn't be used
 /// on its own, but with [JsonResponse]
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsonUrl {
   pub url: String,
   pub headers: Option<HashMap<String, String>>,
