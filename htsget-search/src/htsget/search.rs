@@ -268,12 +268,18 @@ where
         self.build_response(class, id, format, blocks).await
       }
       Class::Header => {
+        // Spec is unclear about this, headers do need EOFs too.
+        let mut blocks = DataBlock::from_bytes_positions(header_byte_ranges);
+        if let Some(eof) = self.get_eof_marker() {
+          blocks.push(eof);
+        }
+
         self
           .build_response(
             query.class,
             query.id,
             self.get_format(),
-            DataBlock::from_bytes_positions(header_byte_ranges),
+            blocks,
           )
           .await
       }
