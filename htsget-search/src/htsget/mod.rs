@@ -33,7 +33,7 @@ pub trait HtsGet {
   fn are_tag_parameters_effective(&self) -> bool;
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum HtsGetError {
   #[error("Not found: {0}")]
   NotFound(String),
@@ -130,7 +130,7 @@ impl From<io::Error> for HtsGetError {
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Query {
   pub id: String,
   pub format: Format,
@@ -202,7 +202,7 @@ impl Query {
 }
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Format {
   Bam,
   Cram,
@@ -253,14 +253,14 @@ impl fmt::Display for Format {
   }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Class {
   Header,
   Body,
 }
 
 /// Possible values for the fields parameter.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fields {
   /// Include all fields
   All,
@@ -269,7 +269,7 @@ pub enum Fields {
 }
 
 /// Possible values for the tags parameter.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Tags {
   /// Include all tags
   All,
@@ -278,7 +278,7 @@ pub enum Tags {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
@@ -305,7 +305,7 @@ impl Headers {
 }
 
 /// A url from which raw data can be retrieved.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Url {
   pub url: String,
   pub headers: Option<Headers>,
@@ -333,7 +333,7 @@ impl Url {
 }
 
 /// The response for a HtsGet query.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
