@@ -19,7 +19,7 @@ $ cargo run -p htsget-http-actix
 
 Then the server is ready to listen to your requests on port 8080, please refer to the [htsget-http-actix crate README.md for furhter details][htsget-http-actix-readme].
 
-### Cŀoud
+### Cloud
 
 To deploy to an AWS account, please refer to the `deploy/README.md` for further instructions.
 
