@@ -8,7 +8,7 @@ on:
 jobs:
   check:
     uses: umccr/reusable-github-actions/.github/workflows/rust-check.yaml@master
-  # test:
-  #   uses: umccr/reusable-github-actions/.github/workflows/rust-test.yaml@master
+  test:
+    uses: umccr/reusable-github-actions/.github/workflows/rust-test.yaml@master
   # benchmark:
   #   uses: umccr/reusable-github-actions/.github/workflows/rust-benchmark.yaml@master
