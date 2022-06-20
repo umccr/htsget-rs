@@ -39,3 +39,4 @@ jobs:
   #         args: --manifest-path htsget-search/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }}
   #
   # TODO: Publish docker containers too, as suggested by @victorskl
+  # Use a minimal Rust container for that, i.e: https://ectobit.com/blog/rust-container-image-buildkit-buildx/
