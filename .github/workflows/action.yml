@@ -9,6 +9,31 @@ jobs:
   check:
     uses: umccr/reusable-github-actions/.github/workflows/rust-check.yaml@master
   test:
+    needs: check
     uses: umccr/reusable-github-actions/.github/workflows/rust-test.yaml@master
   # benchmark:
   #   uses: umccr/reusable-github-actions/.github/workflows/rust-benchmark.yaml@master
+  #   needs: check
+  #
+  # TODO: Release process needs to be parametrized properly for reuse
+  # release:
+  #   uses: umccr/reusable-github-actions/.github/workflows/rust-release.yaml@master
+
+  # release:
+  #   needs: check
+  #   - name: Create release PR
+  #     uses: GoogleCloudPlatform/release-please-action@v3
+  #       id: release_main
+  #       with:
+  #         release-type: rust
+  #         package-name: htsget-search
+  #         bump-minor-pre-major: true
+  #         monorepo-tags: true
+  #         path: "."
+
+  #   - name: Publish htsget-search
+  #       if: ${{ steps.release_sys.outputs.release_created }}
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: publish
+  #         args: --manifest-path htsget-search/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }}
