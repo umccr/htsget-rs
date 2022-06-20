@@ -14,7 +14,7 @@ jobs:
   benchmark:
     uses: umccr/reusable-github-actions/.github/workflows/rust-benchmark.yaml@master
     needs: check
-  #
+
   # TODO: Release process needs to be parametrized properly for reuse
   # release:
   #   uses: umccr/reusable-github-actions/.github/workflows/rust-release.yaml@master
