@@ -4,7 +4,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Check https://github.com/umccr/reusable-github-actions/tree/master/.github/workflows for workflows
 jobs:
   check:
     uses: umccr/reusable-github-actions/.github/workflows/rust-check.yaml@master
