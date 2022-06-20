@@ -30,9 +30,12 @@ jobs:
   #         monorepo-tags: true
   #         path: "."
 
+  # TODO: Explore how to publish the other crates in htsget-rs workspace
   #   - name: Publish htsget-search
   #       if: ${{ steps.release_sys.outputs.release_created }}
   #       uses: actions-rs/cargo@v1
   #       with:
   #         command: publish
   #         args: --manifest-path htsget-search/Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }}
+  #
+  # TODO: Publish docker containers too, as suggested by @victorskl
