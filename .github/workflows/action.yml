@@ -18,6 +18,7 @@ jobs:
   # release:
   #   uses: umccr/reusable-github-actions/.github/workflows/rust-release.yaml@master
 
+  # TODO: Release please requires special syntax on commit messages, see: https://www.conventionalcommits.org/en/v1.0.0/
   # release:
   #   needs: check
   #   - name: Create release PR
