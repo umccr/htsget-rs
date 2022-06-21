@@ -18,7 +18,7 @@ use htsget_test_utils::util::generate_test_certificates;
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
-const NUMBER_OF_SAMPLES: usize = 100;
+const NUMBER_OF_SAMPLES: usize = 50;
 
 #[derive(Serialize)]
 struct Empty {}
