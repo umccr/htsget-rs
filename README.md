@@ -31,7 +31,7 @@ This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec
 
 Our Rust implementation distinguishes itself from others in the following ways:
 
-|          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [gel-htsget][gel-htsget] | [htsget-rs][htsget-rs] | [CanDIG][candig-htsget]
+|          	| [htsnexus][dnanexus](gone?) 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [gel-htsget][gel-htsget] | [htsget-rs][htsget-rs] | [CanDIG][candig-htsget]
 |---	    	  |---      | ---                |  ---	 |  ---	  | --- |	---             |   ---   |
 | maintained[1]   | ❌      | ❌ 	                | ✅    |  ❌    | ✅  |  ✅                |   ✅    |
 | local           | ✅      | ❌ 	                | ✅	   |  ✅	   | ✅ |   ✅                |   ✅    |
