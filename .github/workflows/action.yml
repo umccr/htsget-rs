@@ -19,17 +19,17 @@ jobs:
   #   uses: umccr/reusable-github-actions/.github/workflows/rust-release.yaml@master
 
   # TODO: Release please requires special syntax on commit messages, see: https://www.conventionalcommits.org/en/v1.0.0/
-  # release:
-  #   needs: check
-  #   - name: Create release PR
-  #     uses: GoogleCloudPlatform/release-please-action@v3
-  #       id: release_main
-  #       with:
-  #         release-type: rust
-  #         package-name: htsget-search
-  #         bump-minor-pre-major: true
-  #         monorepo-tags: true
-  #         path: "."
+  release:
+    needs: check
+    - name: Create release PR
+      uses: GoogleCloudPlatform/release-please-action@v3
+        id: release_main
+        with:
+          release-type: rust
+          package-name: htsget-search
+          bump-minor-pre-major: true
+          monorepo-tags: true
+          path: "."
 
   # TODO: Explore how to publish the other crates in htsget-rs workspace
   #   - name: Publish htsget-search
