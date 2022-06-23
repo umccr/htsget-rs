@@ -15,4 +15,4 @@ jobs:
     needs: check
   release:
     uses: umccr/reusable-github-actions/.github/workflows/rust-release.yaml@master
-    needs: ["check", "test"]
+    needs: ["check", "test", "benchmark"]
