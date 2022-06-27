@@ -214,19 +214,19 @@ pub enum Format {
 impl Format {
   pub(crate) fn fmt_file(&self, id: &str) -> String {
     match self {
-      Format::Bam => format!("{}.bam", id),
-      Format::Cram => format!("{}.cram", id),
-      Format::Vcf => format!("{}.vcf.gz", id),
-      Format::Bcf => format!("{}.bcf", id),
+      Format::Bam => format!("{}", id),
+      Format::Cram => format!("{}", id),
+      Format::Vcf => format!("{}", id),
+      Format::Bcf => format!("{}", id),
     }
   }
 
   pub(crate) fn fmt_index(&self, id: &str) -> String {
     match self {
-      Format::Bam => format!("{}.bam.bai", id),
-      Format::Cram => format!("{}.cram.crai", id),
-      Format::Vcf => format!("{}.vcf.gz.tbi", id),
-      Format::Bcf => format!("{}.bcf.csi", id),
+      Format::Bam => format!("{}.bai", id),
+      Format::Cram => format!("{}.crai", id),
+      Format::Vcf => format!("{}.tbi", id),
+      Format::Bcf => format!("{}.csi", id),
     }
   }
 }
