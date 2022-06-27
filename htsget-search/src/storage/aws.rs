@@ -199,7 +199,21 @@ impl Storage for AwsS3Storage {
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "Getting file with key {:?}", key);
-    self.create_buf_reader(key, options).await
+    // If no range information is available,
+    // take a shortcut since client is asking
+    // for the whole object.
+    if options.range.start == None || options.range.end == None {
+      let s3_head = self.s3_head(key).await?;
+      let whole_file_options = GetOptions::default()
+        .range
+        .with_start(0)
+        .with_end(s3_head.content_length().try_into().unwrap()); // TODO: When would that be negative? Handle better!
+      let new_options = GetOptions::default().with_range(whole_file_options);
+      self.create_buf_reader(key, new_options).await
+    } else {
+      // Client has supplied range, we must fetch bytes anyway...
+      self.create_buf_reader(key, options).await
+    }
   }
 
   /// Returns a S3-presigned htsget URL
