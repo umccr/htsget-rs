@@ -229,7 +229,18 @@ where
 
   /// Search based on the query.
   async fn search(&self, query: Query) -> Result<Response> {
-    let mut header_byte_ranges = self.get_byte_ranges_for_header(&query).await?;
+    let mut header_byte_ranges;
+    let format = Format::from(query.format);
+    let key = format.fmt_file(&query.id);
+    if query.end == None || query.start == None {
+      let object_size = self.get_storage().head(key).await?;
+      let whole_file_query = Query::new(&query.id, format)
+            .with_start(0)
+            .with_start(object_size.try_into().unwrap()); // TODO: u32 to u64?
+      header_byte_ranges = self.get_byte_ranges_for_header(&whole_file_query).await?;
+    } else {
+      header_byte_ranges = self.get_byte_ranges_for_header(&query).await?;
+    }
 
     match query.class {
       Class::Body => {
