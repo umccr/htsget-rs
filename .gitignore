@@ -2,7 +2,6 @@ target
 Cargo.lock
 *.code-workspace
 *.vcf.gz
-.vscode
 .idea
 package-lock.json
 deploy/.build
