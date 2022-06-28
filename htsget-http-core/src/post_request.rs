@@ -23,8 +23,8 @@ pub struct PostRequest {
 pub struct Region {
   #[serde(rename = "referenceName")]
   pub reference_name: String,
-  pub start: Option<u32>,
-  pub end: Option<u32>,
+  pub start: Option<u64>,
+  pub end: Option<u64>,
 }
 
 impl PostRequest {
@@ -39,7 +39,7 @@ impl PostRequest {
             self
               .get_base_query_builder(id.clone())?
               .with_reference_name(Some(region.reference_name.clone()))
-              .with_range_from_u32(region.start, region.end)?
+              .with_range_from_u64(region.start, region.end)?
               .build(),
           )
         })

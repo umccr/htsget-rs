@@ -138,8 +138,8 @@ pub struct Query {
   /// Reference name
   pub reference_name: Option<String>,
   /// The start and end positions are 0-based. [start, end)  
-  pub start: Option<u32>,
-  pub end: Option<u32>,
+  pub start: Option<u64>,
+  pub end: Option<u64>,
   pub fields: Fields,
   pub tags: Tags,
   pub no_tags: Option<Vec<String>>,
@@ -175,12 +175,12 @@ impl Query {
     self
   }
 
-  pub fn with_start(mut self, start: u32) -> Self {
+  pub fn with_start(mut self, start: u64) -> Self {
     self.start = Some(start);
     self
   }
 
-  pub fn with_end(mut self, end: u32) -> Self {
+  pub fn with_end(mut self, end: u64) -> Self {
     self.end = Some(end);
     self
   }

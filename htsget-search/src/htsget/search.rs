@@ -236,7 +236,7 @@ where
       let object_size = self.get_storage().head(key).await?;
       let whole_file_query = Query::new(&query.id, format)
             .with_start(0)
-            .with_end(object_size); // TODO: u32 to u64?
+            .with_end(object_size.try_into().map_err(|_| HtsGetError::InvalidRange("Probably out of range".to_string()))?);
       header_byte_ranges = self.get_byte_ranges_for_header(&whole_file_query).await?;
     } else {
       header_byte_ranges = self.get_byte_ranges_for_header(&query).await?;

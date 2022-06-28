@@ -67,7 +67,7 @@ impl QueryBuilder {
       .map(|start| start.into())
       .map(|start| {
         start
-          .parse::<u32>()
+          .parse::<u64>()
           .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid start", start)))
       })
       .transpose()?;
@@ -75,14 +75,14 @@ impl QueryBuilder {
       .map(|end| end.into())
       .map(|end| {
         end
-          .parse::<u32>()
+          .parse::<u64>()
           .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid end", end)))
       })
       .transpose()?;
-    self.with_range_from_u32(start, end)
+    self.with_range_from_u64(start, end)
   }
 
-  pub fn with_range_from_u32(mut self, start: Option<u32>, end: Option<u32>) -> Result<Self> {
+  pub fn with_range_from_u64(mut self, start: Option<u64>, end: Option<u64>) -> Result<Self> {
     if let Some(start) = start {
       self.query = self.query.with_start(start);
     }
@@ -93,7 +93,7 @@ impl QueryBuilder {
       && (self.query.reference_name.is_none() || self.query.reference_name.clone().unwrap() == "*")
     {
       return Err(HtsGetError::InvalidInput(
-        "Can't use range whitout specifying the reference name or with \"*\"".to_string(),
+        "Can't use range without specifying the reference name or with \"*\"".to_string(),
       ));
     }
     if self.query.start.is_some()
