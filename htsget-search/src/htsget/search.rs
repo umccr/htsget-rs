@@ -232,12 +232,13 @@ where
     let mut header_byte_ranges;
     let format = Format::from(query.format);
     let key = format.fmt_file(&query.id);
+    // The client asked for a whole file, there's no need to read indexes or anything else
+    // just return full range in the JSON response.
     if query.end == None || query.start == None {
       let object_size = self.get_storage().head(key).await?;
-      let whole_file_query = Query::new(&query.id, format)
-            .with_start(0)
-            .with_end(object_size.try_into().map_err(|_| HtsGetError::InvalidRange("Probably out of range".to_string()))?);
-      header_byte_ranges = self.get_byte_ranges_for_header(&whole_file_query).await?;
+      header_byte_ranges = vec!(BytesPosition::default().with_start(0).with_end(object_size));
+      let blocks = DataBlock::from_bytes_positions(BytesPosition::merge_all(header_byte_ranges));
+      return self.build_response(Class::Body, query.id, format, blocks).await
     } else {
       header_byte_ranges = self.get_byte_ranges_for_header(&query).await?;
     }
