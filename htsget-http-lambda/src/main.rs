@@ -6,7 +6,7 @@ use tracing::info;
 use htsget_config::config::{Config, StorageType};
 use htsget_http_lambda::Router;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
-use htsget_search::storage::axum_server::HttpsFormatter;
+use htsget_search::storage::ticket_server::HttpTicketFormatter;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -24,7 +24,7 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
   let searcher = Arc::new(HtsGetFromStorage::local_from(
     config.path,
     config.resolver,
-    HttpsFormatter::from(config.addr),
+    HttpTicketFormatter::from(config.addr),
   )?);
   let router = &Router::new(searcher, &config.service_info);
 

@@ -15,8 +15,8 @@ use crate::htsget::{Class, Headers, Url};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
-pub mod axum_server;
 pub mod local;
+pub mod ticket_server;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
@@ -298,8 +298,8 @@ mod tests {
   use std::collections::HashMap;
 
   use crate::htsget::Class;
-  use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
+  use crate::storage::ticket_server::HttpTicketFormatter;
 
   use super::*;
 
@@ -600,7 +600,8 @@ mod tests {
 
   #[test]
   fn data_url() {
-    let result = LocalStorage::<HttpsFormatter>::data_url(b"Hello World!".to_vec(), Class::Header);
+    let result =
+      LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Class::Header);
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");

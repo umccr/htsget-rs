@@ -30,13 +30,13 @@ use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
 
-/// Https url formatter.
+/// Ticket server url formatter.
 #[derive(Debug, Clone)]
-pub struct HttpsFormatter {
+pub struct HttpTicketFormatter {
   addr: SocketAddr,
 }
 
-impl HttpsFormatter {
+impl HttpTicketFormatter {
   const SERVE_ASSETS_AT: &'static str = "/data";
 
   pub fn new(ip: impl Into<String>, port: impl Into<String>) -> Result<Self> {
@@ -45,9 +45,9 @@ impl HttpsFormatter {
     })
   }
 
-  /// Eagerly bind the address by returing an AxumStorageServer.
-  pub async fn bind_axum_server(&self) -> Result<AxumStorageServer> {
-    AxumStorageServer::bind_addr(&self.addr, Self::SERVE_ASSETS_AT).await
+  /// Eagerly bind the address by returning an AxumStorageServer.
+  pub async fn bind_ticket_server(&self) -> Result<TicketServer> {
+    TicketServer::bind_addr(&self.addr, Self::SERVE_ASSETS_AT).await
   }
 }
 
@@ -57,7 +57,7 @@ impl From<AddrParseError> for StorageError {
   }
 }
 
-impl From<SocketAddr> for HttpsFormatter {
+impl From<SocketAddr> for HttpTicketFormatter {
   fn from(addr: SocketAddr) -> Self {
     Self { addr }
   }
@@ -65,12 +65,12 @@ impl From<SocketAddr> for HttpsFormatter {
 
 /// The local storage static http server.
 #[derive(Debug)]
-pub struct AxumStorageServer {
+pub struct TicketServer {
   listener: AddrIncoming,
   serve_assets_at: String,
 }
 
-impl AxumStorageServer {
+impl TicketServer {
   /// Eagerly bind the the address for use with the server, returning any errors.
   pub async fn bind_addr(addr: &SocketAddr, serve_assets_at: impl Into<String>) -> Result<Self> {
     let listener = TcpListener::bind(addr)
@@ -150,7 +150,7 @@ impl From<hyper::Error> for StorageError {
   }
 }
 
-impl UrlFormatter for HttpsFormatter {
+impl UrlFormatter for HttpTicketFormatter {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     http::uri::Builder::new()
       .scheme(http::uri::Scheme::HTTPS)
@@ -204,7 +204,7 @@ mod tests {
 
     // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
-    let mut server = AxumStorageServer::bind_addr(&addr, "/data").await.unwrap();
+    let mut server = TicketServer::bind_addr(&addr, "/data").await.unwrap();
     tokio::spawn(async move {
       server
         .serve(base_path.path(), &key_path, &cert_path)
@@ -229,12 +229,12 @@ mod tests {
 
   #[test]
   fn https_formatter_format_authority() {
-    let formatter = HttpsFormatter::new("127.0.0.1", "8080").unwrap();
+    let formatter = HttpTicketFormatter::new("127.0.0.1", "8080").unwrap();
     assert_eq!(
       formatter.format_url("path").unwrap(),
       format!(
         "https://127.0.0.1:8080{}/path",
-        HttpsFormatter::SERVE_ASSETS_AT
+        HttpTicketFormatter::SERVE_ASSETS_AT
       )
     )
   }
