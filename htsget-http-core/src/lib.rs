@@ -114,7 +114,7 @@ mod tests {
 
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
-  use htsget_search::storage::axum_server::HttpsFormatter;
+  use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Class::Body, Format, Headers, Url},
     storage::local::LocalStorage,
@@ -270,7 +270,7 @@ mod tests {
       LocalStorage::new(
         get_base_path(),
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1", "8081").unwrap(),
       )
       .unwrap(),
     ))

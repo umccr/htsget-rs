@@ -183,8 +183,8 @@ mod tests {
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::{Class, HtsGet};
-  use htsget_search::storage::axum_server::HttpsFormatter;
   use htsget_search::storage::local::LocalStorage;
+  use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
   use htsget_test_utils::server_tests::{
     default_test_config, get_test_file, test_response, test_response_service_info, Header,
@@ -266,7 +266,7 @@ mod tests {
           HtsGetFromStorage::local_from(
             &self.config.path,
             self.config.resolver.clone(),
-            HttpsFormatter::from(self.config.ticket_server_addr),
+            HttpTicketFormatter::from(self.config.ticket_server_addr),
           )
           .unwrap(),
         ),
@@ -513,7 +513,7 @@ mod tests {
 
   async fn with_router<'a, F, Fut>(test: F, config: &'a Config)
   where
-    F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage<HttpsFormatter>>>) -> Fut,
+    F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage<HttpTicketFormatter>>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let router = Router::new(
@@ -521,7 +521,7 @@ mod tests {
         HtsGetFromStorage::local_from(
           &config.path,
           config.resolver.clone(),
-          HttpsFormatter::from(config.ticket_server_addr),
+          HttpTicketFormatter::from(config.ticket_server_addr),
         )
         .unwrap(),
       ),

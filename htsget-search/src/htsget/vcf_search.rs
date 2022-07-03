@@ -161,8 +161,8 @@ pub mod tests {
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
-  use crate::storage::axum_server::HttpsFormatter;
   use crate::storage::local::LocalStorage;
+  use crate::storage::ticket_server::HttpTicketFormatter;
 
   use super::*;
 
@@ -254,7 +254,7 @@ pub mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<HttpsFormatter>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let base_path = std::env::current_dir()
@@ -266,7 +266,7 @@ pub mod tests {
       LocalStorage::new(
         base_path,
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1", "8081").unwrap(),
       )
       .unwrap(),
     ))

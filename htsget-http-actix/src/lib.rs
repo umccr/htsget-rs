@@ -71,7 +71,7 @@ mod tests {
   use async_trait::async_trait;
 
   use htsget_config::config::Config;
-  use htsget_search::storage::axum_server::HttpsFormatter;
+  use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
   use htsget_test_utils::server_tests::{
     Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
@@ -133,7 +133,7 @@ mod tests {
             HtsGetFromStorage::local_from(
               self.config.path.clone(),
               self.config.resolver.clone(),
-              HttpsFormatter::from(self.config.ticket_server_addr),
+              HttpTicketFormatter::from(self.config.ticket_server_addr),
             )
             .unwrap(),
             self.config.service_info.clone(),
