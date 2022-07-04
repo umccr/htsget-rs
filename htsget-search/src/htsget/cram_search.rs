@@ -448,7 +448,7 @@ pub mod tests {
       LocalStorage::new(
         base_path,
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1", "8081").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
       )
       .unwrap(),
     ))
@@ -456,6 +456,6 @@ pub mod tests {
   }
 
   pub(crate) fn expected_url() -> String {
-    "https://127.0.0.1:8081/data/htsnexus_test_NA12878.cram".to_string()
+    "http://127.0.0.1:8081/data/htsnexus_test_NA12878.cram".to_string()
   }
 }

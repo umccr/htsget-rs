@@ -7,9 +7,8 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::net::{AddrParseError, SocketAddr};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::http;
@@ -30,24 +29,60 @@ use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
 
+/// A certificate and key pair used for tls.
+/// This is the path to the PEM formatted X.509 certificate and private key.
+#[derive(Debug, Clone)]
+pub struct CertificateKeyPair {
+  cert: PathBuf,
+  key: PathBuf,
+}
+
 /// Ticket server url formatter.
 #[derive(Debug, Clone)]
 pub struct HttpTicketFormatter {
   addr: SocketAddr,
+  cert_key_pair: Option<CertificateKeyPair>,
 }
 
 impl HttpTicketFormatter {
   const SERVE_ASSETS_AT: &'static str = "/data";
 
-  pub fn new(ip: impl Into<String>, port: impl Into<String>) -> Result<Self> {
-    Ok(Self {
-      addr: SocketAddr::from_str(&format!("{}:{}", ip.into(), port.into()))?,
-    })
+  pub fn new(addr: SocketAddr) -> Self {
+    Self {
+      addr,
+      cert_key_pair: None,
+    }
+  }
+
+  pub fn new_with_tls<P: AsRef<Path>>(addr: SocketAddr, cert: P, key: P) -> Self {
+    Self {
+      addr,
+      cert_key_pair: Some(CertificateKeyPair {
+        cert: PathBuf::from(cert.as_ref()),
+        key: PathBuf::from(key.as_ref()),
+      }),
+    }
+  }
+
+  /// Returns a ticket server with tls if both cert and key are not None, without tls if cert and key
+  /// are both None, and otherwise an error.
+  pub fn try_from<P: AsRef<Path>>(
+    addr: SocketAddr,
+    cert: Option<P>,
+    key: Option<P>,
+  ) -> Result<Self> {
+    match (cert, key) {
+      (Some(cert), Some(key)) => Ok(Self::new_with_tls(addr, cert, key)),
+      (Some(_), None) | (None, Some(_)) => Err(TicketServerError(
+        "Both the cert and key must be provided for the ticket server.".to_string(),
+      )),
+      (None, None) => Ok(Self::new(addr)),
+    }
   }
 
   /// Eagerly bind the address by returning an AxumStorageServer.
-  pub async fn bind_ticket_server(&self) -> Result<TicketServer> {
-    TicketServer::bind_addr(&self.addr, Self::SERVE_ASSETS_AT).await
+  pub async fn bind_ticket_server(self) -> Result<TicketServer> {
+    TicketServer::bind_addr(self.addr, Self::SERVE_ASSETS_AT, self.cert_key_pair).await
   }
 }
 
@@ -57,59 +92,67 @@ impl From<AddrParseError> for StorageError {
   }
 }
 
-impl From<SocketAddr> for HttpTicketFormatter {
-  fn from(addr: SocketAddr) -> Self {
-    Self { addr }
-  }
-}
-
 /// The local storage static http server.
 #[derive(Debug)]
 pub struct TicketServer {
   listener: AddrIncoming,
   serve_assets_at: String,
+  cert_key_pair: Option<CertificateKeyPair>,
 }
 
 impl TicketServer {
   /// Eagerly bind the the address for use with the server, returning any errors.
-  pub async fn bind_addr(addr: &SocketAddr, serve_assets_at: impl Into<String>) -> Result<Self> {
+  pub async fn bind_addr(
+    addr: SocketAddr,
+    serve_assets_at: impl Into<String>,
+    cert_key_pair: Option<CertificateKeyPair>,
+  ) -> Result<Self> {
     let listener = TcpListener::bind(addr)
       .await
       .map_err(|err| IoError("Failed to bind ticket server addr".to_string(), err))?;
     let listener = AddrIncoming::from_listener(listener)?;
     Ok(Self {
-      serve_assets_at: serve_assets_at.into(),
       listener,
+      serve_assets_at: serve_assets_at.into(),
+      cert_key_pair,
     })
   }
 
   /// Run the actual server, using the provided path, key and certificate.
-  pub async fn serve<P: AsRef<Path>>(&mut self, path: P, key: P, cert: P) -> Result<()> {
+  pub async fn serve<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
     let mut app = Router::new()
       .layer(TraceLayer::new_for_http())
       .merge(SpaRouter::new(&self.serve_assets_at, path))
       .into_make_service_with_connect_info::<SocketAddr>();
 
-    let rustls_config = Self::rustls_server_config(key, cert)?;
-    let acceptor = TlsAcceptor::from(rustls_config);
-
-    loop {
-      let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
+    match self.cert_key_pair {
+      None => axum::Server::builder(self.listener)
+        .serve(app)
         .await
-        .ok_or_else(|| TicketServerError("Poll accept failed".to_string()))?
-        .map_err(|err| TicketServerError(err.to_string()))?;
-      let acceptor = acceptor.clone();
+        .map_err(|err| TicketServerError(err.to_string())),
+      Some(CertificateKeyPair { cert, key }) => {
+        let rustls_config = Self::rustls_server_config(key, cert)?;
+        let acceptor = TlsAcceptor::from(rustls_config);
 
-      let app = app
-        .make_service(&stream)
-        .await
-        .map_err(|err| TicketServerError(err.to_string()))?;
+        loop {
+          let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
+            .await
+            .ok_or_else(|| TicketServerError("Poll accept failed".to_string()))?
+            .map_err(|err| TicketServerError(err.to_string()))?;
+          let acceptor = acceptor.clone();
 
-      tokio::spawn(async move {
-        if let Ok(stream) = acceptor.accept(stream).await {
-          let _ = Http::new().serve_connection(stream, app).await;
+          let app = app
+            .make_service(&stream)
+            .await
+            .map_err(|err| TicketServerError(err.to_string()))?;
+
+          tokio::spawn(async move {
+            if let Ok(stream) = acceptor.accept(stream).await {
+              let _ = Http::new().serve_connection(stream, app).await;
+            }
+          });
         }
-      });
+      }
     }
   }
 
@@ -152,8 +195,12 @@ impl From<hyper::Error> for StorageError {
 
 impl UrlFormatter for HttpTicketFormatter {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
+    let scheme = match self.cert_key_pair {
+      None => http::uri::Scheme::HTTP,
+      Some(_) => http::uri::Scheme::HTTPS,
+    };
     http::uri::Builder::new()
-      .scheme(http::uri::Scheme::HTTPS)
+      .scheme(scheme)
       .authority(self.addr.to_string())
       .path_and_query(format!("{}/{}", Self::SERVE_ASSETS_AT, key.as_ref()))
       .build()
@@ -165,8 +212,10 @@ impl UrlFormatter for HttpTicketFormatter {
 #[cfg(test)]
 mod tests {
   use std::io::Read;
+  use std::str::FromStr;
 
   use http::{Method, Request};
+  use hyper::client::connect::Connect;
   use hyper::client::HttpConnector;
   use hyper::{Body, Client};
   use hyper_tls::native_tls::TlsConnector;
@@ -179,7 +228,20 @@ mod tests {
   use super::*;
 
   #[tokio::test]
-  async fn test_server() {
+  async fn test_http_server() {
+    let (_, base_path) = create_local_test_files().await;
+
+    test_server_request(
+      "http",
+      None,
+      base_path.path().to_path_buf(),
+      HttpConnector::new(),
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_tls_server() {
     let (_, base_path) = create_local_test_files().await;
 
     // Generate self-signed certificate.
@@ -202,21 +264,51 @@ mod tests {
     http.enforce_http(false);
     let https = HttpsConnector::from((http, tls.into()));
 
+    test_server_request(
+      "https",
+      Some(CertificateKeyPair {
+        cert: cert_path,
+        key: key_path,
+      }),
+      base_path.path().to_path_buf(),
+      https,
+    )
+    .await;
+  }
+
+  #[test]
+  fn http_formatter_authority() {
+    let formatter = HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap());
+    test_formatter_authority(formatter, "http");
+  }
+
+  #[test]
+  fn https_formatter_authority() {
+    let formatter = HttpTicketFormatter::new_with_tls("127.0.0.1:8080".parse().unwrap(), "", "");
+    test_formatter_authority(formatter, "https");
+  }
+
+  async fn test_server_request<C, P>(
+    scheme: &str,
+    cert_key_pair: Option<CertificateKeyPair>,
+    path: P,
+    conntector: C,
+  ) where
+    C: Connect + Clone + Send + Sync + 'static,
+    P: AsRef<Path> + Send + 'static,
+  {
     // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
-    let mut server = TicketServer::bind_addr(&addr, "/data").await.unwrap();
-    tokio::spawn(async move {
-      server
-        .serve(base_path.path(), &key_path, &cert_path)
-        .await
-        .unwrap()
-    });
+    let server = TicketServer::bind_addr(addr, "/data", cert_key_pair)
+      .await
+      .unwrap();
+    tokio::spawn(async move { server.serve(path).await.unwrap() });
 
     // Make request.
-    let client = Client::builder().build::<_, Body>(https);
+    let client = Client::builder().build::<_, Body>(conntector);
     let request = Request::builder()
       .method(Method::GET)
-      .uri(format!("https://{}:{}/data/key1", "localhost", "8080"))
+      .uri(format!("{}://{}:{}/data/key1", scheme, "localhost", "8080"))
       .body(Body::empty())
       .unwrap();
     let response = client.request(request).await;
@@ -227,13 +319,12 @@ mod tests {
     assert_eq!(body.as_ref(), b"value1");
   }
 
-  #[test]
-  fn https_formatter_format_authority() {
-    let formatter = HttpTicketFormatter::new("127.0.0.1", "8080").unwrap();
+  fn test_formatter_authority(formatter: HttpTicketFormatter, scheme: &str) {
     assert_eq!(
       formatter.format_url("path").unwrap(),
       format!(
-        "https://127.0.0.1:8080{}/path",
+        "{}://127.0.0.1:8080{}/path",
+        scheme,
         HttpTicketFormatter::SERVE_ASSETS_AT
       )
     )

@@ -210,7 +210,7 @@ pub(crate) mod tests {
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
       let result = Storage::range_url(&storage, "folder/../key1", RangeUrlOptions::default()).await;
-      let expected = Url::new("https://127.0.0.1:8081/data/key1");
+      let expected = Url::new("http://127.0.0.1:8081/data/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
@@ -225,7 +225,7 @@ pub(crate) mod tests {
         RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10))),
       )
       .await;
-      let expected = Url::new("https://127.0.0.1:8081/data/key1")
+      let expected = Url::new("http://127.0.0.1:8081/data/key1")
         .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -241,7 +241,7 @@ pub(crate) mod tests {
         RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
       )
       .await;
-      let expected = Url::new("https://127.0.0.1:8081/data/key1")
+      let expected = Url::new("http://127.0.0.1:8081/data/key1")
         .with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -295,7 +295,7 @@ pub(crate) mod tests {
       LocalStorage::new(
         base_path.path(),
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1", "8081").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
       )
       .unwrap(),
     )

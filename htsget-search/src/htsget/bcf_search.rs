@@ -260,7 +260,7 @@ pub mod tests {
       LocalStorage::new(
         base_path,
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1", "8081").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
       )
       .unwrap(),
     ))
@@ -268,6 +268,6 @@ pub mod tests {
   }
 
   pub(crate) fn expected_url(name: &str) -> String {
-    format!("https://127.0.0.1:8081/data/{}.bcf", name)
+    format!("http://127.0.0.1:8081/data/{}.bcf", name)
   }
 }
