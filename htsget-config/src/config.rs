@@ -19,8 +19,8 @@ For more information about the regex options look in the documentation of the re
 
 The following options are used for the ticket server.
 * HTSGET_TICKET_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_TICKET_SERVER_KEY: The path to the PEM formatted X.509 private key used by the ticket response server. Default: "key.pem". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_TICKET_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the ticket response server. Default: "cert.pem". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_TICKET_SERVER_KEY: The path to the PEM formatted X.509 private key used by the ticket response server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_TICKET_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the ticket response server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
 
 The following options are used to configure AWS S3 storage.
 * HTSGET_S3_BUCKET: The name of the AWS S3 bucket. Default: "". Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".
@@ -52,14 +52,6 @@ fn default_path() -> PathBuf {
   PathBuf::from(".")
 }
 
-fn default_localstorage_cert() -> PathBuf {
-  PathBuf::from("cert.pem")
-}
-
-fn default_localstorage_key() -> PathBuf {
-  PathBuf::from("key.pem")
-}
-
 /// Specify the storage type to use.
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub enum StorageType {
@@ -80,8 +72,8 @@ pub struct Config {
   pub service_info: ConfigServiceInfo,
   pub storage_type: StorageType,
   pub ticket_server_addr: SocketAddr,
-  pub ticket_server_key: PathBuf,
-  pub ticket_server_cert: PathBuf,
+  pub ticket_server_key: Option<PathBuf>,
+  pub ticket_server_cert: Option<PathBuf>,
   #[cfg(feature = "s3-storage")]
   pub s3_bucket: String,
 }
@@ -110,8 +102,8 @@ impl Default for Config {
       service_info: ConfigServiceInfo::default(),
       storage_type: LocalStorage,
       ticket_server_addr: default_localstorage_addr(),
-      ticket_server_key: default_localstorage_key(),
-      ticket_server_cert: default_localstorage_cert(),
+      ticket_server_key: None,
+      ticket_server_cert: None,
       #[cfg(feature = "s3-storage")]
       s3_bucket: "".to_string(),
     }

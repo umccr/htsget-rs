@@ -160,7 +160,7 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 }
 
 fn expected_local_storage_path(config: &Config) -> String {
-  format!("https://{}", config.ticket_server_addr)
+  format!("http://{}", config.ticket_server_addr)
 }
 
 /// An example VCF search response.

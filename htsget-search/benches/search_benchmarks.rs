@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::time::Duration;
 
 use criterion::measurement::WallTime;
@@ -20,11 +19,7 @@ async fn perform_query(query: Query) -> Result<(), HtsGetError> {
   let htsget = HtsGetFromStorage::local_from(
     "../data",
     RegexResolver::new(".*", "$0").unwrap(),
-    HttpTicketFormatter::from(
-      "127.0.0.1:8081"
-        .parse::<SocketAddr>()
-        .expect("Expected valid address."),
-    ),
+    HttpTicketFormatter::new("127.0.0.1:8081".parse().expect("Expected valid address.")),
   )?;
 
   htsget.search(query).await?;

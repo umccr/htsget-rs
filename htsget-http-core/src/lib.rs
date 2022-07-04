@@ -239,7 +239,7 @@ mod tests {
     JsonResponse::from_response(Response::new(
       Format::Vcf,
       vec![
-        Url::new("https://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
+        Url::new("http://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
           .with_headers(Headers::new(headers)),
         Url::new(expected_bgzf_eof_data_url()).with_class(Body),
       ],
@@ -250,7 +250,7 @@ mod tests {
     JsonResponse::from_response(Response::new(
       Format::Bam,
       vec![
-        Url::new("https://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
+        Url::new("http://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
           .with_headers(Headers::new(headers)),
         Url::new(expected_bgzf_eof_data_url()).with_class(Body),
       ],
@@ -270,7 +270,7 @@ mod tests {
       LocalStorage::new(
         get_base_path(),
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1", "8081").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
       )
       .unwrap(),
     ))
