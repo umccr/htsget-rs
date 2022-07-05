@@ -186,10 +186,7 @@ mod tests {
   use htsget_search::storage::local::LocalStorage;
   use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
-  use htsget_test_utils::server_tests::{
-    default_test_config, get_test_file, test_response, test_response_service_info, Header,
-    Response, TestRequest, TestServer,
-  };
+  use htsget_test_utils::server_tests::{default_test_config, get_test_file, test_response, test_response_service_info, Header, Response, TestRequest, TestServer, formatter_from_config};
 
   use crate::{HtsgetMethod, Method, Route, RouteType, Router};
 
@@ -266,7 +263,7 @@ mod tests {
           HtsGetFromStorage::local_from(
             &self.config.path,
             self.config.resolver.clone(),
-            HttpTicketFormatter::new(self.config.ticket_server_addr),
+            self.get_formatter(),
           )
           .unwrap(),
         ),
@@ -310,13 +307,13 @@ mod tests {
   #[tokio::test]
   async fn test_get_from_file() {
     let config = default_test_config();
-    endpoint_from_file("events/event_get.json", Class::Body, &config).await;
+    endpoint_from_file("events/event_get.json", Class::Body, &config, formatter_from_config(&config)).await;
   }
 
   #[tokio::test]
   async fn test_post_from_file() {
     let config = default_test_config();
-    endpoint_from_file("events/event_post.json", Class::Body, &config).await;
+    endpoint_from_file("events/event_post.json", Class::Body, &config, formatter_from_config(&config)).await;
   }
 
   #[tokio::test]
@@ -326,6 +323,7 @@ mod tests {
       "events/event_parameterized_get.json",
       Class::Header,
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -333,7 +331,7 @@ mod tests {
   #[tokio::test]
   async fn test_parameterized_post_from_file() {
     let config = default_test_config();
-    endpoint_from_file("events/event_parameterized_post.json", Class::Body, &config).await;
+    endpoint_from_file("events/event_parameterized_post.json", Class::Body, &config, formatter_from_config(&config)).await;
   }
 
   #[tokio::test]
@@ -342,7 +340,7 @@ mod tests {
     endpoint_from_file(
       "events/event_parameterized_post_class_header.json",
       Class::Header,
-      &config,
+      &config, formatter_from_config(&config)
     )
     .await;
   }
@@ -535,11 +533,11 @@ mod tests {
     lambda_http::request::from_str(&event).expect("Failed to create lambda request.")
   }
 
-  async fn endpoint_from_file(file_path: &str, class: Class, config: &Config) {
+  async fn endpoint_from_file(file_path: &str, class: Class, config: &Config, formatter: HttpTicketFormatter) {
     with_router(
       |router| async move {
         let response = route_request_to_response(get_request_from_file(file_path), router).await;
-        test_response(&response, config, class);
+        test_response(&response, config.clone(), class, formatter).await;
       },
       config,
     )

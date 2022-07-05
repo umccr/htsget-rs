@@ -49,8 +49,7 @@ impl Drop for DropGuard {
 }
 
 fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) -> Result<usize> {
-  let response = client.post(url).json(json_content).send().unwrap();
-  let response: JsonResponse = response.json().unwrap();
+  let response: JsonResponse = client.post(url).json(json_content).send().unwrap().json().unwrap();
   Ok(
     response
       .htsget

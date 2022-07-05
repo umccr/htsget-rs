@@ -10,9 +10,15 @@ s3-storage = ["htsget-config?/s3-storage", "htsget-search?/s3-storage", "htsget-
 default = ["s3-storage"]
 
 [dependencies]
+noodles-vcf = { version = "0.16", features = ["async"] }
+noodles-bgzf = { version = "0.12", features = ["async"] }
+
 htsget-http-core = { path = "../htsget-http-core", default-features = false, optional = true }
 htsget-config = { path = "../htsget-config", default-features = false, optional = true }
 htsget-search = { path = "../htsget-search", default-features = false, optional = true }
+reqwest = { version = "0.11", features = ["json", "blocking", "rustls-tls"] }
+tokio = { version = "1.19", features = ["rt-multi-thread"] }
+futures = "0.3"
 async-trait = "0.1"
 http = "0.2"
 mime = "0.3"
@@ -21,3 +27,4 @@ serde = "1.0"
 envy = "0.4"
 serde_bytes = "0.11"
 rcgen = "0.9"
+base64 = "0.13"
