@@ -87,6 +87,7 @@ pub trait TestServer<T: TestRequest> {
 pub async fn test_response(response: &Response, config: Config, class: Class, formatter: HttpTicketFormatter) {
   let url_path = expected_local_storage_path(&config);
   let expected_response = expected_response(class, url_path);
+  println!("{:?}", response);
   assert!(response.is_success());
   assert_eq!(
     expected_response,
@@ -218,7 +219,7 @@ fn expected_local_storage_path(config: &Config) -> String {
 /// An example VCF search response.
 pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
   let mut headers = HashMap::new();
-  headers.insert("Range".to_string(), "bytes=0-3366".to_string());
+  headers.insert("Range".to_string(), "bytes=0-3465".to_string());
 
   let http_url = Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path))
     .with_headers(Headers::new(headers))

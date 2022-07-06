@@ -246,7 +246,7 @@ pub mod tests {
       Format::Vcf,
       vec![
         Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3366")),
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3465")),
         Url::new(expected_bgzf_eof_data_url()).with_class(Body),
       ],
     )
