@@ -94,7 +94,9 @@ impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+  use std::future::Future;
+
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
@@ -104,6 +106,7 @@ mod tests {
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
   use crate::htsget::{Class::Body, Headers, Url};
+  use crate::storage::ticket_server::HttpTicketFormatter;
 
   use super::*;
 
@@ -148,5 +151,26 @@ mod tests {
       assert_eq!(response, expected_response)
     })
     .await;
+  }
+
+  pub(crate) async fn with_local_storage<F, Fut>(test: F, path: &str)
+  where
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let base_path = std::env::current_dir()
+      .unwrap()
+      .parent()
+      .unwrap()
+      .join(path);
+    test(Arc::new(
+      LocalStorage::new(
+        base_path,
+        RegexResolver::new(".*", "$0").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
+      )
+      .unwrap(),
+    ))
+    .await
   }
 }

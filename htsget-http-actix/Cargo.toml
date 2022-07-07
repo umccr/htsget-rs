@@ -18,7 +18,7 @@ htsget-search = { path = "../htsget-search", default-features = false}
 htsget-config = { path = "../htsget-config", default-features = false }
 futures = { version = "0.3" }
 tokio = { version = "1.19", features = ["macros", "rt-multi-thread"] }
-tracing-actix-web = "0.5"
+tracing-actix-web = "0.6"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 

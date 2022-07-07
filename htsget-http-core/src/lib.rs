@@ -9,7 +9,7 @@ pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
 pub use service_info::get_service_info_with;
-pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
+pub use service_info::{Htsget, Organisation, ServiceInfo, Type};
 
 mod error;
 mod http_core;
@@ -132,7 +132,7 @@ mod tests {
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
       Ok(example_bam_json_response(headers))
-    )
+    );
   }
 
   #[tokio::test]
@@ -143,7 +143,7 @@ mod tests {
     assert!(matches!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
       Err(HtsGetError::UnsupportedFormat(_))
-    ))
+    ));
   }
 
   #[tokio::test]
@@ -158,7 +158,7 @@ mod tests {
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Variants).await,
       Ok(example_vcf_json_response(headers))
-    )
+    );
   }
 
   #[tokio::test]
@@ -182,7 +182,7 @@ mod tests {
       )
       .await,
       Ok(example_bam_json_response(headers))
-    )
+    );
   }
 
   #[tokio::test]
@@ -204,7 +204,7 @@ mod tests {
       )
       .await,
       Err(HtsGetError::UnsupportedFormat(_))
-    ))
+    ));
   }
 
   #[tokio::test]
@@ -232,7 +232,7 @@ mod tests {
       )
       .await,
       Ok(example_vcf_json_response(headers))
-    )
+    );
   }
 
   fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {

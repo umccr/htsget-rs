@@ -11,9 +11,9 @@ pub struct QueryBuilder {
 impl QueryBuilder {
   pub fn new(id: Option<impl Into<String>>, format: Option<impl Into<String>>) -> Result<Self> {
     let format = format
-      .map(|s| s.into())
+      .map(Into::into)
       .ok_or_else(|| HtsGetError::InvalidInput("Format needed".to_string()))?;
-    Ok(QueryBuilder {
+    Ok(Self {
       query: Query::new(
         id.ok_or_else(|| HtsGetError::InvalidInput("ID needed".to_string()))?,
         match format.as_str() {
@@ -37,7 +37,7 @@ impl QueryBuilder {
   }
 
   pub fn with_class(mut self, class: Option<impl Into<String>>) -> Result<Self> {
-    let class = class.map(|s| s.into());
+    let class = class.map(Into::into);
     self.query = self.query.with_class(match class {
       None => Class::Body,
       Some(class) if class == "header" => Class::Header,
@@ -64,19 +64,19 @@ impl QueryBuilder {
     end: Option<impl Into<String>>,
   ) -> Result<Self> {
     let start = start
-      .map(|start| start.into())
+      .map(Into::into)
       .map(|start| {
-        start
-          .parse::<u32>()
-          .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid start", start)))
+        start.parse::<u32>().map_err(|err| {
+          HtsGetError::InvalidInput(format!("{}: '{}' isn't a valid start", err, start))
+        })
       })
       .transpose()?;
     let end = end
-      .map(|end| end.into())
+      .map(Into::into)
       .map(|end| {
         end
           .parse::<u32>()
-          .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid end", end)))
+          .map_err(|err| HtsGetError::InvalidInput(format!("{}: '{}' isn't a valid end", err, end)))
       })
       .transpose()?;
     self.with_range_from_u32(start, end)
@@ -119,7 +119,7 @@ impl QueryBuilder {
     if let Some(fields) = fields {
       self.query = self
         .query
-        .with_fields(Fields::List(fields.into_iter().map(|s| s.into()).collect()));
+        .with_fields(Fields::List(fields.into_iter().map(Into::into).collect()));
     }
     self
   }
@@ -141,11 +141,11 @@ impl QueryBuilder {
     notags: Option<Vec<impl Into<String>>>,
   ) -> Result<Self> {
     let notags = match notags {
-      Some(notags) => notags.into_iter().map(|notag| notag.into()).collect(),
+      Some(notags) => notags.into_iter().map(Into::into).collect(),
       None => vec![],
     };
     if let Some(tags) = tags {
-      let tags: Vec<String> = tags.into_iter().map(|tag| tag.into()).collect();
+      let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
       if tags.iter().any(|tag| notags.contains(tag)) {
         return Err(HtsGetError::InvalidInput(
           "Tags and notags can't intersect".to_string(),
@@ -181,7 +181,7 @@ mod tests {
         .build()
         .id,
       "ValidId".to_string()
-    )
+    );
   }
 
   #[test]
@@ -254,14 +254,14 @@ mod tests {
 
   #[test]
   fn query_with_invalid_start() {
-    assert_eq!(
+    assert!(matches!(
       QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_reference_name(Some("ValidName"))
         .with_range(Some("a"), Some("5"))
         .unwrap_err(),
-      HtsGetError::InvalidInput("a isn't a valid start".to_string())
-    );
+      HtsGetError::InvalidInput(_)
+    ));
   }
 
   #[test]

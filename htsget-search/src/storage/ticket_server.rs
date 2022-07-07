@@ -44,6 +44,7 @@ pub struct CertificateKeyPair {
 pub struct HttpTicketFormatter {
   addr: SocketAddr,
   cert_key_pair: Option<CertificateKeyPair>,
+  scheme: Scheme,
 }
 
 impl HttpTicketFormatter {
@@ -53,6 +54,7 @@ impl HttpTicketFormatter {
     Self {
       addr,
       cert_key_pair: None,
+      scheme: Scheme::HTTP,
     }
   }
 
@@ -63,6 +65,7 @@ impl HttpTicketFormatter {
         cert: PathBuf::from(cert.as_ref()),
         key: PathBuf::from(key.as_ref()),
       }),
+      scheme: Scheme::HTTPS,
     }
   }
 
@@ -83,17 +86,15 @@ impl HttpTicketFormatter {
   }
 
   /// Get the scheme this formatter is using - either HTTP or HTTPS.
-  pub fn get_scheme(&self) -> Scheme {
-    match self.cert_key_pair {
-      None => Scheme::HTTP,
-      Some(_) => Scheme::HTTPS,
-    }
+  pub fn get_scheme(&self) -> &Scheme {
+    &self.scheme
   }
 
   /// Eagerly bind the address by returning an AxumStorageServer. This function also updates the
   /// address to the actual bound address, and replaces the cert_key_pair with None.
   pub async fn bind_ticket_server(&mut self) -> Result<TicketServer> {
-    let server = TicketServer::bind_addr(self.addr, Self::SERVE_ASSETS_AT, self.cert_key_pair.take()).await?;
+    let server =
+      TicketServer::bind_addr(self.addr, Self::SERVE_ASSETS_AT, self.cert_key_pair.take()).await?;
     self.addr = server.local_addr();
     Ok(server)
   }
@@ -221,7 +222,7 @@ impl From<hyper::Error> for StorageError {
 impl UrlFormatter for HttpTicketFormatter {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     http::uri::Builder::new()
-      .scheme(self.get_scheme())
+      .scheme(self.get_scheme().clone())
       .authority(self.addr.to_string())
       .path_and_query(format!("{}/{}", Self::SERVE_ASSETS_AT, key.as_ref()))
       .build()
@@ -312,45 +313,44 @@ mod tests {
   #[test]
   fn http_scheme() {
     let formatter = HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap());
-    assert_eq!(formatter.get_scheme(), Scheme::HTTP);
+    assert_eq!(formatter.get_scheme(), &Scheme::HTTP);
   }
 
   #[test]
   fn https_scheme() {
     let formatter = HttpTicketFormatter::new_with_tls("127.0.0.1:8080".parse().unwrap(), "", "");
-    assert_eq!(formatter.get_scheme(), Scheme::HTTPS);
+    assert_eq!(formatter.get_scheme(), &Scheme::HTTPS);
   }
 
   #[tokio::test]
-  async fn local_addr() {
-    let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
-    let server = TicketServer::bind_addr(addr, "/data", None)
-      .await
-      .unwrap();
-    assert_eq!(server.local_addr(), "127.0.0.1:8080".parse().unwrap());
+  async fn get_addr_local_addr() {
+    let mut formatter = HttpTicketFormatter::new("127.0.0.1:0".parse().unwrap());
+    let server = formatter.bind_ticket_server().await.unwrap();
+    assert_eq!(formatter.get_addr(), server.local_addr());
   }
 
   async fn test_server_request<C, P>(
     scheme: &str,
     cert_key_pair: Option<CertificateKeyPair>,
     path: P,
-    conntector: C,
+    connector: C,
   ) where
     C: Connect + Clone + Send + Sync + 'static,
     P: AsRef<Path> + Send + 'static,
   {
     // Start server.
-    let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
+    let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "0")).unwrap();
     let server = TicketServer::bind_addr(addr, "/data", cert_key_pair)
       .await
       .unwrap();
+    let port = server.local_addr().port();
     tokio::spawn(async move { server.serve(path).await.unwrap() });
 
     // Make request.
-    let client = Client::builder().build::<_, Body>(conntector);
+    let client = Client::builder().build::<_, Body>(connector);
     let request = Request::builder()
       .method(Method::GET)
-      .uri(format!("{}://{}:{}/data/key1", scheme, "localhost", "8080"))
+      .uri(format!("{}://{}:{}/data/key1", scheme, "localhost", port))
       .body(Body::empty())
       .unwrap();
     let response = client.request(request).await;

@@ -3,21 +3,21 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use htsget_config::config::ConfigServiceInfo;
+use htsget_config::config::ServiceInfo as ConfigServiceInfo;
 use htsget_search::htsget::{Format, HtsGet};
 
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
 
-/// A struct representing the information that should be present in a service-info response
+/// A struct representing the information that should be present in a service-info response.
 #[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct ServiceInfo {
   pub id: String,
   pub name: String,
   pub version: String,
-  pub organization: ServiceInfoOrganization,
+  pub organization: Organisation,
   #[serde(rename = "type")]
-  pub service_type: ServiceInfoType,
-  pub htsget: ServiceInfoHtsget,
+  pub service_type: Type,
+  pub htsget: Htsget,
   // The next fields aren't in the HtsGet specification, but were added
   // because they were present in the reference implementation and were deemed useful
   #[serde(rename = "contactUrl")]
@@ -32,20 +32,20 @@ pub struct ServiceInfo {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
-pub struct ServiceInfoOrganization {
+pub struct Organisation {
   pub name: String,
   pub url: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
-pub struct ServiceInfoType {
+pub struct Type {
   pub group: String,
   pub artifact: String,
   pub version: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Default)]
-pub struct ServiceInfoHtsget {
+pub struct Htsget {
   pub datatype: String,
   pub formats: Vec<String>,
   #[serde(rename = "fieldsParametersEffective")]
@@ -60,7 +60,7 @@ pub fn get_service_info_with(
   fields_effective: bool,
   tags_effective: bool,
 ) -> ServiceInfo {
-  let htsget_info = ServiceInfoHtsget {
+  let htsget_info = Htsget {
     datatype: match endpoint {
       Endpoint::Reads => "reads",
       Endpoint::Variants => "variants",
@@ -114,7 +114,7 @@ pub fn get_service_info_json(
 }
 
 /// Fills the service-info json with the data from the server config
-pub(crate) fn fill_out_service_info_json(
+fn fill_out_service_info_json(
   mut service_info_json: ServiceInfo,
   config: &ConfigServiceInfo,
 ) -> ServiceInfo {

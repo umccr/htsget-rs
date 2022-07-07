@@ -1,4 +1,5 @@
 use std::env::args;
+use std::io::{Error, ErrorKind};
 
 use tokio::select;
 
@@ -22,6 +23,7 @@ async fn main() -> std::io::Result<()> {
     StorageType::LocalStorage => local_storage_server(config).await,
     #[cfg(feature = "s3-storage")]
     StorageType::AwsS3Storage => s3_storage_server(config).await,
+    _ => Err(Error::new(ErrorKind::Other, "Unsupported storage type")),
   }
 }
 

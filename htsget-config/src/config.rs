@@ -8,6 +8,7 @@ use tracing::info;
 use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
 
+/// Represents a usage string for htsget-rs.
 pub const USAGE: &str = r#"
 The HtsGet server executables don't use command line arguments, but there are some environment variables that can be set to configure them:
 * HTSGET_ADDR: The socket address for the server which creates response tickets. Default: "127.0.0.1:8080".
@@ -54,6 +55,7 @@ fn default_path() -> PathBuf {
 
 /// Specify the storage type to use.
 #[derive(Deserialize, Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum StorageType {
   LocalStorage,
   #[cfg(feature = "s3-storage")]
@@ -69,7 +71,7 @@ pub struct Config {
   pub resolver: RegexResolver,
   pub path: PathBuf,
   #[serde(flatten)]
-  pub service_info: ConfigServiceInfo,
+  pub service_info: ServiceInfo,
   pub storage_type: StorageType,
   pub ticket_server_addr: SocketAddr,
   pub ticket_server_key: Option<PathBuf>,
@@ -78,9 +80,10 @@ pub struct Config {
   pub s3_bucket: String,
 }
 
+/// Configuration of the service info.
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(default)]
-pub struct ConfigServiceInfo {
+pub struct ServiceInfo {
   pub id: Option<String>,
   pub name: Option<String>,
   pub version: Option<String>,
@@ -99,7 +102,7 @@ impl Default for Config {
       addr: default_addr(),
       resolver: RegexResolver::default(),
       path: default_path(),
-      service_info: ConfigServiceInfo::default(),
+      service_info: ServiceInfo::default(),
       storage_type: LocalStorage,
       ticket_server_addr: default_localstorage_addr(),
       ticket_server_key: None,

@@ -96,7 +96,7 @@ where
     // We are assuming the order of the names and the references sequences
     // in the index is the same
     let mut futures = FuturesOrdered::new();
-    for (index, name) in index.reference_sequence_names().iter().enumerate() {
+    for (index, name) in index.header().reference_sequence_names().iter().enumerate() {
       let owned_name = name.to_owned();
       let owned_reference_name = reference_name.clone();
       futures.push(tokio::spawn(async move {
@@ -154,12 +154,12 @@ where
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
   use std::future::Future;
 
-  use htsget_config::regex_resolver::RegexResolver;
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
+  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
@@ -257,20 +257,7 @@ pub mod tests {
     F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let base_path = std::env::current_dir()
-      .unwrap()
-      .parent()
-      .unwrap()
-      .join("data/vcf");
-    test(Arc::new(
-      LocalStorage::new(
-        base_path,
-        RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
-      )
-      .unwrap(),
-    ))
-    .await
+    with_local_storage_path(test, "data/vcf").await
   }
 
   pub(crate) fn expected_url(name: &str) -> String {
