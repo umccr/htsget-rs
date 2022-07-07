@@ -288,12 +288,12 @@ where
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
   use std::future::Future;
 
-  use htsget_config::regex_resolver::RegexResolver;
   use htsget_test_utils::util::expected_cram_eof_data_url;
 
+  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
@@ -434,28 +434,15 @@ pub mod tests {
     .await;
   }
 
-  pub(crate) async fn with_local_storage<F, Fut>(test: F)
+  async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let base_path = std::env::current_dir()
-      .unwrap()
-      .parent()
-      .unwrap()
-      .join("data/cram");
-    test(Arc::new(
-      LocalStorage::new(
-        base_path,
-        RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
-      )
-      .unwrap(),
-    ))
-    .await
+    with_local_storage_path(test, "data/cram").await
   }
 
-  pub(crate) fn expected_url() -> String {
+  fn expected_url() -> String {
     "http://127.0.0.1:8081/data/htsnexus_test_NA12878.cram".to_string()
   }
 }

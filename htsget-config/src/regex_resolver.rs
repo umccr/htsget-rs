@@ -23,8 +23,9 @@ impl Default for RegexResolver {
 }
 
 impl RegexResolver {
+  /// Create a new regex resolver.
   pub fn new(regex: &str, replacement_string: &str) -> Result<Self, Error> {
-    Ok(RegexResolver {
+    Ok(Self {
       regex: Regex::new(regex)?,
       substitution_string: replacement_string.to_string(),
     })

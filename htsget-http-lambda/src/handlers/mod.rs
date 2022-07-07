@@ -27,7 +27,7 @@ impl<T> FormatJson<T> {
 impl<T: Serialize> TryFrom<FormatJson<T>> for Response<Body> {
   type Error = http::Error;
 
-  fn try_from(value: FormatJson<T>) -> http::Result<Response<Body>> {
+  fn try_from(value: FormatJson<T>) -> http::Result<Self> {
     let mut body = match serde_json::to_string_pretty(&value.into_inner()) {
       Ok(body) => body,
       Err(e) => return Ok(FormatJson::try_from(e)?.into_inner()),
@@ -64,7 +64,7 @@ impl TryFrom<HtsGetError> for FormatJson<Response<Body>> {
   fn try_from(error: HtsGetError) -> http::Result<Self> {
     let (json, status_code) = error.to_json_representation();
     let mut response: Response<Body> = FormatJson(json).try_into()?;
-    *response.status_mut() = StatusCode::from_u16(status_code).unwrap();
+    *response.status_mut() = status_code;
     Ok(Self(response))
   }
 }

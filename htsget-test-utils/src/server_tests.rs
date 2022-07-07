@@ -1,28 +1,23 @@
 use std::collections::HashMap;
 use std::fs;
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Once;
 
 use async_trait::async_trait;
 use futures::future::join_all;
 use futures::TryStreamExt;
 use http::Method;
-use http::uri::Scheme;
-use serde::{de, Serialize};
-use serde::Deserialize;
-use reqwest::Client;
+use noodles_bgzf as bgzf;
+use noodles_vcf as vcf;
 use reqwest::ClientBuilder;
+use serde::de;
+use serde::Deserialize;
 
 use htsget_config::config::Config;
-use htsget_http_core::{Endpoint, get_service_info_with, JsonResponse, JsonUrl};
-use htsget_search::htsget::{Class, Format, Headers, Url};
+use htsget_http_core::{get_service_info_with, Endpoint, JsonResponse};
 use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
-use htsget_search::storage::ticket_server::{HttpTicketFormatter, TicketServer};
-use noodles_vcf as vcf;
-use noodles_bgzf as bgzf;
-use tokio::sync::OnceCell;
+use htsget_search::htsget::{Class, Format, Headers, Url};
+use htsget_search::storage::ticket_server::HttpTicketFormatter;
 
 use crate::util::{expected_bgzf_eof_data_url, generate_test_certificates};
 
@@ -46,12 +41,16 @@ pub struct Response {
   pub status: u16,
   #[serde(with = "serde_bytes")]
   pub body: Vec<u8>,
-  pub expected_url_path: String
+  pub expected_url_path: String,
 }
 
 impl Response {
   pub fn new(status: u16, body: Vec<u8>, expected_url_path: String) -> Self {
-    Self { status, body, expected_url_path }
+    Self {
+      status,
+      body,
+      expected_url_path,
+    }
   }
 
   /// Deserialize the body from a slice.
@@ -89,12 +88,11 @@ pub async fn test_response(response: Response, class: Class) {
   assert!(response.is_success());
   let body = response.deserialize_body::<JsonResponse>().unwrap();
   let expected_response = expected_response(class, response.expected_url_path);
-  assert_eq!(
-    body,
-    expected_response
-  );
+  assert_eq!(body, expected_response);
 
   let client = ClientBuilder::new()
+    .danger_accept_invalid_certs(true)
+    .use_rustls_tls()
     .build()
     .unwrap();
 
@@ -112,11 +110,20 @@ pub async fn test_response(response: Response, class: Class) {
             .try_into()
             .unwrap(),
         )
-        .send().await.unwrap()
-        .bytes().await.unwrap()
+        .send()
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap()
         .to_vec()
     }
-  })).await.into_iter().reduce(|acc, x| [acc, x].concat()).unwrap();
+  }))
+  .await
+  .into_iter()
+  .reduce(|acc, x| [acc, x].concat())
+  .unwrap();
+
   let mut reader = vcf::AsyncReader::new(bgzf::AsyncReader::new(merged_response.as_slice()));
   let header = reader.read_header().await.unwrap().parse().unwrap();
   println!("{}", header);
@@ -124,8 +131,16 @@ pub async fn test_response(response: Response, class: Class) {
   let mut records = reader.records(&header);
   while let Some(record) = records.try_next().await.unwrap() {
     println!("{}", record);
-    continue
+    continue;
   }
+}
+
+/// Create the a [HttpTicketFormatter], spawn the ticket server, returning the expected path and the formatter.
+pub async fn formatter_and_expected_path(config: &Config) -> (String, HttpTicketFormatter) {
+  let mut formatter = formatter_from_config(config);
+  spawn_ticket_server(config.path.clone(), &mut formatter).await;
+
+  (expected_url_path(&formatter), formatter)
 }
 
 /// Get the expected url path from the formatter.
@@ -135,7 +150,7 @@ pub fn expected_url_path(formatter: &HttpTicketFormatter) -> String {
 
 /// Spawn the [TicketServer] using the path and formatter.
 pub async fn spawn_ticket_server(path: PathBuf, formatter: &mut HttpTicketFormatter) {
-  let mut server = formatter.bind_ticket_server().await.unwrap();
+  let server = formatter.bind_ticket_server().await.unwrap();
   tokio::spawn(async move { server.serve(path).await.unwrap() });
 }
 
@@ -235,6 +250,13 @@ pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
   JsonResponse::from_response(HtsgetResponse::new(Format::Vcf, urls))
 }
 
+/// Default config with fixed port.
+pub fn default_config_fixed_port() -> Config {
+  let mut config = Config::default();
+  std::env::set_var("HTSGET_PATH", default_dir().join("data"));
+  config
+}
+
 /// Get the default directory where data is present.
 pub fn default_dir() -> PathBuf {
   PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -254,7 +276,8 @@ pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
     config.ticket_server_addr,
     config.ticket_server_cert.clone(),
     config.ticket_server_key.clone(),
-  ).unwrap()
+  )
+  .unwrap()
 }
 
 /// Default config using the current cargo manifest directory.
@@ -264,7 +287,7 @@ pub fn default_test_config() -> Config {
 }
 
 /// Config with tls ticket server, using the current cargo manifest directory.
-pub fn test_config_with_tls<P: AsRef<Path>>(path: P) -> Config {
+pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
   set_default_env();
 
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");

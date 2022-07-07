@@ -1,3 +1,4 @@
+use http::StatusCode;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -44,16 +45,16 @@ pub struct ContainerHtsGetError {
 impl HtsGetError {
   /// Allows converting the error to JSON and the correspondent
   /// status code
-  pub fn to_json_representation(&self) -> (ContainerHtsGetError, u16) {
+  pub fn to_json_representation(&self) -> (ContainerHtsGetError, StatusCode) {
     let (message, status_code) = match self {
-      HtsGetError::InvalidAuthentication(s) => (s, 401),
-      HtsGetError::PermissionDenied(s) => (s, 403),
-      HtsGetError::NotFound(s) => (s, 404),
-      HtsGetError::PayloadTooLarge(s) => (s, 413),
-      HtsGetError::UnsupportedFormat(s) => (s, 400),
-      HtsGetError::InvalidInput(s) => (s, 400),
-      HtsGetError::InvalidRange(s) => (s, 400),
-      HtsGetError::InternalError(s) => (s, 500),
+      HtsGetError::InvalidAuthentication(s) => (s, StatusCode::UNAUTHORIZED),
+      HtsGetError::PermissionDenied(s) => (s, StatusCode::FORBIDDEN),
+      HtsGetError::NotFound(s) => (s, StatusCode::NOT_FOUND),
+      HtsGetError::PayloadTooLarge(s) => (s, StatusCode::PAYLOAD_TOO_LARGE),
+      HtsGetError::UnsupportedFormat(s)
+      | HtsGetError::InvalidInput(s)
+      | HtsGetError::InvalidRange(s) => (s, StatusCode::BAD_REQUEST),
+      HtsGetError::InternalError(s) => (s, StatusCode::INTERNAL_SERVER_ERROR),
     };
 
     // Actual error and message...
@@ -70,18 +71,16 @@ impl HtsGetError {
 impl From<HtsGetSearchError> for HtsGetError {
   fn from(error: HtsGetSearchError) -> Self {
     match error {
-      HtsGetSearchError::NotFound(s) => HtsGetError::NotFound(s),
-      HtsGetSearchError::UnsupportedFormat(s) => HtsGetError::UnsupportedFormat(s),
-      HtsGetSearchError::InvalidInput(s) => HtsGetError::InvalidInput(s),
-      HtsGetSearchError::InvalidRange(s) => HtsGetError::InvalidRange(s),
-      HtsGetSearchError::IoError(s) => {
-        HtsGetError::NotFound(format!("There was an IO error: {}", s))
-      }
-      HtsGetSearchError::ParseError(s) => HtsGetError::NotFound(format!(
+      HtsGetSearchError::NotFound(s) => Self::NotFound(s),
+      HtsGetSearchError::UnsupportedFormat(s) => Self::UnsupportedFormat(s),
+      HtsGetSearchError::InvalidInput(s) => Self::InvalidInput(s),
+      HtsGetSearchError::InvalidRange(s) => Self::InvalidRange(s),
+      HtsGetSearchError::IoError(s) => Self::NotFound(format!("There was an IO error: {}", s)),
+      HtsGetSearchError::ParseError(s) => Self::NotFound(format!(
         "The requested content couldn't be parsed correctly {}",
         s
       )),
-      HtsGetSearchError::InternalError(s) => HtsGetError::InternalError(s),
+      HtsGetSearchError::InternalError(s) => Self::InternalError(s),
     }
   }
 }

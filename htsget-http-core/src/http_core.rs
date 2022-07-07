@@ -35,7 +35,7 @@ pub async fn get_response_for_get_request(
   let search_result = searcher.search(query).await;
 
   search_result
-    .map_err(|error| error.into())
+    .map_err(Into::into)
     .map(JsonResponse::from_response)
 }
 
@@ -73,6 +73,6 @@ pub async fn get_response_for_post_request(
 
   Ok(JsonResponse::from_response(
     // It's okay to unwrap because there will be at least one response
-    merge_responses(responses).unwrap(),
+    merge_responses(responses).expect("Expected valid response."),
   ))
 }

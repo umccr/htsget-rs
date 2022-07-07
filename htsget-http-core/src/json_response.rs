@@ -12,15 +12,15 @@ pub struct JsonResponse {
 }
 
 impl JsonResponse {
-  /// Converts a [Response] to JSON
+  /// Converts a [Response] to JSON.
   pub fn from_response(response: Response) -> Self {
     let htsget = HtsGetResponse::new(response);
-    JsonResponse { htsget }
+    Self { htsget }
   }
 }
 
 /// A helper struct to represent a JSON response. It shouldn't be used
-/// on its own, but with [JsonResponse]
+/// on its own, but with `JsonResponse`.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct HtsGetResponse {
   pub format: String,
@@ -31,12 +31,12 @@ impl HtsGetResponse {
   fn new(response: Response) -> Self {
     let format = response.format.to_string();
     let urls = response.urls.into_iter().map(JsonUrl::new).collect();
-    HtsGetResponse { format, urls }
+    Self { format, urls }
   }
 }
 
 /// A helper struct to convert [Urls](Url) to JSON. It shouldn't be used
-/// on its own, but with [JsonResponse]
+/// on its own, but with `JsonResponse`.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct JsonUrl {
   pub url: String,
@@ -46,7 +46,7 @@ pub struct JsonUrl {
 
 impl JsonUrl {
   fn new(url: Url) -> Self {
-    JsonUrl {
+    Self {
       url: url.url,
       headers: Some(match url.headers {
         Some(headers) => headers.get_inner(),
