@@ -154,7 +154,7 @@ mod tests {
     request.insert("start".to_string(), "149".to_string());
     request.insert("end".to_string(), "200".to_string());
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3366".to_string());
+    headers.insert("Range".to_string(), "bytes=0-3465".to_string());
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Variants).await,
       Ok(example_vcf_json_response(headers))
@@ -222,7 +222,7 @@ mod tests {
       }]),
     };
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3366".to_string());
+    headers.insert("Range".to_string(), "bytes=0-3465".to_string());
     assert_eq!(
       get_response_for_post_request(
         get_searcher(),

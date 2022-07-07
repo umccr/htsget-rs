@@ -17,7 +17,7 @@ htsget-http-core = { path = "../htsget-http-core", default-features = false, opt
 htsget-config = { path = "../htsget-config", default-features = false, optional = true }
 htsget-search = { path = "../htsget-search", default-features = false, optional = true }
 reqwest = { version = "0.11", features = ["json", "blocking", "rustls-tls"] }
-tokio = { version = "1.19", features = ["rt-multi-thread"] }
+tokio = { version = "1.19", features = ["rt-multi-thread", "sync", "parking_lot"] }
 futures = "0.3"
 async-trait = "0.1"
 http = "0.2"

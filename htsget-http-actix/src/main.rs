@@ -26,12 +26,12 @@ async fn main() -> std::io::Result<()> {
 }
 
 async fn local_storage_server(config: Config) -> std::io::Result<()> {
-  let formatter = HttpTicketFormatter::try_from(
+  let mut formatter = HttpTicketFormatter::try_from(
     config.ticket_server_addr,
     config.ticket_server_cert,
     config.ticket_server_key,
   )?;
-  let local_server = formatter.clone().bind_ticket_server().await?;
+  let local_server = formatter.bind_ticket_server().await?;
 
   let searcher =
     HtsGetFromStorage::local_from(config.path.clone(), config.resolver.clone(), formatter)?;

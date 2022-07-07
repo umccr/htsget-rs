@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
+use tracing::info;
 use tracing_actix_web::TracingLogger;
 
 use htsget_config::config::ConfigServiceInfo;
@@ -52,17 +53,16 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   config_service_info: ConfigServiceInfo,
   addr: SocketAddr,
 ) -> std::io::Result<Server> {
-  Ok(
-    HttpServer::new(Box::new(move || {
-      App::new()
-        .configure(|service_config: &mut web::ServiceConfig| {
-          configure_server(service_config, htsget.clone(), config_service_info.clone());
-        })
-        .wrap(TracingLogger::default())
-    }))
-    .bind(addr)?
-    .run(),
-  )
+  let server = HttpServer::new(Box::new(move || {
+    App::new()
+      .configure(|service_config: &mut web::ServiceConfig| {
+        configure_server(service_config, htsget.clone(), config_service_info.clone());
+      })
+      .wrap(TracingLogger::default())
+  })).bind(addr)?;
+
+  info!(addresses = ?server.addrs(), "Address bound to");
+  Ok(server.run())
 }
 
 #[cfg(test)]
@@ -73,9 +73,7 @@ mod tests {
   use htsget_config::config::Config;
   use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
-  use htsget_test_utils::server_tests::{
-    Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
-  };
+  use htsget_test_utils::server_tests::{expected_url_path, formatter_from_config, Header as TestHeader, Response as TestResponse, spawn_ticket_server, TestRequest, TestServer};
 
   use super::*;
 
@@ -126,6 +124,10 @@ mod tests {
     }
 
     async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
+      let mut formatter = formatter_from_config(self.get_config());
+      spawn_ticket_server(self.get_config().path.clone(), &mut formatter).await;
+
+      let expected_path = expected_url_path(&formatter);
       let app = test::init_service(App::new().configure(
         |service_config: &mut web::ServiceConfig| {
           configure_server(
@@ -133,7 +135,7 @@ mod tests {
             HtsGetFromStorage::local_from(
               self.config.path.clone(),
               self.config.resolver.clone(),
-              self.get_formatter(),
+              formatter,
             )
             .unwrap(),
             self.config.service_info.clone(),
@@ -144,7 +146,7 @@ mod tests {
       let response = request.0.send_request(&app).await;
       let status: u16 = response.status().into();
       let bytes = test::read_body(response).await.to_vec();
-      TestResponse::new(status, bytes)
+      TestResponse::new(status, bytes, expected_path)
     }
   }
 
