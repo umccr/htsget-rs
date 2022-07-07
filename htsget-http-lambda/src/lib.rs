@@ -186,12 +186,12 @@ mod tests {
   use htsget_search::storage::local::LocalStorage;
   use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
-  use htsget_test_utils::server_tests::{default_test_config, get_test_file, test_response, test_response_service_info, Header, Response, TestRequest, TestServer, formatter_from_config};
+  use htsget_test_utils::server_tests::{default_test_config, get_test_file, test_response, test_response_service_info, Header, Response, TestRequest, TestServer, formatter_from_config, spawn_ticket_server, expected_url_path};
 
   use crate::{HtsgetMethod, Method, Route, RouteType, Router};
 
   struct LambdaTestServer {
-    config: Config,
+    config: Config
   }
 
   struct LambdaTestRequest<T>(T);
@@ -242,7 +242,7 @@ mod tests {
   impl Default for LambdaTestServer {
     fn default() -> Self {
       Self {
-        config: default_test_config(),
+        config: default_test_config()
       }
     }
   }
@@ -258,19 +258,23 @@ mod tests {
     }
 
     async fn test_server(&self, request: LambdaTestRequest<Request>) -> Response {
+      let mut formatter = formatter_from_config(self.get_config());
+      spawn_ticket_server(self.get_config().path.clone(), &mut formatter).await;
+
+      let expected_path = expected_url_path(&formatter);
       let router = Router::new(
         Arc::new(
           HtsGetFromStorage::local_from(
             &self.config.path,
             self.config.resolver.clone(),
-            self.get_formatter(),
+            formatter,
           )
           .unwrap(),
         ),
         &self.config.service_info,
       );
 
-      route_request_to_response(request.0, router).await
+      route_request_to_response(request.0, router, expected_path).await
     }
   }
 
@@ -307,13 +311,13 @@ mod tests {
   #[tokio::test]
   async fn test_get_from_file() {
     let config = default_test_config();
-    endpoint_from_file("events/event_get.json", Class::Body, &config, formatter_from_config(&config)).await;
+    endpoint_from_file("events/event_get.json", Class::Body, &config).await;
   }
 
   #[tokio::test]
   async fn test_post_from_file() {
     let config = default_test_config();
-    endpoint_from_file("events/event_post.json", Class::Body, &config, formatter_from_config(&config)).await;
+    endpoint_from_file("events/event_post.json", Class::Body, &config).await;
   }
 
   #[tokio::test]
@@ -322,8 +326,7 @@ mod tests {
     endpoint_from_file(
       "events/event_parameterized_get.json",
       Class::Header,
-      &config,
-      formatter_from_config(&config)
+      &config
     )
     .await;
   }
@@ -331,7 +334,7 @@ mod tests {
   #[tokio::test]
   async fn test_parameterized_post_from_file() {
     let config = default_test_config();
-    endpoint_from_file("events/event_parameterized_post.json", Class::Body, &config, formatter_from_config(&config)).await;
+    endpoint_from_file("events/event_parameterized_post.json", Class::Body, &config).await;
   }
 
   #[tokio::test]
@@ -340,7 +343,7 @@ mod tests {
     endpoint_from_file(
       "events/event_parameterized_post_class_header.json",
       Class::Header,
-      &config, formatter_from_config(&config)
+      &config
     )
     .await;
   }
@@ -360,6 +363,7 @@ mod tests {
         assert!(router.get_route(&Method::DELETE, &uri).is_none());
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -373,6 +377,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -386,6 +391,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -399,6 +405,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -412,6 +419,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -436,6 +444,7 @@ mod tests {
         );
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -460,6 +469,7 @@ mod tests {
         );
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -481,6 +491,7 @@ mod tests {
         );
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
@@ -505,11 +516,12 @@ mod tests {
         );
       },
       &config,
+      formatter_from_config(&config)
     )
     .await;
   }
 
-  async fn with_router<'a, F, Fut>(test: F, config: &'a Config)
+  async fn with_router<'a, F, Fut>(test: F, config: &'a Config, formatter: HttpTicketFormatter)
   where
     F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage<HttpTicketFormatter>>>) -> Fut,
     Fut: Future<Output = ()>,
@@ -519,7 +531,7 @@ mod tests {
         HtsGetFromStorage::local_from(
           &config.path,
           config.resolver.clone(),
-          HttpTicketFormatter::new(config.ticket_server_addr),
+          formatter
         )
         .unwrap(),
       ),
@@ -533,24 +545,32 @@ mod tests {
     lambda_http::request::from_str(&event).expect("Failed to create lambda request.")
   }
 
-  async fn endpoint_from_file(file_path: &str, class: Class, config: &Config, formatter: HttpTicketFormatter) {
+  async fn endpoint_from_file(file_path: &str, class: Class, config: &Config) {
+    let mut formatter = formatter_from_config(config);
+    spawn_ticket_server(config.path.clone(), &mut formatter).await;
+
+    let expected_path = expected_url_path(&formatter);
     with_router(
       |router| async move {
-        let response = route_request_to_response(get_request_from_file(file_path), router).await;
-        test_response(&response, config.clone(), class, formatter).await;
+        let response = route_request_to_response(get_request_from_file(file_path), router, expected_path).await;
+        test_response(response, class).await;
       },
       config,
+      formatter
     )
     .await;
   }
 
   async fn service_info_from_file(file_path: &str, config: &Config) {
+    let formatter = formatter_from_config(config);
+    let expected_path = expected_url_path(&formatter);
     with_router(
-      |router| async move {
-        let response = route_request_to_response(get_request_from_file(file_path), router).await;
+      |router| async {
+        let response = route_request_to_response(get_request_from_file(file_path), router, expected_path).await;
         test_response_service_info(&response);
       },
       config,
+      formatter
     )
     .await;
   }
@@ -558,6 +578,7 @@ mod tests {
   async fn route_request_to_response<T: HtsGet + Send + Sync + 'static>(
     request: Request,
     router: Router<'_, T>,
+    expected_path: String
   ) -> Response {
     let response = router
       .route_request(request)
@@ -565,6 +586,6 @@ mod tests {
       .expect("Failed to route request.");
     let status: u16 = response.status().into();
     let body = response.body().to_vec();
-    Response::new(status, body)
+    Response::new(status, body, expected_path)
   }
 }

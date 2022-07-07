@@ -15,6 +15,7 @@ use axum::http;
 use axum::Router;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
+use http::uri::Scheme;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
 use rustls_pemfile::{certs, pkcs8_private_keys};
@@ -23,6 +24,7 @@ use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
 use tower_http::trace::TraceLayer;
+use tracing::info;
 
 use crate::storage::StorageError::{IoError, TicketServerError};
 use crate::storage::UrlFormatter;
@@ -80,9 +82,25 @@ impl HttpTicketFormatter {
     }
   }
 
-  /// Eagerly bind the address by returning an AxumStorageServer.
-  pub async fn bind_ticket_server(self) -> Result<TicketServer> {
-    TicketServer::bind_addr(self.addr, Self::SERVE_ASSETS_AT, self.cert_key_pair).await
+  /// Get the scheme this formatter is using - either HTTP or HTTPS.
+  pub fn get_scheme(&self) -> Scheme {
+    match self.cert_key_pair {
+      None => Scheme::HTTP,
+      Some(_) => Scheme::HTTPS,
+    }
+  }
+
+  /// Eagerly bind the address by returning an AxumStorageServer. This function also updates the
+  /// address to the actual bound address, and replaces the cert_key_pair with None.
+  pub async fn bind_ticket_server(&mut self) -> Result<TicketServer> {
+    let server = TicketServer::bind_addr(self.addr, Self::SERVE_ASSETS_AT, self.cert_key_pair.take()).await?;
+    self.addr = server.local_addr();
+    Ok(server)
+  }
+
+  /// Get the [SocketAddr] of this formatter.
+  pub fn get_addr(&self) -> SocketAddr {
+    self.addr
   }
 }
 
@@ -106,11 +124,13 @@ impl TicketServer {
     addr: SocketAddr,
     serve_assets_at: impl Into<String>,
     cert_key_pair: Option<CertificateKeyPair>,
-  ) -> Result<Self> {
+  ) -> Result<TicketServer> {
     let listener = TcpListener::bind(addr)
       .await
       .map_err(|err| IoError("Failed to bind ticket server addr".to_string(), err))?;
     let listener = AddrIncoming::from_listener(listener)?;
+
+    info!(address = ?listener.local_addr(), "Address bound to");
     Ok(Self {
       listener,
       serve_assets_at: serve_assets_at.into(),
@@ -156,6 +176,11 @@ impl TicketServer {
     }
   }
 
+  /// Get the local address the server has bound to.
+  pub fn local_addr(&self) -> SocketAddr {
+    self.listener.local_addr()
+  }
+
   fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
     let mut key_reader = BufReader::new(
       File::open(key).map_err(|err| IoError("Failed to open key file".to_string(), err))?,
@@ -195,12 +220,8 @@ impl From<hyper::Error> for StorageError {
 
 impl UrlFormatter for HttpTicketFormatter {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
-    let scheme = match self.cert_key_pair {
-      None => http::uri::Scheme::HTTP,
-      Some(_) => http::uri::Scheme::HTTPS,
-    };
     http::uri::Builder::new()
-      .scheme(scheme)
+      .scheme(self.get_scheme())
       .authority(self.addr.to_string())
       .path_and_query(format!("{}/{}", Self::SERVE_ASSETS_AT, key.as_ref()))
       .build()
@@ -286,6 +307,27 @@ mod tests {
   fn https_formatter_authority() {
     let formatter = HttpTicketFormatter::new_with_tls("127.0.0.1:8080".parse().unwrap(), "", "");
     test_formatter_authority(formatter, "https");
+  }
+
+  #[test]
+  fn http_scheme() {
+    let formatter = HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap());
+    assert_eq!(formatter.get_scheme(), Scheme::HTTP);
+  }
+
+  #[test]
+  fn https_scheme() {
+    let formatter = HttpTicketFormatter::new_with_tls("127.0.0.1:8080".parse().unwrap(), "", "");
+    assert_eq!(formatter.get_scheme(), Scheme::HTTPS);
+  }
+
+  #[tokio::test]
+  async fn local_addr() {
+    let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "8080")).unwrap();
+    let server = TicketServer::bind_addr(addr, "/data", None)
+      .await
+      .unwrap();
+    assert_eq!(server.local_addr(), "127.0.0.1:8080".parse().unwrap());
   }
 
   async fn test_server_request<C, P>(

@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::fs;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::Once;
 
 use async_trait::async_trait;
 use futures::future::join_all;
 use futures::TryStreamExt;
 use http::Method;
+use http::uri::Scheme;
 use serde::{de, Serialize};
 use serde::Deserialize;
 use reqwest::Client;
@@ -16,9 +19,10 @@ use htsget_http_core::{Endpoint, get_service_info_with, JsonResponse, JsonUrl};
 use htsget_search::htsget::{Class, Format, Headers, Url};
 use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
-use htsget_search::storage::ticket_server::HttpTicketFormatter;
+use htsget_search::storage::ticket_server::{HttpTicketFormatter, TicketServer};
 use noodles_vcf as vcf;
 use noodles_bgzf as bgzf;
+use tokio::sync::OnceCell;
 
 use crate::util::{expected_bgzf_eof_data_url, generate_test_certificates};
 
@@ -42,11 +46,12 @@ pub struct Response {
   pub status: u16,
   #[serde(with = "serde_bytes")]
   pub body: Vec<u8>,
+  pub expected_url_path: String
 }
 
 impl Response {
-  pub fn new(status: u16, body: Vec<u8>) -> Self {
-    Self { status, body }
+  pub fn new(status: u16, body: Vec<u8>, expected_url_path: String) -> Self {
+    Self { status, body, expected_url_path }
   }
 
   /// Deserialize the body from a slice.
@@ -77,25 +82,17 @@ pub trait TestServer<T: TestRequest> {
   fn get_config(&self) -> &Config;
   fn get_request(&self) -> T;
   async fn test_server(&self, request: T) -> Response;
-
-  fn get_formatter(&self) -> HttpTicketFormatter {
-    formatter_from_config(self.get_config())
-  }
 }
 
 /// Test response with with class.
-pub async fn test_response(response: &Response, config: Config, class: Class, formatter: HttpTicketFormatter) {
-  let url_path = expected_local_storage_path(&config);
-  let expected_response = expected_response(class, url_path);
-  println!("{:?}", response);
+pub async fn test_response(response: Response, class: Class) {
   assert!(response.is_success());
+  let body = response.deserialize_body::<JsonResponse>().unwrap();
+  let expected_response = expected_response(class, response.expected_url_path);
   assert_eq!(
-    expected_response,
-    response.deserialize_body().unwrap()
+    body,
+    expected_response
   );
-
-  let local_server = formatter.bind_ticket_server().await.unwrap();
-  tokio::spawn(async move { local_server.serve(&config.path).await });
 
   let client = ClientBuilder::new()
     .build()
@@ -131,6 +128,17 @@ pub async fn test_response(response: &Response, config: Config, class: Class, fo
   }
 }
 
+/// Get the expected url path from the formatter.
+pub fn expected_url_path(formatter: &HttpTicketFormatter) -> String {
+  format!("{}://{}", formatter.get_scheme(), formatter.get_addr())
+}
+
+/// Spawn the [TicketServer] using the path and formatter.
+pub async fn spawn_ticket_server(path: PathBuf, formatter: &mut HttpTicketFormatter) {
+  let mut server = formatter.bind_ticket_server().await.unwrap();
+  tokio::spawn(async move { server.serve(path).await.unwrap() });
+}
+
 /// Test response with with service info.
 pub fn test_response_service_info(response: &Response) {
   let expected = get_service_info_with(
@@ -150,7 +158,7 @@ pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
     .method(Method::GET.to_string())
     .uri("/variants/vcf/sample1-bcbio-cancer");
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config().clone(), Body, tester.get_formatter()).await;
+  test_response(response, Body).await;
 }
 
 fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
@@ -168,7 +176,7 @@ fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
 pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = post_request(tester).set_payload("{}");
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config().clone(), Body, tester.get_formatter()).await;
+  test_response(response, Body).await;
 }
 
 /// A parameterized get test.
@@ -178,7 +186,7 @@ pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>)
     .method(Method::GET.to_string())
     .uri("/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header");
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config().clone(), Class::Header, tester.get_formatter()).await;
+  test_response(response, Class::Header).await;
 }
 
 /// A parameterized post test.
@@ -186,7 +194,7 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
   let request = post_request(tester)
     .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}");
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config().clone(), Body, tester.get_formatter()).await;
+  test_response(response, Body).await;
 }
 
 /// A parameterized post test with header as the class.
@@ -195,7 +203,7 @@ pub async fn test_parameterized_post_class_header<T: TestRequest>(tester: &impl 
     "{\"format\": \"VCF\", \"class\": \"header\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
   );
   let response = tester.test_server(request).await;
-  test_response(&response, tester.get_config().clone(), Class::Header, tester.get_formatter()).await;
+  test_response(response, Class::Header).await;
 }
 
 /// A service info test.
@@ -206,14 +214,6 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
     .uri("/variants/service-info");
   let response = tester.test_server(request).await;
   test_response_service_info(&response);
-}
-
-fn expected_local_storage_path(config: &Config) -> String {
-  match (&config.ticket_server_cert, &config.ticket_server_key) {
-    (Some(_), Some(_)) => format!("https://{}", config.ticket_server_addr),
-    (Some(_), None) | (None, Some(_)) => panic!("Both the cert and key must be provided."),
-    (None, None) => format!("http://{}", config.ticket_server_addr),
-  }
 }
 
 /// An example VCF search response.
@@ -243,11 +243,12 @@ pub fn default_dir() -> PathBuf {
     .to_path_buf()
 }
 
-fn set_path() {
+fn set_default_env() {
   std::env::set_var("HTSGET_PATH", default_dir().join("data"));
+  std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:0");
 }
 
-/// Get the [HttpTicketFormatter] from th config.
+/// Get the [HttpTicketFormatter] from the config.
 pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
   HttpTicketFormatter::try_from(
     config.ticket_server_addr,
@@ -258,13 +259,13 @@ pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
 
 /// Default config using the current cargo manifest directory.
 pub fn default_test_config() -> Config {
-  set_path();
+  set_default_env();
   Config::from_env().expect("Expected valid environment variables.")
 }
 
 /// Config with tls ticket server, using the current cargo manifest directory.
 pub fn test_config_with_tls<P: AsRef<Path>>(path: P) -> Config {
-  set_path();
+  set_default_env();
 
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
   std::env::set_var("HTSGET_TICKET_SERVER_KEY", key_path);
