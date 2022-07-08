@@ -131,7 +131,7 @@ impl TicketServer {
       .map_err(|err| IoError("Failed to bind ticket server addr".to_string(), err))?;
     let listener = AddrIncoming::from_listener(listener)?;
 
-    info!(address = ?listener.local_addr(), "Address bound to");
+    info!(address = ?listener.local_addr(), "Htsget ticket server address bound to");
     Ok(Self {
       listener,
       serve_assets_at: serve_assets_at.into(),
