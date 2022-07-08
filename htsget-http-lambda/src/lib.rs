@@ -444,7 +444,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_invalid_method() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
@@ -458,7 +458,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_no_path() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("").build().unwrap();
@@ -472,7 +472,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_no_endpoint() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/path/").build().unwrap();
@@ -486,7 +486,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_reads_no_id() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/reads/").build().unwrap();
@@ -500,7 +500,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_variants_no_id() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/variants/").build().unwrap();
@@ -514,7 +514,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_reads_service_info() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder()
@@ -539,7 +539,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_variants_service_info() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder()
@@ -564,7 +564,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_reads_id() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
@@ -586,7 +586,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_route_variants_id() {
-    let config = Config::default();
+    let config = default_test_config();
     with_router(
       |router| async move {
         let uri = Uri::builder()

@@ -12,7 +12,7 @@ use crate::regex_resolver::RegexResolver;
 pub const USAGE: &str = r#"
 The HtsGet server executables don't use command line arguments, but there are some environment variables that can be set to configure them:
 * HTSGET_ADDR: The socket address for the server which creates response tickets. Default: "127.0.0.1:8080".
-* HTSGET_PATH: The path to the directory where the server should be started. Default: ".". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
+* HTSGET_PATH: The path to the directory where the server should be started. Default: "data". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
 * HTSGET_REGEX: The regular expression that should match an ID. Default: ".*".
 For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
 * HTSGET_SUBSTITUTION_STRING: The replacement expression. Default: "$0".
@@ -50,7 +50,7 @@ fn default_addr() -> SocketAddr {
 }
 
 fn default_path() -> PathBuf {
-  PathBuf::from(".")
+  PathBuf::from("data")
 }
 
 /// Specify the storage type to use.
