@@ -141,6 +141,13 @@ mod tests {
   }
 
   #[test]
+  fn config_ticket_server_addr() {
+    std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8082");
+    let config = Config::from_env().unwrap();
+    assert_eq!(config.ticket_server_addr, "127.0.0.1:8082".parse().unwrap());
+  }
+
+  #[test]
   fn config_regex() {
     std::env::set_var("HTSGET_REGEX", ".+");
     let config = Config::from_env().unwrap();
