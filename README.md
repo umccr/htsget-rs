@@ -17,15 +17,15 @@ Instantiating a demo htsget-rs server is as simple as running:
 $ cargo run -p htsget-http-actix
 ```
 
-Then the server is ready to listen to your requests on port 8080, please refer to the [htsget-http-actix crate README.md for furhter details][htsget-http-actix-readme].
+This uses the default settings with example files from the `data` directory and the server listenening to requests on port 8080. Please refer to the [htsget-http-actix crate README.md for further details][htsget-http-actix-readme].
 
-### Cŀoud
+### Cloud
 
 To deploy to an AWS account, please refer to the `deploy/README.md` for further instructions.
 
 ## Intro
 
-htsget makes bioinformatic data formats accessible through HTTP in a consistent way.
+Htsget makes bioinformatic data formats accessible through HTTP in a consistent way.
 
 This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec] using [Noodles][noodles]. This implementation gets rid of the [`unsafe` interfacing][rust-htslib] with the C-based [htslib](https://github.com/samtools/htslib), which has had [many vulnerabilities](https://github.com/samtools/htslib/pulls?q=oss-fuzz) along with other [problematic third party dependencies such as OpenSSL](https://www.openssl.org/news/vulnerabilities.html). In contrast, this repo uses the [independently audited RustLS counterpart](http://jbp.io/2020/06/14/rustls-audit.html) for SSL and [safe data format access via Noodles][noodles].
 

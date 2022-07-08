@@ -3,25 +3,24 @@ This crate should allow to setup an [htsget](http://samtools.github.io/hts-specs
 
 ## Quickstart 
 
-These are some examples with [curl](https://github.com/curl/curl). **For the curl examples shown 
-below to work, we assume that the server is being started from the root of
-the [htsget-rs project](https://github.com/umccr/htsget-rs)**, and `HTSGET_PATH="data/"`.
+To run the server:
 
-The htsget-http-actix server also requires pem formatted X.509 certificates to access the response tickets.
+```shell
+$ cargo run -p htsget-http-actix
+```
+
+There are some examples with [curl](https://github.com/curl/curl) below. **For the examples to work, 
+we assume that the server is being started from the root of
+the [htsget-rs project](https://github.com/umccr/htsget-rs)**, with default settings.
+
+There are two parts of the htsget server. The query server, which returns a list of urls, or tickets. These live on the ticket server, and they must be queried and merged to produce the final output.
+By default, the ticket server runs without tls. To run the ticket server with tls, pem formatted X.509 certificates are required.
 
 For example, to generate self-signed certificates, run:
 
 ```shell
 $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj '/CN=localhost'
 ```
-
-To test the curl example below, run:
-
-```shell
-$ cargo run -p htsget-http-actix
-```
-
-
 
 ## Environment variables 
 
@@ -32,13 +31,13 @@ Since this service can be used in serverless environments, no `dotenv` configura
 | Variable                   | Description                                                                                                                              | Default          |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|------------------|
 | HTSGET_ADDR                | The socket address for the server which creates response tickets.                                                                        | "127.0.0.1:8080" |
-| HTSGET_PATH                | The path to the directory where the server starts                                                                                        | "."              | 
+| HTSGET_PATH                | The path to the directory where the server starts                                                                                        | "data"           | 
 | HTSGET_REGEX               | The regular expression an ID should match.                                                                                               | ".*"             |
 | HTSGET_SUBSTITUTION_STRING | The replacement expression, to produce a key from an ID.                                                                                 | "$0"             |
 | HTSGET_STORAGE_TYPE        | Either "LocalStorage" or "AwsS3Storage", representing which storage type to use.                                                         | "LocalStorage"   |
 | HTSGET_TICKET_SERVER_ADDR  | The socket address to use for the server which responds to tickets. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".                 | "127.0.0.1:8081" |
-| HTSGET_TICKET_SERVER_KEY   | The path to the PEM formatted X.509 private key used by the ticket response server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "key.pem"        |
-| HTSGET_TICKET_SERVER_CERT  | The path to the PEM formatted X.509 certificate used by the ticket response server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "cert.pem"       |
+| HTSGET_TICKET_SERVER_KEY   | The path to the PEM formatted X.509 private key used by the ticket response server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "None"           |
+| HTSGET_TICKET_SERVER_CERT  | The path to the PEM formatted X.509 certificate used by the ticket response server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "None"           |
 | HTSGET_S3_BUCKET           | The name of the AWS S3 bucket. Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".                                                      | ""               |
 | HTSGET_ID                  | ID of the service.                                                                                                                       | "None"           |
 | HTSGET_NAME                | Name of the service.                                                                                                                     | "None"           |
