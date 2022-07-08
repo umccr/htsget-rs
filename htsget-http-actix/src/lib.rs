@@ -65,7 +65,7 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   }))
   .bind(addr)?;
 
-  info!(addresses = ?server.addrs(), "Address bound to");
+  info!(addresses = ?server.addrs(), "Htsget query server addresses bound to");
   Ok(server.run())
 }
 

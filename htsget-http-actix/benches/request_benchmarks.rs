@@ -12,7 +12,7 @@ use reqwest::Result;
 use serde::{Deserialize, Serialize};
 
 use htsget_http_core::{JsonResponse, PostRequest, Region};
-use htsget_test_utils::server_tests::{default_config_fixed_port, default_dir};
+use htsget_test_utils::server_tests::{default_config_fixed_port, default_dir, default_dir_data};
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
@@ -143,6 +143,7 @@ fn start_htsget_rs() -> (DropGuard, String) {
     .arg("run")
     .arg("-p")
     .arg("htsget-http-actix")
+    .env("HTSGET_PATH", default_dir_data())
     .env("RUST_LOG", "warn")
     .spawn()
     .unwrap();

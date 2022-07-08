@@ -250,14 +250,7 @@ pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
   JsonResponse::from_response(HtsgetResponse::new(Format::Vcf, urls))
 }
 
-/// Default config with fixed port.
-pub fn default_config_fixed_port() -> Config {
-  let mut config = Config::default();
-  std::env::set_var("HTSGET_PATH", default_dir().join("data"));
-  config
-}
-
-/// Get the default directory where data is present.
+/// Get the default directory.
 pub fn default_dir() -> PathBuf {
   PathBuf::from(env!("CARGO_MANIFEST_DIR"))
     .parent()
@@ -265,9 +258,18 @@ pub fn default_dir() -> PathBuf {
     .to_path_buf()
 }
 
-fn set_default_env() {
-  std::env::set_var("HTSGET_PATH", default_dir().join("data"));
-  std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:0");
+/// Get the default directory where data is present..
+pub fn default_dir_data() -> PathBuf {
+  default_dir().join("data")
+}
+
+fn set_path(config: &mut Config) {
+  config.path = default_dir_data();
+}
+
+fn set_addr_and_path(config: &mut Config) {
+  set_path(config);
+  config.ticket_server_addr = "127.0.0.1:0".parse().unwrap();
 }
 
 /// Get the [HttpTicketFormatter] from the config.
@@ -280,21 +282,30 @@ pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
   .unwrap()
 }
 
-/// Default config using the current cargo manifest directory.
+/// Default config with fixed port.
+pub fn default_config_fixed_port() -> Config {
+  let mut config = Config::default();
+  set_path(&mut config);
+  config
+}
+
+/// Default config using the current cargo manifest directory, and dynamic port.
 pub fn default_test_config() -> Config {
-  set_default_env();
-  Config::from_env().expect("Expected valid environment variables.")
+  let mut config = Config::default();
+  set_addr_and_path(&mut config);
+  config
 }
 
 /// Config with tls ticket server, using the current cargo manifest directory.
 pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
-  set_default_env();
+  let mut config = Config::default();
+  set_addr_and_path(&mut config);
 
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
-  std::env::set_var("HTSGET_TICKET_SERVER_KEY", key_path);
-  std::env::set_var("HTSGET_TICKET_SERVER_CERT", cert_path);
+  config.ticket_server_key = Some(key_path);
+  config.ticket_server_cert = Some(cert_path);
 
-  Config::from_env().expect("Expected valid environment variables.")
+  config
 }
 
 /// Get the event associated with the file.
