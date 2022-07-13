@@ -16,10 +16,12 @@ On the highest level, htsget-rs receives queries about genes or other bioinforma
 
 This repository consists of a workspace composed by the following crates:
 
-- [htsget-search](htsget-search): Core logic needed to run searches in the genomic data according to the htsget specs: genomic data via reads variants from cloud storage, run queries on their indices. Other interfaces can be build outside of this crate but on top of this core functionality. 
-- [htsget-http-core](htsget-http-core): Handling of htsget's HTTP requests: converting query results to JSON, client error reporting. Aims contain everything HTTP related that isn't framework dependent.
-- [htsget-http-actix](htsget-http-actix): This crate contains a working server implementation based on the other crates in the project. It contains the framework dependent code. It should be possible for anyone to write another crate like this one using htsget-search, htsget-http-core and their preferred framework;
-- [htsget-devtools](htsget-devtools): This is just a bunch of code helping us to explore the formats or to proof some concepts.
+- [htsget-search](../htsget-search): Core logic needed to run searches in the genomic data according to the htsget specs: genomic data via reads variants from cloud storage, run queries on their indices. Other interfaces can be build outside of this crate but on top of this core functionality. 
+- [htsget-http-core](../htsget-http-core): Handling of htsget's HTTP requests: converting query results to JSON, client error reporting. Aims contain everything HTTP related that isn't framework dependent.
+- [htsget-http-actix](../htsget-http-actix): This crate contains a working server implementation based on the other crates in the project. It contains the framework dependent code. It should be possible for anyone to write another crate like this one using htsget-search, htsget-http-core and their preferred framework;
+- [htsget-http-lambda](../htsget-http-lambda): Similar to htsget-http-actix, this is a working server implementation of htsget, however run entirely on AWS Lambda. See the [deploy](../deploy/README.md) documentation for instructions on how to deploy it.
+- [htsget-test-utils](../htsget-test-utils): A crate containing test utilities and code used by the other crates in the project.
+- [htsget-devtools](../htsget-devtools): This is just a bunch of code helping us to explore the formats or to proof some concepts.
 
 More crates will come as we progress in this project, such as the htsget id resolver interface layer.
 
@@ -27,12 +29,12 @@ More crates will come as we progress in this project, such as the htsget id reso
 
 This crate provides two basic abstractions:
 
-- [htsget](htsget-search/src/htsget/mod.rs#L18): The `htsget` trait represents an entity that can resolve queries according to the htsget spec.
+- [htsget](../htsget-search/src/htsget/mod.rs): The `htsget` trait represents an entity that can resolve queries according to the htsget spec.
   The `htsget` trait comes together with a basic model to represent basic entities needed to perform a search (`Query`, `Format`, `Class`, `Tags`, `Headers`, `Url`, `Response`).
-  We include a reference implementation called [HtsGetFromStorage](htsget-search/src/htsget/from_storage.rs) that provides the logic to resolve queries using an external `Storage`.
-  It supports the [BAM](htsget-search/src/htsget/bam_search.rs), [BCF](htsget-search/src/htsget/bcf_search.rs), [CRAM](htsget-search/src/htsget/cram_search.rs), and [VCF](htsget-search/src/htsget/vcf_search.rs) formats.
+  We include a reference implementation called [HtsGetFromStorage](../htsget-search/src/htsget/from_storage.rs) that provides the logic to resolve queries using an external `Storage`.
+  It supports the [BAM](../htsget-search/src/htsget/bam_search.rs), [BCF](../htsget-search/src/htsget/bcf_search.rs), [CRAM](../htsget-search/src/htsget/cram_search.rs), and [VCF](../htsget-search/src/htsget/vcf_search.rs) formats.
 
-- [storage](htsget-search/src/storage/mod.rs): The `Storage` trait represents some kind of object based storage (either locally or in the cloud) that can be used to retrieve files for alignments, variants or its respective indexes, as well as to get metadata from them. We include a reference implementation using [local files](htsget-search/src/storage/local.rs), and [AWS S3](https://github.com/chris-zen/htsget-mvp/issues/9).
+- [storage](../htsget-search/src/storage/mod.rs): The `Storage` trait represents some kind of object based storage (either locally or in the cloud) that can be used to retrieve files for alignments, variants or its respective indexes, as well as to get metadata from them. We include a reference implementation using [local files](../htsget-search/src/storage/local.rs), and [AWS S3](../htsget-search/src/storage/aws.rs).
 
 #### Traits abstraction
 
@@ -41,8 +43,8 @@ its own particularities, there are many shared components that can be abstracted
 the interface that handles the core logic of a htsget search request, and it passes the format specifics to the individual 
 format implementations.
 
-The implemention depends heavily on the [noodles bioinformatics crate](https://github.com/zaeleus/noodles), which handles the underlying data processing.
-Any changes to file format specifications would likely be reflected in the noodles crate, and minimal changes would be required in [htsget-search](htsget-search), due 
+The implementation depends heavily on the [noodles bioinformatics crate](https://github.com/zaeleus/noodles), which handles the underlying data processing.
+Any changes to file format specifications would likely be reflected in the noodles crate, and minimal changes would be required in [htsget-search](../htsget-search), due 
 to the interface that noodles provides.
 
 # References
