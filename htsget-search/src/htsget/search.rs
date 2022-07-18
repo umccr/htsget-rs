@@ -13,8 +13,9 @@ use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::VirtualPosition;
 use noodles::core::Position;
-use noodles::csi::binning_index::merge_chunks;
+use noodles::csi::binning_index::{merge_chunks, optimize_chunks};
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::sam;
 use tokio::io;
 use tokio::io::AsyncRead;
@@ -367,6 +368,8 @@ where
   /// Get the max sequence position.
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32;
 
+  fn all_chunks(index: &Index) -> Vec<&Chunk>;
+
   /// Get ranges for a reference sequence for the bgzf format.
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
@@ -387,21 +390,46 @@ where
     let seq_start = Position::try_from(seq_start as usize).map_err(|_| invalid_range())?;
     let seq_end = Position::try_from(seq_end as usize).map_err(|_| invalid_range())?;
 
-    let chunks = index
+    let mut chunks = index
       .query(ref_seq_id, seq_start..=seq_end)
       .map_err(|_| invalid_range())?;
 
     let mut futures: FuturesOrdered<JoinHandle<Result<BytesPosition>>> = FuturesOrdered::new();
-    for chunk in merge_chunks(&chunks) {
+    for chunk in chunks.clone() {
       let storage = self.get_storage();
       let id = query.id.clone();
       let format = self.get_format();
+
+      let mut next_closest = storage
+        .head(format.fmt_file(&id))
+        .await
+        .map_err(|_| HtsGetError::io_error("Reading file size"))? - BGZF_EOF.len() as u64;
+
+      let all_chunks: Vec<Chunk> = Self::all_chunks(index).into_iter().map(|chunk| chunk.to_owned()).collect();
+      let mut print_chunks: Vec<(u64, u64)> = all_chunks.iter().map(|chunk| (chunk.start().compressed(), chunk.end().compressed())).collect();
+      print_chunks.sort();
+      println!("{:#?}", print_chunks);
+
+      let all_chunks_ref: Vec<Chunk> = chunks.clone();
+      let mut print_chunks_ref: Vec<(u64, u64)> = all_chunks_ref.iter().map(|chunk| (chunk.start().compressed(), chunk.end().compressed())).collect();
+      print_chunks_ref.sort();
+      println!("{:#?}", print_chunks_ref);
+      let mut potential_positions: Vec<u64> = all_chunks.iter().flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]).collect();
+      potential_positions.sort();
+      potential_positions.dedup();
+      println!("{:#?}", potential_positions);
+      for chunk2 in potential_positions {
+        if chunk2 < next_closest && chunk2 > chunk.end().compressed() {
+          next_closest = chunk2;
+        }
+      }
+
       futures.push(tokio::spawn(async move {
         let mut reader = Self::reader(&id, &format, storage).await?;
         Ok(
           BytesPosition::default()
             .with_start(chunk.start().bytes_range_start())
-            .with_end(chunk.end().bytes_range_end(&mut reader).await),
+            .with_end(next_closest),
         )
       }));
     }
@@ -456,7 +484,7 @@ where
         futures.push(tokio::spawn(async move {
           let mut reader = Self::reader(&id, &format, storage).await?;
           let start_vpos = start_vpos.bytes_range_start();
-          let end_vpos = end_vpos.bytes_range_end(&mut reader).await;
+          let end_vpos = end_vpos.bytes_range_end(&mut reader, 0).await;
 
           Ok(
             BytesPosition::default()
@@ -486,7 +514,7 @@ where
     let (mut reader, _) = self.create_reader(&query.id, &self.get_format()).await?;
     let virtual_position = reader.virtual_position();
     Ok(vec![BytesPosition::default().with_start(0).with_end(
-      virtual_position.bytes_range_end(&mut reader).await,
+      virtual_position.bytes_range_end(&mut reader, 0).await,
     )])
   }
 }
@@ -511,7 +539,7 @@ where
 #[async_trait]
 pub(crate) trait BlockPosition {
   /// Read bytes of record.
-  async fn read_bytes(&mut self) -> Option<usize>;
+  async fn read_bytes(&mut self, ref_id: u64) -> Option<usize>;
   /// Seek using VirtualPosition.
   async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition>;
   /// Read the virtual position.
@@ -526,11 +554,11 @@ pub(crate) trait VirtualPositionExt {
   /// Get the starting bytes for a compressed BGZF block.
   fn bytes_range_start(&self) -> u64;
   /// Get the ending bytes for a compressed BGZF block.
-  async fn bytes_range_end<P>(&self, reader: &mut P) -> u64
+  async fn bytes_range_end<P>(&self, reader: &mut P, ref_id: u64) -> u64
   where
     P: BlockPosition + Send;
   /// Get the next block position
-  async fn get_next_block_position<P>(&self, reader: &mut P) -> Option<u64>
+  async fn get_next_block_position<P>(&self, reader: &mut P, ref_id: u64) -> Option<u64>
   where
     P: BlockPosition + Send;
   fn to_string(&self) -> String;
@@ -558,7 +586,7 @@ impl VirtualPositionExt for VirtualPosition {
   ///
   /// If for some reason we can't read correctly the records we fall back
   /// to adding the maximum BGZF block size.
-  async fn bytes_range_end<P>(&self, reader: &mut P) -> u64
+  async fn bytes_range_end<P>(&self, reader: &mut P, ref_id: u64) -> u64
   where
     P: BlockPosition + Send,
   {
@@ -567,21 +595,30 @@ impl VirtualPositionExt for VirtualPosition {
       return self.compressed();
     }
     self
-      .get_next_block_position(reader)
+      .get_next_block_position(reader, ref_id)
       .await
       .unwrap_or(self.compressed() + Self::MAX_BLOCK_SIZE)
   }
 
   /// Get the next block position from the reader.
-  async fn get_next_block_position<P>(&self, reader: &mut P) -> Option<u64>
+  async fn get_next_block_position<P>(&self, reader: &mut P, ref_id: u64) -> Option<u64>
   where
     P: BlockPosition + Send,
   {
+    let self_compressed = self.compressed();
     reader.seek_vpos(*self).await.ok()?;
     let next_block_index = loop {
-      let bytes_read = reader.read_bytes().await?;
+      let bytes_read = reader.read_bytes(ref_id).await;
+      if bytes_read.is_none() {
+        let a = 1;
+      }
+      let bytes_read = bytes_read?;
       let actual_block_index = reader.virtual_position().compressed();
-      if bytes_read == 0 || actual_block_index > self.compressed() {
+      let self_compressed = self.compressed();
+      if bytes_read == 0  {
+        break actual_block_index;
+      }
+      if actual_block_index > self.compressed() {
         break actual_block_index;
       }
     };

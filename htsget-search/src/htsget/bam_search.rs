@@ -10,6 +10,7 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::BinningIndex;
 use noodles::sam::Header;
 use noodles::{bgzf, sam};
+use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
@@ -34,11 +35,17 @@ impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
 where
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn read_bytes(&mut self) -> Option<usize> {
-    self
-      .read_record(&mut sam::alignment::Record::default())
+  async fn read_bytes(&mut self, ref_id: u64) -> Option<usize> {
+    let mut record = sam::alignment::Record::default();
+    let bs = self
+      .read_record(&mut record)
       .await
-      .ok()
+      .ok()?;
+
+    if record.reference_sequence_id().unwrap() as u64 != ref_id {
+      // panic!();
+    }
+    Some(bs)
   }
 
   async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
@@ -62,6 +69,10 @@ where
 
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
     ref_seq.len().get() as i32
+  }
+
+  fn all_chunks(index: &Index) -> Vec<&Chunk> {
+    index.reference_sequences().iter().flat_map(|ref_seq| ref_seq.bins()).flat_map(|bins| bins.chunks().clone()).collect()
   }
 
   async fn get_byte_ranges_for_unmapped(
