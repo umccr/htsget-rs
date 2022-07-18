@@ -368,7 +368,7 @@ where
   /// Get the max sequence position.
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32;
 
-  fn all_chunks(index: &Index) -> Vec<&Chunk>;
+  fn all_chunks(index: &Index) -> Vec<u64>;
 
   /// Get ranges for a reference sequence for the bgzf format.
   async fn get_byte_ranges_for_reference_sequence_bgzf(
@@ -405,20 +405,21 @@ where
         .await
         .map_err(|_| HtsGetError::io_error("Reading file size"))? - BGZF_EOF.len() as u64;
 
-      let all_chunks: Vec<Chunk> = Self::all_chunks(index).into_iter().map(|chunk| chunk.to_owned()).collect();
-      let mut print_chunks: Vec<(u64, u64)> = all_chunks.iter().map(|chunk| (chunk.start().compressed(), chunk.end().compressed())).collect();
-      print_chunks.sort();
-      println!("{:#?}", print_chunks);
-
-      let all_chunks_ref: Vec<Chunk> = chunks.clone();
-      let mut print_chunks_ref: Vec<(u64, u64)> = all_chunks_ref.iter().map(|chunk| (chunk.start().compressed(), chunk.end().compressed())).collect();
-      print_chunks_ref.sort();
-      println!("{:#?}", print_chunks_ref);
-      let mut potential_positions: Vec<u64> = all_chunks.iter().flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]).collect();
-      potential_positions.sort();
-      potential_positions.dedup();
-      println!("{:#?}", potential_positions);
-      for chunk2 in potential_positions {
+      // let all_chunks: Vec<Chunk> = Self::all_chunks(index).into_iter().map(|chunk| chunk.to_owned()).collect();
+      // let mut print_chunks: Vec<(u64, u64)> = all_chunks.iter().map(|chunk| (chunk.start().compressed(), chunk.end().compressed())).collect();
+      // print_chunks.sort();
+      // println!("{:#?}", print_chunks);
+      //
+      // let all_chunks_ref: Vec<Chunk> = chunks.clone();
+      // let mut print_chunks_ref: Vec<(u64, u64)> = all_chunks_ref.iter().map(|chunk| (chunk.start().compressed(), chunk.end().compressed())).collect();
+      // print_chunks_ref.sort();
+      // println!("{:#?}", print_chunks_ref);
+      // let mut potential_positions: Vec<u64> = all_chunks.iter().flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]).collect();
+      // potential_positions.sort();
+      // potential_positions.dedup();
+      // println!("{:#?}", potential_positions);
+      let potential = Self::all_chunks(index);
+      for chunk2 in potential {
         if chunk2 < next_closest && chunk2 > chunk.end().compressed() {
           next_closest = chunk2;
         }

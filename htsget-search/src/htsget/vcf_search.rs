@@ -63,8 +63,8 @@ where
     Self::MAX_SEQ_POSITION
   }
 
-  fn all_chunks(index: &Index) -> Vec<&Chunk> {
-    index.reference_sequences().iter().flat_map(|ref_seq| ref_seq.bins()).flat_map(|bins| bins.chunks().clone()).collect()
+  fn all_chunks(index: &Index) -> Vec<u64> {
+    panic!();
   }
 }
 

@@ -7,7 +7,7 @@ use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::BinningIndex;
+use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam::Header;
 use noodles::{bgzf, sam};
 use noodles::csi::index::reference_sequence::bin::Chunk;
@@ -71,8 +71,21 @@ where
     ref_seq.len().get() as i32
   }
 
-  fn all_chunks(index: &Index) -> Vec<&Chunk> {
-    index.reference_sequences().iter().flat_map(|ref_seq| ref_seq.bins()).flat_map(|bins| bins.chunks().clone()).collect()
+  fn all_chunks(index: &Index) -> Vec<u64> {
+    let all_chunks: Vec<&Chunk> = index.reference_sequences().iter().flat_map(|ref_seq| ref_seq.bins()).flat_map(|bins| bins.chunks().clone()).collect();
+    let mut potential_positions: Vec<u64> = all_chunks.iter().flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]).collect();
+    for ref_seq in index.reference_sequences() {
+      for pos in ref_seq.intervals() {
+        potential_positions.push(pos.compressed());
+      }
+      if let Some(metadata) = ref_seq.metadata() {
+        potential_positions.push(metadata.start_position().compressed());
+        potential_positions.push(metadata.start_position().compressed());
+      }
+    }
+    potential_positions.sort();
+    potential_positions.dedup();
+    potential_positions
   }
 
   async fn get_byte_ranges_for_unmapped(
