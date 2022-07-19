@@ -446,40 +446,15 @@ where
     format: Format,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let mut futures: FuturesOrdered<JoinHandle<Result<BytesPosition>>> = FuturesOrdered::new();
-    for ref_sequences in index.reference_sequences() {
-      if let Some(metadata) = ref_sequences.metadata() {
-        let storage = self.get_storage();
-        let start_vpos = metadata.start_position();
-        let end_vpos = metadata.end_position();
-        let id = id.clone();
-        futures.push(tokio::spawn(async move {
-          let mut reader = Self::reader(&id, &format, storage).await?;
-          let start_vpos = start_vpos.bytes_range_start();
-          let end_vpos = end_vpos.bytes_range_end(&mut reader).await;
+    let file_size = self
+      .get_storage()
+      .head(format.fmt_file(&id))
+      .await
+      .map_err(|_| HtsGetError::io_error("Reading file size"))?;
 
-          Ok(
-            BytesPosition::default()
-              .with_start(start_vpos)
-              .with_end(end_vpos),
-          )
-        }));
-      }
-    }
-
-    let mut byte_ranges = Vec::new();
-    loop {
-      select! {
-        Some(next) = futures.next() => byte_ranges.push(next.map_err(HtsGetError::from)?.map_err(HtsGetError::from)?),
-        else => break
-      }
-    }
-
-    let mut unmapped_byte_ranges = self
-      .get_byte_ranges_for_unmapped(&id, &format, index)
-      .await?;
-    byte_ranges.append(&mut unmapped_byte_ranges);
-    Ok(BytesPosition::merge_all(byte_ranges))
+    Ok(vec![BytesPosition::default()
+      .with_start(0)
+      .with_end(file_size - BGZF_EOF.len() as u64)])
   }
 
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>> {
