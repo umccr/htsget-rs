@@ -8,10 +8,9 @@ use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
-use noodles::csi::{BinningIndex, Index};
+use noodles::csi::Index;
 use noodles::vcf;
 use noodles::{bgzf, csi};
-use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles_bcf as bcf;
 use tokio::io;
 use tokio::io::{AsyncRead, AsyncSeek};
@@ -33,7 +32,7 @@ impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
 where
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn read_bytes(&mut self, ref_id: u64) -> Option<usize> {
+  async fn read_bytes(&mut self) -> Option<usize> {
     self.read_record(&mut bcf::Record::default()).await.ok()
   }
 
@@ -58,10 +57,6 @@ where
 
   fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
     Self::MAX_SEQ_POSITION
-  }
-
-  fn all_chunks(index: &Index) -> Vec<u64> {
-    panic!();
   }
 }
 

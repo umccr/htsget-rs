@@ -7,10 +7,9 @@ use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::csi::BinningIndex;
 use noodles::sam::Header;
 use noodles::{bgzf, sam};
-use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
@@ -35,17 +34,11 @@ impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
 where
   ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-  async fn read_bytes(&mut self, ref_id: u64) -> Option<usize> {
-    let mut record = sam::alignment::Record::default();
-    let bs = self
-      .read_record(&mut record)
+  async fn read_bytes(&mut self) -> Option<usize> {
+    self
+      .read_record(&mut sam::alignment::Record::default())
       .await
-      .ok()?;
-
-    if record.reference_sequence_id().unwrap() as u64 != ref_id {
-      // panic!();
-    }
-    Some(bs)
+      .ok()
   }
 
   async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
@@ -69,23 +62,6 @@ where
 
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
     ref_seq.len().get() as i32
-  }
-
-  fn all_chunks(index: &Index) -> Vec<u64> {
-    let all_chunks: Vec<&Chunk> = index.reference_sequences().iter().flat_map(|ref_seq| ref_seq.bins()).flat_map(|bins| bins.chunks().clone()).collect();
-    let mut potential_positions: Vec<u64> = all_chunks.iter().flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]).collect();
-    for ref_seq in index.reference_sequences() {
-      for pos in ref_seq.intervals() {
-        potential_positions.push(pos.compressed());
-      }
-      if let Some(metadata) = ref_seq.metadata() {
-        potential_positions.push(metadata.start_position().compressed());
-        potential_positions.push(metadata.start_position().compressed());
-      }
-    }
-    potential_positions.sort();
-    potential_positions.dedup();
-    potential_positions
   }
 
   async fn get_byte_ranges_for_unmapped(

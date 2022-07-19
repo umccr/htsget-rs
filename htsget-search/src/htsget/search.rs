@@ -444,7 +444,7 @@ where
     &self,
     id: String,
     format: Format,
-    index: &Index,
+    _index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let file_size = self
       .get_storage()
