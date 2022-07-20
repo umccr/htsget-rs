@@ -75,6 +75,10 @@ where
       BytesPosition::default().with_end(reader.position().await?)
     ])
   }
+
+  async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
+    todo!()
+  }
 }
 
 #[async_trait]

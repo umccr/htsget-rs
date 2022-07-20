@@ -98,6 +98,9 @@ where
 
   /// Returns the header bytes range.
   async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>>;
+
+  /// Get the offset in the file of the end of the header.
+  async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -463,6 +466,14 @@ where
     Ok(vec![BytesPosition::default().with_start(0).with_end(
       virtual_position.bytes_range_end(&mut reader).await,
     )])
+  }
+
+  async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
+    let chunks = index.query(0, ..)?;
+    // Do we have to search all chunks? Can we assume the first chunk contains the start ref_seq?
+    chunks.iter().map(|chunk| chunk.start().compressed()).min().ok_or_else(|| {
+      HtsGetError::io_error("No chunks found in index")
+    })
   }
 }
 
