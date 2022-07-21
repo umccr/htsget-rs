@@ -1,6 +1,7 @@
 //! Module providing the search capability using BCF files
 //!
 
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -8,7 +9,7 @@ use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
-use noodles::csi::Index;
+use noodles::csi::{BinningIndex, BinningIndexReferenceSequence, Index};
 use noodles::vcf;
 use noodles::{bgzf, csi};
 use noodles_bcf as bcf;
@@ -57,6 +58,27 @@ where
 
   fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
     Self::MAX_SEQ_POSITION
+  }
+
+  fn possible_positions(index: &Index) -> Vec<u64> {
+    let mut positions = HashSet::new();
+    for ref_seq in index.reference_sequences() {
+      positions.extend(
+        ref_seq
+          .bins()
+          .iter()
+          .flat_map(|bin| bin.chunks())
+          .flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]),
+      );
+      positions.extend(ref_seq.metadata().iter().flat_map(|metadata| {
+        [
+          metadata.start_position().compressed(),
+          metadata.end_position().compressed(),
+        ]
+      }));
+    }
+    positions.remove(&0);
+    positions.into_iter().collect()
   }
 }
 

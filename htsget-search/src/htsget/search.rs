@@ -96,11 +96,15 @@ where
     index: &Index,
   ) -> Result<Vec<BytesPosition>>;
 
-  /// Returns the header bytes range.
-  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>>;
-
   /// Get the offset in the file of the end of the header.
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
+
+  /// Returns the header bytes range.
+  async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<Vec<BytesPosition>> {
+    Ok(vec![
+      BytesPosition::default().with_end(self.get_header_end_offset(index).await?)
+    ])
+  }
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -232,12 +236,9 @@ where
 
   /// Search based on the query.
   async fn search(&self, query: Query) -> Result<Response> {
-    let mut header_byte_ranges = self.get_byte_ranges_for_header(&query).await?;
-
+    let index = self.read_index(&query.id).await?;
     match query.class {
       Class::Body => {
-        let index = self.read_index(&query.id).await?;
-
         let format = self.get_format();
         if format != query.format {
           return Err(HtsGetError::unsupported_format(format!(
@@ -261,6 +262,7 @@ where
           }
         };
 
+        let mut header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
         header_byte_ranges.append(&mut byte_ranges);
         let mut blocks =
           DataBlock::from_bytes_positions(BytesPosition::merge_all(header_byte_ranges));
@@ -271,6 +273,7 @@ where
         self.build_response(class, id, format, blocks).await
       }
       Class::Header => {
+        let header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
         self
           .build_response(
             query.class,
@@ -370,6 +373,8 @@ where
   /// Get the max sequence position.
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32;
 
+  fn possible_positions(index: &Index) -> Vec<u64>;
+
   /// Get ranges for a reference sequence for the bgzf format.
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
@@ -460,22 +465,16 @@ where
       .with_end(file_size - BGZF_EOF.len() as u64)])
   }
 
-  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>> {
-    let (mut reader, _) = self.create_reader(&query.id, &self.get_format()).await?;
-    let virtual_position = reader.virtual_position();
-    Ok(vec![BytesPosition::default().with_start(0).with_end(
-      virtual_position.bytes_range_end(&mut reader).await,
-    )])
-  }
-
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
-    let chunks = index.query(0, ..)?;
-    // Do we have to search all chunks? Can we assume the first chunk contains the start ref_seq?
-    chunks
-      .iter()
-      .map(|chunk| chunk.start().compressed())
+    Self::possible_positions(index)
+      .into_iter()
       .min()
-      .ok_or_else(|| HtsGetError::io_error("No chunks found in index"))
+      .ok_or_else(|| {
+        HtsGetError::io_error(format!(
+          "Failed to find header offset in {} index",
+          self.get_format()
+        ))
+      })
   }
 }
 

@@ -69,13 +69,6 @@ where
     .await
   }
 
-  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>> {
-    let (mut reader, _) = self.create_reader(&query.id, &self.get_format()).await?;
-    Ok(vec![
-      BytesPosition::default().with_end(reader.position().await?)
-    ])
-  }
-
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
     // Does the first index entry always contain the first data container?
     index

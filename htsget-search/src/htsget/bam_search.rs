@@ -1,5 +1,6 @@
 //! Module providing the search capability using BAM/BAI files
 //!
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -7,13 +8,14 @@ use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::BinningIndex;
+use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam::Header;
 use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
+use tracing::metadata;
 
 use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt, BGZF_EOF};
 use crate::htsget::HtsGetError;
@@ -62,6 +64,33 @@ where
 
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
     ref_seq.len().get() as i32
+  }
+
+  fn possible_positions(index: &Index) -> Vec<u64> {
+    let mut positions = HashSet::new();
+    for ref_seq in index.reference_sequences() {
+      positions.extend(
+        ref_seq
+          .bins()
+          .iter()
+          .flat_map(|bin| bin.chunks())
+          .flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]),
+      );
+      positions.extend(
+        ref_seq
+          .intervals()
+          .iter()
+          .map(|interval| interval.compressed()),
+      );
+      positions.extend(ref_seq.metadata().iter().flat_map(|metadata| {
+        [
+          metadata.start_position().compressed(),
+          metadata.end_position().compressed(),
+        ]
+      }));
+    }
+    positions.remove(&0);
+    positions.into_iter().collect()
   }
 
   async fn get_byte_ranges_for_unmapped(
