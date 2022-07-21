@@ -471,9 +471,11 @@ where
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
     let chunks = index.query(0, ..)?;
     // Do we have to search all chunks? Can we assume the first chunk contains the start ref_seq?
-    chunks.iter().map(|chunk| chunk.start().compressed()).min().ok_or_else(|| {
-      HtsGetError::io_error("No chunks found in index")
-    })
+    chunks
+      .iter()
+      .map(|chunk| chunk.start().compressed())
+      .min()
+      .ok_or_else(|| HtsGetError::io_error("No chunks found in index"))
   }
 }
 

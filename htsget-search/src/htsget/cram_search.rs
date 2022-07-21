@@ -77,7 +77,17 @@ where
   }
 
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
-    todo!()
+    // Does the first index entry always contain the first data container?
+    index
+      .iter()
+      .min_by(|x, y| x.offset().cmp(&y.offset()))
+      .and_then(|min_record| Some(min_record.offset()))
+      .ok_or_else(|| {
+        HtsGetError::io_error(format!(
+          "Failed to find entry in {} index",
+          self.get_format()
+        ))
+      })
   }
 }
 
