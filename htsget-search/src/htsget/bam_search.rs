@@ -17,7 +17,7 @@ use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 use tracing::metadata;
 
-use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt, BGZF_EOF};
+use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt, BGZF_EOF, SearchAll};
 use crate::htsget::HtsGetError;
 use crate::{
   htsget::search::BlockPosition,
@@ -107,10 +107,7 @@ where
 
     let start = match last_interval {
       Some(start) => start,
-      None => {
-        let (bam_reader, _) = self.create_reader(id, format).await?;
-        bam_reader.virtual_position()
-      }
+      None => self.get_header_end_offset().await?
     };
 
     let file_size = self
