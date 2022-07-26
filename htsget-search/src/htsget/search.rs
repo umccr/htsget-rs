@@ -157,7 +157,9 @@ where
       return self.get_byte_ranges_for_unmapped_reads(&query, index).await;
     }
 
-    let (_, header) = self.create_reader(&query.id, &self.get_format()).await?;
+    let header = self
+      .get_header(&query.id, &self.get_format(), index)
+      .await?;
     let maybe_ref_seq = self
       .get_reference_sequence_from_name(&header, reference_name)
       .await;

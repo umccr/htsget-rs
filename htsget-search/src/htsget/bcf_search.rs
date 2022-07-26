@@ -109,7 +109,9 @@ where
     index: &Index,
     query: Query,
   ) -> Result<Vec<BytesPosition>> {
-    let (_, header) = self.create_reader(&query.id, &self.get_format()).await?;
+    let header = self
+      .get_header(&query.id, &self.get_format(), index)
+      .await?;
 
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
