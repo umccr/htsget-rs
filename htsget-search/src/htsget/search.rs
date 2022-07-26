@@ -348,21 +348,6 @@ where
     let storage = storage.get(format.fmt_file(id), get_options).await?;
     Ok(Self::init_reader(storage))
   }
-
-  /// Get the reader and header using the key.
-  async fn create_reader(&self, id: &str, format: &Format) -> Result<(Reader, Header)> {
-    let mut reader = Self::reader(id, format, self.get_storage()).await?;
-
-    let header = Self::read_raw_header(&mut reader)
-      .await
-      .map_err(|err| {
-        HtsGetError::io_error(format!("Reading {} header: {}", self.get_format(), err))
-      })?
-      .parse::<Header>()
-      .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))?;
-
-    Ok((reader, header))
-  }
 }
 
 /// The [BgzfSearch] trait defines commonalities for the formats that use a binning index, specifically
