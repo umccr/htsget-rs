@@ -100,10 +100,8 @@ where
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
 
   /// Returns the header bytes range.
-  async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<Vec<BytesPosition>> {
-    Ok(vec![
-      BytesPosition::default().with_end(self.get_header_end_offset(index).await?)
-    ])
+  async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<BytesPosition> {
+    Ok(BytesPosition::default().with_end(self.get_header_end_offset(index).await?))
   }
 }
 
@@ -262,10 +260,8 @@ where
           }
         };
 
-        let mut header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
-        header_byte_ranges.append(&mut byte_ranges);
-        let mut blocks =
-          DataBlock::from_bytes_positions(BytesPosition::merge_all(header_byte_ranges));
+        byte_ranges.push(self.get_byte_ranges_for_header(&index).await?);
+        let mut blocks = DataBlock::from_bytes_positions(BytesPosition::merge_all(byte_ranges));
         if let Some(eof) = self.get_eof_marker() {
           blocks.push(eof);
         }
@@ -279,7 +275,7 @@ where
             query.class,
             query.id,
             self.get_format(),
-            DataBlock::from_bytes_positions(header_byte_ranges),
+            DataBlock::from_bytes_positions(vec![header_byte_ranges]),
           )
           .await
       }

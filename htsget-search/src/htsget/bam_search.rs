@@ -17,7 +17,9 @@ use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 use tracing::metadata;
 
-use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt, BGZF_EOF, SearchAll};
+use crate::htsget::search::{
+  BgzfSearch, Search, SearchAll, SearchReads, VirtualPositionExt, BGZF_EOF,
+};
 use crate::htsget::HtsGetError;
 use crate::{
   htsget::search::BlockPosition,
@@ -107,7 +109,14 @@ where
 
     let start = match last_interval {
       Some(start) => start,
-      None => self.get_header_end_offset().await?
+      None => {
+        VirtualPosition::try_from((self.get_header_end_offset(index).await?, 0)).map_err(|err| {
+          HtsGetError::InternalError(format!(
+            "Invalid virtual position generated from header end offset: {}.",
+            err
+          ))
+        })?
+      }
     };
 
     let file_size = self

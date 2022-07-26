@@ -125,14 +125,20 @@ fn main() {
   for ref_seq in index.reference_sequences() {
     for bin in ref_seq.bins() {
       for chunk in bin.chunks() {
-        offsets.push((chunk.start().compressed() as i64, chunk.end().compressed() as i64));
+        offsets.push((
+          chunk.start().compressed() as i64,
+          chunk.end().compressed() as i64,
+        ));
       }
     }
     for lin in ref_seq.intervals() {
       offsets.push((lin.compressed() as i64, -1))
     }
     if let Some(metadata) = ref_seq.metadata() {
-      offsets.push((metadata.start_position().compressed() as i64, metadata.end_position().compressed() as i64))
+      offsets.push((
+        metadata.start_position().compressed() as i64,
+        metadata.end_position().compressed() as i64,
+      ))
     }
   }
   println!("{:#?}", offsets);
