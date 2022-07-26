@@ -158,10 +158,11 @@ where
     &self,
     reference_name: String,
     index: &Index,
+    header: &Header,
     query: Query,
   ) -> Result<Vec<BytesPosition>> {
     self
-      .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
       .await
   }
 

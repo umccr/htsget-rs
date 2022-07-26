@@ -197,7 +197,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
-  Header: FromStr + Send,
+  Header: FromStr + Send + Sync,
   Reader: Send,
   Self: Sync + Send,
 {
@@ -255,9 +255,9 @@ where
               .await?
           }
           Some(reference_name) => {
-            let header = self.get_header(&id, &format, index).await?;
+            let header = self.get_header(&id, &format, &index).await?;
             self
-              .get_byte_ranges_for_reference_name(reference_name.clone(), &index, query)
+              .get_byte_ranges_for_reference_name(reference_name.clone(), &index, &header, query)
               .await?
           }
         };
@@ -368,7 +368,7 @@ where
   Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex + Send + Sync,
-  Header: FromStr + Send,
+  Header: FromStr + Send + Sync,
 {
   type ReferenceSequenceHeader: Sync;
 
@@ -445,7 +445,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
-  Header: FromStr + Send,
+  Header: FromStr + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
@@ -486,7 +486,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
-  Header: FromStr + Send,
+  Header: FromStr + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
