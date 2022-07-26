@@ -114,12 +114,10 @@ where
     &self,
     reference_name: String,
     index: &Index,
+    header: &Header,
     query: Query,
   ) -> Result<Vec<BytesPosition>> {
-    let vcf_header = self
-      .get_header(&query.id, &self.get_format(), index)
-      .await?;
-    let maybe_len = vcf_header
+    let maybe_len = header
       .contigs()
       .get(&reference_name)
       .and_then(|contig| contig.len());

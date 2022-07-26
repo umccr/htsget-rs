@@ -11,6 +11,7 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence, Index};
 use noodles::vcf;
+use noodles::vcf::Header;
 use noodles::{bgzf, csi};
 use noodles_bcf as bcf;
 use tokio::io;
@@ -48,7 +49,7 @@ where
 
 #[async_trait]
 impl<S, ReaderType>
-  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -84,7 +85,7 @@ where
 
 #[async_trait]
 impl<S, ReaderType>
-  Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+  Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -107,12 +108,9 @@ where
     &self,
     reference_name: String,
     index: &Index,
+    header: &Header,
     query: Query,
   ) -> Result<Vec<BytesPosition>> {
-    let header = self
-      .get_header(&query.id, &self.get_format(), index)
-      .await?;
-
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
     let mut futures = FuturesOrdered::new();

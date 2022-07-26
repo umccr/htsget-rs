@@ -151,15 +151,13 @@ where
     &self,
     reference_name: &str,
     index: &Index,
+    header: &Header,
     query: Query,
   ) -> Result<Vec<BytesPosition>> {
     if reference_name == "*" {
       return self.get_byte_ranges_for_unmapped_reads(&query, index).await;
     }
 
-    let header = self
-      .get_header(&query.id, &self.get_format(), index)
-      .await?;
     let maybe_ref_seq = self
       .get_reference_sequence_from_name(&header, reference_name)
       .await;
@@ -214,6 +212,7 @@ where
     &self,
     reference_name: String,
     index: &Index,
+    header: &Header,
     query: Query,
   ) -> Result<Vec<BytesPosition>>;
 
@@ -256,6 +255,7 @@ where
               .await?
           }
           Some(reference_name) => {
+            let header = self.get_header(&id, &format, index).await?;
             self
               .get_byte_ranges_for_reference_name(reference_name.clone(), &index, query)
               .await?
