@@ -321,6 +321,25 @@ where
     return Ok(Response::new(format, urls));
   }
 
+  /// Get the header from the file specified by the id and format.
+  async fn get_header(&self, id: &str, format: &Format, index: &Index) -> Result<Header> {
+    let get_options =
+      GetOptions::default().with_range(self.get_byte_ranges_for_header(index).await?);
+    let reader_type = self
+      .get_storage()
+      .get(format.fmt_file(id), get_options)
+      .await?;
+    let mut reader = Self::init_reader(reader_type);
+
+    Self::read_raw_header(&mut reader)
+      .await
+      .map_err(|err| {
+        HtsGetError::io_error(format!("Reading {} header: {}", self.get_format(), err))
+      })?
+      .parse::<Header>()
+      .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))
+  }
+
   /// Get the reader from the key.
   async fn reader(id: &str, format: &Format, storage: Arc<S>) -> Result<Reader> {
     let get_options = GetOptions::default();
