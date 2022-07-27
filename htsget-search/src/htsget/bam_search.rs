@@ -8,6 +8,7 @@ use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
 use noodles::bgzf::VirtualPosition;
+use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam::Header;
 use noodles::{bgzf, sam};
@@ -18,7 +19,7 @@ use tokio::io::AsyncSeek;
 use tracing::metadata;
 
 use crate::htsget::search::{
-  BgzfSearch, Search, SearchAll, SearchReads, VirtualPositionExt, BGZF_EOF,
+  BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads, VirtualPositionExt, BGZF_EOF,
 };
 use crate::htsget::HtsGetError;
 use crate::{
@@ -54,6 +55,17 @@ where
   }
 }
 
+impl BinningIndexExt for Index {
+  fn get_all_chunks(&self) -> Vec<&Chunk> {
+    self
+      .reference_sequences()
+      .iter()
+      .flat_map(|ref_seq| ref_seq.bins())
+      .flat_map(|bin| bin.chunks())
+      .collect()
+  }
+}
+
 #[async_trait]
 impl<S, ReaderType>
   BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
@@ -68,45 +80,13 @@ where
     ref_seq.len().get() as i32
   }
 
-  fn possible_positions(index: &Index) -> Vec<u64> {
-    let mut positions = HashSet::new();
-    for ref_seq in index.reference_sequences() {
-      positions.extend(
-        ref_seq
-          .bins()
-          .iter()
-          .flat_map(|bin| bin.chunks())
-          .flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]),
-      );
-      positions.extend(
-        ref_seq
-          .intervals()
-          .iter()
-          .map(|interval| interval.compressed()),
-      );
-      positions.extend(ref_seq.metadata().iter().flat_map(|metadata| {
-        [
-          metadata.start_position().compressed(),
-          metadata.end_position().compressed(),
-        ]
-      }));
-    }
-    positions.remove(&0);
-    positions.into_iter().collect()
-  }
-
   async fn get_byte_ranges_for_unmapped(
     &self,
     id: &str,
     format: &Format,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let last_interval = index
-      .reference_sequences()
-      .iter()
-      .rev()
-      .find_map(|rs| rs.intervals().last().cloned());
-
+    let last_interval = index.first_record_in_last_linear_bin_start_position();
     let start = match last_interval {
       Some(start) => start,
       None => {

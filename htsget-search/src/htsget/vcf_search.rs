@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
+use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
@@ -19,7 +20,7 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
+use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, BlockPosition, Search};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -49,6 +50,17 @@ where
   }
 }
 
+impl BinningIndexExt for Index {
+  fn get_all_chunks(&self) -> Vec<&Chunk> {
+    self
+      .reference_sequences()
+      .iter()
+      .flat_map(|ref_seq| ref_seq.bins())
+      .flat_map(|bin| bin.chunks())
+      .collect()
+  }
+}
+
 #[async_trait]
 impl<S, ReaderType>
   BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
@@ -61,33 +73,6 @@ where
 
   fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
     Self::MAX_SEQ_POSITION
-  }
-
-  fn possible_positions(index: &Index) -> Vec<u64> {
-    let mut positions = HashSet::new();
-    for ref_seq in index.reference_sequences() {
-      positions.extend(
-        ref_seq
-          .bins()
-          .iter()
-          .flat_map(|bin| bin.chunks())
-          .flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]),
-      );
-      positions.extend(
-        ref_seq
-          .intervals()
-          .iter()
-          .map(|interval| interval.compressed()),
-      );
-      positions.extend(ref_seq.metadata().iter().flat_map(|metadata| {
-        [
-          metadata.start_position().compressed(),
-          metadata.end_position().compressed(),
-        ]
-      }));
-    }
-    positions.remove(&0);
-    positions.into_iter().collect()
   }
 }
 

@@ -5,6 +5,7 @@
 //! where the names of the types indicate their purpose.
 //!
 
+use std::collections::HashSet;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -14,12 +15,14 @@ use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::VirtualPosition;
 use noodles::core::Position;
 use noodles::csi::binning_index::merge_chunks;
+use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
+use tracing::metadata;
 
 use crate::storage::{DataBlock, GetOptions};
 use crate::{
@@ -367,7 +370,7 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: BlockPosition + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
-  Index: BinningIndex + Send + Sync,
+  Index: BinningIndex + BinningIndexExt + Send + Sync,
   Header: FromStr + Send + Sync,
 {
   type ReferenceSequenceHeader: Sync;
@@ -375,7 +378,33 @@ where
   /// Get the max sequence position.
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32;
 
-  fn possible_positions(index: &Index) -> Vec<u64>;
+  fn index_positions(index: &Index) -> Vec<u64> {
+    let mut positions = HashSet::new();
+
+    // Its probably most robust to search through all chunks in all reference sequences.
+    // See https://github.com/samtools/htslib/issues/1482
+    positions.extend(
+      index
+        .get_all_chunks()
+        .iter()
+        .flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]),
+    );
+    positions.extend(
+      index
+        .reference_sequences()
+        .iter()
+        .filter_map(|ref_seq| ref_seq.metadata())
+        .flat_map(|metadata| {
+          [
+            metadata.start_position().compressed(),
+            metadata.end_position().compressed(),
+          ]
+        }),
+    );
+
+    positions.remove(&0);
+    positions.into_iter().collect()
+  }
 
   /// Get ranges for a reference sequence for the bgzf format.
   async fn get_byte_ranges_for_reference_sequence_bgzf(
@@ -447,7 +476,7 @@ where
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
-  Index: BinningIndex + Send + Sync,
+  Index: BinningIndex + BinningIndexExt + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   async fn get_byte_ranges_for_all(
@@ -468,7 +497,7 @@ where
   }
 
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
-    Self::possible_positions(index)
+    Self::index_positions(index)
       .into_iter()
       .min()
       .ok_or_else(|| {
@@ -488,12 +517,18 @@ where
   Reader: BlockPosition + Send + Sync,
   Header: FromStr + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
-  Index: BinningIndex + Send + Sync,
+  Index: BinningIndex + BinningIndexExt + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   fn get_eof_marker(&self) -> Option<DataBlock> {
     Some(DataBlock::Data(Vec::from(BGZF_EOF)))
   }
+}
+
+/// Extension trait for binning indicies.
+pub(crate) trait BinningIndexExt {
+  /// Get all chunks associated with this index from the reference sequences.
+  fn get_all_chunks(&self) -> Vec<&Chunk>;
 }
 
 /// A block position extends the concept of a virtual position for readers.
