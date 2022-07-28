@@ -431,7 +431,7 @@ where
       .map_err(|_| invalid_range())?;
 
     let mut futures: FuturesOrdered<JoinHandle<Result<BytesPosition>>> = FuturesOrdered::new();
-    for chunk in merge_chunks(&chunks) {
+    for chunk in chunks {
       let storage = self.get_storage();
       let id = query.id.clone();
       let format = self.get_format();
