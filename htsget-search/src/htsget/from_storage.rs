@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::io::{AsyncRead, AsyncSeek};
+use tokio::io::AsyncRead;
 use tracing::debug;
 
 use htsget_config::regex_resolver::RegexResolver;
@@ -34,7 +34,7 @@ pub struct HtsGetFromStorage<S> {
 #[async_trait]
 impl<S, R> HtsGet for HtsGetFromStorage<S>
 where
-  R: AsyncRead + AsyncSeek + Send + Sync + Unpin,
+  R: AsyncRead + Send + Sync + Unpin,
   S: Storage<Streamable = R> + Sync + Send + 'static,
 {
   async fn search(&self, query: Query) -> Result<Response> {

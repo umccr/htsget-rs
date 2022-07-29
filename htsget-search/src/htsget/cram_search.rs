@@ -13,7 +13,7 @@ use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
 use noodles_cram::AsyncReader;
-use tokio::io::{AsyncRead, AsyncSeek};
+use tokio::io::AsyncRead;
 use tokio::{io, select};
 
 use crate::htsget::search::{into_one_based_position, Search, SearchAll, SearchEof, SearchReads};
@@ -36,7 +36,7 @@ impl<S, ReaderType>
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   fn get_eof_marker(&self) -> &[u8] {
     CRAM_EOF
@@ -53,7 +53,7 @@ impl<S, ReaderType>
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   async fn get_byte_ranges_for_all(
     &self,
@@ -94,7 +94,7 @@ impl<S, ReaderType>
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
     &self,
@@ -158,7 +158,7 @@ impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
     AsyncReader::new(inner)
@@ -197,7 +197,7 @@ where
 impl<S, ReaderType> CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   const EOF_CONTAINER_LENGTH: u64 = 38;
 

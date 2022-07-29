@@ -16,7 +16,6 @@ use noodles::vcf::Header;
 use noodles_vcf as vcf;
 use tokio::io;
 use tokio::io::AsyncRead;
-use tokio::io::AsyncSeek;
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
 use crate::{
@@ -47,7 +46,7 @@ impl<S, ReaderType>
   for VcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
@@ -61,7 +60,7 @@ impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<
   for VcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
     AsyncReader::new(bgzf::AsyncReader::new(inner))
@@ -137,7 +136,7 @@ where
 impl<S, ReaderType> VcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
