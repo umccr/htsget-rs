@@ -243,16 +243,10 @@ where
       .last()
       .ok_or_else(|| HtsGetError::invalid_input("No entries in CRAI"))?;
     if predicate(last) {
-      let file_size = self
-        .storage
-        .head(format.fmt_file(id))
-        .await
-        .map_err(|_| HtsGetError::io_error("Reading CRAM file size."))?;
-      let eof_position = file_size - Self::EOF_CONTAINER_LENGTH;
       byte_ranges.push(
         BytesPosition::default()
           .with_start(last.offset())
-          .with_end(eof_position),
+          .with_end(self.position_at_eof(id, format)),
       );
     }
 
