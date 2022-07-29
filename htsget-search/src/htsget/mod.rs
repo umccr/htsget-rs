@@ -10,7 +10,6 @@ use std::io;
 use std::io::ErrorKind;
 
 use async_trait::async_trait;
-use axum::Form;
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -230,11 +229,13 @@ impl Format {
       Format::Bcf => format!("{}.bcf.csi", id),
     }
   }
-  
+
   pub(crate) fn fmt_gzi(&self, id: &str) -> Result<String> {
     match self {
       Format::Bam => Ok(format!("{}.bam.gzi", id)),
-      Format::Cram => Err(HtsGetError::InternalError("CRAM does not support GZI.".to_string())),
+      Format::Cram => Err(HtsGetError::InternalError(
+        "CRAM does not support GZI.".to_string(),
+      )),
       Format::Vcf => Ok(format!("{}.vcf.gz.gzi", id)),
       Format::Bcf => Ok(format!("{}.bcf.gzi", id)),
     }

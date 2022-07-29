@@ -14,16 +14,16 @@ use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::VirtualPosition;
 use noodles::core::Position;
-use noodles_bgzf::gzi;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
+use noodles_bgzf::gzi;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
 
-use crate::storage::{DataBlock, GetOptions, StorageError};
+use crate::storage::{DataBlock, GetOptions};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{BytesPosition, RangeUrlOptions, Storage},
@@ -164,7 +164,7 @@ where
     }
 
     let maybe_ref_seq = self
-      .get_reference_sequence_from_name(&header, reference_name)
+      .get_reference_sequence_from_name(header, reference_name)
       .await;
 
     let byte_ranges = match maybe_ref_seq {
@@ -234,7 +234,11 @@ where
       .head(format.fmt_file(id))
       .await
       .map_err(|_| HtsGetError::io_error("Reading file size"))?;
-    Ok(file_size - u64::try_from(self.get_eof_marker().len()).map_err(|err| HtsGetError::InvalidInput(err.to_string()))?)
+    Ok(
+      file_size
+        - u64::try_from(self.get_eof_marker().len())
+          .map_err(|err| HtsGetError::InvalidInput(err.to_string()))?,
+    )
   }
 
   /// Read the index from the key.
@@ -444,21 +448,44 @@ where
       .query(ref_seq_id, seq_start..=seq_end)
       .map_err(|_| invalid_range())?;
 
-    let gzi_data = self.get_storage().get(self.get_format().fmt_gzi(&query.id)?, GetOptions::default()).await;
+    let gzi_data = self
+      .get_storage()
+      .get(self.get_format().fmt_gzi(&query.id)?, GetOptions::default())
+      .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {
         let gzi = gzi::AsyncReader::new(gzi_data).read_index().await?;
-        self.bytes_positions_from_chunks(chunks, &query.id, &query.format, gzi.into_iter().map(|(compressed, _)| compressed)).await?
+        self
+          .bytes_positions_from_chunks(
+            chunks,
+            &query.id,
+            &query.format,
+            gzi.into_iter().map(|(compressed, _)| compressed),
+          )
+          .await?
       }
       Err(_) => {
-        self.bytes_positions_from_chunks(chunks, &query.id, &query.format,Self::index_positions(&index).into_iter()).await?
+        self
+          .bytes_positions_from_chunks(
+            chunks,
+            &query.id,
+            &query.format,
+            Self::index_positions(index).into_iter(),
+          )
+          .await?
       }
     };
 
     Ok(BytesPosition::merge_all(byte_ranges))
   }
 
-  async fn bytes_positions_from_chunks(&self, chunks: Vec<Chunk>, id: &str, format: &Format, mut positions: impl Iterator<Item = u64> + Send) -> Result<Vec<BytesPosition>> {
+  async fn bytes_positions_from_chunks(
+    &self,
+    chunks: Vec<Chunk>,
+    id: &str,
+    format: &Format,
+    mut positions: impl Iterator<Item = u64> + Send,
+  ) -> Result<Vec<BytesPosition>> {
     let mut end_position: Option<u64> = None;
     let mut bytes_positions = Vec::new();
 
@@ -466,22 +493,21 @@ where
       let maybe_end = positions.find(|pos| pos > &chunk.end().compressed());
 
       let end = match maybe_end {
-        None => {
-          match end_position {
-            None => {
-              let pos = self.position_at_eof(id, format).await?;
-              end_position = Some(pos);
-              pos
-            }
-            Some(pos) => pos
+        None => match end_position {
+          None => {
+            let pos = self.position_at_eof(id, format).await?;
+            end_position = Some(pos);
+            pos
           }
-        }
-        Some(pos) => pos
+          Some(pos) => pos,
+        },
+        Some(pos) => pos,
       };
 
       bytes_positions.push(
-        BytesPosition::default().with_start(chunk.start().compressed())
-          .with_end(end)
+        BytesPosition::default()
+          .with_start(chunk.start().compressed())
+          .with_end(end),
       )
     }
 

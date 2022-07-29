@@ -106,10 +106,10 @@ pub(crate) mod tests {
   use crate::htsget::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
-  use std::path::PathBuf;
-  use tempfile::TempDir;
   use crate::htsget::{Class::Body, Headers, Url};
   use crate::storage::ticket_server::HttpTicketFormatter;
+  use std::path::PathBuf;
+  use tempfile::TempDir;
 
   use super::*;
 
@@ -157,9 +157,9 @@ pub(crate) mod tests {
   }
 
   async fn with_local_storage_fn<F, Fut>(test: F, path: &str, file_names: Option<&[&str]>)
-    where
-      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-      Fut: Future<Output = ()>,
+  where
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    Fut: Future<Output = ()>,
   {
     let mut base_path = std::env::current_dir()
       .unwrap()
@@ -181,9 +181,9 @@ pub(crate) mod tests {
         RegexResolver::new(".*", "$0").unwrap(),
         HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
       )
-        .unwrap(),
+      .unwrap(),
     ))
-      .await
+    .await
   }
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F, path: &str)
@@ -195,9 +195,9 @@ pub(crate) mod tests {
   }
 
   pub(crate) async fn with_local_storage_tmp<F, Fut>(test: F, path: &str, file_names: &[&str])
-    where
-      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-      Fut: Future<Output = ()>,
+  where
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    Fut: Future<Output = ()>,
   {
     with_local_storage_fn(test, path, Some(file_names)).await;
   }

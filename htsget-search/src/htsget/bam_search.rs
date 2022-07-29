@@ -1,6 +1,5 @@
 //! Module providing the search capability using BAM/BAI files
 //!
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -9,14 +8,13 @@ use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::csi::BinningIndex;
 use noodles::sam::Header;
 use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
-use tracing::metadata;
 
 use crate::htsget::search::{
   BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads, VirtualPositionExt, BGZF_EOF,
@@ -212,7 +210,10 @@ pub(crate) mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::{with_local_storage as with_local_storage_path, with_local_storage_tmp as with_local_storage_tmp_path};
+  use crate::htsget::from_storage::tests::{
+    with_local_storage as with_local_storage_path,
+    with_local_storage_tmp as with_local_storage_tmp_path,
+  };
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
@@ -371,7 +372,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response)
     })
-      .await
+    .await
   }
 
   #[tokio::test]
@@ -402,11 +403,16 @@ pub(crate) mod tests {
   }
 
   async fn with_local_storage_tmp<F, Fut>(test: F)
-    where
-      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-      Fut: Future<Output = ()>,
+  where
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    Fut: Future<Output = ()>,
   {
-    with_local_storage_tmp_path(test, "data/bam", &["htsnexus_test_NA12878.bam", "htsnexus_test_NA12878.bam.bai"]).await
+    with_local_storage_tmp_path(
+      test,
+      "data/bam",
+      &["htsnexus_test_NA12878.bam", "htsnexus_test_NA12878.bam.bai"],
+    )
+    .await
   }
 
   pub(crate) fn expected_url() -> String {

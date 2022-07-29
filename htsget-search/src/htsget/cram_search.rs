@@ -78,7 +78,7 @@ where
     index
       .iter()
       .min_by(|x, y| x.offset().cmp(&y.offset()))
-      .and_then(|min_record| Some(min_record.offset()))
+      .map(|min_record| min_record.offset())
       .ok_or_else(|| {
         HtsGetError::io_error(format!(
           "Failed to find entry in {} index",

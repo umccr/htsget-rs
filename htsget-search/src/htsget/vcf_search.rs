@@ -1,7 +1,6 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -10,7 +9,7 @@ use futures_util::stream::FuturesOrdered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::csi::BinningIndex;
 use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
@@ -173,7 +172,10 @@ pub(crate) mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::{with_local_storage as with_local_storage_path, with_local_storage_tmp as with_local_storage_tmp_path};
+  use crate::htsget::from_storage::tests::{
+    with_local_storage as with_local_storage_path,
+    with_local_storage_tmp as with_local_storage_tmp_path,
+  };
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
@@ -219,18 +221,16 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn search_reference_name_with_seq_range() {
-    with_local_storage(|storage| async move {
-      test_reference_name_with_seq_range(storage).await
-    })
-    .await;
+    with_local_storage(|storage| async move { test_reference_name_with_seq_range(storage).await })
+      .await;
   }
 
   #[tokio::test]
   async fn search_no_gzi() {
-    with_local_storage_tmp(|storage| async move {
-      test_reference_name_with_seq_range(storage).await
-    })
-      .await;
+    with_local_storage_tmp(
+      |storage| async move { test_reference_name_with_seq_range(storage).await },
+    )
+    .await;
   }
 
   #[tokio::test]
@@ -287,11 +287,19 @@ pub(crate) mod tests {
   }
 
   async fn with_local_storage_tmp<F, Fut>(test: F)
-    where
-      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-      Fut: Future<Output = ()>,
+  where
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    Fut: Future<Output = ()>,
   {
-    with_local_storage_tmp_path(test, "data/vcf", &["sample1-bcbio-cancer.vcf.gz", "sample1-bcbio-cancer.vcf.gz.tbi"]).await
+    with_local_storage_tmp_path(
+      test,
+      "data/vcf",
+      &[
+        "sample1-bcbio-cancer.vcf.gz",
+        "sample1-bcbio-cancer.vcf.gz.tbi",
+      ],
+    )
+    .await
   }
 
   pub(crate) fn expected_url(name: &str) -> String {
