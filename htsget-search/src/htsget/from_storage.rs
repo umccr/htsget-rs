@@ -95,6 +95,7 @@ impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
 
 #[cfg(test)]
 pub(crate) mod tests {
+  use std::fs;
   use std::future::Future;
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
@@ -105,6 +106,8 @@ pub(crate) mod tests {
   use crate::htsget::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
+  use std::path::PathBuf;
+  use tempfile::TempDir;
   use crate::htsget::{Class::Body, Headers, Url};
   use crate::storage::ticket_server::HttpTicketFormatter;
 
@@ -153,24 +156,49 @@ pub(crate) mod tests {
     .await;
   }
 
-  pub(crate) async fn with_local_storage<F, Fut>(test: F, path: &str)
-  where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-    Fut: Future<Output = ()>,
+  async fn with_local_storage_fn<F, Fut>(test: F, path: &str, file_names: Option<&[&str]>)
+    where
+      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+      Fut: Future<Output = ()>,
   {
-    let base_path = std::env::current_dir()
+    let mut base_path = std::env::current_dir()
       .unwrap()
       .parent()
       .unwrap()
       .join(path);
+
+    let tmp_dir = TempDir::new().unwrap();
+    if let Some(file_names) = file_names {
+      for file_name in file_names {
+        fs::copy(base_path.join(file_name), tmp_dir.path().join(file_name)).unwrap();
+      }
+      base_path = PathBuf::from(tmp_dir.path());
+    }
+
     test(Arc::new(
       LocalStorage::new(
         base_path,
         RegexResolver::new(".*", "$0").unwrap(),
         HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
       )
-      .unwrap(),
+        .unwrap(),
     ))
-    .await
+      .await
+  }
+
+  pub(crate) async fn with_local_storage<F, Fut>(test: F, path: &str)
+  where
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_local_storage_fn(test, path, None).await;
+  }
+
+  pub(crate) async fn with_local_storage_tmp<F, Fut>(test: F, path: &str, file_names: &[&str])
+    where
+      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+      Fut: Future<Output = ()>,
+  {
+    with_local_storage_fn(test, path, Some(file_names)).await;
   }
 }

@@ -10,6 +10,7 @@ use std::io;
 use std::io::ErrorKind;
 
 use async_trait::async_trait;
+use axum::Form;
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -210,23 +211,6 @@ pub enum Format {
   Bcf,
 }
 
-/// An enum with formats that can have a GZI index.
-pub enum GziFormat {
-  Bam,
-  Vcf,
-  Bcf
-}
-
-impl GziFormat {
-  pub(crate) fn fmt_index(&self, id: &str) -> String {
-    match self {
-      GziFormat::Bam => format!("{}.bam.gzi", id),
-      GziFormat::Vcf => format!("{}.vcf.gz.gzi", id),
-      GziFormat::Bcf => format!("{}.bcf.gzi", id),
-    }
-  }
-}
-
 // TODO Allow the user to change this.
 impl Format {
   pub(crate) fn fmt_file(&self, id: &str) -> String {
@@ -244,6 +228,15 @@ impl Format {
       Format::Cram => format!("{}.cram.crai", id),
       Format::Vcf => format!("{}.vcf.gz.tbi", id),
       Format::Bcf => format!("{}.bcf.csi", id),
+    }
+  }
+  
+  pub(crate) fn fmt_gzi(&self, id: &str) -> Result<String> {
+    match self {
+      Format::Bam => Ok(format!("{}.bam.gzi", id)),
+      Format::Cram => Err(HtsGetError::InternalError("CRAM does not support GZI.".to_string())),
+      Format::Vcf => Ok(format!("{}.vcf.gz.gzi", id)),
+      Format::Bcf => Ok(format!("{}.bcf.gzi", id)),
     }
   }
 }

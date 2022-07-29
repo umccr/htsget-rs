@@ -173,7 +173,7 @@ pub(crate) mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
+  use crate::htsget::from_storage::tests::{with_local_storage as with_local_storage_path, with_local_storage_tmp as with_local_storage_tmp_path};
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
@@ -220,19 +220,17 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
-      let search = VcfSearch::new(storage.clone());
-      let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Vcf)
-        .with_reference_name("chrM")
-        .with_start(151)
-        .with_end(153);
-      let response = search.search(query).await;
-      println!("{:#?}", response);
-
-      let expected_response = Ok(expected_vcf_response(filename));
-      assert_eq!(response, expected_response)
+      test_reference_name_with_seq_range(storage).await
     })
     .await;
+  }
+
+  #[tokio::test]
+  async fn search_no_gzi() {
+    with_local_storage_tmp(|storage| async move {
+      test_reference_name_with_seq_range(storage).await
+    })
+      .await;
   }
 
   #[tokio::test]
@@ -255,6 +253,20 @@ pub(crate) mod tests {
     .await;
   }
 
+  async fn test_reference_name_with_seq_range(storage: Arc<LocalStorage<HttpTicketFormatter>>) {
+    let search = VcfSearch::new(storage.clone());
+    let filename = "sample1-bcbio-cancer";
+    let query = Query::new(filename, Format::Vcf)
+      .with_reference_name("chrM")
+      .with_start(151)
+      .with_end(153);
+    let response = search.search(query).await;
+    println!("{:#?}", response);
+
+    let expected_response = Ok(expected_vcf_response(filename));
+    assert_eq!(response, expected_response);
+  }
+
   fn expected_vcf_response(filename: &str) -> Response {
     Response::new(
       Format::Vcf,
@@ -272,6 +284,14 @@ pub(crate) mod tests {
     Fut: Future<Output = ()>,
   {
     with_local_storage_path(test, "data/vcf").await
+  }
+
+  async fn with_local_storage_tmp<F, Fut>(test: F)
+    where
+      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+      Fut: Future<Output = ()>,
+  {
+    with_local_storage_tmp_path(test, "data/vcf", &["sample1-bcbio-cancer.vcf.gz", "sample1-bcbio-cancer.vcf.gz.tbi"]).await
   }
 
   pub(crate) fn expected_url(name: &str) -> String {

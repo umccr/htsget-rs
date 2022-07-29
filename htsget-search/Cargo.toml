@@ -27,6 +27,7 @@ async-trait = "0.1"
 
 # Noodles
 noodles = { version = "0.25", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bgzf = { git = "https://github.com/mmalenic/noodles", branch = "gzi_index_async", features = ["async"] }
 noodles-bam = { version = "0.20", features = ["async"] }
 noodles-bcf = { version = "0.14", features = ["async"] }
 noodles-cram = { version = "0.17", features = ["async"] }

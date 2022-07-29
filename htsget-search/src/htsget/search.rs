@@ -14,7 +14,7 @@ use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::VirtualPosition;
 use noodles::core::Position;
-use noodles::csi::binning_index::merge_chunks;
+use noodles_bgzf::gzi;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
@@ -22,9 +22,8 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
-use tracing::metadata;
 
-use crate::storage::{DataBlock, GetOptions};
+use crate::storage::{DataBlock, GetOptions, StorageError};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{BytesPosition, RangeUrlOptions, Storage},
@@ -72,8 +71,11 @@ pub(crate) fn into_one_based_position(value: i32) -> Result<i32> {
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 pub(crate) trait SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header> {
-  /// Get the eof marker for this format. Defaults to BGZF eof.
-  fn get_eof_marker(&self) -> Option<DataBlock>;
+  /// Ge the eof marker for this format.
+  fn get_eof_marker(&self) -> &[u8];
+
+  /// Get the eof data block for this format.
+  fn get_eof_data_block(&self) -> Option<DataBlock>;
 }
 
 /// [SearchAll] represents searching bytes ranges that are applicable to all formats. Specifically,
@@ -225,6 +227,16 @@ where
   /// Get the format of this format.
   fn get_format(&self) -> Format;
 
+  /// Get the position at the end of file marker.
+  async fn position_at_eof(&self, id: &str, format: &Format) -> Result<u64> {
+    let file_size = self
+      .get_storage()
+      .head(format.fmt_file(id))
+      .await
+      .map_err(|_| HtsGetError::io_error("Reading file size"))?;
+    Ok(file_size - u64::try_from(self.get_eof_marker().len()).map_err(|err| HtsGetError::InvalidInput(err.to_string()))?)
+  }
+
   /// Read the index from the key.
   async fn read_index(&self, id: &str) -> Result<Index> {
     let storage = self
@@ -267,7 +279,7 @@ where
 
         byte_ranges.push(self.get_byte_ranges_for_header(&index).await?);
         let mut blocks = DataBlock::from_bytes_positions(BytesPosition::merge_all(byte_ranges));
-        if let Some(eof) = self.get_eof_marker() {
+        if let Some(eof) = self.get_eof_data_block() {
           blocks.push(eof);
         }
 
@@ -403,7 +415,9 @@ where
     );
 
     positions.remove(&0);
-    positions.into_iter().collect()
+    let mut positions: Vec<u64> = positions.into_iter().collect();
+    positions.sort();
+    positions
   }
 
   /// Get ranges for a reference sequence for the bgzf format.
@@ -430,30 +444,48 @@ where
       .query(ref_seq_id, seq_start..=seq_end)
       .map_err(|_| invalid_range())?;
 
-    let mut futures: FuturesOrdered<JoinHandle<Result<BytesPosition>>> = FuturesOrdered::new();
-    for chunk in chunks {
-      let storage = self.get_storage();
-      let id = query.id.clone();
-      let format = self.get_format();
-      futures.push(tokio::spawn(async move {
-        let mut reader = Self::reader(&id, &format, storage).await?;
-        Ok(
-          BytesPosition::default()
-            .with_start(chunk.start().bytes_range_start())
-            .with_end(chunk.end().bytes_range_end(&mut reader).await),
-        )
-      }));
-    }
-
-    let mut byte_ranges = Vec::new();
-    loop {
-      select! {
-        Some(next) = futures.next() => byte_ranges.push(next.map_err(HtsGetError::from)?.map_err(HtsGetError::from)?),
-        else => break
+    let gzi_data = self.get_storage().get(self.get_format().fmt_gzi(&query.id)?, GetOptions::default()).await;
+    let byte_ranges: Vec<BytesPosition> = match gzi_data {
+      Ok(gzi_data) => {
+        let gzi = gzi::AsyncReader::new(gzi_data).read_index().await?;
+        self.bytes_positions_from_chunks(chunks, &query.id, &query.format, gzi.into_iter().map(|(compressed, _)| compressed)).await?
       }
-    }
+      Err(_) => {
+        self.bytes_positions_from_chunks(chunks, &query.id, &query.format,Self::index_positions(&index).into_iter()).await?
+      }
+    };
 
     Ok(BytesPosition::merge_all(byte_ranges))
+  }
+
+  async fn bytes_positions_from_chunks(&self, chunks: Vec<Chunk>, id: &str, format: &Format, mut positions: impl Iterator<Item = u64> + Send) -> Result<Vec<BytesPosition>> {
+    let mut end_position: Option<u64> = None;
+    let mut bytes_positions = Vec::new();
+
+    for chunk in chunks {
+      let maybe_end = positions.find(|pos| pos > &chunk.end().compressed());
+
+      let end = match maybe_end {
+        None => {
+          match end_position {
+            None => {
+              let pos = self.position_at_eof(id, format).await?;
+              end_position = Some(pos);
+              pos
+            }
+            Some(pos) => pos
+          }
+        }
+        Some(pos) => pos
+      };
+
+      bytes_positions.push(
+        BytesPosition::default().with_start(chunk.start().compressed())
+          .with_end(end)
+      )
+    }
+
+    Ok(bytes_positions)
   }
 
   /// Get unmapped bytes ranges.
@@ -499,7 +531,7 @@ where
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
     Self::index_positions(index)
       .into_iter()
-      .min()
+      .next()
       .ok_or_else(|| {
         HtsGetError::io_error(format!(
           "Failed to find header offset in {} index",
@@ -520,7 +552,11 @@ where
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
-  fn get_eof_marker(&self) -> Option<DataBlock> {
+  fn get_eof_marker(&self) -> &[u8] {
+    BGZF_EOF
+  }
+
+  fn get_eof_data_block(&self) -> Option<DataBlock> {
     Some(DataBlock::Data(Vec::from(BGZF_EOF)))
   }
 }

@@ -1,7 +1,8 @@
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use std::fs::File;
+use std::io::Cursor;
 
 mod bam;
 mod bcf;
@@ -184,8 +185,8 @@ fn main() {
   let path = std::env::current_dir()
     .unwrap()
     .join("data")
-    .join("vcf")
-    .join("sample1-bcbio-cancer.vcf.gz.gzi");
+    .join("bam")
+    .join("htsnexus_test_NA12878.bam.gzi");
   let mut file = File::open(path).unwrap();
   let mut values: Vec<u64> = Vec::new();
   while let Ok(value) = file.read_u64::<LittleEndian>() {
@@ -193,6 +194,10 @@ fn main() {
   }
   println!("Number of entries: {:#?}", values.first());
   // Get every second value, which is the compressed offset, pointing to the start of a BGZF block.
-  let values = values.iter().skip(1).step_by(2).collect::<Vec<_>>();
   println!("{:#?}", values);
+  println!("{}", values.len());
+
+  let mut buf = [0; 8];
+  LittleEndian::write_u64(&mut buf, 1);
+  println!("{:#04X?}", buf)
 }

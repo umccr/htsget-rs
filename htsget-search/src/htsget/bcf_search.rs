@@ -165,7 +165,7 @@ mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
+  use crate::htsget::from_storage::tests::{with_local_storage as with_local_storage_path, with_local_storage_tmp as with_local_storage_tmp_path};
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
@@ -212,19 +212,29 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage.clone());
-      let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Bcf)
-        .with_reference_name("chrM")
-        .with_start(151)
-        .with_end(153);
-      let response = search.search(query).await;
-      println!("{:#?}", response);
+      test_reference_sequence_with_seq_range(storage).await
+    }).await
+  }
 
-      let expected_response = Ok(expected_bcf_response(filename));
-      assert_eq!(response, expected_response)
-    })
-    .await
+  #[tokio::test]
+  async fn search_no_gzi() {
+    with_local_storage_tmp(|storage| async move {
+      test_reference_sequence_with_seq_range(storage).await
+    }).await
+  }
+
+  async fn test_reference_sequence_with_seq_range(storage: Arc<LocalStorage<HttpTicketFormatter>>) {
+    let search = BcfSearch::new(storage.clone());
+    let filename = "sample1-bcbio-cancer";
+    let query = Query::new(filename, Format::Bcf)
+      .with_reference_name("chrM")
+      .with_start(151)
+      .with_end(153);
+    let response = search.search(query).await;
+    println!("{:#?}", response);
+
+    let expected_response = Ok(expected_bcf_response(filename));
+    assert_eq!(response, expected_response)
   }
 
   fn expected_bcf_response(filename: &str) -> Response {
@@ -264,6 +274,14 @@ mod tests {
     Fut: Future<Output = ()>,
   {
     with_local_storage_path(test, "data/bcf").await
+  }
+
+  async fn with_local_storage_tmp<F, Fut>(test: F)
+    where
+      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+      Fut: Future<Output = ()>,
+  {
+    with_local_storage_tmp_path(test, "data/bcf", &["sample1-bcbio-cancer.bcf", "sample1-bcbio-cancer.bcf.csi"]).await
   }
 
   fn expected_url(name: &str) -> String {

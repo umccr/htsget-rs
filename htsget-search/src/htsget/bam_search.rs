@@ -212,7 +212,7 @@ pub(crate) mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
+  use crate::htsget::from_storage::tests::{with_local_storage as with_local_storage_path, with_local_storage_tmp as with_local_storage_tmp_path};
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
@@ -349,6 +349,32 @@ pub(crate) mod tests {
   }
 
   #[tokio::test]
+  async fn search_no_gzi() {
+    with_local_storage_tmp(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(5015000)
+        .with_end(5050000);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    })
+      .await
+  }
+
+  #[tokio::test]
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
@@ -373,6 +399,14 @@ pub(crate) mod tests {
     Fut: Future<Output = ()>,
   {
     with_local_storage_path(test, "data/bam").await
+  }
+
+  async fn with_local_storage_tmp<F, Fut>(test: F)
+    where
+      F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+      Fut: Future<Output = ()>,
+  {
+    with_local_storage_tmp_path(test, "data/bam", &["htsnexus_test_NA12878.bam", "htsnexus_test_NA12878.bam.bai"]).await
   }
 
   pub(crate) fn expected_url() -> String {
