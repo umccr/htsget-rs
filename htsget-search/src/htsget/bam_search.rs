@@ -16,12 +16,9 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{
-  BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads, VirtualPositionExt, BGZF_EOF,
-};
+use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
 use crate::htsget::HtsGetError;
 use crate::{
-  htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
@@ -30,27 +27,6 @@ type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
 pub(crate) struct BamSearch<S> {
   storage: Arc<S>,
-}
-
-#[async_trait]
-impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
-where
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
-{
-  async fn read_bytes(&mut self) -> Option<usize> {
-    self
-      .read_record(&mut sam::alignment::Record::default())
-      .await
-      .ok()
-  }
-
-  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
-    self.seek(pos).await
-  }
-
-  fn virtual_position(&self) -> VirtualPosition {
-    self.virtual_position()
-  }
 }
 
 impl BinningIndexExt for Index {
@@ -97,15 +73,9 @@ where
       }
     };
 
-    let file_size = self
-      .storage
-      .head(format.fmt_file(id))
-      .await
-      .map_err(|_| HtsGetError::io_error("Reading file size"))?;
-
     Ok(vec![BytesPosition::default()
-      .with_start(start.bytes_range_start())
-      .with_end(file_size - BGZF_EOF.len() as u64)])
+      .with_start(start.compressed())
+      .with_end(self.position_at_eof(id, format).await?)])
   }
 }
 

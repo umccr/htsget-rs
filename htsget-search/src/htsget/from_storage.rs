@@ -97,6 +97,9 @@ impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
 pub(crate) mod tests {
   use std::fs;
   use std::future::Future;
+  use std::path::PathBuf;
+
+  use tempfile::TempDir;
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
@@ -108,8 +111,6 @@ pub(crate) mod tests {
   };
   use crate::htsget::{Class::Body, Headers, Url};
   use crate::storage::ticket_server::HttpTicketFormatter;
-  use std::path::PathBuf;
-  use tempfile::TempDir;
 
   use super::*;
 

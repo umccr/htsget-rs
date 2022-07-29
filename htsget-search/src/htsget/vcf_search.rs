@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf;
-use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::BinningIndex;
 use noodles::tabix;
@@ -19,7 +18,7 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncSeek;
 
-use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, BlockPosition, Search};
+use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -29,24 +28,6 @@ type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
 pub(crate) struct VcfSearch<S> {
   storage: Arc<S>,
-}
-
-#[async_trait]
-impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
-where
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
-{
-  async fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut String::new()).await.ok()
-  }
-
-  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
-    self.seek(pos).await
-  }
-
-  fn virtual_position(&self) -> VirtualPosition {
-    self.virtual_position()
-  }
 }
 
 impl BinningIndexExt for Index {

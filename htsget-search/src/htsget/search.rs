@@ -12,7 +12,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
-use noodles::bgzf::VirtualPosition;
 use noodles::core::Position;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
@@ -384,7 +383,7 @@ pub(crate) trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Hea
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
-  Reader: BlockPosition + Send + Sync,
+  Reader: Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   Header: FromStr + Send + Sync,
@@ -531,7 +530,7 @@ impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
-  Reader: BlockPosition + Send + Sync,
+  Reader: Send + Sync,
   Header: FromStr + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
@@ -572,7 +571,7 @@ impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
-  Reader: BlockPosition + Send + Sync,
+  Reader: Send + Sync,
   Header: FromStr + Send + Sync,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
@@ -591,91 +590,4 @@ where
 pub(crate) trait BinningIndexExt {
   /// Get all chunks associated with this index from the reference sequences.
   fn get_all_chunks(&self) -> Vec<&Chunk>;
-}
-
-/// A block position extends the concept of a virtual position for readers.
-#[async_trait]
-pub(crate) trait BlockPosition {
-  /// Read bytes of record.
-  async fn read_bytes(&mut self) -> Option<usize>;
-  /// Seek using VirtualPosition.
-  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition>;
-  /// Read the virtual position.
-  fn virtual_position(&self) -> VirtualPosition;
-}
-
-/// An extension trait for VirtualPosition, which defines some common functions for the Bgzf formats.
-#[async_trait]
-pub(crate) trait VirtualPositionExt {
-  const MAX_BLOCK_SIZE: u64 = 65536;
-
-  /// Get the starting bytes for a compressed BGZF block.
-  fn bytes_range_start(&self) -> u64;
-  /// Get the ending bytes for a compressed BGZF block.
-  async fn bytes_range_end<P>(&self, reader: &mut P) -> u64
-  where
-    P: BlockPosition + Send;
-  /// Get the next block position
-  async fn get_next_block_position<P>(&self, reader: &mut P) -> Option<u64>
-  where
-    P: BlockPosition + Send;
-  fn to_string(&self) -> String;
-}
-
-#[async_trait]
-impl VirtualPositionExt for VirtualPosition {
-  /// This is just an alias to compressed. Kept for consistency.
-  fn bytes_range_start(&self) -> u64 {
-    self.compressed()
-  }
-
-  /// The compressed part refers always to the beginning of a BGZF block.
-  /// But when we need to translate it into a byte range, we need to make sure
-  /// the reads falling inside that block are also included, which requires to know
-  /// where that block ends, which is not trivial nor possible for the last block.
-  ///
-  /// The solution used here goes through reading the records starting at the compressed
-  /// virtual offset (coffset) of the end position (remember this will always be the
-  /// start of a BGZF block).
-  ///
-  /// If we read the records pointed by that coffset until we reach a different coffset,
-  /// we can find out where the current block ends. Therefore this can be used to only add the
-  /// required bytes in the query results.
-  ///
-  /// If for some reason we can't read correctly the records we fall back
-  /// to adding the maximum BGZF block size.
-  async fn bytes_range_end<P>(&self, reader: &mut P) -> u64
-  where
-    P: BlockPosition + Send,
-  {
-    if self.uncompressed() == 0 {
-      // If the uncompressed part is exactly zero, we don't need the next block
-      return self.compressed();
-    }
-    self
-      .get_next_block_position(reader)
-      .await
-      .unwrap_or(self.compressed() + Self::MAX_BLOCK_SIZE)
-  }
-
-  /// Get the next block position from the reader.
-  async fn get_next_block_position<P>(&self, reader: &mut P) -> Option<u64>
-  where
-    P: BlockPosition + Send,
-  {
-    reader.seek_vpos(*self).await.ok()?;
-    let next_block_index = loop {
-      let bytes_read = reader.read_bytes().await?;
-      let actual_block_index = reader.virtual_position().compressed();
-      if bytes_read == 0 || actual_block_index > self.compressed() {
-        break actual_block_index;
-      }
-    };
-    Some(next_block_index)
-  }
-
-  /// Convert to string.
-  fn to_string(&self) -> String {
-    format!("{}/{}", self.compressed(), self.uncompressed())
-  }
 }
