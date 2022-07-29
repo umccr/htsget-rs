@@ -1,5 +1,4 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
-use std::io::Cursor;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -7,10 +6,12 @@ use aws_sdk_s3::client::fluent_builders;
 use aws_sdk_s3::model::StorageClass;
 use aws_sdk_s3::output::HeadObjectOutput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
+use aws_sdk_s3::types::ByteStream;
 use aws_sdk_s3::Client;
 use bytes::Bytes;
 use fluent_builders::GetObject;
-use tokio::io::BufReader;
+
+use tokio_util::io::StreamReader;
 use tracing::debug;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
@@ -144,7 +145,11 @@ impl AwsS3Storage {
     }
   }
 
-  async fn get_content<K: AsRef<str> + Send>(&self, key: K, options: GetOptions) -> Result<Bytes> {
+  async fn get_content<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    options: GetOptions,
+  ) -> Result<ByteStream> {
     // It would be nice to use a ready-made type with a ByteStream that implements AsyncRead + AsyncSeek
     // in order to avoid reading the whole byte buffer into memory. A custom type could be made similar to
     // https://users.rust-lang.org/t/what-to-pin-when-implementing-asyncread/63019/2 which could be based off
@@ -167,29 +172,23 @@ impl AwsS3Storage {
         .send()
         .await
         .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
-        .body
-        .collect()
-        .await
-        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
-        .into_bytes(),
+        .body,
     )
   }
 
-  async fn create_buf_reader<K: AsRef<str> + Send>(
+  async fn create_stream_reader<K: AsRef<str> + Send>(
     &self,
     key: K,
     options: GetOptions,
-  ) -> Result<BufReader<Cursor<Bytes>>> {
+  ) -> Result<StreamReader<ByteStream, Bytes>> {
     let response = self.get_content(key, options).await?;
-    let cursor = Cursor::new(response);
-    let reader = BufReader::new(cursor);
-    Ok(reader)
+    Ok(StreamReader::new(response))
   }
 }
 
 #[async_trait]
 impl Storage for AwsS3Storage {
-  type Streamable = BufReader<Cursor<Bytes>>;
+  type Streamable = StreamReader<ByteStream, Bytes>;
 
   /// Gets the actual s3 object as a buffered reader.
   async fn get<K: AsRef<str> + Send>(
@@ -199,7 +198,7 @@ impl Storage for AwsS3Storage {
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "Getting file with key {:?}", key);
-    self.create_buf_reader(key, options).await
+    self.create_stream_reader(key, options).await
   }
 
   /// Returns a S3-presigned htsget URL

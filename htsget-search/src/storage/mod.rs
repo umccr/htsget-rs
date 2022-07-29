@@ -9,7 +9,7 @@ use std::net::AddrParseError;
 use async_trait::async_trait;
 use base64::encode;
 use thiserror::Error;
-use tokio::io::{AsyncRead, AsyncSeek};
+use tokio::io::AsyncRead;
 
 use crate::htsget::{Class, Headers, Url};
 
@@ -24,7 +24,7 @@ type Result<T> = core::result::Result<T, StorageError>;
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
 pub trait Storage {
-  type Streamable: AsyncRead + AsyncSeek + Unpin + Send;
+  type Streamable: AsyncRead + Unpin + Send;
 
   /// Get the object using the key.
   async fn get<K: AsRef<str> + Send>(
