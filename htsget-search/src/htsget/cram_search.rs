@@ -16,7 +16,7 @@ use noodles_cram::AsyncReader;
 use tokio::io::AsyncRead;
 use tokio::{io, select};
 
-use crate::htsget::search::{into_one_based_position, Search, SearchAll, SearchEof, SearchReads};
+use crate::htsget::search::{into_one_based_position, Search, SearchAll, SearchReads};
 use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
@@ -29,22 +29,6 @@ static CRAM_EOF: &[u8] = &[
 
 pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
-}
-
-impl<S, ReaderType>
-  SearchEof<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
-  for CramSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
-  fn get_eof_marker(&self) -> &[u8] {
-    CRAM_EOF
-  }
-
-  fn get_eof_data_block(&self) -> Option<DataBlock> {
-    Some(DataBlock::Data(Vec::from(self.get_eof_marker())))
-  }
 }
 
 #[async_trait]
@@ -85,6 +69,14 @@ where
           self.get_format()
         ))
       })
+  }
+
+  fn get_eof_marker(&self) -> &[u8] {
+    CRAM_EOF
+  }
+
+  fn get_eof_data_block(&self) -> Option<DataBlock> {
+    Some(DataBlock::Data(Vec::from(self.get_eof_marker())))
   }
 }
 

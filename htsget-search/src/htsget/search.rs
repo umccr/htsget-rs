@@ -61,22 +61,6 @@ pub(crate) fn into_one_based_position(value: i32) -> Result<i32> {
   })
 }
 
-/// [SearchEof] handles data blocks that specify the end of the file for formats.
-///
-/// [S] is the storage type.
-/// [ReaderType] is the inner type used for [Reader].
-/// [ReferenceSequence] is the reference sequence type of the format's index.
-/// [Index] is the format's index type.
-/// [Reader] is the format's reader type.
-/// [Header] is the format's header type.
-pub(crate) trait SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header> {
-  /// Ge the eof marker for this format.
-  fn get_eof_marker(&self) -> &[u8];
-
-  /// Get the eof data block for this format.
-  fn get_eof_data_block(&self) -> Option<DataBlock>;
-}
-
 /// [SearchAll] represents searching bytes ranges that are applicable to all formats. Specifically,
 /// range for the whole file, and the header.
 ///
@@ -87,8 +71,7 @@ pub(crate) trait SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Head
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -107,6 +90,12 @@ where
   async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<BytesPosition> {
     Ok(BytesPosition::default().with_end(self.get_header_end_offset(index).await?))
   }
+
+  /// Get the eof marker for this format.
+  fn get_eof_marker(&self) -> &[u8];
+
+  /// Get the eof data block for this format.
+  fn get_eof_data_block(&self) -> Option<DataBlock>;
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -542,15 +531,9 @@ where
     format: Format,
     _index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let file_size = self
-      .get_storage()
-      .head(format.fmt_file(&id))
-      .await
-      .map_err(|_| HtsGetError::io_error("Reading file size"))?;
-
     Ok(vec![BytesPosition::default()
       .with_start(0)
-      .with_end(file_size - BGZF_EOF.len() as u64)])
+      .with_end(self.position_at_eof(&id, &format).await?)])
   }
 
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
@@ -564,19 +547,7 @@ where
         ))
       })
   }
-}
 
-impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
-  SearchEof<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-  Reader: Send + Sync,
-  Header: FromStr + Send + Sync,
-  ReferenceSequence: BinningIndexReferenceSequence + Sync,
-  Index: BinningIndex + BinningIndexExt + Send + Sync,
-  T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
-{
   fn get_eof_marker(&self) -> &[u8] {
     BGZF_EOF
   }
