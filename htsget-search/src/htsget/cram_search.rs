@@ -45,7 +45,9 @@ where
     format: Format,
     _index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    Ok(vec![BytesPosition::default().with_end(self.position_at_eof(&id, &format).await?)])
+    Ok(vec![
+      BytesPosition::default().with_end(self.position_at_eof(&id, &format).await?)
+    ])
   }
 
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
