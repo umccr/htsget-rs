@@ -232,18 +232,21 @@ where
       }
     }
 
-    let last = crai_index
-      .last()
-      .ok_or_else(|| HtsGetError::invalid_input("No entries in CRAI"))?;
-    if predicate(last) {
-      if let Some(range) = Self::bytes_ranges_for_record(
-        ref_seq,
-        interval.clone(),
-        last,
-        self.position_at_eof(id, format).await?,
-      )? {
-        byte_ranges.push(range);
+    match crai_index.last() {
+      None => {
+        byte_ranges.push(BytesPosition::default().with_end(self.position_at_eof(id, format).await?))
       }
+      Some(last) if predicate(last) => {
+        if let Some(range) = Self::bytes_ranges_for_record(
+          ref_seq,
+          interval.clone(),
+          last,
+          self.position_at_eof(id, format).await?,
+        )? {
+          byte_ranges.push(range);
+        }
+      }
+      _ => {}
     }
 
     Ok(BytesPosition::merge_all(byte_ranges))
