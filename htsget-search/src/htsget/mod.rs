@@ -10,6 +10,8 @@ use std::io;
 use std::io::ErrorKind;
 
 use async_trait::async_trait;
+use noodles::core::Position;
+use noodles::core::region::Interval as NoodlesInterval;
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -138,8 +140,7 @@ pub struct Query {
   /// Reference name
   pub reference_name: Option<String>,
   /// The start and end positions are 0-based. [start, end)  
-  pub start: Option<u32>,
-  pub end: Option<u32>,
+  pub interval: Interval,
   pub fields: Fields,
   pub tags: Tags,
   pub no_tags: Option<Vec<String>>,
@@ -152,8 +153,7 @@ impl Query {
       format,
       class: Class::Body,
       reference_name: None,
-      start: None,
-      end: None,
+      interval: Interval::default(),
       fields: Fields::All,
       tags: Tags::All,
       no_tags: None,
@@ -176,12 +176,12 @@ impl Query {
   }
 
   pub fn with_start(mut self, start: u32) -> Self {
-    self.start = Some(start);
+    self.interval.start = Some(start);
     self
   }
 
   pub fn with_end(mut self, end: u32) -> Self {
-    self.end = Some(end);
+    self.interval.end = Some(end);
     self
   }
 
@@ -198,6 +198,55 @@ impl Query {
   pub fn with_no_tags(mut self, no_tags: Vec<impl Into<String>>) -> Self {
     self.no_tags = Some(no_tags.into_iter().map(|field| field.into()).collect());
     self
+  }
+}
+
+/// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
+/// query.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Interval {
+  pub start: Option<u32>,
+  pub end: Option<u32>,
+}
+
+impl Interval {
+  const MIN_SEQ_POSITION: usize = 1;
+
+  fn into_one_based<F>(self, max_seq_position: F) -> Result<impl Into<NoodlesInterval>>
+  where
+    F: FnOnce() -> usize,
+  {
+    Ok(
+      Self::convert_position(
+        self.start,
+        || Self::MIN_SEQ_POSITION,
+        |value| {
+          value.checked_add(1).ok_or_else(|| {
+            HtsGetError::InvalidRange(format!("Could not convert {} to 1-based position.", value))
+          })
+        },
+      )?..=Self::convert_position(self.end, max_seq_position, Ok)?,
+    )
+  }
+
+  /// Convert between position types.
+  fn convert_position<D, F>(value: Option<u32>, default: D, convert_fn: F) -> Result<Position>
+  where
+    D: FnOnce() -> usize,
+    F: FnOnce(u32) -> Result<u32>,
+  {
+    let value = value
+      .map(convert_fn)
+      .transpose()?
+      .map(|value| {
+        usize::try_from(value)
+          .map_err(|_| HtsGetError::InvalidRange("Could not convert u32 to usize.".to_string()))
+      })
+      .transpose()?
+      .unwrap_or_else(default);
+
+    Position::try_from(value)
+      .map_err(|_| HtsGetError::InvalidRange(format!("Could not convert {} into Position.", value)))
   }
 }
 
@@ -441,13 +490,13 @@ mod tests {
   #[test]
   fn query_with_start() {
     let result = Query::new("NA12878", Format::Bam).with_start(0);
-    assert_eq!(result.start, Some(0));
+    assert_eq!(result.interval.start, Some(0));
   }
 
   #[test]
   fn query_with_end() {
     let result = Query::new("NA12878", Format::Bam).with_end(0);
-    assert_eq!(result.end, Some(0));
+    assert_eq!(result.interval.end, Some(0));
   }
 
   #[test]

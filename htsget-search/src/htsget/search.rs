@@ -12,9 +12,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
-use noodles::core::Position;
-use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::sam;
 use noodles_bgzf::gzi;
 use tokio::io;
@@ -22,11 +21,11 @@ use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
 
-use crate::storage::{DataBlock, GetOptions};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{BytesPosition, RangeUrlOptions, Storage},
 };
+use crate::storage::{DataBlock, GetOptions};
 
 // § 4.1.2 End-of-file marker <https://samtools.github.io/hts-specs/SAMv1.pdf>.
 pub(crate) static BGZF_EOF: &[u8] = &[
@@ -52,13 +51,6 @@ pub(crate) async fn find_first<T>(
     };
   }
   result.ok_or_else(|| HtsGetError::not_found(msg))
-}
-
-/// Helper function to convert a 0-based position to a 1-based position.
-pub(crate) fn into_one_based_position(value: i32) -> Result<i32> {
-  value.checked_add(1).ok_or_else(|| {
-    HtsGetError::InvalidRange(format!("Could not convert {} to 1-based position.", value))
-  })
 }
 
 /// [SearchAll] represents searching bytes ranges that are applicable to all formats. Specifically,
@@ -194,8 +186,6 @@ where
   Reader: Send,
   Self: Sync + Send,
 {
-  const MIN_SEQ_POSITION: u32 = 1; // 1-based
-
   fn init_reader(inner: ReaderType) -> Reader;
   async fn read_raw_header(reader: &mut Reader) -> io::Result<String>;
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
@@ -380,7 +370,7 @@ where
   type ReferenceSequenceHeader: Sync;
 
   /// Get the max sequence position.
-  fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32;
+  fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> usize;
 
   fn index_positions(index: &Index) -> Vec<u64> {
     let mut positions = HashSet::new();
@@ -419,22 +409,15 @@ where
     reference_sequence: &Self::ReferenceSequenceHeader,
     ref_seq_id: usize,
     index: &Index,
-    seq_start: Option<i32>,
-    seq_end: Option<i32>,
   ) -> Result<Vec<BytesPosition>> {
-    let seq_start = seq_start.map(into_one_based_position).transpose()?;
-    let seq_end = seq_end.map(into_one_based_position).transpose()?;
-
-    let seq_start = seq_start.unwrap_or(Self::MIN_SEQ_POSITION as i32);
-    let seq_end = seq_end.unwrap_or_else(|| Self::max_seq_position(reference_sequence));
-    let invalid_range = || HtsGetError::InvalidRange(format!("{}-{}", seq_start, seq_end));
-
-    let seq_start = Position::try_from(seq_start as usize).map_err(|_| invalid_range())?;
-    let seq_end = Position::try_from(seq_end as usize).map_err(|_| invalid_range())?;
-
     let chunks = index
-      .query(ref_seq_id, seq_start..=seq_end)
-      .map_err(|_| invalid_range())?;
+      .query(
+        ref_seq_id,
+        query
+          .interval
+          .into_one_based(|| Self::max_seq_position(reference_sequence))?,
+      )
+      .map_err(|err| HtsGetError::InvalidRange(format!("Failed to query with range: {}", err)))?;
 
     let gzi_data = self
       .get_storage()

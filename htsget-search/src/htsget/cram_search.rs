@@ -2,22 +2,22 @@
 //!
 
 use std::marker::PhantomData;
-use std::ops::Range;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
+use noodles::core::Position;
 use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
 use noodles_cram::AsyncReader;
-use tokio::io::AsyncRead;
 use tokio::{io, select};
+use tokio::io::AsyncRead;
 
-use crate::htsget::search::{into_one_based_position, Search, SearchAll, SearchReads};
-use crate::htsget::{Format, HtsGetError, Query, Result};
+use crate::htsget::{Format, HtsGetError, Interval, Query, Result};
+use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
@@ -49,8 +49,8 @@ where
       self,
       &id,
       &format,
+      &Interval::default(),
       None,
-      Range::default(),
       index,
       Arc::new(|_: &Record| true),
     )
@@ -105,8 +105,8 @@ where
       self,
       &query.id,
       &self.get_format(),
+      &query.interval,
       None,
-      Range::default(),
       index,
       Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
     )
@@ -123,20 +123,9 @@ where
     Self::bytes_ranges_from_index(
       self,
       &query.id,
-      &self.get_format(),
+      &query.format,
+      &query.interval,
       Some(ref_seq),
-      query
-        .start
-        .map(|start| start as i32)
-        .map(into_one_based_position)
-        .transpose()?
-        .unwrap_or(Self::MIN_SEQ_POSITION as i32)
-        ..query
-          .end
-          .map(|end| end as i32)
-          .map(into_one_based_position)
-          .transpose()?
-          .unwrap_or(ref_seq.len().get() as i32),
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )
@@ -201,8 +190,8 @@ where
     &self,
     id: &str,
     format: &Format,
+    interval: &Interval,
     ref_seq: Option<&sam::header::ReferenceSequence>,
-    seq_range: Range<i32>,
     crai_index: &[Record],
     predicate: Arc<F>,
   ) -> Result<Vec<BytesPosition>>
@@ -216,7 +205,7 @@ where
       let owned_next = next.clone();
       let ref_seq_owned = ref_seq.cloned();
       let owned_predicate = predicate.clone();
-      let range = seq_range.clone();
+      let range = interval.clone();
       futures.push(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
           Self::bytes_ranges_for_record(
@@ -226,7 +215,7 @@ where
             owned_next.offset(),
           )
         } else {
-          None
+          Ok(None)
         }
       }));
     }
@@ -235,7 +224,7 @@ where
     loop {
       select! {
         Some(next) = futures.next() => {
-          if let Some(range) = next.map_err(HtsGetError::from)? {
+          if let Some(range) = next.map_err(HtsGetError::from)?? {
             byte_ranges.push(range);
           }
         },
@@ -249,10 +238,10 @@ where
     if predicate(last) {
       if let Some(range) = Self::bytes_ranges_for_record(
         ref_seq,
-        seq_range,
+        interval.clone(),
         last,
         self.position_at_eof(id, format).await?,
-      ) {
+      )? {
         byte_ranges.push(range);
       }
     }
@@ -263,29 +252,32 @@ where
   /// Gets bytes ranges for a specific index entry.
   pub(crate) fn bytes_ranges_for_record(
     ref_seq: Option<&sam::header::ReferenceSequence>,
-    seq_range: Range<i32>,
+    seq_range: Interval,
     record: &Record,
     next: u64,
-  ) -> Option<BytesPosition> {
+  ) -> Result<Option<BytesPosition>> {
     match ref_seq {
-      None => Some(
+      None => Ok(Some(
         BytesPosition::default()
           .with_start(record.offset())
           .with_end(next),
-      ),
-      Some(_) => {
-        let start = record
-          .alignment_start()
-          .map(usize::from)
-          .unwrap_or_default() as i32;
-        if seq_range.start <= start + record.alignment_span() as i32 && seq_range.end >= start {
-          Some(
+      )),
+      Some(ref_seq) => {
+        let start = record.alignment_start().unwrap_or(Position::MIN);
+        let interval = seq_range.into_one_based(|| ref_seq.len().get())?.into();
+        if interval.start().expect("Expected start position.")
+          <= start.checked_add(record.alignment_span()).ok_or_else(|| {
+            HtsGetError::invalid_input("Failed to add record alignment span to Position.")
+          })?
+          && interval.end().expect("Expected end position.") >= start
+        {
+          Ok(Some(
             BytesPosition::default()
               .with_start(record.offset())
               .with_end(next),
-          )
+          ))
         } else {
-          None
+          Ok(None)
         }
       }
     }
@@ -298,8 +290,8 @@ mod tests {
 
   use htsget_test_utils::util::expected_cram_eof_data_url;
 
-  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
+  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
 

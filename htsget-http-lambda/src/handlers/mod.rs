@@ -3,7 +3,6 @@
 
 use lambda_http::http;
 use lambda_http::http::{header, StatusCode};
-use lambda_http::IntoResponse;
 use serde::Serialize;
 use serde_json::Error;
 
@@ -34,13 +33,10 @@ impl<T: Serialize> TryFrom<FormatJson<T>> for Response<Body> {
     };
     body.push('\n');
 
-    Ok(
-      Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-        .body(body)?
-        .into_response(),
-    )
+    Response::builder()
+      .status(StatusCode::OK)
+      .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+      .body(Body::from(body))
   }
 }
 
@@ -52,8 +48,7 @@ impl TryFrom<Error> for FormatJson<Response<Body>> {
       Response::builder()
         .status(StatusCode::INTERNAL_SERVER_ERROR)
         .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
-        .body(format!("{}", error))?
-        .into_response(),
+        .body(Body::from(format!("{}", error)))?,
     ))
   }
 }
@@ -79,11 +74,11 @@ fn handle_response(response: Result<JsonResponse>) -> http::Result<Response<Body
 
 #[cfg(test)]
 mod tests {
-  use lambda_http::http::{header, HeaderMap, Response, StatusCode};
   use lambda_http::Body;
+  use lambda_http::http::{header, HeaderMap, Response, StatusCode};
   use mime::Mime;
-  use serde::ser::Error;
   use serde::{Serialize, Serializer};
+  use serde::ser::Error;
   use serde_json::{json, Value};
 
   use crate::handlers::FormatJson;

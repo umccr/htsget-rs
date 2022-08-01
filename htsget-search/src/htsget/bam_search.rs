@@ -3,24 +3,24 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use noodles::bam::bai;
-use noodles::bam::bai::index::ReferenceSequence;
-use noodles::bam::bai::Index;
-use noodles::bgzf::VirtualPosition;
-use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::BinningIndex;
-use noodles::sam::Header;
 use noodles::{bgzf, sam};
+use noodles::bam::bai;
+use noodles::bam::bai::Index;
+use noodles::bam::bai::index::ReferenceSequence;
+use noodles::bgzf::VirtualPosition;
+use noodles::csi::BinningIndex;
+use noodles::csi::index::reference_sequence::bin::Chunk;
+use noodles::sam::Header;
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
 
-use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
-use crate::htsget::HtsGetError;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
+use crate::htsget::HtsGetError;
+use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -49,8 +49,8 @@ where
 {
   type ReferenceSequenceHeader = sam::header::ReferenceSequence;
 
-  fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
-    ref_seq.len().get() as i32
+  fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> usize {
+    ref_seq.len().get()
   }
 
   async fn get_byte_ranges_for_unmapped(
@@ -155,10 +155,8 @@ where
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let start = query.start.map(|start| start as i32);
-    let end = query.end.map(|end| end as i32);
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq, ref_seq_id, index, start, end)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq, ref_seq_id, index)
       .await
   }
 }
@@ -180,11 +178,11 @@ pub(crate) mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::htsget::from_storage::tests::{
     with_local_storage as with_local_storage_path,
     with_local_storage_tmp as with_local_storage_tmp_path,
   };
-  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
 

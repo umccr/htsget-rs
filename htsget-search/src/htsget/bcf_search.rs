@@ -6,20 +6,21 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
+use noodles::{bgzf, csi};
+use noodles::csi::{BinningIndex, Index};
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::index::ReferenceSequence;
-use noodles::csi::{BinningIndex, Index};
 use noodles::vcf::Header;
-use noodles::{bgzf, csi};
 use noodles_bcf as bcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 
-use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
 use crate::{
-  htsget::{Format, Query, Result},
+  htsget::{Format, Query, Result, vcf_search::VcfSearch},
   storage::{BytesPosition, Storage},
 };
+use crate::htsget::HtsGetError;
+use crate::htsget::search::{BgzfSearch, BinningIndexExt, find_first, Search};
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -48,8 +49,8 @@ where
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
-  fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
-    Self::MAX_SEQ_POSITION
+  fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> usize {
+    VcfSearch::<S>::MAX_SEQ_POSITION
   }
 }
 
@@ -78,7 +79,7 @@ where
     reference_name: String,
     index: &Index,
     header: &Header,
-    query: Query,
+    mut query: Query,
   ) -> Result<Vec<BytesPosition>> {
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
@@ -100,19 +101,18 @@ where
       futures,
     )
     .await?;
-    let maybe_len = contig.len();
 
-    let seq_start = query.start.map(|start| start as i32);
-    let seq_end = query.end.map(|end| end as i32).or(maybe_len);
+    query.interval.end = match query.interval.end {
+      None => contig
+        .len()
+        .map(u32::try_from)
+        .transpose()
+        .map_err(|_| HtsGetError::invalid_input("Failed to convert contig length to u32."))?,
+      value => value,
+    };
+
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(
-        query,
-        &PhantomData,
-        ref_seq_index,
-        index,
-        seq_start,
-        seq_end,
-      )
+      .get_byte_ranges_for_reference_sequence_bgzf(query, &PhantomData, ref_seq_index, index)
       .await?;
     Ok(byte_ranges)
   }
@@ -131,8 +131,6 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
-
   /// Create the bcf search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
@@ -145,11 +143,11 @@ mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::htsget::from_storage::tests::{
     with_local_storage as with_local_storage_path,
     with_local_storage_tmp as with_local_storage_tmp_path,
   };
-  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
 

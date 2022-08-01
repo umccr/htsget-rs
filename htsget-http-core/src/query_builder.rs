@@ -89,21 +89,21 @@ impl QueryBuilder {
     if let Some(end) = end {
       self.query = self.query.with_end(end);
     }
-    if (self.query.start.is_some() || self.query.end.is_some())
+    if (self.query.interval.start.is_some() || self.query.interval.end.is_some())
       && (self.query.reference_name.is_none() || self.query.reference_name.clone().unwrap() == "*")
     {
       return Err(HtsGetError::InvalidInput(
         "Can't use range whitout specifying the reference name or with \"*\"".to_string(),
       ));
     }
-    if self.query.start.is_some()
-      && self.query.end.is_some()
-      && self.query.start.unwrap() > self.query.end.unwrap()
+    if self.query.interval.start.is_some()
+      && self.query.interval.end.is_some()
+      && self.query.interval.start.unwrap() > self.query.interval.end.unwrap()
     {
       return Err(HtsGetError::InvalidRange(format!(
         "end({}) is greater than start({})",
-        self.query.end.unwrap(),
-        self.query.start.unwrap()
+        self.query.interval.end.unwrap(),
+        self.query.interval.start.unwrap()
       )));
     }
     Ok(self)
@@ -236,7 +236,10 @@ mod tests {
       .with_range(Some("3"), Some("5"))
       .unwrap()
       .build();
-    assert_eq!((query.start, query.end), (Some(3), Some(5)));
+    assert_eq!(
+      (query.interval.start, query.interval.end),
+      (Some(3), Some(5))
+    );
   }
 
   #[test]

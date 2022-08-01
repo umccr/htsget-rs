@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lambda_http::{service_fn, Error, Request};
+use lambda_http::{Error, Request, service_fn};
 use tracing::info;
 
 use htsget_config::config::{Config, StorageType};
@@ -35,7 +35,7 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
 
   let handler = |event: Request| async move {
     info!(event = ?event, "Received request");
-    Ok(router.route_request(event).await?)
+    router.route_request(event).await
   };
   lambda_http::run(service_fn(handler)).await?;
 
@@ -49,7 +49,7 @@ async fn s3_storage_server(config: Config) -> Result<(), Error> {
 
   let handler = |event: Request| async move {
     info!(event = ?event, "Received request");
-    Ok(router.route_request(event).await?)
+    router.route_request(event).await
   };
   lambda_http::run(service_fn(handler)).await?;
 
