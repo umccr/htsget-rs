@@ -4,9 +4,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use lambda_http::{Body, http, Request, Response};
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
+use lambda_http::{http, Body, Request, Response};
 use tracing::debug;
 
 use htsget_config::config::ServiceInfo;
@@ -174,27 +174,27 @@ mod tests {
   use std::sync::Arc;
 
   use async_trait::async_trait;
-  use lambda_http::{Request, RequestExt};
-  use lambda_http::Body::Text;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
+  use lambda_http::Body::Text;
+  use lambda_http::{Request, RequestExt};
   use query_map::QueryMap;
   use tempfile::TempDir;
 
   use htsget_config::config::Config;
   use htsget_http_core::Endpoint;
-  use htsget_search::htsget::{Class, HtsGet};
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
+  use htsget_search::htsget::{Class, HtsGet};
   use htsget_search::storage::local::LocalStorage;
   use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
   use htsget_test_utils::server_tests::{
     config_with_tls, default_test_config, expected_url_path, formatter_and_expected_path,
-    formatter_from_config, get_test_file, Header, Response, test_response,
-    test_response_service_info, TestRequest, TestServer,
+    formatter_from_config, get_test_file, test_response, test_response_service_info, Header,
+    Response, TestRequest, TestServer,
   };
 
-  use crate::{HtsgetMethod, Method, Route, Router, RouteType};
+  use crate::{HtsgetMethod, Method, Route, RouteType, Router};
 
   struct LambdaTestServer {
     config: Config,

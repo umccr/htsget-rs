@@ -13,11 +13,11 @@ use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
 use noodles_cram::AsyncReader;
-use tokio::{io, select};
 use tokio::io::AsyncRead;
+use tokio::{io, select};
 
-use crate::htsget::{Format, HtsGetError, Interval, Query, Result};
 use crate::htsget::search::{Search, SearchAll, SearchReads};
+use crate::htsget::{Format, HtsGetError, Interval, Query, Result};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
@@ -263,14 +263,18 @@ where
           .with_end(next),
       )),
       Some(ref_seq) => {
-        let start = record.alignment_start().unwrap_or(Position::MIN);
-        let interval = seq_range.into_one_based(|| ref_seq.len().get())?.into();
-        if interval.start().expect("Expected start position.")
-          <= start.checked_add(record.alignment_span()).ok_or_else(|| {
+        let record_start = record.alignment_start().unwrap_or(Position::MIN);
+        let record_end = record_start
+          .checked_add(record.alignment_span())
+          .ok_or_else(|| {
             HtsGetError::invalid_input("Failed to add record alignment span to Position.")
-          })?
-          && interval.end().expect("Expected end position.") >= start
-        {
+          })?;
+
+        let interval = seq_range.into_one_based(|| ref_seq.len().get())?.into();
+        let seq_start = interval.start().unwrap_or(Position::MIN);
+        let seq_end = interval.end().unwrap_or(Position::MAX);
+
+        if seq_start <= record_end && seq_end >= record_start {
           Ok(Some(
             BytesPosition::default()
               .with_start(record.offset())
@@ -290,8 +294,8 @@ mod tests {
 
   use htsget_test_utils::util::expected_cram_eof_data_url;
 
-  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lambda_http::{Error, Request, service_fn};
+use lambda_http::{service_fn, Error, Request};
 use tracing::info;
 
 use htsget_config::config::{Config, StorageType};

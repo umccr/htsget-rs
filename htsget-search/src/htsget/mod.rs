@@ -10,8 +10,8 @@ use std::io;
 use std::io::ErrorKind;
 
 use async_trait::async_trait;
-use noodles::core::Position;
 use noodles::core::region::Interval as NoodlesInterval;
+use noodles::core::Position;
 use thiserror::Error;
 use tokio::task::JoinError;
 

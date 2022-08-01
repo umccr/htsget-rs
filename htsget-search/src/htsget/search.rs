@@ -12,8 +12,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
-use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::csi::index::reference_sequence::bin::Chunk;
+use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
 use noodles_bgzf::gzi;
 use tokio::io;
@@ -21,11 +21,11 @@ use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
 
+use crate::storage::{DataBlock, GetOptions};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
   storage::{BytesPosition, RangeUrlOptions, Storage},
 };
-use crate::storage::{DataBlock, GetOptions};
 
 // § 4.1.2 End-of-file marker <https://samtools.github.io/hts-specs/SAMv1.pdf>.
 pub(crate) static BGZF_EOF: &[u8] = &[

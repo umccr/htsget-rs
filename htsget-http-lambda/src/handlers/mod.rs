@@ -74,11 +74,11 @@ fn handle_response(response: Result<JsonResponse>) -> http::Result<Response<Body
 
 #[cfg(test)]
 mod tests {
-  use lambda_http::Body;
   use lambda_http::http::{header, HeaderMap, Response, StatusCode};
+  use lambda_http::Body;
   use mime::Mime;
-  use serde::{Serialize, Serializer};
   use serde::ser::Error;
+  use serde::{Serialize, Serializer};
   use serde_json::{json, Value};
 
   use crate::handlers::FormatJson;

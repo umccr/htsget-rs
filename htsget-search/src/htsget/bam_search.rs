@@ -3,24 +3,24 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use noodles::{bgzf, sam};
 use noodles::bam::bai;
-use noodles::bam::bai::Index;
 use noodles::bam::bai::index::ReferenceSequence;
+use noodles::bam::bai::Index;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::BinningIndex;
 use noodles::csi::index::reference_sequence::bin::Chunk;
+use noodles::csi::BinningIndex;
 use noodles::sam::Header;
+use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
 
+use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
+use crate::htsget::HtsGetError;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
-use crate::htsget::HtsGetError;
-use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -178,11 +178,11 @@ pub(crate) mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::htsget::from_storage::tests::{
     with_local_storage as with_local_storage_path,
     with_local_storage_tmp as with_local_storage_tmp_path,
   };
+  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
 
