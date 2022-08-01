@@ -150,10 +150,6 @@ impl AwsS3Storage {
     key: K,
     options: GetOptions,
   ) -> Result<ByteStream> {
-    // It would be nice to use a ready-made type with a ByteStream that implements AsyncRead + AsyncSeek
-    // in order to avoid reading the whole byte buffer into memory. A custom type could be made similar to
-    // https://users.rust-lang.org/t/what-to-pin-when-implementing-asyncread/63019/2 which could be based off
-    // StreamReader.
     if let Delayed(class) = self.get_retrieval_type(&key).await? {
       return Err(AwsS3Error(
         format!("Cannot retrieve object immediately, class is {:?}.", class),
