@@ -219,7 +219,12 @@ where
       let range = seq_range.clone();
       futures.push(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
-          Self::bytes_ranges_for_record(ref_seq_owned.as_ref(), range, &owned_record, &owned_next)
+          Self::bytes_ranges_for_record(
+            ref_seq_owned.as_ref(),
+            range,
+            &owned_record,
+            owned_next.offset(),
+          )
         } else {
           None
         }
@@ -242,11 +247,14 @@ where
       .last()
       .ok_or_else(|| HtsGetError::invalid_input("No entries in CRAI"))?;
     if predicate(last) {
-      byte_ranges.push(
-        BytesPosition::default()
-          .with_start(last.offset())
-          .with_end(self.position_at_eof(id, format).await?),
-      );
+      if let Some(range) = Self::bytes_ranges_for_record(
+        ref_seq,
+        seq_range,
+        last,
+        self.position_at_eof(id, format).await?,
+      ) {
+        byte_ranges.push(range);
+      }
     }
 
     Ok(BytesPosition::merge_all(byte_ranges))
@@ -257,13 +265,13 @@ where
     ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_range: Range<i32>,
     record: &Record,
-    next: &Record,
+    next: u64,
   ) -> Option<BytesPosition> {
     match ref_seq {
       None => Some(
         BytesPosition::default()
           .with_start(record.offset())
-          .with_end(next.offset()),
+          .with_end(next),
       ),
       Some(_) => {
         let start = record
@@ -274,7 +282,7 @@ where
           Some(
             BytesPosition::default()
               .with_start(record.offset())
-              .with_end(next.offset()),
+              .with_end(next),
           )
         } else {
           None
