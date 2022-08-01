@@ -141,6 +141,7 @@ where
   // 1-based
   const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
 
+  /// Create the vcf search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
   }

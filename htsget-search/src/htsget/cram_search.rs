@@ -191,8 +191,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  const EOF_CONTAINER_LENGTH: u64 = 38;
-
+  /// Create the cram search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
   }
@@ -246,7 +245,7 @@ where
       byte_ranges.push(
         BytesPosition::default()
           .with_start(last.offset())
-          .with_end(self.position_at_eof(id, format)),
+          .with_end(self.position_at_eof(id, format).await?),
       );
     }
 

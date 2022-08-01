@@ -168,6 +168,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
+  /// Create the bam search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
   }
