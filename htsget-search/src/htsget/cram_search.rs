@@ -43,18 +43,9 @@ where
     &self,
     id: String,
     format: Format,
-    index: &Index,
+    _index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    Self::bytes_ranges_from_index(
-      self,
-      &id,
-      &format,
-      &Interval::default(),
-      None,
-      index,
-      Arc::new(|_: &Record| true),
-    )
-    .await
+    Ok(vec![BytesPosition::default().with_end(self.position_at_eof(&id, &format).await?)])
   }
 
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
