@@ -338,13 +338,6 @@ where
       .parse::<Header>()
       .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))
   }
-
-  /// Get the reader from the key.
-  async fn reader(id: &str, format: &Format, storage: Arc<S>) -> Result<Reader> {
-    let get_options = GetOptions::default();
-    let storage = storage.get(format.fmt_file(id), get_options).await?;
-    Ok(Self::init_reader(storage))
-  }
 }
 
 /// The [BgzfSearch] trait defines commonalities for the formats that use a binning index, specifically
