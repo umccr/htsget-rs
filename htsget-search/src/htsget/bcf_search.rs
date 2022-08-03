@@ -6,18 +6,19 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
-use noodles::bgzf::VirtualPosition;
+use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::index::ReferenceSequence;
-use noodles::csi::Index;
-use noodles::vcf;
+use noodles::csi::{BinningIndex, Index};
+use noodles::vcf::Header;
 use noodles::{bgzf, csi};
 use noodles_bcf as bcf;
 use tokio::io;
-use tokio::io::{AsyncRead, AsyncSeek};
+use tokio::io::AsyncRead;
 
-use crate::htsget::search::{find_first, BgzfSearch, BlockPosition, Search};
+use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
+use crate::htsget::HtsGetError;
 use crate::{
-  htsget::{Format, Query, Result},
+  htsget::{vcf_search::VcfSearch, Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
 
@@ -27,46 +28,38 @@ pub(crate) struct BcfSearch<S> {
   storage: Arc<S>,
 }
 
-#[async_trait]
-impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
-where
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
-{
-  async fn read_bytes(&mut self) -> Option<usize> {
-    self.read_record(&mut bcf::Record::default()).await.ok()
-  }
-
-  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
-    self.seek(pos).await
-  }
-
-  fn virtual_position(&self) -> VirtualPosition {
-    self.virtual_position()
+impl BinningIndexExt for Index {
+  fn get_all_chunks(&self) -> Vec<&Chunk> {
+    self
+      .reference_sequences()
+      .iter()
+      .flat_map(|ref_seq| ref_seq.bins())
+      .flat_map(|bin| bin.chunks())
+      .collect()
   }
 }
 
 #[async_trait]
 impl<S, ReaderType>
-  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   type ReferenceSequenceHeader = PhantomData<Self>;
 
-  fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
-    Self::MAX_SEQ_POSITION
+  fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> usize {
+    VcfSearch::<S>::MAX_SEQ_POSITION
   }
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, vcf::Header>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
   for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
     AsyncReader::new(inner)
@@ -85,10 +78,9 @@ where
     &self,
     reference_name: String,
     index: &Index,
-    query: Query,
+    header: &Header,
+    mut query: Query,
   ) -> Result<Vec<BytesPosition>> {
-    let (_, header) = self.create_reader(&query.id, &self.get_format()).await?;
-
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
     let mut futures = FuturesOrdered::new();
@@ -109,19 +101,18 @@ where
       futures,
     )
     .await?;
-    let maybe_len = contig.len();
 
-    let seq_start = query.start.map(|start| start as i32);
-    let seq_end = query.end.map(|end| end as i32).or(maybe_len);
+    query.interval.end = match query.interval.end {
+      None => contig
+        .len()
+        .map(u32::try_from)
+        .transpose()
+        .map_err(|_| HtsGetError::invalid_input("Failed to convert contig length to u32."))?,
+      value => value,
+    };
+
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(
-        query,
-        &PhantomData,
-        ref_seq_index,
-        index,
-        seq_start,
-        seq_end,
-      )
+      .get_byte_ranges_for_reference_sequence_bgzf(query, &PhantomData, ref_seq_index, index)
       .await?;
     Ok(byte_ranges)
   }
@@ -138,10 +129,9 @@ where
 impl<S, ReaderType> BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  const MAX_SEQ_POSITION: i32 = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
-
+  /// Create the bcf search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
   }
@@ -153,7 +143,10 @@ mod tests {
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
+  use crate::htsget::from_storage::tests::{
+    with_local_storage as with_local_storage_path,
+    with_local_storage_tmp as with_local_storage_tmp_path,
+  };
   use crate::htsget::{Class, Class::Body, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
@@ -199,20 +192,32 @@ mod tests {
 
   #[tokio::test]
   async fn search_reference_name_with_seq_range() {
-    with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage.clone());
-      let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Bcf)
-        .with_reference_name("chrM")
-        .with_start(151)
-        .with_end(153);
-      let response = search.search(query).await;
-      println!("{:#?}", response);
+    with_local_storage(
+      |storage| async move { test_reference_sequence_with_seq_range(storage).await },
+    )
+    .await
+  }
 
-      let expected_response = Ok(expected_bcf_response(filename));
-      assert_eq!(response, expected_response)
+  #[tokio::test]
+  async fn search_no_gzi() {
+    with_local_storage_tmp(|storage| async move {
+      test_reference_sequence_with_seq_range(storage).await
     })
     .await
+  }
+
+  async fn test_reference_sequence_with_seq_range(storage: Arc<LocalStorage<HttpTicketFormatter>>) {
+    let search = BcfSearch::new(storage.clone());
+    let filename = "sample1-bcbio-cancer";
+    let query = Query::new(filename, Format::Bcf)
+      .with_reference_name("chrM")
+      .with_start(151)
+      .with_end(153);
+    let response = search.search(query).await;
+    println!("{:#?}", response);
+
+    let expected_response = Ok(expected_bcf_response(filename));
+    assert_eq!(response, expected_response)
   }
 
   fn expected_bcf_response(filename: &str) -> Response {
@@ -252,6 +257,19 @@ mod tests {
     Fut: Future<Output = ()>,
   {
     with_local_storage_path(test, "data/bcf").await
+  }
+
+  async fn with_local_storage_tmp<F, Fut>(test: F)
+  where
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_local_storage_tmp_path(
+      test,
+      "data/bcf",
+      &["sample1-bcbio-cancer.bcf", "sample1-bcbio-cancer.bcf.csi"],
+    )
+    .await
   }
 
   fn expected_url(name: &str) -> String {

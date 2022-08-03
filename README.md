@@ -17,7 +17,7 @@ Instantiating a demo htsget-rs server is as simple as running:
 $ cargo run -p htsget-http-actix
 ```
 
-This uses the default settings with example files from the `data` directory and the server listenening to requests on port 8080. Please refer to the [htsget-http-actix crate README.md for further details][htsget-http-actix-readme].
+This uses the default settings with example files from the `data` directory and the server listening to requests on port 8080. Please refer to the [htsget-http-actix crate README.md for further details][htsget-http-actix-readme].
 
 ### Cloud
 

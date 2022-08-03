@@ -2,22 +2,22 @@
 //!
 
 use std::marker::PhantomData;
-use std::ops::Range;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
+use noodles::core::Position;
 use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
 use noodles::sam;
 use noodles::sam::Header;
 use noodles_cram::AsyncReader;
-use tokio::io::{AsyncRead, AsyncSeek};
+use tokio::io::AsyncRead;
 use tokio::{io, select};
 
-use crate::htsget::search::{into_one_based_position, Search, SearchAll, SearchEof, SearchReads};
-use crate::htsget::{Format, HtsGetError, Query, Result};
+use crate::htsget::search::{Search, SearchAll, SearchReads};
+use crate::htsget::{Format, HtsGetError, Interval, Query, Result};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
@@ -31,49 +31,45 @@ pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
 }
 
-impl<S, ReaderType>
-  SearchEof<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
-  for CramSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
-{
-  fn get_eof_marker(&self) -> Option<DataBlock> {
-    Some(DataBlock::Data(Vec::from(CRAM_EOF)))
-  }
-}
-
 #[async_trait]
 impl<S, ReaderType>
   SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   async fn get_byte_ranges_for_all(
     &self,
     id: String,
     format: Format,
-    index: &Index,
+    _index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    Self::bytes_ranges_from_index(
-      self,
-      &id,
-      &format,
-      None,
-      Range::default(),
-      index,
-      Arc::new(|_: &Record| true),
-    )
-    .await
+    Ok(vec![
+      BytesPosition::default().with_end(self.position_at_eof(&id, &format).await?)
+    ])
   }
 
-  async fn get_byte_ranges_for_header(&self, query: &Query) -> Result<Vec<BytesPosition>> {
-    let (mut reader, _) = self.create_reader(&query.id, &self.get_format()).await?;
-    Ok(vec![
-      BytesPosition::default().with_end(reader.position().await?)
-    ])
+  async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
+    // Does the first index entry always contain the first data container?
+    index
+      .iter()
+      .min_by(|x, y| x.offset().cmp(&y.offset()))
+      .map(|min_record| min_record.offset())
+      .ok_or_else(|| {
+        HtsGetError::io_error(format!(
+          "Failed to find entry in {} index",
+          self.get_format()
+        ))
+      })
+  }
+
+  fn get_eof_marker(&self) -> &[u8] {
+    CRAM_EOF
+  }
+
+  fn get_eof_data_block(&self) -> Option<DataBlock> {
+    Some(DataBlock::Data(Vec::from(self.get_eof_marker())))
   }
 }
 
@@ -83,7 +79,7 @@ impl<S, ReaderType>
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
     &self,
@@ -102,8 +98,8 @@ where
       self,
       &query.id,
       &self.get_format(),
+      &query.interval,
       None,
-      Range::default(),
       index,
       Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
     )
@@ -120,20 +116,9 @@ where
     Self::bytes_ranges_from_index(
       self,
       &query.id,
-      &self.get_format(),
+      &query.format,
+      &query.interval,
       Some(ref_seq),
-      query
-        .start
-        .map(|start| start as i32)
-        .map(into_one_based_position)
-        .transpose()?
-        .unwrap_or(Self::MIN_SEQ_POSITION as i32)
-        ..query
-          .end
-          .map(|end| end as i32)
-          .map(into_one_based_position)
-          .transpose()?
-          .unwrap_or(ref_seq.len().get() as i32),
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )
@@ -147,7 +132,7 @@ impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
     AsyncReader::new(inner)
@@ -166,10 +151,11 @@ where
     &self,
     reference_name: String,
     index: &Index,
+    header: &Header,
     query: Query,
   ) -> Result<Vec<BytesPosition>> {
     self
-      .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
       .await
   }
 
@@ -185,10 +171,9 @@ where
 impl<S, ReaderType> CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  const EOF_CONTAINER_LENGTH: u64 = 38;
-
+  /// Create the cram search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
   }
@@ -198,8 +183,8 @@ where
     &self,
     id: &str,
     format: &Format,
+    interval: &Interval,
     ref_seq: Option<&sam::header::ReferenceSequence>,
-    seq_range: Range<i32>,
     crai_index: &[Record],
     predicate: Arc<F>,
   ) -> Result<Vec<BytesPosition>>
@@ -213,12 +198,17 @@ where
       let owned_next = next.clone();
       let ref_seq_owned = ref_seq.cloned();
       let owned_predicate = predicate.clone();
-      let range = seq_range.clone();
+      let range = interval.clone();
       futures.push(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
-          Self::bytes_ranges_for_record(ref_seq_owned.as_ref(), range, &owned_record, &owned_next)
+          Self::bytes_ranges_for_record(
+            ref_seq_owned.as_ref(),
+            range,
+            &owned_record,
+            owned_next.offset(),
+          )
         } else {
-          None
+          Ok(None)
         }
       }));
     }
@@ -227,7 +217,7 @@ where
     loop {
       select! {
         Some(next) = futures.next() => {
-          if let Some(range) = next.map_err(HtsGetError::from)? {
+          if let Some(range) = next.map_err(HtsGetError::from)?? {
             byte_ranges.push(range);
           }
         },
@@ -235,21 +225,21 @@ where
       }
     }
 
-    let last = crai_index
-      .last()
-      .ok_or_else(|| HtsGetError::invalid_input("No entries in CRAI"))?;
-    if predicate(last) {
-      let file_size = self
-        .storage
-        .head(format.fmt_file(id))
-        .await
-        .map_err(|_| HtsGetError::io_error("Reading CRAM file size."))?;
-      let eof_position = file_size - Self::EOF_CONTAINER_LENGTH;
-      byte_ranges.push(
-        BytesPosition::default()
-          .with_start(last.offset())
-          .with_end(eof_position),
-      );
+    match crai_index.last() {
+      None => {
+        byte_ranges.push(BytesPosition::default().with_end(self.position_at_eof(id, format).await?))
+      }
+      Some(last) if predicate(last) => {
+        if let Some(range) = Self::bytes_ranges_for_record(
+          ref_seq,
+          interval.clone(),
+          last,
+          self.position_at_eof(id, format).await?,
+        )? {
+          byte_ranges.push(range);
+        }
+      }
+      _ => {}
     }
 
     Ok(BytesPosition::merge_all(byte_ranges))
@@ -258,29 +248,36 @@ where
   /// Gets bytes ranges for a specific index entry.
   pub(crate) fn bytes_ranges_for_record(
     ref_seq: Option<&sam::header::ReferenceSequence>,
-    seq_range: Range<i32>,
+    seq_range: Interval,
     record: &Record,
-    next: &Record,
-  ) -> Option<BytesPosition> {
+    next: u64,
+  ) -> Result<Option<BytesPosition>> {
     match ref_seq {
-      None => Some(
+      None => Ok(Some(
         BytesPosition::default()
           .with_start(record.offset())
-          .with_end(next.offset()),
-      ),
-      Some(_) => {
-        let start = record
-          .alignment_start()
-          .map(usize::from)
-          .unwrap_or_default() as i32;
-        if seq_range.start <= start + record.alignment_span() as i32 && seq_range.end >= start {
-          Some(
+          .with_end(next),
+      )),
+      Some(ref_seq) => {
+        let record_start = record.alignment_start().unwrap_or(Position::MIN);
+        let record_end = record_start
+          .checked_add(record.alignment_span())
+          .ok_or_else(|| {
+            HtsGetError::invalid_input("Failed to add record alignment span to Position.")
+          })?;
+
+        let interval = seq_range.into_one_based(|| ref_seq.len().get())?.into();
+        let seq_start = interval.start().unwrap_or(Position::MIN);
+        let seq_end = interval.end().unwrap_or(Position::MAX);
+
+        if seq_start <= record_end && seq_end >= record_start {
+          Ok(Some(
             BytesPosition::default()
               .with_start(record.offset())
-              .with_end(next.offset()),
-          )
+              .with_end(next),
+          ))
         } else {
-          None
+          Ok(None)
         }
       }
     }

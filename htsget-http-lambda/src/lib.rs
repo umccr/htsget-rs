@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
-use lambda_http::{http, Body, IntoResponse, Request, Response};
+use lambda_http::{http, Body, Request, Response};
 use tracing::debug;
 
 use htsget_config::config::ServiceInfo;
@@ -128,16 +128,14 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         None => Ok(
           Response::builder()
             .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
-            .body("")?
-            .into_response(),
+            .body(Body::Empty)?,
         ),
         Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
       },
       _ => Ok(
         Response::builder()
           .status(StatusCode::METHOD_NOT_ALLOWED)
-          .body("")?
-          .into_response(),
+          .body(Body::Empty)?,
       ),
     }
   }

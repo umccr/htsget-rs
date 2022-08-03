@@ -27,6 +27,7 @@ async-trait = "0.1"
 
 # Noodles
 noodles = { version = "0.25", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bgzf = { git = "https://github.com/zaeleus/noodles", features = ["async"] }
 noodles-bam = { version = "0.20", features = ["async"] }
 noodles-bcf = { version = "0.14", features = ["async"] }
 noodles-cram = { version = "0.17", features = ["async"] }
@@ -34,8 +35,8 @@ noodles-vcf = { version = "0.17", features = ["async"] }
 
 # Amazon S3
 bytes = { version = "1.1", optional = true }
-aws-sdk-s3 = { version = "0.15", optional = true }
-aws-config = { version = "0.15", optional = true }
+aws-sdk-s3 = { version = "0.16", optional = true }
+aws-config = { version = "0.46", optional = true }
 
 # Error control, tracing, config..
 thiserror = "1.0"
@@ -52,7 +53,7 @@ data-url = "0.1"
 anyhow = "1.0"
 s3-server = "0.2"
 http = "0.2"
-aws-types = { version = "0.15", features = ["hardcoded-credentials"] }
+aws-types = { version = "0.46", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies
 hyper-tls = "0.5"
