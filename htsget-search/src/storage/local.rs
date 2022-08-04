@@ -222,7 +222,7 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10))),
+        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10), None)),
       )
       .await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1")
@@ -238,7 +238,7 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
+        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None, None)),
       )
       .await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1")

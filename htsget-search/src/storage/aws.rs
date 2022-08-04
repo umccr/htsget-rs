@@ -346,7 +346,7 @@ mod tests {
       let result = storage
         .range_url(
           "key2",
-          RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(9))),
+          RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(9), None)),
         )
         .await
         .unwrap();
@@ -372,7 +372,7 @@ mod tests {
       let result = storage
         .range_url(
           "key2",
-          RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
+          RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None, None)),
         )
         .await
         .unwrap();
