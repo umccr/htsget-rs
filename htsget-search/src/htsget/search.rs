@@ -443,12 +443,12 @@ where
     Ok(BytesPosition::merge_all(byte_ranges))
   }
 
-  async fn bytes_positions_from_chunks(
+  async fn bytes_positions_from_chunks<'a>(
     &self,
     chunks: Vec<Chunk>,
     id: &str,
     format: &Format,
-    mut positions: impl Iterator<Item = u64> + Send,
+    mut positions: impl Iterator<Item = u64> + Send + 'a,
   ) -> Result<Vec<BytesPosition>> {
     let mut end_position: Option<u64> = None;
     let mut bytes_positions = Vec::new();
