@@ -239,7 +239,7 @@ where
   async fn search(&self, query: Query) -> Result<Response> {
     let index = self.read_index(&query.id).await?;
     match query.class {
-      Class::Body => {
+      Body => {
         let format = self.get_format();
         if format != query.format {
           return Err(HtsGetError::unsupported_format(format!(
@@ -265,7 +265,7 @@ where
         };
 
         byte_ranges.push(self.get_byte_ranges_for_header(&index).await?);
-        let mut blocks = DataBlock::from_bytes_positions(BytesPosition::merge_all(byte_ranges));
+        let mut blocks = DataBlock::from_bytes_positions(byte_ranges);
         if let Some(eof) = self.get_eof_data_block() {
           blocks.push(eof);
         }
@@ -445,7 +445,7 @@ where
       }
     };
 
-    Ok(BytesPosition::merge_all(byte_ranges))
+    Ok(byte_ranges)
   }
 
   async fn bytes_positions_from_chunks<'a>(

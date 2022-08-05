@@ -243,7 +243,7 @@ where
       _ => {}
     }
 
-    Ok(BytesPosition::merge_all(byte_ranges))
+    Ok(byte_ranges)
   }
 
   /// Gets bytes ranges for a specific index entry.

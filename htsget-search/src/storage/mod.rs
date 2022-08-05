@@ -100,7 +100,7 @@ pub enum DataBlock {
 impl DataBlock {
   /// Convert a vec of bytes positions to a vec of data blocks.
   pub fn from_bytes_positions(positions: Vec<BytesPosition>) -> Vec<Self> {
-    positions.into_iter().map(DataBlock::Range).collect()
+    BytesPosition::merge_all(positions).into_iter().map(DataBlock::Range).collect()
   }
 }
 
