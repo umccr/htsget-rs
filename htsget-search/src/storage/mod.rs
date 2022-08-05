@@ -1,10 +1,12 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 use std::cmp::Ordering;
+use std::collections::Bound;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
+use std::ops::RangeBounds;
 
 use async_trait::async_trait;
 use base64::encode;
@@ -100,7 +102,10 @@ pub enum DataBlock {
 impl DataBlock {
   /// Convert a vec of bytes positions to a vec of data blocks.
   pub fn from_bytes_positions(positions: Vec<BytesPosition>) -> Vec<Self> {
-    BytesPosition::merge_all(positions).into_iter().map(DataBlock::Range).collect()
+    BytesPosition::merge_all(positions)
+      .into_iter()
+      .map(DataBlock::Range)
+      .collect()
   }
 }
 
@@ -158,6 +163,24 @@ impl BytesRange {
   }
 }
 
+impl RangeBounds<u64> for BytesPosition {
+  fn start_bound(&self) -> Bound<&u64> {
+    self
+      .start
+      .as_ref()
+      .map(Bound::Included)
+      .unwrap_or(Bound::Unbounded)
+  }
+
+  fn end_bound(&self) -> Bound<&u64> {
+    self
+      .end
+      .as_ref()
+      .map(Bound::Included)
+      .unwrap_or(Bound::Unbounded)
+  }
+}
+
 impl BytesPosition {
   pub fn new(start: Option<u64>, end: Option<u64>, class: Option<Class>) -> Self {
     Self { start, end, class }
@@ -186,27 +209,40 @@ impl BytesPosition {
     self.end
   }
 
-  pub fn overlaps(&self, range: &BytesPosition) -> bool {
-    let cond1 = match (self.start.as_ref(), range.end.as_ref()) {
+  fn overlap_condition(a: Option<&u64>, b: Option<&u64>) -> bool {
+    match (a, b) {
       (None, None) | (None, Some(_)) | (Some(_), None) => true,
       (Some(start), Some(end)) => end >= start,
-    };
-    let cond2 = match (self.end.as_ref(), range.start.as_ref()) {
-      (None, None) | (None, Some(_)) | (Some(_), None) => true,
-      (Some(end), Some(start)) => end >= start,
-    };
-    cond1 && cond2
+    }
   }
 
-  pub fn merge_with(&mut self, range: &BytesPosition) -> &Self {
-    self.start = match (self.start.as_ref(), range.start.as_ref()) {
+  fn overlaps(&self, position: &BytesPosition) -> bool {
+    Self::overlap_condition(self.start.as_ref(), position.end.as_ref())
+      && Self::overlap_condition(self.end.as_ref(), position.start.as_ref())
+  }
+
+  /// Merges position with the current BytesPosition, assuming that the two positions overlap.
+  fn merge_with(&mut self, position: &BytesPosition) -> &Self {
+    let start = self.start;
+    let end = self.end;
+
+    self.start = match (start.as_ref(), position.start.as_ref()) {
       (None, None) | (None, Some(_)) | (Some(_), None) => None,
       (Some(a), Some(b)) => Some(*a.min(b)),
     };
-    self.end = match (self.end.as_ref(), range.end.as_ref()) {
+    self.end = match (end.as_ref(), position.end.as_ref()) {
       (None, None) | (None, Some(_)) | (Some(_), None) => None,
       (Some(a), Some(b)) => Some(*a.max(b)),
     };
+
+    if start.as_ref() != self.start.as_ref() && end.as_ref() != self.end.as_ref() {
+      self.class = match (self.class.as_ref(), position.class.as_ref()) {
+        (Some(Class::Header), Some(Class::Header)) => Some(Class::Header),
+        (Some(Class::Body), Some(Class::Body)) => Some(Class::Body),
+        (_, _) => None,
+      };
+    };
+
     self
   }
 

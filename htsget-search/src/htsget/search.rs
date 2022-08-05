@@ -396,7 +396,7 @@ where
 
     positions.remove(&0);
     let mut positions: Vec<u64> = positions.into_iter().collect();
-    positions.sort();
+    positions.sort_unstable();
     positions
   }
 
