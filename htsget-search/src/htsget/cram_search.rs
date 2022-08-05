@@ -17,6 +17,7 @@ use tokio::io::AsyncRead;
 use tokio::{io, select};
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
+use crate::htsget::Class::Body;
 use crate::htsget::{Format, HtsGetError, Interval, Query, Result};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
@@ -256,7 +257,8 @@ where
       None => Ok(Some(
         BytesPosition::default()
           .with_start(record.offset())
-          .with_end(next),
+          .with_end(next)
+          .with_class(Body),
       )),
       Some(ref_seq) => {
         let record_start = record.alignment_start().unwrap_or(Position::MIN);
@@ -274,7 +276,8 @@ where
           Ok(Some(
             BytesPosition::default()
               .with_start(record.offset())
-              .with_end(next),
+              .with_end(next)
+              .with_class(Body),
           ))
         } else {
           Ok(None)

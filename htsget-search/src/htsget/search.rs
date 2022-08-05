@@ -21,6 +21,7 @@ use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
 
+use crate::htsget::Class::Body;
 use crate::storage::{DataBlock, GetOptions};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
@@ -80,7 +81,11 @@ where
 
   /// Returns the header bytes range.
   async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<BytesPosition> {
-    Ok(BytesPosition::default().with_end(self.get_header_end_offset(index).await?))
+    Ok(
+      BytesPosition::default()
+        .with_end(self.get_header_end_offset(index).await?)
+        .with_class(Class::Header),
+    )
   }
 
   /// Get the eof marker for this format.
@@ -471,7 +476,8 @@ where
       bytes_positions.push(
         BytesPosition::default()
           .with_start(chunk.start().compressed())
-          .with_end(end),
+          .with_end(end)
+          .with_class(Body),
       )
     }
 
