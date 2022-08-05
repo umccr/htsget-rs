@@ -105,12 +105,15 @@ impl DataBlock {
 }
 
 /// A byte position has an inclusive start value, and an exclusive end value. This is analogous to
-/// query start and end parameters.
+/// query start and end parameters. The class represents the class type for this byte position when
+/// formatted into url responses. The class is set to `Header` for byte positions containing only
+/// header bytes, `Body` for byte positions containing only body bytes, and None for byte positions
+/// with a mix of header and body bytes.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BytesPosition {
   start: Option<u64>,
   end: Option<u64>,
-  class: Option<Class>
+  class: Option<Class>,
 }
 
 /// A bytes range has an inclusive start and end value. This is analogous to http bytes ranges.
@@ -314,7 +317,7 @@ mod tests {
     let test_cases = vec![
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),    //         <--]
+        BytesPosition::new(None, Some(2), None), //         <--]
         BytesPosition::new(Some(3), Some(5), None), //             [-]
         None,
       ),
@@ -326,56 +329,56 @@ mod tests {
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),       //      <--]
-        BytesPosition::new(Some(2), Some(4), None),    //         [-]
+        BytesPosition::new(None, Some(2), None), //      <--]
+        BytesPosition::new(Some(2), Some(4), None), //         [-]
         Some(BytesPosition::new(None, Some(4), None)), //      <----]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),    //         <--]
-        BytesPosition::new(Some(2), None, None),    //            [------->
+        BytesPosition::new(None, Some(2), None), //         <--]
+        BytesPosition::new(Some(2), None, None), //            [------->
         Some(BytesPosition::new(None, None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),       //      <--]
-        BytesPosition::new(Some(1), Some(3), None),    //        [-]
+        BytesPosition::new(None, Some(2), None), //      <--]
+        BytesPosition::new(Some(1), Some(3), None), //        [-]
         Some(BytesPosition::new(None, Some(3), None)), //      <---]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),    //         <--]
-        BytesPosition::new(Some(1), None, None),    //           [-------->
+        BytesPosition::new(None, Some(2), None), //         <--]
+        BytesPosition::new(Some(1), None, None), //           [-------->
         Some(BytesPosition::new(None, None, None)), //         <---------->
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),       //      <--]
-        BytesPosition::new(Some(0), Some(2), None),    //       [-]
+        BytesPosition::new(None, Some(2), None), //      <--]
+        BytesPosition::new(Some(0), Some(2), None), //       [-]
         Some(BytesPosition::new(None, Some(2), None)), //      <--]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),       //      <--]
-        BytesPosition::new(None, Some(2), None),       //      <--]
+        BytesPosition::new(None, Some(2), None), //      <--]
+        BytesPosition::new(None, Some(2), None), //      <--]
         Some(BytesPosition::new(None, Some(2), None)), //      <--]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),       //      <--]
-        BytesPosition::new(Some(0), Some(1), None),    //       []
+        BytesPosition::new(None, Some(2), None), //      <--]
+        BytesPosition::new(Some(0), Some(1), None), //       []
         Some(BytesPosition::new(None, Some(2), None)), //      <--]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),       //      <--]
-        BytesPosition::new(None, Some(1), None),       //      <-]
+        BytesPosition::new(None, Some(2), None), //      <--]
+        BytesPosition::new(None, Some(1), None), //      <-]
         Some(BytesPosition::new(None, Some(2), None)), //      <--]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, Some(2), None),    //         <--]
-        BytesPosition::new(None, None, None),       //         <---------->
+        BytesPosition::new(None, Some(2), None), //         <--]
+        BytesPosition::new(None, None, None),    //         <---------->
         Some(BytesPosition::new(None, None, None)), //         <---------->
       ),
       (
@@ -392,62 +395,62 @@ mod tests {
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),       //      [-]
-        BytesPosition::new(Some(4), Some(6), None),       //        [-]
+        BytesPosition::new(Some(2), Some(4), None), //      [-]
+        BytesPosition::new(Some(4), Some(6), None), //        [-]
         Some(BytesPosition::new(Some(2), Some(6), None)), //      [---]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),    //         [-]
-        BytesPosition::new(Some(4), None, None),       //           [----->
+        BytesPosition::new(Some(2), Some(4), None), //         [-]
+        BytesPosition::new(Some(4), None, None),    //           [----->
         Some(BytesPosition::new(Some(2), None, None)), //         [------->
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),       //      [-]
-        BytesPosition::new(Some(3), Some(5), None),       //       [-]
+        BytesPosition::new(Some(2), Some(4), None), //      [-]
+        BytesPosition::new(Some(3), Some(5), None), //       [-]
         Some(BytesPosition::new(Some(2), Some(5), None)), //      [--]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),    //         [-]
-        BytesPosition::new(Some(3), None, None),       //          [------>
+        BytesPosition::new(Some(2), Some(4), None), //         [-]
+        BytesPosition::new(Some(3), None, None),    //          [------>
         Some(BytesPosition::new(Some(2), None, None)), //         [------->
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),       //      [-]
-        BytesPosition::new(Some(2), Some(3), None),       //      []
+        BytesPosition::new(Some(2), Some(4), None), //      [-]
+        BytesPosition::new(Some(2), Some(3), None), //      []
         Some(BytesPosition::new(Some(2), Some(4), None)), //      [-]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),    //         [-]
-        BytesPosition::new(None, Some(3), None),       //      <---]
+        BytesPosition::new(Some(2), Some(4), None), //         [-]
+        BytesPosition::new(None, Some(3), None),    //      <---]
         Some(BytesPosition::new(None, Some(4), None)), //      <----]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),       //      [-]
-        BytesPosition::new(Some(1), Some(3), None),       //     [-]
+        BytesPosition::new(Some(2), Some(4), None), //      [-]
+        BytesPosition::new(Some(1), Some(3), None), //     [-]
         Some(BytesPosition::new(Some(1), Some(4), None)), //     [--]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),    //         [-]
-        BytesPosition::new(None, Some(3), None),       //      <---]
+        BytesPosition::new(Some(2), Some(4), None), //         [-]
+        BytesPosition::new(None, Some(3), None),    //      <---]
         Some(BytesPosition::new(None, Some(4), None)), //      <----]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),       //      [-]
-        BytesPosition::new(Some(0), Some(2), None),       //    [-]
+        BytesPosition::new(Some(2), Some(4), None), //      [-]
+        BytesPosition::new(Some(0), Some(2), None), //    [-]
         Some(BytesPosition::new(Some(0), Some(4), None)), //    [---]
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), Some(4), None),    //         [-]
-        BytesPosition::new(None, Some(2), None),       //      <--]
+        BytesPosition::new(Some(2), Some(4), None), //         [-]
+        BytesPosition::new(None, Some(2), None),    //      <--]
         Some(BytesPosition::new(None, Some(4), None)), //      <----]
       ),
       (
@@ -470,7 +473,7 @@ mod tests {
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), None, None),    //         [------->
+        BytesPosition::new(Some(2), None, None), //         [------->
         BytesPosition::new(Some(4), Some(6), None), //           [-]
         Some(BytesPosition::new(Some(2), None, None)), //         [------->
       ),
@@ -482,7 +485,7 @@ mod tests {
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), None, None),    //         [------->
+        BytesPosition::new(Some(2), None, None), //         [------->
         BytesPosition::new(Some(2), Some(4), None), //         [-]
         Some(BytesPosition::new(Some(2), None, None)), //         [------->
       ),
@@ -494,7 +497,7 @@ mod tests {
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), None, None),    //         [------->
+        BytesPosition::new(Some(2), None, None), //         [------->
         BytesPosition::new(Some(1), Some(3), None), //        [-]
         Some(BytesPosition::new(Some(1), None, None)), //        [-------->
       ),
@@ -506,7 +509,7 @@ mod tests {
       ),
       (
         //                                             0123456789
-        BytesPosition::new(Some(2), None, None),    //         [------->
+        BytesPosition::new(Some(2), None, None), //         [------->
         BytesPosition::new(Some(0), Some(2), None), //       [-]
         Some(BytesPosition::new(Some(0), None, None)), //       [--------->
       ),
@@ -536,8 +539,8 @@ mod tests {
       ),
       (
         //                                             0123456789
-        BytesPosition::new(None, None, None),       //         <---------->
-        BytesPosition::new(None, None, None),       //         <---------->
+        BytesPosition::new(None, None, None), //         <---------->
+        BytesPosition::new(None, None, None), //         <---------->
         Some(BytesPosition::new(None, None, None)), //         <---------->
       ),
     ];

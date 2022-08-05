@@ -16,6 +16,7 @@ use tokio::io;
 use tokio::io::AsyncRead;
 
 use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
+use crate::htsget::Class::Body;
 use crate::htsget::HtsGetError;
 use crate::{
   htsget::{Format, Query, Result},
@@ -74,7 +75,8 @@ where
 
     Ok(vec![BytesPosition::default()
       .with_start(start.compressed())
-      .with_end(self.position_at_eof(id, format).await?)])
+      .with_end(self.position_at_eof(id, format).await?)
+      .with_class(Body)])
   }
 }
 
