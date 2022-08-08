@@ -370,6 +370,7 @@ impl Headers {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Url {
   pub url: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub headers: Option<Headers>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub class: Option<Class>,
