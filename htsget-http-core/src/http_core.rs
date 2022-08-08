@@ -6,12 +6,12 @@ use futures::StreamExt;
 use tokio::select;
 use tracing::debug;
 
-use htsget_search::htsget::HtsGet;
+use htsget_search::htsget::{HtsGet, JsonResponse};
 use htsget_search::htsget::Response;
 
 use crate::{
   convert_to_query, match_endpoints_get_request, match_endpoints_post_request, merge_responses,
-  Endpoint, HtsGetError, JsonResponse, PostRequest, Result,
+  Endpoint, HtsGetError, PostRequest, Result,
 };
 
 /// Gets a JSON response for a GET request. The GET request parameters must
@@ -36,7 +36,7 @@ pub async fn get_response_for_get_request(
 
   search_result
     .map_err(Into::into)
-    .map(JsonResponse::from_response)
+    .map(JsonResponse::from)
 }
 
 /// Gets a response in JSON for a POST request.
@@ -71,7 +71,7 @@ pub async fn get_response_for_post_request(
     }
   }
 
-  Ok(JsonResponse::from_response(
+  Ok(JsonResponse::from(
     // It's okay to unwrap because there will be at least one response
     merge_responses(responses).expect("Expected valid response."),
   ))

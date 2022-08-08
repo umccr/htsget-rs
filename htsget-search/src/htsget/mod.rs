@@ -14,6 +14,7 @@ use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
 use thiserror::Error;
 use tokio::task::JoinError;
+use serde::{Serialize, Deserialize};
 
 use crate::storage::StorageError;
 
@@ -251,7 +252,8 @@ impl Interval {
 }
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Format {
   Bam,
   Cram,
@@ -293,12 +295,7 @@ impl Format {
 
 impl From<Format> for String {
   fn from(format: Format) -> Self {
-    match format {
-      Format::Bam => "BAM".to_string(),
-      Format::Cram => "CRAM".to_string(),
-      Format::Vcf => "VCF".to_string(),
-      Format::Bcf => "BCF".to_string(),
-    }
+    format.to_string()
   }
 }
 
@@ -313,7 +310,8 @@ impl fmt::Display for Format {
   }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Class {
   Header,
   Body,
@@ -338,7 +336,7 @@ pub enum Tags {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
@@ -359,16 +357,21 @@ impl Headers {
     self.0.insert(key.into(), value.into());
   }
 
-  pub fn get_inner(self) -> HashMap<String, String> {
+  pub fn into_inner(self) -> HashMap<String, String> {
     self.0
+  }
+
+  pub fn as_ref_inner(&self) -> &HashMap<String, String> {
+    &self.0
   }
 }
 
 /// A url from which raw data can be retrieved.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Url {
   pub url: String,
   pub headers: Option<Headers>,
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub class: Option<Class>,
 }
 
@@ -396,8 +399,26 @@ impl Url {
   }
 }
 
+/// Wrapped json response for htsget.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct JsonResponse {
+  pub htsget: Response,
+}
+
+impl JsonResponse {
+  pub fn new(htsget: Response) -> Self {
+    Self { htsget }
+  }
+}
+
+impl From<Response> for JsonResponse {
+  fn from(htsget: Response) -> Self {
+    Self::new(htsget)
+  }
+}
+
 /// The response for a HtsGet query.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
