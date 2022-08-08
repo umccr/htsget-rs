@@ -42,8 +42,8 @@ pub trait Storage {
   async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
 
   /// Get the url of the object using an inline data uri.
-  fn data_url(data: Vec<u8>, class: Class) -> Url {
-    Url::new(format!("data:;base64,{}", encode(data))).with_class(class)
+  fn data_url(data: Vec<u8>, class: Option<Class>) -> Url {
+    Url::new(format!("data:;base64,{}", encode(data))).set_class(class)
   }
 }
 
@@ -94,18 +94,37 @@ impl From<StorageError> for io::Error {
 }
 
 /// A DataBlock is either a range of bytes, or a data blob that gets transformed into a data uri.
+#[derive(Debug, PartialEq)]
 pub enum DataBlock {
   Range(BytesPosition),
-  Data(Vec<u8>),
+  Data(Vec<u8>, Option<Class>),
 }
 
 impl DataBlock {
-  /// Convert a vec of bytes positions to a vec of data blocks.
+  /// Convert a vec of bytes positions to a vec of data blocks. Merges bytes positions.
   pub fn from_bytes_positions(positions: Vec<BytesPosition>) -> Vec<Self> {
     BytesPosition::merge_all(positions)
       .into_iter()
       .map(DataBlock::Range)
       .collect()
+  }
+
+  /// Update the classes of all blocks so that they all contain a class, or None. Does not merge
+  /// byte positions.
+  pub fn update_classes(blocks: Vec<Self>) -> Vec<Self> {
+    if blocks.iter().all(|block| match block {
+      DataBlock::Range(range) => range.class.is_some(),
+      DataBlock::Data(_, class) => class.is_some()
+    }) {
+      blocks
+    } else {
+      blocks.into_iter().map(|block| match block {
+        DataBlock::Range(mut range) => {
+          DataBlock::Range(range.set_class(None))
+        }
+        DataBlock::Data(data, _) => DataBlock::Data(data, None)
+      }).collect()
+    }
   }
 }
 
@@ -128,8 +147,8 @@ struct BytesRange {
   end: Option<u64>,
 }
 
-impl From<BytesRange> for String {
-  fn from(ranges: BytesRange) -> Self {
+impl From<&BytesRange> for String {
+  fn from(ranges: &BytesRange) -> Self {
     if ranges.start.is_none() && ranges.end.is_none() {
       return "".to_string();
     }
@@ -151,8 +170,8 @@ impl Display for BytesRange {
   }
 }
 
-impl From<BytesPosition> for BytesRange {
-  fn from(pos: BytesPosition) -> Self {
+impl From<&BytesPosition> for BytesRange {
+  fn from(pos: &BytesPosition) -> Self {
     Self::new(pos.start, pos.end.map(|value| value - 1))
   }
 }
@@ -197,7 +216,11 @@ impl BytesPosition {
   }
 
   pub fn with_class(mut self, class: Class) -> Self {
-    self.class = Some(class);
+    self.set_class(Some(class))
+  }
+
+  pub fn set_class(mut self, class: Option<Class>) -> Self {
+    self.class = class;
     self
   }
 
@@ -300,8 +323,13 @@ impl GetOptions {
 }
 
 pub struct RangeUrlOptions {
-  range: BytesPosition,
-  class: Class,
+  range: BytesPosition
+}
+
+impl From<BytesPosition> for RangeUrlOptions {
+  fn from(bytes_position: BytesPosition) -> Self {
+    Self::default().with_range(bytes_position)
+  }
 }
 
 impl RangeUrlOptions {
@@ -310,28 +338,21 @@ impl RangeUrlOptions {
     self
   }
 
-  pub fn with_class(mut self, class: Class) -> Self {
-    self.class = class;
-    self
-  }
-
   pub fn apply(self, url: Url) -> Url {
-    let range: BytesRange = self.range.into();
-    let range: String = range.into();
+    let range: String = String::from(&BytesRange::from(&self.range));
     let url = if range.is_empty() {
       url
     } else {
       url.with_headers(Headers::default().with_header("Range", range))
     };
-    url.with_class(self.class)
+    url.set_class(self.range.class)
   }
 }
 
 impl Default for RangeUrlOptions {
   fn default() -> Self {
     Self {
-      range: BytesPosition::default(),
-      class: Class::Body,
+      range: BytesPosition::default()
     }
   }
 }
@@ -650,15 +671,54 @@ mod tests {
   #[test]
   fn data_url() {
     let result =
-      LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Class::Header);
+      LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
   }
 
   #[test]
+  fn data_block_update_classes_all_some() {
+    let blocks = DataBlock::update_classes(vec![
+      DataBlock::Range(BytesPosition::new(None, Some(1), Some(Class::Body))),
+      DataBlock::Data(vec![], Some(Class::Header))
+    ]);
+    for block in blocks {
+      let class = match block {
+        DataBlock::Range(pos) => pos.class,
+        DataBlock::Data(_, class) => class
+      };
+      assert!(matches!(class, Some(_)));
+    }
+  }
+
+  #[test]
+  fn data_block_update_classes_one_none() {
+    let blocks = DataBlock::update_classes(vec![
+      DataBlock::Range(BytesPosition::new(None, Some(1), Some(Class::Body))),
+      DataBlock::Data(vec![], None)
+    ]);
+    for block in blocks {
+      let class = match block {
+        DataBlock::Range(pos) => pos.class,
+        DataBlock::Data(_, class) => class
+      };
+      assert!(matches!(class, None));
+    }
+  }
+
+  #[test]
+  fn data_block_from_bytes_positions() {
+    let blocks = DataBlock::from_bytes_positions(vec![
+      BytesPosition::new(None, Some(1), None),
+      BytesPosition::new(Some(1), Some(2), None)
+    ]);
+    assert_eq!(blocks, vec![DataBlock::Range(BytesPosition::new(None, Some(2), None))]);
+  }
+
+  #[test]
   fn byte_range_from_byte_position() {
-    let result: BytesRange = BytesPosition::default().with_start(5).with_end(10).into();
+    let result: BytesRange = BytesRange::from(&BytesPosition::default().with_start(5).with_end(10));
     let expected = BytesRange::new(Some(5), Some(9));
     assert_eq!(result, expected);
   }
@@ -682,21 +742,12 @@ mod tests {
   fn url_options_with_range() {
     let result = RangeUrlOptions::default().with_range(BytesPosition::default());
     assert_eq!(result.range, BytesPosition::default());
-    assert_eq!(result.class, Class::Body);
-  }
-
-  #[test]
-  fn url_options_with_class() {
-    let result = RangeUrlOptions::default().with_class(Class::Header);
-    assert_eq!(result.range, BytesPosition::default());
-    assert_eq!(result.class, Class::Header);
   }
 
   #[test]
   fn url_options_apply_with_bytes_range() {
     let result = RangeUrlOptions::default()
-      .with_class(Class::Header)
-      .with_range(BytesPosition::new(Some(5), Some(11), None))
+      .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)))
       .apply(Url::new(""));
     println!("{:?}", result);
     assert_eq!(
@@ -710,8 +761,7 @@ mod tests {
   #[test]
   fn url_options_apply_no_bytes_range() {
     let result = RangeUrlOptions::default()
-      .with_class(Class::Header)
       .apply(Url::new(""));
-    assert_eq!(result, Url::new("").with_class(Class::Header));
+    assert_eq!(result, Url::new(""));
   }
 }

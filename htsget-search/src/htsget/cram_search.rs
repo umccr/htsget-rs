@@ -70,7 +70,7 @@ where
   }
 
   fn get_eof_data_block(&self) -> Option<DataBlock> {
-    Some(DataBlock::Data(Vec::from(self.get_eof_marker())))
+    Some(DataBlock::Data(Vec::from(self.get_eof_marker()), Some(Body)))
   }
 }
 

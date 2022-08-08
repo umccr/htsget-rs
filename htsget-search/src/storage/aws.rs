@@ -136,8 +136,7 @@ impl AwsS3Storage {
   }
 
   fn apply_range(builder: GetObject, range: BytesPosition) -> GetObject {
-    let range: BytesRange = range.into();
-    let range: String = range.into();
+    let range: String = String::from(&BytesRange::from(&range));
     if range.is_empty() {
       builder
     } else {

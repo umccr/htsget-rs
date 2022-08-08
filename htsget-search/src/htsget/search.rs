@@ -295,22 +295,18 @@ where
     byte_ranges: Vec<DataBlock>,
   ) -> Result<Response> {
     let mut storage_futures = FuturesOrdered::new();
-    for block in byte_ranges {
+    for block in DataBlock::update_classes(byte_ranges) {
       match block {
         DataBlock::Range(range) => {
-          let options = RangeUrlOptions::default()
-            .with_range(range)
-            .with_class(class.clone());
           let storage = self.get_storage();
           let id = id.clone();
           storage_futures.push(tokio::spawn(async move {
-            storage.range_url(format.fmt_file(&id), options).await
+            storage.range_url(format.fmt_file(&id), RangeUrlOptions::from(range)).await
           }));
         }
-        DataBlock::Data(data) => {
-          let class_copy = class.clone();
+        DataBlock::Data(data, class) => {
           storage_futures.push(tokio::spawn(
-            async move { Ok(S::data_url(data, class_copy)) },
+            async move { Ok(S::data_url(data, class)) },
           ));
         }
       }
@@ -535,7 +531,7 @@ where
   }
 
   fn get_eof_data_block(&self) -> Option<DataBlock> {
-    Some(DataBlock::Data(Vec::from(BGZF_EOF)))
+    Some(DataBlock::Data(Vec::from(BGZF_EOF), Some(Body)))
   }
 }
 

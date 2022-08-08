@@ -369,7 +369,7 @@ impl Headers {
 pub struct Url {
   pub url: String,
   pub headers: Option<Headers>,
-  pub class: Class,
+  pub class: Option<Class>,
 }
 
 impl Url {
@@ -377,7 +377,7 @@ impl Url {
     Self {
       url: url.into(),
       headers: None,
-      class: Class::Body,
+      class: None,
     }
   }
 
@@ -386,9 +386,13 @@ impl Url {
     self
   }
 
-  pub fn with_class(mut self, class: Class) -> Self {
+  pub fn set_class(mut self, class: Option<Class>) -> Self {
     self.class = class;
     self
+  }
+
+  pub fn with_class(mut self, class: Class) -> Self {
+    self.set_class(Some(class))
   }
 }
 
@@ -579,7 +583,7 @@ mod tests {
   fn url_with_class() {
     let result =
       Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").with_class(Class::Header);
-    assert_eq!(result.class, Class::Header);
+    assert_eq!(result.class, Some(Class::Header));
   }
 
   #[test]
