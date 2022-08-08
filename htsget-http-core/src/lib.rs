@@ -4,7 +4,6 @@ use std::str::FromStr;
 pub use error::{HtsGetError, Result};
 use htsget_search::htsget::{Query, Response};
 pub use http_core::{get_response_for_get_request, get_response_for_post_request};
-pub use json_response::{JsonResponse, JsonUrl};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
@@ -13,7 +12,6 @@ pub use service_info::{Htsget, Organisation, ServiceInfo, Type};
 
 mod error;
 mod http_core;
-mod json_response;
 mod post_request;
 mod query_builder;
 mod service_info;
@@ -116,7 +114,7 @@ mod tests {
   use htsget_search::htsget::HtsGet;
   use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_search::{
-    htsget::{from_storage::HtsGetFromStorage, Class::Body, Format, Headers, Url},
+    htsget::{from_storage::HtsGetFromStorage, Class::Body, Format, Headers, Url, JsonResponse},
     storage::local::LocalStorage,
   };
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
@@ -236,7 +234,7 @@ mod tests {
   }
 
   fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
-    JsonResponse::from_response(Response::new(
+    JsonResponse::from(Response::new(
       Format::Vcf,
       vec![
         Url::new("http://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
@@ -247,7 +245,7 @@ mod tests {
   }
 
   fn example_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
-    JsonResponse::from_response(Response::new(
+    JsonResponse::from(Response::new(
       Format::Bam,
       vec![
         Url::new("http://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())

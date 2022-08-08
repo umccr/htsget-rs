@@ -11,7 +11,8 @@ use reqwest::blocking::ClientBuilder;
 use reqwest::Result;
 use serde::{Deserialize, Serialize};
 
-use htsget_http_core::{JsonResponse, PostRequest, Region};
+use htsget_http_core::{PostRequest, Region};
+use htsget_search::htsget::{Headers, JsonResponse};
 use htsget_test_utils::server_tests::{default_config_fixed_port, default_dir, default_dir_data};
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
@@ -66,7 +67,8 @@ fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) ->
             json_url
               .headers
               .as_ref()
-              .unwrap_or(&HashMap::default())
+              .unwrap_or(&Headers::default())
+              .as_ref_inner()
               .try_into()
               .unwrap(),
           )

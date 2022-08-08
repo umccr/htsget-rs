@@ -6,7 +6,8 @@ use lambda_http::http::{header, StatusCode};
 use serde::Serialize;
 use serde_json::Error;
 
-use htsget_http_core::{HtsGetError, JsonResponse, Result};
+use htsget_http_core::{HtsGetError, Result};
+use htsget_search::htsget::JsonResponse;
 
 use crate::{Body, Response};
 

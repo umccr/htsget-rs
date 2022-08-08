@@ -13,10 +13,10 @@ use serde::de;
 use serde::Deserialize;
 
 use htsget_config::config::Config;
-use htsget_http_core::{get_service_info_with, Endpoint, JsonResponse};
+use htsget_http_core::{get_service_info_with, Endpoint};
 use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
-use htsget_search::htsget::{Class, Format, Headers, Url};
+use htsget_search::htsget::{Class, Format, Headers, Url, JsonResponse};
 use htsget_search::storage::ticket_server::HttpTicketFormatter;
 
 use crate::util::{expected_bgzf_eof_data_url, generate_test_certificates};
@@ -106,7 +106,8 @@ pub async fn test_response(response: Response, class: Class) {
           url
             .headers
             .as_ref()
-            .unwrap_or(&HashMap::default())
+            .unwrap_or(&Headers::default())
+            .as_ref_inner()
             .try_into()
             .unwrap(),
         )
@@ -247,7 +248,7 @@ pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
     ],
   };
 
-  JsonResponse::from_response(HtsgetResponse::new(Format::Vcf, urls))
+  JsonResponse::from(HtsgetResponse::new(Format::Vcf, urls))
 }
 
 /// Get the default directory.
