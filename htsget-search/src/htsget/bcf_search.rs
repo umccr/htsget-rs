@@ -147,7 +147,7 @@ mod tests {
     with_local_storage as with_local_storage_path,
     with_local_storage_tmp as with_local_storage_tmp_path,
   };
-  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
+  use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
 
@@ -182,7 +182,7 @@ mod tests {
         vec![
           Url::new(expected_url(filename))
             .with_headers(Headers::default().with_header("Range", "bytes=0-949")),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -226,7 +226,7 @@ mod tests {
       vec![
         Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-3529")),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        Url::new(expected_bgzf_eof_data_url()),
       ],
     )
   }

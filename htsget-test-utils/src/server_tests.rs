@@ -16,7 +16,7 @@ use htsget_config::config::Config;
 use htsget_http_core::{get_service_info_with, Endpoint};
 use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
-use htsget_search::htsget::{Class, Format, Headers, Url, JsonResponse};
+use htsget_search::htsget::{Class, Format, Headers, JsonResponse, Url};
 use htsget_search::storage::ticket_server::HttpTicketFormatter;
 
 use crate::util::{expected_bgzf_eof_data_url, generate_test_certificates};
@@ -238,14 +238,10 @@ pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
   headers.insert("Range".to_string(), "bytes=0-3465".to_string());
 
   let http_url = Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path))
-    .with_headers(Headers::new(headers))
-    .with_class(class.clone());
+    .with_headers(Headers::new(headers));
   let urls = match class {
-    Class::Header => vec![http_url],
-    Body => vec![
-      http_url,
-      Url::new(expected_bgzf_eof_data_url()).with_class(Body),
-    ],
+    Class::Header => vec![http_url.with_class(Class::Header)],
+    Body => vec![http_url, Url::new(expected_bgzf_eof_data_url())],
   };
 
   JsonResponse::from(HtsgetResponse::new(Format::Vcf, urls))

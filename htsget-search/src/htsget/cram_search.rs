@@ -70,7 +70,10 @@ where
   }
 
   fn get_eof_data_block(&self) -> Option<DataBlock> {
-    Some(DataBlock::Data(Vec::from(self.get_eof_marker()), Some(Body)))
+    Some(DataBlock::Data(
+      Vec::from(self.get_eof_marker()),
+      Some(Body),
+    ))
   }
 }
 
@@ -294,7 +297,7 @@ mod tests {
   use htsget_test_utils::util::expected_cram_eof_data_url;
 
   use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
-  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
+  use crate::htsget::{Class, Class::Body, Class::Header, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
   use crate::storage::ticket_server::HttpTicketFormatter;
 
@@ -313,7 +316,7 @@ mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-1627755")),
-          Url::new(expected_cram_eof_data_url()).with_class(Body),
+          Url::new(expected_cram_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -333,9 +336,11 @@ mod tests {
         Format::Cram,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-6086")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
+            .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627755")),
+            .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627755"))
+            .with_class(Body),
           Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
@@ -356,9 +361,11 @@ mod tests {
         Format::Cram,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-6086")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
+            .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=604231-1280105")),
+            .with_headers(Headers::default().with_header("Range", "bytes=604231-1280105"))
+            .with_class(Body),
           Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
@@ -383,7 +390,7 @@ mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-465708")),
-          Url::new(expected_cram_eof_data_url()).with_class(Body),
+          Url::new(expected_cram_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -407,7 +414,7 @@ mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-604230")),
-          Url::new(expected_cram_eof_data_url()).with_class(Body),
+          Url::new(expected_cram_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response)

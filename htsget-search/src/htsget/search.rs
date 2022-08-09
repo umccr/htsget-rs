@@ -249,7 +249,6 @@ where
         }
 
         let id = query.id.clone();
-        let class = query.class.clone();
         let mut byte_ranges = match query.reference_name.as_ref() {
           None => {
             self
@@ -270,13 +269,12 @@ where
           blocks.push(eof);
         }
 
-        self.build_response(class, id, format, blocks).await
+        self.build_response(id, format, blocks).await
       }
       Class::Header => {
         let header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
         self
           .build_response(
-            query.class,
             query.id,
             self.get_format(),
             DataBlock::from_bytes_positions(vec![header_byte_ranges]),
@@ -289,7 +287,6 @@ where
   /// Build the response from the query using urls.
   async fn build_response(
     &self,
-    class: Class,
     id: String,
     format: Format,
     byte_ranges: Vec<DataBlock>,
@@ -301,13 +298,13 @@ where
           let storage = self.get_storage();
           let id = id.clone();
           storage_futures.push(tokio::spawn(async move {
-            storage.range_url(format.fmt_file(&id), RangeUrlOptions::from(range)).await
+            storage
+              .range_url(format.fmt_file(&id), RangeUrlOptions::from(range))
+              .await
           }));
         }
         DataBlock::Data(data, class) => {
-          storage_futures.push(tokio::spawn(
-            async move { Ok(S::data_url(data, class)) },
-          ));
+          storage_futures.push(tokio::spawn(async move { Ok(S::data_url(data, class)) }));
         }
       }
     }

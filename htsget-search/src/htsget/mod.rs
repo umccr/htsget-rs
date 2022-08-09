@@ -12,9 +12,9 @@ use std::io::ErrorKind;
 use async_trait::async_trait;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::JoinError;
-use serde::{Serialize, Deserialize};
 
 use crate::storage::StorageError;
 
@@ -395,7 +395,7 @@ impl Url {
     self
   }
 
-  pub fn with_class(mut self, class: Class) -> Self {
+  pub fn with_class(self, class: Class) -> Self {
     self.set_class(Some(class))
   }
 }
@@ -606,6 +606,21 @@ mod tests {
     let result =
       Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").with_class(Class::Header);
     assert_eq!(result.class, Some(Class::Header));
+  }
+
+  #[test]
+  fn url_set_class() {
+    let result =
+      Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").set_class(Some(Class::Header));
+    assert_eq!(result.class, Some(Class::Header));
+  }
+
+  #[test]
+  fn url_new() {
+    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==");
+    assert_eq!(result.url, "data:application/vnd.ga4gh.bam;base64,QkFNAQ==");
+    assert_eq!(result.headers, None);
+    assert_eq!(result.class, None);
   }
 
   #[test]
