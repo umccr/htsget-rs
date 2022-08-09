@@ -114,7 +114,7 @@ mod tests {
   use htsget_search::htsget::HtsGet;
   use htsget_search::storage::ticket_server::HttpTicketFormatter;
   use htsget_search::{
-    htsget::{from_storage::HtsGetFromStorage, Class::Body, Format, Headers, Url, JsonResponse},
+    htsget::{from_storage::HtsGetFromStorage, Format, Headers, JsonResponse, Url},
     storage::local::LocalStorage,
   };
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
@@ -239,7 +239,7 @@ mod tests {
       vec![
         Url::new("http://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
           .with_headers(Headers::new(headers)),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
   }
@@ -250,7 +250,7 @@ mod tests {
       vec![
         Url::new("http://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
           .with_headers(Headers::new(headers)),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
   }

@@ -10,7 +10,6 @@ use aws_sdk_s3::types::ByteStream;
 use aws_sdk_s3::Client;
 use bytes::Bytes;
 use fluent_builders::GetObject;
-
 use tokio_util::io::StreamReader;
 use tracing::debug;
 

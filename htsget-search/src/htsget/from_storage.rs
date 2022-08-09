@@ -109,7 +109,7 @@ pub(crate) mod tests {
   use crate::htsget::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
-  use crate::htsget::{Class::Body, Headers, Url};
+  use crate::htsget::{Headers, Url};
   use crate::storage::ticket_server::HttpTicketFormatter;
 
   use super::*;
@@ -127,7 +127,7 @@ pub(crate) mod tests {
         vec![
           Url::new(bam_expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -149,7 +149,7 @@ pub(crate) mod tests {
         vec![
           Url::new(vcf_expected_url(filename))
             .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response)

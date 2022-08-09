@@ -6,8 +6,8 @@ use futures::StreamExt;
 use tokio::select;
 use tracing::debug;
 
-use htsget_search::htsget::{HtsGet, JsonResponse};
 use htsget_search::htsget::Response;
+use htsget_search::htsget::{HtsGet, JsonResponse};
 
 use crate::{
   convert_to_query, match_endpoints_get_request, match_endpoints_post_request, merge_responses,
@@ -34,9 +34,7 @@ pub async fn get_response_for_get_request(
   let query = convert_to_query(&query_information)?;
   let search_result = searcher.search(query).await;
 
-  search_result
-    .map_err(Into::into)
-    .map(JsonResponse::from)
+  search_result.map_err(Into::into).map(JsonResponse::from)
 }
 
 /// Gets a response in JSON for a POST request.

@@ -114,16 +114,17 @@ impl DataBlock {
   pub fn update_classes(blocks: Vec<Self>) -> Vec<Self> {
     if blocks.iter().all(|block| match block {
       DataBlock::Range(range) => range.class.is_some(),
-      DataBlock::Data(_, class) => class.is_some()
+      DataBlock::Data(_, class) => class.is_some(),
     }) {
       blocks
     } else {
-      blocks.into_iter().map(|block| match block {
-        DataBlock::Range(mut range) => {
-          DataBlock::Range(range.set_class(None))
-        }
-        DataBlock::Data(data, _) => DataBlock::Data(data, None)
-      }).collect()
+      blocks
+        .into_iter()
+        .map(|block| match block {
+          DataBlock::Range(range) => DataBlock::Range(range.set_class(None)),
+          DataBlock::Data(data, _) => DataBlock::Data(data, None),
+        })
+        .collect()
     }
   }
 }
@@ -215,7 +216,7 @@ impl BytesPosition {
     self
   }
 
-  pub fn with_class(mut self, class: Class) -> Self {
+  pub fn with_class(self, class: Class) -> Self {
     self.set_class(Some(class))
   }
 
@@ -305,7 +306,7 @@ impl BytesPosition {
   }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct GetOptions {
   range: BytesPosition,
 }
@@ -322,8 +323,9 @@ impl GetOptions {
   }
 }
 
+#[derive(Debug, Default)]
 pub struct RangeUrlOptions {
-  range: BytesPosition
+  range: BytesPosition,
 }
 
 impl From<BytesPosition> for RangeUrlOptions {
@@ -346,14 +348,6 @@ impl RangeUrlOptions {
       url.with_headers(Headers::default().with_header("Range", range))
     };
     url.set_class(self.range.class)
-  }
-}
-
-impl Default for RangeUrlOptions {
-  fn default() -> Self {
-    Self {
-      range: BytesPosition::default()
-    }
   }
 }
 
@@ -669,6 +663,38 @@ mod tests {
   }
 
   #[test]
+  fn bytes_position_new() {
+    let result = BytesPosition::new(Some(1), Some(2), Some(Class::Header));
+    assert_eq!(result.start, Some(1));
+    assert_eq!(result.end, Some(2));
+    assert_eq!(result.class, Some(Class::Header));
+  }
+
+  #[test]
+  fn bytes_position_with_start() {
+    let result = BytesPosition::default().with_start(1);
+    assert_eq!(result.start, Some(1));
+  }
+
+  #[test]
+  fn bytes_position_with_end() {
+    let result = BytesPosition::default().with_end(1);
+    assert_eq!(result.end, Some(1));
+  }
+
+  #[test]
+  fn bytes_position_with_class() {
+    let result = BytesPosition::default().with_class(Class::Header);
+    assert_eq!(result.class, Some(Class::Header));
+  }
+
+  #[test]
+  fn bytes_position_set_class() {
+    let result = BytesPosition::default().set_class(Some(Class::Header));
+    assert_eq!(result.class, Some(Class::Header));
+  }
+
+  #[test]
   fn data_url() {
     let result =
       LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
@@ -681,12 +707,12 @@ mod tests {
   fn data_block_update_classes_all_some() {
     let blocks = DataBlock::update_classes(vec![
       DataBlock::Range(BytesPosition::new(None, Some(1), Some(Class::Body))),
-      DataBlock::Data(vec![], Some(Class::Header))
+      DataBlock::Data(vec![], Some(Class::Header)),
     ]);
     for block in blocks {
       let class = match block {
         DataBlock::Range(pos) => pos.class,
-        DataBlock::Data(_, class) => class
+        DataBlock::Data(_, class) => class,
       };
       assert!(matches!(class, Some(_)));
     }
@@ -696,12 +722,12 @@ mod tests {
   fn data_block_update_classes_one_none() {
     let blocks = DataBlock::update_classes(vec![
       DataBlock::Range(BytesPosition::new(None, Some(1), Some(Class::Body))),
-      DataBlock::Data(vec![], None)
+      DataBlock::Data(vec![], None),
     ]);
     for block in blocks {
       let class = match block {
         DataBlock::Range(pos) => pos.class,
-        DataBlock::Data(_, class) => class
+        DataBlock::Data(_, class) => class,
       };
       assert!(matches!(class, None));
     }
@@ -711,9 +737,12 @@ mod tests {
   fn data_block_from_bytes_positions() {
     let blocks = DataBlock::from_bytes_positions(vec![
       BytesPosition::new(None, Some(1), None),
-      BytesPosition::new(Some(1), Some(2), None)
+      BytesPosition::new(Some(1), Some(2), None),
     ]);
-    assert_eq!(blocks, vec![DataBlock::Range(BytesPosition::new(None, Some(2), None))]);
+    assert_eq!(
+      blocks,
+      vec![DataBlock::Range(BytesPosition::new(None, Some(2), None))]
+    );
   }
 
   #[test]
@@ -760,8 +789,7 @@ mod tests {
 
   #[test]
   fn url_options_apply_no_bytes_range() {
-    let result = RangeUrlOptions::default()
-      .apply(Url::new(""));
+    let result = RangeUrlOptions::default().apply(Url::new(""));
     assert_eq!(result, Url::new(""));
   }
 }
