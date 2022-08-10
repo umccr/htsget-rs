@@ -1,12 +1,10 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 use std::cmp::Ordering;
-use std::collections::Bound;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
-use std::ops::RangeBounds;
 
 use async_trait::async_trait;
 use base64::encode;
@@ -180,24 +178,6 @@ impl From<&BytesPosition> for BytesRange {
 impl BytesRange {
   pub fn new(start: Option<u64>, end: Option<u64>) -> Self {
     Self { start, end }
-  }
-}
-
-impl RangeBounds<u64> for BytesPosition {
-  fn start_bound(&self) -> Bound<&u64> {
-    self
-      .start
-      .as_ref()
-      .map(Bound::Included)
-      .unwrap_or(Bound::Unbounded)
-  }
-
-  fn end_bound(&self) -> Bound<&u64> {
-    self
-      .end
-      .as_ref()
-      .map(Bound::Included)
-      .unwrap_or(Bound::Unbounded)
   }
 }
 
