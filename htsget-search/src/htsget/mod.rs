@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io;
 use std::io::ErrorKind;
-use std::num::TryFromIntError;
 
 use async_trait::async_trait;
 use noodles::core::region::Interval as NoodlesInterval;
@@ -100,13 +99,17 @@ impl From<HtsGetError> for io::Error {
 impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
-      err @ (StorageError::InvalidKey(_) | StorageError::InvalidInput(_)) => Self::InvalidInput(format!("{}", err)),
-      err @ StorageError::KeyNotFound(_) => Self::NotFound(format!("{}", err)),
-      err @ StorageError::IoError(_, _) => Self::IoError(format!("{}", err)),
-      err @ (StorageError::TicketServerError(_) | StorageError::InvalidUri(_)
-      | StorageError::InvalidAddress(_) | StorageError::InternalError(_)) => Self::InternalError(format!("{}", err)),
+      err @ (StorageError::InvalidKey(_) | StorageError::InvalidInput(_)) => {
+        Self::InvalidInput(err.to_string())
+      }
+      err @ StorageError::KeyNotFound(_) => Self::NotFound(err.to_string()),
+      err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
+      err @ (StorageError::TicketServerError(_)
+      | StorageError::InvalidUri(_)
+      | StorageError::InvalidAddress(_)
+      | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
       #[cfg(feature = "s3-storage")]
-      err @ StorageError::AwsS3Error(_, _) => Self::IoError(format!("{}", err)),
+      err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
     }
   }
 }
@@ -232,14 +235,19 @@ impl Interval {
       .map(convert_fn)
       .transpose()?
       .map(|value| {
-        usize::try_from(value)
-          .map_err(|err| HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err)))
+        usize::try_from(value).map_err(|err| {
+          HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err))
+        })
       })
       .transpose()?
       .unwrap_or_else(default);
 
-    Position::try_from(value)
-      .map_err(|err| HtsGetError::InvalidRange(format!("could not convert `{}` into `Position`: {}", value, err)))
+    Position::try_from(value).map_err(|err| {
+      HtsGetError::InvalidRange(format!(
+        "could not convert `{}` into `Position`: {}",
+        value, err
+      ))
+    })
   }
 }
 

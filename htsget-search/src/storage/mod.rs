@@ -151,7 +151,7 @@ impl From<&BytesRange> for String {
     if ranges.start.is_none() && ranges.end.is_none() {
       return "".to_string();
     }
-    format!("{}", ranges)
+    ranges.to_string()
   }
 }
 

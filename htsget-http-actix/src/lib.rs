@@ -109,7 +109,7 @@ mod tests {
       Self(
         self
           .0
-          .method(method.into().parse().expect("Expected valid method.")),
+          .method(method.into().parse().expect("expected valid method")),
       )
     }
   }

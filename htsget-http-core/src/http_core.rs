@@ -70,7 +70,6 @@ pub async fn get_response_for_post_request(
   }
 
   Ok(JsonResponse::from(
-    // It's okay to unwrap because there will be at least one response
-    merge_responses(responses).expect("expected valid response"),
+    merge_responses(responses).expect("expected at least one response"),
   ))
 }

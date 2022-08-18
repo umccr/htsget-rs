@@ -148,5 +148,6 @@ fn fill_out_service_info_json(
   if let Some(environment) = &config.environment {
     service_info_json.environment = environment.clone();
   }
+
   service_info_json
 }

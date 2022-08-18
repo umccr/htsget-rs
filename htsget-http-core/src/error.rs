@@ -10,21 +10,21 @@ pub type Result<T> = core::result::Result<T, HtsGetError>;
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
-  #[error("invalid authentication: {0}")]
+  #[error("InvalidAuthentication")]
   InvalidAuthentication(String),
-  #[error("permission denied: {0}")]
+  #[error("PermissionDenied")]
   PermissionDenied(String),
-  #[error("not found: {0}")]
+  #[error("NotFound")]
   NotFound(String),
-  #[error("payload too large: {0}")]
+  #[error("PayloadTooLarge")]
   PayloadTooLarge(String),
-  #[error("unsupported format: {0}")]
+  #[error("UnsupportedFormat")]
   UnsupportedFormat(String),
-  #[error("invalid input: {0}")]
+  #[error("InvalidInput")]
   InvalidInput(String),
-  #[error("invalid range: {0}")]
+  #[error("InvalidRange")]
   InvalidRange(String),
-  #[error("internal error: {0}")]
+  #[error("InternalError")]
   InternalError(String),
 }
 
@@ -47,32 +47,37 @@ impl HtsGetError {
   /// status code
   pub fn to_json_representation(&self) -> (WrappedHtsGetError, StatusCode) {
     let (err, status_code) = match self {
-      err @ HtsGetError::InvalidAuthentication(_) => (err, StatusCode::UNAUTHORIZED),
-      err @ HtsGetError::PermissionDenied(_) => (err, StatusCode::FORBIDDEN),
-      err @ HtsGetError::NotFound(_) => (err, StatusCode::NOT_FOUND),
-      err @ HtsGetError::PayloadTooLarge(_) => (err, StatusCode::PAYLOAD_TOO_LARGE),
-      err @ (HtsGetError::UnsupportedFormat(_)
-      | HtsGetError::InvalidInput(_)
-      | HtsGetError::InvalidRange(_)) => (err, StatusCode::BAD_REQUEST),
-      err @ HtsGetError::InternalError(_) => (err, StatusCode::INTERNAL_SERVER_ERROR),
+      HtsGetError::InvalidAuthentication(err) => (err, StatusCode::UNAUTHORIZED),
+      HtsGetError::PermissionDenied(err) => (err, StatusCode::FORBIDDEN),
+      HtsGetError::NotFound(err) => (err, StatusCode::NOT_FOUND),
+      HtsGetError::PayloadTooLarge(err) => (err, StatusCode::PAYLOAD_TOO_LARGE),
+      HtsGetError::UnsupportedFormat(err)
+      | HtsGetError::InvalidInput(err)
+      | HtsGetError::InvalidRange(err) => (err, StatusCode::BAD_REQUEST),
+      HtsGetError::InternalError(err) => (err, StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    (WrappedHtsGetError { htsget: JsonHtsGetError {
-      error: self.to_string(),
-      message: format!("{}", err),
-    }}, status_code)
+    (
+      WrappedHtsGetError {
+        htsget: JsonHtsGetError {
+          error: self.to_string(),
+          message: err.to_string(),
+        },
+      },
+      status_code,
+    )
   }
 }
 
 impl From<HtsGetSearchError> for HtsGetError {
   fn from(error: HtsGetSearchError) -> Self {
     match error {
-      err @ HtsGetSearchError::NotFound(_) => Self::NotFound(format!("{}", err)),
-      err @ HtsGetSearchError::UnsupportedFormat(_) => Self::UnsupportedFormat(format!("{}", err)),
-      err @ HtsGetSearchError::InvalidInput(_) => Self::InvalidInput(format!("{}", err)),
-      err @ HtsGetSearchError::InvalidRange(_) => Self::InvalidRange(format!("{}", err)),
-      err @ (HtsGetSearchError::IoError(_) | HtsGetSearchError::ParseError(_)) => Self::NotFound(format!("{}", err)),
-      err @ HtsGetSearchError::InternalError(_) => Self::InternalError(format!("{}", err)),
+      HtsGetSearchError::NotFound(err) => Self::NotFound(err),
+      HtsGetSearchError::UnsupportedFormat(err) => Self::UnsupportedFormat(err),
+      HtsGetSearchError::InvalidInput(err) => Self::InvalidInput(err),
+      HtsGetSearchError::InvalidRange(err) => Self::InvalidRange(err),
+      HtsGetSearchError::IoError(err) | HtsGetSearchError::ParseError(err) => Self::NotFound(err),
+      HtsGetSearchError::InternalError(err) => Self::InternalError(err),
     }
   }
 }
