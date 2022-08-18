@@ -205,12 +205,12 @@ mod tests {
   impl TestRequest for LambdaTestRequest<Request> {
     fn insert_header(mut self, header: Header<impl Into<String>>) -> Self {
       self.0.headers_mut().insert(
-        HeaderName::from_str(&header.name.into()).expect("Expected valid header name."),
+        HeaderName::from_str(&header.name.into()).expect("expected valid header name"),
         header
           .value
           .into()
           .parse()
-          .expect("Expected valid header value."),
+          .expect("expected valid header value"),
       );
       self
     }
@@ -222,7 +222,7 @@ mod tests {
 
     fn uri(mut self, uri: impl Into<String>) -> Self {
       let uri = uri.into();
-      *self.0.uri_mut() = uri.parse().expect("Expected valid uri.");
+      *self.0.uri_mut() = uri.parse().expect("expected valid uri");
       if let Some(query) = self.0.uri().query().map(|s| s.to_string()) {
         Self(
           self
@@ -230,7 +230,7 @@ mod tests {
             .with_query_string_parameters(
               query
                 .parse::<QueryMap>()
-                .expect("Expected valid query parameters."),
+                .expect("expected valid query parameters"),
             )
             .with_raw_http_path(&uri),
         )
@@ -240,7 +240,7 @@ mod tests {
     }
 
     fn method(mut self, method: impl Into<String>) -> Self {
-      *self.0.method_mut() = method.into().parse().expect("Expected valid method.");
+      *self.0.method_mut() = method.into().parse().expect("expected valid method");
       self
     }
   }

@@ -79,7 +79,7 @@ impl HttpTicketFormatter {
     match (cert, key) {
       (Some(cert), Some(key)) => Ok(Self::new_with_tls(addr, cert, key)),
       (Some(_), None) | (None, Some(_)) => Err(TicketServerError(
-        "Both the cert and key must be provided for the ticket server.".to_string(),
+        "both the cert and key must be provided for the ticket server".to_string(),
       )),
       (None, None) => Ok(Self::new(addr)),
     }
@@ -128,7 +128,7 @@ impl TicketServer {
   ) -> Result<TicketServer> {
     let listener = TcpListener::bind(addr)
       .await
-      .map_err(|err| IoError("Failed to bind ticket server addr".to_string(), err))?;
+      .map_err(|err| IoError("binding ticket server addr".to_string(), err))?;
     let listener = AddrIncoming::from_listener(listener)?;
 
     info!(address = ?listener.local_addr(), "Htsget ticket server address bound to");
@@ -158,7 +158,7 @@ impl TicketServer {
         loop {
           let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
             .await
-            .ok_or_else(|| TicketServerError("Poll accept failed".to_string()))?
+            .ok_or_else(|| TicketServerError("poll accept failed".to_string()))?
             .map_err(|err| TicketServerError(err.to_string()))?;
           let acceptor = acceptor.clone();
 
@@ -184,19 +184,19 @@ impl TicketServer {
 
   fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
     let mut key_reader = BufReader::new(
-      File::open(key).map_err(|err| IoError("Failed to open key file".to_string(), err))?,
+      File::open(key).map_err(|err| IoError("failed to open key file".to_string(), err))?,
     );
     let mut cert_reader = BufReader::new(
-      File::open(cert).map_err(|err| IoError("Failed to open cert file".to_string(), err))?,
+      File::open(cert).map_err(|err| IoError("failed to open cert file".to_string(), err))?,
     );
 
     let key = PrivateKey(
       pkcs8_private_keys(&mut key_reader)
-        .map_err(|err| IoError("Failed to read private keys".to_string(), err))?
+        .map_err(|err| IoError("failed to read private keys".to_string(), err))?
         .remove(0),
     );
     let certs = certs(&mut cert_reader)
-      .map_err(|err| IoError("Failed to read certificate".to_string(), err))?
+      .map_err(|err| IoError("failed to read certificate".to_string(), err))?
       .into_iter()
       .map(Certificate)
       .collect();

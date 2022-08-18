@@ -268,7 +268,7 @@ where
         let record_end = record_start
           .checked_add(record.alignment_span())
           .ok_or_else(|| {
-            HtsGetError::invalid_input("Failed to add record alignment span to Position.")
+            HtsGetError::invalid_input("adding record alignment span to `Position`")
           })?;
 
         let interval = seq_range.into_one_based(|| ref_seq.len().get())?.into();

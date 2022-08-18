@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io;
 use std::io::ErrorKind;
+use std::num::TryFromIntError;
 
 use async_trait::async_trait;
 use noodles::core::region::Interval as NoodlesInterval;
@@ -38,25 +39,25 @@ pub trait HtsGet {
 
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
-  #[error("Not found: {0}")]
+  #[error("not found: {0}")]
   NotFound(String),
 
-  #[error("Unsupported Format: {0}")]
+  #[error("unsupported Format: {0}")]
   UnsupportedFormat(String),
 
-  #[error("Invalid input: {0}")]
+  #[error("invalid input: {0}")]
   InvalidInput(String),
 
-  #[error("Invalid range: {0}")]
+  #[error("invalid range: {0}")]
   InvalidRange(String),
 
-  #[error("IO error: {0}")]
+  #[error("io error: {0}")]
   IoError(String),
 
-  #[error("Parsing error: {0}")]
+  #[error("parsing error: {0}")]
   ParseError(String),
 
-  #[error("Internal error: {0}")]
+  #[error("internal error: {0}")]
   InternalError(String),
 }
 
@@ -99,22 +100,13 @@ impl From<HtsGetError> for io::Error {
 impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
-      StorageError::KeyNotFound(key) => {
-        Self::NotFound(format!("Key not found in storage: {}", key))
-      }
-      StorageError::InvalidKey(key) => {
-        Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
-      }
-      StorageError::IoError(_, _) => Self::IoError(format!("Io Error: {:?}", err)),
+      err @ (StorageError::InvalidKey(_) | StorageError::InvalidInput(_)) => Self::InvalidInput(format!("{}", err)),
+      err @ StorageError::KeyNotFound(_) => Self::NotFound(format!("{}", err)),
+      err @ StorageError::IoError(_, _) => Self::IoError(format!("{}", err)),
+      err @ (StorageError::TicketServerError(_) | StorageError::InvalidUri(_)
+      | StorageError::InvalidAddress(_) | StorageError::InternalError(_)) => Self::InternalError(format!("{}", err)),
       #[cfg(feature = "s3-storage")]
-      StorageError::AwsS3Error(_, _) => Self::IoError(format!("AWS S3 error: {:?}", err)),
-      StorageError::TicketServerError(e) => {
-        Self::InternalError(format!("Error using url response server: {}", e))
-      }
-      StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e)),
-      StorageError::InvalidUri(e) => Self::InternalError(format!("Invalid uri produced: {}", e)),
-      StorageError::InvalidAddress(e) => Self::InternalError(format!("Invalid address: {}", e)),
-      StorageError::InternalError(e) => Self::InternalError(e),
+      err @ StorageError::AwsS3Error(_, _) => Self::IoError(format!("{}", err)),
     }
   }
 }
@@ -223,7 +215,7 @@ impl Interval {
         || Self::MIN_SEQ_POSITION,
         |value| {
           value.checked_add(1).ok_or_else(|| {
-            HtsGetError::InvalidRange(format!("Could not convert {} to 1-based position.", value))
+            HtsGetError::InvalidRange(format!("could not convert {} to 1-based position.", value))
           })
         },
       )?..=Self::convert_position(self.end, max_seq_position, Ok)?,
@@ -241,13 +233,13 @@ impl Interval {
       .transpose()?
       .map(|value| {
         usize::try_from(value)
-          .map_err(|_| HtsGetError::InvalidRange("Could not convert u32 to usize.".to_string()))
+          .map_err(|err| HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err)))
       })
       .transpose()?
       .unwrap_or_else(default);
 
     Position::try_from(value)
-      .map_err(|_| HtsGetError::InvalidRange(format!("Could not convert {} into Position.", value)))
+      .map_err(|err| HtsGetError::InvalidRange(format!("could not convert `{}` into `Position`: {}", value, err)))
   }
 }
 
@@ -285,7 +277,7 @@ impl Format {
     match self {
       Format::Bam => Ok(format!("{}.bam.gzi", id)),
       Format::Cram => Err(HtsGetError::InternalError(
-        "CRAM does not support GZI.".to_string(),
+        "CRAM does not support GZI".to_string(),
       )),
       Format::Vcf => Ok(format!("{}.vcf.gz.gzi", id)),
       Format::Bcf => Ok(format!("{}.bcf.gzi", id)),

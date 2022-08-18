@@ -56,7 +56,7 @@ pub(crate) fn match_endpoints_get_request(
     (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
     (_, Some(s)) => {
       return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format for this endpoint.",
+        "{} isn't a supported format for this endpoint",
         s
       )))
     }
@@ -75,7 +75,7 @@ pub(crate) fn match_endpoints_post_request(
     (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
     (_, Some(s)) => {
       return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format for this endpoint.",
+        "{} isn't a supported format for this endpoint",
         s
       )))
     }

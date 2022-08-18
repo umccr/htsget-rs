@@ -97,7 +97,7 @@ where
       }));
     }
     let (ref_seq_index, (_, contig)) = find_first(
-      &format!("Reference name not found in the header: {}", reference_name,),
+      &format!("reference name not found in header: {}", reference_name,),
       futures,
     )
     .await?;
@@ -107,7 +107,7 @@ where
         .len()
         .map(u32::try_from)
         .transpose()
-        .map_err(|_| HtsGetError::invalid_input("Failed to convert contig length to u32."))?,
+        .map_err(|err| HtsGetError::invalid_input(format!("converting contig length to `u32`: {}", err)))?,
       value => value,
     };
 

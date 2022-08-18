@@ -12,10 +12,10 @@ impl QueryBuilder {
   pub fn new(id: Option<impl Into<String>>, format: Option<impl Into<String>>) -> Result<Self> {
     let format = format
       .map(Into::into)
-      .ok_or_else(|| HtsGetError::InvalidInput("Format needed".to_string()))?;
+      .ok_or_else(|| HtsGetError::InvalidInput("format required".to_string()))?;
     Ok(Self {
       query: Query::new(
-        id.ok_or_else(|| HtsGetError::InvalidInput("ID needed".to_string()))?,
+        id.ok_or_else(|| HtsGetError::InvalidInput("ID required".to_string()))?,
         match format.as_str() {
           "BAM" => Format::Bam,
           "CRAM" => Format::Cram,
@@ -23,7 +23,7 @@ impl QueryBuilder {
           "BCF" => Format::Bcf,
           _ => {
             return Err(HtsGetError::UnsupportedFormat(format!(
-              "The {} format isn't supported",
+              "`{}`isn't supported",
               format
             )))
           }
@@ -43,7 +43,7 @@ impl QueryBuilder {
       Some(class) if class == "header" => Class::Header,
       Some(class) => {
         return Err(HtsGetError::InvalidInput(format!(
-          "Invalid class: {}",
+          "invalid class `{}`",
           class
         )))
       }
@@ -67,7 +67,7 @@ impl QueryBuilder {
       .map(Into::into)
       .map(|start| {
         start.parse::<u32>().map_err(|err| {
-          HtsGetError::InvalidInput(format!("{}: '{}' isn't a valid start", err, start))
+          HtsGetError::InvalidInput(format!("`{}` isn't a valid start: {}", start, err))
         })
       })
       .transpose()?;
@@ -76,7 +76,7 @@ impl QueryBuilder {
       .map(|end| {
         end
           .parse::<u32>()
-          .map_err(|err| HtsGetError::InvalidInput(format!("{}: '{}' isn't a valid end", err, end)))
+          .map_err(|err| HtsGetError::InvalidInput(format!("`{}` isn't a valid end: {}", end, err)))
       })
       .transpose()?;
     self.with_range_from_u32(start, end)
@@ -93,7 +93,7 @@ impl QueryBuilder {
       && (self.query.reference_name.is_none() || self.query.reference_name.clone().unwrap() == "*")
     {
       return Err(HtsGetError::InvalidInput(
-        "Can't use range whitout specifying the reference name or with \"*\"".to_string(),
+        "reference name must be specified with start or end range".to_string(),
       ));
     }
     if self.query.interval.start.is_some()
@@ -101,7 +101,7 @@ impl QueryBuilder {
       && self.query.interval.start.unwrap() > self.query.interval.end.unwrap()
     {
       return Err(HtsGetError::InvalidRange(format!(
-        "end({}) is greater than start({})",
+        "end is greater than start (`{}` > `{}`)",
         self.query.interval.end.unwrap(),
         self.query.interval.start.unwrap()
       )));
@@ -148,7 +148,7 @@ impl QueryBuilder {
       let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
       if tags.iter().any(|tag| notags.contains(tag)) {
         return Err(HtsGetError::InvalidInput(
-          "Tags and notags can't intersect".to_string(),
+          "tags and notags can't intersect".to_string(),
         ));
       }
       self.query = self.query.with_tags(Tags::List(tags));

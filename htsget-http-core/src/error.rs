@@ -10,21 +10,21 @@ pub type Result<T> = core::result::Result<T, HtsGetError>;
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
 #[derive(Error, Debug, PartialEq)]
 pub enum HtsGetError {
-  #[error("InvalidAuthentication")]
+  #[error("invalid authentication: {0}")]
   InvalidAuthentication(String),
-  #[error("PermissionDenied")]
+  #[error("permission denied: {0}")]
   PermissionDenied(String),
-  #[error("NotFound")]
+  #[error("not found: {0}")]
   NotFound(String),
-  #[error("PayloadTooLarge")]
+  #[error("payload too large: {0}")]
   PayloadTooLarge(String),
-  #[error("UnsupportedFormat")]
+  #[error("unsupported format: {0}")]
   UnsupportedFormat(String),
-  #[error("InvalidInput")]
+  #[error("invalid input: {0}")]
   InvalidInput(String),
-  #[error("InvalidRange")]
+  #[error("invalid range: {0}")]
   InvalidRange(String),
-  #[error("Internal error")]
+  #[error("internal error: {0}")]
   InternalError(String),
 }
 
@@ -38,49 +38,41 @@ pub struct JsonHtsGetError {
 
 /// The "htsget" container wrapping the actual error response above
 #[derive(Serialize)]
-pub struct ContainerHtsGetError {
+pub struct WrappedHtsGetError {
   htsget: JsonHtsGetError,
 }
 
 impl HtsGetError {
   /// Allows converting the error to JSON and the correspondent
   /// status code
-  pub fn to_json_representation(&self) -> (ContainerHtsGetError, StatusCode) {
-    let (message, status_code) = match self {
-      HtsGetError::InvalidAuthentication(s) => (s, StatusCode::UNAUTHORIZED),
-      HtsGetError::PermissionDenied(s) => (s, StatusCode::FORBIDDEN),
-      HtsGetError::NotFound(s) => (s, StatusCode::NOT_FOUND),
-      HtsGetError::PayloadTooLarge(s) => (s, StatusCode::PAYLOAD_TOO_LARGE),
-      HtsGetError::UnsupportedFormat(s)
-      | HtsGetError::InvalidInput(s)
-      | HtsGetError::InvalidRange(s) => (s, StatusCode::BAD_REQUEST),
-      HtsGetError::InternalError(s) => (s, StatusCode::INTERNAL_SERVER_ERROR),
+  pub fn to_json_representation(&self) -> (WrappedHtsGetError, StatusCode) {
+    let (err, status_code) = match self {
+      err @ HtsGetError::InvalidAuthentication(_) => (err, StatusCode::UNAUTHORIZED),
+      err @ HtsGetError::PermissionDenied(_) => (err, StatusCode::FORBIDDEN),
+      err @ HtsGetError::NotFound(_) => (err, StatusCode::NOT_FOUND),
+      err @ HtsGetError::PayloadTooLarge(_) => (err, StatusCode::PAYLOAD_TOO_LARGE),
+      err @ (HtsGetError::UnsupportedFormat(_)
+      | HtsGetError::InvalidInput(_)
+      | HtsGetError::InvalidRange(_)) => (err, StatusCode::BAD_REQUEST),
+      err @ HtsGetError::InternalError(_) => (err, StatusCode::INTERNAL_SERVER_ERROR),
     };
 
-    // Actual error and message...
-    let inner_json = JsonHtsGetError {
+    (WrappedHtsGetError { htsget: JsonHtsGetError {
       error: self.to_string(),
-      message: message.clone(),
-    };
-
-    // ...and "htsget" wrapping
-    (ContainerHtsGetError { htsget: inner_json }, status_code)
+      message: format!("{}", err),
+    }}, status_code)
   }
 }
 
 impl From<HtsGetSearchError> for HtsGetError {
   fn from(error: HtsGetSearchError) -> Self {
     match error {
-      HtsGetSearchError::NotFound(s) => Self::NotFound(s),
-      HtsGetSearchError::UnsupportedFormat(s) => Self::UnsupportedFormat(s),
-      HtsGetSearchError::InvalidInput(s) => Self::InvalidInput(s),
-      HtsGetSearchError::InvalidRange(s) => Self::InvalidRange(s),
-      HtsGetSearchError::IoError(s) => Self::NotFound(format!("There was an IO error: {}", s)),
-      HtsGetSearchError::ParseError(s) => Self::NotFound(format!(
-        "The requested content couldn't be parsed correctly {}",
-        s
-      )),
-      HtsGetSearchError::InternalError(s) => Self::InternalError(s),
+      err @ HtsGetSearchError::NotFound(_) => Self::NotFound(format!("{}", err)),
+      err @ HtsGetSearchError::UnsupportedFormat(_) => Self::UnsupportedFormat(format!("{}", err)),
+      err @ HtsGetSearchError::InvalidInput(_) => Self::InvalidInput(format!("{}", err)),
+      err @ HtsGetSearchError::InvalidRange(_) => Self::InvalidRange(format!("{}", err)),
+      err @ (HtsGetSearchError::IoError(_) | HtsGetSearchError::ParseError(_)) => Self::NotFound(format!("{}", err)),
+      err @ HtsGetSearchError::InternalError(_) => Self::InternalError(format!("{}", err)),
     }
   }
 }
