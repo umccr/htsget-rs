@@ -53,33 +53,33 @@ pub trait UrlFormatter {
 
 #[derive(Error, Debug)]
 pub enum StorageError {
-  #[error("Invalid key: {0}")]
+  #[error("wrong key derived from ID: `{0}`")]
   InvalidKey(String),
 
-  #[error("Key not found: {0}")]
+  #[error("key not found in storage: `{0}`")]
   KeyNotFound(String),
 
-  #[error("Io error: {0} {1}")]
+  #[error("{0}: {1}")]
   IoError(String, io::Error),
 
-  #[cfg(feature = "s3-storage")]
-  #[error("Aws error: {0}, with key: {1}")]
-  AwsS3Error(String, String),
-
-  #[error("Url response ticket server error: {0}")]
+  #[error("url response ticket server error: {0}")]
   TicketServerError(String),
 
-  #[error("Invalid input: {0}")]
+  #[error("invalid input: {0}")]
   InvalidInput(String),
 
-  #[error("Invalid uri: {0}")]
+  #[error("invalid uri: {0}")]
   InvalidUri(String),
 
-  #[error("Invalid address: {0}")]
+  #[error("invalid address: {0}")]
   InvalidAddress(AddrParseError),
 
-  #[error("Internal error: {0}")]
+  #[error("internal error: {0}")]
   InternalError(String),
+
+  #[cfg(feature = "s3-storage")]
+  #[error("aws error: {0}, with key: `{1}`")]
+  AwsS3Error(String, String),
 }
 
 impl From<StorageError> for io::Error {

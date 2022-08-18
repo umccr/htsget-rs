@@ -103,7 +103,7 @@ where
     }
     let ref_seq_index = find_first(
       &format!(
-        "Reference name not found in the TBI file: {}",
+        "reference name not found in TBI file: {}",
         reference_name,
       ),
       futures,
@@ -114,7 +114,7 @@ where
       None => maybe_len
         .map(u32::try_from)
         .transpose()
-        .map_err(|_| HtsGetError::invalid_input("Failed to convert contig length to u32."))?,
+        .map_err(|err| HtsGetError::invalid_input(format!("converting contig length to u32: {}", err)))?,
       value => value,
     };
 

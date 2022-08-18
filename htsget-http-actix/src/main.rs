@@ -23,7 +23,7 @@ async fn main() -> std::io::Result<()> {
     StorageType::LocalStorage => local_storage_server(config).await,
     #[cfg(feature = "s3-storage")]
     StorageType::AwsS3Storage => s3_storage_server(config).await,
-    _ => Err(Error::new(ErrorKind::Other, "Unsupported storage type")),
+    _ => Err(Error::new(ErrorKind::Other, "unsupported storage type")),
   }
 }
 

@@ -81,9 +81,9 @@ fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) ->
 
 fn format_url(url: &str, path: &str) -> reqwest::Url {
   reqwest::Url::parse(url)
-    .expect("Invalid url")
+    .expect("invalid url")
     .join(path)
-    .expect("Invalid url")
+    .expect("invalid url")
 }
 
 fn bench_pair(

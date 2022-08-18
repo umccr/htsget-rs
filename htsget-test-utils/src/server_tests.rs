@@ -308,5 +308,5 @@ pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
 /// Get the event associated with the file.
 pub fn get_test_file<P: AsRef<Path>>(path: P) -> String {
   let path = default_dir().join("data").join(path);
-  fs::read_to_string(path).expect("Failed to read file.")
+  fs::read_to_string(path).expect("failed to read file")
 }

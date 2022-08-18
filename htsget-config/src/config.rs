@@ -42,11 +42,11 @@ The next variables are used to configure the info for the service-info endpoints
 const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
 
 fn default_localstorage_addr() -> SocketAddr {
-  "127.0.0.1:8081".parse().expect("Expected valid address.")
+  "127.0.0.1:8081".parse().expect("expected valid address")
 }
 
 fn default_addr() -> SocketAddr {
-  "127.0.0.1:8080".parse().expect("Expected valid address.")
+  "127.0.0.1:8080".parse().expect("expected valid address")
 }
 
 fn default_path() -> PathBuf {
@@ -121,7 +121,7 @@ impl Config {
       .map_err(|err| {
         std::io::Error::new(
           ErrorKind::Other,
-          format!("Config not properly set: {}", err),
+          format!("config not properly set: {}", err),
         )
       });
     info!(config = ?config, "Config created from environment variables.");

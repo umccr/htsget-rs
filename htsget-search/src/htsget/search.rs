@@ -6,6 +6,7 @@
 //!
 
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -111,6 +112,7 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
   Header: FromStr + Send + Sync,
+  <Header as FromStr>::Err: Display,
   Index: Send + Sync,
 {
   /// Get reference sequence from name.
@@ -154,7 +156,7 @@ where
 
     let byte_ranges = match maybe_ref_seq {
       None => Err(HtsGetError::not_found(format!(
-        "Reference name not found: {}",
+        "reference name not found: {}",
         reference_name
       ))),
       Some((bam_ref_seq_idx, _, bam_ref_seq)) => {
@@ -188,6 +190,7 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
   Header: FromStr + Send + Sync,
+  <Header as FromStr>::Err: Display,
   Reader: Send,
   Self: Sync + Send,
 {
@@ -214,9 +217,7 @@ where
   async fn position_at_eof(&self, id: &str, format: &Format) -> Result<u64> {
     let file_size = self
       .get_storage()
-      .head(format.fmt_file(id))
-      .await
-      .map_err(|_| HtsGetError::io_error("Reading file size"))?;
+      .head(format.fmt_file(id)).await?;
     Ok(
       file_size
         - u64::try_from(self.get_eof_marker().len())
@@ -232,7 +233,7 @@ where
       .await?;
     Self::read_index_inner(storage)
       .await
-      .map_err(|err| HtsGetError::io_error(format!("Reading {} index: {}", self.get_format(), err)))
+      .map_err(|err| HtsGetError::io_error(format!("reading {} index: {}", self.get_format(), err)))
   }
 
   /// Search based on the query.
@@ -243,7 +244,7 @@ where
         let format = self.get_format();
         if format != query.format {
           return Err(HtsGetError::unsupported_format(format!(
-            "Using {} search, but query contains {} format.",
+            "using `{}` search, but query contains `{}` format",
             format, query.format
           )));
         }
@@ -331,10 +332,10 @@ where
     Self::read_raw_header(&mut reader)
       .await
       .map_err(|err| {
-        HtsGetError::io_error(format!("Reading {} header: {}", self.get_format(), err))
+        HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
       })?
       .parse::<Header>()
-      .map_err(|_| HtsGetError::io_error(format!("Parsing {} header", self.get_format())))
+      .map_err(|err| HtsGetError::io_error(format!("parsing `{}` header: {}", self.get_format(), err)))
   }
 }
 
@@ -357,6 +358,7 @@ where
   ReferenceSequence: BinningIndexReferenceSequence,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   Header: FromStr + Send + Sync,
+  <Header as FromStr>::Err: Display,
 {
   type ReferenceSequenceHeader: Sync;
 
@@ -408,7 +410,7 @@ where
           .interval
           .into_one_based(|| Self::max_seq_position(reference_sequence))?,
       )
-      .map_err(|err| HtsGetError::InvalidRange(format!("Failed to query with range: {}", err)))?;
+      .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
     let gzi_data = self
       .get_storage()
@@ -496,6 +498,7 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
   Header: FromStr + Send + Sync,
+  <Header as FromStr>::Err: Display,
   ReferenceSequence: BinningIndexReferenceSequence + Sync,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
@@ -517,7 +520,7 @@ where
       .next()
       .ok_or_else(|| {
         HtsGetError::io_error(format!(
-          "Failed to find header offset in {} index",
+          "finding header offset in `{}` index",
           self.get_format()
         ))
       })

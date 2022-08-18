@@ -18,7 +18,7 @@ async fn main() -> Result<(), Error> {
     StorageType::LocalStorage => local_storage_server(config).await,
     #[cfg(feature = "s3-storage")]
     StorageType::AwsS3Storage => s3_storage_server(config).await,
-    _ => Err("Unsupported storage type".into()),
+    _ => Err("unsupported storage type".into()),
   }
 }
 

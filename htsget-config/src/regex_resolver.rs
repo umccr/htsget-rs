@@ -18,7 +18,7 @@ pub struct RegexResolver {
 
 impl Default for RegexResolver {
   fn default() -> Self {
-    Self::new(".*", "$0").expect("Expected valid resolver.")
+    Self::new(".*", "$0").expect("expected valid resolver")
   }
 }
 
