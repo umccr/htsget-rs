@@ -49,7 +49,7 @@ impl TryFrom<Error> for FormatJson<Response<Body>> {
       Response::builder()
         .status(StatusCode::INTERNAL_SERVER_ERROR)
         .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
-        .body(Body::from(format!("{}", error)))?,
+        .body(Body::from(error.to_string()))?,
     ))
   }
 }

@@ -215,9 +215,7 @@ where
 
   /// Get the position at the end of file marker.
   async fn position_at_eof(&self, id: &str, format: &Format) -> Result<u64> {
-    let file_size = self
-      .get_storage()
-      .head(format.fmt_file(id)).await?;
+    let file_size = self.get_storage().head(format.fmt_file(id)).await?;
     Ok(
       file_size
         - u64::try_from(self.get_eof_marker().len())
@@ -335,7 +333,9 @@ where
         HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
       })?
       .parse::<Header>()
-      .map_err(|err| HtsGetError::io_error(format!("parsing `{}` header: {}", self.get_format(), err)))
+      .map_err(|err| {
+        HtsGetError::parse_error(format!("parsing `{}` header: {}", self.get_format(), err))
+      })
   }
 }
 

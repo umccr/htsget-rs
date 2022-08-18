@@ -103,11 +103,9 @@ where
     .await?;
 
     query.interval.end = match query.interval.end {
-      None => contig
-        .len()
-        .map(u32::try_from)
-        .transpose()
-        .map_err(|err| HtsGetError::invalid_input(format!("converting contig length to `u32`: {}", err)))?,
+      None => contig.len().map(u32::try_from).transpose().map_err(|err| {
+        HtsGetError::invalid_input(format!("converting contig length to `u32`: {}", err))
+      })?,
       value => value,
     };
 

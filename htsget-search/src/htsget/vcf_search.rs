@@ -102,19 +102,15 @@ where
       }));
     }
     let ref_seq_index = find_first(
-      &format!(
-        "reference name not found in TBI file: {}",
-        reference_name,
-      ),
+      &format!("reference name not found in TBI file: {}", reference_name,),
       futures,
     )
     .await?;
 
     query.interval.end = match query.interval.end {
-      None => maybe_len
-        .map(u32::try_from)
-        .transpose()
-        .map_err(|err| HtsGetError::invalid_input(format!("converting contig length to u32: {}", err)))?,
+      None => maybe_len.map(u32::try_from).transpose().map_err(|err| {
+        HtsGetError::invalid_input(format!("converting contig length to u32: {}", err))
+      })?,
       value => value,
     };
 
