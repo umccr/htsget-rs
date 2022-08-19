@@ -70,12 +70,8 @@ where
   Index: Send + Sync,
 {
   /// This returns mapped and placed unmapped ranges.
-  async fn get_byte_ranges_for_all(
-    &self,
-    id: String,
-    format: Format,
-    index: &Index,
-  ) -> Result<Vec<BytesPosition>>;
+  async fn get_byte_ranges_for_all(&self, id: String, format: Format)
+    -> Result<Vec<BytesPosition>>;
 
   /// Get the offset in the file of the end of the header.
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
@@ -236,7 +232,6 @@ where
 
   /// Search based on the query.
   async fn search(&self, query: Query) -> Result<Response> {
-    let index = self.read_index(&query.id).await?;
     match query.class {
       Body => {
         let format = self.get_format();
@@ -248,21 +243,25 @@ where
         }
 
         let id = query.id.clone();
-        let mut byte_ranges = match query.reference_name.as_ref() {
+        let byte_ranges = match query.reference_name.as_ref() {
           None => {
             self
-              .get_byte_ranges_for_all(query.id.clone(), format, &index)
+              .get_byte_ranges_for_all(query.id.clone(), format)
               .await?
           }
           Some(reference_name) => {
+            let index = self.read_index(&query.id).await?;
             let header = self.get_header(&id, &format, &index).await?;
-            self
+
+            let mut byte_ranges = self
               .get_byte_ranges_for_reference_name(reference_name.clone(), &index, &header, query)
-              .await?
+              .await?;
+            byte_ranges.push(self.get_byte_ranges_for_header(&index).await?);
+
+            byte_ranges
           }
         };
 
-        byte_ranges.push(self.get_byte_ranges_for_header(&index).await?);
         let mut blocks = DataBlock::from_bytes_positions(byte_ranges);
         if let Some(eof) = self.get_eof_data_block() {
           blocks.push(eof);
@@ -271,7 +270,9 @@ where
         self.build_response(id, format, blocks).await
       }
       Class::Header => {
+        let index = self.read_index(&query.id).await?;
         let header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
+
         self
           .build_response(
             query.id,
@@ -507,11 +508,10 @@ where
     &self,
     id: String,
     format: Format,
-    _index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    Ok(vec![BytesPosition::default()
-      .with_start(0)
-      .with_end(self.position_at_eof(&id, &format).await?)])
+    Ok(vec![
+      BytesPosition::default().with_end(self.position_at_eof(&id, &format).await?)
+    ])
   }
 
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
