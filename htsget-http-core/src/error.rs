@@ -8,7 +8,7 @@ pub type Result<T> = core::result::Result<T, HtsGetError>;
 
 /// An error type that describes the errors specified in the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum HtsGetError {
   #[error("InvalidAuthentication")]
   InvalidAuthentication(String),

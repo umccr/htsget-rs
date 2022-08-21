@@ -13,10 +13,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
+use noodles::bgzf::gzi;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
-use noodles_bgzf::gzi;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::select;
@@ -297,14 +297,14 @@ where
         DataBlock::Range(range) => {
           let storage = self.get_storage();
           let id = id.clone();
-          storage_futures.push(tokio::spawn(async move {
+          storage_futures.push_back(tokio::spawn(async move {
             storage
               .range_url(format.fmt_file(&id), RangeUrlOptions::from(range))
               .await
           }));
         }
         DataBlock::Data(data, class) => {
-          storage_futures.push(tokio::spawn(async move { Ok(S::data_url(data, class)) }));
+          storage_futures.push_back(tokio::spawn(async move { Ok(S::data_url(data, class)) }));
         }
       }
     }

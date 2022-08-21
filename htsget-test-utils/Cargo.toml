@@ -32,11 +32,11 @@ htsget-http-core = { path = "../htsget-http-core", default-features = false, opt
 htsget-config = { path = "../htsget-config", default-features = false, optional = true }
 htsget-search = { path = "../htsget-search", default-features = false, optional = true }
 
-noodles-vcf = { version = "0.17", features = ["async"], optional = true }
-noodles-bgzf = { version = "0.13", features = ["async"], optional = true }
+noodles-vcf = { version = "0.18", features = ["async"], optional = true }
+noodles-bgzf = { version = "0.14", features = ["async"], optional = true }
 
 reqwest = { version = "0.11", features = ["json", "blocking", "rustls-tls"], optional = true }
-tokio = { version = "1.19", features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1.20", features = ["rt-multi-thread"], optional = true }
 futures = { version = "0.3", optional = true }
 async-trait = { version = "0.1", optional = true }
 http = { version = "0.2", optional = true }

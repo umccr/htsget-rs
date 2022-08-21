@@ -88,7 +88,7 @@ where
       let owned_contig = contig.clone();
       let owned_name = name.to_owned();
       let owned_reference_name = reference_name.clone();
-      futures.push(tokio::spawn(async move {
+      futures.push_back(tokio::spawn(async move {
         if owned_name == owned_reference_name {
           Some((ref_seq_index, (owned_name, owned_contig)))
         } else {
@@ -103,9 +103,13 @@ where
     .await?;
 
     query.interval.end = match query.interval.end {
-      None => contig.len().map(u32::try_from).transpose().map_err(|err| {
-        HtsGetError::invalid_input(format!("converting contig length to `u32`: {}", err))
-      })?,
+      None => contig
+        .length()
+        .map(u32::try_from)
+        .transpose()
+        .map_err(|err| {
+          HtsGetError::invalid_input(format!("converting contig length to `u32`: {}", err))
+        })?,
       value => value,
     };
 

@@ -15,7 +15,7 @@ http = "0.2"
 htsget-search = { path = "../htsget-search", default-features = false }
 htsget-config = { path = "../htsget-config", default-features = false }
 futures = { version = "0.3" }
-tokio = { version = "1.19", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 
 [dev-dependencies]
