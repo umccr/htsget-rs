@@ -202,7 +202,7 @@ where
       let ref_seq_owned = ref_seq.cloned();
       let owned_predicate = predicate.clone();
       let range = interval.clone();
-      futures.push(tokio::spawn(async move {
+      futures.push_back(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
           Self::bytes_ranges_for_record(
             ref_seq_owned.as_ref(),

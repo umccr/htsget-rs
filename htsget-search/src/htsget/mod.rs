@@ -36,7 +36,7 @@ pub trait HtsGet {
   fn are_tag_parameters_effective(&self) -> bool;
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum HtsGetError {
   #[error("not found: {0}")]
   NotFound(String),
@@ -128,7 +128,7 @@ impl From<io::Error> for HtsGetError {
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Query {
   pub id: String,
   pub format: Format,
@@ -199,7 +199,7 @@ impl Query {
 
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Interval {
   pub start: Option<u32>,
   pub end: Option<u32>,
@@ -252,7 +252,7 @@ impl Interval {
 }
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Format {
   Bam,
@@ -310,7 +310,7 @@ impl fmt::Display for Format {
   }
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Class {
   Header,
@@ -318,7 +318,7 @@ pub enum Class {
 }
 
 /// Possible values for the fields parameter.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fields {
   /// Include all fields
   All,
@@ -327,7 +327,7 @@ pub enum Fields {
 }
 
 /// Possible values for the tags parameter.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Tags {
   /// Include all tags
   All,
@@ -336,7 +336,7 @@ pub enum Tags {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
@@ -367,7 +367,7 @@ impl Headers {
 }
 
 /// A url from which raw data can be retrieved.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Url {
   pub url: String,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -401,7 +401,7 @@ impl Url {
 }
 
 /// Wrapped json response for htsget.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JsonResponse {
   pub htsget: Response,
 }
@@ -419,7 +419,7 @@ impl From<Response> for JsonResponse {
 }
 
 /// The response for a HtsGet query.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,

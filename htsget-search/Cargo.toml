@@ -19,26 +19,25 @@ tower = { version = "0.4", features = ["make"] }
 
 # Async
 tokio-rustls = "0.23"
-tokio = { version = "1.19", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.25", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-noodles-bgzf = { git = "https://github.com/zaeleus/noodles", features = ["async"] }
-noodles-bam = { version = "0.20", features = ["async"] }
-noodles-bcf = { version = "0.14", features = ["async"] }
-noodles-cram = { version = "0.17", features = ["async"] }
-noodles-vcf = { version = "0.17", features = ["async"] }
+noodles = { version = "0.26", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bam = { version = "0.21", features = ["async"] }
+noodles-bcf = { version = "0.15", features = ["async"] }
+noodles-cram = { version = "0.18", features = ["async"] }
+noodles-vcf = { version = "0.18", features = ["async"] }
 
 # Amazon S3
-bytes = { version = "1.1", optional = true }
-aws-sdk-s3 = { version = "0.16", optional = true }
-aws-config = { version = "0.46", optional = true }
+bytes = { version = "1.2", optional = true }
+aws-sdk-s3 = { version = "0.17", optional = true }
+aws-config = { version = "0.47", optional = true }
 
-# Error control, tracing, config..
+# Error control, tracing, config
 thiserror = "1.0"
 htsget-config = { path = "../htsget-config", default-features = false }
 tracing = "0.1"
@@ -54,7 +53,7 @@ data-url = "0.1"
 anyhow = "1.0"
 s3-server = "0.2"
 http = "0.2"
-aws-types = { version = "0.46", features = ["hardcoded-credentials"] }
+aws-types = { version = "0.47", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies
 hyper-tls = "0.5"

@@ -2,6 +2,7 @@
 //!
 
 use std::marker::PhantomData;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -14,6 +15,7 @@ use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
 use noodles::vcf::Header;
 use noodles_vcf as vcf;
+use noodles_vcf::header::record::value::map::contig::Name;
 use tokio::io;
 use tokio::io::AsyncRead;
 
@@ -84,8 +86,13 @@ where
   ) -> Result<Vec<BytesPosition>> {
     let maybe_len = header
       .contigs()
-      .get(&reference_name)
-      .and_then(|contig| contig.len());
+      .get(&Name::from_str(&reference_name).map_err(|err| {
+        HtsGetError::invalid_input(format!(
+          "failed to convert reference name to contig name: {}",
+          err
+        ))
+      })?)
+      .and_then(|contig| contig.length());
 
     // We are assuming the order of the names and the references sequences
     // in the index is the same
@@ -93,7 +100,7 @@ where
     for (index, name) in index.header().reference_sequence_names().iter().enumerate() {
       let owned_name = name.to_owned();
       let owned_reference_name = reference_name.clone();
-      futures.push(tokio::spawn(async move {
+      futures.push_back(tokio::spawn(async move {
         if owned_name == owned_reference_name {
           Some(index)
         } else {

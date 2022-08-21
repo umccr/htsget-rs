@@ -92,7 +92,7 @@ impl From<StorageError> for io::Error {
 }
 
 /// A DataBlock is either a range of bytes, or a data blob that gets transformed into a data uri.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DataBlock {
   Range(BytesPosition),
   Data(Vec<u8>, Option<Class>),
@@ -132,7 +132,7 @@ impl DataBlock {
 /// formatted into url responses. The class is set to `Header` for byte positions containing only
 /// header bytes, `Body` for byte positions containing only body bytes, and None for byte positions
 /// with a mix of header and body bytes.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BytesPosition {
   start: Option<u64>,
   end: Option<u64>,

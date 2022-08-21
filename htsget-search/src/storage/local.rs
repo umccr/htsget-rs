@@ -56,13 +56,13 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       .and_then(|path| {
         path
           .starts_with(&self.base_path)
-          .then(|| path)
+          .then_some(path)
           .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
       })
       .and_then(|path| {
         path
           .is_file()
-          .then(|| path)
+          .then_some(path)
           .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
       })
   }

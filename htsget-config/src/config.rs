@@ -54,7 +54,7 @@ fn default_path() -> PathBuf {
 }
 
 /// Specify the storage type to use.
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum StorageType {
   LocalStorage,
