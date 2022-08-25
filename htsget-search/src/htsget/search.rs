@@ -413,6 +413,12 @@ where
       )
       .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
+    if chunks.is_empty() {
+      return Err(HtsGetError::NotFound(
+        "could not find byte ranges for reference sequence".to_string(),
+      ));
+    }
+
     let gzi_data = self
       .get_storage()
       .get(self.get_format().fmt_gzi(&query.id)?, GetOptions::default())
