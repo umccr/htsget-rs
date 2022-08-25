@@ -230,7 +230,9 @@ where
 
     match crai_index.last() {
       None => {
-        byte_ranges.push(BytesPosition::default().with_end(self.position_at_eof(id, format).await?))
+        return Err(HtsGetError::InvalidInput(
+          "No entries found in `CRAI`".to_string(),
+        ));
       }
       Some(last) if predicate(last) => {
         if let Some(range) = Self::bytes_ranges_for_record(
