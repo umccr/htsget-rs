@@ -404,7 +404,7 @@ where
     ref_seq_id: usize,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let chunks = index
+    let mut chunks: Vec<Chunk> = index
       .query(
         ref_seq_id,
         query
@@ -413,28 +413,43 @@ where
       )
       .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
+    if chunks.is_empty() {
+      return Err(HtsGetError::NotFound(
+        "could not find byte ranges for reference sequence".to_string(),
+      ));
+    }
+
+    chunks.sort_unstable_by_key(|a| a.end().compressed());
+
     let gzi_data = self
       .get_storage()
       .get(self.get_format().fmt_gzi(&query.id)?, GetOptions::default())
       .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {
-        let gzi = gzi::AsyncReader::new(gzi_data).read_index().await?;
+        let mut gzi: Vec<u64> = gzi::AsyncReader::new(gzi_data)
+          .read_index()
+          .await?
+          .into_iter()
+          .map(|(compressed, _)| compressed)
+          .collect();
+        gzi.sort_unstable();
+
         self
           .bytes_positions_from_chunks(
-            chunks,
             &query.id,
             &query.format,
-            gzi.into_iter().map(|(compressed, _)| compressed),
+            chunks.into_iter(),
+            gzi.into_iter(),
           )
           .await?
       }
       Err(_) => {
         self
           .bytes_positions_from_chunks(
-            chunks,
             &query.id,
             &query.format,
+            chunks.into_iter(),
             Self::index_positions(index).into_iter(),
           )
           .await?
@@ -444,18 +459,37 @@ where
     Ok(byte_ranges)
   }
 
+  /// Assumes sorted chunks by compressed end position, and sorted positions.
   async fn bytes_positions_from_chunks<'a>(
     &self,
-    chunks: Vec<Chunk>,
     id: &str,
     format: &Format,
+    chunks: impl Iterator<Item = Chunk> + Send + 'a,
     mut positions: impl Iterator<Item = u64> + Send + 'a,
   ) -> Result<Vec<BytesPosition>> {
     let mut end_position: Option<u64> = None;
     let mut bytes_positions = Vec::new();
+    let mut maybe_end: Option<u64> = None;
+
+    let mut append_position = |chunk: Chunk, end: u64| {
+      bytes_positions.push(
+        BytesPosition::default()
+          .with_start(chunk.start().compressed())
+          .with_end(end)
+          .with_class(Body),
+      );
+    };
 
     for chunk in chunks {
-      let maybe_end = positions.find(|pos| pos > &chunk.end().compressed());
+      match maybe_end {
+        Some(pos) if pos > chunk.end().compressed() => {
+          append_position(chunk, pos);
+          continue;
+        }
+        _ => {}
+      }
+
+      maybe_end = positions.find(|pos| pos > &chunk.end().compressed());
 
       let end = match maybe_end {
         None => match end_position {
@@ -469,12 +503,7 @@ where
         Some(pos) => pos,
       };
 
-      bytes_positions.push(
-        BytesPosition::default()
-          .with_start(chunk.start().compressed())
-          .with_end(end)
-          .with_class(Body),
-      )
+      append_position(chunk, end);
     }
 
     Ok(bytes_positions)
