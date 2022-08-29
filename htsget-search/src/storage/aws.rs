@@ -1,5 +1,7 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
+use std::fmt::Debug;
 use std::time::Duration;
+use tracing::instrument;
 
 use async_trait::async_trait;
 use aws_sdk_s3::client::fluent_builders;
@@ -185,7 +187,8 @@ impl Storage for AwsS3Storage {
   type Streamable = StreamReader<ByteStream, Bytes>;
 
   /// Gets the actual s3 object as a buffered reader.
-  async fn get<K: AsRef<str> + Send>(
+  #[instrument(level = "trace", skip(self))]
+  async fn get<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
     options: GetOptions,
@@ -196,7 +199,12 @@ impl Storage for AwsS3Storage {
   }
 
   /// Returns a S3-presigned htsget URL
-  async fn range_url<K: AsRef<str> + Send>(&self, key: K, options: RangeUrlOptions) -> Result<Url> {
+  #[instrument(level = "trace", skip(self))]
+  async fn range_url<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: RangeUrlOptions,
+  ) -> Result<Url> {
     let key = key.as_ref();
     let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
     let url = options.apply(Url::new(presigned_url));
@@ -205,7 +213,8 @@ impl Storage for AwsS3Storage {
   }
 
   /// Returns the size of the S3 object in bytes.
-  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
+  #[instrument(level = "trace", skip(self))]
+  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
     let key = key.as_ref();
     let head = self.s3_head(key).await?;
     let len = head.content_length as u64;
