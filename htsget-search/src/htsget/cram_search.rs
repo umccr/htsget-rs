@@ -3,7 +3,6 @@
 
 use std::marker::PhantomData;
 use std::sync::Arc;
-use tracing::instrument;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -16,6 +15,7 @@ use noodles::sam::Header;
 use noodles_cram::AsyncReader;
 use tokio::io::AsyncRead;
 use tokio::{io, select};
+use tracing::instrument;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::Class::Body;

@@ -5,12 +5,12 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
-use tracing::instrument;
 
 use async_trait::async_trait;
 use base64::encode;
 use thiserror::Error;
 use tokio::io::AsyncRead;
+use tracing::instrument;
 
 use crate::htsget::{Class, Headers, Url};
 

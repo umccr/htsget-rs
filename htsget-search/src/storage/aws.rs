@@ -1,7 +1,6 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
 use std::fmt::Debug;
 use std::time::Duration;
-use tracing::instrument;
 
 use async_trait::async_trait;
 use aws_sdk_s3::client::fluent_builders;
@@ -14,6 +13,7 @@ use bytes::Bytes;
 use fluent_builders::GetObject;
 use tokio_util::io::StreamReader;
 use tracing::debug;
+use tracing::instrument;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
