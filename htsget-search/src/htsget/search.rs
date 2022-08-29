@@ -9,7 +9,6 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -22,7 +21,6 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
 use tracing::{instrument, trace_span, Instrument};
 
 use crate::htsget::Class::Body;
@@ -444,7 +442,6 @@ where
       Ok(gzi_data) => {
         let span = trace_span!("reading gzi");
         let gzi: Result<Vec<u64>> = async move {
-          sleep(Duration::from_secs(2)).await;
           let mut gzi: Vec<u64> = gzi::AsyncReader::new(gzi_data)
             .read_index()
             .await?
