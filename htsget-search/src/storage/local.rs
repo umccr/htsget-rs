@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use tokio::fs::File;
 use tracing::debug;
+use tracing::instrument;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
@@ -88,13 +89,19 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   type Streamable = File;
 
   /// Get the file at the location of the key.
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
+  #[instrument(level = "trace", skip(self))]
+  async fn get<K: AsRef<str> + Send + Debug>(&self, key: K, _options: GetOptions) -> Result<File> {
     debug!(calling_from = ?self, key = key.as_ref(), "Getting file with key {:?}", key.as_ref());
     self.get(key).await
   }
 
   /// Get a url for the file at key.
-  async fn range_url<K: AsRef<str> + Send>(&self, key: K, options: RangeUrlOptions) -> Result<Url> {
+  #[instrument(level = "trace", skip(self))]
+  async fn range_url<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: RangeUrlOptions,
+  ) -> Result<Url> {
     let path = self.get_path_from_key(&key)?;
     let path = path
       .strip_prefix(&self.base_path)
@@ -107,7 +114,8 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   }
 
   /// Get the size of the file.
-  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
+  #[instrument(level = "trace", skip(self))]
+  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
     let path = self.get_path_from_key(&key)?;
     let len = tokio::fs::metadata(path)
       .await

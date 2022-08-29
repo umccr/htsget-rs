@@ -1,10 +1,11 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 use std::cmp::Ordering;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
+use tracing::instrument;
 
 use async_trait::async_trait;
 use base64::encode;
@@ -27,19 +28,24 @@ pub trait Storage {
   type Streamable: AsyncRead + Unpin + Send;
 
   /// Get the object using the key.
-  async fn get<K: AsRef<str> + Send>(
+  async fn get<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
   /// Get the url of the object represented by the key using a bytes range.
-  async fn range_url<K: AsRef<str> + Send>(&self, key: K, options: RangeUrlOptions) -> Result<Url>;
+  async fn range_url<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: RangeUrlOptions,
+  ) -> Result<Url>;
 
   /// Get the size of the object represented by the key.
-  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64>;
+  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64>;
 
   /// Get the url of the object using an inline data uri.
+  #[instrument(level = "trace")]
   fn data_url(data: Vec<u8>, class: Option<Class>) -> Url {
     Url::new(format!("data:;base64,{}", encode(data))).set_class(class)
   }

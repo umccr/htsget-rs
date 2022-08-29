@@ -3,6 +3,7 @@
 
 use std::marker::PhantomData;
 use std::sync::Arc;
+use tracing::instrument;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -50,6 +51,7 @@ where
     ])
   }
 
+  #[instrument(level = "trace", skip_all)]
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
     // Does the first index entry always contain the first data container?
     index
@@ -92,6 +94,7 @@ where
     header.reference_sequences().get_full(name)
   }
 
+  #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_unmapped_reads(
     &self,
     query: &Query,
@@ -109,6 +112,7 @@ where
     .await
   }
 
+  #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_reference_sequence(
     &self,
     ref_seq: &sam::header::ReferenceSequence,
@@ -182,6 +186,7 @@ where
   }
 
   /// Get bytes ranges using the index.
+  #[instrument(level = "trace", skip_all)]
   async fn bytes_ranges_from_index<F>(
     &self,
     id: &str,
@@ -251,6 +256,7 @@ where
   }
 
   /// Gets bytes ranges for a specific index entry.
+  #[instrument(level = "trace", skip_all)]
   pub(crate) fn bytes_ranges_for_record(
     ref_seq: Option<&sam::header::ReferenceSequence>,
     seq_range: Interval,

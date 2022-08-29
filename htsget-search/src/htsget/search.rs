@@ -80,6 +80,7 @@ where
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
 
   /// Returns the header bytes range.
+  #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<BytesPosition> {
     Ok(
       BytesPosition::default()
@@ -213,6 +214,7 @@ where
   fn get_format(&self) -> Format;
 
   /// Get the position at the end of file marker.
+  #[instrument(level = "trace", skip(self))]
   async fn position_at_eof(&self, id: &str, format: &Format) -> Result<u64> {
     let file_size = self.get_storage().head(format.fmt_file(id)).await?;
     Ok(
@@ -223,6 +225,7 @@ where
   }
 
   /// Read the index from the key.
+  #[instrument(level = "trace", skip(self))]
   async fn read_index(&self, id: &str) -> Result<Index> {
     let storage = self
       .get_storage()
@@ -234,6 +237,7 @@ where
   }
 
   /// Search based on the query.
+  #[instrument(level = "trace", skip(self))]
   async fn search(&self, query: Query) -> Result<Response> {
     match query.class {
       Body => {
@@ -288,6 +292,7 @@ where
   }
 
   /// Build the response from the query using urls.
+  #[instrument(level = "trace", skip(self, byte_ranges))]
   async fn build_response(
     &self,
     id: String,
@@ -322,6 +327,7 @@ where
   }
 
   /// Get the header from the file specified by the id and format.
+  #[instrument(level = "trace", skip(self, index))]
   async fn get_header(&self, id: &str, format: &Format, index: &Index) -> Result<Header> {
     let get_options =
       GetOptions::default().with_range(self.get_byte_ranges_for_header(index).await?);
@@ -560,6 +566,7 @@ where
     ])
   }
 
+  #[instrument(level = "trace", skip_all)]
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
     Self::index_positions(index)
       .into_iter()
