@@ -9,6 +9,7 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -21,6 +22,8 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
+use tracing::{instrument, trace_span, Instrument};
 
 use crate::htsget::Class::Body;
 use crate::storage::{DataBlock, GetOptions};
@@ -366,6 +369,7 @@ where
   /// Get the max sequence position.
   fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> usize;
 
+  #[instrument(level = "trace", skip_all)]
   fn index_positions(index: &Index) -> Vec<u64> {
     let mut positions = HashSet::new();
 
@@ -404,6 +408,9 @@ where
     ref_seq_id: usize,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
+    let span = trace_span!("querying chunks");
+    let guard = span.enter();
+
     let mut chunks: Vec<Chunk> = index
       .query(
         ref_seq_id,
@@ -412,6 +419,8 @@ where
           .into_one_based(|| Self::max_seq_position(reference_sequence))?,
       )
       .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
+
+    drop(guard);
 
     if chunks.is_empty() {
       return Err(HtsGetError::NotFound(
@@ -427,20 +436,27 @@ where
       .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {
-        let mut gzi: Vec<u64> = gzi::AsyncReader::new(gzi_data)
-          .read_index()
-          .await?
-          .into_iter()
-          .map(|(compressed, _)| compressed)
-          .collect();
-        gzi.sort_unstable();
+        let span = trace_span!("reading gzi");
+        let gzi: Result<Vec<u64>> = async move {
+          sleep(Duration::from_secs(2)).await;
+          let mut gzi: Vec<u64> = gzi::AsyncReader::new(gzi_data)
+            .read_index()
+            .await?
+            .into_iter()
+            .map(|(compressed, _)| compressed)
+            .collect();
+          gzi.sort_unstable();
+          Ok(gzi)
+        }
+        .instrument(span)
+        .await;
 
         self
           .bytes_positions_from_chunks(
             &query.id,
             &query.format,
             chunks.into_iter(),
-            gzi.into_iter(),
+            gzi?.into_iter(),
           )
           .await?
       }
@@ -460,6 +476,7 @@ where
   }
 
   /// Assumes sorted chunks by compressed end position, and sorted positions.
+  #[instrument(level = "trace", skip_all)]
   async fn bytes_positions_from_chunks<'a>(
     &self,
     id: &str,
