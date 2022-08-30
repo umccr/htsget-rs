@@ -14,6 +14,7 @@ use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::AsyncRead;
+use tracing::instrument;
 
 use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
 use crate::htsget::Class::Body;
@@ -30,6 +31,7 @@ pub(crate) struct BamSearch<S> {
 }
 
 impl BinningIndexExt for Index {
+  #[instrument(level = "trace", skip_all)]
   fn get_all_chunks(&self) -> Vec<&Chunk> {
     self
       .reference_sequences()
@@ -54,6 +56,7 @@ where
     ref_seq.len().get()
   }
 
+  #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_unmapped(
     &self,
     id: &str,

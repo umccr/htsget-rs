@@ -14,6 +14,7 @@ use noodles::{bgzf, csi};
 use noodles_bcf as bcf;
 use tokio::io;
 use tokio::io::AsyncRead;
+use tracing::instrument;
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
 use crate::htsget::HtsGetError;
@@ -29,6 +30,7 @@ pub(crate) struct BcfSearch<S> {
 }
 
 impl BinningIndexExt for Index {
+  #[instrument(level = "trace", skip_all)]
   fn get_all_chunks(&self) -> Vec<&Chunk> {
     self
       .reference_sequences()
@@ -74,6 +76,7 @@ where
     csi::AsyncReader::new(inner).read_index().await
   }
 
+  #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,

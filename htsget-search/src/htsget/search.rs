@@ -405,6 +405,7 @@ where
   }
 
   /// Get ranges for a reference sequence for the bgzf format.
+  #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
     query: Query,
@@ -412,27 +413,26 @@ where
     ref_seq_id: usize,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let span = trace_span!("querying chunks");
-    let guard = span.enter();
+    let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
+      let mut chunks = index
+        .query(
+          ref_seq_id,
+          query
+            .interval
+            .into_one_based(|| Self::max_seq_position(reference_sequence))?,
+        )
+        .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
-    let mut chunks: Vec<Chunk> = index
-      .query(
-        ref_seq_id,
-        query
-          .interval
-          .into_one_based(|| Self::max_seq_position(reference_sequence))?,
-      )
-      .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
+      if chunks.is_empty() {
+        return Err(HtsGetError::NotFound(
+          "could not find byte ranges for reference sequence".to_string(),
+        ));
+      }
 
-    drop(guard);
+      chunks.sort_unstable_by_key(|a| a.end().compressed());
 
-    if chunks.is_empty() {
-      return Err(HtsGetError::NotFound(
-        "could not find byte ranges for reference sequence".to_string(),
-      ));
-    }
-
-    chunks.sort_unstable_by_key(|a| a.end().compressed());
+      Ok(chunks)
+    });
 
     let gzi_data = self
       .get_storage()
@@ -458,7 +458,7 @@ where
           .bytes_positions_from_chunks(
             &query.id,
             &query.format,
-            chunks.into_iter(),
+            chunks?.into_iter(),
             gzi?.into_iter(),
           )
           .await?
@@ -468,7 +468,7 @@ where
           .bytes_positions_from_chunks(
             &query.id,
             &query.format,
-            chunks.into_iter(),
+            chunks?.into_iter(),
             Self::index_positions(index).into_iter(),
           )
           .await?

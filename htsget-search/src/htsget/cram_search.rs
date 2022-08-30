@@ -41,6 +41,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
+  #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_all(
     &self,
     id: String,
