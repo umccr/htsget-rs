@@ -21,7 +21,7 @@ use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::select;
 use tokio::task::JoinHandle;
-use tracing::{instrument, trace_span, Instrument};
+use tracing::{instrument, trace, trace_span, Instrument};
 
 use crate::htsget::Class::Body;
 use crate::storage::{DataBlock, GetOptions};
@@ -78,7 +78,7 @@ where
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
 
   /// Returns the header bytes range.
-  #[instrument(level = "trace", skip_all)]
+  #[instrument(level = "trace", skip_all, ret, err)]
   async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<BytesPosition> {
     Ok(
       BytesPosition::default()
@@ -212,7 +212,7 @@ where
   fn get_format(&self) -> Format;
 
   /// Get the position at the end of file marker.
-  #[instrument(level = "trace", skip(self))]
+  #[instrument(level = "trace", skip(self), ret, err)]
   async fn position_at_eof(&self, id: &str, format: &Format) -> Result<u64> {
     let file_size = self.get_storage().head(format.fmt_file(id)).await?;
     Ok(
@@ -225,6 +225,7 @@ where
   /// Read the index from the key.
   #[instrument(level = "trace", skip(self))]
   async fn read_index(&self, id: &str) -> Result<Index> {
+    trace!(id = id, "reading index");
     let storage = self
       .get_storage()
       .get(self.get_format().fmt_index(id), GetOptions::default())
@@ -235,7 +236,7 @@ where
   }
 
   /// Search based on the query.
-  #[instrument(level = "trace", skip(self))]
+  #[instrument(level = "trace", skip(self), ret, err)]
   async fn search(&self, query: Query) -> Result<Response> {
     match query.class {
       Body => {
@@ -290,7 +291,7 @@ where
   }
 
   /// Build the response from the query using urls.
-  #[instrument(level = "trace", skip(self, byte_ranges))]
+  #[instrument(level = "trace", skip(self, byte_ranges), ret, err)]
   async fn build_response(
     &self,
     id: String,
@@ -327,6 +328,7 @@ where
   /// Get the header from the file specified by the id and format.
   #[instrument(level = "trace", skip(self, index))]
   async fn get_header(&self, id: &str, format: &Format, index: &Index) -> Result<Header> {
+    trace!(id = id, "getting header");
     let get_options =
       GetOptions::default().with_range(self.get_byte_ranges_for_header(index).await?);
     let reader_type = self
@@ -375,6 +377,7 @@ where
 
   #[instrument(level = "trace", skip_all)]
   fn index_positions(index: &Index) -> Vec<u64> {
+    trace!("getting possible index positions");
     let mut positions = HashSet::new();
 
     // Its probably most robust to search through all chunks in all reference sequences.
@@ -414,6 +417,7 @@ where
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
+      trace!("querying chunks");
       let mut chunks = index
         .query(
           ref_seq_id,
@@ -429,6 +433,7 @@ where
         ));
       }
 
+      trace!("sorting chunks");
       chunks.sort_unstable_by_key(|a| a.end().compressed());
 
       Ok(chunks)
@@ -442,12 +447,14 @@ where
       Ok(gzi_data) => {
         let span = trace_span!("reading gzi");
         let gzi: Result<Vec<u64>> = async move {
+          trace!("reading gzi");
           let mut gzi: Vec<u64> = gzi::AsyncReader::new(gzi_data)
             .read_index()
             .await?
             .into_iter()
             .map(|(compressed, _)| compressed)
             .collect();
+          trace!("sorting gzi");
           gzi.sort_unstable();
           Ok(gzi)
         }
@@ -479,7 +486,7 @@ where
   }
 
   /// Assumes sorted chunks by compressed end position, and sorted positions.
-  #[instrument(level = "trace", skip_all)]
+  #[instrument(level = "trace", skip_all, ret, err)]
   async fn bytes_positions_from_chunks<'a>(
     &self,
     id: &str,
@@ -563,7 +570,7 @@ where
     ])
   }
 
-  #[instrument(level = "trace", skip_all)]
+  #[instrument(level = "trace", skip_all, ret, err)]
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
     Self::index_positions(index)
       .into_iter()

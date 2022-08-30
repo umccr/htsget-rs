@@ -34,7 +34,7 @@ pub(crate) struct VcfSearch<S> {
 }
 
 impl BinningIndexExt for Index {
-  #[instrument(level = "trace", skip_all)]
+  #[instrument(level = "trace", skip_all, ret)]
   fn get_all_chunks(&self) -> Vec<&Chunk> {
     self
       .reference_sequences()
@@ -79,7 +79,7 @@ where
     tabix::AsyncReader::new(inner).read_index().await
   }
 
-  #[instrument(level = "trace", skip_all)]
+  #[instrument(level = "trace", skip_all, ret, err)]
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,

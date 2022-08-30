@@ -31,7 +31,7 @@ pub(crate) struct BamSearch<S> {
 }
 
 impl BinningIndexExt for Index {
-  #[instrument(level = "trace", skip_all)]
+  #[instrument(level = "trace", skip_all, ret)]
   fn get_all_chunks(&self) -> Vec<&Chunk> {
     self
       .reference_sequences()
@@ -56,7 +56,7 @@ where
     ref_seq.len().get()
   }
 
-  #[instrument(level = "trace", skip_all)]
+  #[instrument(level = "trace", skip_all, ret, err)]
   async fn get_byte_ranges_for_unmapped(
     &self,
     id: &str,
