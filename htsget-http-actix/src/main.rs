@@ -3,6 +3,7 @@ use std::env::args;
 use std::io::{Error, ErrorKind};
 
 use tokio::select;
+use tracing::Dispatch;
 use tracing_flame::FlameLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
@@ -22,9 +23,10 @@ async fn main() -> std::io::Result<()> {
     .with(env_filter)
     .with(fmt_layer)
     .with(flame_layer);
+  let dispatcher = Dispatch::new(subscriber);
 
-  tracing::subscriber::set_global_default(subscriber)
-    .expect("Failed to install `tracing` subscriber.");
+  tracing::dispatcher::set_global_default(dispatcher)
+    .expect("Failed to install `tracing` dispatch.");
 
   if args().len() > 1 {
     // Show help if command line options are provided
