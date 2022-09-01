@@ -18,7 +18,7 @@ use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
 use noodles::sam;
 use tokio::io;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{instrument, trace, trace_span, Instrument};
@@ -448,7 +448,7 @@ where
         let span = trace_span!("reading gzi");
         let gzi: Result<Vec<u64>> = async move {
           trace!("reading gzi");
-          let mut gzi: Vec<u64> = gzi::AsyncReader::new(gzi_data)
+          let mut gzi: Vec<u64> = gzi::AsyncReader::new(BufReader::new(gzi_data))
             .read_index()
             .await?
             .into_iter()
