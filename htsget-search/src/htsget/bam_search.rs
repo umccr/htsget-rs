@@ -13,7 +13,7 @@ use noodles::sam::Header;
 use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, BufReader};
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
@@ -102,7 +102,7 @@ where
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
-    let mut reader = bai::AsyncReader::new(inner);
+    let mut reader = bai::AsyncReader::new(BufReader::new(inner));
     reader.read_header().await?;
     reader.read_index().await
   }
