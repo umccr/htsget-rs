@@ -10,10 +10,9 @@ use futures_util::stream::FuturesOrdered;
 use noodles::core::Position;
 use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
-use noodles::sam;
 use noodles::sam::Header;
-use noodles_cram::AsyncReader;
-use tokio::io::AsyncRead;
+use noodles::{cram, sam};
+use tokio::io::{AsyncRead, BufReader};
 use tokio::{io, select};
 use tracing::instrument;
 
@@ -28,6 +27,8 @@ static CRAM_EOF: &[u8] = &[
   0x00, 0x01, 0x00, 0x05, 0xbd, 0xd9, 0x4f, 0x00, 0x01, 0x00, 0x06, 0x06, 0x01, 0x00, 0x01, 0x00,
   0x01, 0x00, 0xee, 0x63, 0x01, 0x4b,
 ];
+
+type AsyncReader<ReaderType> = cram::AsyncReader<BufReader<ReaderType>>;
 
 pub(crate) struct CramSearch<S> {
   storage: Arc<S>,
@@ -143,7 +144,7 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    AsyncReader::new(inner)
+    AsyncReader::new(BufReader::new(inner))
   }
 
   async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
