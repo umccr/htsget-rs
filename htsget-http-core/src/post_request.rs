@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use htsget_search::htsget::Query;
+use tracing::instrument;
 
 use crate::{QueryBuilder, Result};
 
@@ -29,6 +30,7 @@ pub struct Region {
 
 impl PostRequest {
   /// Converts the `PostRequest` into one or more equivalent [Queries](Query)
+  #[instrument(level = "trace", skip_all, ret)]
   pub(crate) fn get_queries(self, id: impl Into<String>) -> Result<Vec<Query>> {
     if let Some(ref regions) = self.regions {
       let id = id.into();

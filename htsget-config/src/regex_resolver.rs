@@ -1,5 +1,6 @@
 use regex::{Error, Regex};
 use serde::Deserialize;
+use tracing::instrument;
 
 /// Represents an id resolver, which matches the id, replacing the match in the substitution text.
 pub trait HtsGetIdResolver {
@@ -33,6 +34,7 @@ impl RegexResolver {
 }
 
 impl HtsGetIdResolver for RegexResolver {
+  #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, id: &str) -> Option<String> {
     if self.regex.is_match(id) {
       Some(

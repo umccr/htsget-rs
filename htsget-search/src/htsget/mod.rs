@@ -15,6 +15,7 @@ use noodles::core::Position;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::JoinError;
+use tracing::instrument;
 
 use crate::storage::StorageError;
 
@@ -208,6 +209,7 @@ pub struct Interval {
 impl Interval {
   const MIN_SEQ_POSITION: usize = 1;
 
+  #[instrument(level = "trace", skip_all, ret, err)]
   fn into_one_based<F>(self, max_seq_position: F) -> Result<impl Into<NoodlesInterval>>
   where
     F: FnOnce() -> usize,

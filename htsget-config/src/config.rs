@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 use tracing::info;
+use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
 
@@ -118,6 +119,7 @@ impl Default for Config {
 
 impl Config {
   /// Read the environment variables into a Config struct.
+  #[instrument]
   pub fn from_env() -> io::Result<Self> {
     let config = envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
       .from_env()
@@ -127,7 +129,7 @@ impl Config {
           format!("config not properly set: {}", err),
         )
       });
-    info!(config = ?config, "Config created from environment variables.");
+    info!(config = ?config, "config created from environment variables");
     config
   }
 

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::io::AsyncRead;
 use tracing::debug;
+use tracing::instrument;
 
 use htsget_config::regex_resolver::RegexResolver;
 
@@ -37,15 +38,15 @@ where
   R: AsyncRead + Send + Sync + Unpin,
   S: Storage<Streamable = R> + Sync + Send + 'static,
 {
+  #[instrument(level = "debug", skip(self), ret, err)]
   async fn search(&self, query: Query) -> Result<Response> {
-    debug!(?query.format, ?query, "Searching {:?}, with query {:?}.", query.format, query);
+    debug!(?query.format, ?query, "searching {:?}, with query {:?}", query.format, query);
     let response = match query.format {
       Format::Bam => BamSearch::new(self.storage()).search(query).await,
       Format::Cram => CramSearch::new(self.storage()).search(query).await,
       Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
       Format::Bcf => BcfSearch::new(self.storage()).search(query).await,
     };
-    debug!(?response, "Response obtained {:?}", response);
     response
   }
 

@@ -89,14 +89,14 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   type Streamable = File;
 
   /// Get the file at the location of the key.
-  #[instrument(level = "trace", skip(self))]
+  #[instrument(level = "debug", skip(self))]
   async fn get<K: AsRef<str> + Send + Debug>(&self, key: K, _options: GetOptions) -> Result<File> {
-    debug!(calling_from = ?self, key = key.as_ref(), "Getting file with key {:?}", key.as_ref());
+    debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
     self.get(key).await
   }
 
   /// Get a url for the file at key.
-  #[instrument(level = "trace", skip(self))]
+  #[instrument(level = "debug", skip(self))]
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
@@ -107,21 +107,24 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
       .strip_prefix(&self.base_path)
       .map_err(|err| StorageError::InternalError(err.to_string()))?
       .to_string_lossy();
+
     let url = Url::new(self.url_formatter.format_url(&path)?);
     let url = options.apply(url);
-    debug!(calling_from = ?self, key = key.as_ref(), ?url, "Getting url with key {:?}", key.as_ref());
+
+    debug!(calling_from = ?self, key = key.as_ref(), ?url, "getting url with key {:?}", key.as_ref());
     Ok(url)
   }
 
   /// Get the size of the file.
-  #[instrument(level = "trace", skip(self))]
+  #[instrument(level = "debug", skip(self))]
   async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
     let path = self.get_path_from_key(&key)?;
     let len = tokio::fs::metadata(path)
       .await
       .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
       .len();
-    debug!(calling_from = ?self, key = key.as_ref(), len, "Size of key {:?} is {}", key.as_ref(), len);
+
+    debug!(calling_from = ?self, key = key.as_ref(), len, "size of key {:?} is {}", key.as_ref(), len);
     Ok(len)
   }
 }
