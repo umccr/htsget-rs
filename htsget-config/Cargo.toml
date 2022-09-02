@@ -14,3 +14,4 @@ serde_regex = "1.1"
 regex = "1.6"
 envy = "0.4"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }

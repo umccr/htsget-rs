@@ -1,9 +1,12 @@
+use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use serde::Deserialize;
 use tracing::info;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{fmt, EnvFilter, Registry};
 
 use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
@@ -115,7 +118,7 @@ impl Default for Config {
 
 impl Config {
   /// Read the environment variables into a Config struct.
-  pub fn from_env() -> std::io::Result<Self> {
+  pub fn from_env() -> io::Result<Self> {
     let config = envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
       .from_env()
       .map_err(|err| {
@@ -126,6 +129,23 @@ impl Config {
       });
     info!(config = ?config, "Config created from environment variables.");
     config
+  }
+
+  /// Setup tracing, using a global subscriber.
+  pub fn setup_tracing() -> io::Result<()> {
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let fmt_layer = fmt::Layer::default();
+
+    let subscriber = Registry::default().with(env_filter).with(fmt_layer);
+
+    tracing::subscriber::set_global_default(subscriber).map_err(|err| {
+      io::Error::new(
+        ErrorKind::Other,
+        format!("failed to install `tracing` subscriber: {}", err),
+      )
+    })?;
+
+    Ok(())
   }
 }
 
