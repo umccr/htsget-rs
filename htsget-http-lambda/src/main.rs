@@ -11,7 +11,7 @@ use htsget_search::storage::ticket_server::HttpTicketFormatter;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-  tracing_subscriber::fmt::init();
+  Config::setup_tracing()?;
   let config = Config::from_env()?;
 
   match config.storage_type {
