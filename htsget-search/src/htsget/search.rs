@@ -417,7 +417,7 @@ where
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
-      trace!("querying chunks");
+      trace!(query = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
       let mut chunks = index
         .query(
           ref_seq_id,
@@ -433,7 +433,7 @@ where
         ));
       }
 
-      trace!("sorting chunks");
+      trace!(query = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "sorting chunks");
       chunks.sort_unstable_by_key(|a| a.end().compressed());
 
       Ok(chunks)
@@ -446,8 +446,8 @@ where
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {
         let span = trace_span!("reading gzi");
-        let gzi: Result<Vec<u64>> = async move {
-          trace!("reading gzi");
+        let gzi: Result<Vec<u64>> = async {
+          trace!(query = ?query.id.as_str(), "reading gzi");
           let mut gzi: Vec<u64> = gzi::AsyncReader::new(BufReader::new(gzi_data))
             .read_index()
             .await?
@@ -455,7 +455,7 @@ where
             .map(|(compressed, _)| compressed)
             .collect();
 
-          trace!("sorting gzi");
+          trace!(query = ?query.id.as_str(), "sorting gzi");
           gzi.sort_unstable();
           Ok(gzi)
         }
