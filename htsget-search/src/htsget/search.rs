@@ -454,6 +454,7 @@ where
             .into_iter()
             .map(|(compressed, _)| compressed)
             .collect();
+
           trace!("sorting gzi");
           gzi.sort_unstable();
           Ok(gzi)
@@ -560,6 +561,7 @@ where
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
+  #[instrument(level = "debug", skip(self), ret, err)]
   async fn get_byte_ranges_for_all(
     &self,
     id: String,

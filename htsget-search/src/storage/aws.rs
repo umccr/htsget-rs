@@ -105,6 +105,7 @@ impl AwsS3Storage {
   }
 
   /// Returns the retrieval type of the object stored with the key.
+  #[instrument(level = "trace", skip_all, ret)]
   pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: &K) -> Result<Retrieval> {
     let head = self.s3_head(&self.resolve_key(key)?).await?;
     Ok(
@@ -194,7 +195,8 @@ impl Storage for AwsS3Storage {
     options: GetOptions,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
-    debug!(calling_from = ?self, key, "Getting file with key {:?}", key);
+    debug!(calling_from = ?self, key, "getting file with key {:?}", key);
+
     self.create_stream_reader(key, options).await
   }
 
@@ -208,7 +210,8 @@ impl Storage for AwsS3Storage {
     let key = key.as_ref();
     let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
     let url = options.apply(Url::new(presigned_url));
-    debug!(calling_from = ?self, key, ?url, "Getting url with key {:?}", key);
+
+    debug!(calling_from = ?self, key, ?url, "getting url with key {:?}", key);
     Ok(url)
   }
 
@@ -218,7 +221,8 @@ impl Storage for AwsS3Storage {
     let key = key.as_ref();
     let head = self.s3_head(key).await?;
     let len = head.content_length as u64;
-    debug!(calling_from = ?self, key, len, "Size of key {:?} is {}", key, len);
+
+    debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
     Ok(len)
   }
 }

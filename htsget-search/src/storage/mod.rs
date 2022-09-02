@@ -45,7 +45,7 @@ pub trait Storage {
   async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64>;
 
   /// Get the url of the object using an inline data uri.
-  #[instrument(level = "trace")]
+  #[instrument(level = "trace", ret)]
   fn data_url(data: Vec<u8>, class: Option<Class>) -> Url {
     Url::new(format!("data:;base64,{}", encode(data))).set_class(class)
   }
@@ -106,6 +106,7 @@ pub enum DataBlock {
 
 impl DataBlock {
   /// Convert a vec of bytes positions to a vec of data blocks. Merges bytes positions.
+  #[instrument(level = "trace", ret)]
   pub fn from_bytes_positions(positions: Vec<BytesPosition>) -> Vec<Self> {
     BytesPosition::merge_all(positions)
       .into_iter()
@@ -115,6 +116,7 @@ impl DataBlock {
 
   /// Update the classes of all blocks so that they all contain a class, or None. Does not merge
   /// byte positions.
+  #[instrument(level = "trace", ret)]
   pub fn update_classes(blocks: Vec<Self>) -> Vec<Self> {
     if blocks.iter().all(|block| match block {
       DataBlock::Range(range) => range.class.is_some(),
@@ -255,6 +257,7 @@ impl BytesPosition {
   }
 
   /// Merge ranges, assuming ending byte ranges are exclusive.
+  #[instrument(level = "trace", ret)]
   pub fn merge_all(mut ranges: Vec<BytesPosition>) -> Vec<BytesPosition> {
     if ranges.len() < 2 {
       ranges

@@ -8,6 +8,7 @@ use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::{http, Body, Request, Response};
 use tracing::debug;
+use tracing::instrument;
 
 use htsget_config::config::ServiceInfo;
 use htsget_http_core::{Endpoint, PostRequest};
@@ -141,6 +142,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 
   /// Extracts post request query parameters.
+  #[instrument(level = "debug", ret)]
   fn extract_query_from_payload(request: &Request) -> Option<PostRequest> {
     if request.body().is_empty() {
       Some(PostRequest::default())
@@ -153,6 +155,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 
   /// Extract get request query parameters.
+  #[instrument(level = "debug", ret)]
   fn extract_query(request: &Request) -> HashMap<String, String> {
     let mut query = HashMap::new();
     // Silently ignores all but the last query key, for keys that are present more than once.

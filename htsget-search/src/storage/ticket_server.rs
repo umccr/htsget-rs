@@ -10,6 +10,7 @@ use std::net::{AddrParseError, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
+use tracing::instrument;
 
 use axum::http;
 use axum::Router;
@@ -24,7 +25,7 @@ use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{info, trace};
 
 use crate::storage::StorageError::{IoError, TicketServerError};
 use crate::storage::UrlFormatter;
@@ -121,6 +122,7 @@ pub struct TicketServer {
 
 impl TicketServer {
   /// Eagerly bind the the address for use with the server, returning any errors.
+  #[instrument(skip(serve_assets_at, cert_key_pair))]
   pub async fn bind_addr(
     addr: SocketAddr,
     serve_assets_at: impl Into<String>,
@@ -140,6 +142,7 @@ impl TicketServer {
   }
 
   /// Run the actual server, using the provided path, key and certificate.
+  #[instrument(level = "trace", skip_all)]
   pub async fn serve<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
     let mut app = Router::new()
       .layer(TraceLayer::new_for_http())
@@ -167,6 +170,7 @@ impl TicketServer {
             .await
             .map_err(|err| TicketServerError(err.to_string()))?;
 
+          trace!(stream = ?stream, "accepting stream");
           tokio::spawn(async move {
             if let Ok(stream) = acceptor.accept(stream).await {
               let _ = Http::new().serve_connection(stream, app).await;

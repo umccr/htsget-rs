@@ -4,6 +4,7 @@ use std::sync::Arc;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use tracing::info;
+use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
 use htsget_config::config::ServiceInfo;
@@ -51,6 +52,7 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
 }
 
 /// Run the server using a http-actix `HttpServer`.
+#[instrument(skip_all)]
 pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
   config_service_info: ServiceInfo,
@@ -65,7 +67,7 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   }))
   .bind(addr)?;
 
-  info!(addresses = ?server.addrs(), "Htsget query server addresses bound to");
+  info!(addresses = ?server.addrs(), "htsget query server addresses bound");
   Ok(server.run())
 }
 

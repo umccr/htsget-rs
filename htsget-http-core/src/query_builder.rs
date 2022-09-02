@@ -1,4 +1,5 @@
 use htsget_search::htsget::{Class, Fields, Format, Query, Tags};
+use tracing::instrument;
 
 use crate::error::{HtsGetError, Result};
 
@@ -37,6 +38,7 @@ impl QueryBuilder {
     self.query
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_class(mut self, class: Option<impl Into<String>>) -> Result<Self> {
     let class = class.map(Into::into);
     self.query = self.query.with_class(match class {
@@ -53,6 +55,7 @@ impl QueryBuilder {
     Ok(self)
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_reference_name(mut self, reference_name: Option<impl Into<String>>) -> Self {
     if let Some(reference_name) = reference_name {
       self.query = self.query.with_reference_name(reference_name);
@@ -60,6 +63,7 @@ impl QueryBuilder {
     self
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_range(
     self,
     start: Option<impl Into<String>>,
@@ -118,6 +122,7 @@ impl QueryBuilder {
     Ok(self)
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_fields(self, fields: Option<impl Into<String>>) -> Self {
     self.with_fields_from_vec(
       fields.map(|fields| fields.into().split(',').map(|s| s.to_string()).collect()),
@@ -134,6 +139,7 @@ impl QueryBuilder {
     self
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_tags(
     self,
     tags: Option<impl Into<String>>,
