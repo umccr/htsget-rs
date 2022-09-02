@@ -20,9 +20,7 @@ futures = { version = "0.3" }
 tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
 
 tracing-actix-web = "0.6"
-tracing-flame = "0.2.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
 
 [dev-dependencies]
 htsget-test-utils = { path = "../htsget-test-utils", features = ["server-tests"], default-features = false }

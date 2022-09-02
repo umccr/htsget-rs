@@ -3,10 +3,6 @@ use std::env::args;
 use std::io::{Error, ErrorKind};
 
 use tokio::select;
-use tracing::Dispatch;
-use tracing_flame::FlameLayer;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::{fmt, EnvFilter, Registry};
 
 use htsget_config::config::{Config, StorageType, USAGE};
 use htsget_http_actix::run_server;
@@ -15,18 +11,7 @@ use htsget_search::storage::ticket_server::HttpTicketFormatter;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-  let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-  let fmt_layer = fmt::Layer::default();
-  let (flame_layer, _guard) = FlameLayer::with_file("tracing.folded").unwrap();
-
-  let subscriber = Registry::default()
-    .with(env_filter)
-    .with(fmt_layer)
-    .with(flame_layer);
-  let dispatcher = Dispatch::new(subscriber);
-
-  tracing::dispatcher::set_global_default(dispatcher)
-    .expect("Failed to install `tracing` dispatch.");
+  Config::setup_tracing()?;
 
   if args().len() > 1 {
     // Show help if command line options are provided
