@@ -77,7 +77,7 @@ where
     csi::AsyncReader::new(inner).read_index().await
   }
 
-  #[instrument(level = "trace", skip_all, ret, err)]
+  #[instrument(level = "trace", skip(self, index, header, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,
@@ -85,6 +85,7 @@ where
     header: &Header,
     mut query: Query,
   ) -> Result<Vec<BytesPosition>> {
+    trace!("getting byte ranges for reference name");
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
     let mut futures = FuturesOrdered::new();

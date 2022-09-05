@@ -106,7 +106,6 @@ pub enum DataBlock {
 
 impl DataBlock {
   /// Convert a vec of bytes positions to a vec of data blocks. Merges bytes positions.
-  #[instrument(level = "trace", ret)]
   pub fn from_bytes_positions(positions: Vec<BytesPosition>) -> Vec<Self> {
     BytesPosition::merge_all(positions)
       .into_iter()
@@ -116,7 +115,6 @@ impl DataBlock {
 
   /// Update the classes of all blocks so that they all contain a class, or None. Does not merge
   /// byte positions.
-  #[instrument(level = "trace", ret)]
   pub fn update_classes(blocks: Vec<Self>) -> Vec<Self> {
     if blocks.iter().all(|block| match block {
       DataBlock::Range(range) => range.class.is_some(),
