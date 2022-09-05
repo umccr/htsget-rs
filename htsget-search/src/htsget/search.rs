@@ -78,8 +78,9 @@ where
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
 
   /// Returns the header bytes range.
-  #[instrument(level = "trace", skip_all, ret, err)]
+  #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<BytesPosition> {
+    trace!("getting byte ranges for header");
     Ok(
       BytesPosition::default()
         .with_end(self.get_header_end_offset(index).await?)
@@ -212,7 +213,7 @@ where
   fn get_format(&self) -> Format;
 
   /// Get the position at the end of file marker.
-  #[instrument(level = "trace", skip(self), ret, err)]
+  #[instrument(level = "trace", skip(self), ret)]
   async fn position_at_eof(&self, id: &str, format: &Format) -> Result<u64> {
     let file_size = self.get_storage().head(format.fmt_file(id)).await?;
     Ok(
@@ -225,7 +226,7 @@ where
   /// Read the index from the key.
   #[instrument(level = "trace", skip(self))]
   async fn read_index(&self, id: &str) -> Result<Index> {
-    trace!(id = id, "reading index");
+    trace!("reading index");
     let storage = self
       .get_storage()
       .get(self.get_format().fmt_index(id), GetOptions::default())
@@ -236,7 +237,6 @@ where
   }
 
   /// Search based on the query.
-  #[instrument(level = "trace", skip(self), ret, err)]
   async fn search(&self, query: Query) -> Result<Response> {
     match query.class {
       Body => {
@@ -291,13 +291,14 @@ where
   }
 
   /// Build the response from the query using urls.
-  #[instrument(level = "trace", skip(self, byte_ranges), ret, err)]
+  #[instrument(level = "trace", skip(self, byte_ranges))]
   async fn build_response(
     &self,
     id: String,
     format: Format,
     byte_ranges: Vec<DataBlock>,
   ) -> Result<Response> {
+    trace!("building response");
     let mut storage_futures = FuturesOrdered::new();
     for block in DataBlock::update_classes(byte_ranges) {
       match block {
@@ -328,7 +329,7 @@ where
   /// Get the header from the file specified by the id and format.
   #[instrument(level = "trace", skip(self, index))]
   async fn get_header(&self, id: &str, format: &Format, index: &Index) -> Result<Header> {
-    trace!(id = id, "getting header");
+    trace!("getting header");
     let get_options =
       GetOptions::default().with_range(self.get_byte_ranges_for_header(index).await?);
     let reader_type = self
@@ -417,7 +418,7 @@ where
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
-      trace!(query = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
+      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
       let mut chunks = index
         .query(
           ref_seq_id,
@@ -433,7 +434,7 @@ where
         ));
       }
 
-      trace!(query = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "sorting chunks");
+      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "sorting chunks");
       chunks.sort_unstable_by_key(|a| a.end().compressed());
 
       Ok(chunks)
@@ -447,7 +448,7 @@ where
       Ok(gzi_data) => {
         let span = trace_span!("reading gzi");
         let gzi: Result<Vec<u64>> = async {
-          trace!(query = ?query.id.as_str(), "reading gzi");
+          trace!(id = ?query.id.as_str(), "reading gzi");
           let mut gzi: Vec<u64> = gzi::AsyncReader::new(BufReader::new(gzi_data))
             .read_index()
             .await?
@@ -455,7 +456,7 @@ where
             .map(|(compressed, _)| compressed)
             .collect();
 
-          trace!(query = ?query.id.as_str(), "sorting gzi");
+          trace!(id = ?query.id.as_str(), "sorting gzi");
           gzi.sort_unstable();
           Ok(gzi)
         }
@@ -487,7 +488,7 @@ where
   }
 
   /// Assumes sorted chunks by compressed end position, and sorted positions.
-  #[instrument(level = "trace", skip_all, ret, err)]
+  #[instrument(level = "trace", skip(self, chunks, positions))]
   async fn bytes_positions_from_chunks<'a>(
     &self,
     id: &str,
@@ -495,6 +496,8 @@ where
     chunks: impl Iterator<Item = Chunk> + Send + 'a,
     mut positions: impl Iterator<Item = u64> + Send + 'a,
   ) -> Result<Vec<BytesPosition>> {
+    trace!("processing index and chunks");
+
     let mut end_position: Option<u64> = None;
     let mut bytes_positions = Vec::new();
     let mut maybe_end: Option<u64> = None;
@@ -561,7 +564,7 @@ where
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
-  #[instrument(level = "debug", skip(self), ret, err)]
+  #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(
     &self,
     id: String,
@@ -572,7 +575,7 @@ where
     ])
   }
 
-  #[instrument(level = "trace", skip_all, ret, err)]
+  #[instrument(level = "trace", skip_all, ret)]
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
     Self::index_positions(index)
       .into_iter()

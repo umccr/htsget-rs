@@ -38,7 +38,7 @@ where
   R: AsyncRead + Send + Sync + Unpin,
   S: Storage<Streamable = R> + Sync + Send + 'static,
 {
-  #[instrument(level = "debug", skip(self), ret, err)]
+  #[instrument(level = "debug", skip(self))]
   async fn search(&self, query: Query) -> Result<Response> {
     debug!(?query.format, ?query, "searching {:?}, with query {:?}", query.format, query);
     let response = match query.format {

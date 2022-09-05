@@ -57,13 +57,14 @@ where
     ref_seq.len().get()
   }
 
-  #[instrument(level = "trace", skip_all, ret, err)]
+  #[instrument(level = "trace", skip(self, index))]
   async fn get_byte_ranges_for_unmapped(
     &self,
     id: &str,
     format: &Format,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
+    trace!("getting byte ranges for unmapped reads");
     let last_interval = index.first_record_in_last_linear_bin_start_position();
     let start = match last_interval {
       Some(start) => start,
@@ -107,6 +108,7 @@ where
     reader.read_index().await
   }
 
+  #[instrument(level = "trace", skip(self, index, header, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,
@@ -114,6 +116,7 @@ where
     header: &Header,
     query: Query,
   ) -> Result<Vec<BytesPosition>> {
+    trace!("getting byte ranges for reference name");
     self
       .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
       .await

@@ -80,7 +80,7 @@ where
     tabix::AsyncReader::new(inner).read_index().await
   }
 
-  #[instrument(level = "trace", skip_all, ret, err)]
+  #[instrument(level = "trace", skip(self, index, header, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,
@@ -88,6 +88,7 @@ where
     header: &Header,
     mut query: Query,
   ) -> Result<Vec<BytesPosition>> {
+    trace!("getting byte ranges for reference name");
     let maybe_len = header
       .contigs()
       .get(&Name::from_str(&reference_name).map_err(|err| {
