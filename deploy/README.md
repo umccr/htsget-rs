@@ -21,7 +21,8 @@ After installing the basic dependencies, complete the following steps:
 3. Install [Zig](https://ziglang.org/) using one of the methods show in [getting started](https://ziglang.org/learn/getting-started/), or by running the commands below and following the prompts. Zig is used by cargo-lambda for cross-compilation.
 2. Install [cargo-lambda](https://github.com/cargo-lambda/cargo-lambda), as it is used to compile artifacts that are uploaded to aws lambda.
 4. Install [aws-cdk](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html) and typescript.
-4. Install packages from the `deploy` directory and finally compile the lambda.
+5. You may also need the openssl development libraries. However, these are only required for tests, and shouldn't be needed for the deployment commands listed below.
+4. Install packages from the `deploy` directory and finally compile the lambda using. This should place artifacts compiled for arm64 under the `target/lambda` directory which can be deployed to AWS.
 
 In a copy-paste nutshell, for the impatient, run the following in the `deploy` directory:
 
@@ -30,7 +31,9 @@ npm install -g aws-cdk typescript
 rustup target add aarch64-unknown-linux-gnu
 cargo install cargo-lambda
 npm install
-cd .. && cargo lambda build --arm64
+cd ..
+cargo lambda build --release --arm64 --bin htsget-http-lambda
+cd deploy
 ```
 
 After this, we're ready to deploy!
