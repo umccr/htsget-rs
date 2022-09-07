@@ -9,10 +9,10 @@ use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
+use htsget_config::regex_resolver::RegexResolver;
 
 use crate::htsget::Url;
-use crate::storage::{Storage, UrlFormatter};
+use crate::storage::{resolve_id, Storage, UrlFormatter};
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -51,7 +51,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
     let key: &str = key.as_ref();
     self
       .base_path
-      .join(self.resolve_key(key)?)
+      .join(resolve_id(&self.id_resolver, &key)?)
       .canonicalize()
       .map_err(|_| StorageError::InvalidKey(key.to_string()))
       .and_then(|path| {
@@ -66,14 +66,6 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
           .then_some(path)
           .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
       })
-  }
-
-  pub(crate) fn resolve_key<K: AsRef<str>>(&self, key: K) -> Result<String> {
-    let key: &str = key.as_ref();
-    self
-      .id_resolver
-      .resolve_id(key)
-      .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
   }
 
   async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {

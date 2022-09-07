@@ -42,7 +42,7 @@ export class HtsgetHttpLambdaStack extends Stack {
       environment: {
         HTSGET_S3_BUCKET: 'umccr-research-dev',
         HTSGET_STORAGE_TYPE: 'AwsS3Storage',
-        RUST_LOG: 'info,htsget_http_lambda=debug,htsget_config=debug,htsget_http_core=debug,htsget_search=debug,htsget_http_actix=debug'
+        RUST_LOG: 'info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace'
       },
       architecture: Architecture.ARM_64,
       role: lambdaRole

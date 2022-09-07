@@ -10,7 +10,6 @@ use std::net::{AddrParseError, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
-use tracing::instrument;
 
 use axum::http;
 use axum::Router;
@@ -25,6 +24,7 @@ use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
 use tower_http::trace::TraceLayer;
+use tracing::instrument;
 use tracing::{info, trace};
 
 use crate::storage::StorageError::{IoError, TicketServerError};
@@ -237,15 +237,9 @@ impl UrlFormatter for HttpTicketFormatter {
 
 #[cfg(test)]
 mod tests {
-  use std::io::Read;
   use std::str::FromStr;
 
-  use http::{Method, Request};
-  use hyper::client::connect::Connect;
-  use hyper::client::HttpConnector;
-  use hyper::{Body, Client};
-  use hyper_tls::native_tls::TlsConnector;
-  use hyper_tls::HttpsConnector;
+  use reqwest::ClientBuilder;
 
   use htsget_test_utils::util::generate_test_certificates;
 
@@ -257,38 +251,13 @@ mod tests {
   async fn test_http_server() {
     let (_, base_path) = create_local_test_files().await;
 
-    test_server_request(
-      "http",
-      None,
-      base_path.path().to_path_buf(),
-      HttpConnector::new(),
-    )
-    .await;
+    test_server_request("http", None, base_path.path().to_path_buf()).await;
   }
 
   #[tokio::test]
   async fn test_tls_server() {
     let (_, base_path) = create_local_test_files().await;
-
-    // Generate self-signed certificate.
     let (key_path, cert_path) = generate_test_certificates(base_path.path(), "key.pem", "cert.pem");
-
-    // Read certificate.
-    let mut buf = vec![];
-    File::open(cert_path.clone())
-      .unwrap()
-      .read_to_end(&mut buf)
-      .unwrap();
-    let cert = hyper_tls::native_tls::Certificate::from_pem(&buf).unwrap();
-
-    // Add self-signed certificate to connector.
-    let tls = TlsConnector::builder()
-      .add_root_certificate(cert)
-      .build()
-      .unwrap();
-    let mut http = HttpConnector::new();
-    http.enforce_http(false);
-    let https = HttpsConnector::from((http, tls.into()));
 
     test_server_request(
       "https",
@@ -297,7 +266,6 @@ mod tests {
         key: key_path,
       }),
       base_path.path().to_path_buf(),
-      https,
     )
     .await;
   }
@@ -333,13 +301,8 @@ mod tests {
     assert_eq!(formatter.get_addr(), server.local_addr());
   }
 
-  async fn test_server_request<C, P>(
-    scheme: &str,
-    cert_key_pair: Option<CertificateKeyPair>,
-    path: P,
-    connector: C,
-  ) where
-    C: Connect + Clone + Send + Sync + 'static,
+  async fn test_server_request<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P)
+  where
     P: AsRef<Path> + Send + 'static,
   {
     // Start server.
@@ -351,18 +314,21 @@ mod tests {
     tokio::spawn(async move { server.serve(path).await.unwrap() });
 
     // Make request.
-    let client = Client::builder().build::<_, Body>(connector);
-    let request = Request::builder()
-      .method(Method::GET)
-      .uri(format!("{}://{}:{}/data/key1", scheme, "localhost", port))
-      .body(Body::empty())
+    let client = ClientBuilder::new()
+      .danger_accept_invalid_certs(true)
+      .use_rustls_tls()
+      .build()
       .unwrap();
-    let response = client.request(request).await;
-
-    let body = hyper::body::to_bytes(response.unwrap().into_body())
+    let response = client
+      .get(format!("{}://{}:{}/data/key1", scheme, "localhost", port))
+      .send()
+      .await
+      .unwrap()
+      .bytes()
       .await
       .unwrap();
-    assert_eq!(body.as_ref(), b"value1");
+
+    assert_eq!(response.as_ref(), b"value1");
   }
 
   fn test_formatter_authority(formatter: HttpTicketFormatter, scheme: &str) {

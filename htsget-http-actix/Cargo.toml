@@ -27,7 +27,7 @@ htsget-test-utils = { path = "../htsget-test-utils", features = ["server-tests"]
 async-trait = "0.1"
 
 criterion = { version = "0.3", features = ["async_tokio"] }
-reqwest = { version = "0.11", features = ["json", "blocking", "rustls-tls"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 tempfile = "3.3"
 
 [[bench]]

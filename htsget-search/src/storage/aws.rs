@@ -15,12 +15,12 @@ use tokio_util::io::StreamReader;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
+use htsget_config::regex_resolver::RegexResolver;
 
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::AwsS3Error;
-use crate::storage::{BytesPosition, StorageError};
+use crate::storage::{resolve_id, BytesPosition};
 use crate::storage::{BytesRange, Storage};
 
 use super::{GetOptions, RangeUrlOptions, Result};
@@ -62,13 +62,6 @@ impl AwsS3Storage {
     )
   }
 
-  fn resolve_key<K: AsRef<str> + Send>(&self, key: &K) -> Result<String> {
-    self
-      .id_resolver
-      .resolve_id(key.as_ref())
-      .ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
-  }
-
   async fn s3_presign_url<K: AsRef<str> + Send>(
     &self,
     key: K,
@@ -78,7 +71,7 @@ impl AwsS3Storage {
       .client
       .get_object()
       .bucket(&self.bucket)
-      .key(&self.resolve_key(&key)?);
+      .key(resolve_id(&self.id_resolver, &key)?);
     let response = Self::apply_range(response, range);
     Ok(
       response
@@ -98,7 +91,7 @@ impl AwsS3Storage {
       .client
       .head_object()
       .bucket(&self.bucket)
-      .key(&self.resolve_key(&key)?)
+      .key(resolve_id(&self.id_resolver, &key)?)
       .send()
       .await
       .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))
@@ -107,7 +100,7 @@ impl AwsS3Storage {
   /// Returns the retrieval type of the object stored with the key.
   #[instrument(level = "trace", skip_all, ret)]
   pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: &K) -> Result<Retrieval> {
-    let head = self.s3_head(&self.resolve_key(key)?).await?;
+    let head = self.s3_head(resolve_id(&self.id_resolver, &key)?).await?;
     Ok(
       // Default is Standard.
       match head.storage_class.unwrap_or(StorageClass::Standard) {
@@ -162,7 +155,7 @@ impl AwsS3Storage {
       .client
       .get_object()
       .bucket(&self.bucket)
-      .key(&self.resolve_key(&key)?);
+      .key(resolve_id(&self.id_resolver, &key)?);
     let response = Self::apply_range(response, options.range);
     Ok(
       response
