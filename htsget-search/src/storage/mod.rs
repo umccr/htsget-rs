@@ -12,6 +12,8 @@ use thiserror::Error;
 use tokio::io::AsyncRead;
 use tracing::instrument;
 
+use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
+
 use crate::htsget::{Class, Headers, Url};
 
 #[cfg(feature = "s3-storage")]
@@ -336,6 +338,13 @@ impl RangeUrlOptions {
     };
     url.set_class(self.range.class)
   }
+}
+
+/// Resolve a key id with the `RegexResolver` and convert it to a Result.
+fn resolve_id<K: AsRef<str>>(resolver: &RegexResolver, key: &K) -> Result<String> {
+  resolver
+    .resolve_id(key.as_ref())
+    .ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
 }
 
 #[cfg(test)]
