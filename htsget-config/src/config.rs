@@ -22,6 +22,11 @@ For more information about the regex options look in the documentation of the re
 * HTSGET_SUBSTITUTION_STRING: The replacement expression. Default: "$0".
 * HTSGET_STORAGE_TYPE: Either "LocalStorage" or "AwsS3Storage", representing which storage type to use. Default: "LocalStorage".
 
+The following options are used for `CORS`. CORS is allowed only for `GET` requests. Any origin is allowed, and all origins in the `Origin` header are echoed back
+in the response with the `Access-Control-Allow-Origin` header. All headers are allowed, and headers set in the `Access-Control-Request-Headers` header are echoed back in the
+`Access-Control-Allow-Headers` response header. The `Access-Control-Max-Age` is set to the equivalent of 30 days, indicating how long the `CORS` request can be cached for.
+* HTSGET_CORS_ALLOW_CREDENTIALS: Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. Default: "false"
+
 The following options are used for the ticket server.
 * HTSGET_TICKET_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
 * HTSGET_TICKET_SERVER_KEY: The path to the PEM formatted X.509 private key used by the ticket response server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
@@ -77,6 +82,7 @@ pub struct Config {
   #[serde(flatten)]
   pub service_info: ServiceInfo,
   pub storage_type: StorageType,
+  pub cors_allow_credentials: bool,
   pub ticket_server_addr: SocketAddr,
   pub ticket_server_key: Option<PathBuf>,
   pub ticket_server_cert: Option<PathBuf>,
@@ -108,6 +114,7 @@ impl Default for Config {
       path: default_path(),
       service_info: ServiceInfo::default(),
       storage_type: LocalStorage,
+      cors_allow_credentials: false,
       ticket_server_addr: default_localstorage_addr(),
       ticket_server_key: None,
       ticket_server_cert: None,
@@ -124,7 +131,7 @@ impl Config {
     let config = envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
       .from_env()
       .map_err(|err| {
-        std::io::Error::new(
+        io::Error::new(
           ErrorKind::Other,
           format!("config not properly set: {}", err),
         )

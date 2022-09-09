@@ -1,7 +1,9 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use actix_cors::Cors;
 use actix_web::dev::Server;
+use actix_web::http::Method;
 use actix_web::{web, App, HttpServer};
 use tracing::info;
 use tracing::instrument;
@@ -17,6 +19,9 @@ use crate::handlers::{get, post, reads_service_info, variants_service_info};
 pub mod handlers;
 
 pub type HtsGetStorage<T> = HtsGetFromStorage<LocalStorage<T>>;
+
+/// The maximum amount of time a CORS request can be cached for.
+pub const CORS_MAX_AGE: usize = 86400;
 
 /// Represents the actix app state.
 pub struct AppState<H: HtsGet> {
@@ -51,11 +56,27 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
     );
 }
 
+/// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
+/// are supported.
+pub fn configure_cors(cors_allow_credentials: bool) -> Cors {
+  let cors = Cors::default()
+    .allow_any_origin()
+    .allowed_methods(vec![Method::GET])
+    .max_age(CORS_MAX_AGE);
+
+  if cors_allow_credentials {
+    cors.supports_credentials()
+  } else {
+    cors
+  }
+}
+
 /// Run the server using a http-actix `HttpServer`.
 #[instrument(skip_all)]
 pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
   config_service_info: ServiceInfo,
+  cors_allow_credentials: bool,
   addr: SocketAddr,
 ) -> std::io::Result<Server> {
   let server = HttpServer::new(Box::new(move || {
@@ -63,6 +84,7 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
       .configure(|service_config: &mut web::ServiceConfig| {
         configure_server(service_config, htsget.clone(), config_service_info.clone());
       })
+      .wrap(configure_cors(cors_allow_credentials))
       .wrap(TracingLogger::default())
   }))
   .bind(addr)?;
