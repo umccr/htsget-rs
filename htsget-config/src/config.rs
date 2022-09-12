@@ -71,23 +71,31 @@ pub enum StorageType {
   AwsS3Storage,
 }
 
-/// Configuration for the server. Each field will be read from environment variables
+/// Configuration for the server. Each field will be read from environment variables.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
-  pub addr: SocketAddr,
   #[serde(flatten)]
   pub resolver: RegexResolver,
   pub path: PathBuf,
   #[serde(flatten)]
-  pub service_info: ServiceInfo,
+  pub htsget_server_config: HtsgetServerConfig,
   pub storage_type: StorageType,
-  pub cors_allow_credentials: bool,
   pub ticket_server_addr: SocketAddr,
   pub ticket_server_key: Option<PathBuf>,
   pub ticket_server_cert: Option<PathBuf>,
   #[cfg(feature = "s3-storage")]
   pub s3_bucket: String,
+}
+
+/// Configuration for the htsget server.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct HtsgetServerConfig {
+  pub addr: SocketAddr,
+  #[serde(flatten)]
+  pub service_info: ServiceInfo,
+  pub cors_allow_credentials: bool,
 }
 
 /// Configuration of the service info.
@@ -106,15 +114,23 @@ pub struct ServiceInfo {
   pub environment: Option<String>,
 }
 
-impl Default for Config {
+impl Default for HtsgetServerConfig {
   fn default() -> Self {
     Self {
       addr: default_addr(),
+      service_info: ServiceInfo::default(),
+      cors_allow_credentials: false,
+    }
+  }
+}
+
+impl Default for Config {
+  fn default() -> Self {
+    Self {
       resolver: RegexResolver::default(),
       path: default_path(),
-      service_info: ServiceInfo::default(),
+      htsget_server_config: Default::default(),
       storage_type: LocalStorage,
-      cors_allow_credentials: false,
       ticket_server_addr: default_localstorage_addr(),
       ticket_server_key: None,
       ticket_server_cert: None,
@@ -166,7 +182,10 @@ mod tests {
   fn config_addr() {
     std::env::set_var("HTSGET_ADDR", "127.0.0.1:8081");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.addr, "127.0.0.1:8081".parse().unwrap());
+    assert_eq!(
+      config.htsget_server_config.addr,
+      "127.0.0.1:8081".parse().unwrap()
+    );
   }
 
   #[test]
@@ -194,7 +213,7 @@ mod tests {
   fn config_service_info_id() {
     std::env::set_var("HTSGET_ID", "id");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.service_info.id.unwrap(), "id");
+    assert_eq!(config.htsget_server_config.service_info.id.unwrap(), "id");
   }
 
   #[cfg(feature = "s3-storage")]

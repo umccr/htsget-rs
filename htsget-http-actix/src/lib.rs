@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
 
 use actix_cors::Cors;
@@ -9,7 +8,7 @@ use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
-use htsget_config::config::ServiceInfo;
+use htsget_config::config::{HtsgetServerConfig, ServiceInfo};
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::local::LocalStorage;
@@ -75,19 +74,17 @@ pub fn configure_cors(cors_allow_credentials: bool) -> Cors {
 #[instrument(skip_all)]
 pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
-  config_service_info: ServiceInfo,
-  cors_allow_credentials: bool,
-  addr: SocketAddr,
+  config: HtsgetServerConfig,
 ) -> std::io::Result<Server> {
   let server = HttpServer::new(Box::new(move || {
     App::new()
       .configure(|service_config: &mut web::ServiceConfig| {
-        configure_server(service_config, htsget.clone(), config_service_info.clone());
+        configure_server(service_config, htsget.clone(), config.service_info.clone());
       })
-      .wrap(configure_cors(cors_allow_credentials))
+      .wrap(configure_cors(config.cors_allow_credentials))
       .wrap(TracingLogger::default())
   }))
-  .bind(addr)?;
+  .bind(config.addr)?;
 
   info!(addresses = ?server.addrs(), "htsget query server addresses bound");
   Ok(server.run())
@@ -169,7 +166,7 @@ mod tests {
               formatter,
             )
             .unwrap(),
-            self.config.service_info.clone(),
+            self.config.htsget_server_config.service_info.clone(),
           );
         },
       ))

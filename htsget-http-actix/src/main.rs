@@ -44,9 +44,7 @@ async fn local_storage_server(config: Config) -> std::io::Result<()> {
     local_server = local_server => Ok(local_server??),
     actix_server = run_server(
       searcher,
-      config.service_info,
-      config.cors_allow_credentials,
-      config.addr
+      config.htsget_server_config,
     )? => actix_server
   }
 }
@@ -54,11 +52,5 @@ async fn local_storage_server(config: Config) -> std::io::Result<()> {
 #[cfg(feature = "s3-storage")]
 async fn s3_storage_server(config: Config) -> std::io::Result<()> {
   let searcher = HtsGetFromStorage::s3_from(config.s3_bucket, config.resolver).await;
-  run_server(
-    searcher,
-    config.service_info,
-    config.cors_allow_credentials,
-    config.addr,
-  )?
-  .await
+  run_server(searcher, config.htsget_server_config)?.await
 }

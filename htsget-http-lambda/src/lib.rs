@@ -274,7 +274,7 @@ mod tests {
           HtsGetFromStorage::local_from(&self.config.path, self.config.resolver.clone(), formatter)
             .unwrap(),
         ),
-        &self.config.service_info,
+        &self.config.htsget_server_config.service_info,
       );
 
       route_request_to_response(request.0, router, expected_path).await
@@ -619,7 +619,7 @@ mod tests {
       Arc::new(
         HtsGetFromStorage::local_from(&config.path, config.resolver.clone(), formatter).unwrap(),
       ),
-      &config.service_info,
+      &config.htsget_server_config.service_info,
     );
     test(router).await;
   }

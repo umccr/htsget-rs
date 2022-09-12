@@ -33,7 +33,7 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
   let searcher: Arc<HtsGetFromStorage<LocalStorage<HttpTicketFormatter>>> = Arc::new(
     HtsGetFromStorage::local_from(config.path, config.resolver, formatter)?,
   );
-  let router = &Router::new(searcher, &config.service_info);
+  let router = &Router::new(searcher, &config.htsget_server_config.service_info);
 
   let handler = |event: Request| async move {
     info!(event = ?event, "received request");
@@ -48,7 +48,7 @@ async fn local_storage_server(config: Config) -> Result<(), Error> {
 #[instrument(skip_all)]
 async fn s3_storage_server(config: Config) -> Result<(), Error> {
   let searcher = Arc::new(HtsGetFromStorage::s3_from(config.s3_bucket, config.resolver).await);
-  let router = &Router::new(searcher, &config.service_info);
+  let router = &Router::new(searcher, &config.htsget_server_config.service_info);
 
   let handler = |event: Request| async move {
     info!(event = ?event, "received request");
