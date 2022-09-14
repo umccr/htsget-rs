@@ -41,13 +41,12 @@ where
   #[instrument(level = "debug", skip(self))]
   async fn search(&self, query: Query) -> Result<Response> {
     debug!(?query.format, ?query, "searching {:?}, with query {:?}", query.format, query);
-    let response = match query.format {
+    match query.format {
       Format::Bam => BamSearch::new(self.storage()).search(query).await,
       Format::Cram => CramSearch::new(self.storage()).search(query).await,
       Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
       Format::Bcf => BcfSearch::new(self.storage()).search(query).await,
-    };
-    response
+    }
   }
 
   fn get_supported_formats(&self) -> Vec<Format> {
