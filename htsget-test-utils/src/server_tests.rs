@@ -266,15 +266,15 @@ fn set_path(config: &mut Config) {
 
 fn set_addr_and_path(config: &mut Config) {
   set_path(config);
-  config.ticket_server_addr = "127.0.0.1:0".parse().unwrap();
+  config.data_server_addr = "127.0.0.1:0".parse().unwrap();
 }
 
 /// Get the [HttpTicketFormatter] from the config.
 pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
   HttpTicketFormatter::try_from(
-    config.ticket_server_addr,
-    config.ticket_server_cert.clone(),
-    config.ticket_server_key.clone(),
+    config.data_server_addr,
+    config.data_server_cert.clone(),
+    config.data_server_key.clone(),
   )
   .unwrap()
 }
@@ -299,8 +299,8 @@ pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
   set_addr_and_path(&mut config);
 
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
-  config.ticket_server_key = Some(key_path);
-  config.ticket_server_cert = Some(cert_path);
+  config.data_server_key = Some(key_path);
+  config.data_server_cert = Some(cert_path);
 
   config
 }

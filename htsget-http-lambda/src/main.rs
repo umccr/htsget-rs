@@ -26,9 +26,9 @@ async fn main() -> Result<(), Error> {
 #[instrument(skip_all)]
 async fn local_storage_server(config: Config) -> Result<(), Error> {
   let formatter = HttpTicketFormatter::try_from(
-    config.ticket_server_addr,
-    config.ticket_server_cert,
-    config.ticket_server_key,
+    config.data_server_addr,
+    config.data_server_cert,
+    config.data_server_key,
   )?;
   let searcher: Arc<HtsGetFromStorage<LocalStorage<HttpTicketFormatter>>> = Arc::new(
     HtsGetFromStorage::local_from(config.path, config.resolver, formatter)?,
