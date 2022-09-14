@@ -189,7 +189,7 @@ mod tests {
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::{Class, HtsGet};
   use htsget_search::storage::local::LocalStorage;
-  use htsget_search::storage::ticket_server::HttpTicketFormatter;
+  use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
   use htsget_test_utils::server_tests::{
     config_with_tls, default_test_config, expected_url_path, formatter_and_expected_path,

@@ -131,7 +131,7 @@ pub(crate) mod tests {
   use tokio::io::AsyncWriteExt;
 
   use crate::htsget::{Headers, Url};
-  use crate::storage::ticket_server::HttpTicketFormatter;
+  use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
 
   use super::*;

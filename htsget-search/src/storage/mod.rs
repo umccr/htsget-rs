@@ -19,7 +19,7 @@ use crate::htsget::{Class, Headers, Url};
 #[cfg(feature = "s3-storage")]
 pub mod aws;
 pub mod local;
-pub mod ticket_server;
+pub mod data_server;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
@@ -70,8 +70,8 @@ pub enum StorageError {
   #[error("{0}: {1}")]
   IoError(String, io::Error),
 
-  #[error("url response ticket server error: {0}")]
-  TicketServerError(String),
+  #[error("url response data server error: {0}")]
+  DataServerError(String),
 
   #[error("invalid input: {0}")]
   InvalidInput(String),
@@ -353,7 +353,7 @@ mod tests {
 
   use crate::htsget::Class;
   use crate::storage::local::LocalStorage;
-  use crate::storage::ticket_server::HttpTicketFormatter;
+  use crate::storage::data_server::HttpTicketFormatter;
 
   use super::*;
 

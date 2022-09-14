@@ -17,7 +17,7 @@ use htsget_http_core::{get_service_info_with, Endpoint};
 use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
 use htsget_search::htsget::{Class, Format, Headers, JsonResponse, Url};
-use htsget_search::storage::ticket_server::HttpTicketFormatter;
+use htsget_search::storage::data_server::HttpTicketFormatter;
 
 use crate::util::{expected_bgzf_eof_data_url, generate_test_certificates};
 
@@ -151,7 +151,7 @@ pub fn expected_url_path(formatter: &HttpTicketFormatter) -> String {
 
 /// Spawn the [TicketServer] using the path and formatter.
 pub async fn spawn_ticket_server(path: PathBuf, formatter: &mut HttpTicketFormatter) {
-  let server = formatter.bind_ticket_server().await.unwrap();
+  let server = formatter.bind_data_server().await.unwrap();
   tokio::spawn(async move { server.serve(path).await.unwrap() });
 }
 

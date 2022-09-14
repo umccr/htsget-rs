@@ -167,7 +167,7 @@ pub(crate) mod tests {
   };
   use crate::htsget::{Class, Headers, Response, Url};
   use crate::storage::local::LocalStorage;
-  use crate::storage::ticket_server::HttpTicketFormatter;
+  use crate::storage::data_server::HttpTicketFormatter;
 
   use super::*;
 
