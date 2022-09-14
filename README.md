@@ -118,13 +118,6 @@ See the [contributing guide][contributing] for more information.
 
 [contributing]: CONTRIBUTING.md
 
-## Code of conduct
-
-We follow the [Rust Code of conduct][rust-code-of-conduct]. For moderation, please contact the maintainers of this
-project directly, at mmalenic1@gmail.com (@mmalenic).
-
-[rust-code-of-conduct]: https://www.rust-lang.org/policies/code-of-conduct
-
 ## License
 
 This project is licensed under the [MIT license][license].

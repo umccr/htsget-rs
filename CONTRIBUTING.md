@@ -39,6 +39,13 @@ cargo test --tests --all-features
 [clippy]: https://github.com/rust-lang/rust-clippy
 [rustfmt]: https://github.com/rust-lang/rustfmt
 
+## Code of conduct
+
+We follow the [Rust Code of conduct][rust-code-of-conduct]. For moderation, please contact the maintainers of this
+project directly, at mmalenic1@gmail.com (@mmalenic).
+
+[rust-code-of-conduct]: https://www.rust-lang.org/policies/code-of-conduct
+
 ## License
 
 This project is licensed under the [MIT license][license]. Unless otherwise stated, any contribution submitted 
