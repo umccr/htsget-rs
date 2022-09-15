@@ -27,9 +27,9 @@ Htsget-rs implements the [htsget protocol][htsget-protocol], which is a HTTP-bas
 The htsget protocol outlines how a htsget server should behave, and it is an effective way to fetch regions of large bioinformatics files. 
 
 A htsget server responds to queries which ask for regions of bioinformatics files. It does this by returning an array of URL
-tickets, that the client must fetch and concatenate. This process is outlined in the diagram below:
+tickets, that the client must fetch and concatenate. This process is outlined in the [diagram below][htsget-diagram]:
 
-![htsget-ticket][htsget-ticket]
+![htsget-diagram][htsget-diagram-png]
 
 htsget-rs implements this process as closely as possible, and aims to return byte ranges that are as small as possible. 
 In htsget-rs the ticket server handled by [htsget-http-actix] or [htsget-http-lambda], and the data 
@@ -47,7 +47,8 @@ htsget-rs implements the following components of the protocol:
 * TLS on the data block server. 
 
 [htsget-protocol]: http://samtools.github.io/hts-specs/htsget.html
-[htsget-ticket]: https://samtools.github.io/hts-specs/pub/htsget-ticket.png
+[htsget-diagram]: http://samtools.github.io/hts-specs/htsget.html#diagram-of-core-mechanic
+[htsget-diagram-png]: https://samtools.github.io/hts-specs/pub/htsget-ticket.png
 [storage-backend]: htsget-search/src/storage
 [local-storage]: htsget-search/src/storage/local.rs
 [s3-storage]: htsget-search/src/storage/aws.rs
