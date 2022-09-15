@@ -11,7 +11,7 @@ To get familiar with the project, have a look at the READMEs of each crate.
 You are welcome to use [issues] to submit a bug report or new feature request. Issues are used to open up discussion for
 suggested changes or address bugs.
 
-Have a look at existing [issues] to see if an issue has already been discussed
+Have a look at existing [issues] to see if an issue has already been discussed.
 
 [issues]: https://github.com/umccr/htsget-rs/issues
 
@@ -45,6 +45,7 @@ We follow the [Rust Code of conduct][rust-code-of-conduct]. For moderation, plea
 project directly, at mmalenic1@gmail.com (@mmalenic).
 
 [rust-code-of-conduct]: https://www.rust-lang.org/policies/code-of-conduct
+[@mmalenic]: https://github.com/mmalenic
 
 ## License
 

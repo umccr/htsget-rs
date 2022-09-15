@@ -34,7 +34,9 @@ tickets, that the client must fetch and concatenate. This process is outlined in
 htsget-rs implements this process as closely as possible, and aims to return byte ranges that are as small as possible. 
 In htsget-rs the ticket server handled by [htsget-http-actix] or [htsget-http-lambda], and the data 
 block server is handled by the [storage backend][storage-backend], either [locally][local-storage], or using [AWS S3][s3-storage].
-htsget-rs is written asynchronously and uses the [Tokio] runtime.
+
+htsget-rs is written asynchronously using the [Tokio] runtime. It aims to be as efficient and safe as possible, having
+a thorough set of tests and benchmarks.
 
 htsget-rs implements the following components of the protocol:
 * `GET` requests.
@@ -85,10 +87,10 @@ To run benchmarks, see the benchmark sections of [htsget-http-actix][htsget-http
 This repository consists of a workspace composed of the following crates:
 
 - [htsget-config]: Configuration of the server.
-- [htsget-http-actix]: Local instance of the htsget server. Contains framework dependent code using [actix-web].
+- [htsget-http-actix]: Local instance of the htsget server. Contains framework dependent code using [Actix Web][actix-web].
 - [htsget-http-core]: Handling of htsget HTTP requests. Framework independent code.
 - [htsget-http-lambda]: Cloud based instance of the htsget server. Contains framework dependent
-code using the [aws-lambda-rust-runtime].
+code using the [Rust Runtime for AWS Lambda][aws-lambda-rust-runtime].
 - [htsget-search]: Core logic needed to search bioinformatics files based on htsget queries.
 - [htsget-test-utils]: Test utilities used by other crates in the project.
 
