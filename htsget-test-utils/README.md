@@ -10,7 +10,7 @@
 
 Common test functions and utilities used by [htsget-rs].
 
-[htsget-rs]: ../
+[htsget-rs]: https://github.com/umccr/htsget-rs
 
 ## Overview
 

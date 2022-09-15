@@ -10,7 +10,7 @@
 
 Framework dependent code for a cloud-based instance of [htsget-rs], using AWS Lambda.
 
-[htsget-rs]: ../
+[htsget-rs]: https://github.com/umccr/htsget-rs
 
 ## Overview
 

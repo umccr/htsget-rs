@@ -10,7 +10,7 @@
 
 Framework independent code for handling HTTP in [htsget-rs].
 
-[htsget-rs]: ../
+[htsget-rs]: https://github.com/umccr/htsget-rs
 
 ## Overview
 

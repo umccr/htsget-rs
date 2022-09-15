@@ -13,7 +13,7 @@ Creates URL tickets for [htsget-rs] by processing bioinformatics files. It:
 * Uses [noodles] to process files.
 * Features a storage abstraction layer which can represent data locally or in the cloud.
 
-[htsget-rs]: ../
+[htsget-rs]: https://github.com/umccr/htsget-rs
 
 ## Overview
 
