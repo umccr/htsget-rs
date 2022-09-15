@@ -42,7 +42,7 @@ cargo test --tests --all-features
 ## Code of conduct
 
 We follow the [Rust Code of conduct][rust-code-of-conduct]. For moderation, please contact the maintainers of this
-project directly, at mmalenic1@gmail.com (@mmalenic).
+project directly, at mmalenic1@gmail.com ([@mmalenic]).
 
 [rust-code-of-conduct]: https://www.rust-lang.org/policies/code-of-conduct
 [@mmalenic]: https://github.com/mmalenic
