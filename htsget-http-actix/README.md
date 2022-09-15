@@ -10,7 +10,7 @@
 
 Framework dependent code for a local instance of [htsget-rs], using [Actix Web][actix-web].
 
-[htsget-rs]: https://github.com/umccr/htsget-rs
+[htsget-rs]: ../
 [actix-web]: https://actix.rs/
 
 ## Overview

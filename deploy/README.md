@@ -11,7 +11,7 @@ To configure the deployment change the environment variable inside the `RustFunc
 
 See [htsget-config] for a list of available configuration options.
 
-[htsget-rs]: https://github.com/umccr/htsget-rs
+[htsget-rs]: ../
 [htsget-http-lambda]: ../htsget-http-lambda
 [htsget-config]: ../htsget-config
 [htsget-http-lambda-stack]: lib/htsget-http-lambda-stack.ts

@@ -10,7 +10,7 @@
 
 Configuration for [htsget-rs] and relevant crates.
 
-[htsget-rs]: https://github.com/umccr/htsget-rs
+[htsget-rs]: ../
 
 ## Overview
 
