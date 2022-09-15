@@ -37,7 +37,7 @@ After installing the basic dependencies, complete the following steps:
 
 Below is a summary of commands to run in this directory:
 
-```shell
+```sh
 npm install -g aws-cdk typescript
 rustup target add aarch64-unknown-linux-gnu
 cargo install cargo-lambda
@@ -62,21 +62,21 @@ to ensure that prerequisites are met.
 
 CDK should be bootstrapped once, if this hasn't been done before.
 
-```shell
+```sh
 cdk bootstrap
 ```
 
 In order to deploy, check that the 
 stack synthesizes correctly and then deploy.
 
-```shell
+```sh
 cdk synth
 cdk deploy
 ```
 
 Towards the end of the deployment you should get an API Gateway endpoint. This can be used with [awscurl] to query the htsget-rs server:
 
-```shell
+```sh
 awscurl --region ap-southeast-2 https://<ID>.execute-api.ap-southeast-2.amazonaws.com/prod/reads/service-info
 ```
 
@@ -119,12 +119,14 @@ It's recommended to use the `--region` flag with `awscurl` as environment variab
 ### Local testing
 
 The [Lambda][htsget-http-lambda] function can also be run locally using [cargo-lambda]. From the root project directory, execute the following command.
-```console
+
+```sh
 cargo lambda watch
 ```
 
 Then in a **separate terminal session** run.
-```console
+
+```sh
 cargo lambda invoke htsget-http-lambda --data-file data/events/event_get.json
 ```
 

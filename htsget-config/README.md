@@ -54,7 +54,7 @@ the returned URL tickets.
 For example, below is a `HTSGET_REGEX` variable which matches a `/` between two groups, and inserts an additional `data`
 inbetween the groups with the `HTSGET_SUBSTITUTION_STRING`.
 
-```shell
+```sh
 export HTSGET_REGEX='(?P<group1>.*?)/(?P<group2>.*)' 
 export HTSGET_SUBSTITUTION_STRING='$group1/data/$group2'
 ```
@@ -68,7 +68,7 @@ read to configure the level that trace logs are emitted.
 
 For example, the following indicates trace level for all htsget crates, and info level for all other crates:
 
-```shell
+```sh
 export RUST_LOG='info,htsget_http_lambda=trace,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace,htsget_test_utils=trace'
 ```
 

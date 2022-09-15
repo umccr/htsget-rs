@@ -113,7 +113,7 @@ as targeted as possible, retrieving only the required information.
 Since this crate is used to query file data, it is the most performance critical component of htsget-rs. Benchmarks, using 
 [Criterion.rs][criterion-rs], are therefore written to test performance. Run benchmarks by executing:
 
-```shell
+```sh
 cargo bench -p htsget-search --all-features
 ```
 

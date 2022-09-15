@@ -28,7 +28,7 @@ This crate is used for running a local instance of htsget-rs. It is based on:
 This crate uses [htsget-config] for configuration. See [htsget-config] for details on how to configure this crate.
 
 To run an instance of this crate, execute the following command:
-```shell
+```sh
 cargo run -p htsget-http-actix
 ```
 Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
@@ -36,7 +36,7 @@ with data accessible from the [`data`][data] directory.
 
 If only `LocalStorage` is required, compiling code related `AwsS3Storage` can be avoided by running the following:
 
-```shell
+```sh
 cargo run -p htsget-http-actix --no-default-features
 ```
 
@@ -55,7 +55,7 @@ To run the data block server with TLS, pem formatted X.509 certificates are requ
 For development and testing purposes, self-signed certificates can be used.
 For example, to generate self-signed certificates run:
 
-```shell
+```sh
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj '/CN=localhost'
 ```
 
@@ -69,31 +69,31 @@ Some example requests using `curl` are shown below:
 
 * GET
 
-```shell
+```sh
 curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 * POST
 
-```shell
+```sh
 curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 * Parametrised GET
 
-```shell
+```sh
 curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header'
 ```
 
 * Parametrised POST
 
-```shell
+```sh
 curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
 * Service info
 
-```shell
+```sh
 curl '127.0.0.1:8080/variants/service-info'
 ```
 

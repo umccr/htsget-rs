@@ -57,7 +57,7 @@ Htsget-rs is configured using environment variables, for details on how to set t
 
 ### Local
 To run a local instance htsget-rs, run [htsget-http-actix] by executing the following:
-```shell
+```sh
 cargo run -p htsget-http-actix
 ```
 Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
@@ -71,7 +71,7 @@ Cloud based htsget-rs uses [htsget-http-lambda]. For more information and an exa
 
 Tests can be run tests by executing:
 
-```shell
+```sh
 cargo test --all-features
 ```
 
