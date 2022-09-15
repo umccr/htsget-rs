@@ -27,7 +27,7 @@ use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
 
-use crate::storage::StorageError::{IoError, DataServerError};
+use crate::storage::StorageError::{DataServerError, IoError};
 use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};

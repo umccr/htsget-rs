@@ -18,8 +18,8 @@ use crate::htsget::{Class, Headers, Url};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
-pub mod local;
 pub mod data_server;
+pub mod local;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
@@ -352,8 +352,8 @@ mod tests {
   use std::collections::HashMap;
 
   use crate::htsget::Class;
-  use crate::storage::local::LocalStorage;
   use crate::storage::data_server::HttpTicketFormatter;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 

@@ -7,8 +7,8 @@ use tracing::instrument;
 use htsget_config::config::{Config, StorageType};
 use htsget_http_lambda::Router;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
-use htsget_search::storage::local::LocalStorage;
 use htsget_search::storage::data_server::HttpTicketFormatter;
+use htsget_search::storage::local::LocalStorage;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {

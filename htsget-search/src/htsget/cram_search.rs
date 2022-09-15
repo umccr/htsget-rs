@@ -305,8 +305,8 @@ mod tests {
 
   use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
   use crate::htsget::{Class, Class::Body, Class::Header, Headers, Response, Url};
-  use crate::storage::local::LocalStorage;
   use crate::storage::data_server::HttpTicketFormatter;
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 
