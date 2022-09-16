@@ -29,11 +29,7 @@ async fn main() -> std::io::Result<()> {
 }
 
 async fn local_storage_server(config: Config) -> std::io::Result<()> {
-  let mut formatter = HttpTicketFormatter::try_from(
-    config.ticket_server_addr,
-    config.ticket_server_cert,
-    config.ticket_server_key,
-  )?;
+  let mut formatter = HttpTicketFormatter::try_from(config.data_server_config)?;
   let local_server = formatter.bind_ticket_server().await?;
 
   let searcher =
@@ -44,7 +40,7 @@ async fn local_storage_server(config: Config) -> std::io::Result<()> {
     local_server = local_server => Ok(local_server??),
     actix_server = run_server(
       searcher,
-      config.htsget_server_config,
+      config.ticket_server_config,
     )? => actix_server
   }
 }
@@ -52,5 +48,5 @@ async fn local_storage_server(config: Config) -> std::io::Result<()> {
 #[cfg(feature = "s3-storage")]
 async fn s3_storage_server(config: Config) -> std::io::Result<()> {
   let searcher = HtsGetFromStorage::s3_from(config.s3_bucket, config.resolver).await;
-  run_server(searcher, config.htsget_server_config)?.await
+  run_server(searcher, config.ticket_server_config)?.await
 }

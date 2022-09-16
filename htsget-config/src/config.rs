@@ -79,11 +79,10 @@ pub struct Config {
   pub resolver: RegexResolver,
   pub path: PathBuf,
   #[serde(flatten)]
-  pub htsget_server_config: HtsgetServerConfig,
+  pub ticket_server_config: TicketServerConfig,
   pub storage_type: StorageType,
-  pub ticket_server_addr: SocketAddr,
-  pub ticket_server_key: Option<PathBuf>,
-  pub ticket_server_cert: Option<PathBuf>,
+  #[serde(flatten)]
+  pub data_server_config: DataServerConfig,
   #[cfg(feature = "s3-storage")]
   pub s3_bucket: String,
 }
@@ -91,11 +90,20 @@ pub struct Config {
 /// Configuration for the htsget server.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
-pub struct HtsgetServerConfig {
-  pub addr: SocketAddr,
+pub struct TicketServerConfig {
+  pub ticket_server_addr: SocketAddr,
   #[serde(flatten)]
   pub service_info: ServiceInfo,
-  pub cors_allow_credentials: bool,
+  pub ticket_server_cors_allow_credentials: bool,
+}
+
+/// Configuration for the htsget server.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct DataServerConfig {
+  pub data_server_addr: SocketAddr,
+  pub data_server_key: Option<PathBuf>,
+  pub data_server_cert: Option<PathBuf>,
 }
 
 /// Configuration of the service info.
@@ -114,12 +122,22 @@ pub struct ServiceInfo {
   pub environment: Option<String>,
 }
 
-impl Default for HtsgetServerConfig {
+impl Default for TicketServerConfig {
   fn default() -> Self {
     Self {
-      addr: default_addr(),
+      ticket_server_addr: default_addr(),
       service_info: ServiceInfo::default(),
-      cors_allow_credentials: false,
+      ticket_server_cors_allow_credentials: false,
+    }
+  }
+}
+
+impl Default for DataServerConfig {
+  fn default() -> Self {
+    Self {
+      data_server_addr: default_localstorage_addr(),
+      data_server_key: None,
+      data_server_cert: None,
     }
   }
 }
@@ -129,11 +147,9 @@ impl Default for Config {
     Self {
       resolver: RegexResolver::default(),
       path: default_path(),
-      htsget_server_config: Default::default(),
+      ticket_server_config: Default::default(),
       storage_type: LocalStorage,
-      ticket_server_addr: default_localstorage_addr(),
-      ticket_server_key: None,
-      ticket_server_cert: None,
+      data_server_config: Default::default(),
       #[cfg(feature = "s3-storage")]
       s3_bucket: "".to_string(),
     }
@@ -180,19 +196,22 @@ mod tests {
 
   #[test]
   fn config_addr() {
-    std::env::set_var("HTSGET_ADDR", "127.0.0.1:8081");
+    std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8081");
     let config = Config::from_env().unwrap();
     assert_eq!(
-      config.htsget_server_config.addr,
+      config.ticket_server_config.ticket_server_addr,
       "127.0.0.1:8081".parse().unwrap()
     );
   }
 
   #[test]
   fn config_ticket_server_addr() {
-    std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8082");
+    std::env::set_var("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.ticket_server_addr, "127.0.0.1:8082".parse().unwrap());
+    assert_eq!(
+      config.data_server_config.data_server_addr,
+      "127.0.0.1:8082".parse().unwrap()
+    );
   }
 
   #[test]
@@ -213,7 +232,7 @@ mod tests {
   fn config_service_info_id() {
     std::env::set_var("HTSGET_ID", "id");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.htsget_server_config.service_info.id.unwrap(), "id");
+    assert_eq!(config.ticket_server_config.service_info.id.unwrap(), "id");
   }
 
   #[cfg(feature = "s3-storage")]

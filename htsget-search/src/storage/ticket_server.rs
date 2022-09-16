@@ -15,6 +15,7 @@ use axum::http;
 use axum::Router;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
+use htsget_config::config::DataServerConfig;
 use http::uri::Scheme;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
@@ -72,17 +73,13 @@ impl HttpTicketFormatter {
 
   /// Returns a ticket server with tls if both cert and key are not None, without tls if cert and key
   /// are both None, and otherwise an error.
-  pub fn try_from<P: AsRef<Path>>(
-    addr: SocketAddr,
-    cert: Option<P>,
-    key: Option<P>,
-  ) -> Result<Self> {
-    match (cert, key) {
-      (Some(cert), Some(key)) => Ok(Self::new_with_tls(addr, cert, key)),
+  pub fn try_from(config: DataServerConfig) -> Result<Self> {
+    match (config.data_server_cert, config.data_server_key) {
+      (Some(cert), Some(key)) => Ok(Self::new_with_tls(config.data_server_addr, cert, key)),
       (Some(_), None) | (None, Some(_)) => Err(TicketServerError(
         "both the cert and key must be provided for the ticket server".to_string(),
       )),
-      (None, None) => Ok(Self::new(addr)),
+      (None, None) => Ok(Self::new(config.data_server_addr)),
     }
   }
 
