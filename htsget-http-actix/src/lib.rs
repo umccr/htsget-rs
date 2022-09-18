@@ -60,7 +60,7 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
 pub fn configure_cors(cors_allow_credentials: bool) -> Cors {
   let cors = Cors::default()
     .allow_any_origin()
-    .allowed_methods(vec![Method::GET])
+    .allow_any_method()
     .max_age(CORS_MAX_AGE);
 
   if cors_allow_credentials {
