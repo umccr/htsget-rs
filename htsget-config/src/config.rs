@@ -104,6 +104,7 @@ pub struct DataServerConfig {
   pub data_server_addr: SocketAddr,
   pub data_server_key: Option<PathBuf>,
   pub data_server_cert: Option<PathBuf>,
+  pub data_server_cors_allow_credentials: bool
 }
 
 /// Configuration of the service info.
@@ -138,6 +139,7 @@ impl Default for DataServerConfig {
       data_server_addr: default_localstorage_addr(),
       data_server_key: None,
       data_server_cert: None,
+      data_server_cors_allow_credentials: false,
     }
   }
 }
