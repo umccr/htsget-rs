@@ -105,7 +105,7 @@ impl From<StorageError> for HtsGetError {
       }
       err @ StorageError::KeyNotFound(_) => Self::NotFound(err.to_string()),
       err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
-      err @ (StorageError::TicketServerError(_)
+      err @ (StorageError::DataServerError(_)
       | StorageError::InvalidUri(_)
       | StorageError::InvalidAddress(_)
       | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),

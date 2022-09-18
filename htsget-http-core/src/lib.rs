@@ -112,7 +112,7 @@ mod tests {
 
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
-  use htsget_search::storage::ticket_server::HttpTicketFormatter;
+  use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_search::{
     htsget::{from_storage::HtsGetFromStorage, Format, Headers, JsonResponse, Url},
     storage::local::LocalStorage,

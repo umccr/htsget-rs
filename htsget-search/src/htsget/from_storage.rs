@@ -110,7 +110,7 @@ pub(crate) mod tests {
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
   use crate::htsget::{Headers, Url};
-  use crate::storage::ticket_server::HttpTicketFormatter;
+  use crate::storage::data_server::HttpTicketFormatter;
 
   use super::*;
 

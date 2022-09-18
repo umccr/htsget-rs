@@ -6,7 +6,7 @@ use tokio::select;
 use htsget_config::config::{Config, StorageType, USAGE};
 use htsget_http_actix::run_server;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
-use htsget_search::storage::ticket_server::HttpTicketFormatter;
+use htsget_search::storage::data_server::HttpTicketFormatter;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -30,7 +30,7 @@ async fn main() -> std::io::Result<()> {
 
 async fn local_storage_server(config: Config) -> std::io::Result<()> {
   let mut formatter = HttpTicketFormatter::try_from(config.data_server_config)?;
-  let local_server = formatter.bind_ticket_server().await?;
+  let local_server = formatter.bind_data_server().await?;
 
   let searcher =
     HtsGetFromStorage::local_from(config.path.clone(), config.resolver.clone(), formatter)?;

@@ -28,7 +28,7 @@ use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
 
-use crate::storage::StorageError::{IoError, TicketServerError};
+use crate::storage::StorageError::{DataServerError, IoError};
 use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
@@ -76,7 +76,7 @@ impl HttpTicketFormatter {
   pub fn try_from(config: DataServerConfig) -> Result<Self> {
     match (config.data_server_cert, config.data_server_key) {
       (Some(cert), Some(key)) => Ok(Self::new_with_tls(config.data_server_addr, cert, key)),
-      (Some(_), None) | (None, Some(_)) => Err(TicketServerError(
+      (Some(_), None) | (None, Some(_)) => Err(DataServerError(
         "both the cert and key must be provided for the ticket server".to_string(),
       )),
       (None, None) => Ok(Self::new(config.data_server_addr)),
@@ -88,11 +88,11 @@ impl HttpTicketFormatter {
     &self.scheme
   }
 
-  /// Eagerly bind the address by returning an AxumStorageServer. This function also updates the
+  /// Eagerly bind the address by returning a `DataServer`. This function also updates the
   /// address to the actual bound address, and replaces the cert_key_pair with None.
-  pub async fn bind_ticket_server(&mut self) -> Result<TicketServer> {
+  pub async fn bind_data_server(&mut self) -> Result<DataServer> {
     let server =
-      TicketServer::bind_addr(self.addr, Self::SERVE_ASSETS_AT, self.cert_key_pair.take()).await?;
+      DataServer::bind_addr(self.addr, Self::SERVE_ASSETS_AT, self.cert_key_pair.take()).await?;
     self.addr = server.local_addr();
     Ok(server)
   }
@@ -111,26 +111,26 @@ impl From<AddrParseError> for StorageError {
 
 /// The local storage static http server.
 #[derive(Debug)]
-pub struct TicketServer {
+pub struct DataServer {
   listener: AddrIncoming,
   serve_assets_at: String,
   cert_key_pair: Option<CertificateKeyPair>,
 }
 
-impl TicketServer {
+impl DataServer {
   /// Eagerly bind the the address for use with the server, returning any errors.
   #[instrument(skip(serve_assets_at, cert_key_pair))]
   pub async fn bind_addr(
     addr: SocketAddr,
     serve_assets_at: impl Into<String>,
     cert_key_pair: Option<CertificateKeyPair>,
-  ) -> Result<TicketServer> {
+  ) -> Result<DataServer> {
     let listener = TcpListener::bind(addr)
       .await
-      .map_err(|err| IoError("binding ticket server addr".to_string(), err))?;
+      .map_err(|err| IoError("binding data server addr".to_string(), err))?;
     let listener = AddrIncoming::from_listener(listener)?;
 
-    info!(address = ?listener.local_addr(), "Htsget ticket server address bound to");
+    info!(address = ?listener.local_addr(), "data server address bound to");
     Ok(Self {
       listener,
       serve_assets_at: serve_assets_at.into(),
@@ -150,7 +150,7 @@ impl TicketServer {
       None => axum::Server::builder(self.listener)
         .serve(app)
         .await
-        .map_err(|err| TicketServerError(err.to_string())),
+        .map_err(|err| DataServerError(err.to_string())),
       Some(CertificateKeyPair { cert, key }) => {
         let rustls_config = Self::rustls_server_config(key, cert)?;
         let acceptor = TlsAcceptor::from(rustls_config);
@@ -158,14 +158,14 @@ impl TicketServer {
         loop {
           let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
             .await
-            .ok_or_else(|| TicketServerError("poll accept failed".to_string()))?
-            .map_err(|err| TicketServerError(err.to_string()))?;
+            .ok_or_else(|| DataServerError("poll accept failed".to_string()))?
+            .map_err(|err| DataServerError(err.to_string()))?;
           let acceptor = acceptor.clone();
 
           let app = app
             .make_service(&stream)
             .await
-            .map_err(|err| TicketServerError(err.to_string()))?;
+            .map_err(|err| DataServerError(err.to_string()))?;
 
           trace!(stream = ?stream, "accepting stream");
           tokio::spawn(async move {
@@ -206,7 +206,7 @@ impl TicketServer {
       .with_safe_defaults()
       .with_no_client_auth()
       .with_single_cert(certs, key)
-      .map_err(|err| TicketServerError(err.to_string()))?;
+      .map_err(|err| DataServerError(err.to_string()))?;
 
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
@@ -216,7 +216,7 @@ impl TicketServer {
 
 impl From<hyper::Error> for StorageError {
   fn from(error: hyper::Error) -> Self {
-    TicketServerError(error.to_string())
+    DataServerError(error.to_string())
   }
 }
 
@@ -294,7 +294,7 @@ mod tests {
   #[tokio::test]
   async fn get_addr_local_addr() {
     let mut formatter = HttpTicketFormatter::new("127.0.0.1:0".parse().unwrap());
-    let server = formatter.bind_ticket_server().await.unwrap();
+    let server = formatter.bind_data_server().await.unwrap();
     assert_eq!(formatter.get_addr(), server.local_addr());
   }
 
@@ -304,7 +304,7 @@ mod tests {
   {
     // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "0")).unwrap();
-    let server = TicketServer::bind_addr(addr, "/data", cert_key_pair)
+    let server = DataServer::bind_addr(addr, "/data", cert_key_pair)
       .await
       .unwrap();
     let port = server.local_addr().port();
