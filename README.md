@@ -97,11 +97,9 @@ This directory also contains example events used by a cloud instance of htsget-r
 In htsget-rs the ticket server handled by [htsget-http-actix] or [htsget-http-lambda], and the data
 block server is handled by the [storage backend][storage-backend], either [locally][local-storage], or using [AWS S3][s3-storage].
 This project layout is structured to allow for extensibility and modularity. For example, a new ticket server and data server could 
-be implemented using Cloudflare, where the ticket server is implemented using Cloudflare Workers in a new `htsget-http-workers` crate 
-and the data server is implemented using R2, with a `R2Storage` backend in [htsget-search].
+be implemented using Cloudflare Workers in a `htsget-http-workers` crate and Cloudflare R2 in [htsget-search].
 
-See the [overview of htsget-search][htsget-search-overview] for more information on the storage backend.
-
+See the [htsget-search overview][htsget-search-overview] for more information on the storage backend.
 
 [htsget-config]: htsget-config
 [htsget-http-actix]: htsget-http-actix
