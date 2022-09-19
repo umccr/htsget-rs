@@ -10,6 +10,7 @@ use std::net::{AddrParseError, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::http;
 use axum::Router;
@@ -17,6 +18,7 @@ use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
 use htsget_config::config::DataServerConfig;
 use http::uri::Scheme;
+use http::HeaderValue;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
 use rustls_pemfile::{certs, pkcs8_private_keys};
@@ -24,6 +26,7 @@ use tokio::net::TcpListener;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
+use tower_http::cors::{AllowHeaders, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
@@ -32,6 +35,9 @@ use crate::storage::StorageError::{DataServerError, IoError};
 use crate::storage::UrlFormatter;
 
 use super::{Result, StorageError};
+
+/// The maximum amount of time a CORS request can be cached for.
+pub const CORS_MAX_AGE: u64 = 86400;
 
 /// A certificate and key pair used for tls.
 /// This is the path to the PEM formatted X.509 certificate and private key.
@@ -47,20 +53,30 @@ pub struct HttpTicketFormatter {
   addr: SocketAddr,
   cert_key_pair: Option<CertificateKeyPair>,
   scheme: Scheme,
+  cors_allow_origin: String,
+  cors_allow_credentials: bool,
 }
 
 impl HttpTicketFormatter {
   const SERVE_ASSETS_AT: &'static str = "/data";
 
-  pub fn new(addr: SocketAddr) -> Self {
+  pub fn new(addr: SocketAddr, cors_allow_origin: String, cors_allow_credentials: bool) -> Self {
     Self {
       addr,
       cert_key_pair: None,
       scheme: Scheme::HTTP,
+      cors_allow_origin,
+      cors_allow_credentials,
     }
   }
 
-  pub fn new_with_tls<P: AsRef<Path>>(addr: SocketAddr, cert: P, key: P) -> Self {
+  pub fn new_with_tls<P: AsRef<Path>>(
+    addr: SocketAddr,
+    cors_allow_origin: String,
+    cors_allow_credentials: bool,
+    cert: P,
+    key: P,
+  ) -> Self {
     Self {
       addr,
       cert_key_pair: Some(CertificateKeyPair {
@@ -68,18 +84,8 @@ impl HttpTicketFormatter {
         key: PathBuf::from(key.as_ref()),
       }),
       scheme: Scheme::HTTPS,
-    }
-  }
-
-  /// Returns a ticket server with tls if both cert and key are not None, without tls if cert and key
-  /// are both None, and otherwise an error.
-  pub fn try_from(config: DataServerConfig) -> Result<Self> {
-    match (config.data_server_cert, config.data_server_key) {
-      (Some(cert), Some(key)) => Ok(Self::new_with_tls(config.data_server_addr, cert, key)),
-      (Some(_), None) | (None, Some(_)) => Err(DataServerError(
-        "both the cert and key must be provided for the ticket server".to_string(),
-      )),
-      (None, None) => Ok(Self::new(config.data_server_addr)),
+      cors_allow_origin,
+      cors_allow_credentials,
     }
   }
 
@@ -91,8 +97,14 @@ impl HttpTicketFormatter {
   /// Eagerly bind the address by returning a `DataServer`. This function also updates the
   /// address to the actual bound address, and replaces the cert_key_pair with None.
   pub async fn bind_data_server(&mut self) -> Result<DataServer> {
-    let server =
-      DataServer::bind_addr(self.addr, Self::SERVE_ASSETS_AT, self.cert_key_pair.take()).await?;
+    let server = DataServer::bind_addr(
+      self.addr,
+      Self::SERVE_ASSETS_AT,
+      self.cert_key_pair.take(),
+      self.cors_allow_origin.clone(),
+      self.cors_allow_credentials,
+    )
+    .await?;
     self.addr = server.local_addr();
     Ok(server)
   }
@@ -100,6 +112,32 @@ impl HttpTicketFormatter {
   /// Get the [SocketAddr] of this formatter.
   pub fn get_addr(&self) -> SocketAddr {
     self.addr
+  }
+}
+
+impl TryFrom<DataServerConfig> for HttpTicketFormatter {
+  type Error = StorageError;
+
+  /// Returns a ticket server with tls if both cert and key are not None, without tls if cert and key
+  /// are both None, and otherwise an error.
+  fn try_from(config: DataServerConfig) -> Result<Self> {
+    match (config.data_server_cert, config.data_server_key) {
+      (Some(cert), Some(key)) => Ok(Self::new_with_tls(
+        config.data_server_addr,
+        config.data_server_cors_allow_origin,
+        config.data_server_cors_allow_credentials,
+        cert,
+        key,
+      )),
+      (Some(_), None) | (None, Some(_)) => Err(DataServerError(
+        "both the cert and key must be provided for the ticket server".to_string(),
+      )),
+      (None, None) => Ok(Self::new(
+        config.data_server_addr,
+        config.data_server_cors_allow_origin,
+        config.data_server_cors_allow_credentials,
+      )),
+    }
   }
 }
 
@@ -115,6 +153,8 @@ pub struct DataServer {
   listener: AddrIncoming,
   serve_assets_at: String,
   cert_key_pair: Option<CertificateKeyPair>,
+  cors_allow_origin: String,
+  cors_allow_credentials: bool,
 }
 
 impl DataServer {
@@ -124,6 +164,8 @@ impl DataServer {
     addr: SocketAddr,
     serve_assets_at: impl Into<String>,
     cert_key_pair: Option<CertificateKeyPair>,
+    cors_allow_origin: String,
+    cors_allow_credentials: bool,
   ) -> Result<DataServer> {
     let listener = TcpListener::bind(addr)
       .await
@@ -135,6 +177,8 @@ impl DataServer {
       listener,
       serve_assets_at: serve_assets_at.into(),
       cert_key_pair,
+      cors_allow_origin,
+      cors_allow_credentials,
     })
   }
 
@@ -142,6 +186,10 @@ impl DataServer {
   #[instrument(level = "trace", skip_all)]
   pub async fn serve<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
     let mut app = Router::new()
+      .layer(Self::configure_cors(
+        self.cors_allow_credentials,
+        self.cors_allow_origin,
+      )?)
       .layer(TraceLayer::new_for_http())
       .merge(SpaRouter::new(&self.serve_assets_at, path))
       .into_make_service_with_connect_info::<SocketAddr>();
@@ -181,6 +229,23 @@ impl DataServer {
   /// Get the local address the server has bound to.
   pub fn local_addr(&self) -> SocketAddr {
     self.listener.local_addr()
+  }
+
+  /// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
+  /// are supported.
+  fn configure_cors(cors_allow_credentials: bool, cors_allow_origin: String) -> Result<CorsLayer> {
+    Ok(
+      CorsLayer::new()
+        .allow_origin(
+          cors_allow_origin
+            .parse::<HeaderValue>()
+            .map_err(|err| DataServerError(format!("failed parsing allowed origin: `{}`", err)))?,
+        )
+        .allow_headers(AllowHeaders::mirror_request())
+        .max_age(Duration::from_secs(CORS_MAX_AGE))
+        .allow_credentials(cors_allow_credentials)
+        .allow_methods(Any),
+    )
   }
 
   fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
@@ -269,31 +334,46 @@ mod tests {
 
   #[test]
   fn http_formatter_authority() {
-    let formatter = HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap());
+    let formatter =
+      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), "".to_string(), false);
     test_formatter_authority(formatter, "http");
   }
 
   #[test]
   fn https_formatter_authority() {
-    let formatter = HttpTicketFormatter::new_with_tls("127.0.0.1:8080".parse().unwrap(), "", "");
+    let formatter = HttpTicketFormatter::new_with_tls(
+      "127.0.0.1:8080".parse().unwrap(),
+      "".to_string(),
+      false,
+      "",
+      "",
+    );
     test_formatter_authority(formatter, "https");
   }
 
   #[test]
   fn http_scheme() {
-    let formatter = HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap());
+    let formatter =
+      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), "".to_string(), false);
     assert_eq!(formatter.get_scheme(), &Scheme::HTTP);
   }
 
   #[test]
   fn https_scheme() {
-    let formatter = HttpTicketFormatter::new_with_tls("127.0.0.1:8080".parse().unwrap(), "", "");
+    let formatter = HttpTicketFormatter::new_with_tls(
+      "127.0.0.1:8080".parse().unwrap(),
+      "".to_string(),
+      false,
+      "",
+      "",
+    );
     assert_eq!(formatter.get_scheme(), &Scheme::HTTPS);
   }
 
   #[tokio::test]
   async fn get_addr_local_addr() {
-    let mut formatter = HttpTicketFormatter::new("127.0.0.1:0".parse().unwrap());
+    let mut formatter =
+      HttpTicketFormatter::new("127.0.0.1:0".parse().unwrap(), "".to_string(), false);
     let server = formatter.bind_data_server().await.unwrap();
     assert_eq!(formatter.get_addr(), server.local_addr());
   }
@@ -304,7 +384,7 @@ mod tests {
   {
     // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "0")).unwrap();
-    let server = DataServer::bind_addr(addr, "/data", cert_key_pair)
+    let server = DataServer::bind_addr(addr, "/data", cert_key_pair, "".to_string(), false)
       .await
       .unwrap();
     let port = server.local_addr().port();

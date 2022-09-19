@@ -19,7 +19,11 @@ async fn perform_query(query: Query) -> Result<(), HtsGetError> {
   let htsget = HtsGetFromStorage::local_from(
     "../data",
     RegexResolver::new(".*", "$0").unwrap(),
-    HttpTicketFormatter::new("127.0.0.1:8081".parse().expect("expected valid address")),
+    HttpTicketFormatter::new(
+      "127.0.0.1:8081".parse().expect("expected valid address"),
+      "".to_string(),
+      false,
+    ),
   )?;
 
   htsget.search(query).await?;
