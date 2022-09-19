@@ -31,10 +31,7 @@ tickets, that the client must fetch and concatenate. This process is outlined in
 
 ![htsget-diagram][htsget-diagram-png]
 
-htsget-rs implements this process as closely as possible, and aims to return byte ranges that are as small as possible. 
-In htsget-rs the ticket server handled by [htsget-http-actix] or [htsget-http-lambda], and the data 
-block server is handled by the [storage backend][storage-backend], either [locally][local-storage], or using [AWS S3][s3-storage].
-
+htsget-rs implements this process as closely as possible, and aims to return byte ranges that are as small as possible.
 htsget-rs is written asynchronously using the [Tokio] runtime. It aims to be as efficient and safe as possible, having
 a thorough set of tests and benchmarks.
 
@@ -49,9 +46,6 @@ htsget-rs implements the following components of the protocol:
 [htsget-protocol]: http://samtools.github.io/hts-specs/htsget.html
 [htsget-diagram]: http://samtools.github.io/hts-specs/htsget.html#diagram-of-core-mechanic
 [htsget-diagram-png]: https://samtools.github.io/hts-specs/pub/htsget-ticket.png
-[storage-backend]: htsget-search/src/storage
-[local-storage]: htsget-search/src/storage/local.rs
-[s3-storage]: htsget-search/src/storage/aws.rs
 [tokio]: https://github.com/tokio-rs/tokio
 
 ## Usage
@@ -100,12 +94,26 @@ Other directories contain further applications or data:
 This directory also contains example events used by a cloud instance of htsget-rs in the [events][data-events] subdirectory.
 - [deploy]: An example deployment of [htsget-http-lambda].
 
+In htsget-rs the ticket server handled by [htsget-http-actix] or [htsget-http-lambda], and the data
+block server is handled by the [storage backend][storage-backend], either [locally][local-storage], or using [AWS S3][s3-storage].
+This project layout is structured to allow for extensibility and modularity. For example, a new ticket server and data server could 
+be implemented using Cloudflare, where the ticket server is implemented using Cloudflare Workers in a new `htsget-http-workers` crate 
+and the data server is implemented using R2, with a `R2Storage` backend in [htsget-search].
+
+See the [overview of htsget-search][htsget-search-overview] for more information on the storage backend.
+
+
 [htsget-config]: htsget-config
 [htsget-http-actix]: htsget-http-actix
 [htsget-http-core]: htsget-http-core
 [htsget-http-lambda]: htsget-http-lambda
 [htsget-search]: htsget-search
+[htsget-search-overview]: htsget-search/README.md#Overview
 [htsget-test-utils]: htsget-test-utils
+
+[storage-backend]: htsget-search/src/storage
+[local-storage]: htsget-search/src/storage/local.rs
+[s3-storage]: htsget-search/src/storage/aws.rs
 
 [data]: data
 [deploy]: deploy
