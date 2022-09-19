@@ -15,22 +15,23 @@ use crate::regex_resolver::RegexResolver;
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str = r#"
 The HtsGet server executables don't use command line arguments, but there are some environment variables that can be set to configure them:
-* HTSGET_ADDR: The socket address for the server which creates response tickets. Default: "127.0.0.1:8080".
 * HTSGET_PATH: The path to the directory where the server should be started. Default: "data". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
 * HTSGET_REGEX: The regular expression that should match an ID. Default: ".*".
 For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
 * HTSGET_SUBSTITUTION_STRING: The replacement expression. Default: "$0".
 * HTSGET_STORAGE_TYPE: Either "LocalStorage" or "AwsS3Storage", representing which storage type to use. Default: "LocalStorage".
 
-The following options are used for `CORS`. CORS is allowed only for `GET` requests. Any origin is allowed, and all origins in the `Origin` header are echoed back
-in the response with the `Access-Control-Allow-Origin` header. All headers are allowed, and headers set in the `Access-Control-Request-Headers` header are echoed back in the
-`Access-Control-Allow-Headers` response header. The `Access-Control-Max-Age` is set to the equivalent of 30 days, indicating how long the `CORS` request can be cached for.
-* HTSGET_CORS_ALLOW_CREDENTIALS: Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. Default: "false"
-
 The following options are used for the ticket server.
-* HTSGET_TICKET_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_TICKET_SERVER_KEY: The path to the PEM formatted X.509 private key used by the ticket response server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_TICKET_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the ticket response server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_TICKET_SERVER_ADDR: The socket address for the server which creates response tickets. Default: "127.0.0.1:8080".
+* HTSGET_TICKET_SERVER_ALLOW_CREDENTIALS: Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. Default: "false"
+* HTSGET_TICKET_SERVER_ALLOW_ORIGIN: Which origin os allowed in the `ORIGIN` header. Default: "http://localhost:8080"
+
+The following options are used for the data server.
+* HTSGET_DATA_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_DATA_SERVER_KEY: The path to the PEM formatted X.509 private key used by the ticket response server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_DATA_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the ticket response server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_DATA_SERVER_ALLOW_CREDENTIALS: Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. Default: "false"
+* HTSGET_DATA_SERVER_ALLOW_ORIGIN: Which origin os allowed in the `ORIGIN` header. Default: "http://localhost:8081"
 
 The following options are used to configure AWS S3 storage.
 * HTSGET_S3_BUCKET: The name of the AWS S3 bucket. Default: "". Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".
@@ -56,6 +57,14 @@ fn default_localstorage_addr() -> SocketAddr {
 
 fn default_addr() -> SocketAddr {
   "127.0.0.1:8080".parse().expect("expected valid address")
+}
+
+fn default_ticket_server_origin() -> String {
+  "http://localhost:8080".to_string()
+}
+
+fn default_data_server_origin() -> String {
+  "http://localhost:8081".to_string()
 }
 
 fn default_path() -> PathBuf {
@@ -95,6 +104,7 @@ pub struct TicketServerConfig {
   #[serde(flatten)]
   pub service_info: ServiceInfo,
   pub ticket_server_cors_allow_credentials: bool,
+  pub ticket_server_cors_allow_origin: String,
 }
 
 /// Configuration for the htsget server.
@@ -104,7 +114,8 @@ pub struct DataServerConfig {
   pub data_server_addr: SocketAddr,
   pub data_server_key: Option<PathBuf>,
   pub data_server_cert: Option<PathBuf>,
-  pub data_server_cors_allow_credentials: bool
+  pub data_server_cors_allow_credentials: bool,
+  pub data_server_cors_allow_origin: String,
 }
 
 /// Configuration of the service info.
@@ -129,6 +140,7 @@ impl Default for TicketServerConfig {
       ticket_server_addr: default_addr(),
       service_info: ServiceInfo::default(),
       ticket_server_cors_allow_credentials: false,
+      ticket_server_cors_allow_origin: default_ticket_server_origin(),
     }
   }
 }
@@ -140,6 +152,7 @@ impl Default for DataServerConfig {
       data_server_key: None,
       data_server_cert: None,
       data_server_cors_allow_credentials: false,
+      data_server_cors_allow_origin: default_data_server_origin(),
     }
   }
 }
@@ -203,6 +216,32 @@ mod tests {
     assert_eq!(
       config.ticket_server_config.ticket_server_addr,
       "127.0.0.1:8081".parse().unwrap()
+    );
+  }
+
+  #[test]
+  fn config_ticket_server_cors_allow_origin() {
+    std::env::set_var(
+      "HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGIN",
+      "http://localhost:8080",
+    );
+    let config = Config::from_env().unwrap();
+    assert_eq!(
+      config.ticket_server_config.ticket_server_cors_allow_origin,
+      "http://localhost:8080"
+    );
+  }
+
+  #[test]
+  fn config_data_server_cors_allow_origin() {
+    std::env::set_var(
+      "HTSGET_DATA_SERVER_CORS_ALLOW_ORIGIN",
+      "http://localhost:8080",
+    );
+    let config = Config::from_env().unwrap();
+    assert_eq!(
+      config.data_server_config.data_server_cors_allow_origin,
+      "http://localhost:8080"
     );
   }
 

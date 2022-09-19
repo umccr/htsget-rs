@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_web::dev::Server;
-use actix_web::http::Method;
 use actix_web::{web, App, HttpServer};
 use tracing::info;
 use tracing::instrument;
@@ -57,10 +56,10 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
 
 /// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
 /// are supported.
-pub fn configure_cors(cors_allow_credentials: bool) -> Cors {
+pub fn configure_cors(cors_allow_credentials: bool, cors_allow_origin: String) -> Cors {
   let cors = Cors::default()
-    .allow_any_origin()
     .allow_any_method()
+    .allowed_origin(&cors_allow_origin)
     .max_age(CORS_MAX_AGE);
 
   if cors_allow_credentials {
@@ -81,7 +80,10 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
       .configure(|service_config: &mut web::ServiceConfig| {
         configure_server(service_config, htsget.clone(), config.service_info.clone());
       })
-      .wrap(configure_cors(config.ticket_server_cors_allow_credentials))
+      .wrap(configure_cors(
+        config.ticket_server_cors_allow_credentials,
+        config.ticket_server_cors_allow_origin.clone(),
+      ))
       .wrap(TracingLogger::default())
   }))
   .bind(config.ticket_server_addr)?;
