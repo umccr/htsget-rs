@@ -23,17 +23,17 @@ See [htsget-config] for a list of available configuration options.
 
 ### Prerequisites
 
-* [aws-cli] should installed and authenticated in the shell.
+* [aws-cli] should be installed and authenticated in the shell.
 * Node.js and [npm] should be installed.
 * [Rust][rust] should be installed.
 
 After installing the basic dependencies, complete the following steps:
 
 1. Add the arm cross-compilation target to rust.
-3. Install [Zig][zig] using one of the methods show in [getting started][zig-getting-started], or by running the commands below and following the prompts. Zig is used by cargo-lambda for cross-compilation.
-2. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
+2. Install [Zig][zig] using one of the methods show in [getting started][zig-getting-started], or by running the commands below and following the prompts. Zig is used by cargo-lambda for cross-compilation.
+3. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
 4. Install [aws-cdk] and typescript.
-4. Install packages from this directory and compile [htsget-http-lambda]. This should place artifacts compiled for arm64 under the `target/lambda` directory which can be deployed to AWS.
+5. Install packages from this directory and compile [htsget-http-lambda]. This should place artifacts compiled for arm64 under the `target/lambda` directory which can be deployed to AWS.
 
 Below is a summary of commands to run in this directory:
 

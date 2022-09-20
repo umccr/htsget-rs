@@ -23,7 +23,7 @@ To get started, see [Usage].
 
 ## Overview
 
-Htsget-rs implements the [htsget protocol][htsget-protocol], which is a HTTP-based protocol for querying bioinformatics files. 
+Htsget-rs implements the [htsget protocol][htsget-protocol], which is an HTTP-based protocol for querying bioinformatics files. 
 The htsget protocol outlines how a htsget server should behave, and it is an effective way to fetch regions of large bioinformatics files. 
 
 A htsget server responds to queries which ask for regions of bioinformatics files. It does this by returning an array of URL
@@ -90,8 +90,8 @@ code using the [Rust Runtime for AWS Lambda][aws-lambda-rust-runtime].
 - [htsget-test-utils]: Test utilities used by other crates in the project.
 
 Other directories contain further applications or data:
-- [data]: Contains example data files which can be used by by htsget-rs, in folders denoting the file type.
-This directory also contains example events used by a cloud instance of htsget-rs in the [events][data-events] subdirectory.
+- [data]: Contains example data files which can be used by htsget-rs, in folders denoting the file type.
+This directory also contains example events used by a cloud instance of htsget-rs in the [`events`][data-events] subdirectory.
 - [deploy]: An example deployment of [htsget-http-lambda].
 
 In htsget-rs the ticket server handled by [htsget-http-actix] or [htsget-http-lambda], and the data

@@ -30,7 +30,7 @@ Future work may split these two modules into separate crates.
 
 ### Traits abstraction
 
-The two modules are architectured to remove commanlities between file formats and to allow implementing additional features with ease.
+The two modules are architectured to remove commonalities between file formats and to allow implementing additional features with ease.
 The `storage` module is the location of storage backends. This module acts as the 'data server', as 
 described by the htsget protocol, and implementing an additional backend requires implementing the `Storage` trait. This trait is used 
 by `htsget` to fetch the underlying file and query the data. For example, similar to `AwsS3Storage`, a Cloudflare R2 storage
@@ -52,7 +52,7 @@ For htsget-rs to function, files need to be organised in the following way:
     * CRAM: File must end with `.cram`; paired with CRAI index, which must end with `.cram.crai`.
     * VCF: File must end with `.vcf.gz`; paired with TBI index, which must end with `.vcf.gz.tbi`.
     * BCF: File must end with `.bcf`; paired with CSI index, which must end with `.bcf.csi`.
-* VCF files are assumed to be BGZF compresssed.
+* VCF files are assumed to be BGZF compressed.
 * BGZF compressed files (BAM, CRAM, VCF) can optionally also have a [GZ index][gzi] to make byte ranges smaller.
     * GZI files must end with `.gzi`.
     * See [minimising byte ranges][minimising-byte-ranges] for more details on GZI.
@@ -107,7 +107,7 @@ produce minimal byte ranges. For example, consider this [file][example-file]:
 
 To produce the smallest byte ranges, htsget-rs needs to find this data somewhere else. There are two ways to accomplish this:
 * Get the data from the underlying target file, by seeking to the start of a BGZF, and reading until the end of the block is found.
-* Get the data from an auxillary index file, such as GZI.
+* Get the data from an auxiliary index file, such as GZI.
 
 Currently, htsget-rs takes the latter approach, and uses GZI files, which contain information on all BGZF start and
 end positions. However, this is not ideal, as GZI contains more information than required by htsget-rs. The former

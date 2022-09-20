@@ -39,7 +39,6 @@ This crate has the following features:
 * `s3-storage`: used to enable `AwsS3Storage` functionality.
 * `server-tests`: used to enable server tests.
 
-[value]: HERE
 [dev-dependencies]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies
 
 ## License
