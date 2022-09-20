@@ -59,6 +59,7 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
 pub fn configure_cors(cors_allow_credentials: bool, cors_allow_origin: String) -> Cors {
   let cors = Cors::default()
     .allow_any_method()
+    .allow_any_header()
     .allowed_origin(&cors_allow_origin)
     .max_age(CORS_MAX_AGE);
 
