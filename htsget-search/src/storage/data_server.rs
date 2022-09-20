@@ -186,12 +186,12 @@ impl DataServer {
   #[instrument(level = "trace", skip_all)]
   pub async fn serve<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
     let mut app = Router::new()
+      .merge(SpaRouter::new(&self.serve_assets_at, path))
       .layer(Self::configure_cors(
         self.cors_allow_credentials,
         self.cors_allow_origin,
       )?)
       .layer(TraceLayer::new_for_http())
-      .merge(SpaRouter::new(&self.serve_assets_at, path))
       .into_make_service_with_connect_info::<SocketAddr>();
 
     match self.cert_key_pair {
