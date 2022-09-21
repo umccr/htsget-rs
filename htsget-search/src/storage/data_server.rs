@@ -313,7 +313,7 @@ mod tests {
   async fn test_http_server() {
     let (_, base_path) = create_local_test_files().await;
 
-    test_server_request("http", None, base_path.path().to_path_buf()).await;
+    test_server_request("http", None, base_path.path().to_path_buf(), vec![]).await;
   }
 
   #[tokio::test]
@@ -327,7 +327,7 @@ mod tests {
         cert: cert_path,
         key: key_path,
       }),
-      base_path.path().to_path_buf(),
+      base_path.path().to_path_buf(), vec![]
     )
     .await;
   }
@@ -378,19 +378,34 @@ mod tests {
     assert_eq!(formatter.get_addr(), server.local_addr());
   }
 
-  async fn test_server_request<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P)
-  where
-    P: AsRef<Path> + Send + 'static,
+  #[tokio::test]
+  async fn cors_options_response() {
+    let (_, base_path) = create_local_test_files().await;
+
+    test_server_request("http", None, base_path.path().to_path_buf(), vec![
+    ]).await;
+  }
+
+  async fn start_server<P>(cert_key_pair: Option<CertificateKeyPair>, path: P) -> u16
+    where
+      P: AsRef<Path> + Send + 'static,
   {
-    // Start server.
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "0")).unwrap();
-    let server = DataServer::bind_addr(addr, "/data", cert_key_pair, "".to_string(), false)
+    let server = DataServer::bind_addr(addr, "/data", cert_key_pair, "http://example.com".to_string(), true)
       .await
       .unwrap();
     let port = server.local_addr().port();
     tokio::spawn(async move { server.serve(path).await.unwrap() });
 
-    // Make request.
+    port
+  }
+
+  async fn test_server_request<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P, contains_headers: Vec<(String, String)>)
+  where
+    P: AsRef<Path> + Send + 'static,
+  {
+    let port = start_server(cert_key_pair, path).await;
+
     let client = ClientBuilder::new()
       .danger_accept_invalid_certs(true)
       .use_rustls_tls()
@@ -400,12 +415,16 @@ mod tests {
       .get(format!("{}://{}:{}/data/key1", scheme, "localhost", port))
       .send()
       .await
-      .unwrap()
-      .bytes()
-      .await
       .unwrap();
 
-    assert_eq!(response.as_ref(), b"value1");
+    if contains_headers.is_empty() {
+      assert_eq!(response.bytes().await.unwrap().as_ref(), b"value1");
+    } else {
+      for (header, value) in contains_headers {
+        let header_value = response.headers().get(header).unwrap().to_str().unwrap();
+        assert_eq!(header_value, value);
+      }
+    }
   }
 
   fn test_formatter_authority(formatter: HttpTicketFormatter, scheme: &str) {
