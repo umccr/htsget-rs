@@ -301,7 +301,7 @@ impl UrlFormatter for HttpTicketFormatter {
 mod tests {
   use std::str::FromStr;
 
-  use reqwest::ClientBuilder;
+  use reqwest::{ClientBuilder, Response};
 
   use htsget_test_utils::util::generate_test_certificates;
 
@@ -313,7 +313,7 @@ mod tests {
   async fn test_http_server() {
     let base_path = create_base_path();
 
-    test_server_request("http", None, base_path.path().to_path_buf(), vec![]).await;
+    test_server("http", None, base_path.path().to_path_buf()).await;
   }
 
   #[tokio::test]
@@ -321,13 +321,13 @@ mod tests {
     let base_path = create_base_path();
     let (key_path, cert_path) = generate_test_certificates(base_path.path(), "key.pem", "cert.pem");
 
-    test_server_request(
+    test_server(
       "https",
       Some(CertificateKeyPair {
         cert: cert_path,
         key: key_path,
       }),
-      base_path.path().to_path_buf(), vec![]
+      base_path.path().to_path_buf()
     )
     .await;
   }
@@ -382,7 +382,10 @@ mod tests {
   async fn cors_options_response() {
     let base_path = create_base_path();
 
-    test_server_request("http", None, base_path.path().to_path_buf(), vec![
+    test_server_headers("http", None, base_path.path().to_path_buf(), vec![
+      ("Access-Control-Allow-Origin", "*"),
+      ("Access-Control-Allow-Credentials", "true"),
+      ("Access-Control-Max-Age", &CORS_MAX_AGE.to_string()),
     ]).await;
   }
 
@@ -400,10 +403,27 @@ mod tests {
     port
   }
 
-  async fn test_server_request<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P, contains_headers: Vec<(String, String)>)
+  async fn test_server<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P)
   where
     P: AsRef<Path> + Send + 'static,
   {
+    let response = get_server_response(scheme, cert_key_pair, path).await;
+    assert_eq!(response.bytes().await.unwrap().as_ref(), b"value1");
+  }
+
+  async fn test_server_headers<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P, contains_headers: Vec<(&str, &str)>)
+    where
+      P: AsRef<Path> + Send + 'static,
+  {
+    let response = get_server_response(scheme, cert_key_pair, path).await;
+
+    for (header, value) in contains_headers {
+      let header_value = response.headers().get(header).unwrap().to_str().unwrap();
+      assert_eq!(header_value, value);
+    }
+  }
+
+  async fn get_server_response<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P) -> Response where P: AsRef<Path> + Send + 'static {
     let port = start_server(cert_key_pair, path).await;
 
     let client = ClientBuilder::new()
@@ -411,20 +431,12 @@ mod tests {
       .use_rustls_tls()
       .build()
       .unwrap();
-    let response = client
+    client
       .get(format!("{}://{}:{}/data/key1", scheme, "localhost", port))
+      .header("Origin", "http://example.com")
       .send()
       .await
-      .unwrap();
-
-    if contains_headers.is_empty() {
-      assert_eq!(response.bytes().await.unwrap().as_ref(), b"value1");
-    } else {
-      for (header, value) in contains_headers {
-        let header_value = response.headers().get(header).unwrap().to_str().unwrap();
-        assert_eq!(header_value, value);
-      }
-    }
+      .unwrap()
   }
 
   fn test_formatter_authority(formatter: HttpTicketFormatter, scheme: &str) {
