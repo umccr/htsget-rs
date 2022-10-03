@@ -299,6 +299,8 @@ impl UrlFormatter for HttpTicketFormatter {
 
 #[cfg(test)]
 mod tests {
+  use http::header::{ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN};
+  use http::{HeaderMap, Method};
   use std::str::FromStr;
 
   use reqwest::{ClientBuilder, Response};
@@ -379,14 +381,50 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn cors_options_response() {
+  async fn cors_regular_response() {
     let (_, base_path) = create_local_test_files().await;
 
     test_server_headers(
+      Method::GET,
+      HeaderMap::from_iter(
+        vec![(ORIGIN, HeaderValue::from_str("http://example.com").unwrap())].into_iter(),
+      ),
       "http",
       None,
       base_path.path().to_path_buf(),
       vec![("Access-Control-Allow-Origin", "http://example.com")],
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn cors_options_response() {
+    let (_, base_path) = create_local_test_files().await;
+
+    test_server_headers(
+      Method::OPTIONS,
+      HeaderMap::from_iter(
+        vec![
+          (ORIGIN, HeaderValue::from_str("http://example.com").unwrap()),
+          (
+            ACCESS_CONTROL_REQUEST_METHOD,
+            HeaderValue::from_str("POST").unwrap(),
+          ),
+          (
+            ACCESS_CONTROL_REQUEST_HEADERS,
+            HeaderValue::from_str("X-Requested-With").unwrap(),
+          ),
+        ]
+        .into_iter(),
+      ),
+      "http",
+      None,
+      base_path.path().to_path_buf(),
+      vec![
+        ("Access-Control-Allow-Origin", "http://example.com"),
+        ("Access-Control-Allow-Methods", "*"),
+        ("Access-Control-Allow-Headers", "X-Requested-With"),
+      ],
     )
     .await;
   }
@@ -415,11 +453,20 @@ mod tests {
   where
     P: AsRef<Path> + Send + 'static,
   {
-    let response = get_server_response(scheme, cert_key_pair, path).await;
+    let response = get_server_response(
+      Method::GET,
+      HeaderMap::default(),
+      scheme,
+      cert_key_pair,
+      path,
+    )
+    .await;
     assert_eq!(response.bytes().await.unwrap().as_ref(), b"value1");
   }
 
   async fn test_server_headers<P>(
+    method: Method,
+    headers: HeaderMap,
     scheme: &str,
     cert_key_pair: Option<CertificateKeyPair>,
     path: P,
@@ -427,7 +474,7 @@ mod tests {
   ) where
     P: AsRef<Path> + Send + 'static,
   {
-    let response = get_server_response(scheme, cert_key_pair, path).await;
+    let response = get_server_response(method, headers, scheme, cert_key_pair, path).await;
 
     for (header, value) in contains_headers {
       let header_value = response.headers().get(header).unwrap().to_str().unwrap();
@@ -436,6 +483,8 @@ mod tests {
   }
 
   async fn get_server_response<P>(
+    method: Method,
+    headers: HeaderMap,
     scheme: &str,
     cert_key_pair: Option<CertificateKeyPair>,
     path: P,
@@ -451,8 +500,11 @@ mod tests {
       .build()
       .unwrap();
     client
-      .get(format!("{}://{}:{}/data/key1", scheme, "localhost", port))
-      .header("Origin", "http://example.com")
+      .request(
+        method,
+        format!("{}://{}:{}/data/key1", scheme, "localhost", port),
+      )
+      .headers(headers)
       .send()
       .await
       .unwrap()
