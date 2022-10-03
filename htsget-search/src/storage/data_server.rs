@@ -327,7 +327,7 @@ mod tests {
         cert: cert_path,
         key: key_path,
       }),
-      base_path.path().to_path_buf()
+      base_path.path().to_path_buf(),
     )
     .await;
   }
@@ -382,21 +382,29 @@ mod tests {
   async fn cors_options_response() {
     let (_, base_path) = create_local_test_files().await;
 
-    test_server_headers("http", None, base_path.path().to_path_buf(), vec![
-      ("Access-Control-Allow-Origin", "*"),
-      ("Access-Control-Allow-Credentials", "true"),
-      ("Access-Control-Max-Age", &CORS_MAX_AGE.to_string()),
-    ]).await;
+    test_server_headers(
+      "http",
+      None,
+      base_path.path().to_path_buf(),
+      vec![("Access-Control-Allow-Origin", "http://example.com")],
+    )
+    .await;
   }
 
   async fn start_server<P>(cert_key_pair: Option<CertificateKeyPair>, path: P) -> u16
-    where
-      P: AsRef<Path> + Send + 'static,
+  where
+    P: AsRef<Path> + Send + 'static,
   {
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "0")).unwrap();
-    let server = DataServer::bind_addr(addr, "/data", cert_key_pair, "http://example.com".to_string(), true)
-      .await
-      .unwrap();
+    let server = DataServer::bind_addr(
+      addr,
+      "/data",
+      cert_key_pair,
+      "http://example.com".to_string(),
+      false,
+    )
+    .await
+    .unwrap();
     let port = server.local_addr().port();
     tokio::spawn(async move { server.serve(path).await.unwrap() });
 
@@ -411,9 +419,13 @@ mod tests {
     assert_eq!(response.bytes().await.unwrap().as_ref(), b"value1");
   }
 
-  async fn test_server_headers<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P, contains_headers: Vec<(&str, &str)>)
-    where
-      P: AsRef<Path> + Send + 'static,
+  async fn test_server_headers<P>(
+    scheme: &str,
+    cert_key_pair: Option<CertificateKeyPair>,
+    path: P,
+    contains_headers: Vec<(&str, &str)>,
+  ) where
+    P: AsRef<Path> + Send + 'static,
   {
     let response = get_server_response(scheme, cert_key_pair, path).await;
 
@@ -423,7 +435,14 @@ mod tests {
     }
   }
 
-  async fn get_server_response<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P) -> Response where P: AsRef<Path> + Send + 'static {
+  async fn get_server_response<P>(
+    scheme: &str,
+    cert_key_pair: Option<CertificateKeyPair>,
+    path: P,
+  ) -> Response
+  where
+    P: AsRef<Path> + Send + 'static,
+  {
     let port = start_server(cert_key_pair, path).await;
 
     let client = ClientBuilder::new()
