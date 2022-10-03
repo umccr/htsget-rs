@@ -261,12 +261,8 @@ pub(crate) mod tests {
     .await;
   }
 
-  pub(crate) fn create_base_path() -> TempDir {
-    TempDir::new().unwrap()
-  }
-
   pub(crate) async fn create_local_test_files() -> (String, TempDir) {
-    let base_path = create_base_path();
+    let base_path = TempDir::new().unwrap();
 
     let folder_name = "folder";
     let key1 = "key1";

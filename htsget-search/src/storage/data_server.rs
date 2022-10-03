@@ -305,20 +305,20 @@ mod tests {
 
   use htsget_test_utils::util::generate_test_certificates;
 
-  use crate::storage::local::tests::create_base_path;
+  use crate::storage::local::tests::create_local_test_files;
 
   use super::*;
 
   #[tokio::test]
   async fn test_http_server() {
-    let base_path = create_base_path();
+    let (_, base_path) = create_local_test_files().await;
 
     test_server("http", None, base_path.path().to_path_buf()).await;
   }
 
   #[tokio::test]
   async fn test_tls_server() {
-    let base_path = create_base_path();
+    let (_, base_path) = create_local_test_files().await;
     let (key_path, cert_path) = generate_test_certificates(base_path.path(), "key.pem", "cert.pem");
 
     test_server(
@@ -380,7 +380,7 @@ mod tests {
 
   #[tokio::test]
   async fn cors_options_response() {
-    let base_path = create_base_path();
+    let (_, base_path) = create_local_test_files().await;
 
     test_server_headers("http", None, base_path.path().to_path_buf(), vec![
       ("Access-Control-Allow-Origin", "*"),
