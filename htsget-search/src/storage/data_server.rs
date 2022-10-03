@@ -16,7 +16,6 @@ use axum::http;
 use axum::Router;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
-use htsget_config::config::DataServerConfig;
 use http::uri::Scheme;
 use http::HeaderValue;
 use hyper::server::accept::Accept;
@@ -30,6 +29,8 @@ use tower_http::cors::{AllowHeaders, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
+
+use htsget_config::config::DataServerConfig;
 
 use crate::storage::StorageError::{DataServerError, IoError};
 use crate::storage::UrlFormatter;
@@ -299,10 +300,10 @@ impl UrlFormatter for HttpTicketFormatter {
 
 #[cfg(test)]
 mod tests {
-  use http::header::{ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN};
-  use http::{HeaderMap, Method};
   use std::str::FromStr;
 
+  use http::header::{ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN};
+  use http::{HeaderMap, Method};
   use reqwest::{ClientBuilder, Response};
 
   use htsget_test_utils::util::generate_test_certificates;

@@ -97,15 +97,24 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
 mod tests {
   use std::path::Path;
 
+  use actix_web::body::{BoxBody, EitherBody};
+  use actix_web::dev::ServiceResponse;
+  use actix_web::http::header::{
+    ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_REQUEST_HEADERS,
+    ACCESS_CONTROL_REQUEST_METHOD, ORIGIN,
+  };
+  use actix_web::http::Method;
   use actix_web::{test, web, App};
   use async_trait::async_trait;
+  use reqwest::header::ACCESS_CONTROL_ALLOW_METHODS;
   use tempfile::TempDir;
 
   use htsget_config::config::Config;
+  use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
   use htsget_test_utils::server_tests::{
-    config_with_tls, formatter_and_expected_path, Header as TestHeader, Response as TestResponse,
-    TestRequest, TestServer,
+    config_with_tls, formatter_and_expected_path, formatter_from_config, Header as TestHeader,
+    Response as TestResponse, TestRequest, TestServer,
   };
 
   use super::*;
@@ -159,22 +168,7 @@ mod tests {
     async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
       let (expected_path, formatter) = formatter_and_expected_path(self.get_config()).await;
 
-      let app = test::init_service(App::new().configure(
-        |service_config: &mut web::ServiceConfig| {
-          configure_server(
-            service_config,
-            HtsGetFromStorage::local_from(
-              self.config.path.clone(),
-              self.config.resolver.clone(),
-              formatter,
-            )
-            .unwrap(),
-            self.config.ticket_server_config.service_info.clone(),
-          );
-        },
-      ))
-      .await;
-      let response = request.0.send_request(&app).await;
+      let response = self.get_response(request.0, formatter).await;
       let status: u16 = response.status().into();
       let bytes = test::read_body(response).await.to_vec();
 
@@ -187,6 +181,32 @@ mod tests {
       Self {
         config: config_with_tls(path),
       }
+    }
+
+    async fn get_response(
+      &self,
+      request: test::TestRequest,
+      formatter: HttpTicketFormatter,
+    ) -> ServiceResponse<EitherBody<BoxBody>> {
+      let app = test::init_service(
+        App::new()
+          .configure(|service_config: &mut web::ServiceConfig| {
+            configure_server(
+              service_config,
+              HtsGetFromStorage::local_from(
+                self.config.path.clone(),
+                self.config.resolver.clone(),
+                formatter,
+              )
+              .unwrap(),
+              self.config.ticket_server_config.service_info.clone(),
+            );
+          })
+          .wrap(configure_cors(false, "http://example.com".to_string())),
+      )
+      .await;
+
+      request.send_request(&app).await
     }
   }
 
@@ -251,5 +271,72 @@ mod tests {
       base_path.path(),
     ))
     .await;
+  }
+
+  #[actix_web::test]
+  async fn cors_regular_request() {
+    let server = ActixTestServer::default();
+    let formatter = formatter_from_config(server.get_config());
+
+    let request = test::TestRequest::get()
+      .uri("/reads/service-info")
+      .insert_header((ORIGIN, "http://example.com"));
+    let response = server.get_response(request, formatter).await;
+
+    assert_eq!(
+      response
+        .headers()
+        .get(ACCESS_CONTROL_ALLOW_ORIGIN)
+        .unwrap()
+        .to_str()
+        .unwrap(),
+      "http://example.com"
+    );
+  }
+
+  #[actix_web::test]
+  async fn cors_options_request() {
+    let server = ActixTestServer::default();
+    let formatter = formatter_from_config(server.get_config());
+
+    let request = test::TestRequest::default()
+      .method(Method::OPTIONS)
+      .uri("/reads/service-info")
+      .insert_header((ORIGIN, "http://example.com"))
+      .insert_header((ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+      .insert_header((ACCESS_CONTROL_REQUEST_HEADERS, "X-Requested-With"));
+    let response = server.get_response(request, formatter).await;
+
+    assert_eq!(
+      response
+        .headers()
+        .get(ACCESS_CONTROL_ALLOW_ORIGIN)
+        .unwrap()
+        .to_str()
+        .unwrap(),
+      "http://example.com"
+    );
+
+    for method in &[
+      "HEAD", "GET", "OPTIONS", "PUT", "PATCH", "TRACE", "POST", "DELETE", "CONNECT",
+    ] {
+      assert!(response
+        .headers()
+        .get(ACCESS_CONTROL_ALLOW_METHODS)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .contains(method));
+    }
+
+    assert_eq!(
+      response
+        .headers()
+        .get(ACCESS_CONTROL_ALLOW_HEADERS)
+        .unwrap()
+        .to_str()
+        .unwrap(),
+      "X-Requested-With"
+    );
   }
 }
