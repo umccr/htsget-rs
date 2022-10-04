@@ -17,7 +17,7 @@ use axum::Router;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
 use http::uri::Scheme;
-use http::HeaderValue;
+use http::{HeaderValue, Method};
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
 use rustls_pemfile::{certs, pkcs8_private_keys};
@@ -25,7 +25,7 @@ use tokio::net::TcpListener;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
-use tower_http::cors::{AllowHeaders, Any, CorsLayer};
+use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
@@ -245,7 +245,17 @@ impl DataServer {
         .allow_headers(AllowHeaders::mirror_request())
         .max_age(Duration::from_secs(CORS_MAX_AGE))
         .allow_credentials(cors_allow_credentials)
-        .allow_methods(Any),
+        .allow_methods(AllowMethods::list(vec![
+          Method::GET,
+          Method::POST,
+          Method::PUT,
+          Method::DELETE,
+          Method::HEAD,
+          Method::OPTIONS,
+          Method::CONNECT,
+          Method::PATCH,
+          Method::TRACE,
+        ])),
     )
   }
 
@@ -423,7 +433,10 @@ mod tests {
       base_path.path().to_path_buf(),
       vec![
         ("Access-Control-Allow-Origin", "http://example.com"),
-        ("Access-Control-Allow-Methods", "*"),
+        (
+          "Access-Control-Allow-Methods",
+          "GET,POST,PUT,DELETE,HEAD,OPTIONS,CONNECT,PATCH,TRACE",
+        ),
         ("Access-Control-Allow-Headers", "X-Requested-With"),
       ],
     )
