@@ -26,11 +26,11 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.26", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-noodles-bam = { version = "0.21", features = ["async"] }
-noodles-bcf = { version = "0.15", features = ["async"] }
-noodles-cram = { version = "0.18", features = ["async"] }
-noodles-vcf = { version = "0.18", features = ["async"] }
+noodles = { version = "0.27", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bam = { version = "0.22", features = ["async"] }
+noodles-bcf = { version = "0.16", features = ["async"] }
+noodles-cram = { version = "0.19", features = ["async"] }
+noodles-vcf = { version = "0.19", features = ["async"] }
 
 # Amazon S3
 bytes = { version = "1.2", optional = true }

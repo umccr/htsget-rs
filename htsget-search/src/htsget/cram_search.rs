@@ -2,23 +2,24 @@
 //!
 
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::core::Position;
+use noodles::cram;
 use noodles::cram::crai;
 use noodles::cram::crai::{Index, Record};
 use noodles::sam::Header;
-use noodles::{cram, sam};
 use tokio::io::{AsyncRead, BufReader};
 use tokio::{io, select};
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::Class::Body;
-use crate::htsget::{Format, HtsGetError, Interval, Query, Result};
+use crate::htsget::{Format, HtsGetError, Interval, Query, ReferenceSequenceInfo, Result};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
@@ -92,8 +93,8 @@ where
     &self,
     header: &'a Header,
     name: &str,
-  ) -> Option<(usize, &'a String, &'a sam::header::ReferenceSequence)> {
-    header.reference_sequences().get_full(name)
+  ) -> Option<ReferenceSequenceInfo> {
+    ReferenceSequenceInfo::try_from(name, header.reference_sequences())
   }
 
   async fn get_byte_ranges_for_unmapped_reads(
@@ -115,8 +116,7 @@ where
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    ref_seq: &sam::header::ReferenceSequence,
-    ref_seq_id: usize,
+    ref_seq_info: ReferenceSequenceInfo,
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
@@ -125,9 +125,9 @@ where
       &query.id,
       &query.format,
       &query.interval,
-      Some(ref_seq),
+      Some(ref_seq_info.length),
       index,
-      Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
+      Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_info.id)),
     )
     .await
   }
@@ -186,13 +186,16 @@ where
   }
 
   /// Get bytes ranges using the index.
-  #[instrument(level = "trace", skip(self, interval, ref_seq, crai_index, predicate))]
+  #[instrument(
+    level = "trace",
+    skip(self, interval, ref_seq_length, crai_index, predicate)
+  )]
   async fn bytes_ranges_from_index<F>(
     &self,
     id: &str,
     format: &Format,
     interval: &Interval,
-    ref_seq: Option<&sam::header::ReferenceSequence>,
+    ref_seq_length: Option<NonZeroUsize>,
     crai_index: &[Record],
     predicate: Arc<F>,
   ) -> Result<Vec<BytesPosition>>
@@ -205,17 +208,11 @@ where
     for (record, next) in crai_index.iter().zip(crai_index.iter().skip(1)) {
       let owned_record = record.clone();
       let owned_next = next.clone();
-      let ref_seq_owned = ref_seq.cloned();
       let owned_predicate = predicate.clone();
       let range = interval.clone();
       futures.push_back(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
-          Self::bytes_ranges_for_record(
-            ref_seq_owned.as_ref(),
-            range,
-            &owned_record,
-            owned_next.offset(),
-          )
+          Self::bytes_ranges_for_record(ref_seq_length, range, &owned_record, owned_next.offset())
         } else {
           Ok(None)
         }
@@ -242,7 +239,7 @@ where
       }
       Some(last) if predicate(last) => {
         if let Some(range) = Self::bytes_ranges_for_record(
-          ref_seq,
+          ref_seq_length,
           interval.clone(),
           last,
           self.position_at_eof(id, format).await?,
@@ -258,19 +255,19 @@ where
 
   /// Gets bytes ranges for a specific index entry.
   pub(crate) fn bytes_ranges_for_record(
-    ref_seq: Option<&sam::header::ReferenceSequence>,
+    ref_seq_length: Option<NonZeroUsize>,
     seq_range: Interval,
     record: &Record,
     next: u64,
   ) -> Result<Option<BytesPosition>> {
-    match ref_seq {
+    match ref_seq_length {
       None => Ok(Some(
         BytesPosition::default()
           .with_start(record.offset())
           .with_end(next)
           .with_class(Body),
       )),
-      Some(ref_seq) => {
+      Some(length) => {
         let record_start = record.alignment_start().unwrap_or(Position::MIN);
         let record_end = record_start
           .checked_add(record.alignment_span())
@@ -278,7 +275,7 @@ where
             HtsGetError::invalid_input("adding record alignment span to `Position`")
           })?;
 
-        let interval = seq_range.into_one_based(|| ref_seq.len().get())?.into();
+        let interval = seq_range.into_one_based(|| usize::from(length))?.into();
         let seq_start = interval.start().unwrap_or(Position::MIN);
         let seq_end = interval.end().unwrap_or(Position::MAX);
 

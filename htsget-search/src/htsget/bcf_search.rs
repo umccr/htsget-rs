@@ -1,7 +1,6 @@
 //! Module providing the search capability using BCF files
 //!
 
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -17,7 +16,7 @@ use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::htsget::HtsGetError;
+use crate::htsget::{HtsGetError, ReferenceSequenceInfo};
 use crate::{
   htsget::{vcf_search::VcfSearch, Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -50,11 +49,6 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  type ReferenceSequenceHeader = PhantomData<Self>;
-
-  fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> usize {
-    VcfSearch::<S>::MAX_SEQ_POSITION
-  }
 }
 
 #[async_trait]
@@ -101,7 +95,7 @@ where
         }
       }));
     }
-    let (ref_seq_index, (_, contig)) = find_first(
+    let (ref_seq_id, (_, contig)) = find_first(
       &format!("reference name not found in header: {}", reference_name,),
       futures,
     )
@@ -118,8 +112,9 @@ where
       value => value,
     };
 
+    let ref_seq_info = ReferenceSequenceInfo::new(ref_seq_id, VcfSearch::<S>::MAX_SEQ_POSITION);
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, &PhantomData, ref_seq_index, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_info, index)
       .await?;
     Ok(byte_ranges)
   }

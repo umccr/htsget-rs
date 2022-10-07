@@ -1,7 +1,7 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -21,7 +21,7 @@ use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::htsget::HtsGetError;
+use crate::htsget::{HtsGetError, ReferenceSequenceInfo};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -54,11 +54,6 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  type ReferenceSequenceHeader = PhantomData<Self>;
-
-  fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> usize {
-    Self::MAX_SEQ_POSITION
-  }
 }
 
 #[async_trait]
@@ -113,11 +108,6 @@ where
         }
       }));
     }
-    let ref_seq_index = find_first(
-      &format!("reference name not found in TBI file: {}", reference_name,),
-      futures,
-    )
-    .await?;
 
     query.interval.end = match query.interval.end {
       None => maybe_len.map(u32::try_from).transpose().map_err(|err| {
@@ -126,8 +116,15 @@ where
       value => value,
     };
 
+    let ref_seq_id = find_first(
+      &format!("reference name not found in TBI file: {}", reference_name),
+      futures,
+    )
+    .await?;
+
+    let ref_seq_info = ReferenceSequenceInfo::new(ref_seq_id, Self::MAX_SEQ_POSITION);
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, &PhantomData, ref_seq_index, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_info, index)
       .await?;
     Ok(byte_ranges)
   }
@@ -146,8 +143,11 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  // 1-based
-  pub(crate) const MAX_SEQ_POSITION: usize = (1 << 29) - 1; // see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
+  // 1-based, see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
+  pub(crate) const MAX_SEQ_POSITION: NonZeroUsize = match NonZeroUsize::new((1 << 29) - 1) {
+    Some(value) => value,
+    None => unreachable!(),
+  };
 
   /// Create the vcf search.
   pub fn new(storage: Arc<S>) -> Self {
