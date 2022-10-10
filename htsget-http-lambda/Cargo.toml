@@ -11,6 +11,7 @@ default = ["s3-storage"]
 [dependencies]
 envy = "0.4"
 tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
+tower-http = { version = "0.3", features = ["cors"] }
 lambda_http = { version = "0.6" }
 lambda_runtime = { version = "0.6" }
 htsget-config = { path = "../htsget-config", default-features = false }

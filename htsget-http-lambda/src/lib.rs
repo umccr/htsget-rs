@@ -6,13 +6,16 @@ use std::sync::Arc;
 
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
-use lambda_http::{http, Body, Request, Response};
-use tracing::debug;
+use lambda_http::tower::ServiceBuilder;
+use lambda_http::{http, service_fn, Body, Request, Response};
+use lambda_runtime::Error;
 use tracing::instrument;
+use tracing::{debug, info};
 
 use htsget_config::config::ServiceInfo;
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
+use htsget_search::storage::configure_cors;
 
 use crate::handlers::get::get;
 use crate::handlers::post::post;
@@ -167,6 +170,29 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     debug!(query = ?query, "GET request query");
     query
   }
+}
+
+pub async fn handle_request<H>(
+  cors_allow_credentials: bool,
+  cors_allow_origin: String,
+  router: &Router<'_, H>,
+) -> Result<(), Error>
+where
+  H: HtsGet + Send + Sync + 'static,
+{
+  let cors_layer = configure_cors(cors_allow_credentials, cors_allow_origin)?;
+
+  let handler =
+    ServiceBuilder::new()
+      .layer(cors_layer)
+      .service(service_fn(|event: Request| async move {
+        info!(event = ?event, "received request");
+        router.route_request(event).await
+      }));
+
+  lambda_http::run(handler).await?;
+
+  Ok(())
 }
 
 #[cfg(test)]

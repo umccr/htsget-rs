@@ -97,7 +97,10 @@ pub enum StorageError {
 
 /// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
 /// are supported.
-fn configure_cors(cors_allow_credentials: bool, cors_allow_origin: String) -> Result<CorsLayer> {
+pub fn configure_cors(
+  cors_allow_credentials: bool,
+  cors_allow_origin: String,
+) -> Result<CorsLayer> {
   Ok(
     CorsLayer::new()
       .allow_origin(
