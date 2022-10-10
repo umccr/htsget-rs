@@ -5,16 +5,21 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::encode;
+use http::{HeaderValue, Method};
 use thiserror::Error;
 use tokio::io::AsyncRead;
+use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
 use tracing::instrument;
 
 use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
 
 use crate::htsget::{Class, Headers, Url};
+use crate::storage::data_server::CORS_MAX_AGE;
+use crate::storage::StorageError::DataServerError;
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -88,6 +93,33 @@ pub enum StorageError {
   #[cfg(feature = "s3-storage")]
   #[error("aws error: {0}, with key: `{1}`")]
   AwsS3Error(String, String),
+}
+
+/// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
+/// are supported.
+fn configure_cors(cors_allow_credentials: bool, cors_allow_origin: String) -> Result<CorsLayer> {
+  Ok(
+    CorsLayer::new()
+      .allow_origin(
+        cors_allow_origin
+          .parse::<HeaderValue>()
+          .map_err(|err| DataServerError(format!("failed parsing allowed origin: `{}`", err)))?,
+      )
+      .allow_headers(AllowHeaders::mirror_request())
+      .max_age(Duration::from_secs(CORS_MAX_AGE))
+      .allow_credentials(cors_allow_credentials)
+      .allow_methods(AllowMethods::list(vec![
+        Method::GET,
+        Method::POST,
+        Method::PUT,
+        Method::DELETE,
+        Method::HEAD,
+        Method::OPTIONS,
+        Method::CONNECT,
+        Method::PATCH,
+        Method::TRACE,
+      ])),
+  )
 }
 
 impl From<StorageError> for io::Error {

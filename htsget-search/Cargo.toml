@@ -12,6 +12,7 @@ default = ["s3-storage"]
 # Axum server
 hyper = "0.14"
 tower-http = { version = "0.3", features = ["trace", "cors"] }
+http = "0.2"
 axum = "0.5"
 axum-extra = { version = "0.3", features = ["spa"] }
 rustls-pemfile = "1.0"
@@ -52,7 +53,6 @@ data-url = "0.1"
 # Aws S3 storage dependencies.
 anyhow = "1.0"
 s3-server = "0.2"
-http = "0.2"
 aws-types = { version = "0.48", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies
