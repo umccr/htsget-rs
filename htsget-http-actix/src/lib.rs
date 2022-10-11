@@ -170,9 +170,18 @@ mod tests {
 
       let response = self.get_response(request.0, formatter).await;
       let status: u16 = response.status().into();
+      let mut headers = response.headers().clone();
       let bytes = test::read_body(response).await.to_vec();
 
-      TestResponse::new(status, bytes, expected_path)
+      TestResponse::new(
+        status,
+        headers
+          .drain()
+          .map(|(name, value)| (name.unwrap(), value))
+          .collect(),
+        bytes,
+        expected_path,
+      )
     }
   }
 

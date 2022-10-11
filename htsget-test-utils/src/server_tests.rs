@@ -5,12 +5,12 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use futures::future::join_all;
 use futures::TryStreamExt;
-use http::Method;
+use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN};
+use http::{HeaderMap, Method};
 use noodles_bgzf as bgzf;
 use noodles_vcf as vcf;
 use reqwest::ClientBuilder;
 use serde::de;
-use serde::Deserialize;
 
 use htsget_config::config::Config;
 use htsget_http_core::{get_service_info_with, Endpoint};
@@ -35,19 +35,19 @@ impl<T: Into<String>> Header<T> {
 }
 
 /// Represents a http response.
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct Response {
-  #[serde(alias = "statusCode")]
   pub status: u16,
-  #[serde(with = "serde_bytes")]
+  pub headers: HeaderMap,
   pub body: Vec<u8>,
   pub expected_url_path: String,
 }
 
 impl Response {
-  pub fn new(status: u16, body: Vec<u8>, expected_url_path: String) -> Self {
+  pub fn new(status: u16, headers: HeaderMap, body: Vec<u8>, expected_url_path: String) -> Self {
     Self {
       status,
+      headers,
       body,
       expected_url_path,
     }
@@ -174,6 +174,7 @@ pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
     .method(Method::GET.to_string())
     .uri("/variants/vcf/sample1-bcbio-cancer");
   let response = tester.test_server(request).await;
+
   test_response(response, Body).await;
 }
 
@@ -192,6 +193,7 @@ fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
 pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = post_request(tester).set_payload("{}");
   let response = tester.test_server(request).await;
+
   test_response(response, Body).await;
 }
 
@@ -202,6 +204,7 @@ pub async fn test_parameterized_get<T: TestRequest>(tester: &impl TestServer<T>)
     .method(Method::GET.to_string())
     .uri("/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header");
   let response = tester.test_server(request).await;
+
   test_response(response, Class::Header).await;
 }
 
@@ -210,6 +213,7 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
   let request = post_request(tester)
     .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}");
   let response = tester.test_server(request).await;
+
   test_response(response, Body).await;
 }
 
@@ -229,6 +233,33 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
     .method(Method::GET.to_string())
     .uri("/variants/service-info");
   let response = tester.test_server(request).await;
+
+  test_response_service_info(&response);
+}
+
+/// A simple cors request test.
+pub async fn test_simple_cors_request<T: TestRequest>(tester: &impl TestServer<T>) {
+  let request = tester
+    .get_request()
+    .method(Method::GET.to_string())
+    .uri("/variants/service-info")
+    .insert_header(Header {
+      name: ORIGIN.to_string(),
+      value: "http://example.com".to_string(),
+    });
+  let response = tester.test_server(request).await;
+
+  assert!(response.is_success());
+  assert_eq!(
+    response
+      .headers
+      .get(ACCESS_CONTROL_ALLOW_ORIGIN)
+      .unwrap()
+      .to_str()
+      .unwrap(),
+    "http://example.com"
+  );
+
   test_response_service_info(&response);
 }
 
@@ -285,6 +316,10 @@ pub fn default_config_fixed_port() -> Config {
 pub fn default_test_config() -> Config {
   let mut config = Config::default();
   set_addr_and_path(&mut config);
+
+  config.data_server_config.data_server_cors_allow_credentials = false;
+  config.data_server_config.data_server_cors_allow_origin = "http://example.com".to_string();
+
   config
 }
 

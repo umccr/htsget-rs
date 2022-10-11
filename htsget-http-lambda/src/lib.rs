@@ -695,6 +695,7 @@ mod tests {
       .expect("Failed to route request.");
     let status: u16 = response.status().into();
     let body = response.body().to_vec();
-    Response::new(status, body, expected_path)
+
+    Response::new(status, response.headers().clone(), body, expected_path)
   }
 }
