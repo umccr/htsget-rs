@@ -241,7 +241,7 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 }
 
 /// A simple cors request test.
-pub async fn test_simple_cors_request<T: TestRequest>(tester: &impl TestServer<T>) {
+pub async fn test_cors_simple_request<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
     .get_request()
     .method(Method::GET.to_string())
@@ -265,7 +265,7 @@ pub async fn test_simple_cors_request<T: TestRequest>(tester: &impl TestServer<T
 }
 
 /// A preflight cors request test.
-pub async fn test_preflight_cors_request<T: TestRequest>(tester: &impl TestServer<T>) {
+pub async fn test_cors_preflight_request<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
     .get_request()
     .method(Method::OPTIONS.to_string())

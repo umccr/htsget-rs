@@ -99,22 +99,16 @@ mod tests {
 
   use actix_web::body::{BoxBody, EitherBody};
   use actix_web::dev::ServiceResponse;
-  use actix_web::http::header::{
-    ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_REQUEST_HEADERS,
-    ACCESS_CONTROL_REQUEST_METHOD, ORIGIN,
-  };
-  use actix_web::http::Method;
   use actix_web::{test, web, App};
   use async_trait::async_trait;
-  use reqwest::header::ACCESS_CONTROL_ALLOW_METHODS;
   use tempfile::TempDir;
 
   use htsget_config::config::Config;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_test_utils::server_tests;
   use htsget_test_utils::server_tests::{
-    config_with_tls, formatter_and_expected_path, formatter_from_config, Header as TestHeader,
-    Response as TestResponse, TestRequest, TestServer,
+    config_with_tls, formatter_and_expected_path, Header as TestHeader, Response as TestResponse,
+    TestRequest, TestServer,
   };
 
   use super::*;
@@ -294,52 +288,11 @@ mod tests {
 
   #[actix_web::test]
   async fn cors_simple_request() {
-    server_tests::test_simple_cors_request(&ActixTestServer::default()).await;
+    server_tests::test_cors_simple_request(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
-  async fn cors_options_request() {
-    let server = ActixTestServer::default();
-    let formatter = formatter_from_config(server.get_config());
-
-    let request = test::TestRequest::default()
-      .method(Method::OPTIONS)
-      .uri("/reads/service-info")
-      .insert_header((ORIGIN, "http://example.com"))
-      .insert_header((ACCESS_CONTROL_REQUEST_METHOD, "POST"))
-      .insert_header((ACCESS_CONTROL_REQUEST_HEADERS, "X-Requested-With"));
-    let response = server.get_response(request, formatter).await;
-
-    assert_eq!(
-      response
-        .headers()
-        .get(ACCESS_CONTROL_ALLOW_ORIGIN)
-        .unwrap()
-        .to_str()
-        .unwrap(),
-      "http://example.com"
-    );
-
-    for method in &[
-      "HEAD", "GET", "OPTIONS", "PUT", "PATCH", "TRACE", "POST", "DELETE", "CONNECT",
-    ] {
-      assert!(response
-        .headers()
-        .get(ACCESS_CONTROL_ALLOW_METHODS)
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .contains(method));
-    }
-
-    assert_eq!(
-      response
-        .headers()
-        .get(ACCESS_CONTROL_ALLOW_HEADERS)
-        .unwrap()
-        .to_str()
-        .unwrap(),
-      "X-Requested-With"
-    );
+  async fn cors_preflight_request() {
+    server_tests::test_cors_preflight_request(&ActixTestServer::default()).await;
   }
 }
