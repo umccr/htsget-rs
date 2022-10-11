@@ -348,6 +348,11 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn cors_preflight_request() {
+    server_tests::test_cors_preflight_request(&LambdaTestServer::default()).await;
+  }
+
+  #[tokio::test]
   async fn get_https_tickets() {
     let base_path = TempDir::new().unwrap();
     server_tests::test_get(&LambdaTestServer::new_with_tls(base_path.path())).await;
