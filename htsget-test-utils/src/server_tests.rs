@@ -5,7 +5,10 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use futures::future::join_all;
 use futures::TryStreamExt;
-use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN};
+use http::header::{
+  ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
+  ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN,
+};
 use http::{HeaderMap, Method};
 use noodles_bgzf as bgzf;
 use noodles_vcf as vcf;
@@ -259,8 +262,60 @@ pub async fn test_simple_cors_request<T: TestRequest>(tester: &impl TestServer<T
       .unwrap(),
     "http://example.com"
   );
+}
 
-  test_response_service_info(&response);
+/// A preflight cors request test.
+pub async fn test_preflight_cors_request<T: TestRequest>(tester: &impl TestServer<T>) {
+  let request = tester
+    .get_request()
+    .method(Method::OPTIONS.to_string())
+    .uri("/variants/service-info")
+    .insert_header(Header {
+      name: ORIGIN.to_string(),
+      value: "http://example.com".to_string(),
+    })
+    .insert_header(Header {
+      name: ACCESS_CONTROL_REQUEST_HEADERS.to_string(),
+      value: "X-Requested-With".to_string(),
+    })
+    .insert_header(Header {
+      name: ACCESS_CONTROL_REQUEST_METHOD.to_string(),
+      value: "POST".to_string(),
+    });
+  let response = tester.test_server(request).await;
+
+  assert!(response.is_success());
+  assert_eq!(
+    response
+      .headers
+      .get(ACCESS_CONTROL_ALLOW_ORIGIN)
+      .unwrap()
+      .to_str()
+      .unwrap(),
+    "http://example.com"
+  );
+
+  assert_eq!(
+    response
+      .headers
+      .get(ACCESS_CONTROL_ALLOW_HEADERS)
+      .unwrap()
+      .to_str()
+      .unwrap(),
+    "X-Requested-With"
+  );
+
+  for method in &[
+    "HEAD", "GET", "OPTIONS", "PUT", "PATCH", "TRACE", "POST", "DELETE", "CONNECT",
+  ] {
+    assert!(response
+      .headers
+      .get(ACCESS_CONTROL_ALLOW_METHODS)
+      .unwrap()
+      .to_str()
+      .unwrap()
+      .contains(method));
+  }
 }
 
 /// An example VCF search response.
