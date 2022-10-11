@@ -205,8 +205,9 @@ mod tests {
   use async_trait::async_trait;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
+  use lambda_http::tower::ServiceExt;
   use lambda_http::Body::Text;
-  use lambda_http::{Request, RequestExt};
+  use lambda_http::{Request, RequestExt, Service};
   use query_map::QueryMap;
   use tempfile::TempDir;
 
@@ -214,6 +215,7 @@ mod tests {
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::{Class, HtsGet};
+  use htsget_search::storage::configure_cors;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_search::storage::local::LocalStorage;
   use htsget_test_utils::server_tests;
@@ -223,7 +225,7 @@ mod tests {
     Response, TestRequest, TestServer,
   };
 
-  use crate::{HtsgetMethod, Method, Route, RouteType, Router};
+  use crate::{service_fn, HtsgetMethod, Method, Route, RouteType, Router, ServiceBuilder};
 
   struct LambdaTestServer {
     config: Config,
@@ -303,7 +305,7 @@ mod tests {
         &self.config.ticket_server_config.service_info,
       );
 
-      route_request_to_response(request.0, router, expected_path).await
+      route_request_to_response(request.0, router, expected_path, &self.config).await
     }
   }
 
@@ -338,6 +340,11 @@ mod tests {
   #[tokio::test]
   async fn parameterized_post_class_header_http_tickets() {
     server_tests::test_parameterized_post_class_header(&LambdaTestServer::default()).await;
+  }
+
+  #[tokio::test]
+  async fn cors_simple_request() {
+    server_tests::test_cors_simple_request(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
@@ -659,8 +666,13 @@ mod tests {
     let (expected_path, formatter) = formatter_and_expected_path(config).await;
     with_router(
       |router| async move {
-        let response =
-          route_request_to_response(get_request_from_file(file_path), router, expected_path).await;
+        let response = route_request_to_response(
+          get_request_from_file(file_path),
+          router,
+          expected_path,
+          config,
+        )
+        .await;
         test_response(response, class).await;
       },
       config,
@@ -674,8 +686,13 @@ mod tests {
     let expected_path = expected_url_path(&formatter);
     with_router(
       |router| async {
-        let response =
-          route_request_to_response(get_request_from_file(file_path), router, expected_path).await;
+        let response = route_request_to_response(
+          get_request_from_file(file_path),
+          router,
+          expected_path,
+          config,
+        )
+        .await;
         test_response_service_info(&response);
       },
       config,
@@ -688,11 +705,29 @@ mod tests {
     request: Request,
     router: Router<'_, T>,
     expected_path: String,
+    config: &Config,
   ) -> Response {
-    let response = router
-      .route_request(request)
+    let response = ServiceBuilder::new()
+      .layer(
+        configure_cors(
+          config.data_server_config.data_server_cors_allow_credentials,
+          config
+            .data_server_config
+            .data_server_cors_allow_origin
+            .clone(),
+        )
+        .unwrap(),
+      )
+      .service(service_fn(|event: Request| async {
+        router.route_request(event).await
+      }))
+      .ready()
       .await
-      .expect("Failed to route request.");
+      .unwrap()
+      .call(request)
+      .await
+      .expect("failed to route request");
+
     let status: u16 = response.status().into();
     let body = response.body().to_vec();
 
