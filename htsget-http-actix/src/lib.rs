@@ -211,7 +211,17 @@ mod tests {
               self.config.ticket_server_config.service_info.clone(),
             );
           })
-          .wrap(configure_cors(false, "http://example.com".to_string())),
+          .wrap(configure_cors(
+            self
+              .config
+              .data_server_config
+              .data_server_cors_allow_credentials,
+            self
+              .config
+              .data_server_config
+              .data_server_cors_allow_origin
+              .clone(),
+          )),
       )
       .await;
 
@@ -283,24 +293,8 @@ mod tests {
   }
 
   #[actix_web::test]
-  async fn cors_regular_request() {
-    let server = ActixTestServer::default();
-    let formatter = formatter_from_config(server.get_config());
-
-    let request = test::TestRequest::get()
-      .uri("/reads/service-info")
-      .insert_header((ORIGIN, "http://example.com"));
-    let response = server.get_response(request, formatter).await;
-
-    assert_eq!(
-      response
-        .headers()
-        .get(ACCESS_CONTROL_ALLOW_ORIGIN)
-        .unwrap()
-        .to_str()
-        .unwrap(),
-      "http://example.com"
-    );
+  async fn cors_simple_request() {
+    server_tests::test_simple_cors_request(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
