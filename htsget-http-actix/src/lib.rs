@@ -105,11 +105,12 @@ mod tests {
 
   use htsget_config::config::Config;
   use htsget_search::storage::data_server::HttpTicketFormatter;
-  use htsget_test_utils::server_tests;
-  use htsget_test_utils::server_tests::{
-    config_with_tls, formatter_and_expected_path, Header as TestHeader, Response as TestResponse,
+  use htsget_test_utils::http_tests::{config_with_tls, default_test_config};
+  use htsget_test_utils::{cors_tests, http_tests, server_tests};
+  use htsget_test_utils::http_tests::{Header as TestHeader, Response as TestResponse,
     TestRequest, TestServer,
   };
+  use htsget_test_utils::server_tests::formatter_and_expected_path;
 
   use super::*;
 
@@ -144,7 +145,7 @@ mod tests {
   impl Default for ActixTestServer {
     fn default() -> Self {
       Self {
-        config: server_tests::default_test_config(),
+        config: default_test_config(),
       }
     }
   }
@@ -288,11 +289,11 @@ mod tests {
 
   #[actix_web::test]
   async fn cors_simple_request() {
-    server_tests::test_cors_simple_request(&ActixTestServer::default()).await;
+    cors_tests::test_cors_simple_request(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn cors_preflight_request() {
-    server_tests::test_cors_preflight_request(&ActixTestServer::default()).await;
+    cors_tests::test_cors_preflight_request(&ActixTestServer::default()).await;
   }
 }

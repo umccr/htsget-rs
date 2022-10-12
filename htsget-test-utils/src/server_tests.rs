@@ -1,19 +1,12 @@
 use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use async_trait::async_trait;
 use futures::future::join_all;
 use futures::TryStreamExt;
-use http::header::{
-  ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
-  ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN,
-};
-use http::{HeaderMap, Method};
+use http::Method;
 use noodles_bgzf as bgzf;
 use noodles_vcf as vcf;
 use reqwest::ClientBuilder;
-use serde::de;
 
 use htsget_config::config::Config;
 use htsget_http_core::{get_service_info_with, Endpoint};
@@ -21,9 +14,9 @@ use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
 use htsget_search::htsget::{Class, Format, Headers, JsonResponse, Url};
 use htsget_search::storage::data_server::HttpTicketFormatter;
-use crate::http_tests::{formatter_from_config, Header, Response};
+use crate::http_tests::{formatter_from_config, Header, Response, TestRequest, TestServer};
 
-use crate::util::{expected_bgzf_eof_data_url, generate_test_certificates};
+use crate::util::expected_bgzf_eof_data_url;
 
 /// Test response with with class.
 pub async fn test_response(response: Response, class: Class) {

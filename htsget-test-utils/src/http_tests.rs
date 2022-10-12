@@ -4,6 +4,7 @@ use http::HeaderMap;
 use serde::de;
 use htsget_config::config::Config;
 use htsget_search::storage::data_server::HttpTicketFormatter;
+use async_trait::async_trait;
 use crate::util::generate_test_certificates;
 
 /// Represents a http header.
@@ -50,6 +51,22 @@ impl Response {
   pub fn is_success(&self) -> bool {
     300 > self.status && self.status >= 200
   }
+}
+
+/// Mock request trait that should be implemented to use test functions.
+pub trait TestRequest {
+  fn insert_header(self, header: Header<impl Into<String>>) -> Self;
+  fn set_payload(self, payload: impl Into<String>) -> Self;
+  fn uri(self, uri: impl Into<String>) -> Self;
+  fn method(self, method: impl Into<String>) -> Self;
+}
+
+/// Mock server trait that should be implemented to use test functions.
+#[async_trait(?Send)]
+pub trait TestServer<T: TestRequest> {
+  fn get_config(&self) -> &Config;
+  fn get_request(&self) -> T;
+  async fn test_server(&self, request: T) -> Response;
 }
 
 /// Get the default directory.

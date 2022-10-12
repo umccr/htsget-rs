@@ -281,16 +281,113 @@ impl UrlFormatter for HttpTicketFormatter {
 #[cfg(test)]
 mod tests {
   use std::str::FromStr;
+  use async_trait::async_trait;
 
-  use http::header::{ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN};
-  use http::{HeaderMap, HeaderValue, Method};
-  use reqwest::{ClientBuilder, Response};
-
-  use htsget_test_utils::util::generate_test_certificates;
+  use http::header::{ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, HeaderName, ORIGIN};
+  use http::{HeaderMap, HeaderValue, Method, Uri};
+  use reqwest::{Client, ClientBuilder, RequestBuilder, Response};
+  use htsget_config::config::Config;
 
   use crate::storage::local::tests::create_local_test_files;
+  use htsget_test_utils::util::generate_test_certificates;
+  use htsget_test_utils::http_tests::{default_test_config, Header, Response as TestResponse, TestRequest, TestServer};
+
 
   use super::*;
+
+  struct DataTestServer {
+    config: Config
+  }
+
+  struct DataTestRequest {
+    client: Client,
+    headers: HeaderMap,
+    payload: String,
+    method: Method,
+    uri: String
+  }
+
+  impl TestRequest for DataTestRequest {
+    fn insert_header(mut self, header: Header<impl Into<String>>) -> Self {
+      self.headers.insert(HeaderName::from_str(&header.name.into()).unwrap(), HeaderValue::from_str(&header.value.into()).unwrap());
+      self
+    }
+
+    fn set_payload(mut self, payload: impl Into<String>) -> Self {
+      self.payload = payload.into();
+      self
+    }
+
+    fn uri(mut self, uri: impl Into<String>) -> Self {
+      self.uri = uri.into().parse().unwrap();
+      self
+    }
+
+    fn method(mut self, method: impl Into<String>) -> Self {
+      self.method = method.into().parse().unwrap();
+      self
+    }
+  }
+
+  impl DataTestRequest {
+    fn build(self) -> RequestBuilder {
+      self.client.request(self.method, self.uri).headers(self.headers).body(self.payload)
+    }
+  }
+
+  impl Default for DataTestRequest {
+    fn default() -> Self {
+      Self {
+        client: ClientBuilder::new()
+        .danger_accept_invalid_certs(true)
+        .use_rustls_tls()
+        .build()
+        .unwrap(),
+        headers: HeaderMap::default(),
+        payload: "".to_string(),
+        method: Method::GET,
+        uri: "".to_string()
+      }
+    }
+  }
+
+  impl Default for DataTestServer {
+    fn default() -> Self {
+      Self {
+        config: default_test_config(),
+      }
+    }
+  }
+
+  #[async_trait(?Send)]
+  impl TestServer<DataTestRequest> for DataTestServer {
+    fn get_config(&self) -> &Config {
+      &self.config
+    }
+
+    fn get_request(&self) -> DataTestRequest {
+      DataTestRequest::default()
+    }
+
+    async fn test_server(&self, request: DataTestRequest) -> TestResponse {
+
+      // let response = self.get_response(request.0, formatter).await;
+      // let status: u16 = response.status().into();
+      // let mut headers = response.headers().clone();
+      // let bytes = test::read_body(response).await.to_vec();
+      //
+      // TestResponse::new(
+      //   status,
+      //   headers
+      //     .drain()
+      //     .map(|(name, value)| (name.unwrap(), value))
+      //     .collect(),
+      //   bytes,
+      //   expected_path,
+      // )
+      panic!();
+    }
+  }
 
   #[tokio::test]
   async fn test_http_server() {

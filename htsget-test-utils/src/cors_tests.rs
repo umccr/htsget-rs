@@ -1,7 +1,6 @@
 use http::header::{ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN};
 use http::Method;
-use crate::http_tests::Header;
-use crate::server_tests::{TestRequest, TestServer};
+use crate::http_tests::{Header, TestRequest, TestServer};
 
 /// A simple cors request test.
 pub async fn test_cors_simple_request<T: TestRequest>(tester: &impl TestServer<T>) {

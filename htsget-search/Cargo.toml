@@ -46,7 +46,7 @@ base64 = "0.13"
 serde = "1.0"
 
 [dev-dependencies]
-htsget-test-utils = { path = "../htsget-test-utils", default-features = false }
+htsget-test-utils = { path = "../htsget-test-utils", features = ["cors-tests"], default-features = false }
 tempfile = "3.3"
 data-url = "0.1"
 
