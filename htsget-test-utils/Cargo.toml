@@ -5,7 +5,14 @@ authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 
 [features]
+test-traits = [
+    "dep:http",
+    "dep:serde_json",
+    "dep:serde",
+]
+cors-tests = ["test-traits", "dep:htsget-config"]
 server-tests = [
+    "test-traits",
     "dep:htsget-config",
     "dep:htsget-search",
     "dep:htsget-http-core",
@@ -15,10 +22,7 @@ server-tests = [
     "dep:tokio",
     "dep:futures",
     "dep:async-trait",
-    "dep:http",
     "dep:mime",
-    "dep:serde_json",
-    "dep:serde",
     "dep:envy",
     "dep:serde_bytes",
     "dep:base64"
