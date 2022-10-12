@@ -5,14 +5,14 @@ authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 
 [features]
-test-traits = [
+http-tests = [
     "dep:http",
     "dep:serde_json",
     "dep:serde",
 ]
-cors-tests = ["test-traits", "dep:htsget-config"]
+cors-tests = ["http-tests", "dep:htsget-config"]
 server-tests = [
-    "test-traits",
+    "http-tests",
     "dep:htsget-config",
     "dep:htsget-search",
     "dep:htsget-http-core",
