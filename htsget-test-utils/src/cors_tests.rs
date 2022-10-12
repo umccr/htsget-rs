@@ -4,10 +4,15 @@ use crate::http_tests::{Header, TestRequest, TestServer};
 
 /// A simple cors request test.
 pub async fn test_cors_simple_request<T: TestRequest>(tester: &impl TestServer<T>) {
+  test_cors_simple_request_uri(tester, "/variants/service-info").await;
+}
+
+/// A simple cors request test, with uri specified.
+pub async fn test_cors_simple_request_uri<T: TestRequest>(tester: &impl TestServer<T>, uri: &str) {
   let request = tester
     .get_request()
     .method(Method::GET.to_string())
-    .uri("/variants/service-info")
+    .uri(uri)
     .insert_header(Header {
       name: ORIGIN.to_string(),
       value: "http://example.com".to_string(),
@@ -28,10 +33,15 @@ pub async fn test_cors_simple_request<T: TestRequest>(tester: &impl TestServer<T
 
 /// A preflight cors request test.
 pub async fn test_cors_preflight_request<T: TestRequest>(tester: &impl TestServer<T>) {
+  test_cors_preflight_request_uri(tester, "/variants/service-info").await;
+}
+
+/// A preflight cors request test, with uri specified.
+pub async fn test_cors_preflight_request_uri<T: TestRequest>(tester: &impl TestServer<T>, uri: &str) {
   let request = tester
     .get_request()
     .method(Method::OPTIONS.to_string())
-    .uri("/variants/service-info")
+    .uri(uri)
     .insert_header(Header {
       name: ORIGIN.to_string(),
       value: "http://example.com".to_string(),

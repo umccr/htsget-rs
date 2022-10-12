@@ -291,7 +291,7 @@ mod tests {
   use crate::storage::local::tests::create_local_test_files;
   use htsget_test_utils::util::generate_test_certificates;
   use htsget_test_utils::http_tests::{default_test_config, Header, Response as TestResponse, TestRequest, TestServer};
-
+  use htsget_test_utils::cors_tests::{test_cors_simple_request_uri, test_cors_preflight_request_uri};
 
   use super::*;
 
@@ -370,22 +370,17 @@ mod tests {
     }
 
     async fn test_server(&self, request: DataTestRequest) -> TestResponse {
+      let response = request.build().send().await.unwrap();
+      let status: u16 = response.status().into();
+      let headers = response.headers().clone();
+      let bytes = response.bytes().await.unwrap().to_vec();
 
-      // let response = self.get_response(request.0, formatter).await;
-      // let status: u16 = response.status().into();
-      // let mut headers = response.headers().clone();
-      // let bytes = test::read_body(response).await.to_vec();
-      //
-      // TestResponse::new(
-      //   status,
-      //   headers
-      //     .drain()
-      //     .map(|(name, value)| (name.unwrap(), value))
-      //     .collect(),
-      //   bytes,
-      //   expected_path,
-      // )
-      panic!();
+      TestResponse::new(
+        status,
+        headers,
+        bytes,
+        "".to_string(),
+      )
     }
   }
 
@@ -459,20 +454,12 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn cors_regular_response() {
+  async fn cors_simple_response() {
     let (_, base_path) = create_local_test_files().await;
 
-    test_server_headers(
-      Method::GET,
-      HeaderMap::from_iter(
-        vec![(ORIGIN, HeaderValue::from_str("http://example.com").unwrap())].into_iter(),
-      ),
-      "http",
-      None,
-      base_path.path().to_path_buf(),
-      vec![("Access-Control-Allow-Origin", "http://example.com")],
-    )
-    .await;
+    let port = start_server(None, base_path.path().to_path_buf()).await;
+
+    test_cors_simple_request_uri(&DataTestServer::default(), &format!("http://localhost:{}/data/key1", port)).await;
   }
 
   #[tokio::test]
