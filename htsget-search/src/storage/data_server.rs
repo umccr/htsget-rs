@@ -466,35 +466,9 @@ mod tests {
   async fn cors_options_response() {
     let (_, base_path) = create_local_test_files().await;
 
-    test_server_headers(
-      Method::OPTIONS,
-      HeaderMap::from_iter(
-        vec![
-          (ORIGIN, HeaderValue::from_str("http://example.com").unwrap()),
-          (
-            ACCESS_CONTROL_REQUEST_METHOD,
-            HeaderValue::from_str("POST").unwrap(),
-          ),
-          (
-            ACCESS_CONTROL_REQUEST_HEADERS,
-            HeaderValue::from_str("X-Requested-With").unwrap(),
-          ),
-        ]
-        .into_iter(),
-      ),
-      "http",
-      None,
-      base_path.path().to_path_buf(),
-      vec![
-        ("Access-Control-Allow-Origin", "http://example.com"),
-        (
-          "Access-Control-Allow-Methods",
-          "GET,POST,PUT,DELETE,HEAD,OPTIONS,CONNECT,PATCH,TRACE",
-        ),
-        ("Access-Control-Allow-Headers", "X-Requested-With"),
-      ],
-    )
-    .await;
+    let port = start_server(None, base_path.path().to_path_buf()).await;
+
+    test_cors_preflight_request_uri(&DataTestServer::default(), &format!("http://localhost:{}/data/key1", port)).await;
   }
 
   async fn start_server<P>(cert_key_pair: Option<CertificateKeyPair>, path: P) -> u16
