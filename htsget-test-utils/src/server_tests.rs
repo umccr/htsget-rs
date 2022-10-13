@@ -14,8 +14,8 @@ use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
 use htsget_search::htsget::{Class, Format, Headers, JsonResponse, Url};
 use htsget_search::storage::data_server::HttpTicketFormatter;
-use crate::http_tests::{formatter_from_config, Header, Response, TestRequest, TestServer};
 
+use crate::http_tests::{formatter_from_config, Header, Response, TestRequest, TestServer};
 use crate::util::expected_bgzf_eof_data_url;
 
 /// Test response with with class.

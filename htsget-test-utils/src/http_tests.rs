@@ -1,10 +1,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use async_trait::async_trait;
 use http::HeaderMap;
 use serde::de;
+
 use htsget_config::config::Config;
 use htsget_search::storage::data_server::HttpTicketFormatter;
-use async_trait::async_trait;
+
 use crate::util::generate_test_certificates;
 
 /// Represents a http header.
@@ -41,8 +44,8 @@ impl Response {
 
   /// Deserialize the body from a slice.
   pub fn deserialize_body<T>(&self) -> Result<T, serde_json::Error>
-    where
-      T: de::DeserializeOwned,
+  where
+    T: de::DeserializeOwned,
   {
     serde_json::from_slice(&self.body)
   }

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use htsget_search::htsget::Query;
-use tracing::instrument;
 
 use crate::{QueryBuilder, Result};
 

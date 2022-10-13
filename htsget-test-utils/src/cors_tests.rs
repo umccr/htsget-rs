@@ -1,5 +1,9 @@
-use http::header::{ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN};
+use http::header::{
+  ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
+  ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN,
+};
 use http::Method;
+
 use crate::http_tests::{Header, TestRequest, TestServer};
 
 /// A simple cors request test.
@@ -37,7 +41,10 @@ pub async fn test_cors_preflight_request<T: TestRequest>(tester: &impl TestServe
 }
 
 /// A preflight cors request test, with uri specified.
-pub async fn test_cors_preflight_request_uri<T: TestRequest>(tester: &impl TestServer<T>, uri: &str) {
+pub async fn test_cors_preflight_request_uri<T: TestRequest>(
+  tester: &impl TestServer<T>,
+  uri: &str,
+) {
   let request = tester
     .get_request()
     .method(Method::OPTIONS.to_string())

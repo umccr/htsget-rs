@@ -281,22 +281,27 @@ impl UrlFormatter for HttpTicketFormatter {
 #[cfg(test)]
 mod tests {
   use std::str::FromStr;
-  use async_trait::async_trait;
 
-  use http::header::{ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, HeaderName, ORIGIN};
-  use http::{HeaderMap, HeaderValue, Method, Uri};
-  use reqwest::{Client, ClientBuilder, RequestBuilder, Response};
+  use async_trait::async_trait;
+  use http::header::HeaderName;
+  use http::{HeaderMap, HeaderValue, Method};
+  use reqwest::{Client, ClientBuilder, RequestBuilder};
+
   use htsget_config::config::Config;
+  use htsget_test_utils::cors_tests::{
+    test_cors_preflight_request_uri, test_cors_simple_request_uri,
+  };
+  use htsget_test_utils::http_tests::{
+    default_test_config, Header, Response as TestResponse, TestRequest, TestServer,
+  };
+  use htsget_test_utils::util::generate_test_certificates;
 
   use crate::storage::local::tests::create_local_test_files;
-  use htsget_test_utils::util::generate_test_certificates;
-  use htsget_test_utils::http_tests::{default_test_config, Header, Response as TestResponse, TestRequest, TestServer};
-  use htsget_test_utils::cors_tests::{test_cors_simple_request_uri, test_cors_preflight_request_uri};
 
   use super::*;
 
   struct DataTestServer {
-    config: Config
+    config: Config,
   }
 
   struct DataTestRequest {
@@ -304,12 +309,15 @@ mod tests {
     headers: HeaderMap,
     payload: String,
     method: Method,
-    uri: String
+    uri: String,
   }
 
   impl TestRequest for DataTestRequest {
     fn insert_header(mut self, header: Header<impl Into<String>>) -> Self {
-      self.headers.insert(HeaderName::from_str(&header.name.into()).unwrap(), HeaderValue::from_str(&header.value.into()).unwrap());
+      self.headers.insert(
+        HeaderName::from_str(&header.name.into()).unwrap(),
+        HeaderValue::from_str(&header.value.into()).unwrap(),
+      );
       self
     }
 
@@ -331,7 +339,11 @@ mod tests {
 
   impl DataTestRequest {
     fn build(self) -> RequestBuilder {
-      self.client.request(self.method, self.uri).headers(self.headers).body(self.payload)
+      self
+        .client
+        .request(self.method, self.uri)
+        .headers(self.headers)
+        .body(self.payload)
     }
   }
 
@@ -339,14 +351,14 @@ mod tests {
     fn default() -> Self {
       Self {
         client: ClientBuilder::new()
-        .danger_accept_invalid_certs(true)
-        .use_rustls_tls()
-        .build()
-        .unwrap(),
+          .danger_accept_invalid_certs(true)
+          .use_rustls_tls()
+          .build()
+          .unwrap(),
         headers: HeaderMap::default(),
         payload: "".to_string(),
         method: Method::GET,
-        uri: "".to_string()
+        uri: "".to_string(),
       }
     }
   }
@@ -375,12 +387,7 @@ mod tests {
       let headers = response.headers().clone();
       let bytes = response.bytes().await.unwrap().to_vec();
 
-      TestResponse::new(
-        status,
-        headers,
-        bytes,
-        "".to_string(),
-      )
+      TestResponse::new(status, headers, bytes, "".to_string())
     }
   }
 
@@ -459,7 +466,11 @@ mod tests {
 
     let port = start_server(None, base_path.path().to_path_buf()).await;
 
-    test_cors_simple_request_uri(&DataTestServer::default(), &format!("http://localhost:{}/data/key1", port)).await;
+    test_cors_simple_request_uri(
+      &DataTestServer::default(),
+      &format!("http://localhost:{}/data/key1", port),
+    )
+    .await;
   }
 
   #[tokio::test]
@@ -468,7 +479,11 @@ mod tests {
 
     let port = start_server(None, base_path.path().to_path_buf()).await;
 
-    test_cors_preflight_request_uri(&DataTestServer::default(), &format!("http://localhost:{}/data/key1", port)).await;
+    test_cors_preflight_request_uri(
+      &DataTestServer::default(),
+      &format!("http://localhost:{}/data/key1", port),
+    )
+    .await;
   }
 
   async fn start_server<P>(cert_key_pair: Option<CertificateKeyPair>, path: P) -> u16
@@ -495,61 +510,17 @@ mod tests {
   where
     P: AsRef<Path> + Send + 'static,
   {
-    let response = get_server_response(
-      Method::GET,
-      HeaderMap::default(),
-      scheme,
-      cert_key_pair,
-      path,
-    )
-    .await;
-    assert_eq!(response.bytes().await.unwrap().as_ref(), b"value1");
-  }
-
-  async fn test_server_headers<P>(
-    method: Method,
-    headers: HeaderMap,
-    scheme: &str,
-    cert_key_pair: Option<CertificateKeyPair>,
-    path: P,
-    contains_headers: Vec<(&str, &str)>,
-  ) where
-    P: AsRef<Path> + Send + 'static,
-  {
-    let response = get_server_response(method, headers, scheme, cert_key_pair, path).await;
-
-    for (header, value) in contains_headers {
-      let header_value = response.headers().get(header).unwrap().to_str().unwrap();
-      assert_eq!(header_value, value);
-    }
-  }
-
-  async fn get_server_response<P>(
-    method: Method,
-    headers: HeaderMap,
-    scheme: &str,
-    cert_key_pair: Option<CertificateKeyPair>,
-    path: P,
-  ) -> Response
-  where
-    P: AsRef<Path> + Send + 'static,
-  {
     let port = start_server(cert_key_pair, path).await;
 
-    let client = ClientBuilder::new()
-      .danger_accept_invalid_certs(true)
-      .use_rustls_tls()
-      .build()
-      .unwrap();
-    client
-      .request(
-        method,
-        format!("{}://{}:{}/data/key1", scheme, "localhost", port),
-      )
-      .headers(headers)
-      .send()
-      .await
-      .unwrap()
+    let test_server = DataTestServer::default();
+    let request = test_server
+      .get_request()
+      .method(Method::GET.to_string())
+      .uri(&format!("{}://localhost:{}/data/key1", scheme, port));
+    let response = test_server.test_server(request).await;
+
+    assert!(response.is_success());
+    assert_eq!(response.body, b"value1");
   }
 
   fn test_formatter_authority(formatter: HttpTicketFormatter, scheme: &str) {

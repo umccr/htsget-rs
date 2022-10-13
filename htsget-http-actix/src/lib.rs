@@ -106,11 +106,11 @@ mod tests {
   use htsget_config::config::Config;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_test_utils::http_tests::{config_with_tls, default_test_config};
-  use htsget_test_utils::{cors_tests, http_tests, server_tests};
-  use htsget_test_utils::http_tests::{Header as TestHeader, Response as TestResponse,
-    TestRequest, TestServer,
+  use htsget_test_utils::http_tests::{
+    Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
   use htsget_test_utils::server_tests::formatter_and_expected_path;
+  use htsget_test_utils::{cors_tests, server_tests};
 
   use super::*;
 
