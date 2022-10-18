@@ -16,7 +16,6 @@ use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::gzi;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
-use noodles::sam;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
@@ -24,6 +23,7 @@ use tokio::task::JoinHandle;
 use tracing::{instrument, trace, trace_span, Instrument};
 
 use crate::htsget::Class::Body;
+use crate::htsget::ReferenceSequenceInfo;
 use crate::storage::{DataBlock, GetOptions};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
@@ -119,7 +119,7 @@ where
     &self,
     header: &'b Header,
     name: &str,
-  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)>;
+  ) -> Option<ReferenceSequenceInfo>;
 
   /// Get unplaced unmapped ranges.
   async fn get_byte_ranges_for_unmapped_reads(
@@ -131,8 +131,7 @@ where
   /// Get reads ranges for a reference sequence implementation.
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    reference_sequence: &sam::header::ReferenceSequence,
-    ref_seq_id: usize,
+    ref_seq_info: ReferenceSequenceInfo,
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>>;
@@ -158,15 +157,8 @@ where
         "reference name not found: {}",
         reference_name
       ))),
-      Some((bam_ref_seq_idx, _, bam_ref_seq)) => {
-        Self::get_byte_ranges_for_reference_sequence(
-          self,
-          bam_ref_seq,
-          bam_ref_seq_idx,
-          query,
-          index,
-        )
-        .await
+      Some(ref_seq_info) => {
+        Self::get_byte_ranges_for_reference_sequence(self, ref_seq_info, query, index).await
       }
     }?;
     Ok(byte_ranges)
@@ -371,11 +363,6 @@ where
   Header: FromStr + Send + Sync,
   <Header as FromStr>::Err: Display,
 {
-  type ReferenceSequenceHeader: Sync;
-
-  /// Get the max sequence position.
-  fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> usize;
-
   #[instrument(level = "trace", skip_all)]
   fn index_positions(index: &Index) -> Vec<u64> {
     trace!("getting possible index positions");
@@ -413,18 +400,17 @@ where
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
     query: Query,
-    reference_sequence: &Self::ReferenceSequenceHeader,
-    ref_seq_id: usize,
+    ref_seq_info: ReferenceSequenceInfo,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
-      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
+      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_info.id, "querying chunks");
       let mut chunks = index
         .query(
-          ref_seq_id,
+          ref_seq_info.id,
           query
             .interval
-            .into_one_based(|| Self::max_seq_position(reference_sequence))?,
+            .into_one_based(|| usize::from(ref_seq_info.length))?,
         )
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
@@ -434,7 +420,7 @@ where
         ));
       }
 
-      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "sorting chunks");
+      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_info.id, "sorting chunks");
       chunks.sort_unstable_by_key(|a| a.end().compressed());
 
       Ok(chunks)

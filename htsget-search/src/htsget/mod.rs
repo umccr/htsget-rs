@@ -8,10 +8,12 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io;
 use std::io::ErrorKind;
+use std::num::NonZeroUsize;
 
 use async_trait::async_trait;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
+use noodles::sam::header::ReferenceSequences;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::JoinError;
@@ -105,7 +107,7 @@ impl From<StorageError> for HtsGetError {
       }
       err @ StorageError::KeyNotFound(_) => Self::NotFound(err.to_string()),
       err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
-      err @ (StorageError::TicketServerError(_)
+      err @ (StorageError::DataServerError(_)
       | StorageError::InvalidUri(_)
       | StorageError::InvalidAddress(_)
       | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
@@ -195,6 +197,35 @@ impl Query {
   pub fn with_no_tags(mut self, no_tags: Vec<impl Into<String>>) -> Self {
     self.no_tags = Some(no_tags.into_iter().map(|field| field.into()).collect());
     self
+  }
+}
+
+/// Contains the id and length of a reference sequence.
+#[derive(Debug)]
+pub struct ReferenceSequenceInfo {
+  id: usize,
+  length: NonZeroUsize,
+}
+
+impl ReferenceSequenceInfo {
+  pub fn new(id: usize, length: NonZeroUsize) -> Self {
+    Self { id, length }
+  }
+
+  pub fn try_from(
+    name: &str,
+    reference_sequences: &ReferenceSequences,
+  ) -> Option<ReferenceSequenceInfo> {
+    let (id, _, reference_sequence) = reference_sequences.get_full(name)?;
+    Some(Self::new(id, reference_sequence.length()))
+  }
+
+  pub fn id(&self) -> usize {
+    self.id
+  }
+
+  pub fn length(&self) -> NonZeroUsize {
+    self.length
   }
 }
 

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use htsget_http_core::{PostRequest, Region};
 use htsget_search::htsget::{Headers, JsonResponse};
-use htsget_test_utils::server_tests::{default_config_fixed_port, default_dir, default_dir_data};
+use htsget_test_utils::http_tests::{default_config_fixed_port, default_dir, default_dir_data};
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
@@ -149,9 +149,9 @@ fn start_htsget_rs() -> (DropGuard, String) {
     .spawn()
     .unwrap();
 
-  let htsget_rs_url = format!("http://{}", config.addr);
+  let htsget_rs_url = format!("http://{}", config.ticket_server_config.ticket_server_addr);
   query_server_until_response(&format_url(&htsget_rs_url, "reads/service-info"));
-  let htsget_rs_ticket_url = format!("http://{}", config.ticket_server_addr);
+  let htsget_rs_ticket_url = format!("http://{}", config.data_server_config.data_server_addr);
   query_server_until_response(&format_url(&htsget_rs_ticket_url, ""));
 
   (DropGuard(child), htsget_rs_url)

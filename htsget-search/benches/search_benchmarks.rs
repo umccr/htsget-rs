@@ -10,7 +10,7 @@ use htsget_search::htsget::Class::Header;
 use htsget_search::htsget::Format::{Bam, Bcf, Cram, Vcf};
 use htsget_search::htsget::HtsGet;
 use htsget_search::htsget::{HtsGetError, Query};
-use htsget_search::storage::ticket_server::HttpTicketFormatter;
+use htsget_search::storage::data_server::HttpTicketFormatter;
 
 const BENCHMARK_DURATION_SECONDS: u64 = 15;
 const NUMBER_OF_SAMPLES: usize = 150;
@@ -19,7 +19,11 @@ async fn perform_query(query: Query) -> Result<(), HtsGetError> {
   let htsget = HtsGetFromStorage::local_from(
     "../data",
     RegexResolver::new(".*", "$0").unwrap(),
-    HttpTicketFormatter::new("127.0.0.1:8081".parse().expect("expected valid address")),
+    HttpTicketFormatter::new(
+      "127.0.0.1:8081".parse().expect("expected valid address"),
+      "".to_string(),
+      false,
+    ),
   )?;
 
   htsget.search(query).await?;

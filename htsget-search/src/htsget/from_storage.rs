@@ -41,13 +41,12 @@ where
   #[instrument(level = "debug", skip(self))]
   async fn search(&self, query: Query) -> Result<Response> {
     debug!(?query.format, ?query, "searching {:?}, with query {:?}", query.format, query);
-    let response = match query.format {
+    match query.format {
       Format::Bam => BamSearch::new(self.storage()).search(query).await,
       Format::Cram => CramSearch::new(self.storage()).search(query).await,
       Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
       Format::Bcf => BcfSearch::new(self.storage()).search(query).await,
-    };
-    response
+    }
   }
 
   fn get_supported_formats(&self) -> Vec<Format> {
@@ -111,7 +110,7 @@ pub(crate) mod tests {
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
   use crate::htsget::{Headers, Url};
-  use crate::storage::ticket_server::HttpTicketFormatter;
+  use crate::storage::data_server::HttpTicketFormatter;
 
   use super::*;
 
@@ -181,7 +180,7 @@ pub(crate) mod tests {
       LocalStorage::new(
         base_path,
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
       )
       .unwrap(),
     ))

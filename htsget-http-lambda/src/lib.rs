@@ -6,13 +6,16 @@ use std::sync::Arc;
 
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
-use lambda_http::{http, Body, Request, Response};
-use tracing::debug;
+use lambda_http::tower::ServiceBuilder;
+use lambda_http::{http, service_fn, Body, Request, Response};
+use lambda_runtime::Error;
 use tracing::instrument;
+use tracing::{debug, info};
 
 use htsget_config::config::ServiceInfo;
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
+use htsget_search::storage::configure_cors;
 
 use crate::handlers::get::get;
 use crate::handlers::post::post;
@@ -169,6 +172,29 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 }
 
+pub async fn handle_request<H>(
+  cors_allow_credentials: bool,
+  cors_allow_origin: String,
+  router: &Router<'_, H>,
+) -> Result<(), Error>
+where
+  H: HtsGet + Send + Sync + 'static,
+{
+  let cors_layer = configure_cors(cors_allow_credentials, cors_allow_origin)?;
+
+  let handler =
+    ServiceBuilder::new()
+      .layer(cors_layer)
+      .service(service_fn(|event: Request| async move {
+        info!(event = ?event, "received request");
+        router.route_request(event).await
+      }));
+
+  lambda_http::run(handler).await?;
+
+  Ok(())
+}
+
 #[cfg(test)]
 mod tests {
   use std::future::Future;
@@ -179,8 +205,9 @@ mod tests {
   use async_trait::async_trait;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
+  use lambda_http::tower::ServiceExt;
   use lambda_http::Body::Text;
-  use lambda_http::{Request, RequestExt};
+  use lambda_http::{Request, RequestExt, Service};
   use query_map::QueryMap;
   use tempfile::TempDir;
 
@@ -188,16 +215,19 @@ mod tests {
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::{Class, HtsGet};
+  use htsget_search::storage::configure_cors;
+  use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_search::storage::local::LocalStorage;
-  use htsget_search::storage::ticket_server::HttpTicketFormatter;
-  use htsget_test_utils::server_tests;
-  use htsget_test_utils::server_tests::{
-    config_with_tls, default_test_config, expected_url_path, formatter_and_expected_path,
-    formatter_from_config, get_test_file, test_response, test_response_service_info, Header,
-    Response, TestRequest, TestServer,
+  use htsget_test_utils::http_tests::{
+    config_with_tls, default_test_config, formatter_from_config, get_test_file,
   };
+  use htsget_test_utils::http_tests::{Header, Response, TestRequest, TestServer};
+  use htsget_test_utils::server_tests::{
+    expected_url_path, formatter_and_expected_path, test_response, test_response_service_info,
+  };
+  use htsget_test_utils::{cors_tests, server_tests};
 
-  use crate::{HtsgetMethod, Method, Route, RouteType, Router};
+  use crate::{service_fn, HtsgetMethod, Method, Route, RouteType, Router, ServiceBuilder};
 
   struct LambdaTestServer {
     config: Config,
@@ -274,10 +304,10 @@ mod tests {
           HtsGetFromStorage::local_from(&self.config.path, self.config.resolver.clone(), formatter)
             .unwrap(),
         ),
-        &self.config.service_info,
+        &self.config.ticket_server_config.service_info,
       );
 
-      route_request_to_response(request.0, router, expected_path).await
+      route_request_to_response(request.0, router, expected_path, &self.config).await
     }
   }
 
@@ -312,6 +342,16 @@ mod tests {
   #[tokio::test]
   async fn parameterized_post_class_header_http_tickets() {
     server_tests::test_parameterized_post_class_header(&LambdaTestServer::default()).await;
+  }
+
+  #[tokio::test]
+  async fn cors_simple_request() {
+    cors_tests::test_cors_simple_request(&LambdaTestServer::default()).await;
+  }
+
+  #[tokio::test]
+  async fn cors_preflight_request() {
+    cors_tests::test_cors_preflight_request(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
@@ -619,7 +659,7 @@ mod tests {
       Arc::new(
         HtsGetFromStorage::local_from(&config.path, config.resolver.clone(), formatter).unwrap(),
       ),
-      &config.service_info,
+      &config.ticket_server_config.service_info,
     );
     test(router).await;
   }
@@ -633,8 +673,13 @@ mod tests {
     let (expected_path, formatter) = formatter_and_expected_path(config).await;
     with_router(
       |router| async move {
-        let response =
-          route_request_to_response(get_request_from_file(file_path), router, expected_path).await;
+        let response = route_request_to_response(
+          get_request_from_file(file_path),
+          router,
+          expected_path,
+          config,
+        )
+        .await;
         test_response(response, class).await;
       },
       config,
@@ -648,8 +693,13 @@ mod tests {
     let expected_path = expected_url_path(&formatter);
     with_router(
       |router| async {
-        let response =
-          route_request_to_response(get_request_from_file(file_path), router, expected_path).await;
+        let response = route_request_to_response(
+          get_request_from_file(file_path),
+          router,
+          expected_path,
+          config,
+        )
+        .await;
         test_response_service_info(&response);
       },
       config,
@@ -662,13 +712,32 @@ mod tests {
     request: Request,
     router: Router<'_, T>,
     expected_path: String,
+    config: &Config,
   ) -> Response {
-    let response = router
-      .route_request(request)
+    let response = ServiceBuilder::new()
+      .layer(
+        configure_cors(
+          config.data_server_config.data_server_cors_allow_credentials,
+          config
+            .data_server_config
+            .data_server_cors_allow_origin
+            .clone(),
+        )
+        .unwrap(),
+      )
+      .service(service_fn(|event: Request| async {
+        router.route_request(event).await
+      }))
+      .ready()
       .await
-      .expect("Failed to route request.");
+      .unwrap()
+      .call(request)
+      .await
+      .expect("failed to route request");
+
     let status: u16 = response.status().into();
     let body = response.body().to_vec();
-    Response::new(status, body, expected_path)
+
+    Response::new(status, response.headers().clone(), body, expected_path)
   }
 }

@@ -1,5 +1,6 @@
-use htsget_search::htsget::{Class, Fields, Format, Query, Tags};
 use tracing::instrument;
+
+use htsget_search::htsget::{Class, Fields, Format, Query, Tags};
 
 use crate::error::{HtsGetError, Result};
 
