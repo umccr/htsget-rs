@@ -10,10 +10,10 @@ default = ["s3-storage"]
 
 [dependencies]
 envy = "0.4"
-tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.21", features = ["macros", "rt-multi-thread"] }
 tower-http = { version = "0.3", features = ["cors"] }
-lambda_http = { version = "0.6" }
-lambda_runtime = { version = "0.6" }
+lambda_http = { version = "0.7" }
+lambda_runtime = { version = "0.7" }
 htsget-config = { path = "../htsget-config", default-features = false }
 htsget-search = { path = "../htsget-search", default-features = false }
 htsget-http-core = { path = "../htsget-http-core", default-features = false }
@@ -28,5 +28,5 @@ bytes = "1.2"
 [dev-dependencies]
 htsget-test-utils = { path = "../htsget-test-utils", features = ["server-tests", "cors-tests"], default-features = false }
 async-trait = "0.1"
-query_map = { version = "0.5", features = ["url-query"] }
+query_map = { version = "0.6", features = ["url-query"] }
 tempfile = "3.3"
