@@ -12,7 +12,9 @@ use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
 
-use htsget_config::config::ServiceInfo;
+pub use htsget_config::config::{
+  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig,
+};
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::configure_cors;
@@ -211,7 +213,6 @@ mod tests {
   use query_map::QueryMap;
   use tempfile::TempDir;
 
-  use htsget_config::config::Config;
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::{Class, HtsGet};
@@ -227,6 +228,7 @@ mod tests {
   };
   use htsget_test_utils::{cors_tests, server_tests};
 
+  use crate::Config;
   use crate::{service_fn, HtsgetMethod, Method, Route, RouteType, Router, ServiceBuilder};
 
   struct LambdaTestServer {

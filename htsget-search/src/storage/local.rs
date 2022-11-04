@@ -9,10 +9,9 @@ use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::regex_resolver::RegexResolver;
-
 use crate::htsget::Url;
 use crate::storage::{resolve_id, Storage, UrlFormatter};
+use crate::RegexResolver;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 

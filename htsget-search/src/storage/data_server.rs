@@ -27,10 +27,9 @@ use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
 
-use htsget_config::config::DataServerConfig;
-
 use crate::storage::StorageError::{DataServerError, IoError};
 use crate::storage::{configure_cors, UrlFormatter};
+use crate::DataServerConfig;
 
 use super::{Result, StorageError};
 
@@ -287,7 +286,6 @@ mod tests {
   use http::{HeaderMap, HeaderValue, Method};
   use reqwest::{Client, ClientBuilder, RequestBuilder};
 
-  use htsget_config::config::Config;
   use htsget_test_utils::cors_tests::{
     test_cors_preflight_request_uri, test_cors_simple_request_uri,
   };
@@ -297,6 +295,7 @@ mod tests {
   use htsget_test_utils::util::generate_test_certificates;
 
   use crate::storage::local::tests::create_local_test_files;
+  use crate::Config;
 
   use super::*;
 

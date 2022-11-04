@@ -7,7 +7,9 @@ use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
-use htsget_config::config::{ServiceInfo, TicketServerConfig};
+pub use htsget_config::config::{
+  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig, USAGE,
+};
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::local::LocalStorage;
@@ -103,7 +105,6 @@ mod tests {
   use async_trait::async_trait;
   use tempfile::TempDir;
 
-  use htsget_config::config::Config;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_test_utils::http_tests::{config_with_tls, default_test_config};
   use htsget_test_utils::http_tests::{
@@ -111,6 +112,8 @@ mod tests {
   };
   use htsget_test_utils::server_tests::formatter_and_expected_path;
   use htsget_test_utils::{cors_tests, server_tests};
+
+  use crate::Config;
 
   use super::*;
 

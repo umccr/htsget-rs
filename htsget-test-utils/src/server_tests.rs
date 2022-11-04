@@ -8,7 +8,6 @@ use noodles_bgzf as bgzf;
 use noodles_vcf as vcf;
 use reqwest::ClientBuilder;
 
-use htsget_config::config::Config;
 use htsget_http_core::{get_service_info_with, Endpoint};
 use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
@@ -17,6 +16,7 @@ use htsget_search::storage::data_server::HttpTicketFormatter;
 
 use crate::http_tests::{formatter_from_config, Header, Response, TestRequest, TestServer};
 use crate::util::expected_bgzf_eof_data_url;
+use crate::Config;
 
 /// Test response with with class.
 pub async fn test_response(response: Response, class: Class) {

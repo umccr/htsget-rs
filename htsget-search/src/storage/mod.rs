@@ -15,11 +15,10 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
 use tracing::instrument;
 
-use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
-
 use crate::htsget::{Class, Headers, Url};
 use crate::storage::data_server::CORS_MAX_AGE;
 use crate::storage::StorageError::DataServerError;
+use crate::{HtsGetIdResolver, RegexResolver};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;

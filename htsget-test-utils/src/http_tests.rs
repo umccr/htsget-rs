@@ -5,10 +5,10 @@ use async_trait::async_trait;
 use http::HeaderMap;
 use serde::de;
 
-use htsget_config::config::Config;
 use htsget_search::storage::data_server::HttpTicketFormatter;
 
 use crate::util::generate_test_certificates;
+use crate::Config;
 
 /// Represents a http header.
 #[derive(Debug)]
