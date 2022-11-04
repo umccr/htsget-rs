@@ -14,7 +14,7 @@ use htsget_search::htsget::Response as HtsgetResponse;
 use htsget_search::htsget::{Class, Format, Headers, JsonResponse, Url};
 use htsget_search::storage::data_server::HttpTicketFormatter;
 
-use crate::http_tests::{formatter_from_config, Header, Response, TestRequest, TestServer};
+use crate::http_tests::{Header, Response, TestRequest, TestServer};
 use crate::util::expected_bgzf_eof_data_url;
 use crate::Config;
 
@@ -159,6 +159,11 @@ pub async fn test_parameterized_post_class_header<T: TestRequest>(tester: &impl 
   );
   let response = tester.test_server(request).await;
   test_response(response, Class::Header).await;
+}
+
+/// Get the [HttpTicketFormatter] from the config.
+pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
+  HttpTicketFormatter::try_from(config.data_server_config.clone()).unwrap()
 }
 
 /// A service info test.

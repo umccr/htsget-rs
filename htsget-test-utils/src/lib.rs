@@ -1,3 +1,4 @@
+#[cfg(any(feature = "cors-tests", feature = "server-tests"))]
 pub use htsget_config::config::{
   Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig,
 };
