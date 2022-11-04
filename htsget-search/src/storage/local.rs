@@ -67,7 +67,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       })
   }
 
-  async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
+  pub async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
     File::open(path)
       .await

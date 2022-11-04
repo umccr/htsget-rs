@@ -61,7 +61,7 @@ impl AwsS3Storage {
     )
   }
 
-  async fn s3_presign_url<K: AsRef<str> + Send>(
+  pub async fn s3_presign_url<K: AsRef<str> + Send>(
     &self,
     key: K,
     range: BytesPosition,
@@ -138,7 +138,7 @@ impl AwsS3Storage {
     }
   }
 
-  async fn get_content<K: AsRef<str> + Send>(
+  pub async fn get_content<K: AsRef<str> + Send>(
     &self,
     key: K,
     options: GetOptions,

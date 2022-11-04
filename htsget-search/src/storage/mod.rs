@@ -182,8 +182,8 @@ pub struct BytesPosition {
 }
 
 /// A bytes range has an inclusive start and end value. This is analogous to http bytes ranges.
-#[derive(Clone, Debug, Default, PartialEq)]
-struct BytesRange {
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
 }

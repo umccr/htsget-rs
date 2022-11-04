@@ -190,7 +190,7 @@ where
     level = "trace",
     skip(self, interval, ref_seq_length, crai_index, predicate)
   )]
-  async fn bytes_ranges_from_index<F>(
+  pub async fn bytes_ranges_from_index<F>(
     &self,
     id: &str,
     format: &Format,
@@ -254,7 +254,7 @@ where
   }
 
   /// Gets bytes ranges for a specific index entry.
-  pub(crate) fn bytes_ranges_for_record(
+  pub fn bytes_ranges_for_record(
     ref_seq_length: Option<NonZeroUsize>,
     seq_range: Interval,
     record: &Record,
