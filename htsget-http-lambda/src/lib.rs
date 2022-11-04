@@ -12,7 +12,9 @@ use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
 
-use htsget_config::config::ServiceInfo;
+pub use htsget_config::config::{
+  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig,
+};
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::configure_cors;
@@ -211,22 +213,21 @@ mod tests {
   use query_map::QueryMap;
   use tempfile::TempDir;
 
-  use htsget_config::config::Config;
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::{Class, HtsGet};
   use htsget_search::storage::configure_cors;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_search::storage::local::LocalStorage;
-  use htsget_test_utils::http_tests::{
-    config_with_tls, default_test_config, formatter_from_config, get_test_file,
-  };
+  use htsget_test_utils::http_tests::{config_with_tls, default_test_config, get_test_file};
   use htsget_test_utils::http_tests::{Header, Response, TestRequest, TestServer};
   use htsget_test_utils::server_tests::{
-    expected_url_path, formatter_and_expected_path, test_response, test_response_service_info,
+    expected_url_path, formatter_and_expected_path, formatter_from_config, test_response,
+    test_response_service_info,
   };
   use htsget_test_utils::{cors_tests, server_tests};
 
+  use crate::Config;
   use crate::{service_fn, HtsgetMethod, Method, Route, RouteType, Router, ServiceBuilder};
 
   struct LambdaTestServer {

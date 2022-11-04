@@ -9,14 +9,13 @@ use tokio::io::AsyncRead;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::regex_resolver::RegexResolver;
-
 use crate::htsget::search::Search;
 use crate::htsget::Format;
 #[cfg(feature = "s3-storage")]
 use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
 use crate::storage::UrlFormatter;
+use crate::RegexResolver;
 use crate::{
   htsget::bam_search::BamSearch,
   htsget::bcf_search::BcfSearch,

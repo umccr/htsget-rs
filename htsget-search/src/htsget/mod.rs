@@ -241,7 +241,7 @@ impl Interval {
   const MIN_SEQ_POSITION: usize = 1;
 
   #[instrument(level = "trace", skip_all, ret)]
-  fn into_one_based<F>(self, max_seq_position: F) -> Result<impl Into<NoodlesInterval>>
+  pub fn into_one_based<F>(self, max_seq_position: F) -> Result<impl Into<NoodlesInterval>>
   where
     F: FnOnce() -> usize,
   {
@@ -259,7 +259,7 @@ impl Interval {
   }
 
   /// Convert between position types.
-  fn convert_position<D, F>(value: Option<u32>, default: D, convert_fn: F) -> Result<Position>
+  pub fn convert_position<D, F>(value: Option<u32>, default: D, convert_fn: F) -> Result<Position>
   where
     D: FnOnce() -> usize,
     F: FnOnce(u32) -> Result<u32>,

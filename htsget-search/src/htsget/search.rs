@@ -66,7 +66,7 @@ pub(crate) async fn find_first<T>(
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -104,7 +104,7 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+pub trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -174,7 +174,7 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+pub trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -352,7 +352,7 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+pub trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -584,7 +584,7 @@ where
 }
 
 /// Extension trait for binning indicies.
-pub(crate) trait BinningIndexExt {
+pub trait BinningIndexExt {
   /// Get all chunks associated with this index from the reference sequences.
   fn get_all_chunks(&self) -> Vec<&Chunk>;
 }

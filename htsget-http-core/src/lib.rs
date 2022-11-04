@@ -2,6 +2,9 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 pub use error::{HtsGetError, Result};
+pub use htsget_config::config::{
+  Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, StorageType, TicketServerConfig,
+};
 use htsget_search::htsget::{Query, Response};
 pub use http_core::{get_response_for_get_request, get_response_for_post_request};
 pub use post_request::{PostRequest, Region};

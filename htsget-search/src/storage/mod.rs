@@ -15,11 +15,10 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
 use tracing::instrument;
 
-use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
-
 use crate::htsget::{Class, Headers, Url};
 use crate::storage::data_server::CORS_MAX_AGE;
 use crate::storage::StorageError::DataServerError;
+use crate::{HtsGetIdResolver, RegexResolver};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -183,8 +182,8 @@ pub struct BytesPosition {
 }
 
 /// A bytes range has an inclusive start and end value. This is analogous to http bytes ranges.
-#[derive(Clone, Debug, Default, PartialEq)]
-struct BytesRange {
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BytesRange {
   start: Option<u64>,
   end: Option<u64>,
 }

@@ -3,8 +3,8 @@ use std::io::{Error, ErrorKind};
 
 use tokio::select;
 
-use htsget_config::config::{Config, StorageType, USAGE};
 use htsget_http_actix::run_server;
+use htsget_http_actix::{Config, StorageType, USAGE};
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::storage::data_server::HttpTicketFormatter;
 

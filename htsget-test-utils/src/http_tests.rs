@@ -5,10 +5,8 @@ use async_trait::async_trait;
 use http::HeaderMap;
 use serde::de;
 
-use htsget_config::config::Config;
-use htsget_search::storage::data_server::HttpTicketFormatter;
-
 use crate::util::generate_test_certificates;
+use crate::Config;
 
 /// Represents a http header.
 #[derive(Debug)]
@@ -92,11 +90,6 @@ fn set_path(config: &mut Config) {
 fn set_addr_and_path(config: &mut Config) {
   set_path(config);
   config.data_server_config.data_server_addr = "127.0.0.1:0".parse().unwrap();
-}
-
-/// Get the [HttpTicketFormatter] from the config.
-pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
-  HttpTicketFormatter::try_from(config.data_server_config.clone()).unwrap()
 }
 
 /// Default config with fixed port.

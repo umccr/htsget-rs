@@ -4,13 +4,13 @@ use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use tokio::runtime::Runtime;
 
-use htsget_config::regex_resolver::RegexResolver;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::Class::Header;
 use htsget_search::htsget::Format::{Bam, Bcf, Cram, Vcf};
 use htsget_search::htsget::HtsGet;
 use htsget_search::htsget::{HtsGetError, Query};
 use htsget_search::storage::data_server::HttpTicketFormatter;
+use htsget_search::RegexResolver;
 
 const BENCHMARK_DURATION_SECONDS: u64 = 15;
 const NUMBER_OF_SAMPLES: usize = 150;
