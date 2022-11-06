@@ -215,6 +215,23 @@ pub(crate) mod tests {
   }
 
   #[tokio::test]
+  async fn search_reference_name_no_end_position() {
+    with_local_storage(|storage| async move {
+      let search = VcfSearch::new(storage.clone());
+      let filename = "sample1-bcbio-cancer";
+      let query = Query::new(filename, Format::Vcf)
+        .with_reference_name("chrM")
+        .with_start(151)
+        .with_end(153);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(expected_vcf_response(filename));
+      assert_eq!(response, expected_response);
+    }).await;
+  }
+
+  #[tokio::test]
   async fn search_no_gzi() {
     with_local_storage_tmp(
       |storage| async move { test_reference_name_with_seq_range(storage).await },

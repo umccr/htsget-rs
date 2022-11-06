@@ -419,6 +419,22 @@ mod tests {
     .await;
   }
 
+  #[tokio::test]
+  async fn search_reference_name_with_no_end_position() {
+    with_local_storage(|storage| async move {
+      let search = CramSearch::new(storage.clone());
+      let query = Query::new("htsnexus_test_NA12878", Format::Cram)
+        .with_reference_name("11")
+        .with_start(5000000);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(expected_response_with_start());
+      assert_eq!(response, expected_response)
+    })
+      .await;
+  }
+
   fn expected_response_with_start() -> Response {
     Response::new(
       Format::Cram,

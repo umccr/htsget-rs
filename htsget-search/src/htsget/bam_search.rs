@@ -297,6 +297,32 @@ pub(crate) mod tests {
   }
 
   #[tokio::test]
+  async fn search_reference_name_no_end_position() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(5015000);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-996014")),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    })
+      .await;
+  }
+
+  #[tokio::test]
   async fn search_many_response_urls() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
