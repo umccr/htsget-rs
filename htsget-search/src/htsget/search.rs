@@ -406,12 +406,7 @@ where
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
       trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_info.id, "querying chunks");
       let mut chunks = index
-        .query(
-          ref_seq_info.id,
-          query
-            .interval
-            .into_one_based()?,
-        )
+        .query(ref_seq_info.id, query.interval.into_one_based()?)
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
       if chunks.is_empty() {

@@ -185,7 +185,7 @@ pub(crate) mod tests {
     with_local_storage as with_local_storage_path,
     with_local_storage_tmp as with_local_storage_tmp_path,
   };
-  use crate::htsget::{Class, Class::Body, Class::Header, Headers, Response, Url};
+  use crate::htsget::{Class::Body, Class::Header, Headers, Response, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -313,13 +313,14 @@ pub(crate) mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=256721-996014")),
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-996014"))
+            .with_class(Body),
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
     })
-      .await;
+    .await;
   }
 
   #[tokio::test]
@@ -386,7 +387,7 @@ pub(crate) mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Class::Header);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -394,7 +395,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![Url::new(expected_url())
           .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
-          .with_class(Class::Header)],
+          .with_class(Header)],
       ));
       assert_eq!(response, expected_response)
     })

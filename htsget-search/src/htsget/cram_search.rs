@@ -2,7 +2,6 @@
 //!
 
 use std::marker::PhantomData;
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -107,7 +106,6 @@ where
       &query.id,
       &self.get_format(),
       &query.interval,
-      None,
       index,
       Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
     )
@@ -125,7 +123,6 @@ where
       &query.id,
       &query.format,
       &query.interval,
-      Some(ref_seq_info.length),
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_info.id)),
     )
@@ -186,16 +183,12 @@ where
   }
 
   /// Get bytes ranges using the index.
-  #[instrument(
-    level = "trace",
-    skip(self, interval, ref_seq_length, crai_index, predicate)
-  )]
+  #[instrument(level = "trace", skip(self, interval, crai_index, predicate))]
   pub async fn bytes_ranges_from_index<F>(
     &self,
     id: &str,
     format: &Format,
     interval: &Interval,
-    ref_seq_length: Option<NonZeroUsize>,
     crai_index: &[Record],
     predicate: Arc<F>,
   ) -> Result<Vec<BytesPosition>>
@@ -212,7 +205,7 @@ where
       let range = interval.clone();
       futures.push_back(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
-          Self::bytes_ranges_for_record(ref_seq_length, range, &owned_record, owned_next.offset())
+          Self::bytes_ranges_for_record(range, &owned_record, owned_next.offset())
         } else {
           Ok(None)
         }
@@ -239,7 +232,6 @@ where
       }
       Some(last) if predicate(last) => {
         if let Some(range) = Self::bytes_ranges_for_record(
-          ref_seq_length,
           interval.clone(),
           last,
           self.position_at_eof(id, format).await?,
@@ -255,41 +247,28 @@ where
 
   /// Gets bytes ranges for a specific index entry.
   pub fn bytes_ranges_for_record(
-    ref_seq_length: Option<NonZeroUsize>,
     seq_range: Interval,
     record: &Record,
     next: u64,
   ) -> Result<Option<BytesPosition>> {
-    match ref_seq_length {
-      None => Ok(Some(
+    let record_start = record.alignment_start().unwrap_or(Position::MIN);
+    let record_end = record_start
+      .checked_add(record.alignment_span())
+      .ok_or_else(|| HtsGetError::invalid_input("adding record alignment span to `Position`"))?;
+
+    let interval = seq_range.into_one_based()?;
+    let seq_start = interval.start().unwrap_or(Position::MIN);
+    let seq_end = interval.end().unwrap_or(Position::MAX);
+
+    if seq_start <= record_end && seq_end >= record_start {
+      Ok(Some(
         BytesPosition::default()
           .with_start(record.offset())
           .with_end(next)
           .with_class(Body),
-      )),
-      Some(length) => {
-        let record_start = record.alignment_start().unwrap_or(Position::MIN);
-        let record_end = record_start
-          .checked_add(record.alignment_span())
-          .ok_or_else(|| {
-            HtsGetError::invalid_input("adding record alignment span to `Position`")
-          })?;
-
-        let interval = seq_range.into_one_based()?;
-        let seq_start = interval.start().unwrap_or(Position::MIN);
-        let seq_end = interval.end().unwrap_or(Position::MAX);
-
-        if seq_start <= record_end && seq_end >= record_start {
-          Ok(Some(
-            BytesPosition::default()
-              .with_start(record.offset())
-              .with_end(next)
-              .with_class(Body),
-          ))
-        } else {
-          Ok(None)
-        }
-      }
+      ))
+    } else {
+      Ok(None)
     }
   }
 }
@@ -301,7 +280,7 @@ mod tests {
   use htsget_test_utils::util::expected_cram_eof_data_url;
 
   use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
-  use crate::htsget::{Class, Class::Body, Class::Header, Headers, Response, Url};
+  use crate::htsget::{Class::Body, Class::Header, Headers, Response, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -432,7 +411,7 @@ mod tests {
       let expected_response = Ok(expected_response_with_start());
       assert_eq!(response, expected_response)
     })
-      .await;
+    .await;
   }
 
   fn expected_response_with_start() -> Response {
@@ -450,7 +429,7 @@ mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_class(Class::Header);
+      let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_class(Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -458,7 +437,7 @@ mod tests {
         Format::Cram,
         vec![Url::new(expected_url())
           .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
-          .with_class(Class::Header)],
+          .with_class(Header)],
       ));
       assert_eq!(response, expected_response)
     })

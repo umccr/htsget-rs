@@ -2,7 +2,6 @@
 //!
 
 use std::num::NonZeroUsize;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -15,13 +14,12 @@ use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
 use noodles::vcf::Header;
 use noodles_vcf as vcf;
-use noodles_vcf::header::record::value::map::contig::Name;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::htsget::{HtsGetError, ReferenceSequenceInfo};
+use crate::htsget::ReferenceSequenceInfo;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -75,25 +73,15 @@ where
     tabix::AsyncReader::new(inner).read_index().await
   }
 
-  #[instrument(level = "trace", skip(self, index, header, query))]
+  #[instrument(level = "trace", skip(self, index, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,
     index: &Index,
-    header: &Header,
-    mut query: Query,
+    _header: &Header,
+    query: Query,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for reference name");
-    let maybe_len = header
-      .contigs()
-      .get(&Name::from_str(&reference_name).map_err(|err| {
-        HtsGetError::invalid_input(format!(
-          "failed to convert reference name to contig name: {}",
-          err
-        ))
-      })?)
-      .and_then(|contig| contig.length());
-
     // We are assuming the order of the names and the references sequences
     // in the index is the same
     let mut futures = FuturesOrdered::new();
@@ -108,13 +96,6 @@ where
         }
       }));
     }
-
-    query.interval.end = match query.interval.end {
-      None => maybe_len.map(u32::try_from).transpose().map_err(|err| {
-        HtsGetError::invalid_input(format!("converting contig length to u32: {}", err))
-      })?,
-      value => value,
-    };
 
     let ref_seq_id = find_first(
       &format!("reference name not found in TBI file: {}", reference_name),
@@ -228,7 +209,8 @@ pub(crate) mod tests {
 
       let expected_response = Ok(expected_vcf_response(filename));
       assert_eq!(response, expected_response);
-    }).await;
+    })
+    .await;
   }
 
   #[tokio::test]

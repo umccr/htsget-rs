@@ -238,15 +238,15 @@ pub struct Interval {
 }
 
 impl Interval {
-  const MIN_SEQ_POSITION: usize = 1;
-
   #[instrument(level = "trace", skip_all, ret)]
   pub fn into_one_based(self) -> Result<NoodlesInterval> {
     Ok(match (self.start, self.end) {
       (None, None) => NoodlesInterval::from(..),
       (None, Some(end)) => NoodlesInterval::from(..=Self::convert_end(end)?),
       (Some(start), None) => NoodlesInterval::from(Self::convert_start(start)?..),
-      (Some(start), Some(end)) => NoodlesInterval::from(Self::convert_start(start)?..=Self::convert_end(end)?),
+      (Some(start), Some(end)) => {
+        NoodlesInterval::from(Self::convert_start(start)?..=Self::convert_end(end)?)
+      }
     })
   }
 
@@ -269,12 +269,11 @@ impl Interval {
   where
     F: FnOnce(u32) -> Result<u32>,
   {
-    let value = convert_fn(value)
-      .map(|value| {
-        usize::try_from(value).map_err(|err| {
-          HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err))
-        })
-      })??;
+    let value = convert_fn(value).map(|value| {
+      usize::try_from(value).map_err(|err| {
+        HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err))
+      })
+    })??;
 
     Position::try_from(value).map_err(|err| {
       HtsGetError::InvalidRange(format!(
