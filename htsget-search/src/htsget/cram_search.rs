@@ -18,7 +18,7 @@ use tracing::{instrument, trace};
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::Class::Body;
-use crate::htsget::{Format, HtsGetError, Interval, Query, ReferenceSequenceInfo, Result};
+use crate::htsget::{Format, HtsGetError, Interval, Query, Result};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
@@ -92,8 +92,8 @@ where
     &self,
     header: &'a Header,
     name: &str,
-  ) -> Option<ReferenceSequenceInfo> {
-    ReferenceSequenceInfo::try_from(name, header.reference_sequences())
+  ) -> Option<usize> {
+    Some(header.reference_sequences().get_index_of(name)?)
   }
 
   async fn get_byte_ranges_for_unmapped_reads(
@@ -114,7 +114,7 @@ where
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    ref_seq_info: ReferenceSequenceInfo,
+    ref_seq_id: usize,
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
@@ -124,7 +124,7 @@ where
       &query.format,
       &query.interval,
       index,
-      Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_info.id)),
+      Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )
     .await
   }

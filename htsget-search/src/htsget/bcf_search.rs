@@ -16,9 +16,8 @@ use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::htsget::ReferenceSequenceInfo;
 use crate::{
-  htsget::{vcf_search::VcfSearch, Format, Query, Result},
+  htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
 
@@ -100,9 +99,8 @@ where
     )
     .await?;
 
-    let ref_seq_info = ReferenceSequenceInfo::new(ref_seq_id, VcfSearch::<S>::MAX_SEQ_POSITION);
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_info, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
       .await?;
     Ok(byte_ranges)
   }

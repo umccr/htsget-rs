@@ -19,7 +19,7 @@ use tracing::{instrument, trace};
 
 use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
 use crate::htsget::Class::Body;
-use crate::htsget::{HtsGetError, ReferenceSequenceInfo};
+use crate::htsget::HtsGetError;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -138,8 +138,8 @@ where
     &self,
     header: &'a Header,
     name: &str,
-  ) -> Option<ReferenceSequenceInfo> {
-    ReferenceSequenceInfo::try_from(name, header.reference_sequences())
+  ) -> Option<usize> {
+    Some(header.reference_sequences().get_index_of(name)?)
   }
 
   async fn get_byte_ranges_for_unmapped_reads(
@@ -154,12 +154,12 @@ where
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    ref_seq_info: ReferenceSequenceInfo,
+    ref_seq_id: usize,
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_info, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
       .await
   }
 }

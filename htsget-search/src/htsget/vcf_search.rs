@@ -1,7 +1,6 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -19,7 +18,6 @@ use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::htsget::ReferenceSequenceInfo;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -103,9 +101,8 @@ where
     )
     .await?;
 
-    let ref_seq_info = ReferenceSequenceInfo::new(ref_seq_id, Self::MAX_SEQ_POSITION);
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_info, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
       .await?;
     Ok(byte_ranges)
   }
@@ -124,12 +121,6 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  // 1-based, see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
-  pub(crate) const MAX_SEQ_POSITION: NonZeroUsize = match NonZeroUsize::new((1 << 29) - 1) {
-    Some(value) => value,
-    None => unreachable!(),
-  };
-
   /// Create the vcf search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
