@@ -275,7 +275,7 @@ where
             HtsGetError::invalid_input("adding record alignment span to `Position`")
           })?;
 
-        let interval = seq_range.into_one_based(|| usize::from(length))?.into();
+        let interval = seq_range.into_one_based()?;
         let seq_start = interval.start().unwrap_or(Position::MIN);
         let seq_end = interval.end().unwrap_or(Position::MAX);
 
@@ -413,17 +413,21 @@ mod tests {
       let response = search.search(query).await;
       println!("{:#?}", response);
 
-      let expected_response = Ok(Response::new(
-        Format::Cram,
-        vec![
-          Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-604230")),
-          Url::new(expected_cram_eof_data_url()),
-        ],
-      ));
+      let expected_response = Ok(expected_response_with_start());
       assert_eq!(response, expected_response)
     })
     .await;
+  }
+
+  fn expected_response_with_start() -> Response {
+    Response::new(
+      Format::Cram,
+      vec![
+        Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=0-604230")),
+        Url::new(expected_cram_eof_data_url()),
+      ],
+    )
   }
 
   #[tokio::test]

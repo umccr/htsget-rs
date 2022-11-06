@@ -410,7 +410,7 @@ where
           ref_seq_info.id,
           query
             .interval
-            .into_one_based(|| usize::from(ref_seq_info.length))?,
+            .into_one_based()?,
         )
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
