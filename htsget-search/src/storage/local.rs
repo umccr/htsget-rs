@@ -9,10 +9,9 @@ use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::regex_resolver::RegexResolver;
-
 use crate::htsget::Url;
 use crate::storage::{resolve_id, Storage, UrlFormatter};
+use crate::RegexResolver;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -68,7 +67,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       })
   }
 
-  async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
+  pub async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
     File::open(path)
       .await
@@ -298,7 +297,7 @@ pub(crate) mod tests {
       LocalStorage::new(
         base_path.path(),
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap()),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
       )
       .unwrap(),
     )

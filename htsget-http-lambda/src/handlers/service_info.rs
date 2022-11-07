@@ -4,12 +4,12 @@ use lambda_http::http;
 use tracing::info;
 use tracing::instrument;
 
-use htsget_config::config::ServiceInfo;
 use htsget_http_core::get_service_info_json as get_base_service_info_json;
 use htsget_http_core::Endpoint;
 use htsget_search::htsget::HtsGet;
 
 use crate::handlers::FormatJson;
+use crate::ServiceInfo;
 use crate::{Body, Response};
 
 /// Service info endpoint.

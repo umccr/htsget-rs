@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::config::ServiceInfo as ConfigServiceInfo;
 use htsget_search::htsget::{Format, HtsGet};
 
+use crate::ConfigServiceInfo;
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
 
 /// A struct representing the information that should be present in a service-info response.

@@ -1,16 +1,17 @@
 //! Module providing the search capability using BAM/BAI files
 //!
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
+use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::BinningIndex;
 use noodles::sam::Header;
-use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
@@ -51,12 +52,6 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  type ReferenceSequenceHeader = sam::header::ReferenceSequence;
-
-  fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> usize {
-    ref_seq.len().get()
-  }
-
   #[instrument(level = "trace", skip(self, index))]
   async fn get_byte_ranges_for_unmapped(
     &self,
@@ -143,8 +138,8 @@ where
     &self,
     header: &'a Header,
     name: &str,
-  ) -> Option<(usize, &'a String, &'a sam::header::ReferenceSequence)> {
-    header.reference_sequences().get_full(name)
+  ) -> Option<usize> {
+    Some(header.reference_sequences().get_index_of(name)?)
   }
 
   async fn get_byte_ranges_for_unmapped_reads(
@@ -159,13 +154,12 @@ where
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq, ref_seq_id, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
       .await
   }
 }
@@ -191,7 +185,7 @@ pub(crate) mod tests {
     with_local_storage as with_local_storage_path,
     with_local_storage_tmp as with_local_storage_tmp_path,
   };
-  use crate::htsget::{Class, Class::Body, Class::Header, Headers, Response, Url};
+  use crate::htsget::{Class::Body, Class::Header, Headers, Response, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 
@@ -303,6 +297,33 @@ pub(crate) mod tests {
   }
 
   #[tokio::test]
+  async fn search_reference_name_no_end_position() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(5015000);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-996014"))
+            .with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    })
+    .await;
+  }
+
+  #[tokio::test]
   async fn search_many_response_urls() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
@@ -366,7 +387,7 @@ pub(crate) mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Class::Header);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -374,7 +395,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![Url::new(expected_url())
           .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
-          .with_class(Class::Header)],
+          .with_class(Header)],
       ));
       assert_eq!(response, expected_response)
     })

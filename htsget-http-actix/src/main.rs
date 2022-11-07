@@ -1,11 +1,10 @@
 use std::env::args;
-
 use std::io::{Error, ErrorKind};
 
 use tokio::select;
 
-use htsget_config::config::{Config, StorageType, USAGE};
 use htsget_http_actix::run_server;
+use htsget_http_actix::{Config, StorageType, USAGE};
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::storage::data_server::HttpTicketFormatter;
 
@@ -30,11 +29,7 @@ async fn main() -> std::io::Result<()> {
 }
 
 async fn local_storage_server(config: Config) -> std::io::Result<()> {
-  let mut formatter = HttpTicketFormatter::try_from(
-    config.data_server_addr,
-    config.data_server_cert,
-    config.data_server_key,
-  )?;
+  let mut formatter = HttpTicketFormatter::try_from(config.data_server_config)?;
   let local_server = formatter.bind_data_server().await?;
 
   let searcher =
@@ -43,12 +38,15 @@ async fn local_storage_server(config: Config) -> std::io::Result<()> {
 
   select! {
     local_server = local_server => Ok(local_server??),
-    actix_server = run_server(searcher, config.service_info, config.ticket_server_addr)? => actix_server
+    actix_server = run_server(
+      searcher,
+      config.ticket_server_config,
+    )? => actix_server
   }
 }
 
 #[cfg(feature = "s3-storage")]
 async fn s3_storage_server(config: Config) -> std::io::Result<()> {
   let searcher = HtsGetFromStorage::s3_from(config.s3_bucket, config.resolver).await;
-  run_server(searcher, config.service_info, config.ticket_server_addr)?.await
+  run_server(searcher, config.ticket_server_config)?.await
 }

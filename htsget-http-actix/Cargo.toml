@@ -9,7 +9,8 @@ s3-storage = ["htsget-config/s3-storage", "htsget-config/s3-storage", "htsget-ht
 default = ["s3-storage"]
 
 [dependencies]
-actix-web = "4.1"
+actix-web = "4.2"
+actix-cors = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 futures-util = { version = "0.3" }
@@ -17,16 +18,16 @@ htsget-http-core = { path = "../htsget-http-core", default-features = false }
 htsget-search = { path = "../htsget-search", default-features = false}
 htsget-config = { path = "../htsget-config", default-features = false }
 futures = { version = "0.3" }
-tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.21", features = ["macros", "rt-multi-thread"] }
 
 tracing-actix-web = "0.6"
 tracing = "0.1"
 
 [dev-dependencies]
-htsget-test-utils = { path = "../htsget-test-utils", features = ["server-tests"], default-features = false }
+htsget-test-utils = { path = "../htsget-test-utils", features = ["server-tests", "cors-tests"], default-features = false }
 async-trait = "0.1"
 
-criterion = { version = "0.3", features = ["async_tokio"] }
+criterion = { version = "0.4", features = ["async_tokio"] }
 reqwest = { version = "0.11", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 tempfile = "3.3"
 

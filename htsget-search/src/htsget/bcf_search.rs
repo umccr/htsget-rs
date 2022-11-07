@@ -1,7 +1,6 @@
 //! Module providing the search capability using BCF files
 //!
 
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -17,9 +16,8 @@ use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::htsget::HtsGetError;
 use crate::{
-  htsget::{vcf_search::VcfSearch, Format, Query, Result},
+  htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
 
@@ -50,11 +48,6 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  type ReferenceSequenceHeader = PhantomData<Self>;
-
-  fn max_seq_position(_ref_seq: &Self::ReferenceSequenceHeader) -> usize {
-    VcfSearch::<S>::MAX_SEQ_POSITION
-  }
 }
 
 #[async_trait]
@@ -83,43 +76,31 @@ where
     reference_name: String,
     index: &Index,
     header: &Header,
-    mut query: Query,
+    query: Query,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for reference name");
     // We are assuming the order of the contigs in the header and the references sequences
     // in the index is the same
     let mut futures = FuturesOrdered::new();
-    for (ref_seq_index, (name, contig)) in header.contigs().iter().enumerate() {
-      let owned_contig = contig.clone();
+    for (ref_seq_index, (name, _)) in header.contigs().iter().enumerate() {
       let owned_name = name.to_owned();
       let owned_reference_name = reference_name.clone();
       futures.push_back(tokio::spawn(async move {
         if owned_name == owned_reference_name {
-          Some((ref_seq_index, (owned_name, owned_contig)))
+          Some((ref_seq_index, owned_name))
         } else {
           None
         }
       }));
     }
-    let (ref_seq_index, (_, contig)) = find_first(
-      &format!("reference name not found in header: {}", reference_name,),
+    let (ref_seq_id, _) = find_first(
+      &format!("reference name not found in header: {}", reference_name),
       futures,
     )
     .await?;
 
-    query.interval.end = match query.interval.end {
-      None => contig
-        .length()
-        .map(u32::try_from)
-        .transpose()
-        .map_err(|err| {
-          HtsGetError::invalid_input(format!("converting contig length to `u32`: {}", err))
-        })?,
-      value => value,
-    };
-
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, &PhantomData, ref_seq_index, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
       .await?;
     Ok(byte_ranges)
   }
@@ -202,6 +183,23 @@ mod tests {
     with_local_storage(
       |storage| async move { test_reference_sequence_with_seq_range(storage).await },
     )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_reference_name_no_end_position() {
+    with_local_storage(|storage| async move {
+      let search = BcfSearch::new(storage.clone());
+      let filename = "sample1-bcbio-cancer";
+      let query = Query::new(filename, Format::Bcf)
+        .with_reference_name("chrM")
+        .with_start(151);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(expected_bcf_response(filename));
+      assert_eq!(response, expected_response)
+    })
     .await
   }
 

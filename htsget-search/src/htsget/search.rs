@@ -16,7 +16,6 @@ use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::gzi;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
-use noodles::sam;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
@@ -51,7 +50,7 @@ pub(crate) async fn find_first<T>(
         }
       },
       else => break
-    };
+    }
   }
   result.ok_or_else(|| HtsGetError::not_found(msg))
 }
@@ -66,7 +65,7 @@ pub(crate) async fn find_first<T>(
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -104,7 +103,7 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+pub trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -119,7 +118,7 @@ where
     &self,
     header: &'b Header,
     name: &str,
-  ) -> Option<(usize, &'b String, &'b sam::header::ReferenceSequence)>;
+  ) -> Option<usize>;
 
   /// Get unplaced unmapped ranges.
   async fn get_byte_ranges_for_unmapped_reads(
@@ -131,7 +130,6 @@ where
   /// Get reads ranges for a reference sequence implementation.
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    reference_sequence: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: Query,
     index: &Index,
@@ -158,15 +156,8 @@ where
         "reference name not found: {}",
         reference_name
       ))),
-      Some((bam_ref_seq_idx, _, bam_ref_seq)) => {
-        Self::get_byte_ranges_for_reference_sequence(
-          self,
-          bam_ref_seq,
-          bam_ref_seq_idx,
-          query,
-          index,
-        )
-        .await
+      Some(ref_seq_id) => {
+        Self::get_byte_ranges_for_reference_sequence(self, ref_seq_id, query, index).await
       }
     }?;
     Ok(byte_ranges)
@@ -182,7 +173,7 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+pub trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -360,7 +351,7 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub(crate) trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+pub trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
   Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -371,11 +362,6 @@ where
   Header: FromStr + Send + Sync,
   <Header as FromStr>::Err: Display,
 {
-  type ReferenceSequenceHeader: Sync;
-
-  /// Get the max sequence position.
-  fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> usize;
-
   #[instrument(level = "trace", skip_all)]
   fn index_positions(index: &Index) -> Vec<u64> {
     trace!("getting possible index positions");
@@ -413,19 +399,13 @@ where
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
     query: Query,
-    reference_sequence: &Self::ReferenceSequenceHeader,
     ref_seq_id: usize,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
       trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
       let mut chunks = index
-        .query(
-          ref_seq_id,
-          query
-            .interval
-            .into_one_based(|| Self::max_seq_position(reference_sequence))?,
-        )
+        .query(ref_seq_id, query.interval.into_one_based()?)
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
       if chunks.is_empty() {
@@ -598,7 +578,7 @@ where
 }
 
 /// Extension trait for binning indicies.
-pub(crate) trait BinningIndexExt {
+pub trait BinningIndexExt {
   /// Get all chunks associated with this index from the reference sequences.
   fn get_all_chunks(&self) -> Vec<&Chunk>;
 }
