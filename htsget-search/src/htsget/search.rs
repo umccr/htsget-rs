@@ -23,7 +23,6 @@ use tokio::task::JoinHandle;
 use tracing::{instrument, trace, trace_span, Instrument};
 
 use crate::htsget::Class::Body;
-use crate::htsget::ReferenceSequenceInfo;
 use crate::storage::{DataBlock, GetOptions};
 use crate::{
   htsget::{Class, Format, HtsGetError, Query, Response, Result},
@@ -51,7 +50,7 @@ pub(crate) async fn find_first<T>(
         }
       },
       else => break
-    };
+    }
   }
   result.ok_or_else(|| HtsGetError::not_found(msg))
 }
@@ -119,7 +118,7 @@ where
     &self,
     header: &'b Header,
     name: &str,
-  ) -> Option<ReferenceSequenceInfo>;
+  ) -> Option<usize>;
 
   /// Get unplaced unmapped ranges.
   async fn get_byte_ranges_for_unmapped_reads(
@@ -131,7 +130,7 @@ where
   /// Get reads ranges for a reference sequence implementation.
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    ref_seq_info: ReferenceSequenceInfo,
+    ref_seq_id: usize,
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>>;
@@ -157,8 +156,8 @@ where
         "reference name not found: {}",
         reference_name
       ))),
-      Some(ref_seq_info) => {
-        Self::get_byte_ranges_for_reference_sequence(self, ref_seq_info, query, index).await
+      Some(ref_seq_id) => {
+        Self::get_byte_ranges_for_reference_sequence(self, ref_seq_id, query, index).await
       }
     }?;
     Ok(byte_ranges)
@@ -400,18 +399,13 @@ where
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
     query: Query,
-    ref_seq_info: ReferenceSequenceInfo,
+    ref_seq_id: usize,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
-      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_info.id, "querying chunks");
+      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
       let mut chunks = index
-        .query(
-          ref_seq_info.id,
-          query
-            .interval
-            .into_one_based(|| usize::from(ref_seq_info.length))?,
-        )
+        .query(ref_seq_id, query.interval.into_one_based()?)
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
       if chunks.is_empty() {
@@ -420,7 +414,7 @@ where
         ));
       }
 
-      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_info.id, "sorting chunks");
+      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "sorting chunks");
       chunks.sort_unstable_by_key(|a| a.end().compressed());
 
       Ok(chunks)

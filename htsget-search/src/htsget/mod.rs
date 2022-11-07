@@ -8,12 +8,10 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io;
 use std::io::ErrorKind;
-use std::num::NonZeroUsize;
 
 use async_trait::async_trait;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
-use noodles::sam::header::ReferenceSequences;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::JoinError;
@@ -200,35 +198,6 @@ impl Query {
   }
 }
 
-/// Contains the id and length of a reference sequence.
-#[derive(Debug)]
-pub struct ReferenceSequenceInfo {
-  id: usize,
-  length: NonZeroUsize,
-}
-
-impl ReferenceSequenceInfo {
-  pub fn new(id: usize, length: NonZeroUsize) -> Self {
-    Self { id, length }
-  }
-
-  pub fn try_from(
-    name: &str,
-    reference_sequences: &ReferenceSequences,
-  ) -> Option<ReferenceSequenceInfo> {
-    let (id, _, reference_sequence) = reference_sequences.get_full(name)?;
-    Some(Self::new(id, reference_sequence.length()))
-  }
-
-  pub fn id(&self) -> usize {
-    self.id
-  }
-
-  pub fn length(&self) -> NonZeroUsize {
-    self.length
-  }
-}
-
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -238,42 +207,42 @@ pub struct Interval {
 }
 
 impl Interval {
-  const MIN_SEQ_POSITION: usize = 1;
-
   #[instrument(level = "trace", skip_all, ret)]
-  pub fn into_one_based<F>(self, max_seq_position: F) -> Result<impl Into<NoodlesInterval>>
-  where
-    F: FnOnce() -> usize,
-  {
-    Ok(
-      Self::convert_position(
-        self.start,
-        || Self::MIN_SEQ_POSITION,
-        |value| {
-          value.checked_add(1).ok_or_else(|| {
-            HtsGetError::InvalidRange(format!("could not convert {} to 1-based position.", value))
-          })
-        },
-      )?..=Self::convert_position(self.end, max_seq_position, Ok)?,
-    )
+  pub fn into_one_based(self) -> Result<NoodlesInterval> {
+    Ok(match (self.start, self.end) {
+      (None, None) => NoodlesInterval::from(..),
+      (None, Some(end)) => NoodlesInterval::from(..=Self::convert_end(end)?),
+      (Some(start), None) => NoodlesInterval::from(Self::convert_start(start)?..),
+      (Some(start), Some(end)) => {
+        NoodlesInterval::from(Self::convert_start(start)?..=Self::convert_end(end)?)
+      }
+    })
   }
 
-  /// Convert between position types.
-  pub fn convert_position<D, F>(value: Option<u32>, default: D, convert_fn: F) -> Result<Position>
+  /// Convert a start position to a noodles Position.
+  pub fn convert_start(start: u32) -> Result<Position> {
+    Self::convert_position(start, |value| {
+      value.checked_add(1).ok_or_else(|| {
+        HtsGetError::InvalidRange(format!("could not convert {} to 1-based position.", value))
+      })
+    })
+  }
+
+  /// Convert an end position to a noodles Position.
+  pub fn convert_end(end: u32) -> Result<Position> {
+    Self::convert_position(end, Ok)
+  }
+
+  /// Convert a u32 position to a noodles Position.
+  pub fn convert_position<F>(value: u32, convert_fn: F) -> Result<Position>
   where
-    D: FnOnce() -> usize,
     F: FnOnce(u32) -> Result<u32>,
   {
-    let value = value
-      .map(convert_fn)
-      .transpose()?
-      .map(|value| {
-        usize::try_from(value).map_err(|err| {
-          HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err))
-        })
+    let value = convert_fn(value).map(|value| {
+      usize::try_from(value).map_err(|err| {
+        HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err))
       })
-      .transpose()?
-      .unwrap_or_else(default);
+    })??;
 
     Position::try_from(value).map_err(|err| {
       HtsGetError::InvalidRange(format!(

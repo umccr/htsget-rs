@@ -1,8 +1,6 @@
 //! Module providing the search capability using VCF files
 //!
 
-use std::num::NonZeroUsize;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -15,13 +13,11 @@ use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
 use noodles::vcf::Header;
 use noodles_vcf as vcf;
-use noodles_vcf::header::record::value::map::contig::Name;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::htsget::{HtsGetError, ReferenceSequenceInfo};
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -75,25 +71,15 @@ where
     tabix::AsyncReader::new(inner).read_index().await
   }
 
-  #[instrument(level = "trace", skip(self, index, header, query))]
+  #[instrument(level = "trace", skip(self, index, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,
     index: &Index,
-    header: &Header,
-    mut query: Query,
+    _header: &Header,
+    query: Query,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for reference name");
-    let maybe_len = header
-      .contigs()
-      .get(&Name::from_str(&reference_name).map_err(|err| {
-        HtsGetError::invalid_input(format!(
-          "failed to convert reference name to contig name: {}",
-          err
-        ))
-      })?)
-      .and_then(|contig| contig.length());
-
     // We are assuming the order of the names and the references sequences
     // in the index is the same
     let mut futures = FuturesOrdered::new();
@@ -109,22 +95,14 @@ where
       }));
     }
 
-    query.interval.end = match query.interval.end {
-      None => maybe_len.map(u32::try_from).transpose().map_err(|err| {
-        HtsGetError::invalid_input(format!("converting contig length to u32: {}", err))
-      })?,
-      value => value,
-    };
-
     let ref_seq_id = find_first(
       &format!("reference name not found in TBI file: {}", reference_name),
       futures,
     )
     .await?;
 
-    let ref_seq_info = ReferenceSequenceInfo::new(ref_seq_id, Self::MAX_SEQ_POSITION);
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_info, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
       .await?;
     Ok(byte_ranges)
   }
@@ -143,12 +121,6 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  // 1-based, see https://github.com/zaeleus/noodles/issues/25#issuecomment-868871298
-  pub(crate) const MAX_SEQ_POSITION: NonZeroUsize = match NonZeroUsize::new((1 << 29) - 1) {
-    Some(value) => value,
-    None => unreachable!(),
-  };
-
   /// Create the vcf search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
@@ -212,6 +184,24 @@ pub(crate) mod tests {
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move { test_reference_name_with_seq_range(storage).await })
       .await;
+  }
+
+  #[tokio::test]
+  async fn search_reference_name_no_end_position() {
+    with_local_storage(|storage| async move {
+      let search = VcfSearch::new(storage.clone());
+      let filename = "sample1-bcbio-cancer";
+      let query = Query::new(filename, Format::Vcf)
+        .with_reference_name("chrM")
+        .with_start(151)
+        .with_end(153);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(expected_vcf_response(filename));
+      assert_eq!(response, expected_response);
+    })
+    .await;
   }
 
   #[tokio::test]
