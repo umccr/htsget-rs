@@ -25,7 +25,8 @@ use crate::{
 
 type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
-pub(crate) struct VcfSearch<S> {
+/// Allows searching through vcf files.
+pub struct VcfSearch<S> {
   storage: Arc<S>,
 }
 
