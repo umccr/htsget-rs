@@ -24,27 +24,31 @@ There are plans to support config files to aid with more complex configuration i
 
 The following are environment variables that can be set to configure htsget-rs:
 
-| Variable                   | Description                                                                                                                   | Default          |
-|----------------------------|-------------------------------------------------------------------------------------------------------------------------------|------------------|
-| HTSGET_TICKET_SERVER_ADDR  | The socket address for the server which creates response tickets.                                                             | "127.0.0.1:8080" |
-| HTSGET_PATH                | The path to the directory where the server starts                                                                             | "data"           | 
-| HTSGET_REGEX               | The regular expression an ID should match.                                                                                    | ".*"             |
-| HTSGET_SUBSTITUTION_STRING | The replacement expression, to produce a key from an ID.                                                                      | "$0"             |
-| HTSGET_STORAGE_TYPE        | Either "LocalStorage" or "AwsS3Storage", representing which storage backend to use.                                           | "LocalStorage"   |
-| HTSGET_DATA_SERVER_ADDR    | The socket address to use for the data server which responds to tickets. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "127.0.0.1:8081" |
-| HTSGET_DATA_SERVER_KEY     | The path to the PEM formatted X.509 private key used by the data server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "None"           |
-| HTSGET_DATA_SERVER_CERT    | The path to the PEM formatted X.509 certificate used by the data server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "None"           |
-| HTSGET_S3_BUCKET           | The name of the AWS S3 bucket. Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".                                           | ""               |
-| HTSGET_ID                  | ID of the service.                                                                                                            | "None"           |
-| HTSGET_NAME                | Name of the service.                                                                                                          | "None"           |
-| HTSGET_VERSION             | Version of the service.                                                                                                       | "None"           |
-| HTSGET_ORGANIZATION_NAME   | Name of the organization.                                                                                                     | "None"           |
-| HTSGET_ORGANIZATION_URL    | URL of the organization.                                                                                                      | "None"           |
-| HTSGET_CONTACT_URL         | URL to provide contact to the users.                                                                                          | "None"           |
-| HTSGET_DOCUMENTATION_URL   | Link to documentation.                                                                                                        | "None"           |
-| HTSGET_CREATED_AT          | Date of the creation of the service.                                                                                          | "None"           |
-| HTSGET_UPDATED_AT          | Date of the last update of the service.                                                                                       | "None"           |
-| HTSGET_ENVIRONMENT         | Environment in which the service is running.                                                                                  | "None"           |
+| Variable                               | Description                                                                                                                     | Default                 |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|-------------------------|
+| HTSGET_PATH                            | The path to the directory where the server starts                                                                               | "data"                  | 
+| HTSGET_REGEX                           | The regular expression an ID should match.                                                                                      | ".*"                    |
+| HTSGET_SUBSTITUTION_STRING             | The replacement expression, to produce a key from an ID.                                                                        | "$0"                    |
+| HTSGET_STORAGE_TYPE                    | Either "LocalStorage" or "AwsS3Storage", representing which storage backend to use.                                             | "LocalStorage"          |
+| HTSGET_TICKET_SERVER_ADDR              | The socket address for the server which creates response tickets.                                                               | "127.0.0.1:8080"        |
+| HTSGET_TICKET_SERVER_ALLOW_CREDENTIALS | Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. | "false"                 |
+| HTSGET_TICKET_SERVER_ALLOW_ORIGIN      | Which origin is allowed in the `ORIGIN` header.                                                                                 | "http://localhost:8080" |
+| HTSGET_DATA_SERVER_ADDR                | The socket address to use for the server which responds to tickets. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".        | "127.0.0.1:8081"        |
+| HTSGET_DATA_SERVER_KEY                 | The path to the PEM formatted X.509 private key used by the data server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".   | "None"                  |
+| HTSGET_DATA_SERVER_CERT                | The path to the PEM formatted X.509 certificate used by the data server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".   | "None"                  |
+| HTSGET_DATA_SERVER_ALLOW_CREDENTIALS   | Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. | "false"                 |
+| HTSGET_DATA_SERVER_ALLOW_ORIGIN        | Which origin is allowed in the `ORIGIN` header.                                                                                 | "http://localhost:8081" |
+| HTSGET_S3_BUCKET                       | The name of the AWS S3 bucket. Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".                                             | ""                      |
+| HTSGET_ID                              | ID of the service.                                                                                                              | "None"                  |
+| HTSGET_NAME                            | Name of the service.                                                                                                            | "None"                  |
+| HTSGET_VERSION                         | Version of the service.                                                                                                         | "None"                  |
+| HTSGET_ORGANIZATION_NAME               | Name of the organization.                                                                                                       | "None"                  |
+| HTSGET_ORGANIZATION_URL                | URL of the organization.                                                                                                        | "None"                  |
+| HTSGET_CONTACT_URL                     | URL to provide contact to the users.                                                                                            | "None"                  |
+| HTSGET_DOCUMENTATION_URL               | Link to documentation.                                                                                                          | "None"                  |
+| HTSGET_CREATED_AT                      | Date of the creation of the service.                                                                                            | "None"                  |
+| HTSGET_UPDATED_AT                      | Date of the last update of the service.                                                                                         | "None"                  |
+| HTSGET_ENVIRONMENT                     | Environment in which the service is running.                                                                                    | "None"                  |
 
 #### Example regular expression and substitution string
 
