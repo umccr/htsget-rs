@@ -30,7 +30,8 @@ static CRAM_EOF: &[u8] = &[
 
 type AsyncReader<ReaderType> = cram::AsyncReader<BufReader<ReaderType>>;
 
-pub(crate) struct CramSearch<S> {
+/// Allows searching through cram files.
+pub struct CramSearch<S> {
   storage: Arc<S>,
 }
 

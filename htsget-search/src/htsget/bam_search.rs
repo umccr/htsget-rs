@@ -27,7 +27,8 @@ use crate::{
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
-pub(crate) struct BamSearch<S> {
+/// Allows searching through bam files.
+pub struct BamSearch<S> {
   storage: Arc<S>,
 }
 
