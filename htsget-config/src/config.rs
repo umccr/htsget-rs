@@ -49,7 +49,7 @@ The next variables are used to configure the info for the service-info endpoints
 * HTSGET_ENVIRONMENT: The environment in which the service is running. Default: "None".
 "#;
 
-const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
+const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET";
 
 fn default_localstorage_addr() -> SocketAddr {
   "127.0.0.1:8081".parse().expect("expected valid address")
@@ -175,14 +175,20 @@ impl Config {
   /// Read the environment variables into a Config struct.
   #[instrument]
   pub fn from_env() -> io::Result<Self> {
-    let config = envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
-      .from_env()
+    let config = config::Config::builder()
+      .add_source(config::Environment::with_prefix(
+        ENVIRONMENT_VARIABLE_PREFIX,
+      ))
+      .build()
       .map_err(|err| {
         io::Error::new(
           ErrorKind::Other,
           format!("config not properly set: {}", err),
         )
-      });
+      })?
+      .try_deserialize::<Config>()
+      .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {}", err)));
+
     info!(config = ?config, "config created from environment variables");
     config
   }
