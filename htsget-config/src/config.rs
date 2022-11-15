@@ -73,6 +73,10 @@ fn default_path() -> PathBuf {
   PathBuf::from("data")
 }
 
+fn default_serve_at() -> PathBuf {
+  PathBuf::from("/data")
+}
+
 /// The command line arguments allowed for the htsget-rs executables.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = USAGE)]
@@ -115,6 +119,40 @@ pub struct TicketServerConfig {
   pub service_info: ServiceInfo,
   pub ticket_server_cors_allow_credentials: bool,
   pub ticket_server_cors_allow_origin: String,
+}
+
+/// Configuration for the htsget server.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct LocalDataServer {
+  pub path: PathBuf,
+  pub serve_at: PathBuf,
+  pub addr: SocketAddr,
+  pub key: Option<PathBuf>,
+  pub cert: Option<PathBuf>,
+  pub cors_allow_credentials: bool,
+  pub cors_allow_origin: String,
+}
+
+impl Default for LocalDataServer {
+  fn default() -> Self {
+    Self {
+      path: default_path(),
+      serve_at: default_serve_at(),
+      addr: default_localstorage_addr(),
+      key: None,
+      cert: None,
+      cors_allow_credentials: false,
+      cors_allow_origin: default_data_server_origin(),
+    }
+  }
+}
+
+/// Configuration for the htsget server.
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(default)]
+pub struct AwsS3DataServer {
+  pub bucket: String,
 }
 
 /// Configuration for the htsget server.
@@ -234,7 +272,7 @@ mod tests {
   #[test]
   fn config_addr() {
     std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8081");
-    let config = Config::from_env(PathBuf::default()).unwrap();
+    let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(
       config.ticket_server_config.ticket_server_addr,
       "127.0.0.1:8081".parse().unwrap()
@@ -247,7 +285,7 @@ mod tests {
       "HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGIN",
       "http://localhost:8080",
     );
-    let config = Config::from_env(PathBuf::default()).unwrap();
+    let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(
       config.ticket_server_config.ticket_server_cors_allow_origin,
       "http://localhost:8080"
@@ -260,7 +298,7 @@ mod tests {
       "HTSGET_DATA_SERVER_CORS_ALLOW_ORIGIN",
       "http://localhost:8080",
     );
-    let config = Config::from_env(PathBuf::default()).unwrap();
+    let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(
       config.data_server_config.data_server_cors_allow_origin,
       "http://localhost:8080"
@@ -270,7 +308,7 @@ mod tests {
   #[test]
   fn config_ticket_server_addr() {
     std::env::set_var("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082");
-    let config = Config::from_env(PathBuf::default()).unwrap();
+    let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(
       config.data_server_config.data_server_addr,
       "127.0.0.1:8082".parse().unwrap()
@@ -280,21 +318,21 @@ mod tests {
   #[test]
   fn config_regex() {
     std::env::set_var("HTSGET_REGEX", ".+");
-    let config = Config::from_env(PathBuf::default()).unwrap();
+    let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(config.resolver.regex.to_string(), ".+");
   }
 
   #[test]
   fn config_substitution_string() {
     std::env::set_var("HTSGET_SUBSTITUTION_STRING", "$0-test");
-    let config = Config::from_env(PathBuf::default()).unwrap();
+    let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(config.resolver.substitution_string, "$0-test");
   }
 
   #[test]
   fn config_service_info_id() {
     std::env::set_var("HTSGET_ID", "id");
-    let config = Config::from_env(PathBuf::default()).unwrap();
+    let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(config.ticket_server_config.service_info.id.unwrap(), "id");
   }
 
@@ -302,7 +340,7 @@ mod tests {
   #[test]
   fn config_storage_type() {
     std::env::set_var("HTSGET_STORAGE_TYPE", "AwsS3Storage");
-    let config = Config::from_env(PathBuf::default()).unwrap();
+    let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(config.storage_type, StorageType::AwsS3Storage);
   }
 }
