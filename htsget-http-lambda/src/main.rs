@@ -12,7 +12,7 @@ use htsget_search::storage::local::LocalStorage;
 #[tokio::main]
 async fn main() -> Result<(), Error> {
   Config::setup_tracing()?;
-  let config = Config::from_env()?;
+  let config = Config::from_env(Config::parse_args())?;
 
   match config.storage_type {
     StorageType::LocalStorage => local_storage_server(config).await,

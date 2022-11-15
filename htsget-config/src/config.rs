@@ -3,6 +3,8 @@ use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+use clap::Parser;
+use config::File;
 use serde::Deserialize;
 use tracing::info;
 use tracing::instrument;
@@ -14,7 +16,7 @@ use crate::regex_resolver::RegexResolver;
 
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str = r#"
-The HtsGet server executables don't use command line arguments, but there are some environment variables that can be set to configure them:
+Available environment variables:
 * HTSGET_PATH: The path to the directory where the server should be started. Default: "data". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
 * HTSGET_REGEX: The regular expression that should match an ID. Default: ".*".
 For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
@@ -69,6 +71,14 @@ fn default_data_server_origin() -> String {
 
 fn default_path() -> PathBuf {
   PathBuf::from("data")
+}
+
+/// The command line arguments allowed for the htsget-rs executables.
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = USAGE)]
+pub struct Args {
+  #[arg(short, long, env = "HTSGET_CONFIG")]
+  config: PathBuf,
 }
 
 /// Specify the storage type to use.
@@ -172,10 +182,16 @@ impl Default for Config {
 }
 
 impl Config {
+  /// Parse the command line arguments
+  pub fn parse_args() -> PathBuf {
+    Args::parse().config
+  }
+
   /// Read the environment variables into a Config struct.
   #[instrument]
-  pub fn from_env() -> io::Result<Self> {
+  pub fn from_env(config: PathBuf) -> io::Result<Self> {
     let config = config::Config::builder()
+      .add_source(File::from(config))
       .add_source(config::Environment::with_prefix(
         ENVIRONMENT_VARIABLE_PREFIX,
       ))
@@ -218,7 +234,7 @@ mod tests {
   #[test]
   fn config_addr() {
     std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8081");
-    let config = Config::from_env().unwrap();
+    let config = Config::from_env(PathBuf::default()).unwrap();
     assert_eq!(
       config.ticket_server_config.ticket_server_addr,
       "127.0.0.1:8081".parse().unwrap()
@@ -231,7 +247,7 @@ mod tests {
       "HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGIN",
       "http://localhost:8080",
     );
-    let config = Config::from_env().unwrap();
+    let config = Config::from_env(PathBuf::default()).unwrap();
     assert_eq!(
       config.ticket_server_config.ticket_server_cors_allow_origin,
       "http://localhost:8080"
@@ -244,7 +260,7 @@ mod tests {
       "HTSGET_DATA_SERVER_CORS_ALLOW_ORIGIN",
       "http://localhost:8080",
     );
-    let config = Config::from_env().unwrap();
+    let config = Config::from_env(PathBuf::default()).unwrap();
     assert_eq!(
       config.data_server_config.data_server_cors_allow_origin,
       "http://localhost:8080"
@@ -254,7 +270,7 @@ mod tests {
   #[test]
   fn config_ticket_server_addr() {
     std::env::set_var("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082");
-    let config = Config::from_env().unwrap();
+    let config = Config::from_env(PathBuf::default()).unwrap();
     assert_eq!(
       config.data_server_config.data_server_addr,
       "127.0.0.1:8082".parse().unwrap()
@@ -264,21 +280,21 @@ mod tests {
   #[test]
   fn config_regex() {
     std::env::set_var("HTSGET_REGEX", ".+");
-    let config = Config::from_env().unwrap();
+    let config = Config::from_env(PathBuf::default()).unwrap();
     assert_eq!(config.resolver.regex.to_string(), ".+");
   }
 
   #[test]
   fn config_substitution_string() {
     std::env::set_var("HTSGET_SUBSTITUTION_STRING", "$0-test");
-    let config = Config::from_env().unwrap();
+    let config = Config::from_env(PathBuf::default()).unwrap();
     assert_eq!(config.resolver.substitution_string, "$0-test");
   }
 
   #[test]
   fn config_service_info_id() {
     std::env::set_var("HTSGET_ID", "id");
-    let config = Config::from_env().unwrap();
+    let config = Config::from_env(PathBuf::default()).unwrap();
     assert_eq!(config.ticket_server_config.service_info.id.unwrap(), "id");
   }
 
@@ -286,7 +302,7 @@ mod tests {
   #[test]
   fn config_storage_type() {
     std::env::set_var("HTSGET_STORAGE_TYPE", "AwsS3Storage");
-    let config = Config::from_env().unwrap();
+    let config = Config::from_env(PathBuf::default()).unwrap();
     assert_eq!(config.storage_type, StorageType::AwsS3Storage);
   }
 }
