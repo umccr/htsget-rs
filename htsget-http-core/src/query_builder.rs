@@ -1,6 +1,7 @@
+use htsget_config::{Class, Fields, Format, Tags};
 use tracing::instrument;
 
-use htsget_search::htsget::{Class, Fields, Format, Query, Tags};
+use htsget_config::Query;
 
 use crate::error::{HtsGetError, Result};
 
@@ -183,6 +184,7 @@ impl QueryBuilder {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use htsget_config::NoTags;
 
   #[test]
   fn query_without_id() {
@@ -340,7 +342,7 @@ mod tests {
         "part2".to_string()
       ])
     );
-    assert_eq!(query.no_tags, Some(vec!["part3".to_string()]));
+    assert_eq!(query.no_tags, NoTags(Some(vec!["part3".to_string()])));
   }
 
   #[test]
@@ -358,6 +360,6 @@ mod tests {
         "part2".to_string()
       ])
     );
-    assert_eq!(query.no_tags, Some(vec!["part3".to_string()]));
+    assert_eq!(query.no_tags, NoTags(Some(vec!["part3".to_string()])));
   }
 }

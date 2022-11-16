@@ -9,13 +9,14 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::encode;
+use htsget_config::{Class, Query};
 use http::{HeaderValue, Method};
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
 use tracing::instrument;
 
-use crate::htsget::{Class, Headers, Url};
+use crate::htsget::{Headers, Url};
 use crate::storage::data_server::CORS_MAX_AGE;
 use crate::storage::StorageError::DataServerError;
 use crate::{HtsGetIdResolver, RegexResolver};
@@ -34,21 +35,13 @@ pub trait Storage {
   type Streamable: AsyncRead + Unpin + Send;
 
   /// Get the object using the key.
-  async fn get<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: GetOptions,
-  ) -> Result<Self::Streamable>;
+  async fn get(&self, query: &Query, options: GetOptions) -> Result<Self::Streamable>;
 
   /// Get the url of the object represented by the key using a bytes range.
-  async fn range_url<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: RangeUrlOptions,
-  ) -> Result<Url>;
+  async fn range_url(&self, query: &Query, options: RangeUrlOptions) -> Result<Url>;
 
   /// Get the size of the object represented by the key.
-  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64>;
+  async fn head(&self, query: &Query) -> Result<u64>;
 
   /// Get the url of the object using an inline data uri.
   #[instrument(level = "trace", ret)]
@@ -375,17 +368,16 @@ impl RangeUrlOptions {
 }
 
 /// Resolve a key id with the `RegexResolver` and convert it to a Result.
-fn resolve_id<K: AsRef<str>>(resolver: &RegexResolver, key: &K) -> Result<String> {
+fn resolve_id(resolver: &RegexResolver, query: &Query) -> Result<String> {
   resolver
-    .resolve_id(key.as_ref())
-    .ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
+    .resolve_id(query)
+    .ok_or_else(|| StorageError::InvalidKey(query.id.to_string()))
 }
 
 #[cfg(test)]
 mod tests {
   use std::collections::HashMap;
 
-  use crate::htsget::Class;
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 

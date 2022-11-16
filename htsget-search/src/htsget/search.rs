@@ -70,8 +70,7 @@ where
   Index: Send + Sync,
 {
   /// This returns mapped and placed unmapped ranges.
-  async fn get_byte_ranges_for_all(&self, id: String, format: Format)
-    -> Result<Vec<BytesPosition>>;
+  async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>>;
 
   /// Get the offset in the file of the end of the header.
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
@@ -131,7 +130,7 @@ where
   async fn get_byte_ranges_for_reference_sequence(
     &self,
     ref_seq_id: usize,
-    query: Query,
+    query: &Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>>;
 
@@ -141,10 +140,10 @@ where
     reference_name: &str,
     index: &Index,
     header: &Header,
-    query: Query,
+    query: &Query,
   ) -> Result<Vec<BytesPosition>> {
     if reference_name == "*" {
-      return self.get_byte_ranges_for_unmapped_reads(&query, index).await;
+      return self.get_byte_ranges_for_unmapped_reads(query, index).await;
     }
 
     let maybe_ref_seq = self
@@ -194,7 +193,7 @@ where
     reference_name: String,
     index: &Index,
     header: &Header,
-    query: Query,
+    query: &Query,
   ) -> Result<Vec<BytesPosition>>;
 
   /// Get the storage of this format.
@@ -205,8 +204,8 @@ where
 
   /// Get the position at the end of file marker.
   #[instrument(level = "trace", skip(self), ret)]
-  async fn position_at_eof(&self, id: &str, format: &Format) -> Result<u64> {
-    let file_size = self.get_storage().head(format.fmt_file(id)).await?;
+  async fn position_at_eof(&self, query: &Query) -> Result<u64> {
+    let file_size = self.get_storage().head(query).await?;
     Ok(
       file_size
         - u64::try_from(self.get_eof_marker().len())
@@ -216,12 +215,9 @@ where
 
   /// Read the index from the key.
   #[instrument(level = "trace", skip(self))]
-  async fn read_index(&self, id: &str) -> Result<Index> {
+  async fn read_index(&self, query: &Query) -> Result<Index> {
     trace!("reading index");
-    let storage = self
-      .get_storage()
-      .get(self.get_format().fmt_index(id), GetOptions::default())
-      .await?;
+    let storage = self.get_storage().get(query, GetOptions::default()).await?;
     Self::read_index_inner(storage)
       .await
       .map_err(|err| HtsGetError::io_error(format!("reading {} index: {}", self.get_format(), err)))
@@ -239,19 +235,14 @@ where
           )));
         }
 
-        let id = query.id.clone();
         let byte_ranges = match query.reference_name.as_ref() {
-          None => {
-            self
-              .get_byte_ranges_for_all(query.id.clone(), format)
-              .await?
-          }
+          None => self.get_byte_ranges_for_all(&query).await?,
           Some(reference_name) => {
-            let index = self.read_index(&query.id).await?;
-            let header = self.get_header(&id, &format, &index).await?;
+            let index = self.read_index(&query).await?;
+            let header = self.get_header(&query, &index).await?;
 
             let mut byte_ranges = self
-              .get_byte_ranges_for_reference_name(reference_name.clone(), &index, &header, query)
+              .get_byte_ranges_for_reference_name(reference_name.clone(), &index, &header, &query)
               .await?;
             byte_ranges.push(self.get_byte_ranges_for_header(&index).await?);
 
@@ -264,16 +255,15 @@ where
           blocks.push(eof);
         }
 
-        self.build_response(id, format, blocks).await
+        self.build_response(&query, blocks).await
       }
       Class::Header => {
-        let index = self.read_index(&query.id).await?;
+        let index = self.read_index(&query).await?;
         let header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
 
         self
           .build_response(
-            query.id,
-            self.get_format(),
+            &query,
             DataBlock::from_bytes_positions(vec![header_byte_ranges]),
           )
           .await
@@ -283,22 +273,17 @@ where
 
   /// Build the response from the query using urls.
   #[instrument(level = "trace", skip(self, byte_ranges))]
-  async fn build_response(
-    &self,
-    id: String,
-    format: Format,
-    byte_ranges: Vec<DataBlock>,
-  ) -> Result<Response> {
+  async fn build_response(&self, query: &Query, byte_ranges: Vec<DataBlock>) -> Result<Response> {
     trace!("building response");
     let mut storage_futures = FuturesOrdered::new();
     for block in DataBlock::update_classes(byte_ranges) {
       match block {
         DataBlock::Range(range) => {
           let storage = self.get_storage();
-          let id = id.clone();
+          let query_owned = query.clone();
           storage_futures.push_back(tokio::spawn(async move {
             storage
-              .range_url(format.fmt_file(&id), RangeUrlOptions::from(range))
+              .range_url(&query_owned, RangeUrlOptions::from(range))
               .await
           }));
         }
@@ -314,19 +299,16 @@ where
         else => break
       }
     }
-    return Ok(Response::new(format, urls));
+    return Ok(Response::new(query.format, urls));
   }
 
   /// Get the header from the file specified by the id and format.
   #[instrument(level = "trace", skip(self, index))]
-  async fn get_header(&self, id: &str, format: &Format, index: &Index) -> Result<Header> {
+  async fn get_header(&self, query: &Query, index: &Index) -> Result<Header> {
     trace!("getting header");
     let get_options =
       GetOptions::default().with_range(self.get_byte_ranges_for_header(index).await?);
-    let reader_type = self
-      .get_storage()
-      .get(format.fmt_file(id), get_options)
-      .await?;
+    let reader_type = self.get_storage().get(query, get_options).await?;
     let mut reader = Self::init_reader(reader_type);
 
     Self::read_raw_header(&mut reader)
@@ -398,14 +380,14 @@ where
   #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_reference_sequence_bgzf(
     &self,
-    query: Query,
+    query: &Query,
     ref_seq_id: usize,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
       trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
       let mut chunks = index
-        .query(ref_seq_id, query.interval.into_one_based()?)
+        .query(ref_seq_id, query.interval.clone().into_one_based()?)
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
       if chunks.is_empty() {
@@ -420,10 +402,7 @@ where
       Ok(chunks)
     });
 
-    let gzi_data = self
-      .get_storage()
-      .get(self.get_format().fmt_gzi(&query.id)?, GetOptions::default())
-      .await;
+    let gzi_data = self.get_storage().get(query, GetOptions::default()).await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {
         let span = trace_span!("reading gzi");
@@ -444,19 +423,13 @@ where
         .await;
 
         self
-          .bytes_positions_from_chunks(
-            &query.id,
-            &query.format,
-            chunks?.into_iter(),
-            gzi?.into_iter(),
-          )
+          .bytes_positions_from_chunks(query, chunks?.into_iter(), gzi?.into_iter())
           .await?
       }
       Err(_) => {
         self
           .bytes_positions_from_chunks(
-            &query.id,
-            &query.format,
+            query,
             chunks?.into_iter(),
             Self::index_positions(index).into_iter(),
           )
@@ -471,8 +444,7 @@ where
   #[instrument(level = "trace", skip(self, chunks, positions))]
   async fn bytes_positions_from_chunks<'a>(
     &self,
-    id: &str,
-    format: &Format,
+    query: &Query,
     chunks: impl Iterator<Item = Chunk> + Send + 'a,
     mut positions: impl Iterator<Item = u64> + Send + 'a,
   ) -> Result<Vec<BytesPosition>> {
@@ -505,7 +477,7 @@ where
       let end = match maybe_end {
         None => match end_position {
           None => {
-            let pos = self.position_at_eof(id, format).await?;
+            let pos = self.position_at_eof(query).await?;
             end_position = Some(pos);
             pos
           }
@@ -523,8 +495,7 @@ where
   /// Get unmapped bytes ranges.
   async fn get_byte_ranges_for_unmapped(
     &self,
-    _id: &str,
-    _format: &Format,
+    _query: &Query,
     _index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     Ok(Vec::new())
@@ -545,13 +516,9 @@ where
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
   #[instrument(level = "debug", skip(self), ret)]
-  async fn get_byte_ranges_for_all(
-    &self,
-    id: String,
-    format: Format,
-  ) -> Result<Vec<BytesPosition>> {
+  async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(&id, &format).await?)
+      BytesPosition::default().with_end(self.position_at_eof(query).await?)
     ])
   }
 

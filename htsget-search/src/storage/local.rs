@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use htsget_config::Query;
 use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
@@ -46,32 +47,31 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
     self.base_path.as_path()
   }
 
-  pub(crate) fn get_path_from_key<K: AsRef<str>>(&self, key: K) -> Result<PathBuf> {
-    let key: &str = key.as_ref();
+  pub(crate) fn get_path_from_key(&self, query: &Query) -> Result<PathBuf> {
     self
       .base_path
-      .join(resolve_id(&self.id_resolver, &key)?)
+      .join(resolve_id(&self.id_resolver, query)?)
       .canonicalize()
-      .map_err(|_| StorageError::InvalidKey(key.to_string()))
+      .map_err(|_| StorageError::InvalidKey(query.id.to_string()))
       .and_then(|path| {
         path
           .starts_with(&self.base_path)
           .then_some(path)
-          .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
+          .ok_or_else(|| StorageError::InvalidKey(query.id.to_string()))
       })
       .and_then(|path| {
         path
           .is_file()
           .then_some(path)
-          .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
+          .ok_or_else(|| StorageError::KeyNotFound(query.id.to_string()))
       })
   }
 
-  pub async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
-    let path = self.get_path_from_key(&key)?;
+  pub async fn get(&self, query: &Query) -> Result<File> {
+    let path = self.get_path_from_key(query)?;
     File::open(path)
       .await
-      .map_err(|_| StorageError::KeyNotFound(key.as_ref().to_string()))
+      .map_err(|_| StorageError::KeyNotFound(query.id.to_string()))
   }
 }
 
@@ -81,19 +81,15 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
 
   /// Get the file at the location of the key.
   #[instrument(level = "debug", skip(self))]
-  async fn get<K: AsRef<str> + Send + Debug>(&self, key: K, _options: GetOptions) -> Result<File> {
-    debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
-    self.get(key).await
+  async fn get(&self, query: &Query, _options: GetOptions) -> Result<File> {
+    debug!(calling_from = ?self, id = query.id, "getting file with key {:?}", query.id);
+    self.get(query).await
   }
 
   /// Get a url for the file at key.
   #[instrument(level = "debug", skip(self))]
-  async fn range_url<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: RangeUrlOptions,
-  ) -> Result<Url> {
-    let path = self.get_path_from_key(&key)?;
+  async fn range_url(&self, query: &Query, options: RangeUrlOptions) -> Result<Url> {
+    let path = self.get_path_from_key(query)?;
     let path = path
       .strip_prefix(&self.base_path)
       .map_err(|err| StorageError::InternalError(err.to_string()))?
@@ -102,20 +98,20 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     let url = Url::new(self.url_formatter.format_url(&path)?);
     let url = options.apply(url);
 
-    debug!(calling_from = ?self, key = key.as_ref(), ?url, "getting url with key {:?}", key.as_ref());
+    debug!(calling_from = ?self, id = query.id, ?url, "getting url with key {:?}", query.id);
     Ok(url)
   }
 
   /// Get the size of the file.
   #[instrument(level = "debug", skip(self))]
-  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
-    let path = self.get_path_from_key(&key)?;
+  async fn head(&self, query: &Query) -> Result<u64> {
+    let path = self.get_path_from_key(query)?;
     let len = tokio::fs::metadata(path)
       .await
       .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
       .len();
 
-    debug!(calling_from = ?self, key = key.as_ref(), len, "size of key {:?} is {}", key.as_ref(), len);
+    debug!(calling_from = ?self, id = query.id, len, "size of key {:?} is {}", query.id, len);
     Ok(len)
   }
 }
@@ -125,6 +121,8 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
 
+  use htsget_config::regex_resolver::MatchOnQuery;
+  use htsget_config::Format::Bam;
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
@@ -138,7 +136,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = storage.get("non-existing-key").await;
+      let result = storage.get(&Query::new("non-existing-key", Bam)).await;
       assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -147,7 +145,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_folder() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(&storage, "folder", GetOptions::default()).await;
+      let result = Storage::get(&storage, &Query::new("folder", Bam), GetOptions::default()).await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -156,7 +154,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(&storage, "folder/../../passwords", GetOptions::default()).await;
+      let result = Storage::get(
+        &storage,
+        &Query::new("folder/../../passwords", Bam),
+        GetOptions::default(),
+      )
+      .await;
       assert!(
         matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
@@ -167,7 +170,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(&storage, "folder/../key1", GetOptions::default()).await;
+      let result = Storage::get(
+        &storage,
+        &Query::new("folder/../key1", Bam),
+        GetOptions::default(),
+      )
+      .await;
       assert!(matches!(result, Ok(_)));
     })
     .await;
@@ -176,8 +184,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result =
-        Storage::range_url(&storage, "non-existing-key", RangeUrlOptions::default()).await;
+      let result = Storage::range_url(
+        &storage,
+        &Query::new("non-existing-key", Bam),
+        RangeUrlOptions::default(),
+      )
+      .await;
       assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -186,7 +198,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_folder() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(&storage, "folder", RangeUrlOptions::default()).await;
+      let result = Storage::range_url(
+        &storage,
+        &Query::new("folder", Bam),
+        RangeUrlOptions::default(),
+      )
+      .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -197,7 +214,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let result = Storage::range_url(
         &storage,
-        "folder/../../passwords",
+        &Query::new("folder/../../passwords", Bam),
         RangeUrlOptions::default(),
       )
       .await;
@@ -211,7 +228,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(&storage, "folder/../key1", RangeUrlOptions::default()).await;
+      let result = Storage::range_url(
+        &storage,
+        &Query::new("folder/../key1", Bam),
+        RangeUrlOptions::default(),
+      )
+      .await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -223,7 +245,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let result = Storage::range_url(
         &storage,
-        "folder/../key1",
+        &Query::new("folder/../key1", Bam),
         RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10), None)),
       )
       .await;
@@ -239,7 +261,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let result = Storage::range_url(
         &storage,
-        "folder/../key1",
+        &Query::new("folder/../key1", Bam),
         RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None, None)),
       )
       .await;
@@ -253,7 +275,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn file_size() {
     with_local_storage(|storage| async move {
-      let result = Storage::head(&storage, "folder/../key1").await;
+      let result = Storage::head(&storage, &Query::new("folder/../key1", Bam)).await;
       let expected: u64 = 6;
       assert!(matches!(result, Ok(size) if size == expected));
     })
@@ -296,7 +318,7 @@ pub(crate) mod tests {
     test(
       LocalStorage::new(
         base_path.path(),
-        RegexResolver::new(".*", "$0").unwrap(),
+        RegexResolver::new(".*", "$0", MatchOnQuery::default()).unwrap(),
         HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
       )
       .unwrap(),

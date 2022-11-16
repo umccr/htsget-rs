@@ -98,6 +98,7 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::path::PathBuf;
 
+  use htsget_config::regex_resolver::MatchOnQuery;
   use tempfile::TempDir;
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
@@ -178,7 +179,7 @@ pub(crate) mod tests {
     test(Arc::new(
       LocalStorage::new(
         base_path,
-        RegexResolver::new(".*", "$0").unwrap(),
+        RegexResolver::new(".*", "$0", MatchOnQuery::default()).unwrap(),
         HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
       )
       .unwrap(),

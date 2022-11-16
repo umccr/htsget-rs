@@ -153,6 +153,7 @@ impl Default for LocalDataServer {
 #[serde(default)]
 pub struct AwsS3DataServer {
   pub bucket: String,
+  pub regex_resolvers: Vec<RegexResolver>,
 }
 
 /// Configuration for the htsget server.
@@ -164,6 +165,7 @@ pub struct DataServerConfig {
   pub data_server_cert: Option<PathBuf>,
   pub data_server_cors_allow_credentials: bool,
   pub data_server_cors_allow_origin: String,
+  pub regex_resolvers: Vec<RegexResolver>,
 }
 
 /// Configuration of the service info.
@@ -201,6 +203,7 @@ impl Default for DataServerConfig {
       data_server_cert: None,
       data_server_cors_allow_credentials: false,
       data_server_cors_allow_origin: default_data_server_origin(),
+      regex_resolvers: vec![RegexResolver::default()],
     }
   }
 }

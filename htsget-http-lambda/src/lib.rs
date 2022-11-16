@@ -205,6 +205,7 @@ mod tests {
   use std::sync::Arc;
 
   use async_trait::async_trait;
+  use htsget_config::Class;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
   use lambda_http::tower::ServiceExt;
@@ -215,7 +216,7 @@ mod tests {
 
   use htsget_http_core::Endpoint;
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
-  use htsget_search::htsget::{Class, HtsGet};
+  use htsget_search::htsget::HtsGet;
   use htsget_search::storage::configure_cors;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_search::storage::local::LocalStorage;

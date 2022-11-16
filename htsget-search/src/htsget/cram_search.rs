@@ -7,6 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
+use htsget_config::Interval;
 use noodles::core::Position;
 use noodles::cram;
 use noodles::cram::crai;
@@ -18,7 +19,7 @@ use tracing::{instrument, trace};
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::Class::Body;
-use crate::htsget::{Format, HtsGetError, Interval, Query, Result};
+use crate::htsget::{Format, HtsGetError, Query, Result};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
@@ -44,13 +45,9 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   #[instrument(level = "trace", skip_all, ret)]
-  async fn get_byte_ranges_for_all(
-    &self,
-    id: String,
-    format: Format,
-  ) -> Result<Vec<BytesPosition>> {
+  async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(&id, &format).await?)
+      BytesPosition::default().with_end(self.position_at_eof(query).await?)
     ])
   }
 
@@ -104,9 +101,7 @@ where
   ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
-      &query.id,
-      &self.get_format(),
-      &query.interval,
+      query,
       index,
       Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
     )
@@ -116,14 +111,12 @@ where
   async fn get_byte_ranges_for_reference_sequence(
     &self,
     ref_seq_id: usize,
-    query: Query,
+    query: &Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
-      &query.id,
-      &query.format,
-      &query.interval,
+      query,
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
     )
@@ -157,7 +150,7 @@ where
     reference_name: String,
     index: &Index,
     header: &Header,
-    query: Query,
+    query: &Query,
   ) -> Result<Vec<BytesPosition>> {
     self
       .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
@@ -184,12 +177,10 @@ where
   }
 
   /// Get bytes ranges using the index.
-  #[instrument(level = "trace", skip(self, interval, crai_index, predicate))]
+  #[instrument(level = "trace", skip(self, crai_index, predicate))]
   pub async fn bytes_ranges_from_index<F>(
     &self,
-    id: &str,
-    format: &Format,
-    interval: &Interval,
+    query: &Query,
     crai_index: &[Record],
     predicate: Arc<F>,
   ) -> Result<Vec<BytesPosition>>
@@ -203,7 +194,7 @@ where
       let owned_record = record.clone();
       let owned_next = next.clone();
       let owned_predicate = predicate.clone();
-      let range = interval.clone();
+      let range = query.interval.clone();
       futures.push_back(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
           Self::bytes_ranges_for_record(range, &owned_record, owned_next.offset())
@@ -233,9 +224,9 @@ where
       }
       Some(last) if predicate(last) => {
         if let Some(range) = Self::bytes_ranges_for_record(
-          interval.clone(),
+          query.interval.clone(),
           last,
-          self.position_at_eof(id, format).await?,
+          self.position_at_eof(query).await?,
         )? {
           byte_ranges.push(range);
         }

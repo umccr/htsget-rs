@@ -3,15 +3,15 @@ use std::path::PathBuf;
 
 use futures::future::join_all;
 use futures::TryStreamExt;
+use htsget_config::{Class, Format};
 use http::Method;
 use noodles_bgzf as bgzf;
 use noodles_vcf as vcf;
 use reqwest::ClientBuilder;
 
 use htsget_http_core::{get_service_info_with, Endpoint};
-use htsget_search::htsget::Class::Body;
 use htsget_search::htsget::Response as HtsgetResponse;
-use htsget_search::htsget::{Class, Format, Headers, JsonResponse, Url};
+use htsget_search::htsget::{Headers, JsonResponse, Url};
 use htsget_search::storage::data_server::HttpTicketFormatter;
 
 use crate::http_tests::{Header, Response, TestRequest, TestServer};
@@ -110,7 +110,7 @@ pub async fn test_get<T: TestRequest>(tester: &impl TestServer<T>) {
     .uri("/variants/vcf/sample1-bcbio-cancer");
   let response = tester.test_server(request).await;
 
-  test_response(response, Body).await;
+  test_response(response, Class::Body).await;
 }
 
 fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
@@ -129,7 +129,7 @@ pub async fn test_post<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = post_request(tester).set_payload("{}");
   let response = tester.test_server(request).await;
 
-  test_response(response, Body).await;
+  test_response(response, Class::Body).await;
 }
 
 /// A parameterized get test.
@@ -149,7 +149,7 @@ pub async fn test_parameterized_post<T: TestRequest>(tester: &impl TestServer<T>
     .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}");
   let response = tester.test_server(request).await;
 
-  test_response(response, Body).await;
+  test_response(response, Class::Body).await;
 }
 
 /// A parameterized post test with header as the class.
@@ -186,7 +186,7 @@ pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
     .with_headers(Headers::new(headers));
   let urls = match class {
     Class::Header => vec![http_url.with_class(Class::Header)],
-    Body => vec![http_url, Url::new(expected_bgzf_eof_data_url())],
+    Class::Body => vec![http_url, Url::new(expected_bgzf_eof_data_url())],
   };
 
   JsonResponse::from(HtsgetResponse::new(Format::Vcf, urls))

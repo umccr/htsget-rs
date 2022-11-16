@@ -77,7 +77,7 @@ where
     reference_name: String,
     index: &Index,
     header: &Header,
-    query: Query,
+    query: &Query,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for reference name");
     // We are assuming the order of the contigs in the header and the references sequences
