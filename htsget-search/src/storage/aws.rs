@@ -1,5 +1,7 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
 use std::fmt::Debug;
+use std::io;
+use std::io::ErrorKind::Other;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -19,7 +21,7 @@ use tracing::instrument;
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::AwsS3Error;
-use crate::storage::{resolve_id, BytesPosition};
+use crate::storage::{resolve_id, BytesPosition, StorageError};
 use crate::storage::{BytesRange, Storage};
 use crate::RegexResolver;
 
@@ -194,7 +196,12 @@ impl Storage for AwsS3Storage {
   #[instrument(level = "trace", skip(self))]
   async fn head(&self, query: &Query) -> Result<u64> {
     let head = self.s3_head(query).await?;
-    let len = head.content_length as u64; // Todo fix this for safe casting
+    let len = u64::try_from(head.content_length).map_err(|err| {
+      StorageError::IoError(
+        "failed to convert file length to `u64`".to_string(),
+        io::Error::new(Other, err),
+      )
+    })?;
 
     debug!(calling_from = ?self, query.id, len, "size of key {:?} is {}", query.id, len);
     Ok(len)
