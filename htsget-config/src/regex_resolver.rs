@@ -10,6 +10,12 @@ pub trait HtsGetIdResolver {
   fn resolve_id(&self, query: &Query) -> Option<String>;
 }
 
+/// Determines whether the query matches for use with the resolver.
+pub trait QueryMatcher {
+  /// Does this query match.
+  fn query_matches(&self, query: &Query) -> bool;
+}
+
 /// A regex resolver is a resolver that matches ids using Regex.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -47,6 +53,53 @@ impl Default for MatchOnQuery {
       fields: Fields::All,
       tags: Tags::All,
       no_tags: NoTags(None),
+    }
+  }
+}
+
+impl QueryMatcher for Fields {
+  fn query_matches(&self, query: &Query) -> bool {
+    match (self, &query.fields) {
+      (Fields::All, Fields::All) => true,
+      (Fields::List(self_fields), Fields::List(query_fields)) => self_fields == query_fields,
+      _ => false,
+    }
+  }
+}
+
+impl QueryMatcher for Tags {
+  fn query_matches(&self, query: &Query) -> bool {
+    match (self, &query.tags) {
+      (Tags::All, Tags::All) => true,
+      (Tags::List(self_tags), Tags::List(query_tags)) => self_tags == query_tags,
+      _ => false,
+    }
+  }
+}
+
+impl QueryMatcher for NoTags {
+  fn query_matches(&self, query: &Query) -> bool {
+    match (self, &query.no_tags) {
+      (NoTags(None), NoTags(None)) => true,
+      (NoTags(Some(self_no_tags)), NoTags(Some(query_no_tags))) => self_no_tags == query_no_tags,
+      _ => false,
+    }
+  }
+}
+
+impl QueryMatcher for MatchOnQuery {
+  fn query_matches(&self, query: &Query) -> bool {
+    if let Some(reference_name) = &query.reference_name {
+      self.format.contains(&query.format)
+        && self.class.contains(&query.class)
+        && self.reference_name.is_match(reference_name)
+        && self.start.contains(query.interval.start)
+        && self.end.contains(query.interval.end)
+        && self.fields.query_matches(query)
+        && self.fields.query_matches(query)
+        && self.fields.query_matches(query)
+    } else {
+      false
     }
   }
 }

@@ -86,6 +86,22 @@ pub struct Interval {
 }
 
 impl Interval {
+  /// Check if this interval contains the value.
+  pub fn contains(&self, value: Option<u32>) -> bool {
+    let cond1 = match (self.start.as_ref(), value.as_ref()) {
+      (None, _) => true,
+      (Some(_), None) => false,
+      (Some(start), Some(value)) => value >= start,
+    };
+    let cond2 = match (self.end.as_ref(), value.as_ref()) {
+      (None, _) => true,
+      (Some(_), None) => false,
+      (Some(end), Some(value)) => end > value,
+    };
+    cond1 && cond2
+  }
+
+  /// Convert this interval into a one-based noodles `Interval`.
   #[instrument(level = "trace", skip_all, ret)]
   pub fn into_one_based(self) -> io::Result<NoodlesInterval> {
     Ok(match (self.start, self.end) {
