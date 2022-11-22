@@ -87,18 +87,13 @@ pub struct Interval {
 
 impl Interval {
   /// Check if this interval contains the value.
-  pub fn contains(&self, value: Option<u32>) -> bool {
-    let cond1 = match (self.start.as_ref(), value.as_ref()) {
-      (None, _) => true,
-      (Some(_), None) => false,
-      (Some(start), Some(value)) => value >= start,
+  pub fn contains(&self, value: u32) -> bool {
+    return match (self.start.as_ref(), self.end.as_ref()) {
+      (None, None) => true,
+      (None, Some(end)) => value < *end,
+      (Some(start), None) => value >= *start,
+      (Some(start), Some(end)) => value >= *start && value < *end,
     };
-    let cond2 = match (self.end.as_ref(), value.as_ref()) {
-      (None, _) => true,
-      (Some(_), None) => false,
-      (Some(end), Some(value)) => end > value,
-    };
-    cond1 && cond2
   }
 
   /// Convert this interval into a one-based noodles `Interval`.
@@ -246,5 +241,73 @@ impl Query {
       no_tags.into_iter().map(|field| field.into()).collect(),
     ));
     self
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use crate::Interval;
+
+  #[test]
+  fn interval_contains() {
+    let interval = Interval {
+      start: Some(0),
+      end: Some(10),
+    };
+    assert!(interval.contains(9));
+  }
+
+  #[test]
+  fn interval_not_contains() {
+    let interval = Interval {
+      start: Some(0),
+      end: Some(10),
+    };
+    assert!(!interval.contains(10));
+  }
+
+  #[test]
+  fn interval_contains_start_not_present() {
+    let interval = Interval {
+      start: None,
+      end: Some(10),
+    };
+    assert!(interval.contains(9));
+  }
+
+  #[test]
+  fn interval_not_contains_start_not_present() {
+    let interval = Interval {
+      start: None,
+      end: Some(10),
+    };
+    assert!(!interval.contains(10));
+  }
+
+  #[test]
+  fn interval_contains_end_not_present() {
+    let interval = Interval {
+      start: Some(1),
+      end: None,
+    };
+    assert!(interval.contains(9));
+  }
+
+  #[test]
+  fn interval_not_contains_end_not_present() {
+    let interval = Interval {
+      start: Some(1),
+      end: None,
+    };
+    assert!(!interval.contains(0));
+  }
+
+  #[test]
+  fn interval_contains_both_not_present() {
+    let interval = Interval {
+      start: None,
+      end: None,
+    };
+    assert!(interval.contains(0));
   }
 }

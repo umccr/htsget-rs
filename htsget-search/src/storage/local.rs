@@ -5,10 +5,11 @@ use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use htsget_config::Query;
 use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
+
+use htsget_config::Query;
 
 use crate::htsget::Url;
 use crate::storage::{resolve_id, Storage, UrlFormatter};
@@ -121,11 +122,13 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
 
-  use htsget_config::regex_resolver::MatchOnQuery;
-  use htsget_config::Format::Bam;
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
+
+  use htsget_config::config::StorageTypeServer;
+  use htsget_config::regex_resolver::MatchOnQuery;
+  use htsget_config::Format::Bam;
 
   use crate::htsget::{Headers, Url};
   use crate::storage::data_server::HttpTicketFormatter;
@@ -318,7 +321,13 @@ pub(crate) mod tests {
     test(
       LocalStorage::new(
         base_path.path(),
-        RegexResolver::new(".*", "$0", MatchOnQuery::default()).unwrap(),
+        RegexResolver::new(
+          ".*",
+          "$0",
+          StorageTypeServer::default(),
+          MatchOnQuery::default(),
+        )
+        .unwrap(),
         HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
       )
       .unwrap(),

@@ -148,12 +148,26 @@ impl Default for LocalDataServer {
   }
 }
 
+/// Specify the storage type to use.
+#[derive(Deserialize, Debug, Clone)]
+#[non_exhaustive]
+pub enum StorageTypeServer {
+  LocalStorage(LocalDataServer),
+  #[cfg(feature = "s3-storage")]
+  AwsS3Storage(AwsS3DataServer),
+}
+
+impl Default for StorageTypeServer {
+  fn default() -> Self {
+    Self::LocalStorage(LocalDataServer::default())
+  }
+}
+
 /// Configuration for the htsget server.
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct AwsS3DataServer {
   pub bucket: String,
-  pub regex_resolvers: Vec<RegexResolver>,
 }
 
 /// Configuration for the htsget server.
@@ -165,7 +179,6 @@ pub struct DataServerConfig {
   pub data_server_cert: Option<PathBuf>,
   pub data_server_cors_allow_credentials: bool,
   pub data_server_cors_allow_origin: String,
-  pub regex_resolvers: Vec<RegexResolver>,
 }
 
 /// Configuration of the service info.
@@ -203,7 +216,6 @@ impl Default for DataServerConfig {
       data_server_cert: None,
       data_server_cors_allow_credentials: false,
       data_server_cors_allow_origin: default_data_server_origin(),
-      regex_resolvers: vec![RegexResolver::default()],
     }
   }
 }

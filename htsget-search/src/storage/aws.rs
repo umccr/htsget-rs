@@ -13,10 +13,11 @@ use aws_sdk_s3::types::ByteStream;
 use aws_sdk_s3::Client;
 use bytes::Bytes;
 use fluent_builders::GetObject;
-use htsget_config::Query;
 use tokio_util::io::StreamReader;
 use tracing::debug;
 use tracing::instrument;
+
+use htsget_config::Query;
 
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
@@ -219,13 +220,15 @@ mod tests {
   use aws_types::region::Region;
   use aws_types::{Credentials, SdkConfig};
   use futures::future;
-  use htsget_config::regex_resolver::MatchOnQuery;
-  use htsget_config::Format::Bam;
-  use htsget_config::Query;
   use hyper::service::make_service_fn;
   use hyper::Server;
   use s3_server::storages::fs::FileSystem;
   use s3_server::{S3Service, SimpleAuth};
+
+  use htsget_config::config::StorageTypeServer;
+  use htsget_config::regex_resolver::MatchOnQuery;
+  use htsget_config::Format::Bam;
+  use htsget_config::Query;
 
   use crate::htsget::Headers;
   use crate::storage::aws::AwsS3Storage;
@@ -281,7 +284,13 @@ mod tests {
       test(AwsS3Storage::new(
         client,
         folder_name,
-        RegexResolver::new(".*", "$0", MatchOnQuery::default()).unwrap(),
+        RegexResolver::new(
+          ".*",
+          "$0",
+          StorageTypeServer::default(),
+          MatchOnQuery::default(),
+        )
+        .unwrap(),
       ));
     })
     .await;

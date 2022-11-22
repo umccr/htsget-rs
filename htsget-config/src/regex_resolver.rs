@@ -1,8 +1,10 @@
-use crate::Format::{Bam, Bcf, Cram, Vcf};
-use crate::{Class, Fields, Format, Interval, NoTags, Query, Tags};
 use regex::{Error, Regex};
 use serde::Deserialize;
 use tracing::instrument;
+
+use crate::config::StorageTypeServer;
+use crate::Format::{Bam, Bcf, Cram, Vcf};
+use crate::{Class, Fields, Format, Interval, NoTags, Query, Tags};
 
 /// Represents an id resolver, which matches the id, replacing the match in the substitution text.
 pub trait HtsGetIdResolver {
@@ -23,6 +25,7 @@ pub struct RegexResolver {
   #[serde(with = "serde_regex")]
   pub regex: Regex,
   pub substitution_string: String,
+  pub server: StorageTypeServer,
   #[serde(flatten)]
   pub match_guard: MatchOnQuery,
 }
@@ -60,9 +63,9 @@ impl Default for MatchOnQuery {
 impl QueryMatcher for Fields {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.fields) {
-      (Fields::All, Fields::All) => true,
+      (Fields::All, _) => true,
       (Fields::List(self_fields), Fields::List(query_fields)) => self_fields == query_fields,
-      _ => false,
+      (Fields::List(_), Fields::All) => false,
     }
   }
 }
@@ -70,9 +73,9 @@ impl QueryMatcher for Fields {
 impl QueryMatcher for Tags {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.tags) {
-      (Tags::All, Tags::All) => true,
+      (Tags::All, _) => true,
       (Tags::List(self_tags), Tags::List(query_tags)) => self_tags == query_tags,
-      _ => false,
+      (Tags::List(_), Tags::All) => false,
     }
   }
 }
@@ -80,9 +83,9 @@ impl QueryMatcher for Tags {
 impl QueryMatcher for NoTags {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.no_tags) {
-      (NoTags(None), NoTags(None)) => true,
+      (NoTags(None), _) => true,
       (NoTags(Some(self_no_tags)), NoTags(Some(query_no_tags))) => self_no_tags == query_no_tags,
-      _ => false,
+      (NoTags(Some(_)), NoTags(None)) => false,
     }
   }
 }
@@ -93,8 +96,10 @@ impl QueryMatcher for MatchOnQuery {
       self.format.contains(&query.format)
         && self.class.contains(&query.class)
         && self.reference_name.is_match(reference_name)
-        && self.start.contains(query.interval.start)
-        && self.end.contains(query.interval.end)
+        && self
+          .start
+          .contains(query.interval.start.unwrap_or(u32::MIN))
+        && self.end.contains(query.interval.end.unwrap_or(u32::MAX))
         && self.fields.query_matches(query)
         && self.fields.query_matches(query)
         && self.fields.query_matches(query)
@@ -106,7 +111,13 @@ impl QueryMatcher for MatchOnQuery {
 
 impl Default for RegexResolver {
   fn default() -> Self {
-    Self::new(".*", "$0", MatchOnQuery::default()).expect("expected valid resolver")
+    Self::new(
+      ".*",
+      "$0",
+      StorageTypeServer::default(),
+      MatchOnQuery::default(),
+    )
+    .expect("expected valid resolver")
   }
 }
 
@@ -115,10 +126,12 @@ impl RegexResolver {
   pub fn new(
     regex: &str,
     replacement_string: &str,
+    server: StorageTypeServer,
     match_guard: MatchOnQuery,
   ) -> Result<Self, Error> {
     Ok(Self {
       regex: Regex::new(regex)?,
+      server,
       substitution_string: replacement_string.to_string(),
       match_guard,
     })
@@ -128,7 +141,7 @@ impl RegexResolver {
 impl HtsGetIdResolver for RegexResolver {
   #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, query: &Query) -> Option<String> {
-    if self.regex.is_match(&query.id) {
+    if self.regex.is_match(&query.id) && self.match_guard.query_matches(query) {
       Some(
         self
           .regex
@@ -147,7 +160,13 @@ pub mod tests {
 
   #[test]
   fn resolver_resolve_id() {
-    let resolver = RegexResolver::new(".*", "$0-test", MatchOnQuery::default()).unwrap();
+    let resolver = RegexResolver::new(
+      ".*",
+      "$0-test",
+      StorageTypeServer::default(),
+      MatchOnQuery::default(),
+    )
+    .unwrap();
     assert_eq!(
       resolver.resolve_id(&Query::new("id", Bam)).unwrap(),
       "id-test"
