@@ -79,7 +79,7 @@ pub enum Class {
 
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Interval {
   pub start: Option<u32>,
   pub end: Option<u32>,
@@ -150,7 +150,7 @@ impl Interval {
 }
 
 /// Possible values for the fields parameter.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Fields {
   /// Include all fields
   All,
@@ -159,7 +159,7 @@ pub enum Fields {
 }
 
 /// Possible values for the tags parameter.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Tags {
   /// Include all tags
   All,
@@ -168,7 +168,7 @@ pub enum Tags {
 }
 
 /// The no tags parameter.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NoTags(pub Option<Vec<String>>);
 
 /// A query contains all the parameters that can be used when requesting

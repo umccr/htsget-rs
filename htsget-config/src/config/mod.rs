@@ -3,14 +3,15 @@ use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+use crate::config::aws::AwsS3DataServer;
 use clap::Parser;
-use config::File;
-use serde::Deserialize;
+use figment::providers::{Env, Format, Serialized, Toml};
+use figment::Figment;
+use serde::{Deserialize, Serialize};
 use tracing::info;
 use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
-use crate::config::aws::AwsS3DataServer;
 
 use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
@@ -55,7 +56,7 @@ The next variables are used to configure the info for the service-info endpoints
 * HTSGET_ENVIRONMENT: The environment in which the service is running. Default: "None".
 "#;
 
-const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET";
+const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
 
 fn default_localstorage_addr() -> SocketAddr {
   "127.0.0.1:8081".parse().expect("expected valid address")
@@ -90,7 +91,7 @@ pub struct Args {
 }
 
 /// Configuration for the server. Each field will be read from environment variables.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
   pub ticket_server_config: TicketServerConfig,
@@ -98,7 +99,7 @@ pub struct Config {
 }
 
 /// Configuration for the htsget server.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
   pub ticket_server_addr: SocketAddr,
@@ -109,7 +110,7 @@ pub struct TicketServerConfig {
 }
 
 /// Configuration for the htsget server.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct LocalDataServer {
   pub path: PathBuf,
@@ -136,7 +137,7 @@ impl Default for LocalDataServer {
 }
 
 /// Specify the storage type to use.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[non_exhaustive]
 pub enum StorageType {
   LocalStorage(LocalDataServer),
@@ -151,7 +152,7 @@ impl Default for StorageType {
 }
 
 /// Configuration for the htsget server.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct DataServerConfig {
   pub data_server_addr: SocketAddr,
@@ -162,7 +163,7 @@ pub struct DataServerConfig {
 }
 
 /// Configuration of the service info.
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct ServiceInfo {
   pub id: Option<String>,
@@ -218,23 +219,16 @@ impl Config {
   /// Read the environment variables into a Config struct.
   #[instrument]
   pub fn from_env(config: PathBuf) -> io::Result<Self> {
-    let config = config::Config::builder()
-      .add_source(File::from(config))
-      .add_source(config::Environment::with_prefix(
-        ENVIRONMENT_VARIABLE_PREFIX,
-      ))
-      .build()
+    let config = Figment::from(Serialized::defaults(Config::default()))
+      .merge(Toml::file(config))
+      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
+      .extract()
       .map_err(|err| {
-        io::Error::new(
-          ErrorKind::Other,
-          format!("config not properly set: {}", err),
-        )
-      })?
-      .try_deserialize::<Config>()
-      .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {}", err)));
+        io::Error::new(ErrorKind::Other, format!("failed to parse config: {}", err))
+      })?;
 
     info!(config = ?config, "config created from environment variables");
-    config
+    Ok(config)
   }
 
   /// Setup tracing, using a global subscriber.

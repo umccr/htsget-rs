@@ -1,10 +1,10 @@
 use regex::{Error, Regex};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
+use crate::config::StorageType;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
 use crate::{Class, Fields, Format, Interval, NoTags, Query, Tags};
-use crate::config::StorageType;
 
 /// Represents an id resolver, which matches the id, replacing the match in the substitution text.
 pub trait HtsGetIdResolver {
@@ -19,7 +19,7 @@ pub trait QueryMatcher {
 }
 
 /// A regex resolver is a resolver that matches ids using Regex.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Serialize, Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct RegexResolver {
   #[serde(with = "serde_regex")]
@@ -31,7 +31,7 @@ pub struct RegexResolver {
 }
 
 /// A query that can be matched with the regex resolver.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Serialize, Clone, Debug, Deserialize)]
 pub struct MatchOnQuery {
   pub format: Vec<Format>,
   pub class: Vec<Class>,
@@ -111,13 +111,8 @@ impl QueryMatcher for MatchOnQuery {
 
 impl Default for RegexResolver {
   fn default() -> Self {
-    Self::new(
-      ".*",
-      "$0",
-      StorageType::default(),
-      MatchOnQuery::default(),
-    )
-    .expect("expected valid resolver")
+    Self::new(".*", "$0", StorageType::default(), MatchOnQuery::default())
+      .expect("expected valid resolver")
   }
 }
 
