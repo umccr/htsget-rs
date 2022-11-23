@@ -2,9 +2,9 @@ use regex::{Error, Regex};
 use serde::Deserialize;
 use tracing::instrument;
 
-use crate::config::StorageTypeServer;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
 use crate::{Class, Fields, Format, Interval, NoTags, Query, Tags};
+use crate::config::StorageType;
 
 /// Represents an id resolver, which matches the id, replacing the match in the substitution text.
 pub trait HtsGetIdResolver {
@@ -25,7 +25,7 @@ pub struct RegexResolver {
   #[serde(with = "serde_regex")]
   pub regex: Regex,
   pub substitution_string: String,
-  pub server: StorageTypeServer,
+  pub server: StorageType,
   #[serde(flatten)]
   pub match_guard: MatchOnQuery,
 }
@@ -114,7 +114,7 @@ impl Default for RegexResolver {
     Self::new(
       ".*",
       "$0",
-      StorageTypeServer::default(),
+      StorageType::default(),
       MatchOnQuery::default(),
     )
     .expect("expected valid resolver")
@@ -126,7 +126,7 @@ impl RegexResolver {
   pub fn new(
     regex: &str,
     replacement_string: &str,
-    server: StorageTypeServer,
+    server: StorageType,
     match_guard: MatchOnQuery,
   ) -> Result<Self, Error> {
     Ok(Self {
@@ -163,7 +163,7 @@ pub mod tests {
     let resolver = RegexResolver::new(
       ".*",
       "$0-test",
-      StorageTypeServer::default(),
+      StorageType::default(),
       MatchOnQuery::default(),
     )
     .unwrap();
