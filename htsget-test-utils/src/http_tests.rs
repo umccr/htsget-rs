@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use http::HeaderMap;
 use serde::de;
+use htsget_config::config::{LocalDataServer, StorageType};
+use htsget_config::regex_resolver::RegexResolver;
 
 use crate::util::generate_test_certificates;
 use crate::Config;
@@ -83,43 +85,46 @@ pub fn default_dir_data() -> PathBuf {
   default_dir().join("data")
 }
 
-fn set_path(config: &mut Config) {
+fn set_path(config: &mut LocalDataServer) {
   config.path = default_dir_data();
 }
 
-fn set_addr_and_path(config: &mut Config) {
+fn set_addr_and_path(config: &mut LocalDataServer) {
   set_path(config);
-  config.data_server_config.data_server_addr = "127.0.0.1:0".parse().unwrap();
+  config.addr = "127.0.0.1:0".parse().unwrap();
 }
 
 /// Default config with fixed port.
-pub fn default_config_fixed_port() -> Config {
-  let mut config = Config::default();
+pub fn default_config_fixed_port() -> LocalDataServer {
+  let mut config = LocalDataServer::default();
   set_path(&mut config);
   config
 }
 
 /// Default config using the current cargo manifest directory, and dynamic port.
 pub fn default_test_config() -> Config {
-  let mut config = Config::default();
-  set_addr_and_path(&mut config);
+  let mut server_config = LocalDataServer::default();
+  set_addr_and_path(&mut server_config);
 
-  config.data_server_config.data_server_cors_allow_credentials = false;
-  config.data_server_config.data_server_cors_allow_origin = "http://example.com".to_string();
+  let mut server_config = LocalDataServer::default();
+  server_config.cors_allow_credentials = false;
+  server_config.cors_allow_origin = "http://example.com".to_string();
 
-  config
+  Config::from(server_config)
 }
 
 /// Config with tls ticket server, using the current cargo manifest directory.
 pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
-  let mut config = Config::default();
-  set_addr_and_path(&mut config);
+  let mut server_config = LocalDataServer::default();
+  set_addr_and_path(&mut server_config);
 
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
-  config.data_server_config.data_server_key = Some(key_path);
-  config.data_server_config.data_server_cert = Some(cert_path);
 
-  config
+  let mut server_config = LocalDataServer::default();
+  server_config.key = Some(key_path);
+  server_config.cert = Some(cert_path);
+
+  Config::from(server_config)
 }
 
 /// Get the event associated with the file.

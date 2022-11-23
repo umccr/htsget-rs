@@ -12,8 +12,10 @@ use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
 
+#[cfg(feature = "s3-storage")]
+pub use htsget_config::config::aws::AwsS3DataServer;
 pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig,
+  Config, LocalDataServer, ServiceInfo, StorageType, TicketServerConfig,
 };
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
@@ -303,7 +305,7 @@ mod tests {
 
       let router = Router::new(
         Arc::new(
-          HtsGetFromStorage::local_from(&self.config.path, self.config.resolver.clone(), formatter)
+          HtsGetFromStorage::local_from(&self.config.resolvers.first().unwrap().server, self.config.resolver.clone(), formatter)
             .unwrap(),
         ),
         &self.config.ticket_server_config.service_info,
@@ -494,7 +496,7 @@ mod tests {
         assert!(router.get_route(&Method::DELETE, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -508,7 +510,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -522,7 +524,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -536,7 +538,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -550,7 +552,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -575,7 +577,7 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -600,7 +602,7 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -622,7 +624,7 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -647,7 +649,7 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config),
+      formatter_from_config(&config).unwrap(),
     )
     .await;
   }
@@ -691,7 +693,7 @@ mod tests {
   }
 
   async fn test_service_info_from_file(file_path: &str, config: &Config) {
-    let formatter = formatter_from_config(config);
+    let formatter = formatter_from_config(config).unwrap();
     let expected_path = expected_url_path(&formatter);
     with_router(
       |router| async {

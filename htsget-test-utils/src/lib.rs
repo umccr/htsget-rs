@@ -1,6 +1,8 @@
+#[cfg(feature = "s3-storage")]
+pub use htsget_config::config::aws::AwsS3DataServer;
 #[cfg(any(feature = "cors-tests", feature = "server-tests"))]
 pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig,
+  Config, LocalDataServer, ServiceInfo, StorageType, TicketServerConfig,
 };
 
 #[cfg(feature = "cors-tests")]

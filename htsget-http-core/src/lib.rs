@@ -2,8 +2,10 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 pub use error::{HtsGetError, Result};
+#[cfg(feature = "s3-storage")]
+pub use htsget_config::config::aws::AwsS3DataServer;
 pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, StorageType, TicketServerConfig,
+  Config, LocalDataServer, ServiceInfo as ConfigServiceInfo, StorageType, TicketServerConfig,
 };
 use htsget_config::Query;
 use htsget_search::htsget::Response;

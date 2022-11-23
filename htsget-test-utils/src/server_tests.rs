@@ -8,6 +8,7 @@ use http::Method;
 use noodles_bgzf as bgzf;
 use noodles_vcf as vcf;
 use reqwest::ClientBuilder;
+use htsget_config::config::StorageType::LocalStorage;
 
 use htsget_http_core::{get_service_info_with, Endpoint};
 use htsget_search::htsget::Response as HtsgetResponse;
@@ -73,8 +74,12 @@ pub async fn test_response(response: Response, class: Class) {
 
 /// Create the a [HttpTicketFormatter], spawn the ticket server, returning the expected path and the formatter.
 pub async fn formatter_and_expected_path(config: &Config) -> (String, HttpTicketFormatter) {
-  let mut formatter = formatter_from_config(config);
-  spawn_ticket_server(config.path.clone(), &mut formatter).await;
+  let mut formatter = formatter_from_config(config).unwrap();
+  for resolver in config.resolvers.iter() {
+    if let LocalStorage(server) = &resolver.server {
+      spawn_ticket_server(server.path.clone(), &mut formatter).await;
+    }
+  }
 
   (expected_url_path(&formatter), formatter)
 }
@@ -162,8 +167,12 @@ pub async fn test_parameterized_post_class_header<T: TestRequest>(tester: &impl 
 }
 
 /// Get the [HttpTicketFormatter] from the config.
-pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
-  HttpTicketFormatter::try_from(config.data_server_config.clone()).unwrap()
+pub fn formatter_from_config(config: &Config) -> Option<HttpTicketFormatter> {
+  if let LocalStorage(server_config) = config.resolvers.first()?.server.clone() {
+    HttpTicketFormatter::try_from(server_config).ok()
+  } else {
+    None
+  }
 }
 
 /// A service info test.

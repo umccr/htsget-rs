@@ -126,7 +126,7 @@ pub(crate) mod tests {
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
-  use htsget_config::config::StorageTypeServer;
+  use htsget_config::config::StorageType;
   use htsget_config::regex_resolver::MatchOnQuery;
   use htsget_config::Format::Bam;
 
@@ -324,7 +324,7 @@ pub(crate) mod tests {
         RegexResolver::new(
           ".*",
           "$0",
-          StorageTypeServer::default(),
+          StorageType::default(),
           MatchOnQuery::default(),
         )
         .unwrap(),

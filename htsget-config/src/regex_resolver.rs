@@ -116,6 +116,13 @@ impl Default for RegexResolver {
   }
 }
 
+impl From<StorageType> for RegexResolver {
+  fn from(storage_type: StorageType) -> Self {
+    Self::new(".*", "$0", storage_type, MatchOnQuery::default())
+      .expect("expected valid resolver")
+  }
+}
+
 impl RegexResolver {
   /// Create a new regex resolver.
   pub fn new(

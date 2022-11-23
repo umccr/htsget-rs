@@ -6,4 +6,6 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct AwsS3DataServer {
   pub bucket: String,
+  pub cors_allow_credentials: bool,
+  pub cors_allow_origin: String,
 }

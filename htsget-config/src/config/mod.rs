@@ -102,11 +102,11 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
-  pub ticket_server_addr: SocketAddr,
+  pub addr: SocketAddr,
   #[serde(flatten)]
   pub service_info: ServiceInfo,
-  pub ticket_server_cors_allow_credentials: bool,
-  pub ticket_server_cors_allow_origin: String,
+  pub cors_allow_credentials: bool,
+  pub cors_allow_origin: String,
 }
 
 /// Configuration for the htsget server.
@@ -151,17 +151,6 @@ impl Default for StorageType {
   }
 }
 
-/// Configuration for the htsget server.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default)]
-pub struct DataServerConfig {
-  pub data_server_addr: SocketAddr,
-  pub data_server_key: Option<PathBuf>,
-  pub data_server_cert: Option<PathBuf>,
-  pub data_server_cors_allow_credentials: bool,
-  pub data_server_cors_allow_origin: String,
-}
-
 /// Configuration of the service info.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
@@ -181,22 +170,10 @@ pub struct ServiceInfo {
 impl Default for TicketServerConfig {
   fn default() -> Self {
     Self {
-      ticket_server_addr: default_addr(),
+      addr: default_addr(),
       service_info: ServiceInfo::default(),
-      ticket_server_cors_allow_credentials: false,
-      ticket_server_cors_allow_origin: default_ticket_server_origin(),
-    }
-  }
-}
-
-impl Default for DataServerConfig {
-  fn default() -> Self {
-    Self {
-      data_server_addr: default_localstorage_addr(),
-      data_server_key: None,
-      data_server_cert: None,
-      data_server_cors_allow_credentials: false,
-      data_server_cors_allow_origin: default_data_server_origin(),
+      cors_allow_credentials: false,
+      cors_allow_origin: default_ticket_server_origin(),
     }
   }
 }
@@ -206,6 +183,15 @@ impl Default for Config {
     Self {
       resolvers: vec![RegexResolver::default()],
       ticket_server_config: Default::default(),
+    }
+  }
+}
+
+impl From<LocalDataServer> for Config {
+  fn from(config: LocalDataServer) -> Self {
+    Self {
+      resolvers: vec![RegexResolver::from(LocalStorage(config))],
+      ticket_server_config: Default::default()
     }
   }
 }
@@ -258,7 +244,7 @@ mod tests {
     std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8081");
     let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(
-      config.ticket_server_config.ticket_server_addr,
+      config.ticket_server_config.addr,
       "127.0.0.1:8081".parse().unwrap()
     );
   }
@@ -271,7 +257,7 @@ mod tests {
     );
     let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
     assert_eq!(
-      config.ticket_server_config.ticket_server_cors_allow_origin,
+      config.ticket_server_config.cors_allow_origin,
       "http://localhost:8080"
     );
   }

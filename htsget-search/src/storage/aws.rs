@@ -225,7 +225,7 @@ mod tests {
   use s3_server::storages::fs::FileSystem;
   use s3_server::{S3Service, SimpleAuth};
 
-  use htsget_config::config::StorageTypeServer;
+  use htsget_config::config::StorageType;
   use htsget_config::regex_resolver::MatchOnQuery;
   use htsget_config::Format::Bam;
   use htsget_config::Query;
@@ -287,7 +287,7 @@ mod tests {
         RegexResolver::new(
           ".*",
           "$0",
-          StorageTypeServer::default(),
+          StorageType::default(),
           MatchOnQuery::default(),
         )
         .unwrap(),

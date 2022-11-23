@@ -26,10 +26,10 @@ use tower::MakeService;
 use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
+use htsget_config::config::LocalDataServer;
 
 use crate::storage::StorageError::{DataServerError, IoError};
 use crate::storage::{configure_cors, UrlFormatter};
-use crate::DataServerConfig;
 
 use super::{Result, StorageError};
 
@@ -112,17 +112,17 @@ impl HttpTicketFormatter {
   }
 }
 
-impl TryFrom<DataServerConfig> for HttpTicketFormatter {
+impl TryFrom<LocalDataServer> for HttpTicketFormatter {
   type Error = StorageError;
 
   /// Returns a ticket server with tls if both cert and key are not None, without tls if cert and key
   /// are both None, and otherwise an error.
-  fn try_from(config: DataServerConfig) -> Result<Self> {
-    match (config.data_server_cert, config.data_server_key) {
+  fn try_from(config: LocalDataServer) -> Result<Self> {
+    match (config.cert, config.key) {
       (Some(cert), Some(key)) => Ok(Self::new_with_tls(
-        config.data_server_addr,
-        config.data_server_cors_allow_origin,
-        config.data_server_cors_allow_credentials,
+        config.addr,
+        config.cors_allow_origin,
+        config.cors_allow_credentials,
         cert,
         key,
       )),
@@ -130,9 +130,9 @@ impl TryFrom<DataServerConfig> for HttpTicketFormatter {
         "both the cert and key must be provided for the ticket server".to_string(),
       )),
       (None, None) => Ok(Self::new(
-        config.data_server_addr,
-        config.data_server_cors_allow_origin,
-        config.data_server_cors_allow_credentials,
+        config.addr,
+        config.cors_allow_origin,
+        config.cors_allow_credentials,
       )),
     }
   }

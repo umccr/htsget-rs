@@ -7,8 +7,10 @@ use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
+#[cfg(feature = "s3-storage")]
+pub use htsget_config::config::aws::AwsS3DataServer;
 pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig, USAGE,
+  Config, LocalDataServer, ServiceInfo, StorageType, TicketServerConfig, USAGE,
 };
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
@@ -84,12 +86,12 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
         configure_server(service_config, htsget.clone(), config.service_info.clone());
       })
       .wrap(configure_cors(
-        config.ticket_server_cors_allow_credentials,
-        config.ticket_server_cors_allow_origin.clone(),
+        config.cors_allow_credentials,
+        config.cors_allow_origin.clone(),
       ))
       .wrap(TracingLogger::default())
   }))
-  .bind(config.ticket_server_addr)?;
+  .bind(config.addr)?;
 
   info!(addresses = ?server.addrs(), "htsget query server addresses bound");
   Ok(server.run())

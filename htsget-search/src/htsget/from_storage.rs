@@ -100,7 +100,7 @@ pub(crate) mod tests {
 
   use tempfile::TempDir;
 
-  use htsget_config::config::StorageTypeServer;
+  use htsget_config::config::StorageType;
   use htsget_config::regex_resolver::MatchOnQuery;
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
@@ -183,7 +183,7 @@ pub(crate) mod tests {
         RegexResolver::new(
           ".*",
           "$0",
-          StorageTypeServer::default(),
+          StorageType::default(),
           MatchOnQuery::default(),
         )
         .unwrap(),
