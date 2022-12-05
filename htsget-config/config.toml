@@ -1,0 +1,25 @@
+ticket_server_addr = "127.0.0.1:8080"
+ticket_server_cors_allow_credentials = false
+ticket_server_cors_allow_origin = "http://localhost:8080"
+start_data_server = true
+data_server_path = "data"
+data_server_serve_at = "/data"
+data_server_addr = "127.0.0.1:8081"
+data_server_cors_allow_credentials = false
+data_server_cors_allow_origin = "http://localhost:8081"
+
+[[resolver]]
+regex = ".*"
+substitution_string = "$0"
+
+storage_type.type = "Url"
+storage_type.scheme = "Https"
+storage_type.authority = "127.0.0.1:8081"
+storage_type.path = "/data"
+
+[resolver.guard]
+match_formats = ["BAM"]
+start_interval.start = 100
+match_fields = ["field1"]
+match_no_tags = ["tag1"]
+

@@ -151,6 +151,7 @@ impl Interval {
 
 /// Possible values for the fields parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(untagged)]
 pub enum Fields {
   /// Include all fields
   All,
@@ -160,6 +161,7 @@ pub enum Fields {
 
 /// Possible values for the tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "tags")]
 pub enum Tags {
   /// Include all tags
   All,

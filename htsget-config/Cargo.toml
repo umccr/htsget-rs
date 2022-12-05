@@ -17,3 +17,6 @@ figment = { version = "0.10", features = ["env", "toml"] }
 clap = { version = "4.0", features = ["derive", "env"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
+toml = "0.5"
+http = "0.2"
+http-serde = "1.1"
