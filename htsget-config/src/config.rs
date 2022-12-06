@@ -8,6 +8,7 @@ use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
 use serde::{Deserialize, Serialize};
+use serde_with::with_prefix;
 use tracing::info;
 use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
@@ -62,12 +63,8 @@ fn default_addr() -> &'static str {
     "127.0.0.1:8080"
 }
 
-fn default_ticket_server_origin() -> &'static str {
+fn default_server_origin() -> &'static str {
     "http://localhost:8080"
-}
-
-fn default_data_server_origin() -> &'static str {
-    "http://localhost:8081"
 }
 
 fn default_path() -> &'static str {
@@ -97,16 +94,37 @@ pub struct Config {
     pub resolver: Vec<RegexResolver>,
 }
 
+with_prefix!(prefix_ticket_server "ticket_server_");
+
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
     pub ticket_server_addr: SocketAddr,
-    pub ticket_server_cors_allow_credentials: bool,
-    pub ticket_server_cors_allow_origin: String,
+    #[serde(flatten, with = "prefix_ticket_server")]
+    pub cors_config: CorsConfig,
     #[serde(flatten)]
     pub service_info: ServiceInfo,
 }
+
+/// Configuration for the htsget server.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct CorsConfig {
+    pub cors_allow_credentials: bool,
+    pub cors_allow_origin: String,
+}
+
+impl Default for CorsConfig {
+    fn default() -> Self {
+        Self {
+            cors_allow_credentials: false,
+            cors_allow_origin: default_server_origin().to_string()
+        }
+    }
+}
+
+with_prefix!(prefix_data_server "data_server_");
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -118,8 +136,8 @@ pub struct DataServerConfig {
     pub data_server_addr: SocketAddr,
     pub data_server_key: Option<PathBuf>,
     pub data_server_cert: Option<PathBuf>,
-    pub data_server_cors_allow_credentials: bool,
-    pub data_server_cors_allow_origin: String,
+    #[serde(flatten, with = "prefix_data_server")]
+    pub cors_config: CorsConfig,
 }
 
 impl Default for DataServerConfig {
@@ -131,8 +149,7 @@ impl Default for DataServerConfig {
             data_server_addr: default_localstorage_addr().parse().expect("expected valid address"),
             data_server_key: None,
             data_server_cert: None,
-            data_server_cors_allow_credentials: false,
-            data_server_cors_allow_origin: default_data_server_origin().to_string(),
+            cors_config: CorsConfig::default(),
         }
     }
 }
@@ -157,8 +174,7 @@ impl Default for TicketServerConfig {
     fn default() -> Self {
         Self {
             ticket_server_addr: default_addr().parse().expect("expected valid address"),
-            ticket_server_cors_allow_credentials: false,
-            ticket_server_cors_allow_origin: default_ticket_server_origin().to_string(),
+            cors_config: CorsConfig::default(),
             service_info: ServiceInfo::default(),
         }
     }

@@ -6,6 +6,4 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct S3Resolver {
   pub bucket: String,
-  pub cors_allow_credentials: bool,
-  pub cors_allow_origin: String,
 }
