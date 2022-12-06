@@ -2,12 +2,16 @@ use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use crate::regex_resolver::aws::S3Resolver;
 use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
-use serde::{Deserialize, Serialize};
+use http::header::HeaderName;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error;
+use serde::ser::SerializeSeq;
 use serde_with::with_prefix;
 use tracing::info;
 use tracing::instrument;
@@ -107,19 +111,45 @@ pub struct TicketServerConfig {
     pub service_info: ServiceInfo,
 }
 
+/// Allowed header for cors config. Any allows all headers by sending a wildcard,
+/// and mirror allows all headers by mirroring the recieved headers.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum AllowHeaders {
+    Any,
+    Mirror,
+    #[serde(serialize_with = "serialize_header_names", deserialize_with = "deserialize_header_names")]
+    List(Vec<HeaderName>)
+}
+
+fn serialize_header_names<S>(names: &Vec<HeaderName>, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    let mut sequence = serializer.serialize_seq(Some(names.len()))?;
+    for element in names.iter().map(|name| name.as_str()) {
+        sequence.serialize_element(element)?;
+    }
+    sequence.end()
+}
+
+fn deserialize_header_names<'de, D>(deserializer: D) -> Result<Vec<HeaderName>, D::Error> where D: Deserializer<'de> {
+    let names: Vec<String> = Deserialize::deserialize(deserializer)?;
+    names.into_iter().map(|name| HeaderName::from_str(&name).map_err(|err| Error::custom(err.to_string()))).collect()
+}
+
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct CorsConfig {
     pub cors_allow_credentials: bool,
     pub cors_allow_origin: String,
+    pub cors_allow_headers: AllowHeaders,
 }
 
 impl Default for CorsConfig {
     fn default() -> Self {
         Self {
             cors_allow_credentials: false,
-            cors_allow_origin: default_server_origin().to_string()
+            cors_allow_origin: default_server_origin().to_string(),
+            cors_allow_headers: AllowHeaders::List(vec![HeaderName::from_static("content-type")]),
         }
     }
 }

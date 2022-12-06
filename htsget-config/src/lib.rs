@@ -161,7 +161,7 @@ pub enum Fields {
 
 /// Possible values for the tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(tag = "tags")]
+#[serde(untagged)]
 pub enum Tags {
   /// Include all tags
   All,
