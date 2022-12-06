@@ -3,6 +3,7 @@ use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Duration;
 
 use crate::regex_resolver::aws::S3Resolver;
 use clap::Parser;
@@ -58,6 +59,8 @@ The next variables are used to configure the info for the service-info endpoints
 "#;
 
 const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
+/// The maximum amount of time a CORS request can be cached for in seconds.
+pub const CORS_MAX_AGE: usize = 86400;
 
 pub(crate) fn default_localstorage_addr() -> &'static str {
     "127.0.0.1:8081"
@@ -142,6 +145,7 @@ pub struct CorsConfig {
     pub cors_allow_credentials: bool,
     pub cors_allow_origin: String,
     pub cors_allow_headers: AllowHeaders,
+    pub cors_max_age: usize
 }
 
 impl Default for CorsConfig {
@@ -150,6 +154,7 @@ impl Default for CorsConfig {
             cors_allow_credentials: false,
             cors_allow_origin: default_server_origin().to_string(),
             cors_allow_headers: AllowHeaders::List(vec![HeaderName::from_static("content-type")]),
+            cors_max_age: CORS_MAX_AGE
         }
     }
 }
