@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
@@ -10,6 +11,7 @@ use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
 use http::header::HeaderName;
+use http::Method;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;
 use serde::ser::SerializeSeq;
@@ -18,6 +20,7 @@ use tracing::info;
 use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, fmt, Registry};
+use crate::config::AllowType::{List, Mirror};
 
 use crate::regex_resolver::RegexResolver;
 
@@ -115,27 +118,36 @@ pub struct TicketServerConfig {
 }
 
 /// Allowed header for cors config. Any allows all headers by sending a wildcard,
-/// and mirror allows all headers by mirroring the recieved headers.
+/// and mirror allows all headers by mirroring the received headers.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
-pub enum AllowHeaders {
-    Any,
+pub enum AllowType<T> {
     Mirror,
-    #[serde(serialize_with = "serialize_header_names", deserialize_with = "deserialize_header_names")]
-    List(Vec<HeaderName>)
+    Any,
+    #[serde(bound(serialize = "T: AsRef<str>", deserialize = "T: FromStr, T::Err: Display"))]
+    #[serde(serialize_with = "serialize_allow_types", deserialize_with = "deserialize_allow_types")]
+    List(Vec<T>)
 }
 
-fn serialize_header_names<S>(names: &Vec<HeaderName>, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+fn serialize_allow_types<S, T>(names: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        T: AsRef<str>,
+        S: Serializer
+{
     let mut sequence = serializer.serialize_seq(Some(names.len()))?;
-    for element in names.iter().map(|name| name.as_str()) {
+    for element in names.iter().map(|name| name.as_ref()) {
         sequence.serialize_element(element)?;
     }
     sequence.end()
 }
 
-fn deserialize_header_names<'de, D>(deserializer: D) -> Result<Vec<HeaderName>, D::Error> where D: Deserializer<'de> {
+fn deserialize_allow_types<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+    where
+        T: FromStr,
+        T::Err: Display,
+        D: Deserializer<'de>
+{
     let names: Vec<String> = Deserialize::deserialize(deserializer)?;
-    names.into_iter().map(|name| HeaderName::from_str(&name).map_err(|err| Error::custom(err.to_string()))).collect()
+    names.into_iter().map(|name| T::from_str(&name).map_err(Error::custom)).collect()
 }
 
 /// Configuration for the htsget server.
@@ -144,7 +156,8 @@ fn deserialize_header_names<'de, D>(deserializer: D) -> Result<Vec<HeaderName>, 
 pub struct CorsConfig {
     pub cors_allow_credentials: bool,
     pub cors_allow_origin: String,
-    pub cors_allow_headers: AllowHeaders,
+    pub cors_allow_headers: AllowType<HeaderName>,
+    pub cors_allow_methods: AllowType<Method>,
     pub cors_max_age: usize
 }
 
@@ -153,7 +166,8 @@ impl Default for CorsConfig {
         Self {
             cors_allow_credentials: false,
             cors_allow_origin: default_server_origin().to_string(),
-            cors_allow_headers: AllowHeaders::List(vec![HeaderName::from_static("content-type")]),
+            cors_allow_headers: Mirror,
+            cors_allow_methods: Mirror,
             cors_max_age: CORS_MAX_AGE
         }
     }
