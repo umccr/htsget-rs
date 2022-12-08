@@ -44,6 +44,7 @@ htsget-rs implements the following components of the protocol:
 * VCF and BCF for the `variants` endpoint.
 * `service-info` endpoint. 
 * TLS on the data block server. 
+* CORS support on the ticket and data block servers.
 
 [htsget-protocol]: http://samtools.github.io/hts-specs/htsget.html
 [htsget-diagram]: http://samtools.github.io/hts-specs/htsget.html#diagram-of-core-mechanic
