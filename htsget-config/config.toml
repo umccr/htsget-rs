@@ -7,7 +7,7 @@ data_server_serve_at = "/data"
 data_server_addr = "127.0.0.1:8081"
 data_server_cors_allow_credentials = false
 data_server_cors_allow_origins = ["http://localhost:8081"]
-data_server_cors_allow_methods = ["GET"]
+data_server_cors_allow_methods = "Any"
 
 [[resolver]]
 regex = ".*"

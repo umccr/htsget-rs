@@ -120,7 +120,9 @@ pub struct TicketServerConfig {
 /// Tagged allow headers for cors config. Either Mirror or Any.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TaggedAllowTypes {
+    #[serde(alias = "mirror", alias = "MIRROR")]
     Mirror,
+    #[serde(alias = "any", alias = "ANY")]
     Any
 }
 

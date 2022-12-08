@@ -29,8 +29,10 @@ pub trait QueryMatcher {
 #[serde(tag = "type")]
 #[non_exhaustive]
 pub enum StorageType {
+    #[serde(alias = "url", alias = "URL")]
     Url(UrlResolver),
     #[cfg(feature = "s3-storage")]
+    #[serde(alias = "s3")]
     S3(S3Resolver),
 }
 
@@ -42,7 +44,9 @@ impl Default for StorageType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Scheme {
+    #[serde(alias = "http", alias = "HTTP")]
     Http,
+    #[serde(alias = "https", alias = "HTTPS")]
     Https
 }
 
