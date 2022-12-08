@@ -210,7 +210,7 @@ mod tests {
   use super::*;
 
   #[test]
-  fn config_addr() {
+  fn config_ticket_server_addr() {
     std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8081");
     let config = Config::from_env().unwrap();
     assert_eq!(
@@ -246,7 +246,7 @@ mod tests {
   }
 
   #[test]
-  fn config_ticket_server_addr() {
+  fn config_data_server_addr() {
     std::env::set_var("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082");
     let config = Config::from_env().unwrap();
     assert_eq!(
