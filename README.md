@@ -10,7 +10,7 @@
 
 
 A **server** implementation of the [htsget protocol][htsget-protocol] for bioinformatics in Rust. It is:
-* **Fully-featured**: supports BAM and CRAM for reads, and VCF and BCF for variants.
+* **Fully-featured**: supports BAM and CRAM for reads, and VCF and BCF for variants, as well as other aspects of the protocol such as TLS, and CORS.
 * **Serverless**: supports local server instances using [Actix Web][actix-web], and serverless instances using AWS Lambda.
 * **Storage interchangeable**: supports local filesystem storage, and storage on AWS S3.
 * **Thoroughly tested and benchmarked**: tested using a purpose-built [test suite][htsget-test-utils], and benchmarked using [criterion-rs].
