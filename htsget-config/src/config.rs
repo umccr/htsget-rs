@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
@@ -10,17 +10,17 @@ use crate::regex_resolver::aws::S3Resolver;
 use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
-use http::header::HeaderName;
-use http::Method;
+use http::header::{HeaderName, InvalidHeaderValue};
+use http::{HeaderValue as HeaderValueInner, Method};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;
 use serde::ser::SerializeSeq;
-use serde_with::with_prefix;
+use serde_with::{DeserializeFromStr, SerializeDisplay, with_prefix};
 use tracing::info;
 use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, fmt, Registry};
-use crate::config::AllowType::{List, Mirror};
+use crate::config::AllowType::{List};
 
 use crate::regex_resolver::RegexResolver;
 
@@ -117,25 +117,32 @@ pub struct TicketServerConfig {
     pub service_info: ServiceInfo,
 }
 
+/// Tagged allow headers for cors config. Either Mirror or Any.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum TaggedAllowTypes {
+    Mirror,
+    Any
+}
+
 /// Allowed header for cors config. Any allows all headers by sending a wildcard,
 /// and mirror allows all headers by mirroring the received headers.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum AllowType<T> {
-    Mirror,
-    Any,
-    #[serde(bound(serialize = "T: AsRef<str>", deserialize = "T: FromStr, T::Err: Display"))]
+    TaggedAllowTypes(TaggedAllowTypes),
+    #[serde(bound(serialize = "T: Display", deserialize = "T: FromStr, T::Err: Display"))]
     #[serde(serialize_with = "serialize_allow_types", deserialize_with = "deserialize_allow_types")]
     List(Vec<T>)
 }
 
 fn serialize_allow_types<S, T>(names: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
     where
-        T: AsRef<str>,
+        T: Display,
         S: Serializer
 {
     let mut sequence = serializer.serialize_seq(Some(names.len()))?;
-    for element in names.iter().map(|name| name.as_ref()) {
-        sequence.serialize_element(element)?;
+    for element in names.iter().map(|name| format!("{}", name)) {
+        sequence.serialize_element(&element)?;
     }
     sequence.end()
 }
@@ -150,12 +157,29 @@ fn deserialize_allow_types<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
     names.into_iter().map(|name| T::from_str(&name).map_err(Error::custom)).collect()
 }
 
+#[derive(Debug, Clone)]
+pub struct HeaderValue(HeaderValueInner);
+
+impl FromStr for HeaderValue {
+    type Err = InvalidHeaderValue;
+
+    fn from_str(header: &str) -> Result<Self, Self::Err> {
+        Ok(HeaderValue(HeaderValueInner::from_str(header)?))
+    }
+}
+
+impl Display for HeaderValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&String::from_utf8_lossy(self.0.as_ref()))
+    }
+}
+
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct CorsConfig {
     pub cors_allow_credentials: bool,
-    pub cors_allow_origin: String,
+    pub cors_allow_origins: AllowType<HeaderValue>,
     pub cors_allow_headers: AllowType<HeaderName>,
     pub cors_allow_methods: AllowType<Method>,
     pub cors_max_age: usize
@@ -165,9 +189,9 @@ impl Default for CorsConfig {
     fn default() -> Self {
         Self {
             cors_allow_credentials: false,
-            cors_allow_origin: default_server_origin().to_string(),
-            cors_allow_headers: Mirror,
-            cors_allow_methods: Mirror,
+            cors_allow_origins: List(vec![HeaderValue(HeaderValueInner::from_static(default_server_origin()))]),
+            cors_allow_headers: AllowType::TaggedAllowTypes(TaggedAllowTypes::Mirror),
+            cors_allow_methods: AllowType::TaggedAllowTypes(TaggedAllowTypes::Mirror),
             cors_max_age: CORS_MAX_AGE
         }
     }
