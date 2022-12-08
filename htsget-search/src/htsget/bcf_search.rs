@@ -23,7 +23,8 @@ use crate::{
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
-pub(crate) struct BcfSearch<S> {
+/// Allows searching through bcf files.
+pub struct BcfSearch<S> {
   storage: Arc<S>,
 }
 
