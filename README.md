@@ -12,13 +12,15 @@
 A **server** implementation of the [htsget protocol][htsget-protocol] for bioinformatics in Rust. It is:
 * **Fully-featured**: supports BAM and CRAM for reads, and VCF and BCF for variants.
 * **Serverless**: supports local server instances using [Actix Web][actix-web], and serverless instances using AWS Lambda.
-* **Storage Interchangeable**: supports local filesystem storage, and storage on AWS S3.
+* **Storage interchangeable**: supports local filesystem storage, and storage on AWS S3.
+* **Thoroughly tested and benchmarked**: tested using a purpose-built [test suite][htsget-test-utils], and benchmarked using [criterion-rs].
 
 To get started, see [Usage].
 
 **Note**: htsget-rs is still experimental, and subject to change.
 
 [actix-web]: https://github.com/actix/actix-web
+[criterion-rs]: https://github.com/bheisler/criterion.rs
 [Usage]: #usage
 
 ## Overview
@@ -87,7 +89,7 @@ This repository consists of a workspace composed of the following crates:
 - [htsget-http-lambda]: Cloud based instance of the htsget server. Contains framework dependent
 code using the [Rust Runtime for AWS Lambda][aws-lambda-rust-runtime].
 - [htsget-search]: Core logic needed to search bioinformatics files based on htsget queries.
-- [htsget-test-utils]: Test utilities used by other crates in the project.
+- [htsget-test-utils]: Test suite used by other crates in the project.
 
 Other directories contain further applications or data:
 - [data]: Contains example data files which can be used by htsget-rs, in folders denoting the file type.
