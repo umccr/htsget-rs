@@ -1,6 +1,7 @@
 use http::uri::Authority;
 use regex::{Error, Regex};
 use serde::{Deserialize, Serialize};
+use serde_with::with_prefix;
 use tracing::instrument;
 
 use crate::config::{default_localstorage_addr, default_serve_at};
@@ -13,7 +14,7 @@ use crate::regex_resolver::Scheme::Https;
 pub mod aws;
 
 /// Represents an id resolver, which matches the id, replacing the match in the substitution text.
-pub trait HtsGetIdResolver {
+pub trait IdResolver {
     /// Resolve the id, returning the substituted string if there is a match.
     fn resolve_id(&self, query: &Query) -> Option<String>;
 }
@@ -83,8 +84,8 @@ pub struct RegexResolver {
     #[serde(with = "serde_regex")]
     pub regex: Regex,
     pub substitution_string: String,
-    pub storage_type: StorageType,
     pub guard: QueryGuard,
+    pub storage_type: StorageType,
 }
 
 /// A query that can be matched with the regex resolver.
@@ -191,7 +192,7 @@ impl RegexResolver {
     }
 }
 
-impl HtsGetIdResolver for RegexResolver {
+impl IdResolver for RegexResolver {
     #[instrument(level = "trace", skip(self), ret)]
     fn resolve_id(&self, query: &Query) -> Option<String> {
         if self.regex.is_match(&query.id) && self.guard.query_matches(query) {

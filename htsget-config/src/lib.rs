@@ -13,11 +13,15 @@ pub mod regex_resolver;
 
 /// An enumeration with all the possible formats.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all(serialize = "UPPERCASE"))]
 pub enum Format {
+  #[serde(alias = "bam", alias = "BAM")]
   Bam,
+  #[serde(alias = "cram", alias = "CRAM")]
   Cram,
+  #[serde(alias = "vcf", alias = "VCF")]
   Vcf,
+  #[serde(alias = "bcf", alias = "BCF")]
   Bcf,
 }
 
@@ -71,9 +75,11 @@ impl fmt::Display for Format {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all(serialize = "lowercase"))]
 pub enum Class {
+  #[serde(alias = "header", alias = "HEADER")]
   Header,
+  #[serde(alias = "body", alias = "BODY")]
   Body,
 }
 
@@ -154,6 +160,7 @@ impl Interval {
 #[serde(untagged)]
 pub enum Fields {
   /// Include all fields
+  #[serde(alias = "all", alias = "ALL")]
   All,
   /// List of fields to include
   List(Vec<String>),
@@ -164,6 +171,7 @@ pub enum Fields {
 #[serde(untagged)]
 pub enum Tags {
   /// Include all tags
+  #[serde(alias = "all", alias = "ALL")]
   All,
   /// List of tags to include
   List(Vec<String>),

@@ -1,3 +1,5 @@
+pub mod cors;
+
 use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
@@ -20,7 +22,7 @@ use tracing::info;
 use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, fmt, Registry};
-use crate::config::AllowType::{List};
+use crate::config::cors::CorsConfig;
 
 use crate::regex_resolver::RegexResolver;
 
@@ -62,8 +64,6 @@ The next variables are used to configure the info for the service-info endpoints
 "#;
 
 const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
-/// The maximum amount of time a CORS request can be cached for in seconds.
-pub const CORS_MAX_AGE: usize = 86400;
 
 pub(crate) fn default_localstorage_addr() -> &'static str {
     "127.0.0.1:8081"
@@ -101,7 +101,7 @@ pub struct Config {
     pub ticket_server_config: TicketServerConfig,
     #[serde(flatten)]
     pub data_server_config: DataServerConfig,
-    pub resolver: Vec<RegexResolver>,
+    pub resolvers: Vec<RegexResolver>,
 }
 
 with_prefix!(prefix_ticket_server "ticket_server_");
@@ -110,93 +110,12 @@ with_prefix!(prefix_ticket_server "ticket_server_");
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
-    pub ticket_server_addr: SocketAddr,
+    #[serde(with = "prefix_ticket_server")]
+    pub addr: SocketAddr,
     #[serde(flatten, with = "prefix_ticket_server")]
-    pub cors_config: CorsConfig,
+    pub cors: CorsConfig,
     #[serde(flatten)]
     pub service_info: ServiceInfo,
-}
-
-/// Tagged allow headers for cors config. Either Mirror or Any.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TaggedAllowTypes {
-    #[serde(alias = "mirror", alias = "MIRROR")]
-    Mirror,
-    #[serde(alias = "any", alias = "ANY")]
-    Any
-}
-
-/// Allowed header for cors config. Any allows all headers by sending a wildcard,
-/// and mirror allows all headers by mirroring the received headers.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
-pub enum AllowType<T> {
-    TaggedAllowTypes(TaggedAllowTypes),
-    #[serde(bound(serialize = "T: Display", deserialize = "T: FromStr, T::Err: Display"))]
-    #[serde(serialize_with = "serialize_allow_types", deserialize_with = "deserialize_allow_types")]
-    List(Vec<T>)
-}
-
-fn serialize_allow_types<S, T>(names: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        T: Display,
-        S: Serializer
-{
-    let mut sequence = serializer.serialize_seq(Some(names.len()))?;
-    for element in names.iter().map(|name| format!("{}", name)) {
-        sequence.serialize_element(&element)?;
-    }
-    sequence.end()
-}
-
-fn deserialize_allow_types<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-    where
-        T: FromStr,
-        T::Err: Display,
-        D: Deserializer<'de>
-{
-    let names: Vec<String> = Deserialize::deserialize(deserializer)?;
-    names.into_iter().map(|name| T::from_str(&name).map_err(Error::custom)).collect()
-}
-
-#[derive(Debug, Clone)]
-pub struct HeaderValue(HeaderValueInner);
-
-impl FromStr for HeaderValue {
-    type Err = InvalidHeaderValue;
-
-    fn from_str(header: &str) -> Result<Self, Self::Err> {
-        Ok(HeaderValue(HeaderValueInner::from_str(header)?))
-    }
-}
-
-impl Display for HeaderValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&String::from_utf8_lossy(self.0.as_ref()))
-    }
-}
-
-/// Configuration for the htsget server.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default)]
-pub struct CorsConfig {
-    pub cors_allow_credentials: bool,
-    pub cors_allow_origins: AllowType<HeaderValue>,
-    pub cors_allow_headers: AllowType<HeaderName>,
-    pub cors_allow_methods: AllowType<Method>,
-    pub cors_max_age: usize
-}
-
-impl Default for CorsConfig {
-    fn default() -> Self {
-        Self {
-            cors_allow_credentials: false,
-            cors_allow_origins: List(vec![HeaderValue(HeaderValueInner::from_static(default_server_origin()))]),
-            cors_allow_headers: AllowType::TaggedAllowTypes(TaggedAllowTypes::Mirror),
-            cors_allow_methods: AllowType::TaggedAllowTypes(TaggedAllowTypes::Mirror),
-            cors_max_age: CORS_MAX_AGE
-        }
-    }
 }
 
 with_prefix!(prefix_data_server "data_server_");
@@ -205,26 +124,29 @@ with_prefix!(prefix_data_server "data_server_");
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct DataServerConfig {
-    pub start_data_server: bool,
-    pub data_server_path: PathBuf,
-    pub data_server_serve_at: PathBuf,
-    pub data_server_addr: SocketAddr,
-    pub data_server_key: Option<PathBuf>,
-    pub data_server_cert: Option<PathBuf>,
+    #[serde(with = "prefix_data_server")]
+    pub path: PathBuf,
+    #[serde(with = "prefix_data_server")]
+    pub serve_at: PathBuf,
+    #[serde(with = "prefix_data_server")]
+    pub addr: SocketAddr,
+    #[serde(with = "prefix_data_server")]
+    pub key: Option<PathBuf>,
+    #[serde(with = "prefix_data_server")]
+    pub cert: Option<PathBuf>,
     #[serde(flatten, with = "prefix_data_server")]
-    pub cors_config: CorsConfig,
+    pub cors: CorsConfig,
 }
 
 impl Default for DataServerConfig {
     fn default() -> Self {
         Self {
-            start_data_server: true,
-            data_server_path: default_path().into(),
-            data_server_serve_at: default_serve_at().into(),
-            data_server_addr: default_localstorage_addr().parse().expect("expected valid address"),
-            data_server_key: None,
-            data_server_cert: None,
-            cors_config: CorsConfig::default(),
+            path: default_path().into(),
+            serve_at: default_serve_at().into(),
+            addr: default_localstorage_addr().parse().expect("expected valid address"),
+            key: None,
+            cert: None,
+            cors: CorsConfig::default(),
         }
     }
 }
@@ -248,8 +170,8 @@ pub struct ServiceInfo {
 impl Default for TicketServerConfig {
     fn default() -> Self {
         Self {
-            ticket_server_addr: default_addr().parse().expect("expected valid address"),
-            cors_config: CorsConfig::default(),
+            addr: default_addr().parse().expect("expected valid address"),
+            cors: CorsConfig::default(),
             service_info: ServiceInfo::default(),
         }
     }
@@ -260,7 +182,7 @@ impl Default for Config {
         Self {
             ticket_server_config: Default::default(),
             data_server_config: Default::default(),
-            resolver: vec![RegexResolver::default(), RegexResolver::default()],
+            resolvers: vec![RegexResolver::default(), RegexResolver::default()],
         }
     }
 }
@@ -276,7 +198,7 @@ impl Config {
     pub fn from_env(config: PathBuf) -> io::Result<Self> {
         let config = Figment::from(Serialized::defaults(Config::default()))
             .merge(Toml::file(config))
-            .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
+            .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX).split("_"))
             .extract()
             .map_err(|err| {
                 io::Error::new(ErrorKind::Other, format!("failed to parse config: {}", err))
