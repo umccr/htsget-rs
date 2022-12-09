@@ -20,12 +20,21 @@ pub enum TaggedAllowTypes {
     Any
 }
 
+/// Tagged allow headers for cors config. Either Mirror or Any.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum TaggedAnyAllowType {
+    #[serde(alias = "mirror", alias = "MIRROR")]
+    Mirror,
+    #[serde(alias = "any", alias = "ANY")]
+    Any
+}
+
 /// Allowed header for cors config. Any allows all headers by sending a wildcard,
 /// and mirror allows all headers by mirroring the received headers.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
-pub enum AllowType<T> {
-    TaggedAllowTypes(TaggedAllowTypes),
+pub enum AllowType<T, Tagged = TaggedAllowTypes> {
+    Tagged(Tagged),
     #[serde(bound(serialize = "T: Display", deserialize = "T: FromStr, T::Err: Display"))]
     #[serde(serialize_with = "serialize_allow_types", deserialize_with = "deserialize_allow_types")]
     List(Vec<T>)
@@ -85,7 +94,9 @@ pub struct CorsConfig {
     #[serde(with = "prefix_cors")]
     pub allow_methods: AllowType<Method>,
     #[serde(with = "prefix_cors")]
-    pub max_age: usize
+    pub max_age: usize,
+    #[serde(with = "prefix_cors")]
+    pub expose_headers: AllowType<HeaderName, TaggedAnyAllowType>,
 }
 
 impl Default for CorsConfig {
@@ -93,9 +104,10 @@ impl Default for CorsConfig {
         Self {
             allow_credentials: false,
             allow_origins: AllowType::List(vec![HeaderValue(HeaderValueInner::from_static(default_server_origin()))]),
-            allow_headers: AllowType::TaggedAllowTypes(TaggedAllowTypes::Mirror),
-            allow_methods: AllowType::TaggedAllowTypes(TaggedAllowTypes::Mirror),
-            max_age: CORS_MAX_AGE
+            allow_headers: AllowType::Tagged(TaggedAllowTypes::Mirror),
+            allow_methods: AllowType::Tagged(TaggedAllowTypes::Mirror),
+            max_age: CORS_MAX_AGE,
+            expose_headers: AllowType::Tagged(TaggedAnyAllowType::Any),
         }
     }
 }
