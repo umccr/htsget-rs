@@ -5,7 +5,6 @@ use http::Method;
 use serde::{Deserialize, Serialize, Deserializer, Serializer};
 use serde::de::Error;
 use serde::ser::SerializeSeq;
-use serde_with::with_prefix;
 use crate::config::default_server_origin;
 
 /// The maximum default amount of time a CORS request can be cached for in seconds.
@@ -23,8 +22,6 @@ pub enum TaggedAllowTypes {
 /// Tagged allow headers for cors config. Either Mirror or Any.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TaggedAnyAllowType {
-    #[serde(alias = "mirror", alias = "MIRROR")]
-    Mirror,
     #[serde(alias = "any", alias = "ANY")]
     Any
 }
@@ -79,35 +76,27 @@ impl Display for HeaderValue {
     }
 }
 
-with_prefix!(prefix_cors "cors_");
-
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct CorsConfig {
-    #[serde(with = "prefix_cors")]
-    pub allow_credentials: bool,
-    #[serde(with = "prefix_cors")]
-    pub allow_origins: AllowType<HeaderValue>,
-    #[serde(with = "prefix_cors")]
-    pub allow_headers: AllowType<HeaderName>,
-    #[serde(with = "prefix_cors")]
-    pub allow_methods: AllowType<Method>,
-    #[serde(with = "prefix_cors")]
-    pub max_age: usize,
-    #[serde(with = "prefix_cors")]
-    pub expose_headers: AllowType<HeaderName, TaggedAnyAllowType>,
+    pub cors_allow_credentials: bool,
+    pub cors_allow_origins: AllowType<HeaderValue>,
+    pub cors_allow_headers: AllowType<HeaderName>,
+    pub cors_allow_methods: AllowType<Method>,
+    pub cors_max_age: usize,
+    pub cors_expose_headers: AllowType<HeaderName, TaggedAnyAllowType>,
 }
 
 impl Default for CorsConfig {
     fn default() -> Self {
         Self {
-            allow_credentials: false,
-            allow_origins: AllowType::List(vec![HeaderValue(HeaderValueInner::from_static(default_server_origin()))]),
-            allow_headers: AllowType::Tagged(TaggedAllowTypes::Mirror),
-            allow_methods: AllowType::Tagged(TaggedAllowTypes::Mirror),
-            max_age: CORS_MAX_AGE,
-            expose_headers: AllowType::Tagged(TaggedAnyAllowType::Any),
+            cors_allow_credentials: false,
+            cors_allow_origins: AllowType::List(vec![HeaderValue(HeaderValueInner::from_static(default_server_origin()))]),
+            cors_allow_headers: AllowType::Tagged(TaggedAllowTypes::Mirror),
+            cors_allow_methods: AllowType::Tagged(TaggedAllowTypes::Mirror),
+            cors_max_age: CORS_MAX_AGE,
+            cors_expose_headers: AllowType::List(vec![]),
         }
     }
 }
