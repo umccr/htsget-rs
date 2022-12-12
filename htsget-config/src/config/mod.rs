@@ -17,6 +17,7 @@ use http::{HeaderValue as HeaderValueInner, Method};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error as DeError;
 use serde::ser::Error as SeError;
+use serde_with::with_prefix;
 use tracing::info;
 use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
@@ -98,16 +99,18 @@ struct Args {
 pub struct Config {
     #[serde(flatten)]
     ticket_server: TicketServerConfig,
-    data_server: Vec<DataServerConfig>,
+    data_servers: Vec<DataServerConfig>,
     resolvers: Vec<RegexResolver>,
 }
+
+with_prefix!(ticket_server_prefix "ticket_server_");
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
     ticket_server_addr: SocketAddr,
-    #[serde(flatten)]
+    #[serde(flatten, with = "ticket_server_prefix")]
     cors: CorsConfig,
     #[serde(flatten)]
     service_info: ServiceInfo,
@@ -339,7 +342,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             ticket_server: TicketServerConfig::default(),
-            data_server: vec![DataServerConfig::default()],
+            data_servers: vec![DataServerConfig::default()],
             resolvers: vec![RegexResolver::default(), RegexResolver::default()],
         }
     }
@@ -356,7 +359,7 @@ impl Config {
     pub fn from_env(config: PathBuf) -> io::Result<Self> {
         let config = Figment::from(Serialized::defaults(Config::default()))
             .merge(Toml::file(config))
-            .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX).split("_"))
+            .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
             .extract()
             .map_err(|err| {
                 io::Error::new(ErrorKind::Other, format!("failed to parse config: {}", err))
@@ -387,8 +390,8 @@ impl Config {
         &self.ticket_server
     }
 
-    pub fn data_server(&self) -> &Vec<DataServerConfig> {
-        &self.data_server
+    pub fn data_servers(&self) -> &Vec<DataServerConfig> {
+        &self.data_servers
     }
 
     pub fn resolvers(&self) -> &Vec<RegexResolver> {
@@ -398,80 +401,200 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
+    use figment::Jail;
+    use regex::Regex;
+    use crate::config::cors::AllowType::Tagged;
+    use crate::Format::Bam;
+    use crate::regex_resolver::{Scheme, StorageType};
     use super::*;
 
-    // #[test]
-    // fn config_addr() {
-    //   std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8081");
-    //   let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
-    //   assert_eq!(
-    //     config.ticket_server_config.addr,
-    //     "127.0.0.1:8081".parse().unwrap()
-    //   );
-    // }
+    fn test_config<K, V, F>(contents: Option<&str>, env_variables: Vec<(K, V)>, test_fn: F)
+    where
+      K: AsRef<str>,
+      V: Display,
+      F: FnOnce(Config) {
+        Jail::expect_with(|jail| {
+            if let Some(contents) = contents {
+                jail.create_file("test.toml", contents)?;
+            }
 
-    // #[test]
-    // fn config_ticket_server_cors_allow_origin() {
-    //   std::env::set_var(
-    //     "HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGIN",
-    //     "http://localhost:8080",
-    //   );
-    //   let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
-    //   assert_eq!(
-    //     config.ticket_server_config.cors_allow_origin,
-    //     "http://localhost:8080"
-    //   );
-    // }
+            for (key, value) in env_variables {
+                jail.set_env(key, value);
+            }
 
-    // #[test]
-    // fn config_data_server_cors_allow_origin() {
-    //   std::env::set_var(
-    //     "HTSGET_DATA_SERVER_CORS_ALLOW_ORIGIN",
-    //     "http://localhost:8080",
-    //   );
-    //   let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
-    //   assert_eq!(
-    //     config.data_server_config.data_server_cors_allow_origin,
-    //     "http://localhost:8080"
-    //   );
-    // }
-    //
-    // #[test]
-    // fn config_ticket_server_addr() {
-    //   std::env::set_var("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082");
-    //   let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
-    //   assert_eq!(
-    //     config.data_server_config.data_server_addr,
-    //     "127.0.0.1:8082".parse().unwrap()
-    //   );
-    // }
-    //
-    // #[test]
-    // fn config_regex() {
-    //   std::env::set_var("HTSGET_REGEX", ".+");
-    //   let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
-    //   assert_eq!(config.resolver.regex.to_string(), ".+");
-    // }
-    //
-    // #[test]
-    // fn config_substitution_string() {
-    //   std::env::set_var("HTSGET_SUBSTITUTION_STRING", "$0-test");
-    //   let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
-    //   assert_eq!(config.resolver.substitution_string, "$0-test");
-    // }
+            test_fn(Config::from_env("test.toml".into()).map_err(|err| err.to_string())?);
 
-    // #[test]
-    // fn config_service_info_id() {
-    //     std::env::set_var("HTSGET_ID", "id");
-    //     let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
-    //     assert_eq!(config.ticket_server_config.service_info.id.unwrap(), "id");
-    // }
+            Ok(())
+        });
+    }
 
-    // #[cfg(feature = "s3-storage")]
-    // #[test]
-    // fn config_storage_type() {
-    //   std::env::set_var("HTSGET_STORAGE_TYPE", "AwsS3Storage");
-    //   let config = Config::from_env(PathBuf::from("config.toml")).unwrap();
-    //   assert_eq!(config.storage_type, StorageType::AwsS3Storage);
-    // }
+    fn test_config_from_env<K, V, F>(env_variables: Vec<(K, V)>, test_fn: F)
+    where
+      K: AsRef<str>,
+      V: Display,
+      F: FnOnce(Config) {
+        test_config(None, env_variables, test_fn);
+    }
+
+    fn test_config_from_file<F>(contents: &str, test_fn: F)
+    where
+      F: FnOnce(Config) {
+        test_config(Some(contents), Vec::<(&str, &str)>::new(), test_fn);
+    }
+
+    #[test]
+    fn config_ticket_server_addr_env() {
+        test_config_from_env(vec![("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8082")], |config| {
+            assert_eq!(
+              config.ticket_server().addr(),
+              "127.0.0.1:8082".parse().unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn config_ticket_server_cors_allow_origin_env() {
+        test_config_from_env(vec![("HTSGET_TICKET_SERVER_ALLOW_CREDENTIALS", true)], |config| {
+            assert!(
+                config.ticket_server().allow_credentials()
+            );
+        });
+    }
+
+    #[test]
+    fn config_service_info_id_env() {
+        test_config_from_env(vec![("HTSGET_ID", "id")], |config| {
+            assert_eq!(
+                config.ticket_server().id(),
+                &Some("id".to_string())
+            );
+        });
+    }
+
+    #[test]
+    fn config_data_server_addr_env() {
+        test_config_from_env( vec![("HTSGET_DATA_SERVERS", "[{addr=127.0.0.1:8082}]")], |config| {
+            assert_eq!(
+                config.data_servers().first().unwrap().addr(),
+                "127.0.0.1:8082".parse().unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn config_resolvers_env() {
+        test_config_from_env(vec![("HTSGET_RESOLVERS", "[{regex=regex}]")], |config| {
+            assert_eq!(
+                config.resolvers().first().unwrap().regex().as_str(),
+                "regex"
+            );
+        });
+    }
+
+    #[test]
+    fn config_ticket_server_addr_file() {
+        test_config_from_file(r#"ticket_server_addr = "127.0.0.1:8082""#, |config| {
+            assert_eq!(
+                config.ticket_server().addr(),
+                "127.0.0.1:8082".parse().unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn config_ticket_server_cors_allow_origin_file() {
+        test_config_from_file(r#"ticket_server_allow_credentials = true"#, |config| {
+            assert!(
+                config.ticket_server().allow_credentials()
+            );
+        });
+    }
+
+    #[test]
+    fn config_service_info_id_file() {
+        test_config_from_file(r#"id = "id""#, |config| {
+            assert_eq!(
+                config.ticket_server().id(),
+                &Some("id".to_string())
+            );
+        });
+    }
+
+    #[test]
+    fn config_data_server_addr_file() {
+        test_config_from_file(r#"
+            [[data_servers]]
+            addr = "127.0.0.1:8082"
+        "#, |config| {
+            assert_eq!(
+                config.data_servers().first().unwrap().addr(),
+                "127.0.0.1:8082".parse().unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn config_resolvers_file() {
+        test_config_from_file(r#"
+            [[resolvers]]
+            regex = "regex"
+        "#, |config| {
+            assert_eq!(
+                config.resolvers().first().unwrap().regex().as_str(),
+                "regex"
+            );
+        });
+    }
+
+    #[test]
+    fn config_resolvers_guard_file() {
+        test_config_from_file(r#"
+            [[resolvers]]
+            regex = "regex"
+
+            [resolvers.guard]
+            match_formats = ["BAM"]
+        "#, |config| {
+            assert_eq!(
+                config.resolvers().first().unwrap().match_formats(),
+                &vec![Bam]
+            );
+        });
+    }
+
+    #[test]
+    fn config_storage_type_url_file() {
+        test_config_from_file(r#"
+            [[resolvers]]
+            regex = "regex"
+
+            [resolvers.storage_type]
+            type = "Url"
+            path = "path"
+            scheme = "HTTPS"
+        "#, |config| {
+            assert!(matches!(
+                config.resolvers().first().unwrap().storage_type(),
+                StorageType::Url(resolver) if resolver.path() == "path" && resolver.scheme() == Scheme::Https
+            ));
+        });
+    }
+
+    #[cfg(feature = "s3-storage")]
+    #[test]
+    fn config_storage_type_s3_file() {
+        test_config_from_file(r#"
+            [[resolvers]]
+            regex = "regex"
+
+            [resolvers.storage_type]
+            type = "S3"
+            bucket = "bucket"
+        "#, |config| {
+            assert!(matches!(
+                config.resolvers().first().unwrap().storage_type(),
+                StorageType::S3(resolver) if resolver.bucket() == "bucket"
+            ));
+        });
+    }
 }

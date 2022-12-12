@@ -43,7 +43,7 @@ impl Default for StorageType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scheme {
     #[serde(alias = "http", alias = "HTTP")]
     Http,
@@ -68,8 +68,8 @@ pub struct UrlResolver {
 }
 
 impl UrlResolver {
-    pub fn scheme(&self) -> &Scheme {
-        &self.scheme
+    pub fn scheme(&self) -> Scheme {
+        self.scheme
     }
 
     pub fn authority(&self) -> &Authority {
