@@ -21,7 +21,7 @@ use tracing::info;
 use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, fmt, Registry};
-use crate::config::cors::CorsConfig;
+use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAnyAllowType};
 
 use crate::regex_resolver::RegexResolver;
 
@@ -87,7 +87,7 @@ pub(crate) fn default_serve_at() -> &'static str {
 /// The command line arguments allowed for the htsget-rs executables.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = USAGE)]
-pub struct Args {
+struct Args {
     #[arg(short, long, env = "HTSGET_CONFIG")]
     config: PathBuf,
 }
@@ -97,33 +97,161 @@ pub struct Args {
 #[serde(default)]
 pub struct Config {
     #[serde(flatten)]
-    pub ticket_server: TicketServerConfig,
-    pub data_server: Vec<DataServerConfig>,
-    pub resolvers: Vec<RegexResolver>,
+    ticket_server: TicketServerConfig,
+    data_server: Vec<DataServerConfig>,
+    resolvers: Vec<RegexResolver>,
 }
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
-    pub ticket_server_addr: SocketAddr,
+    ticket_server_addr: SocketAddr,
     #[serde(flatten)]
-    pub cors: CorsConfig,
+    cors: CorsConfig,
     #[serde(flatten)]
-    pub service_info: ServiceInfo,
+    service_info: ServiceInfo,
+}
+
+impl TicketServerConfig {
+    pub fn addr(&self) -> SocketAddr {
+        self.ticket_server_addr
+    }
+
+    pub fn cors(&self) -> &CorsConfig {
+        &self.cors
+    }
+
+    pub fn service_info(&self) -> &ServiceInfo {
+        &self.service_info
+    }
+
+    pub fn allow_credentials(&self) -> bool {
+        self.cors.allow_credentials()
+    }
+
+    pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
+        self.cors.allow_origins()
+    }
+
+    pub fn allow_headers(&self) -> &AllowType<HeaderName> {
+        self.cors.allow_headers()
+    }
+
+    pub fn allow_methods(&self) -> &AllowType<Method> {
+        self.cors.allow_methods()
+    }
+
+    pub fn max_age(&self) -> usize {
+        self.cors.max_age()
+    }
+
+    pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+        self.cors.expose_headers()
+    }
+
+    pub fn id(&self) -> &Option<String> {
+        self.service_info.id()
+    }
+
+    pub fn name(&self) -> &Option<String> {
+        self.service_info.name()
+    }
+
+    pub fn version(&self) -> &Option<String> {
+        self.service_info.version()
+    }
+
+    pub fn organization_name(&self) -> &Option<String> {
+        self.service_info.organization_name()
+    }
+
+    pub fn organization_url(&self) -> &Option<String> {
+        self.service_info.organization_url()
+    }
+
+    pub fn contact_url(&self) -> &Option<String> {
+        self.service_info.contact_url()
+    }
+
+    pub fn documentation_url(&self) -> &Option<String> {
+        self.service_info.documentation_url()
+    }
+
+    pub fn created_at(&self) -> &Option<String> {
+        self.service_info.created_at()
+    }
+
+    pub fn updated_at(&self) -> &Option<String> {
+        self.service_info.updated_at()
+    }
+
+    pub fn environment(&self) -> &Option<String> {
+        self.service_info.environment()
+    }
 }
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct DataServerConfig {
-    pub addr: SocketAddr,
-    pub path: PathBuf,
-    pub serve_at: PathBuf,
-    pub key: Option<PathBuf>,
-    pub cert: Option<PathBuf>,
+    addr: SocketAddr,
+    path: PathBuf,
+    serve_at: PathBuf,
+    key: Option<PathBuf>,
+    cert: Option<PathBuf>,
     #[serde(flatten)]
-    pub cors: CorsConfig,
+    cors: CorsConfig,
+}
+
+impl DataServerConfig {
+    pub fn addr(&self) -> SocketAddr {
+        self.addr
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    pub fn serve_at(&self) -> &PathBuf {
+        &self.serve_at
+    }
+
+    pub fn key(&self) -> &Option<PathBuf> {
+        &self.key
+    }
+
+    pub fn cert(&self) -> &Option<PathBuf> {
+        &self.cert
+    }
+
+    pub fn cors(&self) -> &CorsConfig {
+        &self.cors
+    }
+
+    pub fn allow_credentials(&self) -> bool {
+        self.cors.allow_credentials()
+    }
+
+    pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
+        self.cors.allow_origins()
+    }
+
+    pub fn allow_headers(&self) -> &AllowType<HeaderName> {
+        self.cors.allow_headers()
+    }
+
+    pub fn allow_methods(&self) -> &AllowType<Method> {
+        self.cors.allow_methods()
+    }
+
+    pub fn max_age(&self) -> usize {
+        self.cors.max_age()
+    }
+
+    pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+        self.cors.expose_headers()
+    }
 }
 
 impl Default for DataServerConfig {
@@ -143,16 +271,58 @@ impl Default for DataServerConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct ServiceInfo {
-    pub id: Option<String>,
-    pub name: Option<String>,
-    pub version: Option<String>,
-    pub organization_name: Option<String>,
-    pub organization_url: Option<String>,
-    pub contact_url: Option<String>,
-    pub documentation_url: Option<String>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-    pub environment: Option<String>,
+    id: Option<String>,
+    name: Option<String>,
+    version: Option<String>,
+    organization_name: Option<String>,
+    organization_url: Option<String>,
+    contact_url: Option<String>,
+    documentation_url: Option<String>,
+    created_at: Option<String>,
+    updated_at: Option<String>,
+    environment: Option<String>,
+}
+
+impl ServiceInfo {
+    pub fn id(&self) -> &Option<String> {
+        &self.id
+    }
+
+    pub fn name(&self) -> &Option<String> {
+        &self.name
+    }
+
+    pub fn version(&self) -> &Option<String> {
+        &self.version
+    }
+
+    pub fn organization_name(&self) -> &Option<String> {
+        &self.organization_name
+    }
+
+    pub fn organization_url(&self) -> &Option<String> {
+        &self.organization_url
+    }
+
+    pub fn contact_url(&self) -> &Option<String> {
+        &self.contact_url
+    }
+
+    pub fn documentation_url(&self) -> &Option<String> {
+        &self.documentation_url
+    }
+
+    pub fn created_at(&self) -> &Option<String> {
+        &self.created_at
+    }
+
+    pub fn updated_at(&self) -> &Option<String> {
+        &self.updated_at
+    }
+
+    pub fn environment(&self) -> &Option<String> {
+        &self.environment
+    }
 }
 
 impl Default for TicketServerConfig {
@@ -211,6 +381,18 @@ impl Config {
         })?;
 
         Ok(())
+    }
+
+    pub fn ticket_server(&self) -> &TicketServerConfig {
+        &self.ticket_server
+    }
+
+    pub fn data_server(&self) -> &Vec<DataServerConfig> {
+        &self.data_server
+    }
+
+    pub fn resolvers(&self) -> &Vec<RegexResolver> {
+        &self.resolvers
     }
 }
 

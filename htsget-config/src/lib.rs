@@ -74,7 +74,7 @@ impl fmt::Display for Format {
   }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "lowercase"))]
 pub enum Class {
   #[serde(alias = "header", alias = "HEADER")]
@@ -85,10 +85,10 @@ pub enum Class {
 
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Interval {
-  pub start: Option<u32>,
-  pub end: Option<u32>,
+  start: Option<u32>,
+  end: Option<u32>,
 }
 
 impl Interval {
@@ -153,6 +153,14 @@ impl Interval {
       )
     })
   }
+
+  pub fn start(&self) -> Option<u32> {
+    self.start
+  }
+
+  pub fn end(&self) -> Option<u32> {
+    self.end
+  }
 }
 
 /// Possible values for the fields parameter.
@@ -185,16 +193,16 @@ pub struct NoTags(pub Option<Vec<String>>);
 /// a search for either of `reads` or `variants`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Query {
-  pub id: String,
-  pub format: Format,
-  pub class: Class,
+  id: String,
+  format: Format,
+  class: Class,
   /// Reference name
-  pub reference_name: Option<String>,
+  reference_name: Option<String>,
   /// The start and end positions are 0-based. [start, end)
-  pub interval: Interval,
-  pub fields: Fields,
-  pub tags: Tags,
-  pub no_tags: NoTags,
+  interval: Interval,
+  fields: Fields,
+  tags: Tags,
+  no_tags: NoTags,
 }
 
 impl Query {
@@ -251,6 +259,38 @@ impl Query {
       no_tags.into_iter().map(|field| field.into()).collect(),
     ));
     self
+  }
+
+  pub fn id(&self) -> &str {
+    &self.id
+  }
+
+  pub fn format(&self) -> Format {
+    self.format
+  }
+
+  pub fn class(&self) -> Class {
+    self.class
+  }
+
+  pub fn reference_name(&self) -> &Option<String> {
+    &self.reference_name
+  }
+
+  pub fn interval(&self) -> Interval {
+    self.interval
+  }
+
+  pub fn fields(&self) -> &Fields {
+    &self.fields
+  }
+
+  pub fn tags(&self) -> &Tags {
+    &self.tags
+  }
+
+  pub fn no_tags(&self) -> &NoTags {
+    &self.no_tags
   }
 }
 

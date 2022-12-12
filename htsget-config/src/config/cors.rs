@@ -8,7 +8,7 @@ use serde::ser::SerializeSeq;
 use crate::config::default_server_origin;
 
 /// The maximum default amount of time a CORS request can be cached for in seconds.
-pub const CORS_MAX_AGE: usize = 86400;
+const CORS_MAX_AGE: usize = 86400;
 
 /// Tagged allow headers for cors config. Either Mirror or Any.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -80,12 +80,38 @@ impl Display for HeaderValue {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct CorsConfig {
-    pub cors_allow_credentials: bool,
-    pub cors_allow_origins: AllowType<HeaderValue>,
-    pub cors_allow_headers: AllowType<HeaderName>,
-    pub cors_allow_methods: AllowType<Method>,
-    pub cors_max_age: usize,
-    pub cors_expose_headers: AllowType<HeaderName, TaggedAnyAllowType>,
+    cors_allow_credentials: bool,
+    cors_allow_origins: AllowType<HeaderValue>,
+    cors_allow_headers: AllowType<HeaderName>,
+    cors_allow_methods: AllowType<Method>,
+    cors_max_age: usize,
+    cors_expose_headers: AllowType<HeaderName, TaggedAnyAllowType>,
+}
+
+impl CorsConfig {
+    pub fn allow_credentials(&self) -> bool {
+        self.cors_allow_credentials
+    }
+
+    pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
+        &self.cors_allow_origins
+    }
+
+    pub fn allow_headers(&self) -> &AllowType<HeaderName> {
+        &self.cors_allow_headers
+    }
+
+    pub fn allow_methods(&self) -> &AllowType<Method> {
+        &self.cors_allow_methods
+    }
+
+    pub fn max_age(&self) -> usize {
+        self.cors_max_age
+    }
+
+    pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+        &self.cors_expose_headers
+    }
 }
 
 impl Default for CorsConfig {

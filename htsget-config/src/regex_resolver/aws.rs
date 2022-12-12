@@ -5,5 +5,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct S3Resolver {
-  pub bucket: String,
+  bucket: String,
+}
+
+impl S3Resolver {
+  pub fn bucket(&self) -> &str {
+    &self.bucket
+  }
 }

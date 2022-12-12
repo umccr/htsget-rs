@@ -61,10 +61,24 @@ impl Default for Scheme {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct UrlResolver {
-    pub scheme: Scheme,
+    scheme: Scheme,
     #[serde(with = "http_serde::authority")]
-    pub authority: Authority,
-    pub path: String,
+    authority: Authority,
+    path: String,
+}
+
+impl UrlResolver {
+    pub fn scheme(&self) -> &Scheme {
+        &self.scheme
+    }
+
+    pub fn authority(&self) -> &Authority {
+        &self.authority
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
+    }
 }
 
 impl Default for UrlResolver {
@@ -82,26 +96,61 @@ impl Default for UrlResolver {
 #[serde(default)]
 pub struct RegexResolver {
     #[serde(with = "serde_regex")]
-    pub regex: Regex,
-    pub substitution_string: String,
-    pub guard: QueryGuard,
-    pub storage_type: StorageType,
+    regex: Regex,
+    // todo: should match guard be allowed as variables inside the substitution string?
+    substitution_string: String,
+    guard: QueryGuard,
+    storage_type: StorageType,
 }
 
 /// A query that can be matched with the regex resolver.
 #[derive(Serialize, Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct QueryGuard {
-    pub match_formats: Vec<Format>,
-    pub match_class: Vec<Class>,
+    match_formats: Vec<Format>,
+    match_class: Vec<Class>,
     #[serde(with = "serde_regex")]
-    pub match_reference_name: Regex,
+    match_reference_name: Regex,
     /// The start and end positions are 0-based. [start, end)
-    pub start_interval: Interval,
-    pub end_interval: Interval,
-    pub match_fields: Fields,
-    pub match_tags: Tags,
-    pub match_no_tags: NoTags,
+    start_interval: Interval,
+    end_interval: Interval,
+    match_fields: Fields,
+    match_tags: Tags,
+    match_no_tags: NoTags,
+}
+
+impl QueryGuard {
+    pub fn match_formats(&self) -> &Vec<Format> {
+        &self.match_formats
+    }
+
+    pub fn match_class(&self) -> &Vec<Class> {
+        &self.match_class
+    }
+
+    pub fn match_reference_name(&self) -> &Regex {
+        &self.match_reference_name
+    }
+
+    pub fn start_interval(&self) -> Interval {
+        self.start_interval
+    }
+
+    pub fn end_interval(&self) -> Interval {
+        self.end_interval
+    }
+
+    pub fn match_fields(&self) -> &Fields {
+        &self.match_fields
+    }
+
+    pub fn match_tags(&self) -> &Tags {
+        &self.match_tags
+    }
+
+    pub fn match_no_tags(&self) -> &NoTags {
+        &self.match_no_tags
+    }
 }
 
 impl Default for QueryGuard {
@@ -189,6 +238,54 @@ impl RegexResolver {
             storage_type,
             guard,
         })
+    }
+
+    pub fn regex(&self) -> &Regex {
+        &self.regex
+    }
+
+    pub fn substitution_string(&self) -> &str {
+        &self.substitution_string
+    }
+
+    pub fn guard(&self) -> &QueryGuard {
+        &self.guard
+    }
+
+    pub fn storage_type(&self) -> &StorageType {
+        &self.storage_type
+    }
+
+    pub fn match_formats(&self) -> &Vec<Format> {
+        &self.guard.match_formats
+    }
+
+    pub fn match_class(&self) -> &Vec<Class> {
+        &self.guard.match_class
+    }
+
+    pub fn match_reference_name(&self) -> &Regex {
+        &self.guard.match_reference_name
+    }
+
+    pub fn start_interval(&self) -> Interval {
+        self.guard.start_interval
+    }
+
+    pub fn end_interval(&self) -> Interval {
+        self.guard.end_interval
+    }
+
+    pub fn match_fields(&self) -> &Fields {
+        &self.guard.match_fields
+    }
+
+    pub fn match_tags(&self) -> &Tags {
+        &self.guard.match_tags
+    }
+
+    pub fn match_no_tags(&self) -> &NoTags {
+        &self.guard.match_no_tags
     }
 }
 
