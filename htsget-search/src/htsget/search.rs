@@ -296,14 +296,14 @@ where
         DataBlock::Range(range) => {
           let storage = self.get_storage();
           let id = id.clone();
-          storage_futures.push_back(tokio::spawn(async move {
+          storage_futures.push(tokio::spawn(async move {
             storage
               .range_url(format.fmt_file(&id), RangeUrlOptions::from(range))
               .await
           }));
         }
         DataBlock::Data(data, class) => {
-          storage_futures.push_back(tokio::spawn(async move { Ok(S::data_url(data, class)) }));
+          storage_futures.push(tokio::spawn(async move { Ok(S::data_url(data, class)) }));
         }
       }
     }
