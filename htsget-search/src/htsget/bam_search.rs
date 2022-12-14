@@ -1,52 +1,47 @@
 //! Module providing the search capability using BAM/BAI files
 //!
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use noodles::bam::bai;
 use noodles::bam::bai::index::ReferenceSequence;
 use noodles::bam::bai::Index;
+use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
+use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::BinningIndex;
 use noodles::sam::Header;
-use noodles::{bgzf, sam};
 use noodles_bam as bam;
 use tokio::io;
-use tokio::io::AsyncRead;
-use tokio::io::AsyncSeek;
+use tokio::io::{AsyncRead, BufReader};
+use tracing::{instrument, trace};
 
-use crate::htsget::search::{BgzfSearch, Search, SearchReads, VirtualPositionExt, BGZF_EOF};
+use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
+use crate::htsget::Class::Body;
 use crate::htsget::HtsGetError;
 use crate::{
-  htsget::search::BlockPosition,
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
 };
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
-pub(crate) struct BamSearch<S> {
+/// Allows searching through bam files.
+pub struct BamSearch<S> {
   storage: Arc<S>,
 }
 
-#[async_trait]
-impl<ReaderType> BlockPosition for AsyncReader<ReaderType>
-where
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
-{
-  async fn read_bytes(&mut self) -> Option<usize> {
+impl BinningIndexExt for Index {
+  #[instrument(level = "trace", skip_all)]
+  fn get_all_chunks(&self) -> Vec<&Chunk> {
+    trace!("getting vec of chunks");
     self
-      .read_record(&mut sam::alignment::Record::default())
-      .await
-      .ok()
-  }
-
-  async fn seek_vpos(&mut self, pos: VirtualPosition) -> io::Result<VirtualPosition> {
-    self.seek(pos).await
-  }
-
-  fn virtual_position(&self) -> VirtualPosition {
-    self.virtual_position()
+      .reference_sequences()
+      .iter()
+      .flat_map(|ref_seq| ref_seq.bins())
+      .flat_map(|bin| bin.chunks())
+      .collect()
   }
 }
 
@@ -56,43 +51,33 @@ impl<S, ReaderType>
   for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  type ReferenceSequenceHeader = sam::header::ReferenceSequence;
-
-  fn max_seq_position(ref_seq: &Self::ReferenceSequenceHeader) -> i32 {
-    ref_seq.len().get() as i32
-  }
-
+  #[instrument(level = "trace", skip(self, index))]
   async fn get_byte_ranges_for_unmapped(
     &self,
     id: &str,
     format: &Format,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let last_interval = index
-      .reference_sequences()
-      .iter()
-      .rev()
-      .find_map(|rs| rs.intervals().last().cloned());
-
+    trace!("getting byte ranges for unmapped reads");
+    let last_interval = index.first_record_in_last_linear_bin_start_position();
     let start = match last_interval {
       Some(start) => start,
       None => {
-        let (bam_reader, _) = self.create_reader(id, format).await?;
-        bam_reader.virtual_position()
+        VirtualPosition::try_from((self.get_header_end_offset(index).await?, 0)).map_err(|err| {
+          HtsGetError::InvalidInput(format!(
+            "invalid virtual position generated from header end offset `{}`.",
+            err
+          ))
+        })?
       }
     };
 
-    let file_size = self
-      .storage
-      .head(format.fmt_file(id))
-      .await
-      .map_err(|_| HtsGetError::io_error("Reading file size"))?;
-
     Ok(vec![BytesPosition::default()
-      .with_start(start.bytes_range_start())
-      .with_end(file_size - BGZF_EOF.len() as u64)])
+      .with_start(start.compressed())
+      .with_end(self.position_at_eof(id, format).await?)
+      .with_class(Body)])
   }
 }
 
@@ -101,7 +86,7 @@ impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<
   for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
     AsyncReader::new(inner)
@@ -114,19 +99,22 @@ where
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
-    let mut reader = bai::AsyncReader::new(inner);
+    let mut reader = bai::AsyncReader::new(BufReader::new(inner));
     reader.read_header().await?;
     reader.read_index().await
   }
 
+  #[instrument(level = "trace", skip(self, index, header, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,
     index: &Index,
+    header: &Header,
     query: Query,
   ) -> Result<Vec<BytesPosition>> {
+    trace!("getting byte ranges for reference name");
     self
-      .get_byte_ranges_for_reference_name_reads(&reference_name, index, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
       .await
   }
 
@@ -145,14 +133,14 @@ impl<S, ReaderType>
   for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
   async fn get_reference_sequence_from_name<'a>(
     &self,
     header: &'a Header,
     name: &str,
-  ) -> Option<(usize, &'a String, &'a sam::header::ReferenceSequence)> {
-    header.reference_sequences().get_full(name)
+  ) -> Option<usize> {
+    Some(header.reference_sequences().get_index_of(name)?)
   }
 
   async fn get_byte_ranges_for_unmapped_reads(
@@ -167,15 +155,12 @@ where
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
-    ref_seq: &sam::header::ReferenceSequence,
     ref_seq_id: usize,
     query: Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    let start = query.start.map(|start| start as i32);
-    let end = query.end.map(|end| end as i32);
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq, ref_seq_id, index, start, end)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
       .await
   }
 }
@@ -183,22 +168,26 @@ where
 impl<S, ReaderType> BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + AsyncSeek + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
 {
+  /// Create the bam search.
   pub fn new(storage: Arc<S>) -> Self {
     Self { storage }
   }
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
   use std::future::Future;
 
-  use htsget_config::regex_resolver::RegexResolver;
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::{Class, Class::Body, Headers, Response, Url};
-  use crate::storage::axum_server::HttpsFormatter;
+  use crate::htsget::from_storage::tests::{
+    with_local_storage as with_local_storage_path,
+    with_local_storage_tmp as with_local_storage_tmp_path,
+  };
+  use crate::htsget::{Class::Body, Class::Header, Headers, Response, Url};
+  use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;
@@ -216,7 +205,7 @@ pub mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -236,9 +225,11 @@ pub mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596770")),
+            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596770"))
+            .with_class(Body),
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
@@ -259,9 +250,11 @@ pub mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165")),
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165"))
+            .with_class(Body),
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
@@ -285,13 +278,44 @@ pub mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=256721-647345")),
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-647345"))
+            .with_class(Body),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-842100"))
+            .with_class(Body),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-996014"))
+            .with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn search_reference_name_no_end_position() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(5015000);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-996014"))
+            .with_class(Body),
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
@@ -324,6 +348,34 @@ pub mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
+          Url::new(expected_bgzf_eof_data_url()),
+        ],
+      ));
+      assert_eq!(response, expected_response)
+    })
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_no_gzi() {
+    with_local_storage_tmp(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(5015000)
+        .with_end(5050000);
+      let response = search.search(query).await;
+      println!("{:#?}", response);
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951"))
+            .with_class(Body),
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
@@ -336,7 +388,7 @@ pub mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Class::Header);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Header);
       let response = search.search(query).await;
       println!("{:#?}", response);
 
@@ -344,7 +396,7 @@ pub mod tests {
         Format::Bam,
         vec![Url::new(expected_url())
           .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
-          .with_class(Class::Header)],
+          .with_class(Header)],
       ));
       assert_eq!(response, expected_response)
     })
@@ -353,26 +405,26 @@ pub mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<HttpsFormatter>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let base_path = std::env::current_dir()
-      .unwrap()
-      .parent()
-      .unwrap()
-      .join("data/bam");
-    test(Arc::new(
-      LocalStorage::new(
-        base_path,
-        RegexResolver::new(".*", "$0").unwrap(),
-        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
-      )
-      .unwrap(),
-    ))
+    with_local_storage_path(test, "data/bam").await
+  }
+
+  async fn with_local_storage_tmp<F, Fut>(test: F)
+  where
+    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_local_storage_tmp_path(
+      test,
+      "data/bam",
+      &["htsnexus_test_NA12878.bam", "htsnexus_test_NA12878.bam.bai"],
+    )
     .await
   }
 
   pub(crate) fn expected_url() -> String {
-    "https://127.0.0.1:8081/data/htsnexus_test_NA12878.bam".to_string()
+    "http://127.0.0.1:8081/data/htsnexus_test_NA12878.bam".to_string()
   }
 }

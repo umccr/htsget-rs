@@ -1,3 +1,5 @@
+use tracing::instrument;
+
 use htsget_search::htsget::{Class, Fields, Format, Query, Tags};
 
 use crate::error::{HtsGetError, Result};
@@ -11,11 +13,12 @@ pub struct QueryBuilder {
 impl QueryBuilder {
   pub fn new(id: Option<impl Into<String>>, format: Option<impl Into<String>>) -> Result<Self> {
     let format = format
-      .map(|s| s.into())
-      .ok_or_else(|| HtsGetError::InvalidInput("Format needed".to_string()))?;
-    Ok(QueryBuilder {
+      .map(Into::into)
+      .ok_or_else(|| HtsGetError::InvalidInput("format required".to_string()))?;
+
+    Ok(Self {
       query: Query::new(
-        id.ok_or_else(|| HtsGetError::InvalidInput("ID needed".to_string()))?,
+        id.ok_or_else(|| HtsGetError::InvalidInput("ID required".to_string()))?,
         match format.as_str() {
           "BAM" => Format::Bam,
           "CRAM" => Format::Cram,
@@ -23,7 +26,7 @@ impl QueryBuilder {
           "BCF" => Format::Bcf,
           _ => {
             return Err(HtsGetError::UnsupportedFormat(format!(
-              "The {} format isn't supported",
+              "`{}`isn't supported",
               format
             )))
           }
@@ -36,21 +39,24 @@ impl QueryBuilder {
     self.query
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_class(mut self, class: Option<impl Into<String>>) -> Result<Self> {
-    let class = class.map(|s| s.into());
+    let class = class.map(Into::into);
     self.query = self.query.with_class(match class {
       None => Class::Body,
       Some(class) if class == "header" => Class::Header,
       Some(class) => {
         return Err(HtsGetError::InvalidInput(format!(
-          "Invalid class: {}",
+          "invalid class `{}`",
           class
         )))
       }
     });
+
     Ok(self)
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_reference_name(mut self, reference_name: Option<impl Into<String>>) -> Self {
     if let Some(reference_name) = reference_name {
       self.query = self.query.with_reference_name(reference_name);
@@ -58,27 +64,29 @@ impl QueryBuilder {
     self
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_range(
     self,
     start: Option<impl Into<String>>,
     end: Option<impl Into<String>>,
   ) -> Result<Self> {
     let start = start
-      .map(|start| start.into())
+      .map(Into::into)
       .map(|start| {
-        start
-          .parse::<u32>()
-          .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid start", start)))
+        start.parse::<u32>().map_err(|err| {
+          HtsGetError::InvalidInput(format!("`{}` isn't a valid start: {}", start, err))
+        })
       })
       .transpose()?;
     let end = end
-      .map(|end| end.into())
+      .map(Into::into)
       .map(|end| {
         end
           .parse::<u32>()
-          .map_err(|_| HtsGetError::InvalidInput(format!("{} isn't a valid end", end)))
+          .map_err(|err| HtsGetError::InvalidInput(format!("`{}` isn't a valid end: {}", end, err)))
       })
       .transpose()?;
+
     self.with_range_from_u32(start, end)
   }
 
@@ -89,26 +97,33 @@ impl QueryBuilder {
     if let Some(end) = end {
       self.query = self.query.with_end(end);
     }
-    if (self.query.start.is_some() || self.query.end.is_some())
-      && (self.query.reference_name.is_none() || self.query.reference_name.clone().unwrap() == "*")
+
+    if (self.query.interval.start.is_some() || self.query.interval.end.is_some())
+      && self
+        .query
+        .reference_name
+        .as_ref()
+        .filter(|name| *name != "*")
+        .is_none()
     {
       return Err(HtsGetError::InvalidInput(
-        "Can't use range whitout specifying the reference name or with \"*\"".to_string(),
+        "reference name must be specified with start or end range".to_string(),
       ));
     }
-    if self.query.start.is_some()
-      && self.query.end.is_some()
-      && self.query.start.unwrap() > self.query.end.unwrap()
-    {
-      return Err(HtsGetError::InvalidRange(format!(
-        "end({}) is greater than start({})",
-        self.query.end.unwrap(),
-        self.query.start.unwrap()
-      )));
+
+    if let (Some(start), Some(end)) = &(self.query.interval.start, self.query.interval.end) {
+      if start > end {
+        return Err(HtsGetError::InvalidRange(format!(
+          "end is greater than start (`{}` > `{}`)",
+          start, end
+        )));
+      }
     }
+
     Ok(self)
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_fields(self, fields: Option<impl Into<String>>) -> Self {
     self.with_fields_from_vec(
       fields.map(|fields| fields.into().split(',').map(|s| s.to_string()).collect()),
@@ -119,11 +134,13 @@ impl QueryBuilder {
     if let Some(fields) = fields {
       self.query = self
         .query
-        .with_fields(Fields::List(fields.into_iter().map(|s| s.into()).collect()));
+        .with_fields(Fields::List(fields.into_iter().map(Into::into).collect()));
     }
+
     self
   }
 
+  #[instrument(level = "trace", skip_all, ret)]
   pub fn with_tags(
     self,
     tags: Option<impl Into<String>>,
@@ -141,21 +158,24 @@ impl QueryBuilder {
     notags: Option<Vec<impl Into<String>>>,
   ) -> Result<Self> {
     let notags = match notags {
-      Some(notags) => notags.into_iter().map(|notag| notag.into()).collect(),
+      Some(notags) => notags.into_iter().map(Into::into).collect(),
       None => vec![],
     };
+
     if let Some(tags) = tags {
-      let tags: Vec<String> = tags.into_iter().map(|tag| tag.into()).collect();
+      let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
       if tags.iter().any(|tag| notags.contains(tag)) {
         return Err(HtsGetError::InvalidInput(
-          "Tags and notags can't intersect".to_string(),
+          "tags and notags can't intersect".to_string(),
         ));
       }
       self.query = self.query.with_tags(Tags::List(tags));
     };
+
     if !notags.is_empty() {
       self.query = self.query.with_no_tags(notags);
     }
+
     Ok(self)
   }
 }
@@ -167,10 +187,10 @@ mod tests {
   #[test]
   fn query_without_id() {
     let option: Option<&str> = None;
-    assert_eq!(
+    assert!(matches!(
       QueryBuilder::new(option, Some("BAM")).unwrap_err(),
-      HtsGetError::InvalidInput("ID needed".to_string())
-    );
+      HtsGetError::InvalidInput(_)
+    ));
   }
 
   #[test]
@@ -181,7 +201,7 @@ mod tests {
         .build()
         .id,
       "ValidId".to_string()
-    )
+    );
   }
 
   #[test]
@@ -197,10 +217,10 @@ mod tests {
 
   #[test]
   fn query_with_invalid_format() {
-    assert_eq!(
+    assert!(matches!(
       QueryBuilder::new(Some("ValidID"), Some("Invalid")).unwrap_err(),
-      HtsGetError::UnsupportedFormat("The Invalid format isn't supported".to_string())
-    );
+      HtsGetError::UnsupportedFormat(_)
+    ));
   }
 
   #[test]
@@ -236,44 +256,57 @@ mod tests {
       .with_range(Some("3"), Some("5"))
       .unwrap()
       .build();
-    assert_eq!((query.start, query.end), (Some(3), Some(5)));
-  }
-
-  #[test]
-  fn query_with_range_but_without_reference_name() {
     assert_eq!(
-      QueryBuilder::new(Some("ValidID"), Some("BAM"))
-        .unwrap()
-        .with_range(Some("3"), Some("5"))
-        .unwrap_err(),
-      HtsGetError::InvalidInput(
-        "Can't use range whitout specifying the reference name or with \"*\"".to_string()
-      )
+      (query.interval.start, query.interval.end),
+      (Some(3), Some(5))
     );
   }
 
   #[test]
+  fn query_with_range_but_without_reference_name() {
+    assert!(matches!(
+      QueryBuilder::new(Some("ValidID"), Some("BAM"))
+        .unwrap()
+        .with_range(Some("3"), Some("5"))
+        .unwrap_err(),
+      HtsGetError::InvalidInput(_)
+    ));
+  }
+
+  #[test]
   fn query_with_invalid_start() {
-    assert_eq!(
+    assert!(matches!(
       QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_reference_name(Some("ValidName"))
         .with_range(Some("a"), Some("5"))
         .unwrap_err(),
-      HtsGetError::InvalidInput("a isn't a valid start".to_string())
-    );
+      HtsGetError::InvalidInput(_)
+    ));
+  }
+
+  #[test]
+  fn query_with_invalid_end() {
+    assert!(matches!(
+      QueryBuilder::new(Some("ValidID"), Some("BAM"))
+        .unwrap()
+        .with_reference_name(Some("ValidName"))
+        .with_range(Some("5"), Some("a"))
+        .unwrap_err(),
+      HtsGetError::InvalidInput(_)
+    ));
   }
 
   #[test]
   fn query_with_invalid_range() {
-    assert_eq!(
+    assert!(matches!(
       QueryBuilder::new(Some("ValidID"), Some("BAM"))
         .unwrap()
         .with_reference_name(Some("ValidName"))
         .with_range(Some("5"), Some("3"))
         .unwrap_err(),
-      HtsGetError::InvalidRange("end(3) is greater than start(5)".to_string())
-    );
+      HtsGetError::InvalidRange(_)
+    ));
   }
 
   #[test]

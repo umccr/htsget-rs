@@ -1,100 +1,123 @@
-# htsget Rust server
-This crate should allow to setup an [htsget](http://samtools.github.io/hts-specs/htsget.html) compliant server. For that purpose it uses the htsget-search, htsget-http-core and actix-web crates as dependencies.
+# htsget-http-actix
 
-## Quickstart 
+[![MIT licensed][mit-badge]][mit-url]
+[![Build Status][actions-badge]][actions-url]
 
-These are some examples with [curl](https://github.com/curl/curl). **For the curl examples shown 
-below to work, we assume that the server is being started from the root of
-the [htsget-rs project](https://github.com/umccr/htsget-rs)**, and `HTSGET_PATH="data/"`.
+[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[mit-url]: https://github.com/umccr/htsget-rs/blob/main/LICENSE
+[actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/action.yml/badge.svg
+[actions-url]: https://github.com/umccr/htsget-rs/actions?query=workflow%3Atests+branch%3Amain
 
-The htsget-http-actix server also requires pem formatted X.509 certificates to access the response tickets.
+Framework dependent code for a local instance of [htsget-rs], using [Actix Web][actix-web].
 
-For example, to generate self-signed certificates, run:
+[htsget-rs]: https://github.com/umccr/htsget-rs
+[actix-web]: https://actix.rs/
 
-```shell
-$ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj '/CN=localhost'
+## Overview
+
+This crate is used for running a local instance of htsget-rs. It is based on:
+* [Actix Web][actix-web] for endpoints, routes, and middleware.
+* [htsget-http-core] for htsget-rs specific HTTP responses
+
+[htsget-http-core]: ../htsget-http-core
+
+## Usage
+
+### For running htsget-rs as an application
+
+This crate uses [htsget-config] for configuration. See [htsget-config] for details on how to configure this crate.
+
+To run an instance of this crate, execute the following command:
+```sh
+cargo run -p htsget-http-actix
+```
+Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
+with data accessible from the [`data`][data] directory.
+
+If only `LocalStorage` is required, compiling code related `AwsS3Storage` can be avoided by running the following:
+
+```sh
+cargo run -p htsget-http-actix --no-default-features
 ```
 
-To test the curl example below, run:
+See [htsget-search] for details on how to structure files.
 
-```shell
-$ cargo run -p htsget-http-actix
+[htsget-config]: ../htsget-config
+[data]: ../data
+[htsget-search]: ../htsget-search
+
+#### Using TLS
+
+There two server instances that are launched when running this crate. The ticket server, which returns a list of ticket URLs that a client must fetch.
+And the data block server, which responds to the URLs in the tickets. By default, the data block server runs without TLS. 
+To run the data block server with TLS, pem formatted X.509 certificates are required.
+
+For development and testing purposes, self-signed certificates can be used.
+For example, to generate self-signed certificates run:
+
+```sh
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj '/CN=localhost'
 ```
 
+It is not recommended to use self-signed certificates in a production environment 
+as this is considered insecure.
 
+#### Example requests
 
-## Environment variables 
+Using default configuration settings, this crate responds to queries referencing files in the [`data`][data] directory.
+Some example requests using `curl` are shown below:
 
-There are reasonable defaults to allow the user to spin up the server as fast as possible, but all of them are configurable via environment variables.
+* GET
 
-Since this service can be used in serverless environments, no `dotenv` configuration is needed, [adjusting the environment variables below prevent accidental leakage of settings and sensitive information](https://medium.com/@softprops/configuration-envy-a09584386705).
-
-| Variable                   | Description                                                                                                                              | Default          |
-|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|------------------|
-| HTSGET_ADDR                | The socket address for the server which creates response tickets.                                                                        | "127.0.0.1:8080" |
-| HTSGET_PATH                | The path to the directory where the server starts                                                                                        | "."              | 
-| HTSGET_REGEX               | The regular expression an ID should match.                                                                                               | ".*"             |
-| HTSGET_SUBSTITUTION_STRING | The replacement expression, to produce a key from an ID.                                                                                 | "$0"             |
-| HTSGET_STORAGE_TYPE        | Either "LocalStorage" or "AwsS3Storage", representing which storage type to use.                                                         | "LocalStorage"   |
-| HTSGET_TICKET_SERVER_ADDR  | The socket address to use for the server which responds to tickets. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".                 | "127.0.0.1:8081" |
-| HTSGET_TICKET_SERVER_KEY   | The path to the PEM formatted X.509 private key used by the ticket response server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "key.pem"        |
-| HTSGET_TICKET_SERVER_CERT  | The path to the PEM formatted X.509 certificate used by the ticket response server. Unused if HTSGET_STORAGE_TYPE is not "LocalStorage". | "cert.pem"       |
-| HTSGET_S3_BUCKET           | The name of the AWS S3 bucket. Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".                                                      | ""               |
-| HTSGET_ID                  | ID of the service.                                                                                                                       | "None"           |
-| HTSGET_NAME                | Name of the service.                                                                                                                     | "None"           |
-| HTSGET_VERSION             | Version of the service.                                                                                                                  | "None"           |
-| HTSGET_ORGANIZATION_NAME   | Name of the organization.                                                                                                                | "None"           |
-| HTSGET_ORGANIZATION_URL    | URL of the organization.                                                                                                                 | "None"           |
-| HTSGET_CONTACT_URL         | URL to provide contact to the users.                                                                                                     | "None"           |
-| HTSGET_DOCUMENTATION_URL   | Link to documentation.                                                                                                                   | "None"           |
-| HTSGET_CREATED_AT          | Date of the creation of the service.                                                                                                     | "None"           |
-| HTSGET_UPDATED_AT          | Date of the last update of the service.                                                                                                  | "None"           |
-| HTSGET_ENVIRONMENT         | Environment in which the service is running.                                                                                             | "None"           |
-For more information about the regex options look in the [documentation of the regex crate](https://docs.rs/regex/).
-
-## Example cURL requests
-
-As mentioned above, please keep in mind that the server will take the path where you executed it as base path to search for files. Here's a selection on what to ask this server for:
-
-### GET
-
-```shell
-$ curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
+```sh
+curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
-### POST
+* POST
 
-```shell
-$ curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
+```sh
+curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
-### Parametrised GET
+* Parametrised GET
 
-```shell
-$ curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header'
+```sh
+curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header'
 ```
 
-### Parametrised POST
+* Parametrised POST
 
-```shell
-$ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
+```sh
+curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
 ```
 
-### Service-info
+* Service info
 
-```shell
-$ curl 127.0.0.1:8080/variants/service-info
+```sh
+curl '127.0.0.1:8080/variants/service-info'
 ```
 
-## Running the benchmarks
-There are benchmarks for the htsget-search crate and for the htsget-http-actix crate. The first ones work like normal benchmarks, but the latter ones try to compare the performance of this implementation and the [reference implementation](https://github.com/ga4gh/htsget-refserver).
+### As a library
+
+There shouldn't be any need to interact with this crate
+as a library, however some functions which deal with configuring routes 
+are exposed in the public API.
+
+#### Feature flags
+
+This crate has the following features:
+* `s3-storage`: used to enable `AwsS3Storage` functionality.
+
+## Benchmarks
+Benchmarks for this crate written using [Criterion.rs][criterion-rs], and aim to compare the performance of this crate with the 
+[htsget Reference Server][htsget-refserver].
 There are a set of light benchmarks, and one heavy benchmark. Light benchmarks can be performed by executing:
 
 ```
 cargo bench -p htsget-http-actix -- LIGHT
 ```
 
-In order to run the heavy benchmark, an additional vcf file should be downloaded, and placed in the `data/vcf` directory:
+To run the heavy benchmark, an additional vcf file needs to be downloaded, and placed in the [`data/vcf`][data-vcf] directory:
 
 ```
 curl ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000_genomes_project/release/20190312_biallelic_SNV_and_INDEL/ALL.chr14.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.vcf.gz > data/vcf/internationalgenomesample.vcf.gz
@@ -106,9 +129,12 @@ Then to run the heavy benchmark:
 cargo bench -p htsget-http-actix -- HEAVY
 ```
 
-## Example Regular expressions
-In this example 'data/' is added after the first '/'.
-```shell
-$ HTSGET_REGEX='(?P<group1>.*?)/(?P<group2>.*)' HTSGET_SUBSTITUTION_STRING='$group1/data/$group2' cargo run --release -p htsget-http-actix
-```
-For more information about the regex options look in the [documentation of the regex crate](https://docs.rs/regex/).
+[criterion-rs]: https://github.com/bheisler/criterion.rs
+[htsget-refserver]: https://github.com/ga4gh/htsget-refserver
+[data-vcf]: ../data/vcf
+
+## License
+
+This project is licensed under the [MIT license][license].
+
+[license]: LICENSE

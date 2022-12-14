@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::thread::sleep;
@@ -10,18 +9,17 @@ use reqwest::blocking::Client;
 use reqwest::blocking::ClientBuilder;
 use reqwest::Result;
 use serde::{Deserialize, Serialize};
-use tempfile::TempDir;
 
-use htsget_http_core::{JsonResponse, PostRequest, Region};
-use htsget_test_utils::server_tests::{default_dir, default_test_config};
-use htsget_test_utils::util::generate_test_certificates;
+use htsget_http_core::{PostRequest, Region};
+use htsget_search::htsget::{Headers, JsonResponse};
+use htsget_test_utils::http_tests::{default_config_fixed_port, default_dir, default_dir_data};
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
 const NUMBER_OF_SAMPLES: usize = 50;
 
 #[derive(Serialize)]
-struct Empty {}
+struct Empty;
 
 #[derive(Deserialize)]
 struct RefserverConfig {
@@ -48,40 +46,44 @@ impl Drop for DropGuard {
   }
 }
 
-fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) -> Result<usize> {
-  let response = client.post(url).json(json_content).send().unwrap();
-  let response: JsonResponse = response.json().unwrap();
-  Ok(
-    response
-      .htsget
-      .urls
-      .iter()
-      .map(|json_url| {
-        Ok(
-          client
-            .get(&json_url.url)
-            .headers(
-              json_url
-                .headers
-                .as_ref()
-                .unwrap_or(&HashMap::default())
-                .try_into()
-                .unwrap(),
-            )
-            .send()?
-            .bytes()?
-            .len(),
-        )
-      })
-      .fold(0, |acc, x: Result<usize>| acc + x.unwrap_or(0)),
-  )
+fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) -> usize {
+  let response: JsonResponse = client
+    .post(url)
+    .json(json_content)
+    .send()
+    .unwrap()
+    .json()
+    .unwrap();
+  response
+    .htsget
+    .urls
+    .iter()
+    .map(|json_url| {
+      Ok(
+        client
+          .get(&json_url.url)
+          .headers(
+            json_url
+              .headers
+              .as_ref()
+              .unwrap_or(&Headers::default())
+              .as_ref_inner()
+              .try_into()
+              .unwrap(),
+          )
+          .send()?
+          .bytes()?
+          .len(),
+      )
+    })
+    .fold(0, |acc, x: Result<usize>| acc + x.unwrap_or(0))
 }
 
 fn format_url(url: &str, path: &str) -> reqwest::Url {
   reqwest::Url::parse(url)
-    .expect("Invalid url")
+    .expect("invalid url")
     .join(path)
-    .expect("Invalid url")
+    .expect("invalid url")
 }
 
 fn bench_pair(
@@ -121,7 +123,7 @@ pub fn new_command(cmd: &str) -> Command {
   Command::new(cmd)
 }
 
-fn query_server_until_response(url: reqwest::Url) {
+fn query_server_until_response(url: &reqwest::Url) {
   let client = Client::new();
   for _ in 0..120 {
     sleep(Duration::from_secs(1));
@@ -134,25 +136,23 @@ fn query_server_until_response(url: reqwest::Url) {
   }
 }
 
-fn start_htsget_rs(certs: TempDir) -> (DropGuard, String) {
-  let config = default_test_config();
-  let (key_path, cert_path) = generate_test_certificates(certs.path(), "key.pem", "cert.pem");
+fn start_htsget_rs() -> (DropGuard, String) {
+  let config = default_config_fixed_port();
 
   let child = new_command("cargo")
     .current_dir(default_dir())
     .arg("run")
     .arg("-p")
     .arg("htsget-http-actix")
-    .env("HTSGET_TICKET_SERVER_KEY", &key_path)
-    .env("HTSGET_TICKET_SERVER_CERT", &cert_path)
+    .env("HTSGET_PATH", default_dir_data())
     .env("RUST_LOG", "warn")
     .spawn()
     .unwrap();
 
-  let htsget_rs_url = format!("http://{}", config.addr);
-  query_server_until_response(format_url(&htsget_rs_url, "reads/service-info"));
-  let htsget_rs_ticket_url = format!("http://{}", config.ticket_server_addr);
-  query_server_until_response(format_url(&htsget_rs_ticket_url, ""));
+  let htsget_rs_url = format!("http://{}", config.ticket_server_config.ticket_server_addr);
+  query_server_until_response(&format_url(&htsget_rs_url, "reads/service-info"));
+  let htsget_rs_ticket_url = format!("http://{}", config.data_server_config.data_server_addr);
+  query_server_until_response(&format_url(&htsget_rs_ticket_url, ""));
 
   (DropGuard(child), htsget_rs_url)
 }
@@ -209,21 +209,19 @@ fn start_htsget_refserver() -> (DropGuard, String) {
     .unwrap();
 
   let refserver_url = refserver_config.htsget_config.props.host;
-  query_server_until_response(format_url(&refserver_url, "reads/service-info"));
+  query_server_until_response(&format_url(&refserver_url, "reads/service-info"));
 
   (DropGuard(child), refserver_url)
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-  let certs = TempDir::new().unwrap();
-
   let mut group = c.benchmark_group("Requests");
   group
     .sample_size(NUMBER_OF_SAMPLES)
     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
 
-  let (mut _htsget_rs_server, htsget_rs_url) = start_htsget_rs(certs);
-  let (mut _htsget_refserver_server, htsget_refserver_url) = start_htsget_refserver();
+  let (_htsget_rs_server, htsget_rs_url) = start_htsget_rs();
+  let (_htsget_refserver_server, htsget_refserver_url) = start_htsget_refserver();
 
   let json_content = PostRequest {
     format: None,

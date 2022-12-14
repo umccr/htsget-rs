@@ -2,18 +2,19 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 pub use error::{HtsGetError, Result};
+pub use htsget_config::config::{
+  Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, StorageType, TicketServerConfig,
+};
 use htsget_search::htsget::{Query, Response};
 pub use http_core::{get_response_for_get_request, get_response_for_post_request};
-pub use json_response::{JsonResponse, JsonUrl};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
 pub use service_info::get_service_info_with;
-pub use service_info::{ServiceInfo, ServiceInfoHtsget, ServiceInfoOrganization, ServiceInfoType};
+pub use service_info::{Htsget, Organisation, ServiceInfo, Type};
 
 mod error;
 mod http_core;
-mod json_response;
 mod post_request;
 mod query_builder;
 mod service_info;
@@ -58,7 +59,7 @@ pub(crate) fn match_endpoints_get_request(
     (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
     (_, Some(s)) => {
       return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format for this endpoint.",
+        "{} isn't a supported format for this endpoint",
         s
       )))
     }
@@ -77,7 +78,7 @@ pub(crate) fn match_endpoints_post_request(
     (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
     (_, Some(s)) => {
       return Err(HtsGetError::UnsupportedFormat(format!(
-        "{} isn't a supported format for this endpoint.",
+        "{} isn't a supported format for this endpoint",
         s
       )))
     }
@@ -114,9 +115,9 @@ mod tests {
 
   use htsget_config::regex_resolver::RegexResolver;
   use htsget_search::htsget::HtsGet;
-  use htsget_search::storage::axum_server::HttpsFormatter;
+  use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_search::{
-    htsget::{from_storage::HtsGetFromStorage, Class::Body, Format, Headers, Url},
+    htsget::{from_storage::HtsGetFromStorage, Format, Headers, JsonResponse, Url},
     storage::local::LocalStorage,
   };
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
@@ -132,7 +133,7 @@ mod tests {
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
       Ok(example_bam_json_response(headers))
-    )
+    );
   }
 
   #[tokio::test]
@@ -143,7 +144,7 @@ mod tests {
     assert!(matches!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
       Err(HtsGetError::UnsupportedFormat(_))
-    ))
+    ));
   }
 
   #[tokio::test]
@@ -154,11 +155,11 @@ mod tests {
     request.insert("start".to_string(), "149".to_string());
     request.insert("end".to_string(), "200".to_string());
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3366".to_string());
+    headers.insert("Range".to_string(), "bytes=0-3465".to_string());
     assert_eq!(
       get_response_for_get_request(get_searcher(), request, Endpoint::Variants).await,
       Ok(example_vcf_json_response(headers))
-    )
+    );
   }
 
   #[tokio::test]
@@ -182,7 +183,7 @@ mod tests {
       )
       .await,
       Ok(example_bam_json_response(headers))
-    )
+    );
   }
 
   #[tokio::test]
@@ -204,7 +205,7 @@ mod tests {
       )
       .await,
       Err(HtsGetError::UnsupportedFormat(_))
-    ))
+    ));
   }
 
   #[tokio::test]
@@ -222,7 +223,7 @@ mod tests {
       }]),
     };
     let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3366".to_string());
+    headers.insert("Range".to_string(), "bytes=0-3465".to_string());
     assert_eq!(
       get_response_for_post_request(
         get_searcher(),
@@ -232,27 +233,27 @@ mod tests {
       )
       .await,
       Ok(example_vcf_json_response(headers))
-    )
+    );
   }
 
   fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
-    JsonResponse::from_response(Response::new(
+    JsonResponse::from(Response::new(
       Format::Vcf,
       vec![
-        Url::new("https://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
+        Url::new("http://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
           .with_headers(Headers::new(headers)),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
   }
 
   fn example_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
-    JsonResponse::from_response(Response::new(
+    JsonResponse::from(Response::new(
       Format::Bam,
       vec![
-        Url::new("https://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
+        Url::new("http://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
           .with_headers(Headers::new(headers)),
-        Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
   }
@@ -270,7 +271,7 @@ mod tests {
       LocalStorage::new(
         get_base_path(),
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
       )
       .unwrap(),
     ))

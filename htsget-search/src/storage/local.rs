@@ -7,11 +7,11 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use tokio::fs::File;
 use tracing::debug;
-
-use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
+use tracing::instrument;
 
 use crate::htsget::Url;
-use crate::storage::{Storage, UrlFormatter};
+use crate::storage::{resolve_id, Storage, UrlFormatter};
+use crate::RegexResolver;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -50,32 +50,24 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
     let key: &str = key.as_ref();
     self
       .base_path
-      .join(self.resolve_key(key)?)
+      .join(resolve_id(&self.id_resolver, &key)?)
       .canonicalize()
       .map_err(|_| StorageError::InvalidKey(key.to_string()))
       .and_then(|path| {
         path
           .starts_with(&self.base_path)
-          .then(|| path)
+          .then_some(path)
           .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
       })
       .and_then(|path| {
         path
           .is_file()
-          .then(|| path)
+          .then_some(path)
           .ok_or_else(|| StorageError::KeyNotFound(key.to_string()))
       })
   }
 
-  pub(crate) fn resolve_key<K: AsRef<str>>(&self, key: K) -> Result<String> {
-    let key: &str = key.as_ref();
-    self
-      .id_resolver
-      .resolve_id(key)
-      .ok_or_else(|| StorageError::InvalidKey(key.to_string()))
-  }
-
-  async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
+  pub async fn get<K: AsRef<str>>(&self, key: K) -> Result<File> {
     let path = self.get_path_from_key(&key)?;
     File::open(path)
       .await
@@ -88,32 +80,42 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   type Streamable = File;
 
   /// Get the file at the location of the key.
-  async fn get<K: AsRef<str> + Send>(&self, key: K, _options: GetOptions) -> Result<File> {
-    debug!(calling_from = ?self, key = key.as_ref(), "Getting file with key {:?}", key.as_ref());
+  #[instrument(level = "debug", skip(self))]
+  async fn get<K: AsRef<str> + Send + Debug>(&self, key: K, _options: GetOptions) -> Result<File> {
+    debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
     self.get(key).await
   }
 
   /// Get a url for the file at key.
-  async fn range_url<K: AsRef<str> + Send>(&self, key: K, options: RangeUrlOptions) -> Result<Url> {
+  #[instrument(level = "debug", skip(self))]
+  async fn range_url<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: RangeUrlOptions,
+  ) -> Result<Url> {
     let path = self.get_path_from_key(&key)?;
     let path = path
       .strip_prefix(&self.base_path)
       .map_err(|err| StorageError::InternalError(err.to_string()))?
       .to_string_lossy();
+
     let url = Url::new(self.url_formatter.format_url(&path)?);
     let url = options.apply(url);
-    debug!(calling_from = ?self, key = key.as_ref(), ?url, "Getting url with key {:?}", key.as_ref());
+
+    debug!(calling_from = ?self, key = key.as_ref(), ?url, "getting url with key {:?}", key.as_ref());
     Ok(url)
   }
 
   /// Get the size of the file.
-  async fn head<K: AsRef<str> + Send>(&self, key: K) -> Result<u64> {
+  #[instrument(level = "debug", skip(self))]
+  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
     let path = self.get_path_from_key(&key)?;
     let len = tokio::fs::metadata(path)
       .await
       .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
       .len();
-    debug!(calling_from = ?self, key = key.as_ref(), len, "Size of key {:?} is {}", key.as_ref(), len);
+
+    debug!(calling_from = ?self, key = key.as_ref(), len, "size of key {:?} is {}", key.as_ref(), len);
     Ok(len)
   }
 }
@@ -128,7 +130,7 @@ pub(crate) mod tests {
   use tokio::io::AsyncWriteExt;
 
   use crate::htsget::{Headers, Url};
-  use crate::storage::axum_server::HttpsFormatter;
+  use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
 
   use super::*;
@@ -210,7 +212,7 @@ pub(crate) mod tests {
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
       let result = Storage::range_url(&storage, "folder/../key1", RangeUrlOptions::default()).await;
-      let expected = Url::new("https://127.0.0.1:8081/data/key1");
+      let expected = Url::new("http://127.0.0.1:8081/data/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
@@ -222,10 +224,10 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10))),
+        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10), None)),
       )
       .await;
-      let expected = Url::new("https://127.0.0.1:8081/data/key1")
+      let expected = Url::new("http://127.0.0.1:8081/data/key1")
         .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -238,10 +240,10 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None)),
+        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None, None)),
       )
       .await;
-      let expected = Url::new("https://127.0.0.1:8081/data/key1")
+      let expected = Url::new("http://127.0.0.1:8081/data/key1")
         .with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -287,7 +289,7 @@ pub(crate) mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(LocalStorage<HttpsFormatter>) -> Fut,
+    F: FnOnce(LocalStorage<HttpTicketFormatter>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
@@ -295,7 +297,7 @@ pub(crate) mod tests {
       LocalStorage::new(
         base_path.path(),
         RegexResolver::new(".*", "$0").unwrap(),
-        HttpsFormatter::new("127.0.0.1", "8081").unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
       )
       .unwrap(),
     )

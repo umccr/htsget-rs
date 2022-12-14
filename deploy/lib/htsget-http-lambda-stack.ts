@@ -1,11 +1,11 @@
-import { Duration, Stack, StackProps, Tags } from 'aws-cdk-lib';
-import { Construct } from 'constructs';
+import {Duration, Stack, StackProps, Tags} from 'aws-cdk-lib';
+import {Construct} from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import { RustFunction, Settings } from 'rust.aws-cdk-lambda';
-import { Architecture } from 'aws-cdk-lib/aws-lambda';
+import {RustFunction, Settings} from 'rust.aws-cdk-lambda';
+import {Architecture} from 'aws-cdk-lib/aws-lambda';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
-import { AuthorizationType } from 'aws-cdk-lib/aws-apigateway';
-import { STACK_NAME } from '../bin/htsget-http-lambda';
+import {AuthorizationType} from 'aws-cdk-lib/aws-apigateway';
+import {STACK_NAME} from '../bin/htsget-http-lambda';
 
 export class HtsgetHttpLambdaStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -42,7 +42,7 @@ export class HtsgetHttpLambdaStack extends Stack {
       environment: {
         HTSGET_S3_BUCKET: 'umccr-research-dev',
         HTSGET_STORAGE_TYPE: 'AwsS3Storage',
-        RUST_LOG: 'info,htsget_http_lambda=debug,htsget_config=debug,htsget_http_core=debug,htsget_search=debug,htsget_http_actix=debug'
+        RUST_LOG: 'info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace'
       },
       architecture: Architecture.ARM_64,
       role: lambdaRole

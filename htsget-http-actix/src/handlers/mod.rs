@@ -1,6 +1,7 @@
 use actix_web::{http::StatusCode, Either, Responder};
 
-use htsget_http_core::{JsonResponse, Result};
+use htsget_http_core::Result;
+use htsget_search::htsget::JsonResponse;
 use pretty_json::PrettyJson;
 
 pub use crate::handlers::service_info::{
@@ -18,11 +19,7 @@ fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, imp
   match response {
     Err(error) => {
       let (json, status_code) = error.to_json_representation();
-      Either::Left(
-        PrettyJson(json)
-          .customize()
-          .with_status(StatusCode::from_u16(status_code).unwrap()),
-      )
+      Either::Left(PrettyJson(json).customize().with_status(status_code))
     }
     Ok(json) => Either::Right(PrettyJson(json).customize().with_status(StatusCode::OK)),
   }

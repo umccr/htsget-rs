@@ -11,10 +11,11 @@ default = ["s3-storage"]
 [dependencies]
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+http = "0.2"
 htsget-search = { path = "../htsget-search", default-features = false }
 htsget-config = { path = "../htsget-config", default-features = false }
 futures = { version = "0.3" }
-tokio = { version = "1.17", features = ["full"] }
+tokio = { version = "1.21", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 
 [dev-dependencies]

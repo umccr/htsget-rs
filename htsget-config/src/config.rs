@@ -1,26 +1,37 @@
+use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use serde::Deserialize;
 use tracing::info;
+use tracing::instrument;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{fmt, EnvFilter, Registry};
 
 use crate::config::StorageType::LocalStorage;
 use crate::regex_resolver::RegexResolver;
 
+/// Represents a usage string for htsget-rs.
 pub const USAGE: &str = r#"
 The HtsGet server executables don't use command line arguments, but there are some environment variables that can be set to configure them:
-* HTSGET_ADDR: The socket address for the server which creates response tickets. Default: "127.0.0.1:8080".
-* HTSGET_PATH: The path to the directory where the server should be started. Default: ".". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
+* HTSGET_PATH: The path to the directory where the server should be started. Default: "data". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
 * HTSGET_REGEX: The regular expression that should match an ID. Default: ".*".
 For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
 * HTSGET_SUBSTITUTION_STRING: The replacement expression. Default: "$0".
 * HTSGET_STORAGE_TYPE: Either "LocalStorage" or "AwsS3Storage", representing which storage type to use. Default: "LocalStorage".
 
 The following options are used for the ticket server.
-* HTSGET_TICKET_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_TICKET_SERVER_KEY: The path to the PEM formatted X.509 private key used by the ticket response server. Default: "key.pem". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_TICKET_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the ticket response server. Default: "cert.pem". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_TICKET_SERVER_ADDR: The socket address for the server which creates response tickets. Default: "127.0.0.1:8080".
+* HTSGET_TICKET_SERVER_ALLOW_CREDENTIALS: Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. Default: "false".
+* HTSGET_TICKET_SERVER_ALLOW_ORIGIN: Which origin os allowed in the `ORIGIN` header. Default: "http://localhost:8080".
+
+The following options are used for the data server.
+* HTSGET_DATA_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_DATA_SERVER_KEY: The path to the PEM formatted X.509 private key used by the data server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_DATA_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the data server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
+* HTSGET_DATA_SERVER_ALLOW_CREDENTIALS: Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. Default: "false"
+* HTSGET_DATA_SERVER_ALLOW_ORIGIN: Which origin os allowed in the `ORIGIN` header. Default: "http://localhost:8081"
 
 The following options are used to configure AWS S3 storage.
 * HTSGET_S3_BUCKET: The name of the AWS S3 bucket. Default: "". Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".
@@ -41,54 +52,76 @@ The next variables are used to configure the info for the service-info endpoints
 const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
 
 fn default_localstorage_addr() -> SocketAddr {
-  "127.0.0.1:8081".parse().expect("Expected valid address.")
+  "127.0.0.1:8081".parse().expect("expected valid address")
 }
 
 fn default_addr() -> SocketAddr {
-  "127.0.0.1:8080".parse().expect("Expected valid address.")
+  "127.0.0.1:8080".parse().expect("expected valid address")
+}
+
+fn default_ticket_server_origin() -> String {
+  "http://localhost:8080".to_string()
+}
+
+fn default_data_server_origin() -> String {
+  "http://localhost:8081".to_string()
 }
 
 fn default_path() -> PathBuf {
-  PathBuf::from(".")
-}
-
-fn default_localstorage_cert() -> PathBuf {
-  PathBuf::from("cert.pem")
-}
-
-fn default_localstorage_key() -> PathBuf {
-  PathBuf::from("key.pem")
+  PathBuf::from("data")
 }
 
 /// Specify the storage type to use.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StorageType {
   LocalStorage,
   #[cfg(feature = "s3-storage")]
   AwsS3Storage,
 }
 
-/// Configuration for the server. Each field will be read from environment variables
+/// Configuration for the server. Each field will be read from environment variables.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
-  pub addr: SocketAddr,
   #[serde(flatten)]
   pub resolver: RegexResolver,
   pub path: PathBuf,
   #[serde(flatten)]
-  pub service_info: ConfigServiceInfo,
+  pub ticket_server_config: TicketServerConfig,
   pub storage_type: StorageType,
-  pub ticket_server_addr: SocketAddr,
-  pub ticket_server_key: PathBuf,
-  pub ticket_server_cert: PathBuf,
+  #[serde(flatten)]
+  pub data_server_config: DataServerConfig,
   #[cfg(feature = "s3-storage")]
   pub s3_bucket: String,
 }
 
+/// Configuration for the htsget server.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct TicketServerConfig {
+  pub ticket_server_addr: SocketAddr,
+  #[serde(flatten)]
+  pub service_info: ServiceInfo,
+  pub ticket_server_cors_allow_credentials: bool,
+  pub ticket_server_cors_allow_origin: String,
+}
+
+/// Configuration for the htsget server.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct DataServerConfig {
+  pub data_server_addr: SocketAddr,
+  pub data_server_key: Option<PathBuf>,
+  pub data_server_cert: Option<PathBuf>,
+  pub data_server_cors_allow_credentials: bool,
+  pub data_server_cors_allow_origin: String,
+}
+
+/// Configuration of the service info.
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(default)]
-pub struct ConfigServiceInfo {
+pub struct ServiceInfo {
   pub id: Option<String>,
   pub name: Option<String>,
   pub version: Option<String>,
@@ -101,17 +134,37 @@ pub struct ConfigServiceInfo {
   pub environment: Option<String>,
 }
 
+impl Default for TicketServerConfig {
+  fn default() -> Self {
+    Self {
+      ticket_server_addr: default_addr(),
+      service_info: ServiceInfo::default(),
+      ticket_server_cors_allow_credentials: false,
+      ticket_server_cors_allow_origin: default_ticket_server_origin(),
+    }
+  }
+}
+
+impl Default for DataServerConfig {
+  fn default() -> Self {
+    Self {
+      data_server_addr: default_localstorage_addr(),
+      data_server_key: None,
+      data_server_cert: None,
+      data_server_cors_allow_credentials: false,
+      data_server_cors_allow_origin: default_data_server_origin(),
+    }
+  }
+}
+
 impl Default for Config {
   fn default() -> Self {
     Self {
-      addr: default_addr(),
       resolver: RegexResolver::default(),
       path: default_path(),
-      service_info: ConfigServiceInfo::default(),
+      ticket_server_config: Default::default(),
       storage_type: LocalStorage,
-      ticket_server_addr: default_localstorage_addr(),
-      ticket_server_key: default_localstorage_key(),
-      ticket_server_cert: default_localstorage_cert(),
+      data_server_config: Default::default(),
       #[cfg(feature = "s3-storage")]
       s3_bucket: "".to_string(),
     }
@@ -120,17 +173,35 @@ impl Default for Config {
 
 impl Config {
   /// Read the environment variables into a Config struct.
-  pub fn from_env() -> std::io::Result<Self> {
+  #[instrument]
+  pub fn from_env() -> io::Result<Self> {
     let config = envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
       .from_env()
       .map_err(|err| {
-        std::io::Error::new(
+        io::Error::new(
           ErrorKind::Other,
-          format!("Config not properly set: {}", err),
+          format!("config not properly set: {}", err),
         )
       });
-    info!(config = ?config, "Config created from environment variables.");
+    info!(config = ?config, "config created from environment variables");
     config
+  }
+
+  /// Setup tracing, using a global subscriber.
+  pub fn setup_tracing() -> io::Result<()> {
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let fmt_layer = fmt::Layer::default();
+
+    let subscriber = Registry::default().with(env_filter).with(fmt_layer);
+
+    tracing::subscriber::set_global_default(subscriber).map_err(|err| {
+      io::Error::new(
+        ErrorKind::Other,
+        format!("failed to install `tracing` subscriber: {}", err),
+      )
+    })?;
+
+    Ok(())
   }
 }
 
@@ -139,10 +210,49 @@ mod tests {
   use super::*;
 
   #[test]
-  fn config_addr() {
-    std::env::set_var("HTSGET_ADDR", "127.0.0.1:8081");
+  fn config_ticket_server_addr() {
+    std::env::set_var("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8081");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.addr, "127.0.0.1:8081".parse().unwrap());
+    assert_eq!(
+      config.ticket_server_config.ticket_server_addr,
+      "127.0.0.1:8081".parse().unwrap()
+    );
+  }
+
+  #[test]
+  fn config_ticket_server_cors_allow_origin() {
+    std::env::set_var(
+      "HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGIN",
+      "http://localhost:8080",
+    );
+    let config = Config::from_env().unwrap();
+    assert_eq!(
+      config.ticket_server_config.ticket_server_cors_allow_origin,
+      "http://localhost:8080"
+    );
+  }
+
+  #[test]
+  fn config_data_server_cors_allow_origin() {
+    std::env::set_var(
+      "HTSGET_DATA_SERVER_CORS_ALLOW_ORIGIN",
+      "http://localhost:8080",
+    );
+    let config = Config::from_env().unwrap();
+    assert_eq!(
+      config.data_server_config.data_server_cors_allow_origin,
+      "http://localhost:8080"
+    );
+  }
+
+  #[test]
+  fn config_data_server_addr() {
+    std::env::set_var("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082");
+    let config = Config::from_env().unwrap();
+    assert_eq!(
+      config.data_server_config.data_server_addr,
+      "127.0.0.1:8082".parse().unwrap()
+    );
   }
 
   #[test]
@@ -163,7 +273,7 @@ mod tests {
   fn config_service_info_id() {
     std::env::set_var("HTSGET_ID", "id");
     let config = Config::from_env().unwrap();
-    assert_eq!(config.service_info.id.unwrap(), "id");
+    assert_eq!(config.ticket_server_config.service_info.id.unwrap(), "id");
   }
 
   #[cfg(feature = "s3-storage")]

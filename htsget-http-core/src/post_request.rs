@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use htsget_search::htsget::Query;
 
@@ -6,7 +7,7 @@ use crate::{QueryBuilder, Result};
 
 /// A struct to represent a POST request according to the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html). It implements
-/// [Deserialize] to make it more ergonomic. Each [PostRequest] can contain several [Regions](Region)
+/// [Deserialize] to make it more ergonomic. Each `PostRequest` can contain several regions.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct PostRequest {
   pub format: Option<String>,
@@ -18,7 +19,7 @@ pub struct PostRequest {
 }
 
 /// A struct that contains the data to quest for a specific region. It is only meant to be use
-/// alongside a [PostRequest]
+/// alongside a `PostRequest`
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Region {
   #[serde(rename = "referenceName")]
@@ -28,7 +29,8 @@ pub struct Region {
 }
 
 impl PostRequest {
-  /// Converts the [PostRequest] into one or more equivalent [Queries](Query)
+  /// Converts the `PostRequest` into one or more equivalent [Queries](Query)
+  #[instrument(level = "trace", skip_all, ret)]
   pub(crate) fn get_queries(self, id: impl Into<String>) -> Result<Vec<Query>> {
     if let Some(ref regions) = self.regions {
       let id = id.into();

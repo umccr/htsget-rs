@@ -3,11 +3,11 @@
 
 use lambda_http::http;
 use lambda_http::http::{header, StatusCode};
-use lambda_http::IntoResponse;
 use serde::Serialize;
 use serde_json::Error;
 
-use htsget_http_core::{HtsGetError, JsonResponse, Result};
+use htsget_http_core::{HtsGetError, Result};
+use htsget_search::htsget::JsonResponse;
 
 use crate::{Body, Response};
 
@@ -27,20 +27,17 @@ impl<T> FormatJson<T> {
 impl<T: Serialize> TryFrom<FormatJson<T>> for Response<Body> {
   type Error = http::Error;
 
-  fn try_from(value: FormatJson<T>) -> http::Result<Response<Body>> {
+  fn try_from(value: FormatJson<T>) -> http::Result<Self> {
     let mut body = match serde_json::to_string_pretty(&value.into_inner()) {
       Ok(body) => body,
       Err(e) => return Ok(FormatJson::try_from(e)?.into_inner()),
     };
     body.push('\n');
 
-    Ok(
-      Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-        .body(body)?
-        .into_response(),
-    )
+    Response::builder()
+      .status(StatusCode::OK)
+      .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+      .body(Body::from(body))
   }
 }
 
@@ -52,8 +49,7 @@ impl TryFrom<Error> for FormatJson<Response<Body>> {
       Response::builder()
         .status(StatusCode::INTERNAL_SERVER_ERROR)
         .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.as_ref())
-        .body(format!("{}", error))?
-        .into_response(),
+        .body(Body::from(error.to_string()))?,
     ))
   }
 }
@@ -64,7 +60,7 @@ impl TryFrom<HtsGetError> for FormatJson<Response<Body>> {
   fn try_from(error: HtsGetError) -> http::Result<Self> {
     let (json, status_code) = error.to_json_representation();
     let mut response: Response<Body> = FormatJson(json).try_into()?;
-    *response.status_mut() = StatusCode::from_u16(status_code).unwrap();
+    *response.status_mut() = status_code;
     Ok(Self(response))
   }
 }

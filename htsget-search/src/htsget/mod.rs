@@ -10,8 +10,12 @@ use std::io;
 use std::io::ErrorKind;
 
 use async_trait::async_trait;
+use noodles::core::region::Interval as NoodlesInterval;
+use noodles::core::Position;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::JoinError;
+use tracing::instrument;
 
 use crate::storage::StorageError;
 
@@ -35,25 +39,25 @@ pub trait HtsGet {
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum HtsGetError {
-  #[error("Not found: {0}")]
+  #[error("not found: {0}")]
   NotFound(String),
 
-  #[error("Unsupported Format: {0}")]
+  #[error("unsupported Format: {0}")]
   UnsupportedFormat(String),
 
-  #[error("Invalid input: {0}")]
+  #[error("invalid input: {0}")]
   InvalidInput(String),
 
-  #[error("Invalid range: {0}")]
+  #[error("invalid range: {0}")]
   InvalidRange(String),
 
-  #[error("IO error: {0}")]
+  #[error("io error: {0}")]
   IoError(String),
 
-  #[error("Parsing error: {0}")]
+  #[error("parsing error: {0}")]
   ParseError(String),
 
-  #[error("Internal error: {0}")]
+  #[error("internal error: {0}")]
   InternalError(String),
 }
 
@@ -96,22 +100,17 @@ impl From<HtsGetError> for io::Error {
 impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
-      StorageError::KeyNotFound(key) => {
-        Self::NotFound(format!("Key not found in storage: {}", key))
+      err @ (StorageError::InvalidKey(_) | StorageError::InvalidInput(_)) => {
+        Self::InvalidInput(err.to_string())
       }
-      StorageError::InvalidKey(key) => {
-        Self::InvalidInput(format!("Wrong key derived from ID: {}", key))
-      }
-      StorageError::IoError(_, _) => Self::IoError(format!("Io Error: {:?}", err)),
+      err @ StorageError::KeyNotFound(_) => Self::NotFound(err.to_string()),
+      err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
+      err @ (StorageError::DataServerError(_)
+      | StorageError::InvalidUri(_)
+      | StorageError::InvalidAddress(_)
+      | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
       #[cfg(feature = "s3-storage")]
-      StorageError::AwsS3Error(_, _) => Self::IoError(format!("AWS S3 error: {:?}", err)),
-      StorageError::TicketServerError(e) => {
-        Self::InternalError(format!("Error using url response server: {}", e))
-      }
-      StorageError::InvalidInput(e) => Self::InvalidInput(format!("Invalid input: {}", e)),
-      StorageError::InvalidUri(e) => Self::InternalError(format!("Invalid uri produced: {}", e)),
-      StorageError::InvalidAddress(e) => Self::InternalError(format!("Invalid address: {}", e)),
-      StorageError::InternalError(e) => Self::InternalError(e),
+      err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
     }
   }
 }
@@ -138,8 +137,7 @@ pub struct Query {
   /// Reference name
   pub reference_name: Option<String>,
   /// The start and end positions are 0-based. [start, end)  
-  pub start: Option<u32>,
-  pub end: Option<u32>,
+  pub interval: Interval,
   pub fields: Fields,
   pub tags: Tags,
   pub no_tags: Option<Vec<String>>,
@@ -152,8 +150,7 @@ impl Query {
       format,
       class: Class::Body,
       reference_name: None,
-      start: None,
-      end: None,
+      interval: Interval::default(),
       fields: Fields::All,
       tags: Tags::All,
       no_tags: None,
@@ -176,12 +173,12 @@ impl Query {
   }
 
   pub fn with_start(mut self, start: u32) -> Self {
-    self.start = Some(start);
+    self.interval.start = Some(start);
     self
   }
 
   pub fn with_end(mut self, end: u32) -> Self {
-    self.end = Some(end);
+    self.interval.end = Some(end);
     self
   }
 
@@ -201,8 +198,64 @@ impl Query {
   }
 }
 
+/// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
+/// query.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Interval {
+  pub start: Option<u32>,
+  pub end: Option<u32>,
+}
+
+impl Interval {
+  #[instrument(level = "trace", skip_all, ret)]
+  pub fn into_one_based(self) -> Result<NoodlesInterval> {
+    Ok(match (self.start, self.end) {
+      (None, None) => NoodlesInterval::from(..),
+      (None, Some(end)) => NoodlesInterval::from(..=Self::convert_end(end)?),
+      (Some(start), None) => NoodlesInterval::from(Self::convert_start(start)?..),
+      (Some(start), Some(end)) => {
+        NoodlesInterval::from(Self::convert_start(start)?..=Self::convert_end(end)?)
+      }
+    })
+  }
+
+  /// Convert a start position to a noodles Position.
+  pub fn convert_start(start: u32) -> Result<Position> {
+    Self::convert_position(start, |value| {
+      value.checked_add(1).ok_or_else(|| {
+        HtsGetError::InvalidRange(format!("could not convert {} to 1-based position.", value))
+      })
+    })
+  }
+
+  /// Convert an end position to a noodles Position.
+  pub fn convert_end(end: u32) -> Result<Position> {
+    Self::convert_position(end, Ok)
+  }
+
+  /// Convert a u32 position to a noodles Position.
+  pub fn convert_position<F>(value: u32, convert_fn: F) -> Result<Position>
+  where
+    F: FnOnce(u32) -> Result<u32>,
+  {
+    let value = convert_fn(value).map(|value| {
+      usize::try_from(value).map_err(|err| {
+        HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err))
+      })
+    })??;
+
+    Position::try_from(value).map_err(|err| {
+      HtsGetError::InvalidRange(format!(
+        "could not convert `{}` into `Position`: {}",
+        value, err
+      ))
+    })
+  }
+}
+
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Format {
   Bam,
   Cram,
@@ -229,16 +282,22 @@ impl Format {
       Format::Bcf => format!("{}.bcf.csi", id),
     }
   }
+
+  pub(crate) fn fmt_gzi(&self, id: &str) -> Result<String> {
+    match self {
+      Format::Bam => Ok(format!("{}.bam.gzi", id)),
+      Format::Cram => Err(HtsGetError::InternalError(
+        "CRAM does not support GZI".to_string(),
+      )),
+      Format::Vcf => Ok(format!("{}.vcf.gz.gzi", id)),
+      Format::Bcf => Ok(format!("{}.bcf.gzi", id)),
+    }
+  }
 }
 
 impl From<Format> for String {
   fn from(format: Format) -> Self {
-    match format {
-      Format::Bam => "BAM".to_string(),
-      Format::Cram => "CRAM".to_string(),
-      Format::Vcf => "VCF".to_string(),
-      Format::Bcf => "BCF".to_string(),
-    }
+    format.to_string()
   }
 }
 
@@ -253,7 +312,8 @@ impl fmt::Display for Format {
   }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Class {
   Header,
   Body,
@@ -278,7 +338,7 @@ pub enum Tags {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
@@ -299,17 +359,23 @@ impl Headers {
     self.0.insert(key.into(), value.into());
   }
 
-  pub fn get_inner(self) -> HashMap<String, String> {
+  pub fn into_inner(self) -> HashMap<String, String> {
     self.0
+  }
+
+  pub fn as_ref_inner(&self) -> &HashMap<String, String> {
+    &self.0
   }
 }
 
 /// A url from which raw data can be retrieved.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Url {
   pub url: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub headers: Option<Headers>,
-  pub class: Class,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub class: Option<Class>,
 }
 
 impl Url {
@@ -317,7 +383,7 @@ impl Url {
     Self {
       url: url.into(),
       headers: None,
-      class: Class::Body,
+      class: None,
     }
   }
 
@@ -326,14 +392,36 @@ impl Url {
     self
   }
 
-  pub fn with_class(mut self, class: Class) -> Self {
+  pub fn set_class(mut self, class: Option<Class>) -> Self {
     self.class = class;
     self
+  }
+
+  pub fn with_class(self, class: Class) -> Self {
+    self.set_class(Some(class))
+  }
+}
+
+/// Wrapped json response for htsget.
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JsonResponse {
+  pub htsget: Response,
+}
+
+impl JsonResponse {
+  pub fn new(htsget: Response) -> Self {
+    Self { htsget }
+  }
+}
+
+impl From<Response> for JsonResponse {
+  fn from(htsget: Response) -> Self {
+    Self::new(htsget)
   }
 }
 
 /// The response for a HtsGet query.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
@@ -430,13 +518,13 @@ mod tests {
   #[test]
   fn query_with_start() {
     let result = Query::new("NA12878", Format::Bam).with_start(0);
-    assert_eq!(result.start, Some(0));
+    assert_eq!(result.interval.start, Some(0));
   }
 
   #[test]
   fn query_with_end() {
     let result = Query::new("NA12878", Format::Bam).with_end(0);
-    assert_eq!(result.end, Some(0));
+    assert_eq!(result.interval.end, Some(0));
   }
 
   #[test]
@@ -519,7 +607,22 @@ mod tests {
   fn url_with_class() {
     let result =
       Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").with_class(Class::Header);
-    assert_eq!(result.class, Class::Header);
+    assert_eq!(result.class, Some(Class::Header));
+  }
+
+  #[test]
+  fn url_set_class() {
+    let result =
+      Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==").set_class(Some(Class::Header));
+    assert_eq!(result.class, Some(Class::Header));
+  }
+
+  #[test]
+  fn url_new() {
+    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==");
+    assert_eq!(result.url, "data:application/vnd.ga4gh.bam;base64,QkFNAQ==");
+    assert_eq!(result.headers, None);
+    assert_eq!(result.class, None);
   }
 
   #[test]
