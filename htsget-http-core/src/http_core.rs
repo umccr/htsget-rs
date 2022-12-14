@@ -48,7 +48,7 @@ pub async fn get_response_for_post_request(
   let mut futures = FuturesOrdered::new();
   for query in request.get_queries(id)? {
     let owned_searcher = searcher.clone();
-    futures.push_back(tokio::spawn(
+    futures.push(tokio::spawn(
       async move { owned_searcher.search(query).await },
     ));
   }

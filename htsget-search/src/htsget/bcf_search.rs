@@ -86,7 +86,7 @@ where
     for (ref_seq_index, (name, _)) in header.contigs().iter().enumerate() {
       let owned_name = name.to_owned();
       let owned_reference_name = reference_name.clone();
-      futures.push_back(tokio::spawn(async move {
+      futures.push(tokio::spawn(async move {
         if owned_name == owned_reference_name {
           Some((ref_seq_index, owned_name))
         } else {
