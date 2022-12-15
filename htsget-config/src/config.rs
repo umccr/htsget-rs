@@ -180,7 +180,7 @@ impl Config {
       .map_err(|err| {
         io::Error::new(
           ErrorKind::Other,
-          format!("config not properly set: {}", err),
+          format!("config not properly set: {err}"),
         )
       });
     info!(config = ?config, "config created from environment variables");
@@ -197,7 +197,7 @@ impl Config {
     tracing::subscriber::set_global_default(subscriber).map_err(|err| {
       io::Error::new(
         ErrorKind::Other,
-        format!("failed to install `tracing` subscriber: {}", err),
+        format!("failed to install `tracing` subscriber: {err}"),
       )
     })?;
 
