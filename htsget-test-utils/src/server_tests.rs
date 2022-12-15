@@ -62,11 +62,11 @@ pub async fn test_response(response: Response, class: Class) {
 
   let mut reader = vcf::AsyncReader::new(bgzf::AsyncReader::new(merged_response.as_slice()));
   let header = reader.read_header().await.unwrap().parse().unwrap();
-  println!("{}", header);
+  println!("{header}");
 
   let mut records = reader.records(&header);
   while let Some(record) = records.try_next().await.unwrap() {
-    println!("{}", record);
+    println!("{record}");
     continue;
   }
 }
@@ -182,7 +182,7 @@ pub fn expected_response(class: Class, url_path: String) -> JsonResponse {
   let mut headers = HashMap::new();
   headers.insert("Range".to_string(), "bytes=0-3465".to_string());
 
-  let http_url = Url::new(format!("{}/data/vcf/sample1-bcbio-cancer.vcf.gz", url_path))
+  let http_url = Url::new(format!("{url_path}/data/vcf/sample1-bcbio-cancer.vcf.gz"))
     .with_headers(Headers::new(headers));
   let urls = match class {
     Class::Header => vec![http_url.with_class(Class::Header)],

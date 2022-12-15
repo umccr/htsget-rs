@@ -26,8 +26,7 @@ impl QueryBuilder {
           "BCF" => Format::Bcf,
           _ => {
             return Err(HtsGetError::UnsupportedFormat(format!(
-              "`{}`isn't supported",
-              format
+              "`{format}` isn't supported"
             )))
           }
         },
@@ -47,8 +46,7 @@ impl QueryBuilder {
       Some(class) if class == "header" => Class::Header,
       Some(class) => {
         return Err(HtsGetError::InvalidInput(format!(
-          "invalid class `{}`",
-          class
+          "invalid class `{class}`"
         )))
       }
     });
@@ -73,9 +71,9 @@ impl QueryBuilder {
     let start = start
       .map(Into::into)
       .map(|start| {
-        start.parse::<u32>().map_err(|err| {
-          HtsGetError::InvalidInput(format!("`{}` isn't a valid start: {}", start, err))
-        })
+        start
+          .parse::<u32>()
+          .map_err(|err| HtsGetError::InvalidInput(format!("`{start}` isn't a valid start: {err}")))
       })
       .transpose()?;
     let end = end
@@ -83,7 +81,7 @@ impl QueryBuilder {
       .map(|end| {
         end
           .parse::<u32>()
-          .map_err(|err| HtsGetError::InvalidInput(format!("`{}` isn't a valid end: {}", end, err)))
+          .map_err(|err| HtsGetError::InvalidInput(format!("`{end}` isn't a valid end: {err}")))
       })
       .transpose()?;
 
@@ -114,8 +112,7 @@ impl QueryBuilder {
     if let (Some(start), Some(end)) = &(self.query.interval.start, self.query.interval.end) {
       if start > end {
         return Err(HtsGetError::InvalidRange(format!(
-          "end is greater than start (`{}` > `{}`)",
-          start, end
+          "end is greater than start (`{start}` > `{end}`)"
         )));
       }
     }

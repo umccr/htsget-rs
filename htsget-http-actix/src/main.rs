@@ -14,7 +14,7 @@ async fn main() -> std::io::Result<()> {
 
   if args().len() > 1 {
     // Show help if command line options are provided
-    println!("{}", USAGE);
+    println!("{USAGE}");
     return Ok(());
   }
 
