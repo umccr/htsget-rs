@@ -177,12 +177,7 @@ impl Config {
   pub fn from_env() -> io::Result<Self> {
     let config = envy::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
       .from_env()
-      .map_err(|err| {
-        io::Error::new(
-          ErrorKind::Other,
-          format!("config not properly set: {err}"),
-        )
-      });
+      .map_err(|err| io::Error::new(ErrorKind::Other, format!("config not properly set: {err}")));
     info!(config = ?config, "config created from environment variables");
     config
   }
