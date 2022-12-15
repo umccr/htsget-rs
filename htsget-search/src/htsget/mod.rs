@@ -284,7 +284,7 @@ impl Format {
 
   pub(crate) fn fmt_gzi(&self, id: &str) -> Result<String> {
     match self {
-      Format::Bam => Ok(format!("{}.bam.gzi", id)),
+      Format::Bam => Ok(format!("{id}.bam.gzi")),
       Format::Cram => Err(HtsGetError::InternalError(
         "CRAM does not support GZI".to_string(),
       )),
