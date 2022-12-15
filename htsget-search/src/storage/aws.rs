@@ -145,7 +145,7 @@ impl AwsS3Storage {
   ) -> Result<ByteStream> {
     if let Delayed(class) = self.get_retrieval_type(&key).await? {
       return Err(AwsS3Error(
-        format!("cannot retrieve object immediately, class is `{:?}`", class),
+        format!("cannot retrieve object immediately, class is `{class:?}`"),
         key.as_ref().to_string(),
       ));
     }

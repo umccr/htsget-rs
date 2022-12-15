@@ -67,8 +67,7 @@ where
       None => {
         VirtualPosition::try_from((self.get_header_end_offset(index).await?, 0)).map_err(|err| {
           HtsGetError::InvalidInput(format!(
-            "invalid virtual position generated from header end offset `{}`.",
-            err
+            "invalid virtual position generated from header end offset {err}."
           ))
         })?
       }

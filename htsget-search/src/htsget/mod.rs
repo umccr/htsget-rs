@@ -223,7 +223,7 @@ impl Interval {
   pub fn convert_start(start: u32) -> Result<Position> {
     Self::convert_position(start, |value| {
       value.checked_add(1).ok_or_else(|| {
-        HtsGetError::InvalidRange(format!("could not convert {} to 1-based position.", value))
+        HtsGetError::InvalidRange(format!("could not convert {value} to 1-based position."))
       })
     })
   }
@@ -240,14 +240,13 @@ impl Interval {
   {
     let value = convert_fn(value).map(|value| {
       usize::try_from(value).map_err(|err| {
-        HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err))
+        HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {err}"))
       })
     })??;
 
     Position::try_from(value).map_err(|err| {
       HtsGetError::InvalidRange(format!(
-        "could not convert `{}` into `Position`: {}",
-        value, err
+        "could not convert `{value}` into `Position`: {err}"
       ))
     })
   }
@@ -267,19 +266,19 @@ pub enum Format {
 impl Format {
   pub(crate) fn fmt_file(&self, id: &str) -> String {
     match self {
-      Format::Bam => format!("{}.bam", id),
-      Format::Cram => format!("{}.cram", id),
-      Format::Vcf => format!("{}.vcf.gz", id),
-      Format::Bcf => format!("{}.bcf", id),
+      Format::Bam => format!("{id}.bam"),
+      Format::Cram => format!("{id}.cram"),
+      Format::Vcf => format!("{id}.vcf.gz"),
+      Format::Bcf => format!("{id}.bcf"),
     }
   }
 
   pub(crate) fn fmt_index(&self, id: &str) -> String {
     match self {
-      Format::Bam => format!("{}.bam.bai", id),
-      Format::Cram => format!("{}.cram.crai", id),
-      Format::Vcf => format!("{}.vcf.gz.tbi", id),
-      Format::Bcf => format!("{}.bcf.csi", id),
+      Format::Bam => format!("{id}.bam.bai"),
+      Format::Cram => format!("{id}.cram.crai"),
+      Format::Vcf => format!("{id}.vcf.gz.tbi"),
+      Format::Bcf => format!("{id}.bcf.csi"),
     }
   }
 
@@ -289,8 +288,8 @@ impl Format {
       Format::Cram => Err(HtsGetError::InternalError(
         "CRAM does not support GZI".to_string(),
       )),
-      Format::Vcf => Ok(format!("{}.vcf.gz.gzi", id)),
-      Format::Bcf => Ok(format!("{}.bcf.gzi", id)),
+      Format::Vcf => Ok(format!("{id}.vcf.gz.gzi")),
+      Format::Bcf => Ok(format!("{id}.bcf.gzi")),
     }
   }
 }

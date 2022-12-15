@@ -105,7 +105,7 @@ pub fn configure_cors(
       .allow_origin(
         cors_allow_origin
           .parse::<HeaderValue>()
-          .map_err(|err| DataServerError(format!("failed parsing allowed origin: `{}`", err)))?,
+          .map_err(|err| DataServerError(format!("failed parsing allowed origin: `{err}`")))?,
       )
       .allow_headers(AllowHeaders::mirror_request())
       .max_age(Duration::from_secs(CORS_MAX_AGE))
@@ -207,7 +207,7 @@ impl Display for BytesRange {
       .end
       .map(|end| end.to_string())
       .unwrap_or_else(|| "".to_string());
-    write!(f, "bytes={}-{}", start, end)
+    write!(f, "bytes={start}-{end}")
   }
 }
 

@@ -153,8 +153,7 @@ where
 
     let byte_ranges = match maybe_ref_seq {
       None => Err(HtsGetError::not_found(format!(
-        "reference name not found: {}",
-        reference_name
+        "reference name not found: {reference_name}"
       ))),
       Some(ref_seq_id) => {
         Self::get_byte_ranges_for_reference_sequence(self, ref_seq_id, query, index).await
@@ -296,14 +295,14 @@ where
         DataBlock::Range(range) => {
           let storage = self.get_storage();
           let id = id.clone();
-          storage_futures.push(tokio::spawn(async move {
+          storage_futures.push_back(tokio::spawn(async move {
             storage
               .range_url(format.fmt_file(&id), RangeUrlOptions::from(range))
               .await
           }));
         }
         DataBlock::Data(data, class) => {
-          storage_futures.push(tokio::spawn(async move { Ok(S::data_url(data, class)) }));
+          storage_futures.push_back(tokio::spawn(async move { Ok(S::data_url(data, class)) }));
         }
       }
     }
@@ -406,7 +405,7 @@ where
       trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
       let mut chunks = index
         .query(ref_seq_id, query.interval.into_one_based()?)
-        .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
+        .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {err}")))?;
 
       if chunks.is_empty() {
         return Err(HtsGetError::NotFound(
