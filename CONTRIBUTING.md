@@ -31,7 +31,7 @@ We also use [clippy] and [rustfmt] for code style, linting and formatting.
 Please run the following commands to check tests, lints, code style and formatting before submitting a pull request:
 
 ```sh
-cargo clippy --all-targets --all-features
+cargo clippy --all-targets --all-features --fix
 cargo fmt
 cargo test --tests --all-features
 ```
