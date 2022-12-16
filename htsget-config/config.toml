@@ -1,4 +1,5 @@
 ticket_server_addr = "127.0.0.1:8082"
+data_server = "None"
 #ticket_server_cors_allow_credentials = false
 #ticket_server_cors_allow_origin = "http://localhost:8080"
 #start_data_server = true

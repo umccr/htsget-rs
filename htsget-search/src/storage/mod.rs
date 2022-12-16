@@ -19,7 +19,7 @@ use tracing::instrument;
 use crate::htsget::{Headers, Url};
 use crate::storage::data_server::CORS_MAX_AGE;
 use crate::storage::StorageError::DataServerError;
-use crate::{IdResolver, RegexResolver};
+use crate::{Resolver, RegexResolver};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
