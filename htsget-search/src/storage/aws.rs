@@ -408,7 +408,7 @@ mod tests {
   async fn retrieval_type() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.get_retrieval_type(&"key2".to_string()).await;
-      println!("{:?}", result);
+      println!("{result:?}");
     })
     .await;
   }

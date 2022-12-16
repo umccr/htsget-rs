@@ -149,7 +149,7 @@ mod tests {
       let filename = "sample1-bcbio-cancer";
       let query = Query::new(filename, Format::Bcf);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(expected_bcf_response(filename));
       assert_eq!(response, expected_response)
@@ -164,7 +164,7 @@ mod tests {
       let filename = "vcf-spec-v4.3";
       let query = Query::new(filename, Format::Bcf).with_reference_name("20");
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bcf,
@@ -196,7 +196,7 @@ mod tests {
         .with_reference_name("chrM")
         .with_start(151);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(expected_bcf_response(filename));
       assert_eq!(response, expected_response)
@@ -220,7 +220,7 @@ mod tests {
       .with_start(151)
       .with_end(153);
     let response = search.search(query).await;
-    println!("{:#?}", response);
+    println!("{response:#?}");
 
     let expected_response = Ok(expected_bcf_response(filename));
     assert_eq!(response, expected_response)
@@ -244,7 +244,7 @@ mod tests {
       let filename = "vcf-spec-v4.3";
       let query = Query::new(filename, Format::Bcf).with_class(Class::Header);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bcf,
@@ -279,6 +279,6 @@ mod tests {
   }
 
   fn expected_url(name: &str) -> String {
-    format!("http://127.0.0.1:8081/data/{}.bcf", name)
+    format!("http://127.0.0.1:8081/data/{name}.bcf")
   }
 }

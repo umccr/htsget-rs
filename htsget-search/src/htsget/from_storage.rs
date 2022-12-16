@@ -119,7 +119,7 @@ pub(crate) mod tests {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
       let query = Query::new("htsnexus_test_NA12878", Format::Bam);
       let response = htsget.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -141,7 +141,7 @@ pub(crate) mod tests {
       let filename = "spec-v4.3";
       let query = Query::new(filename, Format::Vcf);
       let response = htsget.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Vcf,

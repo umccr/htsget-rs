@@ -293,7 +293,7 @@ mod tests {
       let search = CramSearch::new(storage.clone());
       let query = Query::new("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Cram,
@@ -314,7 +314,7 @@ mod tests {
       let search = CramSearch::new(storage.clone());
       let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_reference_name("*");
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Cram,
@@ -339,7 +339,7 @@ mod tests {
       let search = CramSearch::new(storage.clone());
       let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Cram,
@@ -367,7 +367,7 @@ mod tests {
         .with_start(5000000)
         .with_end(5050000);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Cram,
@@ -391,7 +391,7 @@ mod tests {
         .with_start(5000000)
         .with_end(5100000);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(expected_response_with_start());
       assert_eq!(response, expected_response)
@@ -407,7 +407,7 @@ mod tests {
         .with_reference_name("11")
         .with_start(5000000);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(expected_response_with_start());
       assert_eq!(response, expected_response)
@@ -432,7 +432,7 @@ mod tests {
       let search = CramSearch::new(storage.clone());
       let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_class(Header);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Cram,

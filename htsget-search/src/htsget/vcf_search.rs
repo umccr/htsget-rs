@@ -151,7 +151,7 @@ pub(crate) mod tests {
       let filename = "sample1-bcbio-cancer";
       let query = Query::new(filename, Format::Vcf);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(expected_vcf_response(filename));
       assert_eq!(response, expected_response)
@@ -166,7 +166,7 @@ pub(crate) mod tests {
       let filename = "spec-v4.3";
       let query = Query::new(filename, Format::Vcf).with_reference_name("20");
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
@@ -197,7 +197,7 @@ pub(crate) mod tests {
         .with_start(151)
         .with_end(153);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(expected_vcf_response(filename));
       assert_eq!(response, expected_response);
@@ -220,7 +220,7 @@ pub(crate) mod tests {
       let filename = "spec-v4.3";
       let query = Query::new(filename, Format::Vcf).with_class(Class::Header);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
@@ -241,7 +241,7 @@ pub(crate) mod tests {
       .with_start(151)
       .with_end(153);
     let response = search.search(query).await;
-    println!("{:#?}", response);
+    println!("{response:#?}");
 
     let expected_response = Ok(expected_vcf_response(filename));
     assert_eq!(response, expected_response);
@@ -283,6 +283,6 @@ pub(crate) mod tests {
   }
 
   pub(crate) fn expected_url(name: &str) -> String {
-    format!("http://127.0.0.1:8081/data/{}.vcf.gz", name)
+    format!("http://127.0.0.1:8081/data/{name}.vcf.gz")
   }
 }
