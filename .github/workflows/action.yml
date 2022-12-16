@@ -1,18 +1,83 @@
 name: tests
 
-on:
-  pull_request:
-  workflow_dispatch:
+on: [push]
 
 jobs:
-  check:
-    uses: umccr/reusable-github-actions/.github/workflows/rust-check.yaml@master
   test:
-    needs: check
-    uses: umccr/reusable-github-actions/.github/workflows/rust-test.yaml@master
-  benchmark:
-    uses: umccr/reusable-github-actions/.github/workflows/rust-benchmark.yaml@master
-    needs: check
-  release:
-    uses: umccr/reusable-github-actions/.github/workflows/rust-release.yaml@master
-    needs: ["check", "test", "benchmark"]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: [stable]
+        os: [ubuntu-latest]
+    steps:
+      - name: Check out
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: ${{ matrix.rust }}
+            override: true
+            components: rustfmt, clippy
+      - name: Cargo cache
+        uses: actions/cache@v3
+        continue-on-error: false
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-cache3-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-cache3-
+
+      - name: Cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+
+      - name: Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
+
+      - name: Build all features
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-targets --all-features
+
+      - name: Build no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-targets --no-default-features
+
+      - name: Build s3-storage feature
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-targets --features s3-storage
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
+
+      # Run benchmarks
+      # - name: Run benchmarks
+      #   run: cargo bench --bench search-benchmarks --bench request-benchmarks -- LIGHT --output-format bencher | tee output.txt
+      # - name: Download previous benchmark data
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: ./cache
+      #     key: ${{ runner.os }}-benchmark
+      # - name: Store benchmark result
+      #   uses: benchmark-action/github-action-benchmark@v1
+      #   with:
+      #     tool: 'cargo'
+      #     output-file-path: output.txt
+      #     external-data-json-path: ./cache/benchmark-data.json
+      #     fail-on-alert: false
