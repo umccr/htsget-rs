@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAnyAllowType};
 use clap::Parser;
@@ -12,9 +12,8 @@ use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
 use http::header::HeaderName;
 use http::Method;
-use regex::internal::Input;
-use serde::{de, Deserialize, Deserializer, Serialize};
 use serde::de::IntoDeserializer;
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::with_prefix;
 use tracing::info;
 use tracing::instrument;
@@ -93,13 +92,12 @@ struct Args {
 fn empty_string_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
   D: Deserializer<'de>,
-  T: Deserialize<'de>
+  T: Deserialize<'de>,
 {
-  let optional_string = Option::deserialize(deserializer)?.filter(|s: &String| !s.is_empty() && s.to_lowercase() != "none");
+  let optional_string = Option::deserialize(deserializer)?
+    .filter(|s: &String| !s.is_empty() && s.to_lowercase() != "none");
   if let Some(string) = optional_string {
-    Ok(Some(
-      T::deserialize(string.into_deserializer())?,
-    ))
+    Ok(Some(T::deserialize(string.into_deserializer())?))
   } else {
     Ok(None)
   }
@@ -166,43 +164,43 @@ impl TicketServerConfig {
     self.cors.expose_headers()
   }
 
-  pub fn id(&self) -> &Option<String> {
+  pub fn id(&self) -> Option<&str> {
     self.service_info.id()
   }
 
-  pub fn name(&self) -> &Option<String> {
+  pub fn name(&self) -> Option<&str> {
     self.service_info.name()
   }
 
-  pub fn version(&self) -> &Option<String> {
+  pub fn version(&self) -> Option<&str> {
     self.service_info.version()
   }
 
-  pub fn organization_name(&self) -> &Option<String> {
+  pub fn organization_name(&self) -> Option<&str> {
     self.service_info.organization_name()
   }
 
-  pub fn organization_url(&self) -> &Option<String> {
+  pub fn organization_url(&self) -> Option<&str> {
     self.service_info.organization_url()
   }
 
-  pub fn contact_url(&self) -> &Option<String> {
+  pub fn contact_url(&self) -> Option<&str> {
     self.service_info.contact_url()
   }
 
-  pub fn documentation_url(&self) -> &Option<String> {
+  pub fn documentation_url(&self) -> Option<&str> {
     self.service_info.documentation_url()
   }
 
-  pub fn created_at(&self) -> &Option<String> {
+  pub fn created_at(&self) -> Option<&str> {
     self.service_info.created_at()
   }
 
-  pub fn updated_at(&self) -> &Option<String> {
+  pub fn updated_at(&self) -> Option<&str> {
     self.service_info.updated_at()
   }
 
-  pub fn environment(&self) -> &Option<String> {
+  pub fn environment(&self) -> Option<&str> {
     self.service_info.environment()
   }
 }
@@ -225,20 +223,20 @@ impl DataServerConfig {
     self.addr
   }
 
-  pub fn path(&self) -> &PathBuf {
+  pub fn path(&self) -> &Path {
     &self.path
   }
 
-  pub fn serve_at(&self) -> &PathBuf {
+  pub fn serve_at(&self) -> &Path {
     &self.serve_at
   }
 
-  pub fn key(&self) -> &Option<PathBuf> {
-    &self.key
+  pub fn key(&self) -> Option<&Path> {
+    self.key.as_deref()
   }
 
-  pub fn cert(&self) -> &Option<PathBuf> {
-    &self.cert
+  pub fn cert(&self) -> Option<&Path> {
+    self.cert.as_deref()
   }
 
   pub fn cors(&self) -> &CorsConfig {
@@ -302,44 +300,44 @@ pub struct ServiceInfo {
 }
 
 impl ServiceInfo {
-  pub fn id(&self) -> &Option<String> {
-    &self.id
+  pub fn id(&self) -> Option<&str> {
+    self.id.as_deref()
   }
 
-  pub fn name(&self) -> &Option<String> {
-    &self.name
+  pub fn name(&self) -> Option<&str> {
+    self.name.as_deref()
   }
 
-  pub fn version(&self) -> &Option<String> {
-    &self.version
+  pub fn version(&self) -> Option<&str> {
+    self.version.as_deref()
   }
 
-  pub fn organization_name(&self) -> &Option<String> {
-    &self.organization_name
+  pub fn organization_name(&self) -> Option<&str> {
+    self.organization_name.as_deref()
   }
 
-  pub fn organization_url(&self) -> &Option<String> {
-    &self.organization_url
+  pub fn organization_url(&self) -> Option<&str> {
+    self.organization_url.as_deref()
   }
 
-  pub fn contact_url(&self) -> &Option<String> {
-    &self.contact_url
+  pub fn contact_url(&self) -> Option<&str> {
+    self.contact_url.as_deref()
   }
 
-  pub fn documentation_url(&self) -> &Option<String> {
-    &self.documentation_url
+  pub fn documentation_url(&self) -> Option<&str> {
+    self.documentation_url.as_deref()
   }
 
-  pub fn created_at(&self) -> &Option<String> {
-    &self.created_at
+  pub fn created_at(&self) -> Option<&str> {
+    self.created_at.as_deref()
   }
 
-  pub fn updated_at(&self) -> &Option<String> {
-    &self.updated_at
+  pub fn updated_at(&self) -> Option<&str> {
+    self.updated_at.as_deref()
   }
 
-  pub fn environment(&self) -> &Option<String> {
-    &self.environment
+  pub fn environment(&self) -> Option<&str> {
+    self.environment.as_deref()
   }
 }
 
@@ -409,7 +407,7 @@ impl Config {
     self.data_server.as_ref()
   }
 
-  pub fn resolvers(&self) -> &Vec<RegexResolver> {
+  pub fn resolvers(&self) -> &[RegexResolver] {
     &self.resolvers
   }
 }
@@ -485,7 +483,7 @@ mod tests {
   #[test]
   fn config_service_info_id_env() {
     test_config_from_env(vec![("HTSGET_ID", "id")], |config| {
-      assert_eq!(config.ticket_server().id(), &Some("id".to_string()));
+      assert_eq!(config.ticket_server().id(), Some("id"));
     });
   }
 
@@ -532,7 +530,7 @@ mod tests {
   #[test]
   fn config_service_info_id_file() {
     test_config_from_file(r#"id = "id""#, |config| {
-      assert_eq!(config.ticket_server().id(), &Some("id".to_string()));
+      assert_eq!(config.ticket_server().id(), Some("id"));
     });
   }
 

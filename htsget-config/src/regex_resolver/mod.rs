@@ -118,11 +118,11 @@ pub struct QueryGuard {
 }
 
 impl QueryGuard {
-  pub fn match_formats(&self) -> &Vec<Format> {
+  pub fn match_formats(&self) -> &[Format] {
     &self.match_formats
   }
 
-  pub fn match_class(&self) -> &Vec<Class> {
+  pub fn match_classes(&self) -> &[Class] {
     &self.match_class
   }
 
@@ -259,12 +259,12 @@ impl RegexResolver {
     &self.storage_type
   }
 
-  pub fn match_formats(&self) -> &Vec<Format> {
-    &self.guard.match_formats
+  pub fn match_formats(&self) -> &[Format] {
+    self.guard.match_formats()
   }
 
-  pub fn match_class(&self) -> &Vec<Class> {
-    &self.guard.match_class
+  pub fn match_classes(&self) -> &[Class] {
+    self.guard.match_classes()
   }
 
   pub fn match_reference_name(&self) -> &Regex {
