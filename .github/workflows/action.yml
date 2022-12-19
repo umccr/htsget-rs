@@ -72,7 +72,7 @@ jobs:
       #   run: cargo criterion --bench request-benchmarks --message-format=json -- LIGHT 1> requests-benchmarks.json
       - name: Run search benchmarks
         #run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-${BENCH_TIMESTAMP}.json
-        run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks.json
+        run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT >& search-benchmarks.json
       # - name: Store requests benchmark result
       #   uses: benchmark-action/github-action-benchmark@v1
       #   with:
