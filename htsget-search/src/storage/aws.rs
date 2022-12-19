@@ -76,10 +76,10 @@ impl AwsS3Storage {
       response
         .presigned(
           PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
-            .map_err(|err| AwsS3Error(err.to_string(), query.id.to_string()))?,
+            .map_err(|err| AwsS3Error(err.to_string(), query.id().to_string()))?,
         )
         .await
-        .map_err(|err| AwsS3Error(err.to_string(), query.id.to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), query.id().to_string()))?
         .uri()
         .to_string(),
     )
@@ -93,7 +93,7 @@ impl AwsS3Storage {
       .key(resolve_id(&self.id_resolver, query)?)
       .send()
       .await
-      .map_err(|err| AwsS3Error(err.to_string(), query.id.to_string()))
+      .map_err(|err| AwsS3Error(err.to_string(), query.id().to_string()))
   }
 
   /// Returns the retrieval type of the object stored with the key.
@@ -142,7 +142,7 @@ impl AwsS3Storage {
     if let Delayed(class) = self.get_retrieval_type(query).await? {
       return Err(AwsS3Error(
         format!("cannot retrieve object immediately, class is `{:?}`", class),
-        query.id.to_string(),
+        query.id().to_string(),
       ));
     }
 
@@ -156,7 +156,7 @@ impl AwsS3Storage {
       response
         .send()
         .await
-        .map_err(|err| AwsS3Error(err.to_string(), query.id.to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), query.id().to_string()))?
         .body,
     )
   }
@@ -178,7 +178,7 @@ impl Storage for AwsS3Storage {
   /// Gets the actual s3 object as a buffered reader.
   #[instrument(level = "trace", skip(self))]
   async fn get(&self, query: &Query, options: GetOptions) -> Result<Self::Streamable> {
-    debug!(calling_from = ?self, query.id, "getting file with key {:?}", query.id);
+    debug!(calling_from = ?self, id = query.id(), "getting file with key {:?}", query.id());
 
     self.create_stream_reader(query, options).await
   }
@@ -189,7 +189,7 @@ impl Storage for AwsS3Storage {
     let presigned_url = self.s3_presign_url(query, options.range.clone()).await?;
     let url = options.apply(Url::new(presigned_url));
 
-    debug!(calling_from = ?self, query.id, ?url, "getting url with key {:?}", query.id);
+    debug!(calling_from = ?self, id = query.id(), ?url, "getting url with key {:?}", query.id());
     Ok(url)
   }
 
@@ -204,7 +204,7 @@ impl Storage for AwsS3Storage {
       )
     })?;
 
-    debug!(calling_from = ?self, query.id, len, "size of key {:?} is {}", query.id, len);
+    debug!(calling_from = ?self, id = query.id(), len, "size of key {:?} is {}", query.id(), len);
     Ok(len)
   }
 }
@@ -225,8 +225,7 @@ mod tests {
   use s3_server::storages::fs::FileSystem;
   use s3_server::{S3Service, SimpleAuth};
 
-  use htsget_config::config::StorageType;
-  use htsget_config::regex_resolver::MatchOnQuery;
+  use htsget_config::regex_resolver::UrlResolver;
   use htsget_config::Format::Bam;
   use htsget_config::Query;
 
@@ -284,13 +283,7 @@ mod tests {
       test(AwsS3Storage::new(
         client,
         folder_name,
-        RegexResolver::new(
-          ".*",
-          "$0",
-          StorageType::default(),
-          MatchOnQuery::default(),
-        )
-        .unwrap(),
+        RegexResolver::new(Default::default(), ".*", "$0", Default::default()).unwrap(),
       ));
     })
     .await;

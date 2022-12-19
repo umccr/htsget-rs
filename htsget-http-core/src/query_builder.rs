@@ -99,11 +99,10 @@ impl QueryBuilder {
       self.query = self.query.with_end(end);
     }
 
-    if (self.query.interval.start.is_some() || self.query.interval.end.is_some())
+    if (self.query.interval().start().is_some() || self.query.interval().end().is_some())
       && self
         .query
-        .reference_name
-        .as_ref()
+        .reference_name()
         .filter(|name| *name != "*")
         .is_none()
     {
@@ -112,7 +111,8 @@ impl QueryBuilder {
       ));
     }
 
-    if let (Some(start), Some(end)) = &(self.query.interval.start, self.query.interval.end) {
+    if let (Some(start), Some(end)) = &(self.query.interval().start(), self.query.interval().end())
+    {
       if start > end {
         return Err(HtsGetError::InvalidRange(format!(
           "end is greater than start (`{}` > `{}`)",
@@ -201,7 +201,7 @@ mod tests {
       QueryBuilder::new(Some("ValidId".to_string()), Some("BAM"))
         .unwrap()
         .build()
-        .id,
+        .id(),
       "ValidId".to_string()
     );
   }
@@ -212,7 +212,7 @@ mod tests {
       QueryBuilder::new(Some("ValidID"), Some("VCF"))
         .unwrap()
         .build()
-        .format,
+        .format(),
       Format::Vcf
     );
   }
@@ -233,7 +233,7 @@ mod tests {
         .with_class(Some("header"))
         .unwrap()
         .build()
-        .class,
+        .class(),
       Class::Header
     );
   }
@@ -245,8 +245,8 @@ mod tests {
         .unwrap()
         .with_reference_name(Some("ValidName"))
         .build()
-        .reference_name,
-      Some("ValidName".to_string())
+        .reference_name(),
+      Some("ValidName")
     );
   }
 
@@ -259,7 +259,7 @@ mod tests {
       .unwrap()
       .build();
     assert_eq!(
-      (query.interval.start, query.interval.end),
+      (query.interval().start(), query.interval().end()),
       (Some(3), Some(5))
     );
   }
@@ -318,8 +318,8 @@ mod tests {
         .unwrap()
         .with_fields(Some("header,part1,part2"))
         .build()
-        .fields,
-      Fields::List(vec![
+        .fields(),
+      &Fields::List(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
@@ -335,14 +335,14 @@ mod tests {
       .unwrap()
       .build();
     assert_eq!(
-      query.tags,
-      Tags::List(vec![
+      query.tags(),
+      &Tags::List(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
       ])
     );
-    assert_eq!(query.no_tags, NoTags(Some(vec!["part3".to_string()])));
+    assert_eq!(query.no_tags(), &NoTags(Some(vec!["part3".to_string()])));
   }
 
   #[test]
@@ -353,13 +353,13 @@ mod tests {
       .unwrap()
       .build();
     assert_eq!(
-      query.tags,
-      Tags::List(vec![
+      query.tags(),
+      &Tags::List(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
       ])
     );
-    assert_eq!(query.no_tags, NoTags(Some(vec!["part3".to_string()])));
+    assert_eq!(query.no_tags(), &NoTags(Some(vec!["part3".to_string()])));
   }
 }

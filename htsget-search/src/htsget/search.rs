@@ -225,24 +225,30 @@ where
 
   /// Search based on the query.
   async fn search(&self, query: Query) -> Result<Response> {
-    match query.class {
+    match query.class() {
       Body => {
         let format = self.get_format();
-        if format != query.format {
+        if format != query.format() {
           return Err(HtsGetError::unsupported_format(format!(
             "using `{}` search, but query contains `{}` format",
-            format, query.format
+            format,
+            query.format()
           )));
         }
 
-        let byte_ranges = match query.reference_name.as_ref() {
+        let byte_ranges = match query.reference_name().as_ref() {
           None => self.get_byte_ranges_for_all(&query).await?,
           Some(reference_name) => {
             let index = self.read_index(&query).await?;
             let header = self.get_header(&query, &index).await?;
 
             let mut byte_ranges = self
-              .get_byte_ranges_for_reference_name(reference_name.clone(), &index, &header, &query)
+              .get_byte_ranges_for_reference_name(
+                reference_name.to_string(),
+                &index,
+                &header,
+                &query,
+              )
               .await?;
             byte_ranges.push(self.get_byte_ranges_for_header(&index).await?);
 
@@ -299,7 +305,7 @@ where
         else => break
       }
     }
-    return Ok(Response::new(query.format, urls));
+    return Ok(Response::new(query.format(), urls));
   }
 
   /// Get the header from the file specified by the id and format.
@@ -385,9 +391,9 @@ where
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
-      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "querying chunks");
+      trace!(id = ?query.id(), ref_seq_id = ?ref_seq_id, "querying chunks");
       let mut chunks = index
-        .query(ref_seq_id, query.interval.clone().into_one_based()?)
+        .query(ref_seq_id, query.interval().clone().into_one_based()?)
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
 
       if chunks.is_empty() {
@@ -396,7 +402,7 @@ where
         ));
       }
 
-      trace!(id = ?query.id.as_str(), ref_seq_id = ?ref_seq_id, "sorting chunks");
+      trace!(id = ?query.id(), ref_seq_id = ?ref_seq_id, "sorting chunks");
       chunks.sort_unstable_by_key(|a| a.end().compressed());
 
       Ok(chunks)
@@ -407,7 +413,7 @@ where
       Ok(gzi_data) => {
         let span = trace_span!("reading gzi");
         let gzi: Result<Vec<u64>> = async {
-          trace!(id = ?query.id.as_str(), "reading gzi");
+          trace!(id = ?query.id(), "reading gzi");
           let mut gzi: Vec<u64> = gzi::AsyncReader::new(BufReader::new(gzi_data))
             .read_index()
             .await?
@@ -415,7 +421,7 @@ where
             .map(|(compressed, _)| compressed)
             .collect();
 
-          trace!(id = ?query.id.as_str(), "sorting gzi");
+          trace!(id = ?query.id(), "sorting gzi");
           gzi.sort_unstable();
           Ok(gzi)
         }

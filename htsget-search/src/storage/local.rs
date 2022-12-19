@@ -53,18 +53,18 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       .base_path
       .join(resolve_id(&self.id_resolver, query)?)
       .canonicalize()
-      .map_err(|_| StorageError::InvalidKey(query.id.to_string()))
+      .map_err(|_| StorageError::InvalidKey(query.id().to_string()))
       .and_then(|path| {
         path
           .starts_with(&self.base_path)
           .then_some(path)
-          .ok_or_else(|| StorageError::InvalidKey(query.id.to_string()))
+          .ok_or_else(|| StorageError::InvalidKey(query.id().to_string()))
       })
       .and_then(|path| {
         path
           .is_file()
           .then_some(path)
-          .ok_or_else(|| StorageError::KeyNotFound(query.id.to_string()))
+          .ok_or_else(|| StorageError::KeyNotFound(query.id().to_string()))
       })
   }
 
@@ -72,7 +72,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
     let path = self.get_path_from_key(query)?;
     File::open(path)
       .await
-      .map_err(|_| StorageError::KeyNotFound(query.id.to_string()))
+      .map_err(|_| StorageError::KeyNotFound(query.id().to_string()))
   }
 }
 
@@ -83,7 +83,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   /// Get the file at the location of the key.
   #[instrument(level = "debug", skip(self))]
   async fn get(&self, query: &Query, _options: GetOptions) -> Result<File> {
-    debug!(calling_from = ?self, id = query.id, "getting file with key {:?}", query.id);
+    debug!(calling_from = ?self, id = query.id(), "getting file with key {:?}", query.id());
     self.get(query).await
   }
 
@@ -99,7 +99,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     let url = Url::new(self.url_formatter.format_url(&path)?);
     let url = options.apply(url);
 
-    debug!(calling_from = ?self, id = query.id, ?url, "getting url with key {:?}", query.id);
+    debug!(calling_from = ?self, id = query.id(), ?url, "getting url with key {:?}", query.id());
     Ok(url)
   }
 
@@ -112,7 +112,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
       .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
       .len();
 
-    debug!(calling_from = ?self, id = query.id, len, "size of key {:?} is {}", query.id, len);
+    debug!(calling_from = ?self, id = query.id(), len, "size of key {:?} is {}", query.id(), len);
     Ok(len)
   }
 }
@@ -122,12 +122,12 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
 
+  use htsget_config::config::cors::CorsConfig;
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
-  use htsget_config::config::StorageType;
-  use htsget_config::regex_resolver::MatchOnQuery;
+  use htsget_config::regex_resolver::StorageType;
   use htsget_config::Format::Bam;
 
   use crate::htsget::{Headers, Url};
@@ -321,14 +321,8 @@ pub(crate) mod tests {
     test(
       LocalStorage::new(
         base_path.path(),
-        RegexResolver::new(
-          ".*",
-          "$0",
-          StorageType::default(),
-          MatchOnQuery::default(),
-        )
-        .unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
+        RegexResolver::new(StorageType::default(), ".*", "$0", Default::default()).unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
       )
       .unwrap(),
     )

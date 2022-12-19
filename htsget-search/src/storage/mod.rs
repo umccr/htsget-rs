@@ -9,17 +9,19 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::encode;
+use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAllowTypes, TaggedAnyAllowType};
+use htsget_config::regex_resolver::{Scheme, UrlResolver};
 use htsget_config::{Class, Query};
-use http::{HeaderValue, Method};
+use http::{uri, HeaderValue, Method};
 use thiserror::Error;
 use tokio::io::AsyncRead;
-use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
+use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
 use crate::htsget::{Headers, Url};
 use crate::storage::data_server::CORS_MAX_AGE;
 use crate::storage::StorageError::DataServerError;
-use crate::{Resolver, RegexResolver};
+use crate::{RegexResolver, Resolver};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -45,7 +47,10 @@ pub trait Storage {
 
   /// Get the url of the object using an inline data uri.
   #[instrument(level = "trace", ret)]
-  fn data_url(data: Vec<u8>, class: Option<Class>) -> Url {
+  fn data_url(data: Vec<u8>, class: Option<Class>) -> Url
+  where
+    Self: Sized,
+  {
     Url::new(format!("data:;base64,{}", encode(data))).set_class(class)
   }
 }
@@ -87,33 +92,63 @@ pub enum StorageError {
   AwsS3Error(String, String),
 }
 
+impl UrlFormatter for UrlResolver {
+  fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
+    uri::Builder::new()
+      .scheme(match self.scheme() {
+        Scheme::Http => uri::Scheme::HTTP,
+        Scheme::Https => uri::Scheme::HTTPS,
+      })
+      .authority(self.authority().to_string())
+      .path_and_query(format!("{}/{}", self.path(), key.as_ref()))
+      .build()
+      .map_err(|err| StorageError::InvalidUri(err.to_string()))
+      .map(|value| value.to_string())
+  }
+}
+
 /// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
 /// are supported.
-pub fn configure_cors(
-  cors_allow_credentials: bool,
-  cors_allow_origin: String,
-) -> Result<CorsLayer> {
+pub fn configure_cors(cors: CorsConfig) -> Result<CorsLayer> {
+  let mut cors_layer = CorsLayer::new();
+  cors_layer = match cors.allow_origins() {
+    AllowType::Tagged(tagged) => match tagged {
+      TaggedAllowTypes::Mirror => cors_layer.allow_origin(AllowOrigin::mirror_request()),
+      TaggedAllowTypes::Any => cors_layer.allow_origin(AllowOrigin::any()),
+    },
+    AllowType::List(origins) => cors_layer.allow_origin(
+      origins
+        .iter()
+        .map(|header| header.clone().into_inner())
+        .collect::<Vec<HeaderValue>>(),
+    ),
+  };
+
+  cors_layer = match cors.allow_headers() {
+    AllowType::Tagged(tagged) => match tagged {
+      TaggedAllowTypes::Mirror => cors_layer.allow_headers(AllowHeaders::mirror_request()),
+      TaggedAllowTypes::Any => cors_layer.allow_headers(AllowHeaders::any()),
+    },
+    AllowType::List(headers) => cors_layer.allow_headers(headers.clone()),
+  };
+
+  cors_layer = match cors.allow_methods() {
+    AllowType::Tagged(tagged) => match tagged {
+      TaggedAllowTypes::Mirror => cors_layer.allow_methods(AllowMethods::mirror_request()),
+      TaggedAllowTypes::Any => cors_layer.allow_methods(AllowMethods::any()),
+    },
+    AllowType::List(methods) => cors_layer.allow_methods(methods.clone()),
+  };
+
+  cors_layer = match cors.expose_headers() {
+    AllowType::Tagged(_) => cors_layer,
+    AllowType::List(headers) => cors_layer.expose_headers(headers.clone()),
+  };
+
   Ok(
-    CorsLayer::new()
-      .allow_origin(
-        cors_allow_origin
-          .parse::<HeaderValue>()
-          .map_err(|err| DataServerError(format!("failed parsing allowed origin: `{}`", err)))?,
-      )
-      .allow_headers(AllowHeaders::mirror_request())
-      .max_age(Duration::from_secs(CORS_MAX_AGE))
-      .allow_credentials(cors_allow_credentials)
-      .allow_methods(AllowMethods::list(vec![
-        Method::GET,
-        Method::POST,
-        Method::PUT,
-        Method::DELETE,
-        Method::HEAD,
-        Method::OPTIONS,
-        Method::CONNECT,
-        Method::PATCH,
-        Method::TRACE,
-      ])),
+    cors_layer
+      .allow_credentials(cors.allow_credentials())
+      .max_age(Duration::from_secs(cors.max_age() as u64)),
   )
 }
 
@@ -371,7 +406,7 @@ impl RangeUrlOptions {
 fn resolve_id(resolver: &RegexResolver, query: &Query) -> Result<String> {
   resolver
     .resolve_id(query)
-    .ok_or_else(|| StorageError::InvalidKey(query.id.to_string()))
+    .ok_or_else(|| StorageError::InvalidKey(query.id().to_string()))
 }
 
 #[cfg(test)]

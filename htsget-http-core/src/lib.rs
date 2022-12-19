@@ -2,11 +2,12 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 pub use error::{HtsGetError, Result};
-#[cfg(feature = "s3-storage")]
-pub use htsget_config::config::aws::AwsS3DataServer;
 pub use htsget_config::config::{
-  Config, LocalDataServer, ServiceInfo as ConfigServiceInfo, StorageType, TicketServerConfig,
+  Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, TicketServerConfig,
 };
+#[cfg(feature = "s3-storage")]
+pub use htsget_config::regex_resolver::aws::S3Resolver;
+pub use htsget_config::regex_resolver::StorageType;
 use htsget_config::Query;
 use htsget_search::htsget::Response;
 pub use http_core::{get_response_for_get_request, get_response_for_post_request};
@@ -113,11 +114,11 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
+  use htsget_config::config::cors::CorsConfig;
   use std::path::PathBuf;
   use std::sync::Arc;
 
-  use htsget_config::config::StorageTypeServer;
-  use htsget_config::regex_resolver::{MatchOnQuery, RegexResolver};
+  use htsget_config::regex_resolver::{RegexResolver, StorageType};
   use htsget_config::Format;
   use htsget_search::htsget::HtsGet;
   use htsget_search::storage::data_server::HttpTicketFormatter;
@@ -275,14 +276,8 @@ mod tests {
     Arc::new(HtsGetFromStorage::new(
       LocalStorage::new(
         get_base_path(),
-        RegexResolver::new(
-          ".*",
-          "$0",
-          StorageTypeServer::default(),
-          MatchOnQuery::default(),
-        )
-        .unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
+        RegexResolver::new(Default::default(), ".*", "$0", Default::default()).unwrap(),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
       )
       .unwrap(),
     ))

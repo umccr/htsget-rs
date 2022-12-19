@@ -68,6 +68,12 @@ where
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeaderValue(HeaderValueInner);
 
+impl HeaderValue {
+  pub fn into_inner(self) -> HeaderValueInner {
+    self.0
+  }
+}
+
 impl FromStr for HeaderValue {
   type Err = InvalidHeaderValue;
 
@@ -117,6 +123,30 @@ impl CorsConfig {
 
   pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     &self.expose_headers
+  }
+
+  pub fn set_allow_credentials(&mut self, allow_credentials: bool) {
+    self.allow_credentials = allow_credentials;
+  }
+
+  pub fn set_allow_origins(&mut self, allow_origins: AllowType<HeaderValue>) {
+    self.allow_origins = allow_origins;
+  }
+
+  pub fn set_allow_headers(&mut self, allow_headers: AllowType<HeaderName>) {
+    self.allow_headers = allow_headers;
+  }
+
+  pub fn set_allow_methods(&mut self, allow_methods: AllowType<Method>) {
+    self.allow_methods = allow_methods;
+  }
+
+  pub fn set_max_age(&mut self, max_age: usize) {
+    self.max_age = max_age;
+  }
+
+  pub fn set_expose_headers(&mut self, expose_headers: AllowType<HeaderName, TaggedAnyAllowType>) {
+    self.expose_headers = expose_headers;
   }
 }
 

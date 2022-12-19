@@ -25,6 +25,7 @@ pub enum Format {
   Bcf,
 }
 
+/// Todo allow these to be configurable.
 impl Format {
   pub fn fmt_file(&self, id: &str) -> String {
     match self {
@@ -273,8 +274,8 @@ impl Query {
     self.class
   }
 
-  pub fn reference_name(&self) -> &Option<String> {
-    &self.reference_name
+  pub fn reference_name(&self) -> Option<&str> {
+    self.reference_name.as_deref()
   }
 
   pub fn interval(&self) -> Interval {

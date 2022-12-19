@@ -194,7 +194,7 @@ where
       let owned_record = record.clone();
       let owned_next = next.clone();
       let owned_predicate = predicate.clone();
-      let range = query.interval.clone();
+      let range = query.interval().clone();
       futures.push_back(tokio::spawn(async move {
         if owned_predicate(&owned_record) {
           Self::bytes_ranges_for_record(range, &owned_record, owned_next.offset())
@@ -224,7 +224,7 @@ where
       }
       Some(last) if predicate(last) => {
         if let Some(range) = Self::bytes_ranges_for_record(
-          query.interval.clone(),
+          query.interval().clone(),
           last,
           self.position_at_eof(query).await?,
         )? {

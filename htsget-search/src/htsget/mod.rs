@@ -28,9 +28,18 @@ type Result<T> = core::result::Result<T, HtsGetError>;
 #[async_trait]
 pub trait HtsGet {
   async fn search(&self, query: Query) -> Result<Response>;
-  fn get_supported_formats(&self) -> Vec<Format>;
-  fn are_field_parameters_effective(&self) -> bool;
-  fn are_tag_parameters_effective(&self) -> bool;
+
+  fn get_supported_formats(&self) -> Vec<Format> {
+    vec![Format::Bam, Format::Cram, Format::Vcf, Format::Bcf]
+  }
+
+  fn are_field_parameters_effective(&self) -> bool {
+    false
+  }
+
+  fn are_tag_parameters_effective(&self) -> bool {
+    false
+  }
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -281,37 +290,37 @@ mod tests {
   #[test]
   fn query_new() {
     let result = Query::new("NA12878", Format::Bam);
-    assert_eq!(result.id, "NA12878");
+    assert_eq!(result.id(), "NA12878");
   }
 
   #[test]
   fn query_with_format() {
     let result = Query::new("NA12878", Format::Bam);
-    assert_eq!(result.format, Format::Bam);
+    assert_eq!(result.format(), Format::Bam);
   }
 
   #[test]
   fn query_with_class() {
     let result = Query::new("NA12878", Format::Bam).with_class(Class::Header);
-    assert_eq!(result.class, Class::Header);
+    assert_eq!(result.class(), Class::Header);
   }
 
   #[test]
   fn query_with_reference_name() {
     let result = Query::new("NA12878", Format::Bam).with_reference_name("chr1");
-    assert_eq!(result.reference_name, Some("chr1".to_string()));
+    assert_eq!(result.reference_name(), Some("chr1"));
   }
 
   #[test]
   fn query_with_start() {
     let result = Query::new("NA12878", Format::Bam).with_start(0);
-    assert_eq!(result.interval.start, Some(0));
+    assert_eq!(result.interval().start(), Some(0));
   }
 
   #[test]
   fn query_with_end() {
     let result = Query::new("NA12878", Format::Bam).with_end(0);
-    assert_eq!(result.interval.end, Some(0));
+    assert_eq!(result.interval().end(), Some(0));
   }
 
   #[test]
@@ -319,23 +328,23 @@ mod tests {
     let result = Query::new("NA12878", Format::Bam)
       .with_fields(Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()]));
     assert_eq!(
-      result.fields,
-      Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()])
+      result.fields(),
+      &Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()])
     );
   }
 
   #[test]
   fn query_with_tags() {
     let result = Query::new("NA12878", Format::Bam).with_tags(Tags::All);
-    assert_eq!(result.tags, Tags::All);
+    assert_eq!(result.tags(), &Tags::All);
   }
 
   #[test]
   fn query_with_no_tags() {
     let result = Query::new("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
-      result.no_tags,
-      NoTags(Some(vec!["RG".to_string(), "OQ".to_string()]))
+      result.no_tags(),
+      &NoTags(Some(vec!["RG".to_string(), "OQ".to_string()]))
     );
   }
 

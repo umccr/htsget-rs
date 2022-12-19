@@ -14,7 +14,7 @@ pub mod aws;
 /// Represents an id resolver, which matches the id, replacing the match in the substitution text.
 pub trait Resolver {
   /// Resolve the id, returning the substituted string if there is a match.
-  fn resolve_id(&mut self, query: &Query) -> Option<String>;
+  fn resolve_id(&self, query: &Query) -> Option<String>;
 }
 
 /// Determines whether the query matches for use with the resolver.
@@ -95,7 +95,7 @@ impl Default for UrlResolver {
 pub struct RegexResolver {
   #[serde(with = "serde_regex")]
   regex: Regex,
-  // todo: should match guard be allowed as variables inside the substitution string?
+  // Todo: should match guard be allowed as variables inside the substitution string?
   substitution_string: String,
   guard: QueryGuard,
   storage_type: StorageType,
@@ -294,7 +294,7 @@ impl RegexResolver {
 
 impl Resolver for RegexResolver {
   #[instrument(level = "trace", skip(self), ret)]
-  fn resolve_id(&mut self, query: &Query) -> Option<String> {
+  fn resolve_id(&self, query: &Query) -> Option<String> {
     if self.regex.is_match(&query.id) && self.guard.query_matches(query) {
       Some(
         self
@@ -308,14 +308,14 @@ impl Resolver for RegexResolver {
   }
 }
 
-impl<I> Resolver for I
-where
-  I: Iterator<Item = RegexResolver>,
-{
-  fn resolve_id(&mut self, query: &Query) -> Option<String> {
-    self.find_map(|mut resolver| resolver.resolve_id(query))
-  }
-}
+// impl<'a, I> Resolver for I
+// where
+//   I: Iterator<Item = &'a RegexResolver>,
+// {
+//   fn resolve_id(&self, query: &Query) -> Option<String> {
+//     self.find_map(|resolver| resolver.resolve_id(query))
+//   }
+// }
 
 #[cfg(test)]
 pub mod tests {

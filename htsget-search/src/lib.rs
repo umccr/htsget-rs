@@ -1,9 +1,9 @@
+pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
 #[cfg(feature = "s3-storage")]
-pub use htsget_config::config::aws::AwsS3DataServer;
-pub use htsget_config::config::{
-  Config, LocalDataServer, ServiceInfo, StorageType, TicketServerConfig,
+pub use htsget_config::regex_resolver::aws::S3Resolver;
+pub use htsget_config::regex_resolver::{
+  QueryMatcher, RegexResolver, Resolver, StorageType, UrlResolver,
 };
-pub use htsget_config::regex_resolver::{Resolver, RegexResolver};
 
 pub mod htsget;
 pub mod storage;

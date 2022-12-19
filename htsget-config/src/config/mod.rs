@@ -266,6 +266,30 @@ impl DataServerConfig {
   pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     self.cors.expose_headers()
   }
+
+  pub fn set_addr(&mut self, addr: SocketAddr) {
+    self.addr = addr;
+  }
+
+  pub fn set_path(&mut self, path: PathBuf) {
+    self.path = path;
+  }
+
+  pub fn set_serve_at(&mut self, serve_at: PathBuf) {
+    self.serve_at = serve_at;
+  }
+
+  pub fn set_key(&mut self, key: Option<PathBuf>) {
+    self.key = key;
+  }
+
+  pub fn set_cert(&mut self, cert: Option<PathBuf>) {
+    self.cert = cert;
+  }
+
+  pub fn set_cors(&mut self, cors: CorsConfig) {
+    self.cors = cors;
+  }
 }
 
 impl Default for DataServerConfig {
@@ -409,6 +433,22 @@ impl Config {
 
   pub fn resolvers(&self) -> &[RegexResolver] {
     &self.resolvers
+  }
+
+  pub fn owned_resolvers(self) -> Vec<RegexResolver> {
+    self.resolvers
+  }
+
+  pub fn set_ticket_server(&mut self, ticket_server: TicketServerConfig) {
+    self.ticket_server = ticket_server;
+  }
+
+  pub fn set_data_server(&mut self, data_server: Option<DataServerConfig>) {
+    self.data_server = data_server;
+  }
+
+  pub fn set_resolvers(&mut self, resolvers: Vec<RegexResolver>) {
+    self.resolvers = resolvers;
   }
 }
 

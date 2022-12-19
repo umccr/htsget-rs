@@ -2,10 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use htsget_config::config::cors::{AllowType, CorsConfig};
+use htsget_config::config::DataServerConfig;
+use htsget_config::regex_resolver::RegexResolver;
 use http::HeaderMap;
 use serde::de;
-use htsget_config::config::{LocalDataServer, StorageType};
-use htsget_config::regex_resolver::RegexResolver;
 
 use crate::util::generate_test_certificates;
 use crate::Config;
@@ -85,46 +86,61 @@ pub fn default_dir_data() -> PathBuf {
   default_dir().join("data")
 }
 
-fn set_path(config: &mut LocalDataServer) {
-  config.path = default_dir_data();
+fn set_path(config: &mut DataServerConfig) {
+  config.set_path(default_dir_data());
 }
 
-fn set_addr_and_path(config: &mut LocalDataServer) {
+fn set_addr_and_path(config: &mut DataServerConfig) {
   set_path(config);
-  config.addr = "127.0.0.1:0".parse().unwrap();
+  config.set_addr("127.0.0.1:0".parse().unwrap());
 }
 
 /// Default config with fixed port.
-pub fn default_config_fixed_port() -> LocalDataServer {
-  let mut config = LocalDataServer::default();
-  set_path(&mut config);
+pub fn default_config_fixed_port() -> Config {
+  let mut config = Config::default();
+
+  let mut data_server_config = DataServerConfig::default();
+  set_path(&mut data_server_config);
+
+  config.set_data_server(Some(data_server_config));
+
   config
 }
 
 /// Default config using the current cargo manifest directory, and dynamic port.
 pub fn default_test_config() -> Config {
-  let mut server_config = LocalDataServer::default();
+  let mut server_config = DataServerConfig::default();
   set_addr_and_path(&mut server_config);
 
-  let mut server_config = LocalDataServer::default();
-  server_config.cors_allow_credentials = false;
-  server_config.cors_allow_origin = "http://example.com".to_string();
+  let mut server_config = DataServerConfig::default();
+  let mut cors = CorsConfig::default();
 
-  Config::from(server_config)
+  cors.set_allow_credentials(false);
+  cors.set_allow_origins(AllowType::List(vec!["http://example.com".parse().unwrap()]));
+
+  server_config.set_cors(cors);
+
+  let mut config = Config::default();
+  config.set_data_server(Some(server_config));
+
+  config
 }
 
 /// Config with tls ticket server, using the current cargo manifest directory.
 pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
-  let mut server_config = LocalDataServer::default();
+  let mut server_config = DataServerConfig::default();
   set_addr_and_path(&mut server_config);
 
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
 
-  let mut server_config = LocalDataServer::default();
-  server_config.key = Some(key_path);
-  server_config.cert = Some(cert_path);
+  let mut server_config = DataServerConfig::default();
+  server_config.set_key(Some(key_path));
+  server_config.set_cert(Some(cert_path));
 
-  Config::from(server_config)
+  let mut config = Config::default();
+  config.set_data_server(Some(server_config));
+
+  config
 }
 
 /// Get the event associated with the file.
