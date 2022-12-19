@@ -89,7 +89,7 @@ jobs:
         with:
           tool: 'cargo'
           output-file-path: search-benchmarks.json
-          external-data-json-path: search-benchmarks.json
+          #external-data-json-path: search-benchmarks.json
           fail-on-alert: false
           # Access token to deploy GitHub Pages branch
           github-token: ${{ secrets.GITHUB_TOKEN }}
