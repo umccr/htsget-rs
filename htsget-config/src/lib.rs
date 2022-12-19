@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
 use std::io::ErrorKind::Other;
 use std::{fmt, io};
+use std::collections::HashSet;
 use tracing::instrument;
 
 pub mod config;
@@ -172,7 +173,7 @@ pub enum Fields {
   #[serde(alias = "all", alias = "ALL")]
   All,
   /// List of fields to include
-  List(Vec<String>),
+  List(HashSet<String>),
 }
 
 /// Possible values for the tags parameter.
@@ -183,12 +184,12 @@ pub enum Tags {
   #[serde(alias = "all", alias = "ALL")]
   All,
   /// List of tags to include
-  List(Vec<String>),
+  List(HashSet<String>),
 }
 
 /// The no tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub struct NoTags(pub Option<Vec<String>>);
+pub struct NoTags(pub Option<HashSet<String>>);
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.

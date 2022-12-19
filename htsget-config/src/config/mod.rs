@@ -618,7 +618,7 @@ mod tests {
         "#,
       |config| {
         assert_eq!(
-          config.resolvers().first().unwrap().match_formats(),
+          config.resolvers().first().unwrap().allowed_formats(),
           &vec![Bam]
         );
       },

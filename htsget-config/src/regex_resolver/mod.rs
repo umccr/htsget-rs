@@ -7,6 +7,7 @@ use crate::config::{default_localstorage_addr, default_serve_at};
 use crate::regex_resolver::aws::S3Resolver;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
 use crate::{Class, Fields, Format, Interval, NoTags, Query, Tags};
+use crate::regex_resolver::ReferenceNames::All;
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -105,66 +106,68 @@ pub struct RegexResolver {
 #[derive(Serialize, Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct QueryGuard {
-  match_formats: Vec<Format>,
-  match_class: Vec<Class>,
+  allowed_formats: Vec<Format>,
+  allowed_classes: Vec<Class>,
+  allowed_reference_names: ReferenceNames,
+  allowed_interval: Interval,
+  allowed_fields: Fields,
+  allowed_tags: Tags,
+}
+
+/// Referneces names that can be matched.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum ReferenceNames {
+  All,
   #[serde(with = "serde_regex")]
-  match_reference_name: Regex,
-  /// The start and end positions are 0-based. [start, end)
-  start_interval: Interval,
-  end_interval: Interval,
-  match_fields: Fields,
-  match_tags: Tags,
-  match_no_tags: NoTags,
+  Some(Regex)
 }
 
 impl QueryGuard {
-  pub fn match_formats(&self) -> &[Format] {
-    &self.match_formats
+  pub fn allowed_formats(&self) -> &[Format] {
+    &self.allowed_formats
   }
 
-  pub fn match_classes(&self) -> &[Class] {
-    &self.match_class
+  pub fn allowed_classes(&self) -> &[Class] {
+    &self.allowed_classes
   }
 
-  pub fn match_reference_name(&self) -> &Regex {
-    &self.match_reference_name
+  pub fn allowed_reference_names(&self) -> &ReferenceNames {
+    &self.allowed_reference_names
   }
 
-  pub fn start_interval(&self) -> Interval {
-    self.start_interval
+  pub fn allowed_interval(&self) -> Interval {
+    self.allowed_interval
   }
 
-  pub fn end_interval(&self) -> Interval {
-    self.end_interval
+  pub fn allowed_fields(&self) -> &Fields {
+    &self.allowed_fields
   }
 
-  pub fn match_fields(&self) -> &Fields {
-    &self.match_fields
-  }
-
-  pub fn match_tags(&self) -> &Tags {
-    &self.match_tags
-  }
-
-  pub fn match_no_tags(&self) -> &NoTags {
-    &self.match_no_tags
+  pub fn allowed_tags(&self) -> &Tags {
+    &self.allowed_tags
   }
 }
 
 impl Default for QueryGuard {
   fn default() -> Self {
     Self {
-      match_formats: vec![Bam, Cram, Vcf, Bcf],
-      match_class: vec![Class::Body, Class::Header],
-      match_reference_name: Regex::new(".*").expect("Expected valid regex expression"),
-      start_interval: Interval {
-        start: Some(0),
-        end: Some(100),
-      },
-      end_interval: Default::default(),
-      match_fields: Fields::All,
-      match_tags: Tags::All,
-      match_no_tags: NoTags(None),
+      allowed_formats: vec![Bam, Cram, Vcf, Bcf],
+      allowed_classes: vec![Class::Body, Class::Header],
+      allowed_reference_names: All,
+      allowed_interval: Default::default(),
+      allowed_fields: Fields::All,
+      allowed_tags: Tags::All,
+    }
+  }
+}
+
+impl QueryMatcher for ReferenceNames {
+  fn query_matches(&self, query: &Query) -> bool {
+    match (self, &query.reference_name) {
+      (ReferenceNames::All, _) => true,
+      (ReferenceNames::Some(regex), Some(reference_name)) => regex.is_match(reference_name),
+      (ReferenceNames::Some(_), None) => false,
     }
   }
 }
@@ -173,7 +176,7 @@ impl QueryMatcher for Fields {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.fields) {
       (Fields::All, _) => true,
-      (Fields::List(self_fields), Fields::List(query_fields)) => self_fields == query_fields,
+      (Fields::List(self_fields), Fields::List(query_fields)) => self_fields.is_subset(query_fields),
       (Fields::List(_), Fields::All) => false,
     }
   }
@@ -183,40 +186,25 @@ impl QueryMatcher for Tags {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.tags) {
       (Tags::All, _) => true,
-      (Tags::List(self_tags), Tags::List(query_tags)) => self_tags == query_tags,
+      (Tags::List(self_tags), Tags::List(query_tags)) => self_tags.is_subset(query_tags),
       (Tags::List(_), Tags::All) => false,
-    }
-  }
-}
-
-impl QueryMatcher for NoTags {
-  fn query_matches(&self, query: &Query) -> bool {
-    match (self, &query.no_tags) {
-      (NoTags(None), _) => true,
-      (NoTags(Some(self_no_tags)), NoTags(Some(query_no_tags))) => self_no_tags == query_no_tags,
-      (NoTags(Some(_)), NoTags(None)) => false,
     }
   }
 }
 
 impl QueryMatcher for QueryGuard {
   fn query_matches(&self, query: &Query) -> bool {
-    if let Some(reference_name) = &query.reference_name {
-      self.match_formats.contains(&query.format)
-        && self.match_class.contains(&query.class)
-        && self.match_reference_name.is_match(reference_name)
+    self.allowed_formats.contains(&query.format)
+        && self.allowed_classes.contains(&query.class)
+        && self.allowed_reference_names.query_matches(query)
         && self
-          .start_interval
+          .allowed_interval
           .contains(query.interval.start.unwrap_or(u32::MIN))
         && self
-          .end_interval
+          .allowed_interval
           .contains(query.interval.end.unwrap_or(u32::MAX))
-        && self.match_fields.query_matches(query)
-        && self.match_tags.query_matches(query)
-        && self.match_no_tags.query_matches(query)
-    } else {
-      false
-    }
+        && self.allowed_fields.query_matches(query)
+        && self.allowed_tags.query_matches(query)
   }
 }
 
@@ -259,36 +247,28 @@ impl RegexResolver {
     &self.storage_type
   }
 
-  pub fn match_formats(&self) -> &[Format] {
-    self.guard.match_formats()
+  pub fn allowed_formats(&self) -> &[Format] {
+    self.guard.allowed_formats()
   }
 
-  pub fn match_classes(&self) -> &[Class] {
-    self.guard.match_classes()
+  pub fn allowed_classes(&self) -> &[Class] {
+    self.guard.allowed_classes()
   }
 
-  pub fn match_reference_name(&self) -> &Regex {
-    &self.guard.match_reference_name
+  pub fn allowed_reference_names(&self) -> &ReferenceNames {
+    &self.guard.allowed_reference_names
   }
 
-  pub fn start_interval(&self) -> Interval {
-    self.guard.start_interval
+  pub fn allowed_interval(&self) -> Interval {
+    self.guard.allowed_interval
   }
 
-  pub fn end_interval(&self) -> Interval {
-    self.guard.end_interval
+  pub fn allowed_fields(&self) -> &Fields {
+    &self.guard.allowed_fields
   }
 
-  pub fn match_fields(&self) -> &Fields {
-    &self.guard.match_fields
-  }
-
-  pub fn match_tags(&self) -> &Tags {
-    &self.guard.match_tags
-  }
-
-  pub fn match_no_tags(&self) -> &NoTags {
-    &self.guard.match_no_tags
+  pub fn allowed_tags(&self) -> &Tags {
+    &self.guard.allowed_tags
   }
 }
 
