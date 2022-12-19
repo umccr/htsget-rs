@@ -3,6 +3,7 @@ pub mod cors;
 use std::fmt::Debug;
 use std::io;
 use std::io::ErrorKind;
+use std::iter::Map;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
@@ -10,10 +11,11 @@ use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAnyAllowType
 use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
+use figment::value::Value::Dict;
 use http::header::HeaderName;
 use http::Method;
 use serde::de::IntoDeserializer;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::with_prefix;
 use tracing::info;
 use tracing::instrument;
@@ -89,17 +91,27 @@ struct Args {
   config: PathBuf,
 }
 
-fn empty_string_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+fn deserialize_empty_string_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
   D: Deserializer<'de>,
   T: Deserialize<'de>,
 {
-  let optional_string = Option::deserialize(deserializer)?
-    .filter(|s: &String| !s.is_empty() && s.to_lowercase() != "none");
+  let optional_string = Option::deserialize(deserializer)?.filter(|s: &String| !s.is_empty() && s.to_lowercase() != "none");
   if let Some(string) = optional_string {
     Ok(Some(T::deserialize(string.into_deserializer())?))
   } else {
     Ok(None)
+  }
+}
+
+fn serialize_empty_string_as_none<S, T>(optional: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
+  where
+      S: Serializer,
+      T: Serialize,
+{
+  match optional {
+    None => serializer.serialize_str("None"),
+    Some(value) => T::serialize(value, serializer)
   }
 }
 
@@ -109,9 +121,23 @@ where
 pub struct Config {
   #[serde(flatten)]
   ticket_server: TicketServerConfig,
-  #[serde(deserialize_with = "empty_string_as_none")]
-  data_server: Option<DataServerConfig>,
+  data_server: DataServerConfigOption,
   resolvers: Vec<RegexResolver>,
+}
+
+/// None component of data server config. Allows deserializing no data server config as none.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+enum DataServerConfigNone {
+  #[serde(alias = "none", alias = "NONE", alias = "")]
+  None
+}
+
+/// Data server config enum options.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
+enum DataServerConfigOption {
+  None(DataServerConfigNone),
+  Some(DataServerConfig)
 }
 
 with_prefix!(ticket_server_prefix "ticket_server_");
@@ -379,7 +405,7 @@ impl Default for Config {
   fn default() -> Self {
     Self {
       ticket_server: TicketServerConfig::default(),
-      data_server: Some(DataServerConfig::default()),
+      data_server: DataServerConfigOption::Some(DataServerConfig::default()),
       resolvers: vec![RegexResolver::default(), RegexResolver::default()],
     }
   }
@@ -428,7 +454,10 @@ impl Config {
   }
 
   pub fn data_server(&self) -> Option<&DataServerConfig> {
-    self.data_server.as_ref()
+    match self.data_server {
+      DataServerConfigOption::None(_) => None,
+      DataServerConfigOption::Some(ref config) => Some(config)
+    }
   }
 
   pub fn resolvers(&self) -> &[RegexResolver] {
@@ -444,7 +473,14 @@ impl Config {
   }
 
   pub fn set_data_server(&mut self, data_server: Option<DataServerConfig>) {
-    self.data_server = data_server;
+    match data_server {
+      None => {
+        self.data_server = DataServerConfigOption::None(DataServerConfigNone::None);
+      },
+      Some(value ) => {
+        self.data_server = DataServerConfigOption::Some(value);
+      }
+    }
   }
 
   pub fn set_resolvers(&mut self, resolvers: Vec<RegexResolver>) {
@@ -530,12 +566,25 @@ mod tests {
   #[test]
   fn config_data_server_addr_env() {
     test_config_from_env(
-      vec![("HTSGET_DATA_SERVERS", "[{addr=127.0.0.1:8082}]")],
+      vec![("HTSGET_DATA_SERVER", "{addr=127.0.0.1:8082}")],
       |config| {
         assert_eq!(
           config.data_server().unwrap().addr(),
           "127.0.0.1:8082".parse().unwrap()
         );
+      },
+    );
+  }
+
+  #[test]
+  fn config_no_data_server_env() {
+    test_config_from_env(
+      vec![("HTSGET_DATA_SERVER", "")],
+      |config| {
+        assert!(matches!(
+          config.data_server(),
+          None
+        ));
       },
     );
   }
@@ -578,7 +627,7 @@ mod tests {
   fn config_data_server_addr_file() {
     test_config_from_file(
       r#"
-            [[data_servers]]
+            [data_server]
             addr = "127.0.0.1:8082"
         "#,
       |config| {
@@ -586,6 +635,19 @@ mod tests {
           config.data_server().unwrap().addr(),
           "127.0.0.1:8082".parse().unwrap()
         );
+      },
+    );
+  }
+
+  #[test]
+  fn config_no_data_server_file() {
+    test_config_from_file(
+      r#"data_server = """#,
+      |config| {
+        assert!(matches!(
+          config.data_server(),
+          None
+        ));
       },
     );
   }
@@ -614,11 +676,11 @@ mod tests {
             regex = "regex"
 
             [resolvers.guard]
-            match_formats = ["BAM"]
+            allow_formats = ["BAM"]
         "#,
       |config| {
         assert_eq!(
-          config.resolvers().first().unwrap().allowed_formats(),
+          config.resolvers().first().unwrap().allow_formats(),
           &vec![Bam]
         );
       },

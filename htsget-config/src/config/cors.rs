@@ -188,7 +188,7 @@ mod tests {
   #[test]
   fn unit_variant_any_allow_type() {
     test_cors_config(
-      "cors_allow_methods = \"Any\"",
+      "allow_methods = \"Any\"",
       &AllowType::Tagged(TaggedAllowTypes::Any),
       |config| config.allow_methods(),
     );
@@ -197,7 +197,7 @@ mod tests {
   #[test]
   fn unit_variant_mirror_allow_type() {
     test_cors_config(
-      "cors_allow_methods = \"Mirror\"",
+      "allow_methods = \"Mirror\"",
       &AllowType::Tagged(TaggedAllowTypes::Mirror),
       |config| config.allow_methods(),
     );
@@ -206,7 +206,7 @@ mod tests {
   #[test]
   fn list_allow_type() {
     test_cors_config(
-      "cors_allow_methods = [\"GET\"]",
+      "allow_methods = [\"GET\"]",
       &AllowType::List(vec![Method::GET]),
       |config| config.allow_methods(),
     );
@@ -215,7 +215,7 @@ mod tests {
   #[test]
   fn tagged_any_allow_type() {
     test_cors_config(
-      "cors_expose_headers = \"Any\"",
+      "expose_headers = \"Any\"",
       &AllowType::Tagged(TaggedAnyAllowType::Any),
       |config| config.expose_headers(),
     );
@@ -223,7 +223,7 @@ mod tests {
 
   #[test]
   fn tagged_any_allow_type_err_on_mirror() {
-    let allow_type_method = "cors_expose_headers = \"Mirror\"";
+    let allow_type_method = "expose_headers = \"Mirror\"";
     let config: Result<CorsConfig, Error> = toml::from_str(allow_type_method);
     assert!(matches!(config, Err(_)));
   }

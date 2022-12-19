@@ -106,12 +106,12 @@ pub struct RegexResolver {
 #[derive(Serialize, Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct QueryGuard {
-  allowed_formats: Vec<Format>,
-  allowed_classes: Vec<Class>,
-  allowed_reference_names: ReferenceNames,
-  allowed_interval: Interval,
-  allowed_fields: Fields,
-  allowed_tags: Tags,
+  allow_formats: Vec<Format>,
+  allow_classes: Vec<Class>,
+  allow_reference_names: ReferenceNames,
+  allow_interval: Interval,
+  allow_fields: Fields,
+  allow_tags: Tags,
 }
 
 /// Referneces names that can be matched.
@@ -124,40 +124,40 @@ pub enum ReferenceNames {
 }
 
 impl QueryGuard {
-  pub fn allowed_formats(&self) -> &[Format] {
-    &self.allowed_formats
+  pub fn allow_formats(&self) -> &[Format] {
+    &self.allow_formats
   }
 
-  pub fn allowed_classes(&self) -> &[Class] {
-    &self.allowed_classes
+  pub fn allow_classes(&self) -> &[Class] {
+    &self.allow_classes
   }
 
-  pub fn allowed_reference_names(&self) -> &ReferenceNames {
-    &self.allowed_reference_names
+  pub fn allow_reference_names(&self) -> &ReferenceNames {
+    &self.allow_reference_names
   }
 
-  pub fn allowed_interval(&self) -> Interval {
-    self.allowed_interval
+  pub fn allow_interval(&self) -> Interval {
+    self.allow_interval
   }
 
-  pub fn allowed_fields(&self) -> &Fields {
-    &self.allowed_fields
+  pub fn allow_fields(&self) -> &Fields {
+    &self.allow_fields
   }
 
-  pub fn allowed_tags(&self) -> &Tags {
-    &self.allowed_tags
+  pub fn allow_tags(&self) -> &Tags {
+    &self.allow_tags
   }
 }
 
 impl Default for QueryGuard {
   fn default() -> Self {
     Self {
-      allowed_formats: vec![Bam, Cram, Vcf, Bcf],
-      allowed_classes: vec![Class::Body, Class::Header],
-      allowed_reference_names: All,
-      allowed_interval: Default::default(),
-      allowed_fields: Fields::All,
-      allowed_tags: Tags::All,
+      allow_formats: vec![Bam, Cram, Vcf, Bcf],
+      allow_classes: vec![Class::Body, Class::Header],
+      allow_reference_names: All,
+      allow_interval: Default::default(),
+      allow_fields: Fields::All,
+      allow_tags: Tags::All,
     }
   }
 }
@@ -194,17 +194,17 @@ impl QueryMatcher for Tags {
 
 impl QueryMatcher for QueryGuard {
   fn query_matches(&self, query: &Query) -> bool {
-    self.allowed_formats.contains(&query.format)
-        && self.allowed_classes.contains(&query.class)
-        && self.allowed_reference_names.query_matches(query)
+    self.allow_formats.contains(&query.format)
+        && self.allow_classes.contains(&query.class)
+        && self.allow_reference_names.query_matches(query)
         && self
-          .allowed_interval
+          .allow_interval
           .contains(query.interval.start.unwrap_or(u32::MIN))
         && self
-          .allowed_interval
+          .allow_interval
           .contains(query.interval.end.unwrap_or(u32::MAX))
-        && self.allowed_fields.query_matches(query)
-        && self.allowed_tags.query_matches(query)
+        && self.allow_fields.query_matches(query)
+        && self.allow_tags.query_matches(query)
   }
 }
 
@@ -247,28 +247,28 @@ impl RegexResolver {
     &self.storage_type
   }
 
-  pub fn allowed_formats(&self) -> &[Format] {
-    self.guard.allowed_formats()
+  pub fn allow_formats(&self) -> &[Format] {
+    self.guard.allow_formats()
   }
 
-  pub fn allowed_classes(&self) -> &[Class] {
-    self.guard.allowed_classes()
+  pub fn allow_classes(&self) -> &[Class] {
+    self.guard.allow_classes()
   }
 
-  pub fn allowed_reference_names(&self) -> &ReferenceNames {
-    &self.guard.allowed_reference_names
+  pub fn allow_reference_names(&self) -> &ReferenceNames {
+    &self.guard.allow_reference_names
   }
 
-  pub fn allowed_interval(&self) -> Interval {
-    self.guard.allowed_interval
+  pub fn allow_interval(&self) -> Interval {
+    self.guard.allow_interval
   }
 
-  pub fn allowed_fields(&self) -> &Fields {
-    &self.guard.allowed_fields
+  pub fn allow_fields(&self) -> &Fields {
+    &self.guard.allow_fields
   }
 
-  pub fn allowed_tags(&self) -> &Tags {
-    &self.guard.allowed_tags
+  pub fn allow_tags(&self) -> &Tags {
+    &self.guard.allow_tags
   }
 }
 
