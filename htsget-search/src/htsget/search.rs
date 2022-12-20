@@ -205,7 +205,10 @@ where
   /// Get the position at the end of file marker.
   #[instrument(level = "trace", skip(self), ret)]
   async fn position_at_eof(&self, query: &Query) -> Result<u64> {
-    let file_size = self.get_storage().head(query.format().fmt_file(query.id())).await?;
+    let file_size = self
+      .get_storage()
+      .head(query.format().fmt_file(query.id()))
+      .await?;
     Ok(
       file_size
         - u64::try_from(self.get_eof_marker().len())
@@ -217,7 +220,10 @@ where
   #[instrument(level = "trace", skip(self))]
   async fn read_index(&self, query: &Query) -> Result<Index> {
     trace!("reading index");
-    let storage = self.get_storage().get(query.format().fmt_index(query.id()), GetOptions::default()).await?;
+    let storage = self
+      .get_storage()
+      .get(query.format().fmt_index(query.id()), GetOptions::default())
+      .await?;
     Self::read_index_inner(storage)
       .await
       .map_err(|err| HtsGetError::io_error(format!("reading {} index: {}", self.get_format(), err)))
@@ -289,7 +295,10 @@ where
           let query_owned = query.clone();
           storage_futures.push_back(tokio::spawn(async move {
             storage
-              .range_url(query_owned.format().fmt_file(query_owned.id()), RangeUrlOptions::from(range))
+              .range_url(
+                query_owned.format().fmt_file(query_owned.id()),
+                RangeUrlOptions::from(range),
+              )
               .await
           }));
         }
@@ -314,7 +323,10 @@ where
     trace!("getting header");
     let get_options =
       GetOptions::default().with_range(self.get_byte_ranges_for_header(index).await?);
-    let reader_type = self.get_storage().get(query.format().fmt_file(query.id()), get_options).await?;
+    let reader_type = self
+      .get_storage()
+      .get(query.format().fmt_file(query.id()), get_options)
+      .await?;
     let mut reader = Self::init_reader(reader_type);
 
     Self::read_raw_header(&mut reader)
@@ -408,7 +420,10 @@ where
       Ok(chunks)
     });
 
-    let gzi_data = self.get_storage().get(query.format().fmt_gzi(query.id())?, GetOptions::default()).await;
+    let gzi_data = self
+      .get_storage()
+      .get(query.format().fmt_gzi(query.id())?, GetOptions::default())
+      .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {
         let span = trace_span!("reading gzi");

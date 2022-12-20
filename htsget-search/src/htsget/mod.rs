@@ -231,8 +231,8 @@ impl Response {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use std::collections::HashSet;
   use htsget_config::{Fields, NoTags, Tags};
+  use std::collections::HashSet;
 
   #[test]
   fn htsget_error_not_found() {
@@ -326,11 +326,17 @@ mod tests {
 
   #[test]
   fn query_with_fields() {
-    let result = Query::new("NA12878", Format::Bam)
-      .with_fields(Fields::List(HashSet::from_iter(vec!["QNAME".to_string(), "FLAG".to_string()])));
+    let result =
+      Query::new("NA12878", Format::Bam).with_fields(Fields::List(HashSet::from_iter(vec![
+        "QNAME".to_string(),
+        "FLAG".to_string(),
+      ])));
     assert_eq!(
       result.fields(),
-      &Fields::List(HashSet::from_iter(vec!["QNAME".to_string(), "FLAG".to_string()]))
+      &Fields::List(HashSet::from_iter(vec![
+        "QNAME".to_string(),
+        "FLAG".to_string()
+      ]))
     );
   }
 
@@ -345,7 +351,10 @@ mod tests {
     let result = Query::new("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
       result.no_tags(),
-      &NoTags(Some(HashSet::from_iter(vec!["RG".to_string(), "OQ".to_string()])))
+      &NoTags(Some(HashSet::from_iter(vec![
+        "RG".to_string(),
+        "OQ".to_string()
+      ])))
     );
   }
 

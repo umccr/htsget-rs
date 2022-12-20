@@ -40,6 +40,63 @@ pub enum AllowType<T, Tagged = TaggedAllowTypes> {
   List(Vec<T>),
 }
 
+impl<T, Tagged> AllowType<T, Tagged> {
+  /// Apply a function to the builder when the type is a List.
+  pub fn apply_list<F, U>(&self, func: F, builder: U) -> U
+  where
+    F: FnOnce(U, &Vec<T>) -> U,
+  {
+    if let Self::List(list) = self {
+      func(builder, list)
+    } else {
+      builder
+    }
+  }
+
+  /// Apply a function to the builder when the type is tagged.
+  pub fn apply_tagged<F, U>(&self, func: F, builder: U, tagged_type: &Tagged) -> U
+  where
+    F: FnOnce(U) -> U,
+    Tagged: Eq,
+  {
+    if let Self::Tagged(tagged) = self {
+      if tagged == tagged_type {
+        return func(builder);
+      }
+    }
+
+    builder
+  }
+}
+
+impl<T> AllowType<T, TaggedAllowTypes> {
+  /// Apply a function to the builder when the type is Mirror.
+  pub fn apply_mirror<F, U>(&self, func: F, builder: U) -> U
+  where
+    F: FnOnce(U) -> U,
+  {
+    self.apply_tagged(func, builder, &TaggedAllowTypes::Mirror)
+  }
+
+  /// Apply a function to the builder when the type is Any.
+  pub fn apply_any<F, U>(&self, func: F, builder: U) -> U
+  where
+    F: FnOnce(U) -> U,
+  {
+    self.apply_tagged(func, builder, &TaggedAllowTypes::Any)
+  }
+}
+
+impl<T> AllowType<T, TaggedAnyAllowType> {
+  /// Apply a function to the builder when the type is Any.
+  pub fn apply_any<F, U>(&self, func: F, builder: U) -> U
+  where
+    F: FnOnce(U) -> U,
+  {
+    self.apply_tagged(func, builder, &TaggedAnyAllowType::Any)
+  }
+}
+
 fn serialize_allow_types<S, T>(names: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
 where
   T: Display,
@@ -94,8 +151,8 @@ impl Display for HeaderValue {
 pub struct CorsConfig {
   allow_credentials: bool,
   allow_origins: AllowType<HeaderValue>,
-  allow_headers: AllowType<HeaderName>,
-  allow_methods: AllowType<Method>,
+  allow_headers: AllowType<HeaderName, TaggedAnyAllowType>,
+  allow_methods: AllowType<Method, TaggedAnyAllowType>,
   max_age: usize,
   expose_headers: AllowType<HeaderName, TaggedAnyAllowType>,
 }
@@ -109,11 +166,11 @@ impl CorsConfig {
     &self.allow_origins
   }
 
-  pub fn allow_headers(&self) -> &AllowType<HeaderName> {
+  pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     &self.allow_headers
   }
 
-  pub fn allow_methods(&self) -> &AllowType<Method> {
+  pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
     &self.allow_methods
   }
 
@@ -133,11 +190,11 @@ impl CorsConfig {
     self.allow_origins = allow_origins;
   }
 
-  pub fn set_allow_headers(&mut self, allow_headers: AllowType<HeaderName>) {
+  pub fn set_allow_headers(&mut self, allow_headers: AllowType<HeaderName, TaggedAnyAllowType>) {
     self.allow_headers = allow_headers;
   }
 
-  pub fn set_allow_methods(&mut self, allow_methods: AllowType<Method>) {
+  pub fn set_allow_methods(&mut self, allow_methods: AllowType<Method, TaggedAnyAllowType>) {
     self.allow_methods = allow_methods;
   }
 
@@ -157,8 +214,8 @@ impl Default for CorsConfig {
       allow_origins: AllowType::List(vec![HeaderValue(HeaderValueInner::from_static(
         default_server_origin(),
       ))]),
-      allow_headers: AllowType::Tagged(TaggedAllowTypes::Mirror),
-      allow_methods: AllowType::Tagged(TaggedAllowTypes::Mirror),
+      allow_headers: AllowType::Tagged(TaggedAnyAllowType::Any),
+      allow_methods: AllowType::Tagged(TaggedAnyAllowType::Any),
       max_age: CORS_MAX_AGE,
       expose_headers: AllowType::List(vec![]),
     }
@@ -189,7 +246,7 @@ mod tests {
   fn unit_variant_any_allow_type() {
     test_cors_config(
       "allow_methods = \"Any\"",
-      &AllowType::Tagged(TaggedAllowTypes::Any),
+      &AllowType::Tagged(TaggedAnyAllowType::Any),
       |config| config.allow_methods(),
     );
   }
@@ -197,9 +254,9 @@ mod tests {
   #[test]
   fn unit_variant_mirror_allow_type() {
     test_cors_config(
-      "allow_methods = \"Mirror\"",
+      "allow_origins = \"Mirror\"",
       &AllowType::Tagged(TaggedAllowTypes::Mirror),
-      |config| config.allow_methods(),
+      |config| config.allow_origins(),
     );
   }
 

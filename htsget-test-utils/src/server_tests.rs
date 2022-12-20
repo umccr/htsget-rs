@@ -53,7 +53,8 @@ pub async fn test_response(response: Response, class: Class) {
             .unwrap(),
         )
         .send()
-        .await.unwrap()
+        .await
+        .unwrap()
         .bytes()
         .await
         .unwrap()
@@ -79,7 +80,11 @@ pub async fn test_response(response: Response, class: Class) {
 /// Create the a [HttpTicketFormatter], spawn the ticket server, returning the expected path and the formatter.
 pub async fn formatter_and_expected_path(config: &Config) -> (String, HttpTicketFormatter) {
   let mut formatter = formatter_from_config(config).unwrap();
-  spawn_ticket_server(config.data_server().unwrap().local_path().into(), &mut formatter).await;
+  spawn_ticket_server(
+    config.data_server().unwrap().local_path().into(),
+    &mut formatter,
+  )
+  .await;
 
   (expected_url_path(&formatter), formatter)
 }

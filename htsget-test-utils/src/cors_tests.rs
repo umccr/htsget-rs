@@ -70,7 +70,8 @@ pub async fn test_cors_preflight_request_uri<T: TestRequest>(
       .get(ACCESS_CONTROL_ALLOW_ORIGIN)
       .unwrap()
       .to_str()
-      .unwrap().to_lowercase(),
+      .unwrap()
+      .to_lowercase(),
     "http://example.com"
   );
 
@@ -81,16 +82,16 @@ pub async fn test_cors_preflight_request_uri<T: TestRequest>(
       .unwrap()
       .to_str()
       .unwrap()
-        .to_lowercase(),
+      .to_lowercase(),
     "x-requested-with"
   );
 
-  assert!(
-    response
-        .headers
-        .get(ACCESS_CONTROL_ALLOW_METHODS)
-        .unwrap()
-        .to_str()
-        .unwrap().to_lowercase().contains("post")
-  );
+  assert!(response
+    .headers
+    .get(ACCESS_CONTROL_ALLOW_METHODS)
+    .unwrap()
+    .to_str()
+    .unwrap()
+    .to_lowercase()
+    .contains("post"));
 }

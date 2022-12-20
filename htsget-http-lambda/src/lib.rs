@@ -205,7 +205,7 @@ mod tests {
   use std::sync::Arc;
 
   use async_trait::async_trait;
-  use htsget_config::regex_resolver::{RegexResolver, StorageType, LocalResolver};
+  use htsget_config::regex_resolver::{LocalResolver, RegexResolver, StorageType};
   use htsget_config::Class;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;

@@ -62,39 +62,46 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
 /// are supported.
 pub fn configure_cors(cors: CorsConfig) -> Cors {
   let mut cors_layer = Cors::default();
-  cors_layer = match cors.allow_origins() {
-    AllowType::Tagged(tagged) => match tagged {
-      TaggedAllowTypes::Mirror => cors_layer.allow_any_origin(),
-      TaggedAllowTypes::Any => cors_layer.allow_any_origin().send_wildcard(),
-    },
-    AllowType::List(origins) => {
+  cors_layer = cors.allow_origins().apply_any(
+    |cors_layer| cors_layer.allow_any_origin().send_wildcard(),
+    cors_layer,
+  );
+  cors_layer = cors
+    .allow_origins()
+    .apply_mirror(|cors_layer| cors_layer.allow_any_origin(), cors_layer);
+  cors_layer = cors.allow_origins().apply_list(
+    |mut cors_layer, origins| {
       for origin in origins {
         cors_layer = cors_layer.allowed_origin(&origin.to_string());
       }
       cors_layer
-    }
-  };
-
-  cors_layer = match cors.allow_headers() {
-    AllowType::Tagged(tagged) => match tagged {
-      TaggedAllowTypes::Mirror => cors_layer.allow_any_header(),
-      TaggedAllowTypes::Any => cors_layer.allow_any_header(),
     },
-    AllowType::List(headers) => cors_layer.allowed_headers(headers.clone()),
-  };
+    cors_layer,
+  );
 
-  cors_layer = match cors.allow_methods() {
-    AllowType::Tagged(tagged) => match tagged {
-      TaggedAllowTypes::Mirror => cors_layer.allow_any_method(),
-      TaggedAllowTypes::Any => cors_layer.allow_any_method(),
-    },
-    AllowType::List(methods) => cors_layer.allowed_methods(methods.clone()),
-  };
+  cors_layer = cors
+    .allow_headers()
+    .apply_any(|cors_layer| cors_layer.allow_any_header(), cors_layer);
+  cors_layer = cors.allow_headers().apply_list(
+    |cors_layer, headers| cors_layer.allowed_headers(headers.clone()),
+    cors_layer,
+  );
 
-  cors_layer = match cors.expose_headers() {
-    AllowType::Tagged(_) => cors_layer.expose_any_header(),
-    AllowType::List(headers) => cors_layer.expose_headers(headers.clone()),
-  };
+  cors_layer = cors
+    .allow_methods()
+    .apply_any(|cors_layer| cors_layer.allow_any_method(), cors_layer);
+  cors_layer = cors.allow_methods().apply_list(
+    |cors_layer, methods| cors_layer.allowed_methods(methods.clone()),
+    cors_layer,
+  );
+
+  cors_layer = cors
+    .expose_headers()
+    .apply_any(|cors_layer| cors_layer.expose_any_header(), cors_layer);
+  cors_layer = cors.expose_headers().apply_list(
+    |cors_layer, headers| cors_layer.expose_headers(headers.clone()),
+    cors_layer,
+  );
 
   if cors.allow_credentials() {
     cors_layer = cors_layer.supports_credentials();

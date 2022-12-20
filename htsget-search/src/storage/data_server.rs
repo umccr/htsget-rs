@@ -271,7 +271,8 @@ mod tests {
     test_cors_preflight_request_uri, test_cors_simple_request_uri,
   };
   use htsget_test_utils::http_tests::{
-    default_test_config, default_cors_config, Header, Response as TestResponse, TestRequest, TestServer,
+    default_cors_config, default_test_config, Header, Response as TestResponse, TestRequest,
+    TestServer,
   };
   use htsget_test_utils::util::generate_test_certificates;
 

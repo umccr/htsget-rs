@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAnyAllowType};
 use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
-use figment::Figment;
 use figment::value::Value::Dict;
+use figment::Figment;
 use http::header::HeaderName;
 use http::Method;
 use serde::de::IntoDeserializer;
@@ -105,7 +105,7 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 enum DataServerConfigNone {
   #[serde(alias = "none", alias = "NONE", alias = "")]
-  None
+  None,
 }
 
 /// Data server config enum options.
@@ -113,7 +113,7 @@ enum DataServerConfigNone {
 #[serde(untagged)]
 enum DataServerConfigOption {
   None(DataServerConfigNone),
-  Some(DataServerConfig)
+  Some(DataServerConfig),
 }
 
 with_prefix!(ticket_server_prefix "ticket_server_");
@@ -150,11 +150,11 @@ impl TicketServerConfig {
     self.cors.allow_origins()
   }
 
-  pub fn allow_headers(&self) -> &AllowType<HeaderName> {
+  pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     self.cors.allow_headers()
   }
 
-  pub fn allow_methods(&self) -> &AllowType<Method> {
+  pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
     self.cors.allow_methods()
   }
 
@@ -265,11 +265,11 @@ impl DataServerConfig {
     self.cors.allow_origins()
   }
 
-  pub fn allow_headers(&self) -> &AllowType<HeaderName> {
+  pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     self.cors.allow_headers()
   }
 
-  pub fn allow_methods(&self) -> &AllowType<Method> {
+  pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
     self.cors.allow_methods()
   }
 
@@ -444,7 +444,7 @@ impl Config {
   pub fn data_server(&self) -> Option<&DataServerConfig> {
     match self.data_server {
       DataServerConfigOption::None(_) => None,
-      DataServerConfigOption::Some(ref config) => Some(config)
+      DataServerConfigOption::Some(ref config) => Some(config),
     }
   }
 
@@ -464,8 +464,8 @@ impl Config {
     match data_server {
       None => {
         self.data_server = DataServerConfigOption::None(DataServerConfigNone::None);
-      },
-      Some(value ) => {
+      }
+      Some(value) => {
         self.data_server = DataServerConfigOption::Some(value);
       }
     }
@@ -566,15 +566,9 @@ mod tests {
 
   #[test]
   fn config_no_data_server_env() {
-    test_config_from_env(
-      vec![("HTSGET_DATA_SERVER", "")],
-      |config| {
-        assert!(matches!(
-          config.data_server(),
-          None
-        ));
-      },
-    );
+    test_config_from_env(vec![("HTSGET_DATA_SERVER", "")], |config| {
+      assert!(matches!(config.data_server(), None));
+    });
   }
 
   #[test]
@@ -629,15 +623,9 @@ mod tests {
 
   #[test]
   fn config_no_data_server_file() {
-    test_config_from_file(
-      r#"data_server = """#,
-      |config| {
-        assert!(matches!(
-          config.data_server(),
-          None
-        ));
-      },
-    );
+    test_config_from_file(r#"data_server = """#, |config| {
+      assert!(matches!(config.data_server(), None));
+    });
   }
 
   #[test]

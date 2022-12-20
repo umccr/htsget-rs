@@ -312,9 +312,7 @@ mod tests {
   #[tokio::test]
   async fn existing_key() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage
-        .get("key2", GetOptions::default())
-        .await;
+      let result = storage.get("key2", GetOptions::default()).await;
       assert!(matches!(result, Ok(_)));
     })
     .await;
@@ -323,9 +321,7 @@ mod tests {
   #[tokio::test]
   async fn non_existing_key() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage
-        .get("non-existing-key", GetOptions::default())
-        .await;
+      let result = storage.get("non-existing-key", GetOptions::default()).await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
     })
     .await;
@@ -335,10 +331,7 @@ mod tests {
   async fn url_of_non_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
-        .range_url(
-          "non-existing-key",
-          RangeUrlOptions::default(),
-        )
+        .range_url("non-existing-key", RangeUrlOptions::default())
         .await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
     })

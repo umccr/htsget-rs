@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use htsget_config::{Class, Fields, Format, Tags};
+use std::collections::HashSet;
 use tracing::instrument;
 
 use htsget_config::Query;
@@ -343,7 +343,10 @@ mod tests {
         "part2".to_string()
       ]))
     );
-    assert_eq!(query.no_tags(), &NoTags(Some(HashSet::from_iter(vec!["part3".to_string()]))));
+    assert_eq!(
+      query.no_tags(),
+      &NoTags(Some(HashSet::from_iter(vec!["part3".to_string()])))
+    );
   }
 
   #[test]
@@ -361,6 +364,9 @@ mod tests {
         "part2".to_string()
       ]))
     );
-    assert_eq!(query.no_tags(), &NoTags(Some(HashSet::from_iter(vec!["part3".to_string()]))));
+    assert_eq!(
+      query.no_tags(),
+      &NoTags(Some(HashSet::from_iter(vec!["part3".to_string()])))
+    );
   }
 }

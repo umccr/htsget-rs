@@ -10,7 +10,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use base64::encode;
 use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAllowTypes, TaggedAnyAllowType};
-use htsget_config::regex_resolver::{Scheme, LocalResolver};
+use htsget_config::regex_resolver::{LocalResolver, Scheme};
 use htsget_config::{Class, Query};
 use http::{uri, HeaderValue, Method};
 use thiserror::Error;
@@ -119,39 +119,53 @@ impl UrlFormatter for LocalResolver {
 /// are supported.
 pub fn configure_cors(cors: CorsConfig) -> Result<CorsLayer> {
   let mut cors_layer = CorsLayer::new();
-  cors_layer = match cors.allow_origins() {
-    AllowType::Tagged(tagged) => match tagged {
-      TaggedAllowTypes::Mirror => cors_layer.allow_origin(AllowOrigin::mirror_request()),
-      TaggedAllowTypes::Any => cors_layer.allow_origin(AllowOrigin::any()),
-    },
-    AllowType::List(origins) => cors_layer.allow_origin(
-      origins
-        .iter()
-        .map(|header| header.clone().into_inner())
-        .collect::<Vec<HeaderValue>>(),
-    ),
-  };
 
-  cors_layer = match cors.allow_headers() {
-    AllowType::Tagged(tagged) => match tagged {
-      TaggedAllowTypes::Mirror => cors_layer.allow_headers(AllowHeaders::mirror_request()),
-      TaggedAllowTypes::Any => cors_layer.allow_headers(AllowHeaders::any()),
+  cors_layer = cors.allow_origins().apply_any(
+    |cors_layer| cors_layer.allow_origin(AllowOrigin::any()),
+    cors_layer,
+  );
+  cors_layer = cors.allow_origins().apply_mirror(
+    |cors_layer| cors_layer.allow_origin(AllowOrigin::mirror_request()),
+    cors_layer,
+  );
+  cors_layer = cors.allow_origins().apply_list(
+    |cors_layer, origins| {
+      cors_layer.allow_origin(
+        origins
+          .iter()
+          .map(|header| header.clone().into_inner())
+          .collect::<Vec<HeaderValue>>(),
+      )
     },
-    AllowType::List(headers) => cors_layer.allow_headers(headers.clone()),
-  };
+    cors_layer,
+  );
 
-  cors_layer = match cors.allow_methods() {
-    AllowType::Tagged(tagged) => match tagged {
-      TaggedAllowTypes::Mirror => cors_layer.allow_methods(AllowMethods::mirror_request()),
-      TaggedAllowTypes::Any => cors_layer.allow_methods(AllowMethods::any()),
-    },
-    AllowType::List(methods) => cors_layer.allow_methods(methods.clone()),
-  };
+  cors_layer = cors.allow_headers().apply_any(
+    |cors_layer| cors_layer.allow_headers(AllowHeaders::mirror_request()),
+    cors_layer,
+  );
+  cors_layer = cors.allow_headers().apply_list(
+    |cors_layer, headers| cors_layer.allow_headers(headers.clone()),
+    cors_layer,
+  );
 
-  cors_layer = match cors.expose_headers() {
-    AllowType::Tagged(_) => cors_layer,
-    AllowType::List(headers) => cors_layer.expose_headers(headers.clone()),
-  };
+  cors_layer = cors.allow_methods().apply_any(
+    |cors_layer| cors_layer.allow_methods(AllowMethods::mirror_request()),
+    cors_layer,
+  );
+  cors_layer = cors.allow_methods().apply_list(
+    |cors_layer, methods| cors_layer.allow_methods(methods.clone()),
+    cors_layer,
+  );
+
+  cors_layer = cors.expose_headers().apply_any(
+    |cors_layer| cors_layer.expose_headers(ExposeHeaders::any()),
+    cors_layer,
+  );
+  cors_layer = cors.expose_headers().apply_list(
+    |cors_layer, headers| cors_layer.expose_headers(headers.clone()),
+    cors_layer,
+  );
 
   Ok(
     cors_layer

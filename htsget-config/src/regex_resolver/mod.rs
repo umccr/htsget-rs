@@ -5,9 +5,9 @@ use tracing::instrument;
 
 use crate::config::{default_localstorage_addr, default_path, default_serve_at};
 use crate::regex_resolver::aws::S3Resolver;
+use crate::regex_resolver::ReferenceNames::All;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
 use crate::{Class, Fields, Format, Interval, NoTags, Query, Tags};
-use crate::regex_resolver::ReferenceNames::All;
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -64,7 +64,7 @@ pub struct LocalResolver {
   #[serde(with = "http_serde::authority")]
   authority: Authority,
   local_path: String,
-  path_prefix: String
+  path_prefix: String,
 }
 
 impl LocalResolver {
@@ -142,7 +142,7 @@ pub struct QueryGuard {
 pub enum ReferenceNames {
   All,
   #[serde(with = "serde_regex")]
-  Some(Regex)
+  Some(Regex),
 }
 
 impl QueryGuard {
@@ -198,7 +198,9 @@ impl QueryMatcher for Fields {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.fields) {
       (Fields::All, _) => true,
-      (Fields::List(self_fields), Fields::List(query_fields)) => self_fields.is_subset(query_fields),
+      (Fields::List(self_fields), Fields::List(query_fields)) => {
+        self_fields.is_subset(query_fields)
+      }
       (Fields::List(_), Fields::All) => false,
     }
   }
@@ -217,16 +219,16 @@ impl QueryMatcher for Tags {
 impl QueryMatcher for QueryGuard {
   fn query_matches(&self, query: &Query) -> bool {
     self.allow_formats.contains(&query.format)
-        && self.allow_classes.contains(&query.class)
-        && self.allow_reference_names.query_matches(query)
-        && self
-          .allow_interval
-          .contains(query.interval.start.unwrap_or(u32::MIN))
-        && self
-          .allow_interval
-          .contains(query.interval.end.unwrap_or(u32::MAX))
-        && self.allow_fields.query_matches(query)
-        && self.allow_tags.query_matches(query)
+      && self.allow_classes.contains(&query.class)
+      && self.allow_reference_names.query_matches(query)
+      && self
+        .allow_interval
+        .contains(query.interval.start.unwrap_or(u32::MIN))
+      && self
+        .allow_interval
+        .contains(query.interval.end.unwrap_or(u32::MAX))
+      && self.allow_fields.query_matches(query)
+      && self.allow_tags.query_matches(query)
   }
 }
 

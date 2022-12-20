@@ -3,10 +3,10 @@ extern crate core;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fmt::Formatter;
 use std::io::ErrorKind::Other;
 use std::{fmt, io};
-use std::collections::HashSet;
 use tracing::instrument;
 
 pub mod config;

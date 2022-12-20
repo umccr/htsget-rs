@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::regex_resolver::{LocalResolver, RegexResolver, Scheme, StorageType};
-use http::HeaderMap;
 use http::uri::Authority;
+use http::HeaderMap;
 use serde::de;
 
 use crate::util::generate_test_certificates;
@@ -105,12 +105,7 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> RegexResolver 
   resolver.set_authority(Authority::from_str(&addr.to_string()).unwrap());
   resolver.set_scheme(scheme);
 
-  RegexResolver::new(
-    StorageType::Local(resolver),
-    ".*",
-    "$0",
-    Default::default()
-  ).unwrap()
+  RegexResolver::new(StorageType::Local(resolver), ".*", "$0", Default::default()).unwrap()
 }
 
 /// Default config with fixed port.

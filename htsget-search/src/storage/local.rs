@@ -36,7 +36,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       .as_ref()
       .to_path_buf()
       .canonicalize()
-        .map_err(|_| StorageError::KeyNotFound(base_path.as_ref().to_string_lossy().to_string()))
+      .map_err(|_| StorageError::KeyNotFound(base_path.as_ref().to_string_lossy().to_string()))
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         id_resolver,
@@ -162,12 +162,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(
-        &storage,
-        "folder/../../passwords",
-        GetOptions::default(),
-      )
-      .await;
+      let result = Storage::get(&storage, "folder/../../passwords", GetOptions::default()).await;
       assert!(
         matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
       );
@@ -178,12 +173,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(
-        &storage,
-        "folder/../key1",
-        GetOptions::default(),
-      )
-      .await;
+      let result = Storage::get(&storage, "folder/../key1", GetOptions::default()).await;
       assert!(matches!(result, Ok(_)));
     })
     .await;
@@ -192,12 +182,8 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
-        &storage,
-        "non-existing-key",
-        RangeUrlOptions::default(),
-      )
-      .await;
+      let result =
+        Storage::range_url(&storage, "non-existing-key", RangeUrlOptions::default()).await;
       assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -206,12 +192,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_folder() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
-        &storage,
-        "folder",
-        RangeUrlOptions::default(),
-      )
-      .await;
+      let result = Storage::range_url(&storage, "folder", RangeUrlOptions::default()).await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -236,12 +217,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
-        &storage,
-        "folder/../key1",
-        RangeUrlOptions::default(),
-      )
-      .await;
+      let result = Storage::range_url(&storage, "folder/../key1", RangeUrlOptions::default()).await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
