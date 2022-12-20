@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use htsget_config::config::cors::{AllowType, CorsConfig};
+use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAnyAllowType};
 use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::regex_resolver::{LocalResolver, RegexResolver, Scheme, StorageType};
 use http::uri::Authority;
@@ -89,38 +89,23 @@ pub fn default_dir_data() -> PathBuf {
   default_dir().join("data")
 }
 
-fn set_path(config: &mut DataServerConfig) {
-  config.set_local_path(default_dir_data());
-}
-
-fn set_addr_and_path(config: &mut DataServerConfig, addr: SocketAddr) {
-  set_path(config);
-  config.set_addr(addr);
-}
-
 /// Get the default test resolver.
 pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> RegexResolver {
-  let mut resolver = LocalResolver::default();
-  resolver.set_local_path(default_dir_data().to_str().unwrap().to_string());
-  resolver.set_authority(Authority::from_str(&addr.to_string()).unwrap());
-  resolver.set_scheme(scheme);
+  let resolver = LocalResolver::new(
+    scheme,
+    Authority::from_str(&addr.to_string()).unwrap(),
+    default_dir_data().to_str().unwrap().to_string(),
+    "/data".to_string()
+  );
 
   RegexResolver::new(StorageType::Local(resolver), ".*", "$0", Default::default()).unwrap()
 }
 
 /// Default config with fixed port.
 pub fn default_config_fixed_port() -> Config {
-  let mut config = Config::default();
+  let addr = "127.0.0.1:8081".parse().unwrap();
 
-  let mut data_server_config = DataServerConfig::default();
-  let addr = data_server_config.addr();
-  set_path(&mut data_server_config);
-
-  config.set_data_server(Some(data_server_config));
-
-  config.set_resolvers(vec![default_test_resolver(addr, Scheme::Http)]);
-
-  config
+  default_test_config_params(addr, None, None, Scheme::Http)
 }
 
 fn get_dynamic_addr() -> SocketAddr {
@@ -130,54 +115,51 @@ fn get_dynamic_addr() -> SocketAddr {
 
 /// Set the default cors testing config.
 pub fn default_cors_config() -> CorsConfig {
-  let mut cors = CorsConfig::default();
+  CorsConfig::new(
+    false,
+    AllowType::List(vec!["http://example.com".parse().unwrap()]),
+    AllowType::Tagged(TaggedAnyAllowType::Any),
+    AllowType::Tagged(TaggedAnyAllowType::Any),
+    1000,
+    AllowType::List(vec![]),
+  )
+}
 
-  cors.set_allow_credentials(false);
-  cors.set_allow_origins(AllowType::List(vec!["http://example.com".parse().unwrap()]));
+fn default_test_config_params(addr: SocketAddr, key: Option<PathBuf>, cert: Option<PathBuf>, scheme: Scheme) -> Config {
+  let cors = default_cors_config();
+  let server_config = DataServerConfig::new(
+    addr,
+    default_dir_data(),
+    PathBuf::from("/data"),
+    key,
+    cert,
+    cors.clone()
+  );
 
-  cors
+  Config::new(
+    TicketServerConfig::new(
+      "127.0.0.1:8080".parse().unwrap(),
+      cors,
+      Default::default()
+    ),
+    Some(server_config),
+    vec![default_test_resolver(addr, scheme)]
+  )
 }
 
 /// Default config using the current cargo manifest directory, and dynamic port.
 pub fn default_test_config() -> Config {
-  let mut server_config = DataServerConfig::default();
   let addr = get_dynamic_addr();
 
-  set_addr_and_path(&mut server_config, addr);
-
-  let mut cors = default_cors_config();
-  server_config.set_cors(cors.clone());
-
-  let mut config = Config::default();
-  let mut ticket_server_config = TicketServerConfig::default();
-  ticket_server_config.set_cors(cors);
-
-  config.set_ticket_server(ticket_server_config);
-  config.set_data_server(Some(server_config));
-  config.set_resolvers(vec![default_test_resolver(addr, Scheme::Http)]);
-
-  config
+  default_test_config_params(addr, None, None, Scheme::Http)
 }
 
 /// Config with tls ticket server, using the current cargo manifest directory.
 pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
-  let mut server_config = DataServerConfig::default();
   let addr = get_dynamic_addr();
-
-  set_addr_and_path(&mut server_config, addr);
-
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
 
-  server_config.set_key(Some(key_path));
-  server_config.set_cert(Some(cert_path));
-
-  let mut config = Config::default();
-
-  config.set_data_server(Some(server_config));
-
-  config.set_resolvers(vec![default_test_resolver(addr, Scheme::Https)]);
-
-  config
+  default_test_config_params(addr, Some(key_path), Some(cert_path), Scheme::Https)
 }
 
 /// Get the event associated with the file.

@@ -10,7 +10,7 @@ use std::str::FromStr;
 /// The maximum default amount of time a CORS request can be cached for in seconds.
 const CORS_MAX_AGE: usize = 86400;
 
-/// Tagged allow headers for cors config. Either Mirror or Any.
+/// Tagged allow headers for cors config, either Mirror or Any.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum TaggedAllowTypes {
   #[serde(alias = "mirror", alias = "MIRROR")]
@@ -19,15 +19,14 @@ pub enum TaggedAllowTypes {
   Any,
 }
 
-/// Tagged allow headers for cors config. Either Mirror or Any.
+/// Tagged Any allow type for cors config.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum TaggedAnyAllowType {
   #[serde(alias = "any", alias = "ANY")]
   Any,
 }
 
-/// Allowed header for cors config. Any allows all headers by sending a wildcard,
-/// and mirror allows all headers by mirroring the received headers.
+/// Allowed type for cors config which is used to configure cors behaviour.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum AllowType<T, Tagged = TaggedAllowTypes> {
@@ -122,6 +121,7 @@ where
     .collect()
 }
 
+/// A wrapper around a http HeaderValue which is used to implement FromStr and Display.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeaderValue(HeaderValueInner);
 
@@ -145,7 +145,7 @@ impl Display for HeaderValue {
   }
 }
 
-/// Configuration for the htsget server.
+/// Cors configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct CorsConfig {
@@ -158,52 +158,39 @@ pub struct CorsConfig {
 }
 
 impl CorsConfig {
+  /// Create new cors config.
+  pub fn new(allow_credentials: bool, allow_origins: AllowType<HeaderValue>, allow_headers: AllowType<HeaderName, TaggedAnyAllowType>, allow_methods: AllowType<Method, TaggedAnyAllowType>, max_age: usize, expose_headers: AllowType<HeaderName, TaggedAnyAllowType>) -> Self {
+    Self { allow_credentials, allow_origins, allow_headers, allow_methods, max_age, expose_headers }
+  }
+  
+  /// Get allow credentials.
   pub fn allow_credentials(&self) -> bool {
     self.allow_credentials
   }
 
+  /// Get allow origins.
   pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
     &self.allow_origins
   }
 
+  /// Get allow headers.
   pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     &self.allow_headers
   }
 
+  /// Get allow methods.
   pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
     &self.allow_methods
   }
 
+  /// Get max age.
   pub fn max_age(&self) -> usize {
     self.max_age
   }
 
+  /// Get expose headers.
   pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     &self.expose_headers
-  }
-
-  pub fn set_allow_credentials(&mut self, allow_credentials: bool) {
-    self.allow_credentials = allow_credentials;
-  }
-
-  pub fn set_allow_origins(&mut self, allow_origins: AllowType<HeaderValue>) {
-    self.allow_origins = allow_origins;
-  }
-
-  pub fn set_allow_headers(&mut self, allow_headers: AllowType<HeaderName, TaggedAnyAllowType>) {
-    self.allow_headers = allow_headers;
-  }
-
-  pub fn set_allow_methods(&mut self, allow_methods: AllowType<Method, TaggedAnyAllowType>) {
-    self.allow_methods = allow_methods;
-  }
-
-  pub fn set_max_age(&mut self, max_age: usize) {
-    self.max_age = max_age;
-  }
-
-  pub fn set_expose_headers(&mut self, expose_headers: AllowType<HeaderName, TaggedAnyAllowType>) {
-    self.expose_headers = expose_headers;
   }
 }
 

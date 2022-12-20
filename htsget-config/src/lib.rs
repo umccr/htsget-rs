@@ -76,6 +76,7 @@ impl fmt::Display for Format {
   }
 }
 
+/// Class component of htsget response.
 #[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "lowercase"))]
 pub enum Class {

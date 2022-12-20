@@ -1,7 +1,7 @@
 use serde;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the htsget server.
+/// S3 configuration for the htsget server.
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct S3Resolver {
@@ -9,6 +9,7 @@ pub struct S3Resolver {
 }
 
 impl S3Resolver {
+  /// Get the bucket.
   pub fn bucket(&self) -> &str {
     &self.bucket
   }

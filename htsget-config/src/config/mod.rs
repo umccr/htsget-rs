@@ -91,7 +91,7 @@ struct Args {
   config: Option<PathBuf>,
 }
 
-/// Configuration for the server. Each field will be read from environment variables.
+/// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
@@ -101,14 +101,12 @@ pub struct Config {
   resolvers: Vec<RegexResolver>,
 }
 
-/// None component of data server config. Allows deserializing no data server config as none.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 enum DataServerConfigNone {
   #[serde(alias = "none", alias = "NONE", alias = "")]
   None,
 }
 
-/// Data server config enum options.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum DataServerConfigOption {
@@ -118,7 +116,7 @@ enum DataServerConfigOption {
 
 with_prefix!(ticket_server_prefix "ticket_server_");
 
-/// Configuration for the htsget server.
+/// Configuration for the htsget ticket server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
@@ -130,92 +128,104 @@ pub struct TicketServerConfig {
 }
 
 impl TicketServerConfig {
+  /// Create a new ticket server config.
+  pub fn new(ticket_server_addr: SocketAddr, cors: CorsConfig, service_info: ServiceInfo) -> Self {
+    Self { ticket_server_addr, cors, service_info }
+  }
+
+  /// Get the addr.
   pub fn addr(&self) -> SocketAddr {
     self.ticket_server_addr
   }
 
+  /// Get cors config.
   pub fn cors(&self) -> &CorsConfig {
     &self.cors
   }
 
+  /// Get service info.
   pub fn service_info(&self) -> &ServiceInfo {
     &self.service_info
   }
 
+  /// Get allow credentials.
   pub fn allow_credentials(&self) -> bool {
     self.cors.allow_credentials()
   }
 
+  /// Get allow origins.
   pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
     self.cors.allow_origins()
   }
 
+  /// Get allow headers.
   pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     self.cors.allow_headers()
   }
 
+  /// Get allow methods.
   pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
     self.cors.allow_methods()
   }
 
+  /// Get max age.
   pub fn max_age(&self) -> usize {
     self.cors.max_age()
   }
 
+  /// Get expose headers.
   pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     self.cors.expose_headers()
   }
 
+  /// Get id.
   pub fn id(&self) -> Option<&str> {
     self.service_info.id()
   }
 
+  /// Get name.
   pub fn name(&self) -> Option<&str> {
     self.service_info.name()
   }
 
+  /// Get version.
   pub fn version(&self) -> Option<&str> {
     self.service_info.version()
   }
 
+  /// Get organization name.
   pub fn organization_name(&self) -> Option<&str> {
     self.service_info.organization_name()
   }
 
+  /// Get the organization url.
   pub fn organization_url(&self) -> Option<&str> {
     self.service_info.organization_url()
   }
 
+  /// Get the contact url.
   pub fn contact_url(&self) -> Option<&str> {
     self.service_info.contact_url()
   }
 
+  /// Get the documentation url.
   pub fn documentation_url(&self) -> Option<&str> {
     self.service_info.documentation_url()
   }
 
+  /// Get created at.
   pub fn created_at(&self) -> Option<&str> {
     self.service_info.created_at()
   }
 
+  /// Get updated at.
   pub fn updated_at(&self) -> Option<&str> {
     self.service_info.updated_at()
   }
 
+  /// Get the environment.
   pub fn environment(&self) -> Option<&str> {
     self.service_info.environment()
-  }
-
-  pub fn set_ticket_server_addr(&mut self, ticket_server_addr: SocketAddr) {
-    self.ticket_server_addr = ticket_server_addr;
-  }
-
-  pub fn set_cors(&mut self, cors: CorsConfig) {
-    self.cors = cors;
-  }
-
-  pub fn set_service_info(&mut self, service_info: ServiceInfo) {
-    self.service_info = service_info;
   }
 }
 
@@ -233,76 +243,69 @@ pub struct DataServerConfig {
 }
 
 impl DataServerConfig {
+  /// Create a new data server config.
+  pub fn new(addr: SocketAddr, local_path: PathBuf, serve_at: PathBuf, key: Option<PathBuf>, cert: Option<PathBuf>, cors: CorsConfig) -> Self {
+    Self { addr, local_path, serve_at, key, cert, cors }
+  }
+
+  /// Get the address.
   pub fn addr(&self) -> SocketAddr {
     self.addr
   }
 
+  /// Get the local path.
   pub fn local_path(&self) -> &Path {
     &self.local_path
   }
 
+  /// Get the serve at path.
   pub fn serve_at(&self) -> &Path {
     &self.serve_at
   }
 
+  /// Get the key.
   pub fn key(&self) -> Option<&Path> {
     self.key.as_deref()
   }
 
+  /// Get the cert.
   pub fn cert(&self) -> Option<&Path> {
     self.cert.as_deref()
   }
 
+  /// Get cors config.
   pub fn cors(&self) -> &CorsConfig {
     &self.cors
   }
 
+  /// Get allow credentials.
   pub fn allow_credentials(&self) -> bool {
     self.cors.allow_credentials()
   }
 
+  /// Get allow origins.
   pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
     self.cors.allow_origins()
   }
 
+  /// Get allow headers.
   pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     self.cors.allow_headers()
   }
 
+  /// Get allow methods.
   pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
     self.cors.allow_methods()
   }
 
+  /// Get the max age.
   pub fn max_age(&self) -> usize {
     self.cors.max_age()
   }
 
+  /// Get the expose headers.
   pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
     self.cors.expose_headers()
-  }
-
-  pub fn set_addr(&mut self, addr: SocketAddr) {
-    self.addr = addr;
-  }
-
-  pub fn set_local_path(&mut self, path: PathBuf) {
-    self.local_path = path;
-  }
-
-  pub fn set_serve_at(&mut self, serve_at: PathBuf) {
-    self.serve_at = serve_at;
-  }
-
-  pub fn set_key(&mut self, key: Option<PathBuf>) {
-    self.key = key;
-  }
-
-  pub fn set_cert(&mut self, cert: Option<PathBuf>) {
-    self.cert = cert;
-  }
-
-  pub fn set_cors(&mut self, cors: CorsConfig) {
-    self.cors = cors;
   }
 }
 
@@ -338,42 +341,52 @@ pub struct ServiceInfo {
 }
 
 impl ServiceInfo {
+  /// Get the id.
   pub fn id(&self) -> Option<&str> {
     self.id.as_deref()
   }
 
+  /// Get the name.
   pub fn name(&self) -> Option<&str> {
     self.name.as_deref()
   }
 
+  /// Get the version.
   pub fn version(&self) -> Option<&str> {
     self.version.as_deref()
   }
 
+  /// Get the organization name.
   pub fn organization_name(&self) -> Option<&str> {
     self.organization_name.as_deref()
   }
 
+  /// Get the organization url.
   pub fn organization_url(&self) -> Option<&str> {
     self.organization_url.as_deref()
   }
 
+  /// Get the contact url.
   pub fn contact_url(&self) -> Option<&str> {
     self.contact_url.as_deref()
   }
 
+  /// Get the documentation url.
   pub fn documentation_url(&self) -> Option<&str> {
     self.documentation_url.as_deref()
   }
 
+  /// Get created at.
   pub fn created_at(&self) -> Option<&str> {
     self.created_at.as_deref()
   }
 
+  /// Get updated at.
   pub fn updated_at(&self) -> Option<&str> {
     self.updated_at.as_deref()
   }
 
+  /// Get environment.
   pub fn environment(&self) -> Option<&str> {
     self.environment.as_deref()
   }
@@ -400,6 +413,21 @@ impl Default for Config {
 }
 
 impl Config {
+  /// Create a new config.
+  pub fn new(ticket_server: TicketServerConfig, data_server: Option<DataServerConfig>, resolvers: Vec<RegexResolver>) -> Self {
+    Self { 
+      ticket_server, 
+      data_server: match data_server {
+        None => {
+          DataServerConfigOption::None(DataServerConfigNone::None)
+        }
+        Some(value) => {
+          DataServerConfigOption::Some(value)
+        }
+      }, 
+      resolvers }
+  }
+  
   /// Parse the command line arguments
   pub fn parse_args() -> PathBuf {
     Args::parse().config.unwrap_or_else(|| "".into())
@@ -437,10 +465,12 @@ impl Config {
     Ok(())
   }
 
+  /// Get the ticket server.
   pub fn ticket_server(&self) -> &TicketServerConfig {
     &self.ticket_server
   }
 
+  /// Get the data server.
   pub fn data_server(&self) -> Option<&DataServerConfig> {
     match self.data_server {
       DataServerConfigOption::None(_) => None,
@@ -448,31 +478,14 @@ impl Config {
     }
   }
 
+  /// Get the resolvers.
   pub fn resolvers(&self) -> &[RegexResolver] {
     &self.resolvers
   }
 
+  /// Get owned resolvers.
   pub fn owned_resolvers(self) -> Vec<RegexResolver> {
     self.resolvers
-  }
-
-  pub fn set_ticket_server(&mut self, ticket_server: TicketServerConfig) {
-    self.ticket_server = ticket_server;
-  }
-
-  pub fn set_data_server(&mut self, data_server: Option<DataServerConfig>) {
-    match data_server {
-      None => {
-        self.data_server = DataServerConfigOption::None(DataServerConfigNone::None);
-      }
-      Some(value) => {
-        self.data_server = DataServerConfigOption::Some(value);
-      }
-    }
-  }
-
-  pub fn set_resolvers(&mut self, resolvers: Vec<RegexResolver>) {
-    self.resolvers = resolvers;
   }
 }
 

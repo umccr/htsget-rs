@@ -42,6 +42,7 @@ impl Default for StorageType {
   }
 }
 
+/// Schemes that can be used with htsget.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scheme {
   #[serde(alias = "http", alias = "HTTP")]
@@ -56,7 +57,7 @@ impl Default for Scheme {
   }
 }
 
-/// Configuration for the htsget server.
+/// A local resolver, which can return files from the local file system.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct LocalResolver {
@@ -68,36 +69,39 @@ pub struct LocalResolver {
 }
 
 impl LocalResolver {
+  /// Create a local resolver.
+  pub fn new(
+    scheme: Scheme,
+    authority: Authority,
+    local_path: String,
+    path_prefix: String
+  ) -> Self {
+     Self {
+       scheme,
+       authority,
+       local_path,
+       path_prefix
+     }
+  }
+
+  /// Get the scheme.
   pub fn scheme(&self) -> Scheme {
     self.scheme
   }
 
+  /// Get the authority.
   pub fn authority(&self) -> &Authority {
     &self.authority
   }
 
+  /// Get the local path.
   pub fn local_path(&self) -> &str {
     &self.local_path
   }
 
+  /// Get the path prefix.
   pub fn path_prefix(&self) -> &str {
     &self.path_prefix
-  }
-
-  pub fn set_scheme(&mut self, scheme: Scheme) {
-    self.scheme = scheme;
-  }
-
-  pub fn set_authority(&mut self, authority: Authority) {
-    self.authority = authority;
-  }
-
-  pub fn set_local_path(&mut self, local_path: String) {
-    self.local_path = local_path;
-  }
-
-  pub fn set_path_prefix(&mut self, path_prefix: String) {
-    self.path_prefix = path_prefix;
   }
 }
 
@@ -124,7 +128,7 @@ pub struct RegexResolver {
   storage_type: StorageType,
 }
 
-/// A query that can be matched with the regex resolver.
+/// A query guard represents query parameters that can be allowed to resolver for a given query.
 #[derive(Serialize, Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct QueryGuard {
@@ -136,7 +140,7 @@ pub struct QueryGuard {
   allow_tags: Tags,
 }
 
-/// Referneces names that can be matched.
+/// Reference names that can be matched.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum ReferenceNames {
@@ -146,26 +150,32 @@ pub enum ReferenceNames {
 }
 
 impl QueryGuard {
+  /// Get allow formats.
   pub fn allow_formats(&self) -> &[Format] {
     &self.allow_formats
   }
 
+  /// Get allow classes.
   pub fn allow_classes(&self) -> &[Class] {
     &self.allow_classes
   }
 
+  /// Get allow reference names.
   pub fn allow_reference_names(&self) -> &ReferenceNames {
     &self.allow_reference_names
   }
 
+  /// Get allow interval.
   pub fn allow_interval(&self) -> Interval {
     self.allow_interval
   }
 
+  /// Get allow fields.
   pub fn allow_fields(&self) -> &Fields {
     &self.allow_fields
   }
 
+  /// Get allow tags.
   pub fn allow_tags(&self) -> &Tags {
     &self.allow_tags
   }
@@ -255,42 +265,52 @@ impl RegexResolver {
     })
   }
 
+  /// Get the regex.
   pub fn regex(&self) -> &Regex {
     &self.regex
   }
-
+ 
+  /// Get the substitution string.
   pub fn substitution_string(&self) -> &str {
     &self.substitution_string
   }
 
+  /// Get the query guard.
   pub fn guard(&self) -> &QueryGuard {
     &self.guard
   }
 
+  /// Get the storage type.
   pub fn storage_type(&self) -> &StorageType {
     &self.storage_type
   }
 
+  /// Get allow formats.
   pub fn allow_formats(&self) -> &[Format] {
     self.guard.allow_formats()
   }
 
+  /// Get allow classes.
   pub fn allow_classes(&self) -> &[Class] {
     self.guard.allow_classes()
   }
 
+  /// Get allow reference names.
   pub fn allow_reference_names(&self) -> &ReferenceNames {
     &self.guard.allow_reference_names
   }
 
+  /// Get allow interval.
   pub fn allow_interval(&self) -> Interval {
     self.guard.allow_interval
   }
 
+  /// Get allow fields.
   pub fn allow_fields(&self) -> &Fields {
     &self.guard.allow_fields
   }
 
+  /// Get allow tags.
   pub fn allow_tags(&self) -> &Tags {
     &self.guard.allow_tags
   }
@@ -318,7 +338,7 @@ pub mod tests {
 
   #[test]
   fn resolver_resolve_id() {
-    let mut resolver = RegexResolver::new(
+    let resolver = RegexResolver::new(
       StorageType::default(),
       ".*",
       "$0-test",
