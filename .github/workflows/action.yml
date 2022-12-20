@@ -80,7 +80,7 @@ jobs:
         #run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-${BENCH_TIMESTAMP}.json
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT | tee output.txt
       - name: Where is output.txt
-        run: find .. -iname 'output.txt'
+        run: pwd && ls -alh && find .. -iname 'output.txt'
       # - name: Store requests benchmark result
       #   uses: benchmark-action/github-action-benchmark@v1
       #   with:
@@ -97,7 +97,7 @@ jobs:
         with:
           name: Search benchmark
           tool: 'cargo'
-          output-file-path: output.txt
+          output-file-path: ../output.txt
           #external-data-json-path: search-benchmarks.json
           fail-on-alert: false
           # Access token to deploy GitHub Pages branch
