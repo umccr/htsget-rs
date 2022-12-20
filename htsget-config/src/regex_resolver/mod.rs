@@ -3,7 +3,7 @@ use regex::{Error, Regex};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::config::{default_localstorage_addr, default_serve_at};
+use crate::config::{default_localstorage_addr, default_path, default_serve_at};
 use crate::regex_resolver::aws::S3Resolver;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
 use crate::{Class, Fields, Format, Interval, NoTags, Query, Tags};
@@ -30,7 +30,7 @@ pub trait QueryMatcher {
 #[non_exhaustive]
 pub enum StorageType {
   #[serde(alias = "url", alias = "URL")]
-  Url(UrlResolver),
+  Local(LocalResolver),
   #[cfg(feature = "s3-storage")]
   #[serde(alias = "s3")]
   S3(S3Resolver),
@@ -38,7 +38,7 @@ pub enum StorageType {
 
 impl Default for StorageType {
   fn default() -> Self {
-    Self::Url(UrlResolver::default())
+    Self::Local(LocalResolver::default())
   }
 }
 
@@ -59,14 +59,15 @@ impl Default for Scheme {
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
-pub struct UrlResolver {
+pub struct LocalResolver {
   scheme: Scheme,
   #[serde(with = "http_serde::authority")]
   authority: Authority,
-  path: String,
+  local_path: String,
+  path_prefix: String
 }
 
-impl UrlResolver {
+impl LocalResolver {
   pub fn scheme(&self) -> Scheme {
     self.scheme
   }
@@ -75,17 +76,38 @@ impl UrlResolver {
     &self.authority
   }
 
-  pub fn path(&self) -> &str {
-    &self.path
+  pub fn local_path(&self) -> &str {
+    &self.local_path
+  }
+
+  pub fn path_prefix(&self) -> &str {
+    &self.path_prefix
+  }
+
+  pub fn set_scheme(&mut self, scheme: Scheme) {
+    self.scheme = scheme;
+  }
+
+  pub fn set_authority(&mut self, authority: Authority) {
+    self.authority = authority;
+  }
+
+  pub fn set_local_path(&mut self, local_path: String) {
+    self.local_path = local_path;
+  }
+
+  pub fn set_path_prefix(&mut self, path_prefix: String) {
+    self.path_prefix = path_prefix;
   }
 }
 
-impl Default for UrlResolver {
+impl Default for LocalResolver {
   fn default() -> Self {
     Self {
       scheme: Scheme::default(),
       authority: Authority::from_static(default_localstorage_addr()),
-      path: default_serve_at().to_string(),
+      local_path: default_path().into(),
+      path_prefix: default_serve_at().into(),
     }
   }
 }
@@ -287,15 +309,6 @@ impl Resolver for RegexResolver {
     }
   }
 }
-
-// impl<'a, I> Resolver for I
-// where
-//   I: Iterator<Item = &'a RegexResolver>,
-// {
-//   fn resolve_id(&self, query: &Query) -> Option<String> {
-//     self.find_map(|resolver| resolver.resolve_id(query))
-//   }
-// }
 
 #[cfg(test)]
 pub mod tests {

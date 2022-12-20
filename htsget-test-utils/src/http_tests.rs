@@ -1,11 +1,14 @@
 use std::fs;
+use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use htsget_config::config::cors::{AllowType, CorsConfig};
-use htsget_config::config::DataServerConfig;
-use htsget_config::regex_resolver::RegexResolver;
+use htsget_config::config::{DataServerConfig, TicketServerConfig};
+use htsget_config::regex_resolver::{LocalResolver, RegexResolver, Scheme, StorageType};
 use http::HeaderMap;
+use http::uri::Authority;
 use serde::de;
 
 use crate::util::generate_test_certificates;
@@ -87,12 +90,27 @@ pub fn default_dir_data() -> PathBuf {
 }
 
 fn set_path(config: &mut DataServerConfig) {
-  config.set_path(default_dir_data());
+  config.set_local_path(default_dir_data());
 }
 
-fn set_addr_and_path(config: &mut DataServerConfig) {
+fn set_addr_and_path(config: &mut DataServerConfig, addr: SocketAddr) {
   set_path(config);
-  config.set_addr("127.0.0.1:0".parse().unwrap());
+  config.set_addr(addr);
+}
+
+/// Get the default test resolver.
+pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> RegexResolver {
+  let mut resolver = LocalResolver::default();
+  resolver.set_local_path(default_dir_data().to_str().unwrap().to_string());
+  resolver.set_authority(Authority::from_str(&addr.to_string()).unwrap());
+  resolver.set_scheme(scheme);
+
+  RegexResolver::new(
+    StorageType::Local(resolver),
+    ".*",
+    "$0",
+    Default::default()
+  ).unwrap()
 }
 
 /// Default config with fixed port.
@@ -100,28 +118,48 @@ pub fn default_config_fixed_port() -> Config {
   let mut config = Config::default();
 
   let mut data_server_config = DataServerConfig::default();
+  let addr = data_server_config.addr();
   set_path(&mut data_server_config);
 
   config.set_data_server(Some(data_server_config));
 
+  config.set_resolvers(vec![default_test_resolver(addr, Scheme::Http)]);
+
   config
 }
 
-/// Default config using the current cargo manifest directory, and dynamic port.
-pub fn default_test_config() -> Config {
-  let mut server_config = DataServerConfig::default();
-  set_addr_and_path(&mut server_config);
+fn get_dynamic_addr() -> SocketAddr {
+  let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+  listener.local_addr().unwrap()
+}
 
-  let mut server_config = DataServerConfig::default();
+/// Set the default cors testing config.
+pub fn default_cors_config() -> CorsConfig {
   let mut cors = CorsConfig::default();
 
   cors.set_allow_credentials(false);
   cors.set_allow_origins(AllowType::List(vec!["http://example.com".parse().unwrap()]));
 
-  server_config.set_cors(cors);
+  cors
+}
+
+/// Default config using the current cargo manifest directory, and dynamic port.
+pub fn default_test_config() -> Config {
+  let mut server_config = DataServerConfig::default();
+  let addr = get_dynamic_addr();
+
+  set_addr_and_path(&mut server_config, addr);
+
+  let mut cors = default_cors_config();
+  server_config.set_cors(cors.clone());
 
   let mut config = Config::default();
+  let mut ticket_server_config = TicketServerConfig::default();
+  ticket_server_config.set_cors(cors);
+
+  config.set_ticket_server(ticket_server_config);
   config.set_data_server(Some(server_config));
+  config.set_resolvers(vec![default_test_resolver(addr, Scheme::Http)]);
 
   config
 }
@@ -129,16 +167,20 @@ pub fn default_test_config() -> Config {
 /// Config with tls ticket server, using the current cargo manifest directory.
 pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
   let mut server_config = DataServerConfig::default();
-  set_addr_and_path(&mut server_config);
+  let addr = get_dynamic_addr();
+
+  set_addr_and_path(&mut server_config, addr);
 
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
 
-  let mut server_config = DataServerConfig::default();
   server_config.set_key(Some(key_path));
   server_config.set_cert(Some(cert_path));
 
   let mut config = Config::default();
+
   config.set_data_server(Some(server_config));
+
+  config.set_resolvers(vec![default_test_resolver(addr, Scheme::Https)]);
 
   config
 }

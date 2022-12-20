@@ -46,16 +46,16 @@ impl HtsGet for &[RegexResolver] {
     for resolver in self.iter() {
       if let Some(id) = resolver.resolve_id(&query) {
         match resolver.storage_type() {
-          StorageType::Url(url) => {
+          StorageType::Local(url) => {
             let searcher =
-              HtsGetFromStorage::local_from(url.path(), resolver.clone(), url.clone())?;
-            return searcher.search(query).await;
+              HtsGetFromStorage::local_from(url.local_path(), resolver.clone(), url.clone())?;
+            return searcher.search(query.with_id(id)).await;
           }
           #[cfg(feature = "s3-storage")]
           StorageType::S3(s3) => {
             let searcher =
               HtsGetFromStorage::s3_from(s3.bucket().to_string(), resolver.clone()).await;
-            return searcher.search(query).await;
+            return searcher.search(query.with_id(id)).await;
           }
           _ => {}
         }

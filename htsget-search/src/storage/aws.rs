@@ -22,7 +22,7 @@ use htsget_config::Query;
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::AwsS3Error;
-use crate::storage::{resolve_id, BytesPosition, StorageError};
+use crate::storage::{BytesPosition, StorageError};
 use crate::storage::{BytesRange, Storage};
 use crate::RegexResolver;
 
@@ -65,41 +65,45 @@ impl AwsS3Storage {
     )
   }
 
-  pub async fn s3_presign_url(&self, query: &Query, range: BytesPosition) -> Result<String> {
+  pub async fn s3_presign_url<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    range: BytesPosition,
+  ) -> Result<String> {
     let response = self
       .client
       .get_object()
       .bucket(&self.bucket)
-      .key(resolve_id(&self.id_resolver, query)?);
+      .key(key.as_ref());
     let response = Self::apply_range(response, range);
     Ok(
       response
         .presigned(
           PresigningConfig::expires_in(Duration::from_secs(Self::PRESIGNED_REQUEST_EXPIRY))
-            .map_err(|err| AwsS3Error(err.to_string(), query.id().to_string()))?,
+            .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
         )
         .await
-        .map_err(|err| AwsS3Error(err.to_string(), query.id().to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .uri()
         .to_string(),
     )
   }
 
-  async fn s3_head(&self, query: &Query) -> Result<HeadObjectOutput> {
+  async fn s3_head<K: AsRef<str> + Send>(&self, key: K) -> Result<HeadObjectOutput> {
     self
       .client
       .head_object()
       .bucket(&self.bucket)
-      .key(resolve_id(&self.id_resolver, query)?)
+      .key(key.as_ref())
       .send()
       .await
-      .map_err(|err| AwsS3Error(err.to_string(), query.id().to_string()))
+      .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))
   }
 
   /// Returns the retrieval type of the object stored with the key.
   #[instrument(level = "trace", skip_all, ret)]
-  pub async fn get_retrieval_type(&self, query: &Query) -> Result<Retrieval> {
-    let head = self.s3_head(query).await?;
+  pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: K) -> Result<Retrieval> {
+    let head = self.s3_head(key.as_ref()).await?;
     Ok(
       // Default is Standard.
       match head.storage_class.unwrap_or(StorageClass::Standard) {
@@ -138,11 +142,15 @@ impl AwsS3Storage {
     }
   }
 
-  pub async fn get_content(&self, query: &Query, options: GetOptions) -> Result<ByteStream> {
-    if let Delayed(class) = self.get_retrieval_type(query).await? {
+  pub async fn get_content<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    options: GetOptions,
+  ) -> Result<ByteStream> {
+    if let Delayed(class) = self.get_retrieval_type(key.as_ref()).await? {
       return Err(AwsS3Error(
         format!("cannot retrieve object immediately, class is `{:?}`", class),
-        query.id().to_string(),
+        key.as_ref().to_string(),
       ));
     }
 
@@ -150,23 +158,23 @@ impl AwsS3Storage {
       .client
       .get_object()
       .bucket(&self.bucket)
-      .key(resolve_id(&self.id_resolver, query)?);
+      .key(key.as_ref());
     let response = Self::apply_range(response, options.range);
     Ok(
       response
         .send()
         .await
-        .map_err(|err| AwsS3Error(err.to_string(), query.id().to_string()))?
+        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
         .body,
     )
   }
 
-  async fn create_stream_reader(
+  async fn create_stream_reader<K: AsRef<str> + Send>(
     &self,
-    query: &Query,
+    key: K,
     options: GetOptions,
   ) -> Result<StreamReader<ByteStream, Bytes>> {
-    let response = self.get_content(query, options).await?;
+    let response = self.get_content(key, options).await?;
     Ok(StreamReader::new(response))
   }
 }
@@ -177,26 +185,38 @@ impl Storage for AwsS3Storage {
 
   /// Gets the actual s3 object as a buffered reader.
   #[instrument(level = "trace", skip(self))]
-  async fn get(&self, query: &Query, options: GetOptions) -> Result<Self::Streamable> {
-    debug!(calling_from = ?self, id = query.id(), "getting file with key {:?}", query.id());
+  async fn get<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: GetOptions,
+  ) -> Result<Self::Streamable> {
+    let key = key.as_ref();
+    debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
-    self.create_stream_reader(query, options).await
+    self.create_stream_reader(key, options).await
   }
 
   /// Returns a S3-presigned htsget URL
   #[instrument(level = "trace", skip(self))]
-  async fn range_url(&self, query: &Query, options: RangeUrlOptions) -> Result<Url> {
-    let presigned_url = self.s3_presign_url(query, options.range.clone()).await?;
+  async fn range_url<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: RangeUrlOptions,
+  ) -> Result<Url> {
+    let key = key.as_ref();
+    let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
     let url = options.apply(Url::new(presigned_url));
 
-    debug!(calling_from = ?self, id = query.id(), ?url, "getting url with key {:?}", query.id());
+    debug!(calling_from = ?self, key, ?url, "getting url with key {:?}", key);
     Ok(url)
   }
 
   /// Returns the size of the S3 object in bytes.
   #[instrument(level = "trace", skip(self))]
-  async fn head(&self, query: &Query) -> Result<u64> {
-    let head = self.s3_head(query).await?;
+  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
+    let key = key.as_ref();
+
+    let head = self.s3_head(key).await?;
     let len = u64::try_from(head.content_length).map_err(|err| {
       StorageError::IoError(
         "failed to convert file length to `u64`".to_string(),
@@ -204,7 +224,7 @@ impl Storage for AwsS3Storage {
       )
     })?;
 
-    debug!(calling_from = ?self, id = query.id(), len, "size of key {:?} is {}", query.id(), len);
+    debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
     Ok(len)
   }
 }
@@ -225,7 +245,7 @@ mod tests {
   use s3_server::storages::fs::FileSystem;
   use s3_server::{S3Service, SimpleAuth};
 
-  use htsget_config::regex_resolver::UrlResolver;
+  use htsget_config::regex_resolver::LocalResolver;
   use htsget_config::Format::Bam;
   use htsget_config::Query;
 
@@ -293,7 +313,7 @@ mod tests {
   async fn existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
-        .get(&Query::new("key2", Bam), GetOptions::default())
+        .get("key2", GetOptions::default())
         .await;
       assert!(matches!(result, Ok(_)));
     })
@@ -304,7 +324,7 @@ mod tests {
   async fn non_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
-        .get(&Query::new("non-existing-key", Bam), GetOptions::default())
+        .get("non-existing-key", GetOptions::default())
         .await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
     })
@@ -316,7 +336,7 @@ mod tests {
     with_aws_s3_storage(|storage| async move {
       let result = storage
         .range_url(
-          &Query::new("non-existing-key", Bam),
+          "non-existing-key",
           RangeUrlOptions::default(),
         )
         .await;
@@ -329,7 +349,7 @@ mod tests {
   async fn url_of_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
-        .range_url(&Query::new("key2", Bam), RangeUrlOptions::default())
+        .range_url("key2", RangeUrlOptions::default())
         .await
         .unwrap();
       assert!(result
@@ -348,7 +368,7 @@ mod tests {
     with_aws_s3_storage(|storage| async move {
       let result = storage
         .range_url(
-          &Query::new("key2", Bam),
+          "key2",
           RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(9), None)),
         )
         .await
@@ -374,7 +394,7 @@ mod tests {
     with_aws_s3_storage(|storage| async move {
       let result = storage
         .range_url(
-          &Query::new("key2", Bam),
+          "key2",
           RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None, None)),
         )
         .await
@@ -398,7 +418,7 @@ mod tests {
   #[tokio::test]
   async fn file_size() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.head(&Query::new("key2", Bam)).await;
+      let result = storage.head("key2").await;
       let expected: u64 = 6;
       assert!(matches!(result, Ok(size) if size == expected));
     })
@@ -408,7 +428,7 @@ mod tests {
   #[tokio::test]
   async fn retrieval_type() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.get_retrieval_type(&Query::new("key2", Bam)).await;
+      let result = storage.get_retrieval_type("key2").await;
       println!("{:?}", result);
     })
     .await;

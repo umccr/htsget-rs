@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use futures::future::join_all;
 use futures::TryStreamExt;
-use htsget_config::regex_resolver::UrlResolver;
+use htsget_config::regex_resolver::LocalResolver;
 use htsget_config::{Class, Format};
 use http::Method;
 use noodles_bgzf as bgzf;
 use noodles_vcf as vcf;
 use reqwest::ClientBuilder;
+use tokio::time::sleep;
 
 use htsget_http_core::{get_service_info_with, Endpoint};
 use htsget_search::htsget::Response as HtsgetResponse;
@@ -21,8 +23,11 @@ use crate::Config;
 
 /// Test response with with class.
 pub async fn test_response(response: Response, class: Class) {
+  println!("response: {:?}", response);
   assert!(response.is_success());
   let body = response.deserialize_body::<JsonResponse>().unwrap();
+
+  println!("{:#?}", body);
   let expected_response = expected_response(class, response.expected_url_path);
   assert_eq!(body, expected_response);
 
@@ -48,8 +53,7 @@ pub async fn test_response(response: Response, class: Class) {
             .unwrap(),
         )
         .send()
-        .await
-        .unwrap()
+        .await.unwrap()
         .bytes()
         .await
         .unwrap()
@@ -74,7 +78,9 @@ pub async fn test_response(response: Response, class: Class) {
 
 /// Create the a [HttpTicketFormatter], spawn the ticket server, returning the expected path and the formatter.
 pub async fn formatter_and_expected_path(config: &Config) -> (String, HttpTicketFormatter) {
-  let formatter = formatter_from_config(config).unwrap();
+  let mut formatter = formatter_from_config(config).unwrap();
+  spawn_ticket_server(config.data_server().unwrap().local_path().into(), &mut formatter).await;
+
   (expected_url_path(&formatter), formatter)
 }
 

@@ -221,6 +221,11 @@ impl Query {
     }
   }
 
+  pub fn with_id(mut self, id: impl Into<String>) -> Self {
+    self.id = id.into();
+    self
+  }
+
   pub fn with_format(mut self, format: Format) -> Self {
     self.format = format;
     self

@@ -17,7 +17,7 @@ use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
 use htsget_config::config::cors::CorsConfig;
 use htsget_config::config::DataServerConfig;
-use htsget_config::regex_resolver::UrlResolver;
+use htsget_config::regex_resolver::LocalResolver;
 use http::uri::Scheme;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
@@ -271,7 +271,7 @@ mod tests {
     test_cors_preflight_request_uri, test_cors_simple_request_uri,
   };
   use htsget_test_utils::http_tests::{
-    default_test_config, Header, Response as TestResponse, TestRequest, TestServer,
+    default_test_config, default_cors_config, Header, Response as TestResponse, TestRequest, TestServer,
   };
   use htsget_test_utils::util::generate_test_certificates;
 
@@ -469,7 +469,7 @@ mod tests {
     P: AsRef<Path> + Send + 'static,
   {
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "0")).unwrap();
-    let server = DataServer::bind_addr(addr, "/data", cert_key_pair, CorsConfig::default())
+    let server = DataServer::bind_addr(addr, "/data", cert_key_pair, default_cors_config())
       .await
       .unwrap();
     let port = server.local_addr().port();

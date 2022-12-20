@@ -75,7 +75,7 @@ fn default_server_origin() -> &'static str {
   "http://localhost:8080"
 }
 
-fn default_path() -> &'static str {
+pub(crate) fn default_path() -> &'static str {
   "data"
 }
 
@@ -88,31 +88,7 @@ pub(crate) fn default_serve_at() -> &'static str {
 #[command(author, version, about, long_about = USAGE)]
 struct Args {
   #[arg(short, long, env = "HTSGET_CONFIG")]
-  config: PathBuf,
-}
-
-fn deserialize_empty_string_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-where
-  D: Deserializer<'de>,
-  T: Deserialize<'de>,
-{
-  let optional_string = Option::deserialize(deserializer)?.filter(|s: &String| !s.is_empty() && s.to_lowercase() != "none");
-  if let Some(string) = optional_string {
-    Ok(Some(T::deserialize(string.into_deserializer())?))
-  } else {
-    Ok(None)
-  }
-}
-
-fn serialize_empty_string_as_none<S, T>(optional: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
-  where
-      S: Serializer,
-      T: Serialize,
-{
-  match optional {
-    None => serializer.serialize_str("None"),
-    Some(value) => T::serialize(value, serializer)
-  }
+  config: Option<PathBuf>,
 }
 
 /// Configuration for the server. Each field will be read from environment variables.
@@ -229,6 +205,18 @@ impl TicketServerConfig {
   pub fn environment(&self) -> Option<&str> {
     self.service_info.environment()
   }
+
+  pub fn set_ticket_server_addr(&mut self, ticket_server_addr: SocketAddr) {
+    self.ticket_server_addr = ticket_server_addr;
+  }
+
+  pub fn set_cors(&mut self, cors: CorsConfig) {
+    self.cors = cors;
+  }
+
+  pub fn set_service_info(&mut self, service_info: ServiceInfo) {
+    self.service_info = service_info;
+  }
 }
 
 /// Configuration for the htsget server.
@@ -236,7 +224,7 @@ impl TicketServerConfig {
 #[serde(default)]
 pub struct DataServerConfig {
   addr: SocketAddr,
-  path: PathBuf,
+  local_path: PathBuf,
   serve_at: PathBuf,
   key: Option<PathBuf>,
   cert: Option<PathBuf>,
@@ -249,8 +237,8 @@ impl DataServerConfig {
     self.addr
   }
 
-  pub fn path(&self) -> &Path {
-    &self.path
+  pub fn local_path(&self) -> &Path {
+    &self.local_path
   }
 
   pub fn serve_at(&self) -> &Path {
@@ -297,8 +285,8 @@ impl DataServerConfig {
     self.addr = addr;
   }
 
-  pub fn set_path(&mut self, path: PathBuf) {
-    self.path = path;
+  pub fn set_local_path(&mut self, path: PathBuf) {
+    self.local_path = path;
   }
 
   pub fn set_serve_at(&mut self, serve_at: PathBuf) {
@@ -324,7 +312,7 @@ impl Default for DataServerConfig {
       addr: default_localstorage_addr()
         .parse()
         .expect("expected valid address"),
-      path: default_path().into(),
+      local_path: default_path().into(),
       serve_at: default_serve_at().into(),
       key: None,
       cert: None,
@@ -406,7 +394,7 @@ impl Default for Config {
     Self {
       ticket_server: TicketServerConfig::default(),
       data_server: DataServerConfigOption::Some(DataServerConfig::default()),
-      resolvers: vec![RegexResolver::default(), RegexResolver::default()],
+      resolvers: vec![RegexResolver::default()],
     }
   }
 }
@@ -414,7 +402,7 @@ impl Default for Config {
 impl Config {
   /// Parse the command line arguments
   pub fn parse_args() -> PathBuf {
-    Args::parse().config
+    Args::parse().config.unwrap_or_else(|| "".into())
   }
 
   /// Read the environment variables into a Config struct.
@@ -688,21 +676,22 @@ mod tests {
   }
 
   #[test]
-  fn config_storage_type_url_file() {
+  fn config_storage_type_local_file() {
     test_config_from_file(
       r#"
             [[resolvers]]
             regex = "regex"
 
             [resolvers.storage_type]
-            type = "Url"
-            path = "path"
+            type = "Local"
+            local_path = "path"
             scheme = "HTTPS"
+            path_prefix = "path"
         "#,
       |config| {
         assert!(matches!(
             config.resolvers().first().unwrap().storage_type(),
-            StorageType::Url(resolver) if resolver.path() == "path" && resolver.scheme() == Scheme::Https
+            StorageType::Local(resolver) if resolver.local_path() == "path" && resolver.scheme() == Scheme::Https && resolver.path_prefix() == "path"
         ));
       },
     );

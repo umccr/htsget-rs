@@ -18,7 +18,7 @@ async fn main() -> std::io::Result<()> {
     let server = server.clone();
     let mut formatter = HttpTicketFormatter::try_from(server.clone())?;
     let local_server = formatter.bind_data_server().await?;
-    let local_server = tokio::spawn(async move { local_server.serve(&server.path()).await });
+    let local_server = tokio::spawn(async move { local_server.serve(&server.local_path()).await });
 
     let ticket_server_config = config.ticket_server().clone();
     select! {

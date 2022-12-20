@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use htsget_config::{Class, Fields, Format, Tags};
 use tracing::instrument;
 
@@ -164,7 +165,7 @@ impl QueryBuilder {
     };
 
     if let Some(tags) = tags {
-      let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
+      let tags: HashSet<String> = tags.into_iter().map(Into::into).collect();
       if tags.iter().any(|tag| notags.contains(tag)) {
         return Err(HtsGetError::InvalidInput(
           "tags and notags can't intersect".to_string(),
@@ -319,11 +320,11 @@ mod tests {
         .with_fields(Some("header,part1,part2"))
         .build()
         .fields(),
-      &Fields::List(vec![
+      &Fields::List(HashSet::from_iter(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
-      ])
+      ]))
     );
   }
 
@@ -336,13 +337,13 @@ mod tests {
       .build();
     assert_eq!(
       query.tags(),
-      &Tags::List(vec![
+      &Tags::List(HashSet::from_iter(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
-      ])
+      ]))
     );
-    assert_eq!(query.no_tags(), &NoTags(Some(vec!["part3".to_string()])));
+    assert_eq!(query.no_tags(), &NoTags(Some(HashSet::from_iter(vec!["part3".to_string()]))));
   }
 
   #[test]
@@ -354,12 +355,12 @@ mod tests {
       .build();
     assert_eq!(
       query.tags(),
-      &Tags::List(vec![
+      &Tags::List(HashSet::from_iter(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
-      ])
+      ]))
     );
-    assert_eq!(query.no_tags(), &NoTags(Some(vec!["part3".to_string()])));
+    assert_eq!(query.no_tags(), &NoTags(Some(HashSet::from_iter(vec!["part3".to_string()]))));
   }
 }

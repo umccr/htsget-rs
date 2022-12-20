@@ -10,7 +10,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use base64::encode;
 use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAllowTypes, TaggedAnyAllowType};
-use htsget_config::regex_resolver::{Scheme, UrlResolver};
+use htsget_config::regex_resolver::{Scheme, LocalResolver};
 use htsget_config::{Class, Query};
 use http::{uri, HeaderValue, Method};
 use thiserror::Error;
@@ -37,13 +37,21 @@ pub trait Storage {
   type Streamable: AsyncRead + Unpin + Send;
 
   /// Get the object using the key.
-  async fn get(&self, query: &Query, options: GetOptions) -> Result<Self::Streamable>;
+  async fn get<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: GetOptions,
+  ) -> Result<Self::Streamable>;
 
   /// Get the url of the object represented by the key using a bytes range.
-  async fn range_url(&self, query: &Query, options: RangeUrlOptions) -> Result<Url>;
+  async fn range_url<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: RangeUrlOptions,
+  ) -> Result<Url>;
 
   /// Get the size of the object represented by the key.
-  async fn head(&self, query: &Query) -> Result<u64>;
+  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64>;
 
   /// Get the url of the object using an inline data uri.
   #[instrument(level = "trace", ret)]
@@ -92,7 +100,7 @@ pub enum StorageError {
   AwsS3Error(String, String),
 }
 
-impl UrlFormatter for UrlResolver {
+impl UrlFormatter for LocalResolver {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     uri::Builder::new()
       .scheme(match self.scheme() {
@@ -100,7 +108,7 @@ impl UrlFormatter for UrlResolver {
         Scheme::Https => uri::Scheme::HTTPS,
       })
       .authority(self.authority().to_string())
-      .path_and_query(format!("{}/{}", self.path(), key.as_ref()))
+      .path_and_query(format!("{}/{}", self.path_prefix(), key.as_ref()))
       .build()
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
       .map(|value| value.to_string())
