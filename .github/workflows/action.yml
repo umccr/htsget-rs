@@ -97,7 +97,7 @@ jobs:
         with:
           name: Search benchmark
           tool: 'cargo'
-          output-file-path: ../output.txt
+          output-file-path: ./htsget-rs/output.txt
           #external-data-json-path: search-benchmarks.json
           fail-on-alert: false
           # Access token to deploy GitHub Pages branch
