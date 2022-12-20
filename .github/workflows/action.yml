@@ -2,6 +2,12 @@ name: tests
 
 on: [push]
 
+permissions:
+  # deployments permission to deploy GitHub pages website
+  deployments: write
+  # contents permission to update benchmark contents in gh-pages branch
+  contents: write
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -72,7 +78,7 @@ jobs:
       #   run: cargo criterion --bench request-benchmarks --message-format=json -- LIGHT 1> requests-benchmarks.json
       - name: Run search benchmarks
         #run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-${BENCH_TIMESTAMP}.json
-        run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks.json
+        run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT | tee output.txt
       # - name: Store requests benchmark result
       #   uses: benchmark-action/github-action-benchmark@v1
       #   with:
@@ -87,8 +93,9 @@ jobs:
       - name: Store search benchmark result
         uses: benchmark-action/github-action-benchmark@v1
         with:
+          name: Search benchmark
           tool: 'cargo'
-          output-file-path: search-benchmarks.json
+          output-file-path: output.txt
           #external-data-json-path: search-benchmarks.json
           fail-on-alert: false
           # Access token to deploy GitHub Pages branch
