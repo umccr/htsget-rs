@@ -87,8 +87,15 @@ pub(crate) fn default_serve_at() -> &'static str {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = USAGE)]
 struct Args {
-  #[arg(short, long, env = "HTSGET_CONFIG")]
+  #[arg(
+    short,
+    long,
+    env = "HTSGET_CONFIG",
+    help = "Set the location of the config file"
+  )]
   config: Option<PathBuf>,
+  #[arg(short, long, exclusive = true, help = "Print a default config file")]
+  print_default_config: bool,
 }
 
 /// Configuration for the htsget server.
@@ -450,8 +457,18 @@ impl Config {
   }
 
   /// Parse the command line arguments
-  pub fn parse_args() -> PathBuf {
-    Args::parse().config.unwrap_or_else(|| "".into())
+  pub fn parse_args() -> Option<PathBuf> {
+    let args = Args::parse();
+
+    if args.print_default_config {
+      println!(
+        "{}",
+        toml::ser::to_string_pretty(&Config::default()).unwrap()
+      );
+      None
+    } else {
+      Some(args.config.unwrap_or_else(|| "".into()))
+    }
   }
 
   /// Read the environment variables into a Config struct.

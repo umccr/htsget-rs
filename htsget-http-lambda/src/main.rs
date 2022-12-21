@@ -14,11 +14,16 @@ use htsget_search::storage::local::LocalStorage;
 #[tokio::main]
 async fn main() -> Result<(), Error> {
   Config::setup_tracing()?;
-  let config = Config::from_env(Config::parse_args())?;
 
-  let service_info = config.ticket_server().service_info().clone();
-  let cors = config.ticket_server().cors().clone();
-  let router = &Router::new(Arc::new(config.owned_resolvers()), &service_info);
+  if let Some(config) = Config::parse_args() {
+    let config = Config::from_env(config)?;
 
-  handle_request(cors, router).await
+    let service_info = config.ticket_server().service_info().clone();
+    let cors = config.ticket_server().cors().clone();
+    let router = &Router::new(Arc::new(config.owned_resolvers()), &service_info);
+
+    handle_request(cors, router).await
+  } else {
+    Ok(())
+  }
 }

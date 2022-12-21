@@ -1,51 +1,44 @@
-#ticket_server_addr = '127.0.0.1:8080'
-#ticket_server_cors_allow_credentials = false
-#ticket_server_cors_allow_origins = ['http://localhost:8080']
-#ticket_server_cors_allow_headers = 'Any'
-#ticket_server_cors_allow_methods = 'Any'
-#ticket_server_cors_max_age = 86400
-#ticket_server_cors_expose_headers = []
-#
-## To disable the data server:
-## data_server = ''
-#[data_server]
-#addr = '127.0.0.1:8081'
-#local_path = 'data'
-#serve_at = '/data'
-#cors_allow_credentials = false
-#cors_allow_origins = ['http://localhost:8080']
-#cors_allow_headers = 'Any'
-#cors_allow_methods = 'Any'
-#cors_max_age = 86400
-#cors_expose_headers = []
-#
-#[[resolvers]]
-#regex = '.*'
-#substitution_string = '$0'
-#
-#[resolvers.guard]
-#allow_formats = [
-#    'BAM',
-#    'CRAM',
-#    'VCF',
-#    'BCF',
-#]
-#allow_classes = [
-#    'body',
-#    'header',
-#]
-#
-##allow_interval.start = 0
-##allow_interval.end = 100
-#
-## Default is to allow all reference names, fields, and tags.
-##allow_reference_names = ['chr1']
-##allow_fields = ['QNAME']
-##allow_tags = ['RG']
-#
-#[resolvers.storage_type]
-#type = 'Local'
-#scheme = 'Http'
-#authority = '127.0.0.1:8081'
-#local_path = 'data'
-#path_prefix = '/data'
+ticket_server_addr = '127.0.0.1:8080'
+ticket_server_cors_allow_credentials = false
+ticket_server_cors_allow_origins = ['http://localhost:8080']
+ticket_server_cors_allow_headers = 'All'
+ticket_server_cors_allow_methods = 'All'
+ticket_server_cors_max_age = 86400
+ticket_server_cors_expose_headers = []
+
+[data_server]
+addr = '127.0.0.1:8081'
+local_path = 'data'
+serve_at = '/data'
+cors_allow_credentials = false
+cors_allow_origins = ['http://localhost:8080']
+cors_allow_headers = 'All'
+cors_allow_methods = 'All'
+cors_max_age = 86400
+cors_expose_headers = []
+
+[[resolvers]]
+regex = '.*'
+substitution_string = '$0'
+
+[resolvers.storage_type]
+type = 'Local'
+scheme = 'Http'
+authority = '127.0.0.1:8081'
+local_path = 'data'
+path_prefix = '/data'
+
+[resolvers.guard]
+allow_reference_names = 'All'
+allow_fields = 'All'
+allow_tags = 'All'
+allow_formats = [
+    'BAM',
+    'CRAM',
+    'VCF',
+    'BCF',
+]
+allow_classes = [
+    'body',
+    'header',
+]
