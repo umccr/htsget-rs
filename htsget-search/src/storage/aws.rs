@@ -17,14 +17,11 @@ use tokio_util::io::StreamReader;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::Query;
-
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::AwsS3Error;
 use crate::storage::{BytesPosition, StorageError};
 use crate::storage::{BytesRange, Storage};
-use crate::RegexResolver;
 
 use super::{GetOptions, RangeUrlOptions, Result};
 
@@ -42,27 +39,18 @@ pub enum Retrieval {
 pub struct AwsS3Storage {
   client: Client,
   bucket: String,
-  id_resolver: RegexResolver,
 }
 
 impl AwsS3Storage {
   // Allow the user to set this?
   pub const PRESIGNED_REQUEST_EXPIRY: u64 = 1000;
 
-  pub fn new(client: Client, bucket: String, id_resolver: RegexResolver) -> Self {
-    AwsS3Storage {
-      client,
-      bucket,
-      id_resolver,
-    }
+  pub fn new(client: Client, bucket: String) -> Self {
+    AwsS3Storage { client, bucket }
   }
 
-  pub async fn new_with_default_config(bucket: String, id_resolver: RegexResolver) -> Self {
-    AwsS3Storage::new(
-      Client::new(&aws_config::load_from_env().await),
-      bucket,
-      id_resolver,
-    )
+  pub async fn new_with_default_config(bucket: String) -> Self {
+    AwsS3Storage::new(Client::new(&aws_config::load_from_env().await), bucket)
   }
 
   pub async fn s3_presign_url<K: AsRef<str> + Send>(
@@ -245,16 +233,11 @@ mod tests {
   use s3_server::storages::fs::FileSystem;
   use s3_server::{S3Service, SimpleAuth};
 
-  use htsget_config::regex_resolver::LocalResolver;
-  use htsget_config::Format::Bam;
-  use htsget_config::Query;
-
   use crate::htsget::Headers;
   use crate::storage::aws::AwsS3Storage;
   use crate::storage::local::tests::create_local_test_files;
   use crate::storage::StorageError;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
-  use crate::RegexResolver;
 
   async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
@@ -300,11 +283,7 @@ mod tests {
   {
     let (folder_name, base_path) = create_local_test_files().await;
     with_s3_test_server(base_path.path(), |client| async move {
-      test(AwsS3Storage::new(
-        client,
-        folder_name,
-        RegexResolver::new(Default::default(), ".*", "$0", Default::default()).unwrap(),
-      ));
+      test(AwsS3Storage::new(client, folder_name));
     })
     .await;
   }

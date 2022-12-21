@@ -7,7 +7,7 @@ use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
-use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAllowTypes};
+use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig, USAGE};
 #[cfg(feature = "s3-storage")]
 pub use htsget_config::regex_resolver::aws::S3Resolver;
@@ -234,7 +234,7 @@ mod tests {
     async fn get_response(
       &self,
       request: test::TestRequest,
-      formatter: HttpTicketFormatter,
+      _formatter: HttpTicketFormatter,
     ) -> ServiceResponse<EitherBody<BoxBody>> {
       let app = test::init_service(
         App::new()

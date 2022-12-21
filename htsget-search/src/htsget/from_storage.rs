@@ -14,9 +14,8 @@ use crate::htsget::search::Search;
 use crate::htsget::{Format, HtsGetError};
 #[cfg(feature = "s3-storage")]
 use crate::storage::aws::AwsS3Storage;
-use crate::storage::data_server::HttpTicketFormatter;
 use crate::storage::local::LocalStorage;
-use crate::storage::{StorageError, UrlFormatter};
+use crate::storage::UrlFormatter;
 use crate::RegexResolver;
 use crate::{
   htsget::bam_search::BamSearch,
@@ -47,14 +46,12 @@ impl HtsGet for &[RegexResolver] {
       if let Some(id) = resolver.resolve_id(&query) {
         match resolver.storage_type() {
           StorageType::Local(url) => {
-            let searcher =
-              HtsGetFromStorage::local_from(url.local_path(), resolver.clone(), url.clone())?;
+            let searcher = HtsGetFromStorage::local_from(url.local_path(), url.clone())?;
             return searcher.search(query.with_id(id)).await;
           }
           #[cfg(feature = "s3-storage")]
           StorageType::S3(s3) => {
-            let searcher =
-              HtsGetFromStorage::s3_from(s3.bucket().to_string(), resolver.clone()).await;
+            let searcher = HtsGetFromStorage::s3_from(s3.bucket().to_string()).await;
             return searcher.search(query.with_id(id)).await;
           }
           _ => {}
@@ -100,20 +97,14 @@ impl<S> HtsGetFromStorage<S> {
 
 #[cfg(feature = "s3-storage")]
 impl HtsGetFromStorage<AwsS3Storage> {
-  pub async fn s3_from(bucket: String, resolver: RegexResolver) -> Self {
-    HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket, resolver).await)
+  pub async fn s3_from(bucket: String) -> Self {
+    HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket).await)
   }
 }
 
 impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
-  pub fn local_from<P: AsRef<Path>>(
-    path: P,
-    resolver: RegexResolver,
-    formatter: T,
-  ) -> Result<Self> {
-    Ok(HtsGetFromStorage::new(LocalStorage::new(
-      path, resolver, formatter,
-    )?))
+  pub fn local_from<P: AsRef<Path>>(path: P, formatter: T) -> Result<Self> {
+    Ok(HtsGetFromStorage::new(LocalStorage::new(path, formatter)?))
   }
 }
 
@@ -126,7 +117,6 @@ pub(crate) mod tests {
   use htsget_config::config::cors::CorsConfig;
   use tempfile::TempDir;
 
-  use htsget_config::regex_resolver::StorageType;
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
@@ -205,7 +195,6 @@ pub(crate) mod tests {
     test(Arc::new(
       LocalStorage::new(
         base_path,
-        RegexResolver::new(Default::default(), ".*", "$0", Default::default()).unwrap(),
         HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
       )
       .unwrap(),

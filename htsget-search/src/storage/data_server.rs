@@ -17,7 +17,6 @@ use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
 use htsget_config::config::cors::CorsConfig;
 use htsget_config::config::DataServerConfig;
-use htsget_config::regex_resolver::LocalResolver;
 use http::uri::Scheme;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};

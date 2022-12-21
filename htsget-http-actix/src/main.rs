@@ -1,12 +1,7 @@
-use std::io::{Error, ErrorKind};
-
-use htsget_config::config::{DataServerConfig, TicketServerConfig};
-use htsget_config::regex_resolver::RegexResolver;
 use tokio::select;
 
 use htsget_http_actix::run_server;
-use htsget_http_actix::{Config, StorageType};
-use htsget_search::htsget::from_storage::HtsGetFromStorage;
+use htsget_http_actix::Config;
 use htsget_search::storage::data_server::HttpTicketFormatter;
 
 #[actix_web::main]

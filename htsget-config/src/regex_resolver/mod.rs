@@ -8,7 +8,7 @@ use tracing::instrument;
 use crate::config::{default_localstorage_addr, default_path, default_serve_at};
 use crate::regex_resolver::aws::S3Resolver;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
-use crate::{Class, Fields, Format, Interval, NoTags, Query, TaggedTypeAll, Tags};
+use crate::{Class, Fields, Format, Interval, Query, TaggedTypeAll, Tags};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;

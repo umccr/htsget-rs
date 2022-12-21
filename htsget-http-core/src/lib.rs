@@ -118,7 +118,6 @@ mod tests {
   use std::path::PathBuf;
   use std::sync::Arc;
 
-  use htsget_config::regex_resolver::{RegexResolver, StorageType};
   use htsget_config::Format;
   use htsget_search::htsget::HtsGet;
   use htsget_search::storage::data_server::HttpTicketFormatter;
@@ -276,7 +275,6 @@ mod tests {
     Arc::new(HtsGetFromStorage::new(
       LocalStorage::new(
         get_base_path(),
-        RegexResolver::new(Default::default(), ".*", "$0", Default::default()).unwrap(),
         HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
       )
       .unwrap(),

@@ -9,19 +9,16 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::encode;
-use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAllowTypes};
+use htsget_config::config::cors::CorsConfig;
 use htsget_config::regex_resolver::{LocalResolver, Scheme};
-use htsget_config::{Class, Query};
-use http::{uri, HeaderValue, Method};
+use htsget_config::Class;
+use http::{uri, HeaderValue};
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
 use crate::htsget::{Headers, Url};
-use crate::storage::data_server::CORS_MAX_AGE;
-use crate::storage::StorageError::DataServerError;
-use crate::{RegexResolver, Resolver};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -422,13 +419,6 @@ impl RangeUrlOptions {
     };
     url.set_class(self.range.class)
   }
-}
-
-/// Resolve a key id with the `RegexResolver` and convert it to a Result.
-fn resolve_id(resolver: &RegexResolver, query: &Query) -> Result<String> {
-  resolver
-    .resolve_id(query)
-    .ok_or_else(|| StorageError::InvalidKey(query.id().to_string()))
 }
 
 #[cfg(test)]

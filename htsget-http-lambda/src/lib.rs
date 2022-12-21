@@ -4,11 +4,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use htsget_config::Class;
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
-use lambda_http::tower::{ServiceBuilder, ServiceExt};
-use lambda_http::{http, service_fn, Body, Request, Response, Service};
+use lambda_http::tower::ServiceBuilder;
+use lambda_http::{http, service_fn, Body, Request, Response};
 use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
@@ -205,7 +204,7 @@ mod tests {
   use std::sync::Arc;
 
   use async_trait::async_trait;
-  use htsget_config::regex_resolver::{LocalResolver, RegexResolver, StorageType};
+  use htsget_config::regex_resolver::RegexResolver;
   use htsget_config::Class;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
@@ -216,11 +215,8 @@ mod tests {
   use tempfile::TempDir;
 
   use htsget_http_core::Endpoint;
-  use htsget_search::htsget::from_storage::HtsGetFromStorage;
-  use htsget_search::htsget::HtsGet;
   use htsget_search::storage::configure_cors;
   use htsget_search::storage::data_server::HttpTicketFormatter;
-  use htsget_search::storage::local::LocalStorage;
   use htsget_test_utils::http_tests::{config_with_tls, default_test_config, get_test_file};
   use htsget_test_utils::http_tests::{Header, Response as TestResponse, TestRequest, TestServer};
   use htsget_test_utils::server_tests::{
@@ -297,7 +293,7 @@ mod tests {
     }
 
     async fn test_server(&self, request: LambdaTestRequest<Request>) -> TestResponse {
-      let (expected_path, formatter) = formatter_and_expected_path(self.get_config()).await;
+      let (expected_path, _formatter) = formatter_and_expected_path(self.get_config()).await;
 
       let router = Router::new(
         Arc::new(self.config.clone().owned_resolvers()),
@@ -647,7 +643,7 @@ mod tests {
     .await;
   }
 
-  async fn with_router<'a, F, Fut>(test: F, config: &'a Config, formatter: HttpTicketFormatter)
+  async fn with_router<'a, F, Fut>(test: F, config: &'a Config, _formatter: HttpTicketFormatter)
   where
     F: FnOnce(Router<'a, Vec<RegexResolver>>) -> Fut,
     Fut: Future<Output = ()>,

@@ -9,11 +9,8 @@ use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::Query;
-
 use crate::htsget::Url;
-use crate::storage::{resolve_id, Storage, UrlFormatter};
-use crate::RegexResolver;
+use crate::storage::{Storage, UrlFormatter};
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -22,16 +19,11 @@ use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 #[derive(Debug, Clone)]
 pub struct LocalStorage<T> {
   base_path: PathBuf,
-  id_resolver: RegexResolver,
   url_formatter: T,
 }
 
 impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
-  pub fn new<P: AsRef<Path>>(
-    base_path: P,
-    id_resolver: RegexResolver,
-    url_formatter: T,
-  ) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(base_path: P, url_formatter: T) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -39,7 +31,6 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       .map_err(|_| StorageError::KeyNotFound(base_path.as_ref().to_string_lossy().to_string()))
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
-        id_resolver,
         url_formatter,
       })
   }
@@ -131,9 +122,6 @@ pub(crate) mod tests {
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
-
-  use htsget_config::regex_resolver::StorageType;
-  use htsget_config::Format::Bam;
 
   use crate::htsget::{Headers, Url};
   use crate::storage::data_server::HttpTicketFormatter;
@@ -302,7 +290,6 @@ pub(crate) mod tests {
     test(
       LocalStorage::new(
         base_path.path(),
-        RegexResolver::new(StorageType::default(), ".*", "$0", Default::default()).unwrap(),
         HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
       )
       .unwrap(),

@@ -5,7 +5,6 @@ use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use tokio::runtime::Runtime;
 
 use htsget_config::config::cors::CorsConfig;
-use htsget_config::regex_resolver::StorageType;
 use htsget_config::Class::Header;
 use htsget_config::Format::{Bam, Bcf, Cram, Vcf};
 use htsget_config::Query;
@@ -13,7 +12,6 @@ use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
 use htsget_search::htsget::HtsGetError;
 use htsget_search::storage::data_server::HttpTicketFormatter;
-use htsget_search::RegexResolver;
 
 const BENCHMARK_DURATION_SECONDS: u64 = 15;
 const NUMBER_OF_SAMPLES: usize = 150;
@@ -21,7 +19,6 @@ const NUMBER_OF_SAMPLES: usize = 150;
 async fn perform_query(query: Query) -> Result<(), HtsGetError> {
   let htsget = HtsGetFromStorage::local_from(
     "../data",
-    RegexResolver::new(StorageType::default(), ".*", "$0", Default::default()).unwrap(),
     HttpTicketFormatter::new(
       "127.0.0.1:8081".parse().expect("expected valid address"),
       CorsConfig::default(),

@@ -1,16 +1,13 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use futures::future::join_all;
 use futures::TryStreamExt;
-use htsget_config::regex_resolver::LocalResolver;
 use htsget_config::{Class, Format};
 use http::Method;
 use noodles_bgzf as bgzf;
 use noodles_vcf as vcf;
 use reqwest::ClientBuilder;
-use tokio::time::sleep;
 
 use htsget_http_core::{get_service_info_with, Endpoint};
 use htsget_search::htsget::Response as HtsgetResponse;
