@@ -1,4 +1,5 @@
 use crate::config::default_server_origin;
+use crate::TaggedTypeAll;
 use http::header::{HeaderName, HeaderValue as HeaderValueInner, InvalidHeaderValue};
 use http::Method;
 use serde::de::Error;
@@ -15,21 +16,14 @@ const CORS_MAX_AGE: usize = 86400;
 pub enum TaggedAllowTypes {
   #[serde(alias = "mirror", alias = "MIRROR")]
   Mirror,
-  #[serde(alias = "any", alias = "ANY")]
-  Any,
-}
-
-/// Tagged Any allow type for cors config.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub enum TaggedAnyAllowType {
-  #[serde(alias = "any", alias = "ANY")]
-  Any,
+  #[serde(alias = "all", alias = "ALL")]
+  All,
 }
 
 /// Allowed type for cors config which is used to configure cors behaviour.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged)]
-pub enum AllowType<T, Tagged = TaggedAllowTypes> {
+pub enum AllowType<T, Tagged = TaggedTypeAll> {
   Tagged(Tagged),
   #[serde(bound(serialize = "T: Display", deserialize = "T: FromStr, T::Err: Display"))]
   #[serde(
@@ -82,17 +76,17 @@ impl<T> AllowType<T, TaggedAllowTypes> {
   where
     F: FnOnce(U) -> U,
   {
-    self.apply_tagged(func, builder, &TaggedAllowTypes::Any)
+    self.apply_tagged(func, builder, &TaggedAllowTypes::All)
   }
 }
 
-impl<T> AllowType<T, TaggedAnyAllowType> {
+impl<T> AllowType<T, TaggedTypeAll> {
   /// Apply a function to the builder when the type is Any.
   pub fn apply_any<F, U>(&self, func: F, builder: U) -> U
   where
     F: FnOnce(U) -> U,
   {
-    self.apply_tagged(func, builder, &TaggedAnyAllowType::Any)
+    self.apply_tagged(func, builder, &TaggedTypeAll::All)
   }
 }
 
@@ -150,36 +144,50 @@ impl Display for HeaderValue {
 #[serde(default)]
 pub struct CorsConfig {
   allow_credentials: bool,
-  allow_origins: AllowType<HeaderValue>,
-  allow_headers: AllowType<HeaderName, TaggedAnyAllowType>,
-  allow_methods: AllowType<Method, TaggedAnyAllowType>,
+  allow_origins: AllowType<HeaderValue, TaggedAllowTypes>,
+  allow_headers: AllowType<HeaderName>,
+  allow_methods: AllowType<Method>,
   max_age: usize,
-  expose_headers: AllowType<HeaderName, TaggedAnyAllowType>,
+  expose_headers: AllowType<HeaderName>,
 }
 
 impl CorsConfig {
   /// Create new cors config.
-  pub fn new(allow_credentials: bool, allow_origins: AllowType<HeaderValue>, allow_headers: AllowType<HeaderName, TaggedAnyAllowType>, allow_methods: AllowType<Method, TaggedAnyAllowType>, max_age: usize, expose_headers: AllowType<HeaderName, TaggedAnyAllowType>) -> Self {
-    Self { allow_credentials, allow_origins, allow_headers, allow_methods, max_age, expose_headers }
+  pub fn new(
+    allow_credentials: bool,
+    allow_origins: AllowType<HeaderValue, TaggedAllowTypes>,
+    allow_headers: AllowType<HeaderName>,
+    allow_methods: AllowType<Method>,
+    max_age: usize,
+    expose_headers: AllowType<HeaderName>,
+  ) -> Self {
+    Self {
+      allow_credentials,
+      allow_origins,
+      allow_headers,
+      allow_methods,
+      max_age,
+      expose_headers,
+    }
   }
-  
+
   /// Get allow credentials.
   pub fn allow_credentials(&self) -> bool {
     self.allow_credentials
   }
 
   /// Get allow origins.
-  pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
+  pub fn allow_origins(&self) -> &AllowType<HeaderValue, TaggedAllowTypes> {
     &self.allow_origins
   }
 
   /// Get allow headers.
-  pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+  pub fn allow_headers(&self) -> &AllowType<HeaderName> {
     &self.allow_headers
   }
 
   /// Get allow methods.
-  pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
+  pub fn allow_methods(&self) -> &AllowType<Method> {
     &self.allow_methods
   }
 
@@ -189,7 +197,7 @@ impl CorsConfig {
   }
 
   /// Get expose headers.
-  pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+  pub fn expose_headers(&self) -> &AllowType<HeaderName> {
     &self.expose_headers
   }
 }
@@ -201,8 +209,8 @@ impl Default for CorsConfig {
       allow_origins: AllowType::List(vec![HeaderValue(HeaderValueInner::from_static(
         default_server_origin(),
       ))]),
-      allow_headers: AllowType::Tagged(TaggedAnyAllowType::Any),
-      allow_methods: AllowType::Tagged(TaggedAnyAllowType::Any),
+      allow_headers: AllowType::Tagged(TaggedTypeAll::All),
+      allow_methods: AllowType::Tagged(TaggedTypeAll::All),
       max_age: CORS_MAX_AGE,
       expose_headers: AllowType::List(vec![]),
     }
@@ -232,8 +240,8 @@ mod tests {
   #[test]
   fn unit_variant_any_allow_type() {
     test_cors_config(
-      "allow_methods = \"Any\"",
-      &AllowType::Tagged(TaggedAnyAllowType::Any),
+      "allow_methods = \"All\"",
+      &AllowType::Tagged(TaggedTypeAll::All),
       |config| config.allow_methods(),
     );
   }
@@ -259,8 +267,8 @@ mod tests {
   #[test]
   fn tagged_any_allow_type() {
     test_cors_config(
-      "expose_headers = \"Any\"",
-      &AllowType::Tagged(TaggedAnyAllowType::Any),
+      "expose_headers = \"All\"",
+      &AllowType::Tagged(TaggedTypeAll::All),
       |config| config.expose_headers(),
     );
   }

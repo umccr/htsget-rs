@@ -166,13 +166,19 @@ impl Interval {
   }
 }
 
+/// Tagged Any allow type for cors config.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub enum TaggedTypeAll {
+  #[serde(alias = "all", alias = "ALL")]
+  All,
+}
+
 /// Possible values for the fields parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum Fields {
   /// Include all fields
-  #[serde(alias = "all", alias = "ALL")]
-  All,
+  Tagged(TaggedTypeAll),
   /// List of fields to include
   List(HashSet<String>),
 }
@@ -182,8 +188,7 @@ pub enum Fields {
 #[serde(untagged)]
 pub enum Tags {
   /// Include all tags
-  #[serde(alias = "all", alias = "ALL")]
-  All,
+  Tagged(TaggedTypeAll),
   /// List of tags to include
   List(HashSet<String>),
 }
@@ -216,8 +221,8 @@ impl Query {
       class: Class::Body,
       reference_name: None,
       interval: Interval::default(),
-      fields: Fields::All,
-      tags: Tags::All,
+      fields: Fields::Tagged(TaggedTypeAll::All),
+      tags: Tags::Tagged(TaggedTypeAll::All),
       no_tags: NoTags(None),
     }
   }

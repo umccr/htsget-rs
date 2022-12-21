@@ -7,7 +7,7 @@ use std::iter::Map;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
-use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAnyAllowType};
+use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
 use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::value::Value::Dict;
@@ -114,14 +114,14 @@ enum DataServerConfigOption {
   Some(DataServerConfig),
 }
 
-with_prefix!(ticket_server_prefix "ticket_server_");
+with_prefix!(ticket_server_cors_prefix "ticket_server_cors_");
 
 /// Configuration for the htsget ticket server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
   ticket_server_addr: SocketAddr,
-  #[serde(flatten, with = "ticket_server_prefix")]
+  #[serde(flatten, with = "ticket_server_cors_prefix")]
   cors: CorsConfig,
   #[serde(flatten)]
   service_info: ServiceInfo,
@@ -130,7 +130,11 @@ pub struct TicketServerConfig {
 impl TicketServerConfig {
   /// Create a new ticket server config.
   pub fn new(ticket_server_addr: SocketAddr, cors: CorsConfig, service_info: ServiceInfo) -> Self {
-    Self { ticket_server_addr, cors, service_info }
+    Self {
+      ticket_server_addr,
+      cors,
+      service_info,
+    }
   }
 
   /// Get the addr.
@@ -154,17 +158,17 @@ impl TicketServerConfig {
   }
 
   /// Get allow origins.
-  pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
+  pub fn allow_origins(&self) -> &AllowType<HeaderValue, TaggedAllowTypes> {
     self.cors.allow_origins()
   }
 
   /// Get allow headers.
-  pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+  pub fn allow_headers(&self) -> &AllowType<HeaderName> {
     self.cors.allow_headers()
   }
 
   /// Get allow methods.
-  pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
+  pub fn allow_methods(&self) -> &AllowType<Method> {
     self.cors.allow_methods()
   }
 
@@ -174,7 +178,7 @@ impl TicketServerConfig {
   }
 
   /// Get expose headers.
-  pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+  pub fn expose_headers(&self) -> &AllowType<HeaderName> {
     self.cors.expose_headers()
   }
 
@@ -229,6 +233,8 @@ impl TicketServerConfig {
   }
 }
 
+with_prefix!(cors_prefix "cors_");
+
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -238,14 +244,28 @@ pub struct DataServerConfig {
   serve_at: PathBuf,
   key: Option<PathBuf>,
   cert: Option<PathBuf>,
-  #[serde(flatten)]
+  #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
 
 impl DataServerConfig {
   /// Create a new data server config.
-  pub fn new(addr: SocketAddr, local_path: PathBuf, serve_at: PathBuf, key: Option<PathBuf>, cert: Option<PathBuf>, cors: CorsConfig) -> Self {
-    Self { addr, local_path, serve_at, key, cert, cors }
+  pub fn new(
+    addr: SocketAddr,
+    local_path: PathBuf,
+    serve_at: PathBuf,
+    key: Option<PathBuf>,
+    cert: Option<PathBuf>,
+    cors: CorsConfig,
+  ) -> Self {
+    Self {
+      addr,
+      local_path,
+      serve_at,
+      key,
+      cert,
+      cors,
+    }
   }
 
   /// Get the address.
@@ -284,17 +304,17 @@ impl DataServerConfig {
   }
 
   /// Get allow origins.
-  pub fn allow_origins(&self) -> &AllowType<HeaderValue> {
+  pub fn allow_origins(&self) -> &AllowType<HeaderValue, TaggedAllowTypes> {
     self.cors.allow_origins()
   }
 
   /// Get allow headers.
-  pub fn allow_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+  pub fn allow_headers(&self) -> &AllowType<HeaderName> {
     self.cors.allow_headers()
   }
 
   /// Get allow methods.
-  pub fn allow_methods(&self) -> &AllowType<Method, TaggedAnyAllowType> {
+  pub fn allow_methods(&self) -> &AllowType<Method> {
     self.cors.allow_methods()
   }
 
@@ -304,7 +324,7 @@ impl DataServerConfig {
   }
 
   /// Get the expose headers.
-  pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedAnyAllowType> {
+  pub fn expose_headers(&self) -> &AllowType<HeaderName> {
     self.cors.expose_headers()
   }
 }
@@ -414,20 +434,21 @@ impl Default for Config {
 
 impl Config {
   /// Create a new config.
-  pub fn new(ticket_server: TicketServerConfig, data_server: Option<DataServerConfig>, resolvers: Vec<RegexResolver>) -> Self {
-    Self { 
-      ticket_server, 
+  pub fn new(
+    ticket_server: TicketServerConfig,
+    data_server: Option<DataServerConfig>,
+    resolvers: Vec<RegexResolver>,
+  ) -> Self {
+    Self {
+      ticket_server,
       data_server: match data_server {
-        None => {
-          DataServerConfigOption::None(DataServerConfigNone::None)
-        }
-        Some(value) => {
-          DataServerConfigOption::Some(value)
-        }
-      }, 
-      resolvers }
+        None => DataServerConfigOption::None(DataServerConfigNone::None),
+        Some(value) => DataServerConfigOption::Some(value),
+      },
+      resolvers,
+    }
   }
-  
+
   /// Parse the command line arguments
   pub fn parse_args() -> PathBuf {
     Args::parse().config.unwrap_or_else(|| "".into())
@@ -550,7 +571,7 @@ mod tests {
   #[test]
   fn config_ticket_server_cors_allow_origin_env() {
     test_config_from_env(
-      vec![("HTSGET_TICKET_SERVER_ALLOW_CREDENTIALS", true)],
+      vec![("HTSGET_TICKET_SERVER_CORS_ALLOW_CREDENTIALS", true)],
       |config| {
         assert!(config.ticket_server().allow_credentials());
       },
@@ -606,7 +627,7 @@ mod tests {
 
   #[test]
   fn config_ticket_server_cors_allow_origin_file() {
-    test_config_from_file(r#"ticket_server_allow_credentials = true"#, |config| {
+    test_config_from_file(r#"ticket_server_cors_allow_credentials = true"#, |config| {
       assert!(config.ticket_server().allow_credentials());
     });
   }

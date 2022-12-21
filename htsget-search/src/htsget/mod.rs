@@ -231,7 +231,7 @@ impl Response {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use htsget_config::{Fields, NoTags, Tags};
+  use htsget_config::{Fields, NoTags, TaggedTypeAll, Tags};
   use std::collections::HashSet;
 
   #[test]
@@ -342,8 +342,8 @@ mod tests {
 
   #[test]
   fn query_with_tags() {
-    let result = Query::new("NA12878", Format::Bam).with_tags(Tags::All);
-    assert_eq!(result.tags(), &Tags::All);
+    let result = Query::new("NA12878", Format::Bam).with_tags(Tags::Tagged(TaggedTypeAll::All));
+    assert_eq!(result.tags(), &Tags::Tagged(TaggedTypeAll::All));
   }
 
   #[test]

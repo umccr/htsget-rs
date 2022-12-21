@@ -1,13 +1,14 @@
 use http::uri::Authority;
 use regex::{Error, Regex};
 use serde::{Deserialize, Serialize};
+use serde_with::with_prefix;
+use std::collections::HashSet;
 use tracing::instrument;
 
 use crate::config::{default_localstorage_addr, default_path, default_serve_at};
 use crate::regex_resolver::aws::S3Resolver;
-use crate::regex_resolver::ReferenceNames::All;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
-use crate::{Class, Fields, Format, Interval, NoTags, Query, Tags};
+use crate::{Class, Fields, Format, Interval, NoTags, Query, TaggedTypeAll, Tags};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -74,14 +75,14 @@ impl LocalResolver {
     scheme: Scheme,
     authority: Authority,
     local_path: String,
-    path_prefix: String
+    path_prefix: String,
   ) -> Self {
-     Self {
-       scheme,
-       authority,
-       local_path,
-       path_prefix
-     }
+    Self {
+      scheme,
+      authority,
+      local_path,
+      path_prefix,
+    }
   }
 
   /// Get the scheme.
@@ -124,29 +125,31 @@ pub struct RegexResolver {
   regex: Regex,
   // Todo: should match guard be allowed as variables inside the substitution string?
   substitution_string: String,
-  guard: QueryGuard,
   storage_type: StorageType,
+  guard: QueryGuard,
 }
+
+with_prefix!(allow_interval_prefix "allow_interval_");
 
 /// A query guard represents query parameters that can be allowed to resolver for a given query.
 #[derive(Serialize, Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct QueryGuard {
-  allow_formats: Vec<Format>,
-  allow_classes: Vec<Class>,
   allow_reference_names: ReferenceNames,
-  allow_interval: Interval,
   allow_fields: Fields,
   allow_tags: Tags,
+  allow_formats: Vec<Format>,
+  allow_classes: Vec<Class>,
+  #[serde(flatten, with = "allow_interval_prefix")]
+  allow_interval: Interval,
 }
 
 /// Reference names that can be matched.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum ReferenceNames {
-  All,
-  #[serde(with = "serde_regex")]
-  Some(Regex),
+  Tagged(TaggedTypeAll),
+  List(HashSet<String>),
 }
 
 impl QueryGuard {
@@ -160,14 +163,14 @@ impl QueryGuard {
     &self.allow_classes
   }
 
-  /// Get allow reference names.
-  pub fn allow_reference_names(&self) -> &ReferenceNames {
-    &self.allow_reference_names
-  }
-
   /// Get allow interval.
   pub fn allow_interval(&self) -> Interval {
     self.allow_interval
+  }
+
+  /// Get allow reference names.
+  pub fn allow_reference_names(&self) -> &ReferenceNames {
+    &self.allow_reference_names
   }
 
   /// Get allow fields.
@@ -186,10 +189,10 @@ impl Default for QueryGuard {
     Self {
       allow_formats: vec![Bam, Cram, Vcf, Bcf],
       allow_classes: vec![Class::Body, Class::Header],
-      allow_reference_names: All,
       allow_interval: Default::default(),
-      allow_fields: Fields::All,
-      allow_tags: Tags::All,
+      allow_reference_names: ReferenceNames::Tagged(TaggedTypeAll::All),
+      allow_fields: Fields::Tagged(TaggedTypeAll::All),
+      allow_tags: Tags::Tagged(TaggedTypeAll::All),
     }
   }
 }
@@ -197,9 +200,11 @@ impl Default for QueryGuard {
 impl QueryMatcher for ReferenceNames {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.reference_name) {
-      (ReferenceNames::All, _) => true,
-      (ReferenceNames::Some(regex), Some(reference_name)) => regex.is_match(reference_name),
-      (ReferenceNames::Some(_), None) => false,
+      (ReferenceNames::Tagged(TaggedTypeAll::All), _) => true,
+      (ReferenceNames::List(reference_names), Some(reference_name)) => {
+        reference_names.contains(reference_name)
+      }
+      (ReferenceNames::List(_), None) => false,
     }
   }
 }
@@ -207,11 +212,11 @@ impl QueryMatcher for ReferenceNames {
 impl QueryMatcher for Fields {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.fields) {
-      (Fields::All, _) => true,
+      (Fields::Tagged(TaggedTypeAll::All), _) => true,
       (Fields::List(self_fields), Fields::List(query_fields)) => {
         self_fields.is_subset(query_fields)
       }
-      (Fields::List(_), Fields::All) => false,
+      (Fields::List(_), Fields::Tagged(TaggedTypeAll::All)) => false,
     }
   }
 }
@@ -219,9 +224,9 @@ impl QueryMatcher for Fields {
 impl QueryMatcher for Tags {
   fn query_matches(&self, query: &Query) -> bool {
     match (self, &query.tags) {
-      (Tags::All, _) => true,
+      (Tags::Tagged(TaggedTypeAll::All), _) => true,
       (Tags::List(self_tags), Tags::List(query_tags)) => self_tags.is_subset(query_tags),
-      (Tags::List(_), Tags::All) => false,
+      (Tags::List(_), Tags::Tagged(TaggedTypeAll::All)) => false,
     }
   }
 }
@@ -230,13 +235,13 @@ impl QueryMatcher for QueryGuard {
   fn query_matches(&self, query: &Query) -> bool {
     self.allow_formats.contains(&query.format)
       && self.allow_classes.contains(&query.class)
-      && self.allow_reference_names.query_matches(query)
       && self
         .allow_interval
         .contains(query.interval.start.unwrap_or(u32::MIN))
       && self
         .allow_interval
         .contains(query.interval.end.unwrap_or(u32::MAX))
+      && self.allow_reference_names.query_matches(query)
       && self.allow_fields.query_matches(query)
       && self.allow_tags.query_matches(query)
   }
@@ -269,7 +274,7 @@ impl RegexResolver {
   pub fn regex(&self) -> &Regex {
     &self.regex
   }
- 
+
   /// Get the substitution string.
   pub fn substitution_string(&self) -> &str {
     &self.substitution_string
@@ -295,25 +300,25 @@ impl RegexResolver {
     self.guard.allow_classes()
   }
 
-  /// Get allow reference names.
-  pub fn allow_reference_names(&self) -> &ReferenceNames {
-    &self.guard.allow_reference_names
-  }
-
   /// Get allow interval.
   pub fn allow_interval(&self) -> Interval {
     self.guard.allow_interval
   }
 
-  /// Get allow fields.
-  pub fn allow_fields(&self) -> &Fields {
-    &self.guard.allow_fields
-  }
-
-  /// Get allow tags.
-  pub fn allow_tags(&self) -> &Tags {
-    &self.guard.allow_tags
-  }
+  // /// Get allow reference names.
+  // pub fn allow_reference_names(&self) -> &ReferenceNames {
+  //   &self.guard.allow_reference_names
+  // }
+  //
+  // /// Get allow fields.
+  // pub fn allow_fields(&self) -> &Fields {
+  //   &self.guard.allow_fields
+  // }
+  //
+  // /// Get allow tags.
+  // pub fn allow_tags(&self) -> &Tags {
+  //   &self.guard.allow_tags
+  // }
 }
 
 impl Resolver for RegexResolver {

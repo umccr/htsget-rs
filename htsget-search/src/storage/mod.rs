@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::encode;
-use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAllowTypes, TaggedAnyAllowType};
+use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAllowTypes};
 use htsget_config::regex_resolver::{LocalResolver, Scheme};
 use htsget_config::{Class, Query};
 use http::{uri, HeaderValue, Method};

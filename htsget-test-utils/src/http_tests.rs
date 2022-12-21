@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use htsget_config::config::cors::{AllowType, CorsConfig, TaggedAnyAllowType};
+use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::regex_resolver::{LocalResolver, RegexResolver, Scheme, StorageType};
+use htsget_config::TaggedTypeAll;
 use http::uri::Authority;
 use http::HeaderMap;
 use serde::de;
@@ -95,7 +96,7 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> RegexResolver 
     scheme,
     Authority::from_str(&addr.to_string()).unwrap(),
     default_dir_data().to_str().unwrap().to_string(),
-    "/data".to_string()
+    "/data".to_string(),
   );
 
   RegexResolver::new(StorageType::Local(resolver), ".*", "$0", Default::default()).unwrap()
@@ -118,14 +119,19 @@ pub fn default_cors_config() -> CorsConfig {
   CorsConfig::new(
     false,
     AllowType::List(vec!["http://example.com".parse().unwrap()]),
-    AllowType::Tagged(TaggedAnyAllowType::Any),
-    AllowType::Tagged(TaggedAnyAllowType::Any),
+    AllowType::Tagged(TaggedTypeAll::All),
+    AllowType::Tagged(TaggedTypeAll::All),
     1000,
     AllowType::List(vec![]),
   )
 }
 
-fn default_test_config_params(addr: SocketAddr, key: Option<PathBuf>, cert: Option<PathBuf>, scheme: Scheme) -> Config {
+fn default_test_config_params(
+  addr: SocketAddr,
+  key: Option<PathBuf>,
+  cert: Option<PathBuf>,
+  scheme: Scheme,
+) -> Config {
   let cors = default_cors_config();
   let server_config = DataServerConfig::new(
     addr,
@@ -133,17 +139,13 @@ fn default_test_config_params(addr: SocketAddr, key: Option<PathBuf>, cert: Opti
     PathBuf::from("/data"),
     key,
     cert,
-    cors.clone()
+    cors.clone(),
   );
 
   Config::new(
-    TicketServerConfig::new(
-      "127.0.0.1:8080".parse().unwrap(),
-      cors,
-      Default::default()
-    ),
+    TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), cors, Default::default()),
     Some(server_config),
-    vec![default_test_resolver(addr, scheme)]
+    vec![default_test_resolver(addr, scheme)],
   )
 }
 
