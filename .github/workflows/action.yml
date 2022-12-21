@@ -79,6 +79,8 @@ jobs:
       - name: Run search benchmarks
         #run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-${BENCH_TIMESTAMP}.json
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT | tee output.txt
+        # examples are broken on https://github.com/benchmark-action/github-action-benchmark/tree/master/examples/criterion-rs
+        #run: cargo bench -- --output-format bencher | tee output.txt ... nope: error: Unrecognized option: 'output-format'
       - name: Where is output.txt
         run: pwd && ls -alh && find .. -iname 'output.txt'
       # - name: Store requests benchmark result
@@ -97,7 +99,7 @@ jobs:
         with:
           name: Search benchmark
           tool: 'cargo'
-          output-file-path: ./htsget-rs/output.txt
+          output-file-path: /home/runner/work/htsget-rs/htsget-rs/output.txt
           #external-data-json-path: search-benchmarks.json
           fail-on-alert: false
           # Access token to deploy GitHub Pages branch
