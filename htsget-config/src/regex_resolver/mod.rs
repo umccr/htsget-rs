@@ -45,10 +45,11 @@ impl Default for StorageType {
 
 /// Schemes that can be used with htsget.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Scheme {
-  #[serde(alias = "http", alias = "HTTP")]
+  #[serde(alias = "Http", alias = "http")]
   Http,
-  #[serde(alias = "https", alias = "HTTPS")]
+  #[serde(alias = "Https", alias = "https")]
   Https,
 }
 
@@ -126,7 +127,7 @@ pub struct RegexResolver {
   // Todo: should match guard be allowed as variables inside the substitution string?
   substitution_string: String,
   storage_type: StorageType,
-  guard: QueryGuard,
+  allow_guard: QueryGuard,
 }
 
 with_prefix!(allow_interval_prefix "allow_interval_");
@@ -260,13 +261,13 @@ impl RegexResolver {
     storage_type: StorageType,
     regex: &str,
     replacement_string: &str,
-    guard: QueryGuard,
+    allow_guard: QueryGuard,
   ) -> Result<Self, Error> {
     Ok(Self {
       regex: Regex::new(regex)?,
       substitution_string: replacement_string.to_string(),
       storage_type,
-      guard,
+      allow_guard,
     })
   }
 
@@ -281,8 +282,8 @@ impl RegexResolver {
   }
 
   /// Get the query guard.
-  pub fn guard(&self) -> &QueryGuard {
-    &self.guard
+  pub fn allow_guard(&self) -> &QueryGuard {
+    &self.allow_guard
   }
 
   /// Get the storage type.
@@ -292,39 +293,39 @@ impl RegexResolver {
 
   /// Get allow formats.
   pub fn allow_formats(&self) -> &[Format] {
-    self.guard.allow_formats()
+    self.allow_guard.allow_formats()
   }
 
   /// Get allow classes.
   pub fn allow_classes(&self) -> &[Class] {
-    self.guard.allow_classes()
+    self.allow_guard.allow_classes()
   }
 
   /// Get allow interval.
   pub fn allow_interval(&self) -> Interval {
-    self.guard.allow_interval
+    self.allow_guard.allow_interval
   }
 
-  // /// Get allow reference names.
-  // pub fn allow_reference_names(&self) -> &ReferenceNames {
-  //   &self.guard.allow_reference_names
-  // }
-  //
-  // /// Get allow fields.
-  // pub fn allow_fields(&self) -> &Fields {
-  //   &self.guard.allow_fields
-  // }
-  //
-  // /// Get allow tags.
-  // pub fn allow_tags(&self) -> &Tags {
-  //   &self.guard.allow_tags
-  // }
+  /// Get allow reference names.
+  pub fn allow_reference_names(&self) -> &ReferenceNames {
+    &self.allow_guard.allow_reference_names
+  }
+
+  /// Get allow fields.
+  pub fn allow_fields(&self) -> &Fields {
+    &self.allow_guard.allow_fields
+  }
+
+  /// Get allow tags.
+  pub fn allow_tags(&self) -> &Tags {
+    &self.allow_guard.allow_tags
+  }
 }
 
 impl Resolver for RegexResolver {
   #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, query: &Query) -> Option<String> {
-    if self.regex.is_match(&query.id) && self.guard.query_matches(query) {
+    if self.regex.is_match(&query.id) && self.allow_guard.query_matches(query) {
       Some(
         self
           .regex

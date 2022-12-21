@@ -95,14 +95,13 @@ struct Args {
   print_default_config: bool,
 }
 
-with_prefix!(ticket_server_prefix "ticket_server_");
 with_prefix!(data_server_prefix "data_server_");
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
-  #[serde(flatten, with = "ticket_server_prefix")]
+  #[serde(flatten)]
   ticket_server: TicketServerConfig,
   #[serde(flatten, with = "data_server_prefix")]
   data_server: DataServerConfigOption,
@@ -122,14 +121,14 @@ enum DataServerConfigOption {
   Some(DataServerConfig),
 }
 
-with_prefix!(cors_prefix "cors_");
+with_prefix!(ticket_server_cors_prefix "ticket_server_cors_");
 
 /// Configuration for the htsget ticket server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
-  addr: SocketAddr,
-  #[serde(flatten, with = "cors_prefix")]
+  ticket_server_addr: SocketAddr,
+  #[serde(flatten, with = "ticket_server_cors_prefix")]
   cors: CorsConfig,
   #[serde(flatten)]
   service_info: ServiceInfo,
@@ -139,7 +138,7 @@ impl TicketServerConfig {
   /// Create a new ticket server config.
   pub fn new(ticket_server_addr: SocketAddr, cors: CorsConfig, service_info: ServiceInfo) -> Self {
     Self {
-      addr: ticket_server_addr,
+      ticket_server_addr,
       cors,
       service_info,
     }
@@ -147,7 +146,7 @@ impl TicketServerConfig {
 
   /// Get the addr.
   pub fn addr(&self) -> SocketAddr {
-    self.addr
+    self.ticket_server_addr
   }
 
   /// Get cors config.
@@ -240,6 +239,8 @@ impl TicketServerConfig {
     self.service_info.environment()
   }
 }
+
+with_prefix!(cors_prefix "cors_");
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -351,7 +352,7 @@ impl Default for DataServerConfig {
 }
 
 /// Configuration of the service info.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct ServiceInfo {
   id: Option<String>,
@@ -364,6 +365,23 @@ pub struct ServiceInfo {
   created_at: Option<String>,
   updated_at: Option<String>,
   environment: Option<String>,
+}
+
+impl Default for ServiceInfo {
+  fn default() -> Self {
+    Self {
+      id: Some("None".to_string()),
+      name: Some("None".to_string()),
+      version: Some("None".to_string()),
+      organization_name: Some("None".to_string()),
+      organization_url: Some("None".to_string()),
+      contact_url: Some("None".to_string()),
+      documentation_url: Some("None".to_string()),
+      created_at: Some("None".to_string()),
+      updated_at: Some("None".to_string()),
+      environment: Some("None".to_string()),
+    }
+  }
 }
 
 impl ServiceInfo {
@@ -421,7 +439,7 @@ impl ServiceInfo {
 impl Default for TicketServerConfig {
   fn default() -> Self {
     Self {
-      addr: default_addr().parse().expect("expected valid address"),
+      ticket_server_addr: default_addr().parse().expect("expected valid address"),
       cors: CorsConfig::default(),
       service_info: ServiceInfo::default(),
     }
