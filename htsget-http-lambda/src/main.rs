@@ -9,7 +9,7 @@ async fn main() -> Result<(), Error> {
   Config::setup_tracing()?;
 
   if let Some(config) = Config::parse_args() {
-    let config = Config::from_env(config)?;
+    let config = Config::from_config(config)?;
 
     let service_info = config.ticket_server().service_info().clone();
     let cors = config.ticket_server().cors().clone();

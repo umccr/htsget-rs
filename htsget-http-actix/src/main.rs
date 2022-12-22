@@ -9,10 +9,10 @@ async fn main() -> std::io::Result<()> {
   Config::setup_tracing()?;
 
   if let Some(config) = Config::parse_args() {
-    let config = Config::from_env(config)?;
+    let config = Config::from_config(config)?;
 
-    if let Some(server) = config.data_server() {
-      let server = server.clone();
+    if config.data_server().enabled() {
+      let server = config.data_server().clone();
       let mut formatter = HttpTicketFormatter::try_from(server.clone())?;
 
       let local_server = formatter.bind_data_server().await?;

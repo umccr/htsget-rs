@@ -30,7 +30,7 @@ pub trait QueryMatcher {
 #[serde(tag = "type")]
 #[non_exhaustive]
 pub enum StorageType {
-  #[serde(alias = "url", alias = "URL")]
+  #[serde(alias = "local", alias = "LOCAL")]
   Local(LocalResolver),
   #[cfg(feature = "s3-storage")]
   #[serde(alias = "s3")]

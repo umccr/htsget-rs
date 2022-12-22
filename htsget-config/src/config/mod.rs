@@ -104,21 +104,8 @@ pub struct Config {
   #[serde(flatten)]
   ticket_server: TicketServerConfig,
   #[serde(flatten, with = "data_server_prefix")]
-  data_server: DataServerConfigOption,
+  data_server: DataServerConfig,
   resolvers: Vec<RegexResolver>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-enum DataServerConfigNone {
-  #[serde(alias = "none", alias = "NONE", alias = "")]
-  None,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
-enum DataServerConfigOption {
-  None(DataServerConfigNone),
-  Some(DataServerConfig),
 }
 
 with_prefix!(ticket_server_cors_prefix "ticket_server_cors_");
@@ -246,6 +233,7 @@ with_prefix!(cors_prefix "cors_");
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct DataServerConfig {
+  enabled: bool,
   addr: SocketAddr,
   local_path: PathBuf,
   serve_at: PathBuf,
@@ -258,6 +246,7 @@ pub struct DataServerConfig {
 impl DataServerConfig {
   /// Create a new data server config.
   pub fn new(
+    enabled: bool,
     addr: SocketAddr,
     local_path: PathBuf,
     serve_at: PathBuf,
@@ -266,6 +255,7 @@ impl DataServerConfig {
     cors: CorsConfig,
   ) -> Self {
     Self {
+      enabled,
       addr,
       local_path,
       serve_at,
@@ -334,11 +324,17 @@ impl DataServerConfig {
   pub fn expose_headers(&self) -> &AllowType<HeaderName> {
     self.cors.expose_headers()
   }
+
+  /// Is the data server disabled
+  pub fn enabled(&self) -> bool {
+    self.enabled
+  }
 }
 
 impl Default for DataServerConfig {
   fn default() -> Self {
     Self {
+      enabled: true,
       addr: default_localstorage_addr()
         .parse()
         .expect("expected valid address"),
@@ -352,7 +348,7 @@ impl Default for DataServerConfig {
 }
 
 /// Configuration of the service info.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct ServiceInfo {
   id: Option<String>,
@@ -365,23 +361,6 @@ pub struct ServiceInfo {
   created_at: Option<String>,
   updated_at: Option<String>,
   environment: Option<String>,
-}
-
-impl Default for ServiceInfo {
-  fn default() -> Self {
-    Self {
-      id: Some("None".to_string()),
-      name: Some("None".to_string()),
-      version: Some("None".to_string()),
-      organization_name: Some("None".to_string()),
-      organization_url: Some("None".to_string()),
-      contact_url: Some("None".to_string()),
-      documentation_url: Some("None".to_string()),
-      created_at: Some("None".to_string()),
-      updated_at: Some("None".to_string()),
-      environment: Some("None".to_string()),
-    }
-  }
 }
 
 impl ServiceInfo {
@@ -450,7 +429,7 @@ impl Default for Config {
   fn default() -> Self {
     Self {
       ticket_server: TicketServerConfig::default(),
-      data_server: DataServerConfigOption::Some(DataServerConfig::default()),
+      data_server: DataServerConfig::default(),
       resolvers: vec![RegexResolver::default()],
     }
   }
@@ -460,15 +439,12 @@ impl Config {
   /// Create a new config.
   pub fn new(
     ticket_server: TicketServerConfig,
-    data_server: Option<DataServerConfig>,
+    data_server: DataServerConfig,
     resolvers: Vec<RegexResolver>,
   ) -> Self {
     Self {
       ticket_server,
-      data_server: match data_server {
-        None => DataServerConfigOption::None(DataServerConfigNone::None),
-        Some(value) => DataServerConfigOption::Some(value),
-      },
+      data_server,
       resolvers,
     }
   }
@@ -490,7 +466,7 @@ impl Config {
 
   /// Read the environment variables into a Config struct.
   #[instrument]
-  pub fn from_env(config: PathBuf) -> io::Result<Self> {
+  pub fn from_config(config: PathBuf) -> io::Result<Self> {
     let config = Figment::from(Serialized::defaults(Config::default()))
       .merge(Toml::file(config))
       .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
@@ -526,11 +502,8 @@ impl Config {
   }
 
   /// Get the data server.
-  pub fn data_server(&self) -> Option<&DataServerConfig> {
-    match self.data_server {
-      DataServerConfigOption::None(_) => None,
-      DataServerConfigOption::Some(ref config) => Some(config),
-    }
+  pub fn data_server(&self) -> &DataServerConfig {
+    &self.data_server
   }
 
   /// Get the resolvers.
@@ -567,7 +540,7 @@ mod tests {
         jail.set_env(key, value);
       }
 
-      test_fn(Config::from_env("test.toml".into()).map_err(|err| err.to_string())?);
+      test_fn(Config::from_config("test.toml".into()).map_err(|err| err.to_string())?);
 
       Ok(())
     });
@@ -625,7 +598,7 @@ mod tests {
       vec![("HTSGET_DATA_SERVER", "{addr=127.0.0.1:8082}")],
       |config| {
         assert_eq!(
-          config.data_server().unwrap().addr(),
+          config.data_server().addr(),
           "127.0.0.1:8082".parse().unwrap()
         );
       },
@@ -634,8 +607,8 @@ mod tests {
 
   #[test]
   fn config_no_data_server_env() {
-    test_config_from_env(vec![("HTSGET_DATA_SERVER", "")], |config| {
-      assert!(matches!(config.data_server(), None));
+    test_config_from_env(vec![("HTSGET_DATA_SERVER_ENABLED", "false")], |config| {
+      assert!(config.data_server().enabled());
     });
   }
 
@@ -682,7 +655,7 @@ mod tests {
         "#,
       |config| {
         assert_eq!(
-          config.data_server().unwrap().addr(),
+          config.data_server().addr(),
           "127.0.0.1:8082".parse().unwrap()
         );
       },
@@ -691,8 +664,8 @@ mod tests {
 
   #[test]
   fn config_no_data_server_file() {
-    test_config_from_file(r#"data_server = """#, |config| {
-      assert!(matches!(config.data_server(), None));
+    test_config_from_file(r#"data_server_enabled = false"#, |config| {
+      assert!(config.data_server().enabled());
     });
   }
 

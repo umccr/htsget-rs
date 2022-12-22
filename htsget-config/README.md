@@ -89,7 +89,7 @@ Sometimes it may be useful to disable the data server as all responses to the ti
 To disable the data server, set the following option:
 
 <pre id="data_server" lang="toml">
-data_server = ''
+data_server_enabled = false
 </pre>
 
 #### Service info config
@@ -228,7 +228,7 @@ the `--print-default-config` flag:
 cargo run -p htsget-http-actix -- --print-default-config
 ```
 
-Pass the `--help` flag to see more details on command line options:
+Use the `--help` flag to see more details on command line options.
 
 [htsget-http-actix]: ../htsget-http-actix
 [htsget-http-lambda]: ../htsget-http-lambda
@@ -298,7 +298,7 @@ Note the use of double quotes for certin values.
 Similar to the [data_server](#data_server) option, the data server can be disabled by setting the equivalent environment variable:
 
 ```shell
-export HTSGET_DATA_SERVER=""
+export HTSGET_DATA_SERVER_ENABLED=false
 ```
 [service-info]: https://samtools.github.io/hts-specs/htsget.html#ga4gh-service-info
 

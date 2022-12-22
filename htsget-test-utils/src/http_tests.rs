@@ -134,6 +134,7 @@ fn default_test_config_params(
 ) -> Config {
   let cors = default_cors_config();
   let server_config = DataServerConfig::new(
+    true,
     addr,
     default_dir_data(),
     PathBuf::from("/data"),
@@ -144,7 +145,7 @@ fn default_test_config_params(
 
   Config::new(
     TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), cors, Default::default()),
-    Some(server_config),
+    server_config,
     vec![default_test_resolver(addr, scheme)],
   )
 }
