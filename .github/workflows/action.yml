@@ -95,10 +95,10 @@ jobs:
       #     external-data-json-path: ./benchmarks/requests-benchmarks.json
       #     fail-on-alert: false
       - name: Store search benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
+        uses: brainstorm/github-action-benchmark@v1
         with:
           name: Search benchmark
-          tool: 'cargo'
+          tool: 'cargo-criterion'
           output-file-path: /home/runner/work/htsget-rs/htsget-rs/output.txt
           #external-data-json-path: search-benchmarks.json
           fail-on-alert: false
