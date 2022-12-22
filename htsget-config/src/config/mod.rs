@@ -520,11 +520,16 @@ impl Config {
 #[cfg(test)]
 mod tests {
   use super::*;
+  #[cfg(feature = "s3-storage")]
   use crate::regex_resolver::aws::S3Resolver;
-  use crate::regex_resolver::{AllowGuard, ReferenceNames, Scheme, StorageType};
+  #[cfg(feature = "s3-storage")]
+  use crate::regex_resolver::{AllowGuard, ReferenceNames};
+  use crate::regex_resolver::{Scheme, StorageType};
   use crate::Format::Bam;
+  #[cfg(feature = "s3-storage")]
   use crate::{Class, Fields, Interval, Tags};
   use figment::Jail;
+  #[cfg(feature = "s3-storage")]
   use std::collections::HashSet;
   use std::fmt::Display;
 
@@ -625,6 +630,7 @@ mod tests {
     });
   }
 
+  #[cfg(feature = "s3-storage")]
   #[test]
   fn config_resolvers_all_options_env() {
     test_config_from_env(
