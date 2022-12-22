@@ -20,13 +20,13 @@ pub trait Resolver {
 }
 
 /// Determines whether the query matches for use with the resolver.
-pub trait QueryMatcher {
+pub trait QueryAllowed {
   /// Does this query match.
-  fn query_matches(&self, query: &Query) -> bool;
+  fn query_allowed(&self, query: &Query) -> bool;
 }
 
 /// Specify the storage type to use.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "type")]
 #[non_exhaustive]
 pub enum StorageType {
@@ -60,7 +60,7 @@ impl Default for Scheme {
 }
 
 /// A local resolver, which can return files from the local file system.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct LocalResolver {
   scheme: Scheme,
@@ -127,15 +127,15 @@ pub struct RegexResolver {
   // Todo: should match guard be allowed as variables inside the substitution string?
   substitution_string: String,
   storage_type: StorageType,
-  allow_guard: QueryGuard,
+  allow_guard: AllowGuard,
 }
 
 with_prefix!(allow_interval_prefix "allow_interval_");
 
 /// A query guard represents query parameters that can be allowed to resolver for a given query.
-#[derive(Serialize, Clone, Debug, Deserialize)]
+#[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct QueryGuard {
+pub struct AllowGuard {
   allow_reference_names: ReferenceNames,
   allow_fields: Fields,
   allow_tags: Tags,
@@ -146,14 +146,33 @@ pub struct QueryGuard {
 }
 
 /// Reference names that can be matched.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum ReferenceNames {
   Tagged(TaggedTypeAll),
   List(HashSet<String>),
 }
 
-impl QueryGuard {
+impl AllowGuard {
+  /// Create a new allow guard.
+  pub fn new(
+    allow_reference_names: ReferenceNames,
+    allow_fields: Fields,
+    allow_tags: Tags,
+    allow_formats: Vec<Format>,
+    allow_classes: Vec<Class>,
+    allow_interval: Interval,
+  ) -> Self {
+    Self {
+      allow_reference_names,
+      allow_fields,
+      allow_tags,
+      allow_formats,
+      allow_classes,
+      allow_interval,
+    }
+  }
+
   /// Get allow formats.
   pub fn allow_formats(&self) -> &[Format] {
     &self.allow_formats
@@ -185,7 +204,7 @@ impl QueryGuard {
   }
 }
 
-impl Default for QueryGuard {
+impl Default for AllowGuard {
   fn default() -> Self {
     Self {
       allow_formats: vec![Bam, Cram, Vcf, Bcf],
@@ -198,8 +217,8 @@ impl Default for QueryGuard {
   }
 }
 
-impl QueryMatcher for ReferenceNames {
-  fn query_matches(&self, query: &Query) -> bool {
+impl QueryAllowed for ReferenceNames {
+  fn query_allowed(&self, query: &Query) -> bool {
     match (self, &query.reference_name) {
       (ReferenceNames::Tagged(TaggedTypeAll::All), _) => true,
       (ReferenceNames::List(reference_names), Some(reference_name)) => {
@@ -210,8 +229,8 @@ impl QueryMatcher for ReferenceNames {
   }
 }
 
-impl QueryMatcher for Fields {
-  fn query_matches(&self, query: &Query) -> bool {
+impl QueryAllowed for Fields {
+  fn query_allowed(&self, query: &Query) -> bool {
     match (self, &query.fields) {
       (Fields::Tagged(TaggedTypeAll::All), _) => true,
       (Fields::List(self_fields), Fields::List(query_fields)) => {
@@ -222,8 +241,8 @@ impl QueryMatcher for Fields {
   }
 }
 
-impl QueryMatcher for Tags {
-  fn query_matches(&self, query: &Query) -> bool {
+impl QueryAllowed for Tags {
+  fn query_allowed(&self, query: &Query) -> bool {
     match (self, &query.tags) {
       (Tags::Tagged(TaggedTypeAll::All), _) => true,
       (Tags::List(self_tags), Tags::List(query_tags)) => self_tags.is_subset(query_tags),
@@ -232,8 +251,8 @@ impl QueryMatcher for Tags {
   }
 }
 
-impl QueryMatcher for QueryGuard {
-  fn query_matches(&self, query: &Query) -> bool {
+impl QueryAllowed for AllowGuard {
+  fn query_allowed(&self, query: &Query) -> bool {
     self.allow_formats.contains(&query.format)
       && self.allow_classes.contains(&query.class)
       && self
@@ -242,15 +261,15 @@ impl QueryMatcher for QueryGuard {
       && self
         .allow_interval
         .contains(query.interval.end.unwrap_or(u32::MAX))
-      && self.allow_reference_names.query_matches(query)
-      && self.allow_fields.query_matches(query)
-      && self.allow_tags.query_matches(query)
+      && self.allow_reference_names.query_allowed(query)
+      && self.allow_fields.query_allowed(query)
+      && self.allow_tags.query_allowed(query)
   }
 }
 
 impl Default for RegexResolver {
   fn default() -> Self {
-    Self::new(StorageType::default(), ".*", "$0", QueryGuard::default())
+    Self::new(StorageType::default(), ".*", "$0", AllowGuard::default())
       .expect("expected valid resolver")
   }
 }
@@ -261,7 +280,7 @@ impl RegexResolver {
     storage_type: StorageType,
     regex: &str,
     replacement_string: &str,
-    allow_guard: QueryGuard,
+    allow_guard: AllowGuard,
   ) -> Result<Self, Error> {
     Ok(Self {
       regex: Regex::new(regex)?,
@@ -282,7 +301,7 @@ impl RegexResolver {
   }
 
   /// Get the query guard.
-  pub fn allow_guard(&self) -> &QueryGuard {
+  pub fn allow_guard(&self) -> &AllowGuard {
     &self.allow_guard
   }
 
@@ -325,7 +344,7 @@ impl RegexResolver {
 impl Resolver for RegexResolver {
   #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, query: &Query) -> Option<String> {
-    if self.regex.is_match(&query.id) && self.allow_guard.query_matches(query) {
+    if self.regex.is_match(&query.id) && self.allow_guard.query_allowed(query) {
       Some(
         self
           .regex
@@ -348,7 +367,7 @@ pub mod tests {
       StorageType::default(),
       ".*",
       "$0-test",
-      QueryGuard::default(),
+      AllowGuard::default(),
     )
     .unwrap();
     assert_eq!(

@@ -2,7 +2,7 @@ pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketSer
 #[cfg(feature = "s3-storage")]
 pub use htsget_config::regex_resolver::aws::S3Resolver;
 pub use htsget_config::regex_resolver::{
-  LocalResolver, QueryMatcher, RegexResolver, Resolver, StorageType,
+  LocalResolver, QueryAllowed, RegexResolver, Resolver, StorageType,
 };
 
 pub mod htsget;

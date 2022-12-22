@@ -166,9 +166,9 @@ If the type is `Local`, then the following options can be set:
 
 If the type is `S3`, then the following option can be set:
 
-| Option   | Description                                              | Type                        | Default  |
-|----------|----------------------------------------------------------|-----------------------------|----------|
-| `bucket` | The AWS S3 bucket where resources can be retrieved from. | String                      | Not set  |
+| Option   | Description                                              | Type                        | Default |
+|----------|----------------------------------------------------------|-----------------------------|-------|
+| `bucket` | The AWS S3 bucket where resources can be retrieved from. | String                      | `''`  |
 
 Additionally, the resolver component has a feature, which allows resolving IDs based on the other fields present in a query.
 This is useful as allows the resolver to match only match an ID, if a particular set of query parameters are also present. For example, 
@@ -275,25 +275,23 @@ In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set
 
 ```shell
 export HTSGET_RESOLVERS="[{
-    regex="regex",
-    substitution_string="substitution_string",
+    regex=regex,
+    substitution_string=substitution_string,
     storage_type={
-        type="S3",
-        bucket="bucket"
+        type=S3,
+        bucket=bucket
     },
     allow_guard={
-        allow_reference_names="['chr1']",
-        allow_fields="['QNAME']",
-        allow_tags="['RG']",
-        allow_formats="['BAM']",
-        allow_classes="['body']",
+        allow_reference_names=[chr1],
+        allow_fields=[QNAME],
+        allow_tags=[RG],
+        allow_formats=[BAM],
+        allow_classes=[body],
         allow_interval_start=100,
         allow_interval_end=1000
     }  
 }]"
 ```
-
-Note the use of double quotes for certin values.
 
 Similar to the [data_server](#data_server) option, the data server can be disabled by setting the equivalent environment variable:
 
