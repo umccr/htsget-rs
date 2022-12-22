@@ -95,7 +95,7 @@ jobs:
       #     external-data-json-path: ./benchmarks/requests-benchmarks.json
       #     fail-on-alert: false
       - name: Store search benchmark result
-        uses: brainstorm/github-action-benchmark@v1
+        uses: brainstorm/github-action-benchmark@cargo-criterion-tool-extractor
         with:
           name: Search benchmark
           tool: 'cargo-criterion'
