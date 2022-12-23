@@ -77,7 +77,7 @@ pub enum StorageError {
   #[error("{0}: {1}")]
   IoError(String, io::Error),
 
-  #[error("url response ticket server error: {0}")]
+  #[error("url response data server error: {0}")]
   DataServerError(String),
 
   #[error("invalid input: {0}")]
