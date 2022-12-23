@@ -1,5 +1,7 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
 use std::fmt::Debug;
+use std::io;
+use std::io::ErrorKind::Other;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -18,9 +20,8 @@ use tracing::instrument;
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::AwsS3Error;
-use crate::storage::{resolve_id, BytesPosition};
+use crate::storage::{BytesPosition, StorageError};
 use crate::storage::{BytesRange, Storage};
-use crate::RegexResolver;
 
 use super::{GetOptions, RangeUrlOptions, Result};
 
@@ -38,27 +39,18 @@ pub enum Retrieval {
 pub struct AwsS3Storage {
   client: Client,
   bucket: String,
-  id_resolver: RegexResolver,
 }
 
 impl AwsS3Storage {
   // Allow the user to set this?
   pub const PRESIGNED_REQUEST_EXPIRY: u64 = 1000;
 
-  pub fn new(client: Client, bucket: String, id_resolver: RegexResolver) -> Self {
-    AwsS3Storage {
-      client,
-      bucket,
-      id_resolver,
-    }
+  pub fn new(client: Client, bucket: String) -> Self {
+    AwsS3Storage { client, bucket }
   }
 
-  pub async fn new_with_default_config(bucket: String, id_resolver: RegexResolver) -> Self {
-    AwsS3Storage::new(
-      Client::new(&aws_config::load_from_env().await),
-      bucket,
-      id_resolver,
-    )
+  pub async fn new_with_default_config(bucket: String) -> Self {
+    AwsS3Storage::new(Client::new(&aws_config::load_from_env().await), bucket)
   }
 
   pub async fn s3_presign_url<K: AsRef<str> + Send>(
@@ -70,7 +62,7 @@ impl AwsS3Storage {
       .client
       .get_object()
       .bucket(&self.bucket)
-      .key(resolve_id(&self.id_resolver, &key)?);
+      .key(key.as_ref());
     let response = Self::apply_range(response, range);
     Ok(
       response
@@ -90,7 +82,7 @@ impl AwsS3Storage {
       .client
       .head_object()
       .bucket(&self.bucket)
-      .key(resolve_id(&self.id_resolver, &key)?)
+      .key(key.as_ref())
       .send()
       .await
       .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))
@@ -98,8 +90,8 @@ impl AwsS3Storage {
 
   /// Returns the retrieval type of the object stored with the key.
   #[instrument(level = "trace", skip_all, ret)]
-  pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: &K) -> Result<Retrieval> {
-    let head = self.s3_head(resolve_id(&self.id_resolver, &key)?).await?;
+  pub async fn get_retrieval_type<K: AsRef<str> + Send>(&self, key: K) -> Result<Retrieval> {
+    let head = self.s3_head(key.as_ref()).await?;
     Ok(
       // Default is Standard.
       match head.storage_class.unwrap_or(StorageClass::Standard) {
@@ -143,7 +135,7 @@ impl AwsS3Storage {
     key: K,
     options: GetOptions,
   ) -> Result<ByteStream> {
-    if let Delayed(class) = self.get_retrieval_type(&key).await? {
+    if let Delayed(class) = self.get_retrieval_type(key.as_ref()).await? {
       return Err(AwsS3Error(
         format!("cannot retrieve object immediately, class is `{:?}`", class),
         key.as_ref().to_string(),
@@ -154,7 +146,7 @@ impl AwsS3Storage {
       .client
       .get_object()
       .bucket(&self.bucket)
-      .key(resolve_id(&self.id_resolver, &key)?);
+      .key(key.as_ref());
     let response = Self::apply_range(response, options.range);
     Ok(
       response
@@ -211,8 +203,14 @@ impl Storage for AwsS3Storage {
   #[instrument(level = "trace", skip(self))]
   async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
     let key = key.as_ref();
+
     let head = self.s3_head(key).await?;
-    let len = head.content_length as u64;
+    let len = u64::try_from(head.content_length).map_err(|err| {
+      StorageError::IoError(
+        "failed to convert file length to `u64`".to_string(),
+        io::Error::new(Other, err),
+      )
+    })?;
 
     debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
     Ok(len)
@@ -240,7 +238,6 @@ mod tests {
   use crate::storage::local::tests::create_local_test_files;
   use crate::storage::StorageError;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
-  use crate::RegexResolver;
 
   async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
@@ -286,11 +283,7 @@ mod tests {
   {
     let (folder_name, base_path) = create_local_test_files().await;
     with_s3_test_server(base_path.path(), |client| async move {
-      test(AwsS3Storage::new(
-        client,
-        folder_name,
-        RegexResolver::new(".*", "$0").unwrap(),
-      ));
+      test(AwsS3Storage::new(client, folder_name));
     })
     .await;
   }
@@ -407,7 +400,7 @@ mod tests {
   #[tokio::test]
   async fn retrieval_type() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.get_retrieval_type(&"key2".to_string()).await;
+      let result = storage.get_retrieval_type("key2").await;
       println!("{:?}", result);
     })
     .await;

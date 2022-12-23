@@ -5,12 +5,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use htsget_config::regex_resolver::{Resolver, StorageType};
 use tokio::io::AsyncRead;
 use tracing::debug;
 use tracing::instrument;
 
 use crate::htsget::search::Search;
-use crate::htsget::Format;
+use crate::htsget::{Format, HtsGetError};
 #[cfg(feature = "s3-storage")]
 use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
@@ -32,6 +33,39 @@ pub struct HtsGetFromStorage<S> {
 }
 
 #[async_trait]
+impl HtsGet for Vec<RegexResolver> {
+  async fn search(&self, query: Query) -> Result<Response> {
+    self.as_slice().search(query).await
+  }
+}
+
+#[async_trait]
+impl HtsGet for &[RegexResolver] {
+  async fn search(&self, query: Query) -> Result<Response> {
+    for resolver in self.iter() {
+      if let Some(id) = resolver.resolve_id(&query) {
+        match resolver.storage_type() {
+          StorageType::Local(url) => {
+            let searcher = HtsGetFromStorage::local_from(url.local_path(), url.clone())?;
+            return searcher.search(query.with_id(id)).await;
+          }
+          #[cfg(feature = "s3-storage")]
+          StorageType::S3(s3) => {
+            let searcher = HtsGetFromStorage::s3_from(s3.bucket().to_string()).await;
+            return searcher.search(query.with_id(id)).await;
+          }
+          _ => {}
+        }
+      }
+    }
+
+    Err(HtsGetError::not_found(
+      "failed to match query with resolver",
+    ))
+  }
+}
+
+#[async_trait]
 impl<S, R> HtsGet for HtsGetFromStorage<S>
 where
   R: AsyncRead + Send + Sync + Unpin,
@@ -39,25 +73,13 @@ where
 {
   #[instrument(level = "debug", skip(self))]
   async fn search(&self, query: Query) -> Result<Response> {
-    debug!(?query.format, ?query, "searching {:?}, with query {:?}", query.format, query);
-    match query.format {
+    debug!(format = ?query.format(), ?query, "searching {:?}, with query {:?}", query.format(), query);
+    match query.format() {
       Format::Bam => BamSearch::new(self.storage()).search(query).await,
       Format::Cram => CramSearch::new(self.storage()).search(query).await,
       Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
       Format::Bcf => BcfSearch::new(self.storage()).search(query).await,
     }
-  }
-
-  fn get_supported_formats(&self) -> Vec<Format> {
-    vec![Format::Bam, Format::Cram, Format::Vcf, Format::Bcf]
-  }
-
-  fn are_field_parameters_effective(&self) -> bool {
-    false
-  }
-
-  fn are_tag_parameters_effective(&self) -> bool {
-    false
   }
 }
 
@@ -75,20 +97,14 @@ impl<S> HtsGetFromStorage<S> {
 
 #[cfg(feature = "s3-storage")]
 impl HtsGetFromStorage<AwsS3Storage> {
-  pub async fn s3_from(bucket: String, resolver: RegexResolver) -> Self {
-    HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket, resolver).await)
+  pub async fn s3_from(bucket: String) -> Self {
+    HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket).await)
   }
 }
 
 impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
-  pub fn local_from<P: AsRef<Path>>(
-    path: P,
-    resolver: RegexResolver,
-    formatter: T,
-  ) -> Result<Self> {
-    Ok(HtsGetFromStorage::new(LocalStorage::new(
-      path, resolver, formatter,
-    )?))
+  pub fn local_from<P: AsRef<Path>>(path: P, formatter: T) -> Result<Self> {
+    Ok(HtsGetFromStorage::new(LocalStorage::new(path, formatter)?))
   }
 }
 
@@ -98,6 +114,7 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::path::PathBuf;
 
+  use htsget_config::config::cors::CorsConfig;
   use tempfile::TempDir;
 
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
@@ -178,8 +195,7 @@ pub(crate) mod tests {
     test(Arc::new(
       LocalStorage::new(
         base_path,
-        RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
       )
       .unwrap(),
     ))

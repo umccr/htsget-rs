@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
+use htsget_config::Format;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_search::htsget::{Format, HtsGet};
+use htsget_search::htsget::HtsGet;
 
 use crate::ConfigServiceInfo;
 use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
@@ -117,35 +118,35 @@ fn fill_out_service_info_json(
   mut service_info_json: ServiceInfo,
   config: &ConfigServiceInfo,
 ) -> ServiceInfo {
-  if let Some(id) = &config.id {
-    service_info_json.id = id.clone();
+  if let Some(id) = config.id() {
+    service_info_json.id = id.to_string();
   }
-  if let Some(name) = &config.name {
-    service_info_json.name = name.clone();
+  if let Some(name) = config.name() {
+    service_info_json.name = name.to_string();
   }
-  if let Some(version) = &config.version {
-    service_info_json.version = version.clone();
+  if let Some(version) = config.version() {
+    service_info_json.version = version.to_string();
   }
-  if let Some(organization_name) = &config.organization_name {
-    service_info_json.organization.name = organization_name.clone();
+  if let Some(organization_name) = config.organization_name() {
+    service_info_json.organization.name = organization_name.to_string();
   }
-  if let Some(organization_url) = &config.organization_url {
-    service_info_json.organization.url = organization_url.clone();
+  if let Some(organization_url) = config.organization_url() {
+    service_info_json.organization.url = organization_url.to_string();
   }
-  if let Some(contact_url) = &config.contact_url {
-    service_info_json.contact_url = contact_url.clone();
+  if let Some(contact_url) = config.contact_url() {
+    service_info_json.contact_url = contact_url.to_string();
   }
-  if let Some(documentation_url) = &config.documentation_url {
-    service_info_json.documentation_url = documentation_url.clone();
+  if let Some(documentation_url) = config.documentation_url() {
+    service_info_json.documentation_url = documentation_url.to_string();
   }
-  if let Some(created_at) = &config.created_at {
-    service_info_json.created_at = created_at.clone();
+  if let Some(created_at) = config.created_at() {
+    service_info_json.created_at = created_at.to_string();
   }
-  if let Some(updated_at) = &config.updated_at {
-    service_info_json.updated_at = updated_at.clone();
+  if let Some(updated_at) = config.updated_at() {
+    service_info_json.updated_at = updated_at.to_string();
   }
-  if let Some(environment) = &config.environment {
-    service_info_json.environment = environment.clone();
+  if let Some(environment) = config.environment() {
+    service_info_json.environment = environment.to_string();
   }
 
   service_info_json

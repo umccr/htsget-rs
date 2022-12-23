@@ -1,6 +1,12 @@
+#[cfg(all(
+  feature = "s3-storage",
+  any(feature = "cors-tests", feature = "server-tests")
+))]
+pub use htsget_config::regex_resolver::aws::S3Resolver;
 #[cfg(any(feature = "cors-tests", feature = "server-tests"))]
-pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig,
+pub use htsget_config::{
+  config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig},
+  regex_resolver::StorageType,
 };
 
 #[cfg(feature = "cors-tests")]

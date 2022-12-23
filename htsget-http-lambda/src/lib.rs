@@ -12,9 +12,11 @@ use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
 
-pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig,
-};
+use htsget_config::config::cors::CorsConfig;
+pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
+#[cfg(feature = "s3-storage")]
+pub use htsget_config::regex_resolver::aws::S3Resolver;
+pub use htsget_config::regex_resolver::StorageType;
 use htsget_http_core::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::configure_cors;
@@ -174,15 +176,11 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 }
 
-pub async fn handle_request<H>(
-  cors_allow_credentials: bool,
-  cors_allow_origin: String,
-  router: &Router<'_, H>,
-) -> Result<(), Error>
+pub async fn handle_request<H>(cors: CorsConfig, router: &Router<'_, H>) -> Result<(), Error>
 where
   H: HtsGet + Send + Sync + 'static,
 {
-  let cors_layer = configure_cors(cors_allow_credentials, cors_allow_origin)?;
+  let cors_layer = configure_cors(cors)?;
 
   let handler =
     ServiceBuilder::new()
@@ -199,12 +197,15 @@ where
 
 #[cfg(test)]
 mod tests {
+  use super::*;
   use std::future::Future;
   use std::path::Path;
   use std::str::FromStr;
   use std::sync::Arc;
 
   use async_trait::async_trait;
+  use htsget_config::regex_resolver::RegexResolver;
+  use htsget_config::Class;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
   use lambda_http::tower::ServiceExt;
@@ -214,21 +215,15 @@ mod tests {
   use tempfile::TempDir;
 
   use htsget_http_core::Endpoint;
-  use htsget_search::htsget::from_storage::HtsGetFromStorage;
-  use htsget_search::htsget::{Class, HtsGet};
   use htsget_search::storage::configure_cors;
   use htsget_search::storage::data_server::HttpTicketFormatter;
-  use htsget_search::storage::local::LocalStorage;
   use htsget_test_utils::http_tests::{config_with_tls, default_test_config, get_test_file};
-  use htsget_test_utils::http_tests::{Header, Response, TestRequest, TestServer};
+  use htsget_test_utils::http_tests::{Header, Response as TestResponse, TestRequest, TestServer};
   use htsget_test_utils::server_tests::{
     expected_url_path, formatter_and_expected_path, formatter_from_config, test_response,
     test_response_service_info,
   };
   use htsget_test_utils::{cors_tests, server_tests};
-
-  use crate::Config;
-  use crate::{service_fn, HtsgetMethod, Method, Route, RouteType, Router, ServiceBuilder};
 
   struct LambdaTestServer {
     config: Config,
@@ -297,15 +292,12 @@ mod tests {
       LambdaTestRequest(Request::default())
     }
 
-    async fn test_server(&self, request: LambdaTestRequest<Request>) -> Response {
-      let (expected_path, formatter) = formatter_and_expected_path(self.get_config()).await;
+    async fn test_server(&self, request: LambdaTestRequest<Request>) -> TestResponse {
+      let (expected_path, _formatter) = formatter_and_expected_path(self.get_config()).await;
 
       let router = Router::new(
-        Arc::new(
-          HtsGetFromStorage::local_from(&self.config.path, self.config.resolver.clone(), formatter)
-            .unwrap(),
-        ),
-        &self.config.ticket_server_config.service_info,
+        Arc::new(self.config.clone().owned_resolvers()),
+        self.config.ticket_server().service_info(),
       );
 
       route_request_to_response(request.0, router, expected_path, &self.config).await
@@ -651,16 +643,14 @@ mod tests {
     .await;
   }
 
-  async fn with_router<'a, F, Fut>(test: F, config: &'a Config, formatter: HttpTicketFormatter)
+  async fn with_router<'a, F, Fut>(test: F, config: &'a Config, _formatter: HttpTicketFormatter)
   where
-    F: FnOnce(Router<'a, HtsGetFromStorage<LocalStorage<HttpTicketFormatter>>>) -> Fut,
+    F: FnOnce(Router<'a, Vec<RegexResolver>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let router = Router::new(
-      Arc::new(
-        HtsGetFromStorage::local_from(&config.path, config.resolver.clone(), formatter).unwrap(),
-      ),
-      &config.ticket_server_config.service_info,
+      Arc::new(config.clone().owned_resolvers()),
+      config.ticket_server().service_info(),
     );
     test(router).await;
   }
@@ -714,18 +704,9 @@ mod tests {
     router: Router<'_, T>,
     expected_path: String,
     config: &Config,
-  ) -> Response {
+  ) -> TestResponse {
     let response = ServiceBuilder::new()
-      .layer(
-        configure_cors(
-          config.data_server_config.data_server_cors_allow_credentials,
-          config
-            .data_server_config
-            .data_server_cors_allow_origin
-            .clone(),
-        )
-        .unwrap(),
-      )
+      .layer(configure_cors(config.ticket_server().cors().clone()).unwrap())
       .service(service_fn(|event: Request| async {
         router.route_request(event).await
       }))
@@ -739,6 +720,6 @@ mod tests {
     let status: u16 = response.status().into();
     let body = response.body().to_vec();
 
-    Response::new(status, response.headers().clone(), body, expected_path)
+    TestResponse::new(status, response.headers().clone(), body, expected_path)
   }
 }

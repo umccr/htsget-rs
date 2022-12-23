@@ -7,9 +7,11 @@ use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
-pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo, StorageType, TicketServerConfig, USAGE,
-};
+use htsget_config::config::cors::CorsConfig;
+pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig, USAGE};
+#[cfg(feature = "s3-storage")]
+pub use htsget_config::regex_resolver::aws::S3Resolver;
+pub use htsget_config::regex_resolver::StorageType;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::local::LocalStorage;
@@ -58,18 +60,54 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
 
 /// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
 /// are supported.
-pub fn configure_cors(cors_allow_credentials: bool, cors_allow_origin: String) -> Cors {
-  let cors = Cors::default()
-    .allow_any_method()
-    .allow_any_header()
-    .allowed_origin(&cors_allow_origin)
-    .max_age(CORS_MAX_AGE);
+pub fn configure_cors(cors: CorsConfig) -> Cors {
+  let mut cors_layer = Cors::default();
+  cors_layer = cors.allow_origins().apply_any(
+    |cors_layer| cors_layer.allow_any_origin().send_wildcard(),
+    cors_layer,
+  );
+  cors_layer = cors
+    .allow_origins()
+    .apply_mirror(|cors_layer| cors_layer.allow_any_origin(), cors_layer);
+  cors_layer = cors.allow_origins().apply_list(
+    |mut cors_layer, origins| {
+      for origin in origins {
+        cors_layer = cors_layer.allowed_origin(&origin.to_string());
+      }
+      cors_layer
+    },
+    cors_layer,
+  );
 
-  if cors_allow_credentials {
-    cors.supports_credentials()
-  } else {
-    cors
+  cors_layer = cors
+    .allow_headers()
+    .apply_any(|cors_layer| cors_layer.allow_any_header(), cors_layer);
+  cors_layer = cors.allow_headers().apply_list(
+    |cors_layer, headers| cors_layer.allowed_headers(headers.clone()),
+    cors_layer,
+  );
+
+  cors_layer = cors
+    .allow_methods()
+    .apply_any(|cors_layer| cors_layer.allow_any_method(), cors_layer);
+  cors_layer = cors.allow_methods().apply_list(
+    |cors_layer, methods| cors_layer.allowed_methods(methods.clone()),
+    cors_layer,
+  );
+
+  cors_layer = cors
+    .expose_headers()
+    .apply_any(|cors_layer| cors_layer.expose_any_header(), cors_layer);
+  cors_layer = cors.expose_headers().apply_list(
+    |cors_layer, headers| cors_layer.expose_headers(headers.clone()),
+    cors_layer,
+  );
+
+  if cors.allow_credentials() {
+    cors_layer = cors_layer.supports_credentials();
   }
+
+  cors_layer.max_age(cors.max_age())
 }
 
 /// Run the server using a http-actix `HttpServer`.
@@ -78,18 +116,21 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
   config: TicketServerConfig,
 ) -> std::io::Result<Server> {
+  let addr = config.addr();
+
   let server = HttpServer::new(Box::new(move || {
     App::new()
       .configure(|service_config: &mut web::ServiceConfig| {
-        configure_server(service_config, htsget.clone(), config.service_info.clone());
+        configure_server(
+          service_config,
+          htsget.clone(),
+          config.service_info().clone(),
+        );
       })
-      .wrap(configure_cors(
-        config.ticket_server_cors_allow_credentials,
-        config.ticket_server_cors_allow_origin.clone(),
-      ))
+      .wrap(configure_cors(config.cors().clone()))
       .wrap(TracingLogger::default())
   }))
-  .bind(config.ticket_server_addr)?;
+  .bind(addr)?;
 
   info!(addresses = ?server.addrs(), "htsget query server addresses bound");
   Ok(server.run())
@@ -193,33 +234,18 @@ mod tests {
     async fn get_response(
       &self,
       request: test::TestRequest,
-      formatter: HttpTicketFormatter,
+      _formatter: HttpTicketFormatter,
     ) -> ServiceResponse<EitherBody<BoxBody>> {
       let app = test::init_service(
         App::new()
           .configure(|service_config: &mut web::ServiceConfig| {
             configure_server(
               service_config,
-              HtsGetFromStorage::local_from(
-                self.config.path.clone(),
-                self.config.resolver.clone(),
-                formatter,
-              )
-              .unwrap(),
-              self.config.ticket_server_config.service_info.clone(),
+              self.config.clone().owned_resolvers(),
+              self.config.ticket_server().service_info().clone(),
             );
           })
-          .wrap(configure_cors(
-            self
-              .config
-              .data_server_config
-              .data_server_cors_allow_credentials,
-            self
-              .config
-              .data_server_config
-              .data_server_cors_allow_origin
-              .clone(),
-          )),
+          .wrap(configure_cors(self.config.ticket_server().cors().clone())),
       )
       .await;
 

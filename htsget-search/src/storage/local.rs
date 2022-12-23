@@ -10,8 +10,7 @@ use tracing::debug;
 use tracing::instrument;
 
 use crate::htsget::Url;
-use crate::storage::{resolve_id, Storage, UrlFormatter};
-use crate::RegexResolver;
+use crate::storage::{Storage, UrlFormatter};
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -20,16 +19,11 @@ use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 #[derive(Debug, Clone)]
 pub struct LocalStorage<T> {
   base_path: PathBuf,
-  id_resolver: RegexResolver,
   url_formatter: T,
 }
 
 impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
-  pub fn new<P: AsRef<Path>>(
-    base_path: P,
-    id_resolver: RegexResolver,
-    url_formatter: T,
-  ) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(base_path: P, url_formatter: T) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -37,7 +31,6 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       .map_err(|_| StorageError::KeyNotFound(base_path.as_ref().to_string_lossy().to_string()))
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
-        id_resolver,
         url_formatter,
       })
   }
@@ -50,7 +43,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
     let key: &str = key.as_ref();
     self
       .base_path
-      .join(resolve_id(&self.id_resolver, &key)?)
+      .join(key)
       .canonicalize()
       .map_err(|_| StorageError::InvalidKey(key.to_string()))
       .and_then(|path| {
@@ -125,6 +118,7 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
 
+  use htsget_config::config::cors::CorsConfig;
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
@@ -296,8 +290,7 @@ pub(crate) mod tests {
     test(
       LocalStorage::new(
         base_path.path(),
-        RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
       )
       .unwrap(),
     )

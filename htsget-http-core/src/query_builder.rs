@@ -1,6 +1,8 @@
+use htsget_config::{Class, Fields, Format, Tags};
+use std::collections::HashSet;
 use tracing::instrument;
 
-use htsget_search::htsget::{Class, Fields, Format, Query, Tags};
+use htsget_config::Query;
 
 use crate::error::{HtsGetError, Result};
 
@@ -98,11 +100,10 @@ impl QueryBuilder {
       self.query = self.query.with_end(end);
     }
 
-    if (self.query.interval.start.is_some() || self.query.interval.end.is_some())
+    if (self.query.interval().start().is_some() || self.query.interval().end().is_some())
       && self
         .query
-        .reference_name
-        .as_ref()
+        .reference_name()
         .filter(|name| *name != "*")
         .is_none()
     {
@@ -111,7 +112,8 @@ impl QueryBuilder {
       ));
     }
 
-    if let (Some(start), Some(end)) = &(self.query.interval.start, self.query.interval.end) {
+    if let (Some(start), Some(end)) = &(self.query.interval().start(), self.query.interval().end())
+    {
       if start > end {
         return Err(HtsGetError::InvalidRange(format!(
           "end is greater than start (`{}` > `{}`)",
@@ -163,7 +165,7 @@ impl QueryBuilder {
     };
 
     if let Some(tags) = tags {
-      let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
+      let tags: HashSet<String> = tags.into_iter().map(Into::into).collect();
       if tags.iter().any(|tag| notags.contains(tag)) {
         return Err(HtsGetError::InvalidInput(
           "tags and notags can't intersect".to_string(),
@@ -183,6 +185,7 @@ impl QueryBuilder {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use htsget_config::NoTags;
 
   #[test]
   fn query_without_id() {
@@ -199,7 +202,7 @@ mod tests {
       QueryBuilder::new(Some("ValidId".to_string()), Some("BAM"))
         .unwrap()
         .build()
-        .id,
+        .id(),
       "ValidId".to_string()
     );
   }
@@ -210,7 +213,7 @@ mod tests {
       QueryBuilder::new(Some("ValidID"), Some("VCF"))
         .unwrap()
         .build()
-        .format,
+        .format(),
       Format::Vcf
     );
   }
@@ -231,7 +234,7 @@ mod tests {
         .with_class(Some("header"))
         .unwrap()
         .build()
-        .class,
+        .class(),
       Class::Header
     );
   }
@@ -243,8 +246,8 @@ mod tests {
         .unwrap()
         .with_reference_name(Some("ValidName"))
         .build()
-        .reference_name,
-      Some("ValidName".to_string())
+        .reference_name(),
+      Some("ValidName")
     );
   }
 
@@ -257,7 +260,7 @@ mod tests {
       .unwrap()
       .build();
     assert_eq!(
-      (query.interval.start, query.interval.end),
+      (query.interval().start(), query.interval().end()),
       (Some(3), Some(5))
     );
   }
@@ -316,12 +319,12 @@ mod tests {
         .unwrap()
         .with_fields(Some("header,part1,part2"))
         .build()
-        .fields,
-      Fields::List(vec![
+        .fields(),
+      &Fields::List(HashSet::from_iter(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
-      ])
+      ]))
     );
   }
 
@@ -333,14 +336,17 @@ mod tests {
       .unwrap()
       .build();
     assert_eq!(
-      query.tags,
-      Tags::List(vec![
+      query.tags(),
+      &Tags::List(HashSet::from_iter(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
-      ])
+      ]))
     );
-    assert_eq!(query.no_tags, Some(vec!["part3".to_string()]));
+    assert_eq!(
+      query.no_tags(),
+      &NoTags(Some(HashSet::from_iter(vec!["part3".to_string()])))
+    );
   }
 
   #[test]
@@ -351,13 +357,16 @@ mod tests {
       .unwrap()
       .build();
     assert_eq!(
-      query.tags,
-      Tags::List(vec![
+      query.tags(),
+      &Tags::List(HashSet::from_iter(vec![
         "header".to_string(),
         "part1".to_string(),
         "part2".to_string()
-      ])
+      ]))
     );
-    assert_eq!(query.no_tags, Some(vec!["part3".to_string()]));
+    assert_eq!(
+      query.no_tags(),
+      &NoTags(Some(HashSet::from_iter(vec!["part3".to_string()])))
+    );
   }
 }

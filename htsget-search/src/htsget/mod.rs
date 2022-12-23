@@ -3,19 +3,15 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
-use core::fmt;
 use std::collections::HashMap;
-use std::fmt::Formatter;
 use std::io;
 use std::io::ErrorKind;
 
 use async_trait::async_trait;
-use noodles::core::region::Interval as NoodlesInterval;
-use noodles::core::Position;
+use htsget_config::{Class, Format, Query};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::JoinError;
-use tracing::instrument;
 
 use crate::storage::StorageError;
 
@@ -32,9 +28,18 @@ type Result<T> = core::result::Result<T, HtsGetError>;
 #[async_trait]
 pub trait HtsGet {
   async fn search(&self, query: Query) -> Result<Response>;
-  fn get_supported_formats(&self) -> Vec<Format>;
-  fn are_field_parameters_effective(&self) -> bool;
-  fn are_tag_parameters_effective(&self) -> bool;
+
+  fn get_supported_formats(&self) -> Vec<Format> {
+    vec![Format::Bam, Format::Cram, Format::Vcf, Format::Bcf]
+  }
+
+  fn are_field_parameters_effective(&self) -> bool {
+    false
+  }
+
+  fn are_tag_parameters_effective(&self) -> bool {
+    false
+  }
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -125,216 +130,6 @@ impl From<io::Error> for HtsGetError {
   fn from(err: io::Error) -> Self {
     Self::io_error(err.to_string())
   }
-}
-
-/// A query contains all the parameters that can be used when requesting
-/// a search for either of `reads` or `variants`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Query {
-  pub id: String,
-  pub format: Format,
-  pub class: Class,
-  /// Reference name
-  pub reference_name: Option<String>,
-  /// The start and end positions are 0-based. [start, end)  
-  pub interval: Interval,
-  pub fields: Fields,
-  pub tags: Tags,
-  pub no_tags: Option<Vec<String>>,
-}
-
-impl Query {
-  pub fn new(id: impl Into<String>, format: Format) -> Self {
-    Self {
-      id: id.into(),
-      format,
-      class: Class::Body,
-      reference_name: None,
-      interval: Interval::default(),
-      fields: Fields::All,
-      tags: Tags::All,
-      no_tags: None,
-    }
-  }
-
-  pub fn with_format(mut self, format: Format) -> Self {
-    self.format = format;
-    self
-  }
-
-  pub fn with_class(mut self, class: Class) -> Self {
-    self.class = class;
-    self
-  }
-
-  pub fn with_reference_name(mut self, reference_name: impl Into<String>) -> Self {
-    self.reference_name = Some(reference_name.into());
-    self
-  }
-
-  pub fn with_start(mut self, start: u32) -> Self {
-    self.interval.start = Some(start);
-    self
-  }
-
-  pub fn with_end(mut self, end: u32) -> Self {
-    self.interval.end = Some(end);
-    self
-  }
-
-  pub fn with_fields(mut self, fields: Fields) -> Self {
-    self.fields = fields;
-    self
-  }
-
-  pub fn with_tags(mut self, tags: Tags) -> Self {
-    self.tags = tags;
-    self
-  }
-
-  pub fn with_no_tags(mut self, no_tags: Vec<impl Into<String>>) -> Self {
-    self.no_tags = Some(no_tags.into_iter().map(|field| field.into()).collect());
-    self
-  }
-}
-
-/// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
-/// query.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Interval {
-  pub start: Option<u32>,
-  pub end: Option<u32>,
-}
-
-impl Interval {
-  #[instrument(level = "trace", skip_all, ret)]
-  pub fn into_one_based(self) -> Result<NoodlesInterval> {
-    Ok(match (self.start, self.end) {
-      (None, None) => NoodlesInterval::from(..),
-      (None, Some(end)) => NoodlesInterval::from(..=Self::convert_end(end)?),
-      (Some(start), None) => NoodlesInterval::from(Self::convert_start(start)?..),
-      (Some(start), Some(end)) => {
-        NoodlesInterval::from(Self::convert_start(start)?..=Self::convert_end(end)?)
-      }
-    })
-  }
-
-  /// Convert a start position to a noodles Position.
-  pub fn convert_start(start: u32) -> Result<Position> {
-    Self::convert_position(start, |value| {
-      value.checked_add(1).ok_or_else(|| {
-        HtsGetError::InvalidRange(format!("could not convert {} to 1-based position.", value))
-      })
-    })
-  }
-
-  /// Convert an end position to a noodles Position.
-  pub fn convert_end(end: u32) -> Result<Position> {
-    Self::convert_position(end, Ok)
-  }
-
-  /// Convert a u32 position to a noodles Position.
-  pub fn convert_position<F>(value: u32, convert_fn: F) -> Result<Position>
-  where
-    F: FnOnce(u32) -> Result<u32>,
-  {
-    let value = convert_fn(value).map(|value| {
-      usize::try_from(value).map_err(|err| {
-        HtsGetError::InvalidRange(format!("could not convert `u32` to `usize`: {}", err))
-      })
-    })??;
-
-    Position::try_from(value).map_err(|err| {
-      HtsGetError::InvalidRange(format!(
-        "could not convert `{}` into `Position`: {}",
-        value, err
-      ))
-    })
-  }
-}
-
-/// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum Format {
-  Bam,
-  Cram,
-  Vcf,
-  Bcf,
-}
-
-// TODO Allow the user to change this.
-impl Format {
-  pub(crate) fn fmt_file(&self, id: &str) -> String {
-    match self {
-      Format::Bam => format!("{}.bam", id),
-      Format::Cram => format!("{}.cram", id),
-      Format::Vcf => format!("{}.vcf.gz", id),
-      Format::Bcf => format!("{}.bcf", id),
-    }
-  }
-
-  pub(crate) fn fmt_index(&self, id: &str) -> String {
-    match self {
-      Format::Bam => format!("{}.bam.bai", id),
-      Format::Cram => format!("{}.cram.crai", id),
-      Format::Vcf => format!("{}.vcf.gz.tbi", id),
-      Format::Bcf => format!("{}.bcf.csi", id),
-    }
-  }
-
-  pub(crate) fn fmt_gzi(&self, id: &str) -> Result<String> {
-    match self {
-      Format::Bam => Ok(format!("{}.bam.gzi", id)),
-      Format::Cram => Err(HtsGetError::InternalError(
-        "CRAM does not support GZI".to_string(),
-      )),
-      Format::Vcf => Ok(format!("{}.vcf.gz.gzi", id)),
-      Format::Bcf => Ok(format!("{}.bcf.gzi", id)),
-    }
-  }
-}
-
-impl From<Format> for String {
-  fn from(format: Format) -> Self {
-    format.to_string()
-  }
-}
-
-impl fmt::Display for Format {
-  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    match self {
-      Format::Bam => write!(f, "BAM"),
-      Format::Cram => write!(f, "CRAM"),
-      Format::Vcf => write!(f, "VCF"),
-      Format::Bcf => write!(f, "BCF"),
-    }
-  }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Class {
-  Header,
-  Body,
-}
-
-/// Possible values for the fields parameter.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Fields {
-  /// Include all fields
-  All,
-  /// List of fields to include
-  List(Vec<String>),
-}
-
-/// Possible values for the tags parameter.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Tags {
-  /// Include all tags
-  All,
-  /// List of tags to include
-  List(Vec<String>),
 }
 
 /// The headers that need to be supplied when requesting data from a url.
@@ -436,6 +231,8 @@ impl Response {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use htsget_config::{Fields, NoTags, TaggedTypeAll, Tags};
+  use std::collections::HashSet;
 
   #[test]
   fn htsget_error_not_found() {
@@ -494,61 +291,70 @@ mod tests {
   #[test]
   fn query_new() {
     let result = Query::new("NA12878", Format::Bam);
-    assert_eq!(result.id, "NA12878");
+    assert_eq!(result.id(), "NA12878");
   }
 
   #[test]
   fn query_with_format() {
     let result = Query::new("NA12878", Format::Bam);
-    assert_eq!(result.format, Format::Bam);
+    assert_eq!(result.format(), Format::Bam);
   }
 
   #[test]
   fn query_with_class() {
     let result = Query::new("NA12878", Format::Bam).with_class(Class::Header);
-    assert_eq!(result.class, Class::Header);
+    assert_eq!(result.class(), Class::Header);
   }
 
   #[test]
   fn query_with_reference_name() {
     let result = Query::new("NA12878", Format::Bam).with_reference_name("chr1");
-    assert_eq!(result.reference_name, Some("chr1".to_string()));
+    assert_eq!(result.reference_name(), Some("chr1"));
   }
 
   #[test]
   fn query_with_start() {
     let result = Query::new("NA12878", Format::Bam).with_start(0);
-    assert_eq!(result.interval.start, Some(0));
+    assert_eq!(result.interval().start(), Some(0));
   }
 
   #[test]
   fn query_with_end() {
     let result = Query::new("NA12878", Format::Bam).with_end(0);
-    assert_eq!(result.interval.end, Some(0));
+    assert_eq!(result.interval().end(), Some(0));
   }
 
   #[test]
   fn query_with_fields() {
-    let result = Query::new("NA12878", Format::Bam)
-      .with_fields(Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()]));
+    let result =
+      Query::new("NA12878", Format::Bam).with_fields(Fields::List(HashSet::from_iter(vec![
+        "QNAME".to_string(),
+        "FLAG".to_string(),
+      ])));
     assert_eq!(
-      result.fields,
-      Fields::List(vec!["QNAME".to_string(), "FLAG".to_string()])
+      result.fields(),
+      &Fields::List(HashSet::from_iter(vec![
+        "QNAME".to_string(),
+        "FLAG".to_string()
+      ]))
     );
   }
 
   #[test]
   fn query_with_tags() {
-    let result = Query::new("NA12878", Format::Bam).with_tags(Tags::All);
-    assert_eq!(result.tags, Tags::All);
+    let result = Query::new("NA12878", Format::Bam).with_tags(Tags::Tagged(TaggedTypeAll::All));
+    assert_eq!(result.tags(), &Tags::Tagged(TaggedTypeAll::All));
   }
 
   #[test]
   fn query_with_no_tags() {
     let result = Query::new("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
-      result.no_tags,
-      Some(vec!["RG".to_string(), "OQ".to_string()])
+      result.no_tags(),
+      &NoTags(Some(HashSet::from_iter(vec![
+        "RG".to_string(),
+        "OQ".to_string()
+      ])))
     );
   }
 
