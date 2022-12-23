@@ -76,7 +76,7 @@ pub async fn test_response(response: Response, class: Class) {
 
 /// Create the a [HttpTicketFormatter], spawn the ticket server, returning the expected path and the formatter.
 pub async fn formatter_and_expected_path(config: &Config) -> (String, HttpTicketFormatter) {
-  let mut formatter = formatter_from_config(config).unwrap();
+  let mut formatter = formatter_from_config(config);
   spawn_ticket_server(config.data_server().local_path().into(), &mut formatter).await;
 
   (expected_url_path(&formatter), formatter)
@@ -165,8 +165,8 @@ pub async fn test_parameterized_post_class_header<T: TestRequest>(tester: &impl 
 }
 
 /// Get the [HttpTicketFormatter] from the config.
-pub fn formatter_from_config(config: &Config) -> Option<HttpTicketFormatter> {
-  HttpTicketFormatter::try_from(config.data_server().clone()).ok()
+pub fn formatter_from_config(config: &Config) -> HttpTicketFormatter {
+  HttpTicketFormatter::try_from(config.data_server().clone()).unwrap()
 }
 
 /// A service info test.

@@ -485,7 +485,7 @@ mod tests {
         assert!(router.get_route(&Method::DELETE, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -499,7 +499,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -513,7 +513,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -527,7 +527,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -541,7 +541,7 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -566,7 +566,7 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -591,7 +591,7 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -613,7 +613,7 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -638,7 +638,7 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config).unwrap(),
+      formatter_from_config(&config),
     )
     .await;
   }
@@ -680,7 +680,7 @@ mod tests {
   }
 
   async fn test_service_info_from_file(file_path: &str, config: &Config) {
-    let formatter = formatter_from_config(config).unwrap();
+    let formatter = formatter_from_config(config);
     let expected_path = expected_url_path(&formatter);
     with_router(
       |router| async {
