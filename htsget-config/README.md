@@ -128,8 +128,7 @@ environment = 'dev'
 
 The resolvers component of htsget-rs is used to map query IDs to the location of the resource. Each query that htsget-rs receives is
 'resolved' to a location, which a data server can respond with. A query ID is matched with a regex, and is then mapped with a substitution string that
-has access to the regex capture groups. Each resolver is an array of TOML of tables that attempts to match a query ID. This array matches IDs in order, meaning that
-the first matching resolver is resolver used to map the ID.
+has access to the regex capture groups. Resolvers are configured in an array, where the first matching resolver is resolver used to map the ID.
 
 To create a resolver, add a `[[resolvers]]` array of tables, and set the following options:
 
