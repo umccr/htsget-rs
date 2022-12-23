@@ -166,15 +166,15 @@ If the type is `Local`, then the following options can be set:
 
 If the type is `S3`, then the following option can be set:
 
-| Option   | Description                                              | Type                        | Default |
-|----------|----------------------------------------------------------|-----------------------------|-------|
-| `bucket` | The AWS S3 bucket where resources can be retrieved from. | String                      | `''`  |
+| Option   | Description                                              | Type            | Default |
+|----------|----------------------------------------------------------|-----------------|---------|
+| `bucket` | The AWS S3 bucket where resources can be retrieved from. | String          | `''`    |
 
 Additionally, the resolver component has a feature, which allows resolving IDs based on the other fields present in a query.
-This is useful as allows the resolver to match only match an ID, if a particular set of query parameters are also present. For example, 
+This is useful as allows the resolver to match an ID, if a particular set of query parameters are also present. For example, 
 a resolver can be set to only resolve IDs if the format is also BAM.
 
-To set the resolver 'allow guard', add a `[resolver.allow_guard]` table, and set the following options:
+This component can be configured by setting the `[resolver.allow_guard]` table with. The following options are available to restrict which queries are resolved by a resolver:
 
 | Option                  | Description                                                                             | Type                                                                  | Default                             |
 |-------------------------|-----------------------------------------------------------------------------------------|-----------------------------------------------------------------------|-------------------------------------|
@@ -207,6 +207,8 @@ allow_interval_start = 100
 allow_interval_end = 1000
 ```
 
+In this example, the resolver will only match the query ID if the query is for `chr1` with positions between `100` and `1000`.
+
 #### Config file location
 
 The htsget-rs binaries ([htsget-http-actix] and [htsget-http-lambda]) support some command line options. The config file location can
@@ -235,7 +237,8 @@ Use the `--help` flag to see more details on command line options.
 
 #### Configuring htsget-rs with environment variables
 
-All the htsget-rs config options can be set by environment variables. The ticket server, data server and service info options are flattened and can be set directly using 
+All the htsget-rs config options can be set by environment variables, which is convenient for runtimes such as AWS Lambda.
+The ticket server, data server and service info options are flattened and can be set directly using 
 environment variable. It is not recommended to set the resolvers using environment variables, however it can be done by setting a single environment variable which 
 contains a list of structures, where a key name and value pair is used to set the nested options.
 
