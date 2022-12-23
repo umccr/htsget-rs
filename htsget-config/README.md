@@ -156,12 +156,12 @@ To set the storage type for a resolver, add a `[resolvers.storage_type]` table. 
 
 If the type is `Local`, then the following options can be set:
 
-| Option              | Description                                                                                                                         | Type                         | Default             |
-|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|---------------------|
-| `scheme`            | The scheme present on URL tickets.                                                                                                  | Either `'HTTP'` or `'HTTPS'` | `'HTTP'`            |
-| `authority`         | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | URL authority                | `'127.0.0.1:8081' ` |
-| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Filesystem path              | `'data'`            |
-| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | URL path                     | `'/data'`           |
+| Option              | Description                                                                                                                         | Type                         | Default            |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
+| `scheme`            | The scheme present on URL tickets.                                                                                                  | Either `'HTTP'` or `'HTTPS'` | `'HTTP'`           |
+| `authority`         | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | URL authority                | `'127.0.0.1:8081'` |
+| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Filesystem path              | `'data'`           |
+| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | URL path                     | `'/data'`          |
 
 If the type is `S3`, then the following option can be set:
 
@@ -245,33 +245,33 @@ Environment variables will override options set in the config file. Note, arrays
 
 The following environment variables - corresponding to the TOML config - are available:
 
-| Variable                                    | Description                                                                         | Default                 |
-|---------------------------------------------|-------------------------------------------------------------------------------------|-------------------------|
-| HTSGET_TICKET_SERVER_ADDR                   | See [`ticket_server_addr`](#ticket_server_addr)                                     | "data"                  | 
-| HTSGET_TICKET_SERVER_CORS_ALLOW_CREDENTIALS | See [`ticket_server_cors_allow_credentials`](#ticket_server_cors_allow_credentials) | ".*"                    |
-| HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS     | See [`ticket_server_cors_allow_origins`](#ticket_server_cors_allow_origins)         | "$0"                    |
-| HTSGET_TICKET_SERVER_CORS_ALLOW_HEADERS     | See [`ticket_server_cors_allow_headers`](#ticket_server_cors_allow_headers)         | "LocalStorage"          |
-| HTSGET_TICKET_SERVER_CORS_MAX_AGE           | See [`ticket_server_cors_max_age`](#ticket_server_cors_max_age)                     | "127.0.0.1:8080"        |
-| HTSGET_TICKET_SERVER_CORS_EXPOSE_HEADERS    | See [`ticket_server_cors_expose_headers`](#ticket_server_cors_expose_headers)       | "false"                 |
-| HTSGET_DATA_SERVER_ADDR                     | See [`data_server_addr`](#data_server_addr)                                         | "127.0.0.1:8081"        |
-| HTSGET_DATA_SERVER_LOCAL_PATH               | See [`data_server_local_path`](#data_server_local_path)                             | "None"                  |
-| HTSGET_DATA_SERVER_SERVE_AT                 | See [`data_server_serve_at`](#data_server_serve_at)                                 | "None"                  |
-| HTSGET_DATA_SERVER_CORS_ALLOW_CREDENTIALS   | See [`data_server_cors_allow_credentials`](#data_server_cors_allow_credentials)     | "false"                 |
-| HTSGET_DATA_SERVER_CORS_ALLOW_ORIGINS       | See [`data_server_cors_allow_origins`](#data_server_cors_allow_origins)             | "http://localhost:8081" |
-| HTSGET_DATA_SERVER_CORS_ALLOW_HEADERS       | See [`data_server_cors_allow_headers`](#data_server_cors_allow_headers)             | ""                      |
-| HTSGET_DATA_SERVER_CORS_MAX_AGE             | See [`data_server_cors_max_age`](#data_server_cors_max_age)                         |                         |
-| HTSGET_DATA_SERVER_CORS_EXPOSE_HEADERS      | See [`data_server_cors_expose_headers`](#data_server_cors_expose_headers)           |                         |
-| HTSGET_ID                                   | See [`id`](#id)                                                                     | "None"                  |
-| HTSGET_NAME                                 | See [`name`](#name)                                                                 | "None"                  |
-| HTSGET_VERSION                              | See [`version`](#version)                                                           | "None"                  |
-| HTSGET_ORGANIZATION_NAME                    | See [`organization_name`](#organization_name)                                       | "None"                  |
-| HTSGET_ORGANIZATION_URL                     | See [`organization_url`](#organization_url)                                         | "None"                  |
-| HTSGET_CONTACT_URL                          | See [`contact_url`](#contact_url)                                                   | "None"                  |
-| HTSGET_DOCUMENTATION_URL                    | See [`documentation_url`](#documentation_url)                                       | "None"                  |
-| HTSGET_CREATED_AT                           | See [`created_at`](#created_at)                                                     | "None"                  |
-| HTSGET_UPDATED_AT                           | See [`updated_at`](#updated_at)                                                     | "None"                  |
-| HTSGET_ENVIRONMENT                          | See [`environment`](#environment)                                                   | "None"                  |
-| HTSGET_RESOLVERS                            | See [resolvers](#resolvers)                                                         |                         |
+| Variable                                      | Description                                                                         |
+|-----------------------------------------------|-------------------------------------------------------------------------------------|
+| `HTSGET_TICKET_SERVER_ADDR`                   | See [`ticket_server_addr`](#ticket_server_addr)                                     | 
+| `HTSGET_TICKET_SERVER_CORS_ALLOW_CREDENTIALS` | See [`ticket_server_cors_allow_credentials`](#ticket_server_cors_allow_credentials) |
+| `HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS`     | See [`ticket_server_cors_allow_origins`](#ticket_server_cors_allow_origins)         |
+| `HTSGET_TICKET_SERVER_CORS_ALLOW_HEADERS`     | See [`ticket_server_cors_allow_headers`](#ticket_server_cors_allow_headers)         |
+| `HTSGET_TICKET_SERVER_CORS_MAX_AGE`           | See [`ticket_server_cors_max_age`](#ticket_server_cors_max_age)                     |
+| `HTSGET_TICKET_SERVER_CORS_EXPOSE_HEADERS`    | See [`ticket_server_cors_expose_headers`](#ticket_server_cors_expose_headers)       |
+| `HTSGET_DATA_SERVER_ADDR`                     | See [`data_server_addr`](#data_server_addr)                                         |
+| `HTSGET_DATA_SERVER_LOCAL_PATH`               | See [`data_server_local_path`](#data_server_local_path)                             |
+| `HTSGET_DATA_SERVER_SERVE_AT`                 | See [`data_server_serve_at`](#data_server_serve_at)                                 |
+| `HTSGET_DATA_SERVER_CORS_ALLOW_CREDENTIALS`   | See [`data_server_cors_allow_credentials`](#data_server_cors_allow_credentials)     |
+| `HTSGET_DATA_SERVER_CORS_ALLOW_ORIGINS`       | See [`data_server_cors_allow_origins`](#data_server_cors_allow_origins)             |
+| `HTSGET_DATA_SERVER_CORS_ALLOW_HEADERS`       | See [`data_server_cors_allow_headers`](#data_server_cors_allow_headers)             |
+| `HTSGET_DATA_SERVER_CORS_MAX_AGE`             | See [`data_server_cors_max_age`](#data_server_cors_max_age)                         |
+| `HTSGET_DATA_SERVER_CORS_EXPOSE_HEADERS`      | See [`data_server_cors_expose_headers`](#data_server_cors_expose_headers)           |
+| `HTSGET_ID`                                   | See [`id`](#id)                                                                     |
+| `HTSGET_NAME`                                 | See [`name`](#name)                                                                 |
+| `HTSGET_VERSION`                              | See [`version`](#version)                                                           |
+| `HTSGET_ORGANIZATION_NAME`                    | See [`organization_name`](#organization_name)                                       |
+| `HTSGET_ORGANIZATION_URL`                     | See [`organization_url`](#organization_url)                                         |
+| `HTSGET_CONTACT_URL`                          | See [`contact_url`](#contact_url)                                                   |
+| `HTSGET_DOCUMENTATION_URL`                    | See [`documentation_url`](#documentation_url)                                       |
+| `HTSGET_CREATED_AT`                           | See [`created_at`](#created_at)                                                     |
+| `HTSGET_UPDATED_AT`                           | See [`updated_at`](#updated_at)                                                     |
+| `HTSGET_ENVIRONMENT`                          | See [`environment`](#environment)                                                   |
+| `HTSGET_RESOLVERS`                            | See [resolvers](#resolvers)                                                         |
 
 In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set. The nested array of resolvers structure can be set using name key and value pairs, for example:
 
