@@ -22,41 +22,9 @@ use tracing_subscriber::{fmt, EnvFilter, Registry};
 use crate::regex_resolver::RegexResolver;
 
 /// Represents a usage string for htsget-rs.
-pub const USAGE: &str = r#"
-Available environment variables:
-* HTSGET_PATH: The path to the directory where the server should be started. Default: "data". Unused if HTSGET_STORAGE_TYPE is "AwsS3Storage".
-* HTSGET_REGEX: The regular expression that should match an ID. Default: ".*".
-For more information about the regex options look in the documentation of the regex crate(https://docs.rs/regex/).
-* HTSGET_SUBSTITUTION_STRING: The replacement expression. Default: "$0".
-* HTSGET_STORAGE_TYPE: Either "LocalStorage" or "AwsS3Storage", representing which storage type to use. Default: "LocalStorage".
-
-The following options are used for the ticket server.
-* HTSGET_TICKET_SERVER_ADDR: The socket address for the server which creates response tickets. Default: "127.0.0.1:8080".
-* HTSGET_TICKET_SERVER_ALLOW_CREDENTIALS: Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. Default: "false".
-* HTSGET_TICKET_SERVER_ALLOW_ORIGIN: Which origin os allowed in the `ORIGIN` header. Default: "http://localhost:8080".
-
-The following options are used for the data server.
-* HTSGET_DATA_SERVER_ADDR: The socket address to use for the server which responds to tickets. Default: "127.0.0.1:8081". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_DATA_SERVER_KEY: The path to the PEM formatted X.509 private key used by the data server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_DATA_SERVER_CERT: The path to the PEM formatted X.509 certificate used by the data server. Default: "None". Unused if HTSGET_STORAGE_TYPE is not "LocalStorage".
-* HTSGET_DATA_SERVER_ALLOW_CREDENTIALS: Boolean flag, indicating whether authenticated requests are allowed by including the `Access-Control-Allow-Credentials` header. Default: "false"
-* HTSGET_DATA_SERVER_ALLOW_ORIGIN: Which origin os allowed in the `ORIGIN` header. Default: "http://localhost:8081"
-
-The following options are used to configure AWS S3 storage.
-* HTSGET_S3_BUCKET: The name of the AWS S3 bucket. Default: "". Unused if HTSGET_STORAGE_TYPE is not "AwsS3Storage".
-
-The next variables are used to configure the info for the service-info endpoints.
-* HTSGET_ID: The id of the service. Default: "None".
-* HTSGET_NAME: The name of the service. Default: "None".
-* HTSGET_VERSION: The version of the service. Default: "None".
-* HTSGET_ORGANIZATION_NAME: The name of the organization. Default: "None".
-* HTSGET_ORGANIZATION_URL: The url of the organization. Default: "None".
-* HTSGET_CONTACT_URL: A url to provide contact to the users. Default: "None".
-* HTSGET_DOCUMENTATION_URL: A link to the documentation. Default: "None".
-* HTSGET_CREATED_AT: Date of the creation of the service. Default: "None".
-* HTSGET_UPDATED_AT: Date of the last update of the service. Default: "None".
-* HTSGET_ENVIRONMENT: The environment in which the service is running. Default: "None".
-"#;
+pub const USAGE: &str =
+  "htsget-rs can be configured using a config file or environment variables. \
+See the documentation of the htsget-config crate for more information.";
 
 const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
 
