@@ -106,6 +106,8 @@ jobs:
           github-token: ${{ secrets.HTSGET_RS_BENCHMARKS_TOKEN }}
           # Push and deploy GitHub pages branch automatically
           auto-push: true
+
+      # TODO: Have the github-benchmark-action pages *AND* those from cargo-criterion tool itself
       # - name: Setup Pages
       #   uses: actions/configure-pages@v2
       # - name: Upload artifact
