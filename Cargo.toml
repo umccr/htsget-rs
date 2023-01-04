@@ -1,9 +1,0 @@
-[workspace]
-members = [
-    "htsget-config",
-    "htsget-http-actix",
-    "htsget-http-core",
-    "htsget-http-lambda",
-    "htsget-search",
-    "htsget-test-utils",
-]
