@@ -3,6 +3,8 @@ name = "htsget-config"
 version = "0.1.0"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
+description = "This crate is used to configure htsget-rs by using a config file or reading environment variables"
+license = "MIT"
 
 [features]
 s3-storage = []
