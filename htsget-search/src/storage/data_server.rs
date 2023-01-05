@@ -15,6 +15,8 @@ use axum::http;
 use axum::Router;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
+use htsget_config::config::cors::CorsConfig;
+use htsget_config::config::DataServerConfig;
 use http::uri::Scheme;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
@@ -29,7 +31,6 @@ use tracing::{info, trace};
 
 use crate::storage::StorageError::{DataServerError, IoError};
 use crate::storage::{configure_cors, UrlFormatter};
-use crate::DataServerConfig;
 
 use super::{Result, StorageError};
 
@@ -50,30 +51,22 @@ pub struct HttpTicketFormatter {
   addr: SocketAddr,
   cert_key_pair: Option<CertificateKeyPair>,
   scheme: Scheme,
-  cors_allow_origin: String,
-  cors_allow_credentials: bool,
+  cors: CorsConfig,
 }
 
 impl HttpTicketFormatter {
   const SERVE_ASSETS_AT: &'static str = "/data";
 
-  pub fn new(addr: SocketAddr, cors_allow_origin: String, cors_allow_credentials: bool) -> Self {
+  pub fn new(addr: SocketAddr, cors: CorsConfig) -> Self {
     Self {
       addr,
       cert_key_pair: None,
       scheme: Scheme::HTTP,
-      cors_allow_origin,
-      cors_allow_credentials,
+      cors,
     }
   }
 
-  pub fn new_with_tls<P: AsRef<Path>>(
-    addr: SocketAddr,
-    cors_allow_origin: String,
-    cors_allow_credentials: bool,
-    cert: P,
-    key: P,
-  ) -> Self {
+  pub fn new_with_tls<P: AsRef<Path>>(addr: SocketAddr, cors: CorsConfig, cert: P, key: P) -> Self {
     Self {
       addr,
       cert_key_pair: Some(CertificateKeyPair {
@@ -81,8 +74,7 @@ impl HttpTicketFormatter {
         key: PathBuf::from(key.as_ref()),
       }),
       scheme: Scheme::HTTPS,
-      cors_allow_origin,
-      cors_allow_credentials,
+      cors,
     }
   }
 
@@ -98,8 +90,7 @@ impl HttpTicketFormatter {
       self.addr,
       Self::SERVE_ASSETS_AT,
       self.cert_key_pair.take(),
-      self.cors_allow_origin.clone(),
-      self.cors_allow_credentials,
+      self.cors.clone(),
     )
     .await?;
     self.addr = server.local_addr();
@@ -118,22 +109,17 @@ impl TryFrom<DataServerConfig> for HttpTicketFormatter {
   /// Returns a ticket server with tls if both cert and key are not None, without tls if cert and key
   /// are both None, and otherwise an error.
   fn try_from(config: DataServerConfig) -> Result<Self> {
-    match (config.data_server_cert, config.data_server_key) {
+    match (config.cert(), config.key()) {
       (Some(cert), Some(key)) => Ok(Self::new_with_tls(
-        config.data_server_addr,
-        config.data_server_cors_allow_origin,
-        config.data_server_cors_allow_credentials,
+        config.addr(),
+        config.cors().clone(),
         cert,
         key,
       )),
       (Some(_), None) | (None, Some(_)) => Err(DataServerError(
         "both the cert and key must be provided for the ticket server".to_string(),
       )),
-      (None, None) => Ok(Self::new(
-        config.data_server_addr,
-        config.data_server_cors_allow_origin,
-        config.data_server_cors_allow_credentials,
-      )),
+      (None, None) => Ok(Self::new(config.addr(), config.cors().clone())),
     }
   }
 }
@@ -150,8 +136,7 @@ pub struct DataServer {
   listener: AddrIncoming,
   serve_assets_at: String,
   cert_key_pair: Option<CertificateKeyPair>,
-  cors_allow_origin: String,
-  cors_allow_credentials: bool,
+  cors: CorsConfig,
 }
 
 impl DataServer {
@@ -161,8 +146,7 @@ impl DataServer {
     addr: SocketAddr,
     serve_assets_at: impl Into<String>,
     cert_key_pair: Option<CertificateKeyPair>,
-    cors_allow_origin: String,
-    cors_allow_credentials: bool,
+    cors: CorsConfig,
   ) -> Result<DataServer> {
     let listener = TcpListener::bind(addr)
       .await
@@ -174,8 +158,7 @@ impl DataServer {
       listener,
       serve_assets_at: serve_assets_at.into(),
       cert_key_pair,
-      cors_allow_origin,
-      cors_allow_credentials,
+      cors,
     })
   }
 
@@ -184,10 +167,7 @@ impl DataServer {
   pub async fn serve<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
     let mut app = Router::new()
       .merge(SpaRouter::new(&self.serve_assets_at, path))
-      .layer(configure_cors(
-        self.cors_allow_credentials,
-        self.cors_allow_origin,
-      )?)
+      .layer(configure_cors(self.cors)?)
       .layer(TraceLayer::new_for_http())
       .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -290,7 +270,8 @@ mod tests {
     test_cors_preflight_request_uri, test_cors_simple_request_uri,
   };
   use htsget_test_utils::http_tests::{
-    default_test_config, Header, Response as TestResponse, TestRequest, TestServer,
+    default_cors_config, default_test_config, Header, Response as TestResponse, TestRequest,
+    TestServer,
   };
   use htsget_test_utils::util::generate_test_certificates;
 
@@ -416,7 +397,7 @@ mod tests {
   #[test]
   fn http_formatter_authority() {
     let formatter =
-      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), "".to_string(), false);
+      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
     test_formatter_authority(formatter, "http");
   }
 
@@ -424,8 +405,7 @@ mod tests {
   fn https_formatter_authority() {
     let formatter = HttpTicketFormatter::new_with_tls(
       "127.0.0.1:8080".parse().unwrap(),
-      "".to_string(),
-      false,
+      CorsConfig::default(),
       "",
       "",
     );
@@ -435,7 +415,7 @@ mod tests {
   #[test]
   fn http_scheme() {
     let formatter =
-      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), "".to_string(), false);
+      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
     assert_eq!(formatter.get_scheme(), &Scheme::HTTP);
   }
 
@@ -443,8 +423,7 @@ mod tests {
   fn https_scheme() {
     let formatter = HttpTicketFormatter::new_with_tls(
       "127.0.0.1:8080".parse().unwrap(),
-      "".to_string(),
-      false,
+      CorsConfig::default(),
       "",
       "",
     );
@@ -454,7 +433,7 @@ mod tests {
   #[tokio::test]
   async fn get_addr_local_addr() {
     let mut formatter =
-      HttpTicketFormatter::new("127.0.0.1:0".parse().unwrap(), "".to_string(), false);
+      HttpTicketFormatter::new("127.0.0.1:0".parse().unwrap(), CorsConfig::default());
     let server = formatter.bind_data_server().await.unwrap();
     assert_eq!(formatter.get_addr(), server.local_addr());
   }
@@ -490,15 +469,9 @@ mod tests {
     P: AsRef<Path> + Send + 'static,
   {
     let addr = SocketAddr::from_str(&format!("{}:{}", "127.0.0.1", "0")).unwrap();
-    let server = DataServer::bind_addr(
-      addr,
-      "/data",
-      cert_key_pair,
-      "http://example.com".to_string(),
-      false,
-    )
-    .await
-    .unwrap();
+    let server = DataServer::bind_addr(addr, "/data", cert_key_pair, default_cors_config())
+      .await
+      .unwrap();
     let port = server.local_addr().port();
     tokio::spawn(async move { server.serve(path).await.unwrap() });
 

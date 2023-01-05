@@ -3,9 +3,13 @@ use std::str::FromStr;
 
 pub use error::{HtsGetError, Result};
 pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, StorageType, TicketServerConfig,
+  Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, TicketServerConfig,
 };
-use htsget_search::htsget::{Query, Response};
+#[cfg(feature = "s3-storage")]
+pub use htsget_config::regex_resolver::aws::S3Resolver;
+pub use htsget_config::regex_resolver::StorageType;
+use htsget_config::Query;
+use htsget_search::htsget::Response;
 pub use http_core::{get_response_for_get_request, get_response_for_post_request};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
@@ -108,14 +112,15 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
+  use htsget_config::config::cors::CorsConfig;
   use std::path::PathBuf;
   use std::sync::Arc;
 
-  use htsget_config::regex_resolver::RegexResolver;
+  use htsget_config::Format;
   use htsget_search::htsget::HtsGet;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_search::{
-    htsget::{from_storage::HtsGetFromStorage, Format, Headers, JsonResponse, Url},
+    htsget::{from_storage::HtsGetFromStorage, Headers, JsonResponse, Url},
     storage::local::LocalStorage,
   };
   use htsget_test_utils::util::expected_bgzf_eof_data_url;
@@ -268,8 +273,7 @@ mod tests {
     Arc::new(HtsGetFromStorage::new(
       LocalStorage::new(
         get_base_path(),
-        RegexResolver::new(".*", "$0").unwrap(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), "".to_string(), false),
+        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
       )
       .unwrap(),
     ))

@@ -1,52 +1,37 @@
-use std::env::args;
-use std::io::{Error, ErrorKind};
-
 use tokio::select;
 
 use htsget_http_actix::run_server;
-use htsget_http_actix::{Config, StorageType, USAGE};
-use htsget_search::htsget::from_storage::HtsGetFromStorage;
+use htsget_http_actix::Config;
 use htsget_search::storage::data_server::HttpTicketFormatter;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
   Config::setup_tracing()?;
 
-  if args().len() > 1 {
-    // Show help if command line options are provided
-    println!("{USAGE}");
-    return Ok(());
+  if let Some(config) = Config::parse_args() {
+    let config = Config::from_config(config)?;
+
+    if config.data_server().enabled() {
+      let server = config.data_server().clone();
+      let mut formatter = HttpTicketFormatter::try_from(server.clone())?;
+
+      let local_server = formatter.bind_data_server().await?;
+      let local_server =
+        tokio::spawn(async move { local_server.serve(&server.local_path()).await });
+
+      let ticket_server_config = config.ticket_server().clone();
+      select! {
+        local_server = local_server => Ok(local_server??),
+        actix_server = run_server(
+          config.owned_resolvers(),
+          ticket_server_config,
+        )? => actix_server
+      }
+    } else {
+      let ticket_server_config = config.ticket_server().clone();
+      run_server(config.owned_resolvers(), ticket_server_config)?.await
+    }
+  } else {
+    Ok(())
   }
-
-  let config = Config::from_env()?;
-
-  match config.storage_type {
-    StorageType::LocalStorage => local_storage_server(config).await,
-    #[cfg(feature = "s3-storage")]
-    StorageType::AwsS3Storage => s3_storage_server(config).await,
-    _ => Err(Error::new(ErrorKind::Other, "unsupported storage type")),
-  }
-}
-
-async fn local_storage_server(config: Config) -> std::io::Result<()> {
-  let mut formatter = HttpTicketFormatter::try_from(config.data_server_config)?;
-  let local_server = formatter.bind_data_server().await?;
-
-  let searcher =
-    HtsGetFromStorage::local_from(config.path.clone(), config.resolver.clone(), formatter)?;
-  let local_server = tokio::spawn(async move { local_server.serve(&config.path).await });
-
-  select! {
-    local_server = local_server => Ok(local_server??),
-    actix_server = run_server(
-      searcher,
-      config.ticket_server_config,
-    )? => actix_server
-  }
-}
-
-#[cfg(feature = "s3-storage")]
-async fn s3_storage_server(config: Config) -> std::io::Result<()> {
-  let searcher = HtsGetFromStorage::s3_from(config.s3_bucket, config.resolver).await;
-  run_server(searcher, config.ticket_server_config)?.await
 }

@@ -56,8 +56,7 @@ where
   #[instrument(level = "trace", skip(self, index))]
   async fn get_byte_ranges_for_unmapped(
     &self,
-    id: &str,
-    format: &Format,
+    query: &Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for unmapped reads");
@@ -75,7 +74,7 @@ where
 
     Ok(vec![BytesPosition::default()
       .with_start(start.compressed())
-      .with_end(self.position_at_eof(id, format).await?)
+      .with_end(self.position_at_eof(query).await?)
       .with_class(Body)])
   }
 }
@@ -109,7 +108,7 @@ where
     reference_name: String,
     index: &Index,
     header: &Header,
-    query: Query,
+    query: &Query,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for reference name");
     self
@@ -147,15 +146,13 @@ where
     query: &Query,
     bai_index: &Index,
   ) -> Result<Vec<BytesPosition>> {
-    self
-      .get_byte_ranges_for_unmapped(&query.id, &self.get_format(), bai_index)
-      .await
+    self.get_byte_ranges_for_unmapped(query, bai_index).await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
     &self,
     ref_seq_id: usize,
-    query: Query,
+    query: &Query,
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     self

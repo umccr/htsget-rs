@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use htsget_search::htsget::Query;
+use htsget_config::Query;
 
 use crate::{QueryBuilder, Result};
 
@@ -61,7 +61,7 @@ impl PostRequest {
 
 #[cfg(test)]
 mod tests {
-  use htsget_search::htsget::{Class, Format};
+  use htsget_config::{Class, Format};
 
   use super::*;
 
