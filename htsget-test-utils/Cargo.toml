@@ -5,6 +5,9 @@ authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 license = "MIT"
 description = "Common test functions and utilities used by htsget-rs"
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-test-utils/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-test-utils/README.md"
+repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 http-tests = [
