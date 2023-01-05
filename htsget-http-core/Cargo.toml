@@ -12,11 +12,11 @@ default = ["s3-storage"]
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 http = "0.2"
-htsget-search = { path = "../htsget-search", default-features = false }
-htsget-config = { path = "../htsget-config", default-features = false }
+htsget-search = { version = "0.1.0", git = "https://github.com/umccr/htsget-rs", default-features = false }
+htsget-config = { version = "0.1.0", git = "https://github.com/umccr/htsget-rs", default-features = false }
 futures = { version = "0.3" }
 tokio = { version = "1.21", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 
 [dev-dependencies]
-htsget-test-utils = { path = "../htsget-test-utils", default-features = false }
+htsget-test-utils = { version = "0.1.0", git = "https://github.com/umccr/htsget-rs", default-features = false }

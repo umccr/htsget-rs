@@ -14,9 +14,9 @@ actix-cors = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 futures-util = { version = "0.3" }
-htsget-http-core = { path = "../htsget-http-core", default-features = false }
-htsget-search = { path = "../htsget-search", default-features = false}
-htsget-config = { path = "../htsget-config", default-features = false }
+htsget-http-core = { version = "0.1.0", git = "https://github.com/umccr/htsget-rs", default-features = false }
+htsget-search = { version = "0.1.0", git = "https://github.com/umccr/htsget-rs", default-features = false }
+htsget-config = { version = "0.1.0", git = "https://github.com/umccr/htsget-rs", default-features = false }
 futures = { version = "0.3" }
 tokio = { version = "1.21", features = ["macros", "rt-multi-thread"] }
 
@@ -24,7 +24,7 @@ tracing-actix-web = "0.6"
 tracing = "0.1"
 
 [dev-dependencies]
-htsget-test-utils = { path = "../htsget-test-utils", features = ["server-tests", "cors-tests"], default-features = false }
+htsget-test-utils = { version = "0.1.0", git = "https://github.com/umccr/htsget-rs", features = ["server-tests", "cors-tests"], default-features = false }
 async-trait = "0.1"
 
 criterion = { version = "0.4", features = ["async_tokio"] }
