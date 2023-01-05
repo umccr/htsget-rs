@@ -5,6 +5,9 @@ authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainsto
 edition = "2021"
 license = "MIT"
 description = "Framework dependent code for a cloud-based instance of `htsget-rs`, using AWS Lambda."
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-http-lambda/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-http-lambda/README.md"
+repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http-core/s3-storage", "htsget-test-utils/s3-storage"]

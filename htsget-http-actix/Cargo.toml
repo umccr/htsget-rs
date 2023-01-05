@@ -5,6 +5,9 @@ authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>
 edition = "2021"
 license = "MIT"
 description = "This crate is used for running a local (webserver) instance of htsget-rs."
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-http-actix/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-http-actix/README.md"
+repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = ["htsget-config/s3-storage", "htsget-config/s3-storage", "htsget-http-core/s3-storage", "htsget-test-utils/s3-storage"]
