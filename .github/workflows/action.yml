@@ -70,50 +70,17 @@ jobs:
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cargo-criterion
-            # JSON on stdout, bencher (human readable) results on stderr
       - name: Timestamp
         run: export BENCH_TIMESTAMP=$(date +'%Y-%m-%d-%s')
-      # - name: Run requests benchmarks
-      #   #run: cargo criterion --bench request-benchmarks --message-format=json -- LIGHT 1> requests-benchmarks-${BENCH_TIMESTAMP}.json
-      #   run: cargo criterion --bench request-benchmarks --message-format=json -- LIGHT 1> requests-benchmarks.json
       - name: Run search benchmarks
-        #run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-${BENCH_TIMESTAMP}.json
-        run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT | tee output.txt
-        # examples are broken on https://github.com/benchmark-action/github-action-benchmark/tree/master/examples/criterion-rs
-        #run: cargo bench -- --output-format bencher | tee output.txt ... nope: error: Unrecognized option: 'output-format'
-      - name: Where is output.txt
-        run: pwd && ls -alh && find .. -iname 'output.txt'
-      # - name: Store requests benchmark result
-      #   uses: benchmark-action/github-action-benchmark@v1
-      #   with:
-      #     tool: 'cargo'
-      #     # Where the output from the benchmark tool is stored
-      #     #output-file-path: requests-benchmarks-${BENCH_TIMESTAMP}.json
-      #     output-file-path: ${{ github.repository }}/requests-benchmarks.json
-      #     # Where the previous data file is stored
-      #     #external-data-json-path: ./cache/requests-benchmarks-${BENCH_TIMESTAMP}.json
-      #     external-data-json-path: ./benchmarks/requests-benchmarks.json
-      #     fail-on-alert: false
+        run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> output.json
       - name: Store search benchmark result
-        uses: brainstorm/github-action-benchmark@cargo-criterion-v2
+        uses: brainstorm/github-action-benchmark@cargo-criterion-v3
         with:
           name: Search benchmark
           tool: 'cargo-criterion'
-          output-file-path: /home/runner/work/htsget-rs/htsget-rs/output.txt
-          #external-data-json-path: search-benchmarks.json
+          output-file-path: /home/runner/work/htsget-rs/htsget-rs/output.json
+          native-benchmark-data-dir-path: target/criterion
           fail-on-alert: false
-          # Access token to deploy GitHub Pages branch
           github-token: ${{ secrets.HTSGET_RS_BENCHMARKS_TOKEN }}
-          # Push and deploy GitHub pages branch automatically
           auto-push: true
-
-      # TODO: Have the github-benchmark-action pages *AND* those from cargo-criterion tool itself
-      # - name: Setup Pages
-      #   uses: actions/configure-pages@v2
-      # - name: Upload artifact
-      #   uses: actions/upload-pages-artifact@v1
-      #   with:
-      #     path: 'search-benchmarks.json'
-      # - name: Deploy to GitHub Pages
-      #   id: deployment
-      #   uses: actions/deploy-pages@v1
