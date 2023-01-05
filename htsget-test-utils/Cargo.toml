@@ -3,6 +3,8 @@ name = "htsget-test-utils"
 version = "0.1.0"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
+license = "MIT"
+description = "Common test functions and utilities used by htsget-rs"
 
 [features]
 http-tests = [

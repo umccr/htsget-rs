@@ -3,6 +3,8 @@ name = "htsget-search"
 version = "0.1.0"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
+description = "This crate is the primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using [noodles] to query files and their indices"
+license = "MIT"
 
 [features]
 s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test-utils/s3-storage"]

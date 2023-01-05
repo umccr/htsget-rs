@@ -3,6 +3,8 @@ name = "htsget-http-actix"
 version = "0.1.0"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
+license = "MIT"
+description = "This crate is used for running a local (webserver) instance of htsget-rs."
 
 [features]
 s3-storage = ["htsget-config/s3-storage", "htsget-config/s3-storage", "htsget-http-core/s3-storage", "htsget-test-utils/s3-storage"]
