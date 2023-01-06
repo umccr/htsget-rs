@@ -266,9 +266,7 @@ mod tests {
   use http::{HeaderMap, HeaderValue, Method};
   use reqwest::{Client, ClientBuilder, RequestBuilder};
 
-  use htsget_test::cors_tests::{
-    test_cors_preflight_request_uri, test_cors_simple_request_uri,
-  };
+  use htsget_test::cors_tests::{test_cors_preflight_request_uri, test_cors_simple_request_uri};
   use htsget_test::http_tests::{
     default_cors_config, default_test_config, Header, Response as TestResponse, TestRequest,
     TestServer,
