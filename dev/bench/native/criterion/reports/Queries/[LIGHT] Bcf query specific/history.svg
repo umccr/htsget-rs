@@ -58,8 +58,8 @@ History
 #2
 </text>
 <polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="927,568 927,573 "/>
-<polyline fill="none" opacity="1" stroke="#1F78B4" stroke-width="1" points="92,114 509,560 927,562 "/>
-<polygon opacity="0.25" fill="#1F78B4" points="92,110 509,560 927,561 927,562 509,560 92,118 "/>
+<polyline fill="none" opacity="1" stroke="#1F78B4" stroke-width="1" points="92,114 509,561 927,562 "/>
+<polygon opacity="0.25" fill="#1F78B4" points="92,110 509,561 927,561 927,562 509,561 92,119 "/>
 <text x="809" y="73" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 Point estimate
 </text>
