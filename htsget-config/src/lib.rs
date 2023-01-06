@@ -141,12 +141,8 @@ impl Interval {
     F: FnOnce(u32) -> io::Result<u32>,
   {
     let value = convert_fn(value).map(|value| {
-      usize::try_from(value).map_err(|err| {
-        io::Error::new(
-          Other,
-          format!("could not convert `u32` to `usize`: {err}"),
-        )
-      })
+      usize::try_from(value)
+        .map_err(|err| io::Error::new(Other, format!("could not convert `u32` to `usize`: {err}")))
     })??;
 
     Position::try_from(value).map_err(|err| {

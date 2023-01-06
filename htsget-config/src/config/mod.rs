@@ -439,9 +439,7 @@ impl Config {
       .merge(Toml::file(config))
       .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
       .extract()
-      .map_err(|err| {
-        io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}"))
-      })?;
+      .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;
 
     info!(config = ?config, "config created from environment variables");
     Ok(config)
