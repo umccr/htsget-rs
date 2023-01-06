@@ -30,7 +30,7 @@ There is no need to interact with this crate for running htsget-rs.
 
 This crate is useful for implementing additional framework dependent versions of the htsget-rs server.
 For example, htsget-rs could be written using another framework such as [warp]. This crate provides functions 
-like `get_response_for_get_request`, `get_response_for_post_request` and `get_service_info_json` for this purpose.
+like `get`, `post` and `get_service_info_json` for this purpose.
 These functions take query and endpoint information, and process it using [htsget-search] to return JSON HTTP responses.
 
 #### Feature flags

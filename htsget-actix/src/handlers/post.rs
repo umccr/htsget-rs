@@ -5,7 +5,7 @@ use actix_web::{
 use tracing::info;
 use tracing::instrument;
 
-use htsget_http::{get_response_for_post_request, Endpoint, PostRequest};
+use htsget_http::{post, Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 
 use crate::AppState;
@@ -21,7 +21,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 ) -> impl Responder {
   info!(request = ?request, "reads endpoint POST request");
   handle_response(
-    get_response_for_post_request(
+    post(
       app_state.get_ref().htsget.clone(),
       request.into_inner(),
       path.into_inner(),
@@ -40,7 +40,7 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
 ) -> impl Responder {
   info!(request = ?request, "variants endpoint POST request");
   handle_response(
-    get_response_for_post_request(
+    post(
       app_state.get_ref().htsget.clone(),
       request.into_inner(),
       path.into_inner(),

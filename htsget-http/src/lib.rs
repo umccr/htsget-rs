@@ -10,7 +10,7 @@ pub use htsget_config::regex_resolver::aws::S3Resolver;
 pub use htsget_config::regex_resolver::StorageType;
 use htsget_config::Query;
 use htsget_search::htsget::Response;
-pub use http_core::{get_response_for_get_request, get_response_for_post_request};
+pub use http_core::{get, post};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
@@ -134,7 +134,7 @@ mod tests {
     let mut headers = HashMap::new();
     headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
     assert_eq!(
-      get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
+      get(get_searcher(), request, Endpoint::Reads).await,
       Ok(example_bam_json_response(headers))
     );
   }
@@ -145,7 +145,7 @@ mod tests {
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     request.insert("format".to_string(), "VCF".to_string());
     assert!(matches!(
-      get_response_for_get_request(get_searcher(), request, Endpoint::Reads).await,
+      get(get_searcher(), request, Endpoint::Reads).await,
       Err(HtsGetError::UnsupportedFormat(_))
     ));
   }
@@ -160,7 +160,7 @@ mod tests {
     let mut headers = HashMap::new();
     headers.insert("Range".to_string(), "bytes=0-3465".to_string());
     assert_eq!(
-      get_response_for_get_request(get_searcher(), request, Endpoint::Variants).await,
+      get(get_searcher(), request, Endpoint::Variants).await,
       Ok(example_vcf_json_response(headers))
     );
   }
@@ -178,7 +178,7 @@ mod tests {
     let mut headers = HashMap::new();
     headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
     assert_eq!(
-      get_response_for_post_request(
+      post(
         get_searcher(),
         request,
         "bam/htsnexus_test_NA12878",
@@ -200,7 +200,7 @@ mod tests {
       regions: None,
     };
     assert!(matches!(
-      get_response_for_post_request(
+      post(
         get_searcher(),
         request,
         "bam/htsnexus_test_NA12878",
@@ -228,7 +228,7 @@ mod tests {
     let mut headers = HashMap::new();
     headers.insert("Range".to_string(), "bytes=0-3465".to_string());
     assert_eq!(
-      get_response_for_post_request(
+      post(
         get_searcher(),
         request,
         "vcf/sample1-bcbio-cancer",

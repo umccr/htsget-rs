@@ -5,7 +5,7 @@ use lambda_http::http;
 use tracing::info;
 use tracing::instrument;
 
-use htsget_http::{get_response_for_get_request, Endpoint};
+use htsget_http::{get as htsget_get, Endpoint};
 use htsget_search::htsget::HtsGet;
 
 use crate::handlers::handle_response;
@@ -21,5 +21,5 @@ pub async fn get<H: HtsGet + Send + Sync + 'static>(
 ) -> http::Result<Response<Body>> {
   info!(query = ?query, "GET request");
   query.insert("id".to_string(), id_path);
-  handle_response(get_response_for_get_request(searcher, query, endpoint).await)
+  handle_response(htsget_get(searcher, query, endpoint).await)
 }

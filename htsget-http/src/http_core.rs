@@ -19,7 +19,7 @@ use crate::{
 /// be in a HashMap. The "id" field is the only mandatory one. The rest can be
 /// consulted [here](https://samtools.github.io/hts-specs/htsget.html)
 #[instrument(level = "debug", skip_all, ret)]
-pub async fn get_response_for_get_request(
+pub async fn get(
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
   mut query_information: HashMap<String, String>,
   endpoint: Endpoint,
@@ -36,7 +36,7 @@ pub async fn get_response_for_get_request(
 /// Gets a response in JSON for a POST request.
 /// The parameters can be consulted [here](https://samtools.github.io/hts-specs/htsget.html)
 #[instrument(level = "debug", skip_all, ret)]
-pub async fn get_response_for_post_request(
+pub async fn post(
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
   mut request: PostRequest,
   id: impl Into<String>,

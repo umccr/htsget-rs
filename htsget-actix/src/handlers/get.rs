@@ -7,7 +7,7 @@ use actix_web::{
 use tracing::info;
 use tracing::instrument;
 
-use htsget_http::{get_response_for_get_request, Endpoint};
+use htsget_http::{get, Endpoint};
 use htsget_search::htsget::HtsGet;
 
 use crate::AppState;
@@ -26,7 +26,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   info!(query = ?query_information, "reads endpoint GET request");
 
   handle_response(
-    get_response_for_get_request(
+    get(
       app_state.get_ref().htsget.clone(),
       query_information,
       Endpoint::Reads,
@@ -47,7 +47,7 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   info!(query = ?query_information, "variants endpoint GET request");
 
   handle_response(
-    get_response_for_get_request(
+    get(
       app_state.get_ref().htsget.clone(),
       query_information,
       Endpoint::Variants,

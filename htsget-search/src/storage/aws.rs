@@ -268,7 +268,7 @@ mod tests {
         None,
       )))
       .build();
-    let ep = Endpoint::immutable(bound_addr.parse().unwrap());
+    let ep = Endpoint::immutable(bound_addr).unwrap();
     let s3_conf = aws_sdk_s3::config::Builder::from(&config)
       .endpoint_resolver(ep)
       .build();
