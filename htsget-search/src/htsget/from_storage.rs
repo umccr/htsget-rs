@@ -117,7 +117,7 @@ pub(crate) mod tests {
   use htsget_config::config::cors::CorsConfig;
   use tempfile::TempDir;
 
-  use htsget_test_utils::util::expected_bgzf_eof_data_url;
+  use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
     expected_url as bam_expected_url, with_local_storage as with_bam_local_storage,

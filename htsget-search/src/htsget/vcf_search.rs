@@ -132,7 +132,7 @@ where
 pub(crate) mod tests {
   use std::future::Future;
 
-  use htsget_test_utils::util::expected_bgzf_eof_data_url;
+  use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::from_storage::tests::{
     with_local_storage as with_local_storage_path,

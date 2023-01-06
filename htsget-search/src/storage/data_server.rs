@@ -266,14 +266,14 @@ mod tests {
   use http::{HeaderMap, HeaderValue, Method};
   use reqwest::{Client, ClientBuilder, RequestBuilder};
 
-  use htsget_test_utils::cors_tests::{
+  use htsget_test::cors_tests::{
     test_cors_preflight_request_uri, test_cors_simple_request_uri,
   };
-  use htsget_test_utils::http_tests::{
+  use htsget_test::http_tests::{
     default_cors_config, default_test_config, Header, Response as TestResponse, TestRequest,
     TestServer,
   };
-  use htsget_test_utils::util::generate_test_certificates;
+  use htsget_test::util::generate_test_certificates;
 
   use crate::storage::local::tests::create_local_test_files;
   use crate::Config;
