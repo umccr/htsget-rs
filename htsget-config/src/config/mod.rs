@@ -440,7 +440,7 @@ impl Config {
       .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
       .extract()
       .map_err(|err| {
-        io::Error::new(ErrorKind::Other, format!("failed to parse config: {}", err))
+        io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}"))
       })?;
 
     info!(config = ?config, "config created from environment variables");
@@ -457,7 +457,7 @@ impl Config {
     tracing::subscriber::set_global_default(subscriber).map_err(|err| {
       io::Error::new(
         ErrorKind::Other,
-        format!("failed to install `tracing` subscriber: {}", err),
+        format!("failed to install `tracing` subscriber: {err}"),
       )
     })?;
 

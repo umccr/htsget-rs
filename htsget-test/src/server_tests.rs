@@ -20,11 +20,11 @@ use crate::Config;
 
 /// Test response with with class.
 pub async fn test_response(response: Response, class: Class) {
-  println!("response: {:?}", response);
+  println!("response: {response:?}");
   assert!(response.is_success());
   let body = response.deserialize_body::<JsonResponse>().unwrap();
 
-  println!("{:#?}", body);
+  println!("{body:#?}");
   let expected_response = expected_response(class, response.expected_url_path);
   assert_eq!(body, expected_response);
 

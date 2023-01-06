@@ -96,7 +96,7 @@ where
   S: Serializer,
 {
   let mut sequence = serializer.serialize_seq(Some(names.len()))?;
-  for element in names.iter().map(|name| format!("{}", name)) {
+  for element in names.iter().map(|name| format!("{name}")) {
     sequence.serialize_element(&element)?;
   }
   sequence.end()
