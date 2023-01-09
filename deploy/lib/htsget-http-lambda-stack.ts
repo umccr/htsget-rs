@@ -7,6 +7,20 @@ import * as apigw from 'aws-cdk-lib/aws-apigateway';
 import {AuthorizationType} from 'aws-cdk-lib/aws-apigateway';
 import {STACK_NAME} from '../bin/htsget-http-lambda';
 
+/**
+ * Configuration for HtsgetHttpLambdaStack.
+ */
+export type Config = {
+  environment: string,
+  bucket: string;
+  cors_allow_origins: string;
+  regex: string,
+  substitution_string: string;
+}
+
+/**
+ * Stack used to deploy htsget-http-lambda.
+ */
 export class HtsgetHttpLambdaStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -31,6 +45,7 @@ export class HtsgetHttpLambdaStack extends Stack {
     // Don't build htsget packages other than htsget-http-lambda.
     Settings.BUILD_INDIVIDUALLY = true;
 
+    const config = this.getConfig();
     let htsgetLambda = new RustFunction(this, id + 'Function', {
       // Build htsget-http-lambda only.
       package: 'htsget-http-lambda',
@@ -40,7 +55,20 @@ export class HtsgetHttpLambdaStack extends Stack {
       timeout: Duration.seconds(10),
       // Change environment variables passed to htsget-http-lambda.
       environment: {
-        HTSGET_RESOLVERS: '[{storage_type={type=S3, bucket=umccr-research-dev}}]',
+        HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS: config.cors_allow_origins,
+        HTSGET_TICKET_SERVER_CORS_MAX_AGE: '300',
+        HTSGET_RESOLVERS: `[{
+          regex=${config.regex}, 
+          substitution_string=${config.substitution_string}, 
+          storage_type={type=S3, bucket=${config.bucket}}
+        }]`,
+        HTSGET_NAME: "umccr-htsget-rs",
+        HTSGET_VERSION: "0.1.0",
+        HTSGET_ORGANIZATION_NAME: "UMCCR",
+        HTSGET_ORGANIZATION_URL: "https://umccr.org/",
+        HTSGET_CONTACT_URL: "https://umccr.org/",
+        HTSGET_DOCUMENTATION_URL: "https://github.com/umccr/htsget-rs",
+        HTSGET_ENVIRONMENT: `${config.environment}`,
         RUST_LOG: 'info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace'
       },
       architecture: Architecture.ARM_64,
@@ -54,5 +82,26 @@ export class HtsgetHttpLambdaStack extends Stack {
         authorizationType: AuthorizationType.IAM,
       }
     });
+  }
+
+  /**
+   * Get the environment configuration from cdk.json. Pass `--context "env=dev"` or `--context "env=prod"` to
+   * control the environment.
+   */
+  getConfig(): Config {
+    let env: string = this.node.tryGetContext('env');
+    if (!env) {
+      console.log("No environment supplied, using `dev` environment config")
+      env = "dev";
+    }
+
+    const config = this.node.tryGetContext(env);
+    return {
+      environment: env,
+      bucket: config?.bucket ?? 'umccr-primary-data-dev',
+      cors_allow_origins: config?.cors_allow_origins ?? '[https://data.umccr.org, https://data.dev.umccr.org]',
+      regex: config?.regex ?? '^umccr-primary-data-dev/(?P<accession>.*)$',
+      substitution_string: config?.substitution_string ?? '$accession'
+    };
   }
 }
