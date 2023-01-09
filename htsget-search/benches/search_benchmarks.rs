@@ -1,7 +1,9 @@
+mod flamegraphs;
+
 use std::time::Duration;
 
 use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use criterion::{criterion_group, criterion_main, black_box, BenchmarkGroup, Criterion};
 use tokio::runtime::Runtime;
 
 use htsget_config::config::cors::CorsConfig;
@@ -121,5 +123,26 @@ fn criterion_benchmark(c: &mut Criterion) {
   group.finish();
 }
 
-criterion_group!(benches, criterion_benchmark);
+fn criterion_flamegraph(c: &mut Criterion) {
+  c.bench_function("flamegraph_bam_query_all", |b| b.iter(|| Query::new("bam/htsnexus_test_NA12878", Bam)));
+}
+
+// fn criterion_flamegraph(c: &mut Criterion) {
+//   //let bencher_func = Query::new(black_box("bam/htsnexus_test_NA12878"), Bam);
+
+//   let mut group = c
+//     .bench_function("bam_query_all_flamegraph",  bench_func)
+//     .with_profiler(flamegraphs::FlamegraphProfiler::new(100))
+//     .benchmark_group("Flamegraphs")
+//     .sample_size(NUMBER_OF_SAMPLES)
+//     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
+// }
+
+//criterion_group!(benches, criterion_benchmark);
+// criterion_group!(benches, criterion_flamegraph);
+criterion_group!{
+		name = benches;
+		config = Criterion::default().with_profiler(flamegraphs::FlamegraphProfiler::new(100));
+		targets = criterion_flamegraph
+}
 criterion_main!(benches);

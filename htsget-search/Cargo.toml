@@ -55,15 +55,17 @@ htsget-test = { version = "0.1.0", path = "../htsget-test", features = ["cors-te
 tempfile = "3.3"
 data-url = "0.2"
 
-# Aws S3 storage dependencies.
+# AWS S3 storage
 anyhow = "1.0"
 s3-server = "0.2"
 aws-types = { version = "0.52", features = ["hardcoded-credentials"] }
 
-# Axum server dependencies
+# Axum server
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
 
+# Benchmarking
 criterion = { version = "0.4", features = ["async_tokio"] }
+pprof = { version = "0.11", features = ["flamegraph"]}
 
 [[bench]]
 name = "search-benchmarks"
