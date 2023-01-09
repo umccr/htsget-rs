@@ -50,7 +50,7 @@ jobs:
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
       - name: Check flamegraphs being generated
-        run: ls -alh target/criterion/flamegraph_bam_query_all
+        run: find target/criterion
       - name: Store search benchmark result
         uses: brainstorm/github-action-benchmark@cargo-criterion-v3
         with:
