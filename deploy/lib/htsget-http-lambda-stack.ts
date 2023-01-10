@@ -8,6 +8,9 @@ import {STACK_NAME} from '../bin/htsget-http-lambda';
 import {HttpLambdaIntegration} from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
 import {StringParameter} from "aws-cdk-lib/aws-ssm";
 import {HttpJwtAuthorizer} from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
+import {ARecord, HostedZone, RecordTarget} from "aws-cdk-lib/aws-route53";
+import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
+import {Certificate} from "aws-cdk-lib/aws-certificatemanager";
 
 /**
  * Configuration for HtsgetHttpLambdaStack.
@@ -15,14 +18,13 @@ import {HttpJwtAuthorizer} from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 export type Config = {
   environment: string,
   bucket: string;
-  cors_allow_origins: string;
+  cors_allow_origins: string[];
   regex: string,
   substitution_string: string;
 }
 
 export type SSMConfig = {
   cert_apse2_arn: string;
-  cert_apse2: string;
   hosted_zone_id: string;
   hosted_zone_name: string;
   domain_name: string;
@@ -68,7 +70,7 @@ export class HtsgetHttpLambdaStack extends Stack {
       timeout: Duration.seconds(10),
       // Change environment variables passed to htsget-http-lambda.
       environment: {
-        HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS: config.cors_allow_origins,
+        HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS: `[${config.cors_allow_origins.toString()}]`,
         HTSGET_TICKET_SERVER_CORS_MAX_AGE: '300',
         HTSGET_RESOLVERS: `[{
           regex=${config.regex}, 
@@ -98,17 +100,52 @@ export class HtsgetHttpLambdaStack extends Stack {
       ]
     });
 
+    const domainName = new apigwv2.DomainName(
+        this,
+        id + "HtsgetCustomDomain",
+        {
+          certificate: Certificate.fromCertificateArn(this, id + 'HtsgetDomainCert', ssmConfig.cert_apse2_arn),
+          domainName: ssmConfig.domain_name
+        }
+    );
+    const hostedZone = HostedZone.fromHostedZoneAttributes(
+        this,
+        id + 'HtsgetHostedZone',
+        {
+          hostedZoneId: ssmConfig.hosted_zone_id,
+          zoneName: ssmConfig.hosted_zone_name
+        }
+    );
+    new ARecord(
+        this,
+        id + 'HtsgetCustomDomainAlias',
+        {
+          zone: hostedZone,
+          recordName: 'htsget',
+          target: RecordTarget.fromAlias(
+              new ApiGatewayv2DomainProperties(domainName.regionalDomainName, domainName.regionalHostedZoneId)
+          )
+        }
+    );
+
     new apigwv2.HttpApi(this, id + 'ApiGw', {
       defaultIntegration: httpIntegration,
-      defaultAuthorizer: authorizer
+      defaultAuthorizer: authorizer,
+      defaultDomainMapping: {
+          domainName: domainName
+      },
+      corsPreflight: {
+        allowOrigins: config.cors_allow_origins,
+        allowHeaders: ['*'],
+        allowMethods: [apigwv2.CorsHttpMethod.ANY],
+        allowCredentials: true
+      }
     });
   }
 
   getSSMConfig(): SSMConfig {
-    const cert_apse2_arn = StringParameter.fromStringParameterName(this, 'SSLCertAPSE2ARN', '/htsget/acm/apse2_arn').stringValue;
     return {
-      cert_apse2_arn: cert_apse2_arn,
-      cert_apse2: StringParameter.fromStringParameterName(this, 'SSLCertAPSE2', cert_apse2_arn).stringValue,
+      cert_apse2_arn: StringParameter.fromStringParameterName(this, 'SSLCertAPSE2ARN', '/htsget/acm/apse2_arn').stringValue,
       cog_app_client_id_local: StringParameter.fromStringParameterName(this, 'CogAppClientIDLocal', '/data_portal/client/cog_app_client_id_local').stringValue,
       cog_app_client_id_stage: StringParameter.fromStringParameterName(this, 'CogAppClientIDStage', '/data_portal/client/cog_app_client_id_stage').stringValue,
       cog_user_pool_id: StringParameter.fromStringParameterName(this, 'CogUserPoolID', '/data_portal/client/cog_user_pool_id').stringValue,
