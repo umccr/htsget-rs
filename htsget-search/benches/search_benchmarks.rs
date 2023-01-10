@@ -123,16 +123,20 @@ fn criterion_benchmark(c: &mut Criterion) {
   group.finish();
 }
 
-fn criterion_flamegraph(c: &mut Criterion) {
-  //c.bench_function("flamegraph_bam_query_all", |b| b.iter(|| Query::new("bam/htsnexus_test_NA12878", Bam)));
-  let mut group = c.benchmark_group("flamegraphs");
+// fn criterion_flamegraph(c: &mut Criterion) {
+//   //c.bench_function("flamegraph_bam_query_all", |b| b.iter(|| Query::new("bam/htsnexus_test_NA12878", Bam)));
+//   let mut group = c.benchmark_group("flamegraphs");
 
-  bench_query(
-    &mut group,
-    "[LIGHT] Bam query all",
-    Query::new("bam/htsnexus_test_NA12878", Bam),
-  );
-}
+//   bench_query(
+//     &mut group,
+//     "[LIGHT] Bam query all",
+//     Query::new("bam/htsnexus_test_NA12878", Bam),
+//   );
+// }
+
+// fn profiled() -> Criterion {
+//   Criterion::default().with_profiler(flamegraphs::FlamegraphProfiler::new(100))
+// }
 
 // fn criterion_flamegraph(c: &mut Criterion) {
 //   //let bencher_func = Query::new(black_box("bam/htsnexus_test_NA12878"), Bam);
@@ -147,9 +151,12 @@ fn criterion_flamegraph(c: &mut Criterion) {
 
 //criterion_group!(benches, criterion_benchmark);
 //criterion_group!(benches, criterion_flamegraph);
-criterion_group!{
-		name = benches;
-		config = Criterion::default().with_profiler(flamegraphs::FlamegraphProfiler::new(100));
-		targets = criterion_flamegraph
+//criterion_main!(benches);
+
+fn main() {
+  Criterion::default()
+    .with_profiler(flamegraphs::FlamegraphProfiler::new(100))
+    .bench_function("flamefoo", |b| {
+      b.iter(|| Query::new("bam/htsnexus_test_NA12878", Bam))
+    });
 }
-criterion_main!(benches);

@@ -49,6 +49,8 @@ jobs:
           crate: cargo-criterion
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
+      - name: Run search benchmarks with flamegraphs .svg output generation
+        run: cargo bench --bench search-benchmarks -- --profile-time=5
       - name: Check flamegraphs being generated
         run: find target/criterion
       - name: Store search benchmark result
