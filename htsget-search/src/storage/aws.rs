@@ -5,6 +5,7 @@ use std::io::ErrorKind::Other;
 use std::time::Duration;
 
 use async_trait::async_trait;
+
 use aws_sdk_s3::client::fluent_builders;
 use aws_sdk_s3::model::StorageClass;
 use aws_sdk_s3::output::HeadObjectOutput;
@@ -219,19 +220,31 @@ impl Storage for AwsS3Storage {
 
 #[cfg(test)]
 mod tests {
+  use aws_sdk_s3 as s3;
+
+  use aws_sdk_s3::Error as AwsS3Error;
+  use async_trait::async_trait;
+
+  pub struct ListObjectsResult {
+    pub objects: Vec<s3::model::Object>,
+    pub continuation_token: Option<String>,
+    pub has_more: bool,
+  }
+
+  #[async_trait]
+  pub trait ListObjects {
+      async fn list_objects(
+          &self,
+          bucket: &str,
+          prefix: &str,
+          continuation_token: Option<String>,
+      ) -> Result<ListObjectsResult, AwsS3Error>;
+  }
+
   use std::future::Future;
-  use std::net::TcpListener;
   use std::path::Path;
 
-  use aws_sdk_s3::{Client, Endpoint};
-  use aws_types::credentials::SharedCredentialsProvider;
-  use aws_types::region::Region;
-  use aws_types::{Credentials, SdkConfig};
-  use futures::future;
-  use hyper::service::make_service_fn;
-  use hyper::Server;
-  use s3_server::storages::fs::FileSystem;
-  use s3_server::{S3Service, SimpleAuth};
+  use aws_sdk_s3::{Client};
 
   use crate::htsget::Headers;
   use crate::storage::aws::AwsS3Storage;
@@ -244,36 +257,7 @@ mod tests {
     F: FnOnce(Client) -> Fut,
     Fut: Future<Output = ()>,
   {
-    // Setup s3-server.
-    let fs = FileSystem::new(server_base_path).unwrap();
-    let mut auth = SimpleAuth::new();
-    auth.register(String::from("access_key"), String::from("secret_key"));
-    let mut service = S3Service::new(fs);
-    service.set_auth(auth);
-
-    // Spawn hyper Server instance.
-    let service = service.into_shared();
-    let listener = TcpListener::bind(("localhost", 0)).unwrap();
-    let bound_addr = format!("http://localhost:{}", listener.local_addr().unwrap().port());
-    let make_service: _ =
-      make_service_fn(move |_| future::ready(Ok::<_, anyhow::Error>(service.clone())));
-    tokio::spawn(Server::from_tcp(listener).unwrap().serve(make_service));
-
-    // Create S3Config.
-    let config = SdkConfig::builder()
-      .region(Region::new("ap-southeast-2"))
-      .credentials_provider(SharedCredentialsProvider::new(Credentials::from_keys(
-        "access_key",
-        "secret_key",
-        None,
-      )))
-      .build();
-    let ep = Endpoint::immutable(bound_addr).unwrap();
-    let s3_conf = aws_sdk_s3::config::Builder::from(&config)
-      .endpoint_resolver(ep)
-      .build();
-
-    test(Client::from_conf(s3_conf));
+    unimplemented!()
   }
 
   async fn with_aws_s3_storage<F, Fut>(test: F)
