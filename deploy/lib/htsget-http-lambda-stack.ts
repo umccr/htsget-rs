@@ -3,9 +3,11 @@ import {Construct} from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import {RustFunction, Settings} from 'rust.aws-cdk-lambda';
 import {Architecture} from 'aws-cdk-lib/aws-lambda';
-import * as apigw from 'aws-cdk-lib/aws-apigateway';
-import {AuthorizationType} from 'aws-cdk-lib/aws-apigateway';
+import * as apigwv2 from '@aws-cdk/aws-apigatewayv2-alpha';
 import {STACK_NAME} from '../bin/htsget-http-lambda';
+import {HttpLambdaIntegration} from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
+import {StringParameter} from "aws-cdk-lib/aws-ssm";
+import {HttpJwtAuthorizer} from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 
 /**
  * Configuration for HtsgetHttpLambdaStack.
@@ -16,6 +18,17 @@ export type Config = {
   cors_allow_origins: string;
   regex: string,
   substitution_string: string;
+}
+
+export type SSMConfig = {
+  cert_apse2_arn: string;
+  cert_apse2: string;
+  hosted_zone_id: string;
+  hosted_zone_name: string;
+  domain_name: string;
+  cog_user_pool_id: string;
+  cog_app_client_id_stage: string;
+  cog_app_client_id_local: string;
 }
 
 /**
@@ -75,13 +88,34 @@ export class HtsgetHttpLambdaStack extends Stack {
       role: lambdaRole
     });
 
-    new apigw.LambdaRestApi(this, id + 'ApiGw', {
-      handler: htsgetLambda,
-      proxy: true,
-      defaultMethodOptions: {
-        authorizationType: AuthorizationType.IAM,
-      }
+    const ssmConfig = this.getSSMConfig();
+    const httpIntegration = new HttpLambdaIntegration(id + 'HtsgetIntegration', htsgetLambda);
+    const authorizer = new HttpJwtAuthorizer(id + "HtsgetAuthorizer", `https://cognito-idp.${this.region}.amazonaws.com/${ssmConfig.cog_user_pool_id}`, {
+      identitySource: ['$request.header.Authorization'],
+      jwtAudience: [
+        ssmConfig.cog_app_client_id_stage,
+        ssmConfig.cog_app_client_id_local,
+      ]
     });
+
+    new apigwv2.HttpApi(this, id + 'ApiGw', {
+      defaultIntegration: httpIntegration,
+      defaultAuthorizer: authorizer
+    });
+  }
+
+  getSSMConfig(): SSMConfig {
+    const cert_apse2_arn = StringParameter.fromStringParameterName(this, 'SSLCertAPSE2ARN', '/htsget/acm/apse2_arn').stringValue;
+    return {
+      cert_apse2_arn: cert_apse2_arn,
+      cert_apse2: StringParameter.fromStringParameterName(this, 'SSLCertAPSE2', cert_apse2_arn).stringValue,
+      cog_app_client_id_local: StringParameter.fromStringParameterName(this, 'CogAppClientIDLocal', '/data_portal/client/cog_app_client_id_local').stringValue,
+      cog_app_client_id_stage: StringParameter.fromStringParameterName(this, 'CogAppClientIDStage', '/data_portal/client/cog_app_client_id_stage').stringValue,
+      cog_user_pool_id: StringParameter.fromStringParameterName(this, 'CogUserPoolID', '/data_portal/client/cog_user_pool_id').stringValue,
+      domain_name: StringParameter.fromStringParameterName(this, 'DomainName', '/htsget/domain').stringValue,
+      hosted_zone_id: StringParameter.fromStringParameterName(this, 'HostedZoneID', 'hosted_zone_id').stringValue,
+      hosted_zone_name: StringParameter.fromStringParameterName(this, 'HostedZoneName', 'hosted_zone_name').stringValue,
+    }
   }
 
   /**
