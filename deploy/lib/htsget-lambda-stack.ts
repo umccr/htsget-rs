@@ -40,9 +40,8 @@ export class HtsgetLambdaStack extends Stack {
       timeout: Duration.seconds(10),
       // Change environment variables passed to htsget-lambda.
       environment: {
-        HTSGET_S3_BUCKET: 'umccr-research-dev',
-        HTSGET_STORAGE_TYPE: 'AwsS3Storage',
-        RUST_LOG: 'info,htsget_lambda=trace,htsget_config=trace,htsget_http=trace,htsget_search=trace'
+        HTSGET_RESOLVERS: '[{storage_type={type=S3, bucket=umccr-research-dev}}]',
+        RUST_LOG: 'info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace'
       },
       architecture: Architecture.ARM_64,
       role: lambdaRole
