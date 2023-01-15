@@ -30,31 +30,31 @@ pub enum Format {
 impl Format {
   pub fn fmt_file(&self, id: &str) -> String {
     match self {
-      Format::Bam => format!("{}.bam", id),
-      Format::Cram => format!("{}.cram", id),
-      Format::Vcf => format!("{}.vcf.gz", id),
-      Format::Bcf => format!("{}.bcf", id),
+      Format::Bam => format!("{id}.bam"),
+      Format::Cram => format!("{id}.cram"),
+      Format::Vcf => format!("{id}.vcf.gz"),
+      Format::Bcf => format!("{id}.bcf"),
     }
   }
 
   pub fn fmt_index(&self, id: &str) -> String {
     match self {
-      Format::Bam => format!("{}.bam.bai", id),
-      Format::Cram => format!("{}.cram.crai", id),
-      Format::Vcf => format!("{}.vcf.gz.tbi", id),
-      Format::Bcf => format!("{}.bcf.csi", id),
+      Format::Bam => format!("{id}.bam.bai"),
+      Format::Cram => format!("{id}.cram.crai"),
+      Format::Vcf => format!("{id}.vcf.gz.tbi"),
+      Format::Bcf => format!("{id}.bcf.csi"),
     }
   }
 
   pub fn fmt_gzi(&self, id: &str) -> io::Result<String> {
     match self {
-      Format::Bam => Ok(format!("{}.bam.gzi", id)),
+      Format::Bam => Ok(format!("{id}.bam.gzi")),
       Format::Cram => Err(io::Error::new(
         Other,
         "CRAM does not support GZI".to_string(),
       )),
-      Format::Vcf => Ok(format!("{}.vcf.gz.gzi", id)),
-      Format::Bcf => Ok(format!("{}.bcf.gzi", id)),
+      Format::Vcf => Ok(format!("{id}.vcf.gz.gzi")),
+      Format::Bcf => Ok(format!("{id}.bcf.gzi")),
     }
   }
 }
@@ -124,7 +124,7 @@ impl Interval {
       value.checked_add(1).ok_or_else(|| {
         io::Error::new(
           Other,
-          format!("could not convert {} to 1-based position.", value),
+          format!("could not convert {value} to 1-based position."),
         )
       })
     })
@@ -141,18 +141,14 @@ impl Interval {
     F: FnOnce(u32) -> io::Result<u32>,
   {
     let value = convert_fn(value).map(|value| {
-      usize::try_from(value).map_err(|err| {
-        io::Error::new(
-          Other,
-          format!("could not convert `u32` to `usize`: {}", err),
-        )
-      })
+      usize::try_from(value)
+        .map_err(|err| io::Error::new(Other, format!("could not convert `u32` to `usize`: {err}")))
     })??;
 
     Position::try_from(value).map_err(|err| {
       io::Error::new(
         Other,
-        format!("could not convert `{}` into `Position`: {}", value, err),
+        format!("could not convert `{value}` into `Position`: {err}"),
       )
     })
   }

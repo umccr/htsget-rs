@@ -66,8 +66,7 @@ where
       None => {
         VirtualPosition::try_from((self.get_header_end_offset(index).await?, 0)).map_err(|err| {
           HtsGetError::InvalidInput(format!(
-            "invalid virtual position generated from header end offset `{}`.",
-            err
+            "invalid virtual position generated from header end offset {err}."
           ))
         })?
       }
@@ -177,7 +176,7 @@ where
 pub(crate) mod tests {
   use std::future::Future;
 
-  use htsget_test_utils::util::expected_bgzf_eof_data_url;
+  use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::from_storage::tests::{
     with_local_storage as with_local_storage_path,
@@ -195,7 +194,7 @@ pub(crate) mod tests {
       let search = BamSearch::new(storage.clone());
       let query = Query::new("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -216,7 +215,7 @@ pub(crate) mod tests {
       let search = BamSearch::new(storage.clone());
       let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("*");
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -241,7 +240,7 @@ pub(crate) mod tests {
       let search = BamSearch::new(storage.clone());
       let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -269,7 +268,7 @@ pub(crate) mod tests {
         .with_start(5015000)
         .with_end(5050000);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -302,7 +301,7 @@ pub(crate) mod tests {
         .with_reference_name("11")
         .with_start(5015000);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -330,7 +329,7 @@ pub(crate) mod tests {
         .with_start(4999976)
         .with_end(5003981);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -362,7 +361,7 @@ pub(crate) mod tests {
         .with_start(5015000)
         .with_end(5050000);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -387,7 +386,7 @@ pub(crate) mod tests {
       let search = BamSearch::new(storage.clone());
       let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Header);
       let response = search.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,

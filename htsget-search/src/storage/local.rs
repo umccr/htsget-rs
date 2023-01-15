@@ -92,7 +92,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
       .map_err(|err| StorageError::InternalError(err.to_string()))?
       .to_string_lossy();
 
-    let url = Url::new(self.url_formatter.format_url(&path)?);
+    let url = Url::new(self.url_formatter.format_url(path)?);
     let url = options.apply(url);
 
     debug!(calling_from = ?self, key = key.as_ref(), ?url, "getting url with key {:?}", key.as_ref());

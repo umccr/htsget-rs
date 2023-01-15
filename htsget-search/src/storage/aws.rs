@@ -137,7 +137,7 @@ impl AwsS3Storage {
   ) -> Result<ByteStream> {
     if let Delayed(class) = self.get_retrieval_type(key.as_ref()).await? {
       return Err(AwsS3Error(
-        format!("cannot retrieve object immediately, class is `{:?}`", class),
+        format!("cannot retrieve object immediately, class is `{class:?}`"),
         key.as_ref().to_string(),
       ));
     }
@@ -268,7 +268,7 @@ mod tests {
         None,
       )))
       .build();
-    let ep = Endpoint::immutable(bound_addr.parse().unwrap());
+    let ep = Endpoint::immutable(bound_addr).unwrap();
     let s3_conf = aws_sdk_s3::config::Builder::from(&config)
       .endpoint_resolver(ep)
       .build();
@@ -401,7 +401,7 @@ mod tests {
   async fn retrieval_type() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.get_retrieval_type("key2").await;
-      println!("{:?}", result);
+      println!("{result:?}");
     })
     .await;
   }

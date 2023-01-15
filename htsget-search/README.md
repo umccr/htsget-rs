@@ -129,6 +129,12 @@ Since this crate is used to query file data, it is the most performance critical
 cargo bench -p htsget-search --all-features
 ```
 
+Alternatively if you are using `cargo-criterion` and want a machine readable JSON output, run:
+
+```sh
+cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks.json
+```
+
 [criterion-rs]: https://github.com/bheisler/criterion.rs
 
 ## License

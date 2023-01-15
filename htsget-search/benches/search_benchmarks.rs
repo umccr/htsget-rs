@@ -13,8 +13,8 @@ use htsget_search::htsget::HtsGet;
 use htsget_search::htsget::HtsGetError;
 use htsget_search::storage::data_server::HttpTicketFormatter;
 
-const BENCHMARK_DURATION_SECONDS: u64 = 15;
-const NUMBER_OF_SAMPLES: usize = 150;
+const BENCHMARK_DURATION_SECONDS: u64 = 30;
+const NUMBER_OF_SAMPLES: usize = 50;
 
 async fn perform_query(query: Query) -> Result<(), HtsGetError> {
   let htsget = HtsGetFromStorage::local_from(
