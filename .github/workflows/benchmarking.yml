@@ -52,18 +52,23 @@ jobs:
           crate: flamegraph
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
-      - name: Access to performance monitoring and observability operations
+      - name: Generate flamegraphs and flamecharts for profiling
         run: |
              if [ "$RUNNER_OS" == "Linux" ]; then
-                  echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+                  echo -1 > /proc/sys/kernel/perf_event_paranoid
+                  cat /proc/sys/kernel/kptr_restrict
+                  # Chart == X axis is time
+                  cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench >& flamechart.bin
+                  # Graph == X axis is stack profile population
+                  cargo flamegraph --deterministic --bench search-benchmarks -- --bench >& flamegraph.bin
+             else # PERFILE binary contents spewed on stdout on Linux?: https://github.com/flamegraph-rs/flamegraph/issues/248
+                  cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench
+                  # Graph == X axis is stack profile population
+                  cargo flamegraph --deterministic --bench search-benchmarks -- --bench
              fi
         shell: bash
-      - name: Run search benchmarks with flamechart.svg output generation # Chart == X axis is time
-        run: cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench
-      - name: Run search benchmarks with flamegraph.svg output generation # Graph == X axis is stack profile population
-        run: cargo flamegraph --deterministic --bench search-benchmarks -- --bench
       - name: Batch flame* results under criterion-rs output
-        run: mkdir -p target/criterion/flameplots && cp flame*.svg target/criterion/flameplots
+        run: mkdir -p target/criterion/flameplots && cp flame*.svg flame*.bin target/criterion/flameplots
       - name: Store search benchmark result
         uses: brainstorm/github-action-benchmark@cargo-criterion-v3
         with:
