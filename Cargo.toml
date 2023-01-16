@@ -7,3 +7,7 @@ members = [
     "htsget-search",
     "htsget-test",
 ]
+
+# Flamegraphs require debuginfo for symbol names.
+[profile.bench]
+debug = true

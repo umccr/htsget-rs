@@ -48,10 +48,12 @@ jobs:
           crate: cargo-criterion
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
-      - name: Run search benchmarks with flamegraphs .svg output generation
-        run: cargo bench --bench search-benchmarks -- --profile-time=5
-      - name: Check flamegraphs being generated
-        run: find target/criterion
+      - name: Run search benchmarks with flamechart.svg output generation # Chart == X axis is time
+        run: cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench
+      - name: Run search benchmarks with flamegraph.svg output generation # Graph == X axis is stack profile population
+        run: cargo flamegraph --deterministic --flamegraph -o flamegraph.svg --bench search-benchmarks -- --bench
+      - name: Batch flame* results under criterion-rs output
+        run: mkdir -p target/criterion/flameplots && cp flame*.svg target/criterion/flameplots
       - name: Store search benchmark result
         uses: brainstorm/github-action-benchmark@cargo-criterion-v3
         with:

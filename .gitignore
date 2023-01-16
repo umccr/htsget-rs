@@ -2,6 +2,7 @@ target
 Cargo.lock
 *.code-workspace
 *.vcf.gz
+*.svg
 .vscode
 .idea
 package-lock.json

@@ -1,5 +1,3 @@
-mod flamegraphs;
-
 use std::time::Duration;
 
 use criterion::measurement::WallTime;
@@ -123,40 +121,5 @@ fn criterion_benchmark(c: &mut Criterion) {
   group.finish();
 }
 
-// fn criterion_flamegraph(c: &mut Criterion) {
-//   //c.bench_function("flamegraph_bam_query_all", |b| b.iter(|| Query::new("bam/htsnexus_test_NA12878", Bam)));
-//   let mut group = c.benchmark_group("flamegraphs");
-
-//   bench_query(
-//     &mut group,
-//     "[LIGHT] Bam query all",
-//     Query::new("bam/htsnexus_test_NA12878", Bam),
-//   );
-// }
-
-// fn profiled() -> Criterion {
-//   Criterion::default().with_profiler(flamegraphs::FlamegraphProfiler::new(100))
-// }
-
-// fn criterion_flamegraph(c: &mut Criterion) {
-//   //let bencher_func = Query::new(black_box("bam/htsnexus_test_NA12878"), Bam);
-
-//   let mut group = c
-//     .bench_function("bam_query_all_flamegraph",  bench_func)
-//     .with_profiler(flamegraphs::FlamegraphProfiler::new(100))
-//     .benchmark_group("Flamegraphs")
-//     .sample_size(NUMBER_OF_SAMPLES)
-//     .measurement_time(Duration::from_secs(BENCHMARK_DURATION_SECONDS));
-// }
-
-//criterion_group!(benches, criterion_benchmark);
-//criterion_group!(benches, criterion_flamegraph);
-//criterion_main!(benches);
-
-fn main() {
-  Criterion::default()
-    .with_profiler(flamegraphs::FlamegraphProfiler::new(100))
-    .bench_function("flamefoo", |b| {
-      b.iter(|| Query::new("bam/htsnexus_test_NA12878", Bam))
-    });
-}
+criterion_group!(benches, criterion_benchmark);
+criterion_main!(benches);
