@@ -52,6 +52,12 @@ jobs:
           crate: flamegraph
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
+      - name: Access to performance monitoring and observability operations
+        run: |
+             if [ "$RUNNER_OS" == "Linux" ]; then
+                  echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+             fi
+        shell: bash
       - name: Run search benchmarks with flamechart.svg output generation # Chart == X axis is time
         run: cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench
       - name: Run search benchmarks with flamegraph.svg output generation # Graph == X axis is stack profile population
