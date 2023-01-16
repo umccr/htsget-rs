@@ -7,7 +7,7 @@ on:
       - flamegraphs
 
 jobs:
-  test:
+  tests:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

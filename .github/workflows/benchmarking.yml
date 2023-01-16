@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  test:
+  benchmarks:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -46,6 +46,10 @@ jobs:
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cargo-criterion
+      - name: Install cargo flamegraphs
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: flamegraph
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
       - name: Run search benchmarks with flamechart.svg output generation # Chart == X axis is time
