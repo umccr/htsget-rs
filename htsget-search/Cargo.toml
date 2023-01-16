@@ -47,7 +47,7 @@ aws-config = { version = "0.52", optional = true }
 thiserror = "1.0"
 htsget-config = { version = "0.1.0", path = "../htsget-config", default-features = false }
 tracing = "0.1"
-base64 = "0.21"
+base64 = "0.20"
 serde = "1.0"
 
 [dev-dependencies]
