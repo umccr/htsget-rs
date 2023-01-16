@@ -1,6 +1,6 @@
 [package]
 name = "htsget-search"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "This crate is the primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using [noodles] to query files and their indices"
@@ -45,13 +45,13 @@ aws-config = { version = "0.52", optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"
-htsget-config = { version = "0.1.0", path = "../htsget-config", default-features = false }
+htsget-config = { version = "0.1.1", path = "../htsget-config", default-features = false }
 tracing = "0.1"
 base64 = "0.20"
 serde = "1.0"
 
 [dev-dependencies]
-htsget-test = { version = "0.1.0", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-test = { version = "0.1.1", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tempfile = "3.3"
 data-url = "0.2"
 
