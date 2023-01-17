@@ -55,8 +55,9 @@ jobs:
       - name: Generate flamegraphs and flamecharts for profiling
         run: |
              if [ "$RUNNER_OS" == "Linux" ]; then
-                  echo -1 > /proc/sys/kernel/perf_event_paranoid
-                  cat /proc/sys/kernel/kptr_restrict
+                  sudo cat /proc/sys/kernel/kptr_restrict
+                  sudo cat /proc/sys/kernel/perf_event_paranoid
+                  echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
                   # Chart == X axis is time
                   cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench >& flamechart.bin
                   # Graph == X axis is stack profile population
