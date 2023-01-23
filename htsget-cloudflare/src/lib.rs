@@ -14,7 +14,8 @@ pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketSer
 pub use htsget_config::regex_resolver::StorageType;
 use htsget_http::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
-use htsget_search::storage::configure_cors;
+// TODO: Implement this on CF workers
+//use htsget_search::storage::configure_cors;
 
 use crate::handlers::get::get;
 use crate::handlers::post::post;
@@ -86,8 +87,8 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         None
       } else {
         let method = match *method {
-          Method::GET => Some(HtsgetMethod::Get),
-          Method::POST => Some(HtsgetMethod::Post),
+          Method::Get => Some(HtsgetMethod::Get),
+          Method::Post => Some(HtsgetMethod::Post),
           _ => None,
         }?;
         if endpoint_type == "service-info" {
@@ -113,7 +114,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     )
   }
 
-  /// Routes the request to the relevant htsget search endpoint using the lambda request, returning a http response.
+  /// Routes the request to the relevant htsget search endpoint using the (Cloudflare) worker request, returning a http response.
   pub async fn route_request(&self, request: Request) -> http::Result<Response<ResponseBody>> {
     match self.get_route(request.method(), &request.raw_http_path().parse::<Uri>()?) {
       Some(Route {
@@ -131,7 +132,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           self.searcher.clone(),
           Self::extract_query(&request),
           endpoint,
-        )
+        ).into()
         .await
       }
       Some(Route {
@@ -140,23 +141,23 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         route_type: RouteType::Id(id),
       }) => match Self::extract_query_from_payload(&request) {
         None => Ok(
-          Response::builder()
+          http::Response::builder()
             .status(http::StatusCode::UNSUPPORTED_MEDIA_TYPE)
-            .body(ResponseBody::Empty)?,
+            .body(ResponseBody::Empty).into()?,
         ),
         Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
       },
       _ => Ok(
-        Response::builder()
+        http::Response::builder()
           .status(http::StatusCode::METHOD_NOT_ALLOWED)
-          .body(ResponseBody::Empty)?,
+          .body(ResponseBody::Empty).into()?,
       ),
     }
   }
 
   /// Extracts post request query parameters.
   fn extract_query_from_payload(request: &Request) -> Option<PostRequest> {
-    if request.body().is_empty() {
+    if request.bytes().body().is_empty() {
       Some(PostRequest::default())
     } else {
       let payload = request.payload::<PostRequest>();
@@ -185,17 +186,7 @@ where
   // Optionally, get more helpful error messages written to the console in the case of a panic.
   utils::set_panic_hook();
 
-  let router = worker::Router::new();
-
-  // let handler =
-  //   ServiceBuilder::new()
-  //     .layer(cors_layer)
-  //     .service(service_fn(|event: Request| async move {
-  //       info!(event = ?event, "received request");
-  //       router.route_request(event).await
-  //     }));
-
-  // lambda_http::run(handler).await?;
-
+  router.route_request(request).await;
+  
   Ok(())
 }

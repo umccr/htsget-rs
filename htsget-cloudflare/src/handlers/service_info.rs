@@ -6,15 +6,13 @@ use htsget_search::htsget::HtsGet;
 
 use crate::handlers::FormatJson;
 use crate::ServiceInfo;
-use crate::{Body, Response};
+use worker::{Response};
 
 /// Service info endpoint.
-#[instrument(skip(searcher))]
 pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
   searcher: Arc<H>,
   endpoint: Endpoint,
   config: &ServiceInfo,
-) -> http::Result<Response<Body>> {
-  info!(endpoint = ?endpoint, "service info request");
+) -> http::Result<Response> {
   FormatJson(get_base_service_info_json(endpoint, searcher, config)).try_into()
 }
