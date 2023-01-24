@@ -102,7 +102,7 @@ export class HtsgetHttpLambdaStack extends Stack {
 
     const domainName = new apigwv2.DomainName(
         this,
-        id + "HtsgetCustomDomain",
+        id + "HtsgetDomainName",
         {
           certificate: Certificate.fromCertificateArn(this, id + 'HtsgetDomainCert', ssmConfig.cert_apse2_arn),
           domainName: ssmConfig.domain_name
@@ -118,7 +118,7 @@ export class HtsgetHttpLambdaStack extends Stack {
     );
     new ARecord(
         this,
-        id + 'HtsgetCustomDomainAlias',
+        id + 'HtsgetARecord',
         {
           zone: hostedZone,
           recordName: 'htsget',
@@ -143,6 +143,9 @@ export class HtsgetHttpLambdaStack extends Stack {
     });
   }
 
+  /**
+   * Get config values from SSM.
+   */
   getSSMConfig(): SSMConfig {
     return {
       cert_apse2_arn: StringParameter.fromStringParameterName(this, 'SSLCertAPSE2ARN', '/htsget/acm/apse2_arn').stringValue,
