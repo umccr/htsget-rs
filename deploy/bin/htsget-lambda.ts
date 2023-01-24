@@ -3,7 +3,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import {HtsgetLambdaStack} from '../lib/htsget-lambda-stack';
 
-export const STACK_NAME = 'HtsgetHttpLambdaStack';
+export const STACK_NAME = 'HtsgetLambdaStack';
 const STACK_DESCRIPTION = 'An example stack for testing htsget-lambda with API gateway.';
 
 const app = new cdk.App();

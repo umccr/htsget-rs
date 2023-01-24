@@ -13,7 +13,7 @@ import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
 import {Certificate} from "aws-cdk-lib/aws-certificatemanager";
 
 /**
- * Configuration for HtsgetHttpLambdaStack.
+ * Configuration for HtsgetLambdaStack.
  */
 export type Config = {
   environment: string,
@@ -34,7 +34,7 @@ export type SSMConfig = {
 }
 
 /**
- * Stack used to deploy htsget-http-lambda.
+ * Stack used to deploy htsget-lambda.
  */
 export class HtsgetLambdaStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
