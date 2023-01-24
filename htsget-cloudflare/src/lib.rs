@@ -115,8 +115,8 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 
   /// Routes the request to the relevant htsget search endpoint using the (Cloudflare) worker request, returning a http response.
-  pub async fn route_request(&self, request: Request) -> http::Result<Response<ResponseBody>> {
-    match self.get_route(request.method(), &request.raw_http_path().parse::<Uri>()?) {
+  pub async fn route_request(&self, request: Request) -> http::Result<Response> {
+    match self.get_route(&request.method(), &request.path().parse::<Uri>()?) {
       Some(Route {
         endpoint,
         route_type: RouteType::ServiceInfo,
@@ -132,18 +132,17 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           self.searcher.clone(),
           Self::extract_query(&request),
           endpoint,
-        ).into()
-        .await
+        ).await
       }
       Some(Route {
         method: HtsgetMethod::Post,
         endpoint,
         route_type: RouteType::Id(id),
-      }) => match Self::extract_query_from_payload(&request) {
+      }) => match Self::extract_query_from_payload(&mut request).await {
         None => Ok(
           http::Response::builder()
             .status(http::StatusCode::UNSUPPORTED_MEDIA_TYPE)
-            .body(ResponseBody::Empty).into()?,
+            .body(ResponseBody::Empty),
         ),
         Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
       },
@@ -156,37 +155,33 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 
   /// Extracts post request query parameters.
-  fn extract_query_from_payload(request: &Request) -> Option<PostRequest> {
-    if request.bytes().body().is_empty() {
+  async fn extract_query_from_payload(request: &mut Request) -> Option<PostRequest> {
+    if request.bytes().await.unwrap().is_empty() {
       Some(PostRequest::default())
     } else {
-      let payload = request.payload::<PostRequest>();
-      // Allows null/empty bodies.
-      payload.ok()?
+      let payload = request.json().await;
+      payload.ok()
     }
   }
 
   /// Extract get request query parameters.
   fn extract_query(request: &Request) -> HashMap<String, String> {
     let mut query = HashMap::new();
-    // Silently ignores all but the last query key, for keys that are present more than once.
-    // This is the way actix-web does it, but should we return an error instead if a key is present
-    // more than once?
-    for (key, value) in request.query_string_parameters().iter() {
+    for (key, value) in request.url().unwrap().query_pairs() {
       query.insert(key.to_string(), value.to_string());
     }
     query
   }
 }
 
-pub async fn handle_request<H>(cors: CorsConfig, router: &Router<'_, H>) -> Result<(), Error>
+pub async fn handle_request<H>(cors: CorsConfig, router: &Router<'_, H>) -> Result<()>
 where
   H: HtsGet + Send + Sync + 'static,
 {
   // Optionally, get more helpful error messages written to the console in the case of a panic.
   utils::set_panic_hook();
 
-  router.route_request(request).await;
+  unimplemented!();
   
-  Ok(())
+  //Ok(())
 }

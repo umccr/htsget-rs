@@ -2,7 +2,7 @@
 name = "htsget-cloudflare"
 version = "0.0.1"
 edition = "2021"
-author = "Roman Valls Guimera <brainstorm@nopcode.org>"
+authors = ["Roman Valls Guimera <brainstorm@nopcode.org>"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
