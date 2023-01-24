@@ -5,7 +5,7 @@
 
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/umccr/htsget-rs/blob/main/LICENSE
-[actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/action.yml/badge.svg
+[actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/tests.yml/badge.svg
 [actions-url]: https://github.com/umccr/htsget-rs/actions?query=workflow%3Atests+branch%3Amain
 
 
