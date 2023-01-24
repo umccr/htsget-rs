@@ -210,11 +210,11 @@ In this example, the resolver will only match the query ID if the query is for `
 
 #### Config file location
 
-The htsget-rs binaries ([htsget-http-actix] and [htsget-http-lambda]) support some command line options. The config file location can
+The htsget-rs binaries ([htsget-actix] and [htsget-lambda]) support some command line options. The config file location can
 be specified by setting the `--config` option:
 
 ```shell
-cargo run -p htsget-http-actix -- --config "config.toml"
+cargo run -p htsget-actix -- --config "config.toml"
 ```
 
 The config can also be read from an environment variable:
@@ -226,13 +226,13 @@ If no config file is specified, the default configuration is used. Further, the 
 the `--print-default-config` flag:
 
 ```shell
-cargo run -p htsget-http-actix -- --print-default-config
+cargo run -p htsget-actix -- --print-default-config
 ```
 
 Use the `--help` flag to see more details on command line options.
 
-[htsget-http-actix]: ../htsget-http-actix
-[htsget-http-lambda]: ../htsget-http-lambda
+[htsget-actix]: ../htsget-actix
+[htsget-lambda]: ../htsget-lambda
 
 #### Configuring htsget-rs with environment variables
 
@@ -314,7 +314,7 @@ read to configure the level that trace logs are emitted.
 For example, the following indicates trace level for all htsget crates, and info level for all other crates:
 
 ```sh
-export RUST_LOG='info,htsget_http_lambda=trace,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace,htsget_test_utils=trace'
+export RUST_LOG='info,htsget_lambda=trace,htsget_lambda=trace,htsget_config=trace,htsget_http=trace,htsget_search=trace,htsget_test=trace'
 ```
 
 See [here][rust-log] for more information on setting this variable.

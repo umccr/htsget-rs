@@ -117,7 +117,7 @@ pub(crate) mod tests {
   use htsget_config::config::cors::CorsConfig;
   use tempfile::TempDir;
 
-  use htsget_test_utils::util::expected_bgzf_eof_data_url;
+  use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
     expected_url as bam_expected_url, with_local_storage as with_bam_local_storage,
@@ -136,7 +136,7 @@ pub(crate) mod tests {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
       let query = Query::new("htsnexus_test_NA12878", Format::Bam);
       let response = htsget.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
@@ -158,7 +158,7 @@ pub(crate) mod tests {
       let filename = "spec-v4.3";
       let query = Query::new(filename, Format::Vcf);
       let response = htsget.search(query).await;
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Vcf,

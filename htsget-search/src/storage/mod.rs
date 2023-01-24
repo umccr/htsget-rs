@@ -254,7 +254,7 @@ impl Display for BytesRange {
       .end
       .map(|end| end.to_string())
       .unwrap_or_else(|| "".to_string());
-    write!(f, "bytes={}-{}", start, end)
+    write!(f, "bytes={start}-{end}")
   }
 }
 
@@ -626,10 +626,10 @@ mod tests {
     ];
 
     for (index, (a, b, expected)) in test_cases.iter().enumerate() {
-      println!("Test case {}", index);
-      println!("  {:?}", a);
-      println!("  {:?}", b);
-      println!("  {:?}", expected);
+      println!("Test case {index}");
+      println!("  {a:?}");
+      println!("  {b:?}");
+      println!("  {expected:?}");
 
       if a.overlaps(b) {
         assert_eq!(*a.clone().merge_with(b), expected.clone().unwrap());
@@ -847,7 +847,7 @@ mod tests {
     let result = RangeUrlOptions::default()
       .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)))
       .apply(Url::new(""));
-    println!("{:?}", result);
+    println!("{result:?}");
     assert_eq!(
       result,
       Url::new("")

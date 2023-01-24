@@ -3,9 +3,14 @@ name = "htsget-search"
 version = "0.1.0"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
+description = "This crate is the primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using [noodles] to query files and their indices"
+license = "MIT"
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
+repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test-utils/s3-storage"]
+s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
 default = ["s3-storage"]
 
 [dependencies]
@@ -13,8 +18,8 @@ default = ["s3-storage"]
 hyper = "0.14"
 tower-http = { version = "0.3", features = ["trace", "cors"] }
 http = "0.2"
-axum = "0.5"
-axum-extra = { version = "0.3", features = ["spa"] }
+axum = "0.6"
+axum-extra = { version = "0.4", features = ["spa"] }
 rustls-pemfile = "1.0"
 tower = { version = "0.4", features = ["make"] }
 
@@ -27,33 +32,33 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.29", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-noodles-bam = { version = "0.24", features = ["async"] }
-noodles-bcf = { version = "0.18", features = ["async"] }
-noodles-cram = { version = "0.21", features = ["async"] }
-noodles-vcf = { version = "0.21", features = ["async"] }
+noodles = { version = "0.31", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bam = { version = "0.25", features = ["async"] }
+noodles-bcf = { version = "0.19", features = ["async"] }
+noodles-cram = { version = "0.22", features = ["async"] }
+noodles-vcf = { version = "0.23", features = ["async"] }
 
 # Amazon S3
 bytes = { version = "1.2", optional = true }
-aws-sdk-s3 = { version = "0.21", optional = true }
-aws-config = { version = "0.51", optional = true }
+aws-sdk-s3 = { version = "0.22", optional = true }
+aws-config = { version = "0.52", optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"
-htsget-config = { path = "../htsget-config", default-features = false }
+htsget-config = { version = "0.1.0", path = "../htsget-config", default-features = false }
 tracing = "0.1"
-base64 = "0.13"
+base64 = "0.20"
 serde = "1.0"
 
 [dev-dependencies]
-htsget-test-utils = { path = "../htsget-test-utils", features = ["cors-tests"], default-features = false }
+htsget-test = { version = "0.1.0", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tempfile = "3.3"
 data-url = "0.2"
 
 # Aws S3 storage dependencies.
 anyhow = "1.0"
 s3-server = "0.2"
-aws-types = { version = "0.51", features = ["hardcoded-credentials"] }
+aws-types = { version = "0.52", features = ["hardcoded-credentials"] }
 
 # Axum server dependencies
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }

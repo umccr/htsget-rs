@@ -3,13 +3,18 @@ name = "htsget-config"
 version = "0.1.0"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
+description = "This crate is used to configure htsget-rs by using a config file or reading environment variables"
+license = "MIT"
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
+repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = []
 default = ["s3-storage"]
 
 [dependencies]
-noodles = { version = "0.29", features = ["core"] }
+noodles = { version = "0.31", features = ["core"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "2.1"
 serde_regex = "1.1"

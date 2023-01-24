@@ -152,8 +152,7 @@ where
 
     let byte_ranges = match maybe_ref_seq {
       None => Err(HtsGetError::not_found(format!(
-        "reference name not found: {}",
-        reference_name
+        "reference name not found: {reference_name}"
       ))),
       Some(ref_seq_id) => {
         Self::get_byte_ranges_for_reference_sequence(self, ref_seq_id, query, index).await
@@ -406,7 +405,7 @@ where
       trace!(id = ?query.id(), ref_seq_id = ?ref_seq_id, "querying chunks");
       let mut chunks = index
         .query(ref_seq_id, query.interval().into_one_based()?)
-        .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {}", err)))?;
+        .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {err}")))?;
 
       if chunks.is_empty() {
         return Err(HtsGetError::NotFound(

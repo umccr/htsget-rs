@@ -1,8 +1,8 @@
 {
-  "name": "htsget-http-lambda",
+  "name": "htsget-lambda",
   "version": "0.1.0",
   "bin": {
-    "htsget_app": "bin/htsget-http-lambda.js"
+    "htsget_app": "bin/htsget-lambda.js"
   },
   "scripts": {
     "build": "tsc",

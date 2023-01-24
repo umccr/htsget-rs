@@ -7,6 +7,3 @@ Cargo.lock
 package-lock.json
 deploy/.build
 output.txt
-cert.pem
-key.pem
-request-benchmarks.json

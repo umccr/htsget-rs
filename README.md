@@ -5,15 +5,15 @@
 
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/umccr/htsget-rs/blob/main/LICENSE
-[actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/action.yml/badge.svg
+[actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/tests.yml/badge.svg
 [actions-url]: https://github.com/umccr/htsget-rs/actions?query=workflow%3Atests+branch%3Amain
 
 
 A **server** implementation of the [htsget protocol][htsget-protocol] for bioinformatics in Rust. It is:
 * **Fully-featured**: supports BAM and CRAM for reads, and VCF and BCF for variants, as well as other aspects of the protocol such as TLS, and CORS.
-* **Serverless**: supports local server instances using [Actix Web][actix-web], and serverless instances using AWS Lambda.
+* **Serverless**: supports local server instances using [Actix Web][actix-web], and serverless instances using [AWS Lambda Rust Runtime][aws-lambda-rust-runtime].
 * **Storage interchangeable**: supports local filesystem storage, and storage on AWS S3.
-* **Thoroughly tested and benchmarked**: tested using a purpose-built [test suite][htsget-test-utils], and benchmarked using [criterion-rs].
+* **Thoroughly tested and benchmarked**: tested using a purpose-built [test suite][htsget-test], and benchmarked using [criterion-rs].
 
 To get started, see [Usage].
 
@@ -56,15 +56,15 @@ htsget-rs implements the following components of the protocol:
 Htsget-rs is configured using environment variables, for details on how to set them, see [htsget-config].
 
 ### Local
-To run a local instance htsget-rs, run [htsget-http-actix] by executing the following:
+To run a local instance htsget-rs, run [htsget-actix] by executing the following:
 ```sh
-cargo run -p htsget-http-actix
+cargo run -p htsget-actix
 ```
 Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
-with data accessible from the [data] directory. See [htsget-http-actix] for more information.
+with data accessible from the [data] directory. See [htsget-actix] for more information.
 
 ### Cloud
-Cloud based htsget-rs uses [htsget-http-lambda]. For more information and an example deployment of this crate see 
+Cloud based htsget-rs uses [htsget-lambda]. For more information and an example deployment of this crate see 
 [deploy].
 
 ### Tests
@@ -75,9 +75,9 @@ Tests can be run tests by executing:
 cargo test --all-features
 ```
 
-To run benchmarks, see the benchmark sections of [htsget-http-actix][htsget-http-actix-benches] and [htsget-search][htsget-search-benches].
+To run benchmarks, see the benchmark sections of [htsget-actix][htsget-actix-benches] and [htsget-search][htsget-search-benches].
 
-[htsget-http-actix-benches]: htsget-http-actix/README.md#Benchmarks
+[htsget-actix-benches]: htsget-actix/README.md#Benchmarks
 [htsget-search-benches]: htsget-search/README.md#Benchmarks
 
 ## Project Layout
@@ -85,19 +85,19 @@ To run benchmarks, see the benchmark sections of [htsget-http-actix][htsget-http
 This repository consists of a workspace composed of the following crates:
 
 - [htsget-config]: Configuration of the server.
-- [htsget-http-actix]: Local instance of the htsget server. Contains framework dependent code using [Actix Web][actix-web].
-- [htsget-http-core]: Handling of htsget HTTP requests. Framework independent code.
-- [htsget-http-lambda]: Cloud based instance of the htsget server. Contains framework dependent
+- [htsget-actix]: Local instance of the htsget server. Contains framework dependent code using [Actix Web][actix-web].
+- [htsget-http]: Handling of htsget HTTP requests. Framework independent code.
+- [htsget-lambda]: Cloud based instance of the htsget server. Contains framework dependent
 code using the [Rust Runtime for AWS Lambda][aws-lambda-rust-runtime].
 - [htsget-search]: Core logic needed to search bioinformatics files based on htsget queries.
-- [htsget-test-utils]: Test suite used by other crates in the project.
+- [htsget-test]: Test suite used by other crates in the project.
 
 Other directories contain further applications or data:
 - [data]: Contains example data files which can be used by htsget-rs, in folders denoting the file type.
 This directory also contains example events used by a cloud instance of htsget-rs in the [`events`][data-events] subdirectory.
-- [deploy]: An example deployment of [htsget-http-lambda].
+- [deploy]: An example deployment of [htsget-lambda].
 
-In htsget-rs the ticket server handled by [htsget-http-actix] or [htsget-http-lambda], and the data
+In htsget-rs the ticket server handled by [htsget-actix] or [htsget-lambda], and the data
 block server is handled by the [storage backend][storage-backend], either [locally][local-storage], or using [AWS S3][s3-storage].
 This project layout is structured to allow for extensibility and modularity. For example, a new ticket server and data server could 
 be implemented using Cloudflare Workers in a `htsget-http-workers` crate and Cloudflare R2 in [htsget-search].
@@ -105,12 +105,12 @@ be implemented using Cloudflare Workers in a `htsget-http-workers` crate and Clo
 See the [htsget-search overview][htsget-search-overview] for more information on the storage backend.
 
 [htsget-config]: htsget-config
-[htsget-http-actix]: htsget-http-actix
-[htsget-http-core]: htsget-http-core
-[htsget-http-lambda]: htsget-http-lambda
+[htsget-actix]: htsget-actix
+[htsget-http]: htsget-http
+[htsget-lambda]: htsget-lambda
 [htsget-search]: htsget-search
 [htsget-search-overview]: htsget-search/README.md#Overview
-[htsget-test-utils]: htsget-test-utils
+[htsget-test]: htsget-test
 
 [storage-backend]: htsget-search/src/storage
 [local-storage]: htsget-search/src/storage/local.rs
@@ -134,6 +134,7 @@ See the [contributing guide][contributing] for more information.
 
 This project is licensed under the [MIT license][license].
 
-[htsget-http-actix]: htsget-http-actix
-[htsget-http-lambda]: htsget-http-lambda
+[htsget-actix]: htsget-actix
+[htsget-lambda]: htsget-lambda
 [license]: LICENSE
+[aws-lambda-rust-runtime]: https://github.com/awslabs/aws-lambda-rust-runtime
