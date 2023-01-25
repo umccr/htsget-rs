@@ -11,22 +11,15 @@ import {HttpJwtAuthorizer} from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 import {ARecord, HostedZone, RecordTarget} from "aws-cdk-lib/aws-route53";
 import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
 import {Certificate} from "aws-cdk-lib/aws-certificatemanager";
-
-/**
- * Configuration for htsget-rs resolvers.
- */
-export type Resolvers = {
-  regex: string;
-  substitution_string: string;
-  storage_type: {type: string, bucket: string};
-}
+import * as fs from "fs";
+import * as toml from "toml";
 
 /**
  * Configuration for HtsgetLambdaStack.
  */
 export type Config = {
-  environment: string,
-  resolvers: Resolvers[];
+  environment: string;
+  config: {[key: string]: any};
   cors_allow_origins: string[];
 }
 
@@ -78,20 +71,7 @@ export class HtsgetLambdaStack extends Stack {
 
       memorySize: 128,
       timeout: Duration.seconds(10),
-      // Change environment variables passed to htsget-lambda.
-      environment: {
-        HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS: `[${config.cors_allow_origins.toString()}]`,
-        HTSGET_TICKET_SERVER_CORS_MAX_AGE: '300',
-        HTSGET_RESOLVERS: HtsgetLambdaStack.configToEnv(config.resolvers),
-        HTSGET_NAME: "umccr-htsget-rs",
-        HTSGET_VERSION: "\"0.1\"",
-        HTSGET_ORGANIZATION_NAME: "UMCCR",
-        HTSGET_ORGANIZATION_URL: "https://umccr.org/",
-        HTSGET_CONTACT_URL: "https://umccr.org/",
-        HTSGET_DOCUMENTATION_URL: "https://github.com/umccr/htsget-rs",
-        HTSGET_ENVIRONMENT: `${config.environment}`,
-        RUST_LOG: 'info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace'
-      },
+      environment: {...config.config},
       architecture: Architecture.ARM_64,
       role: lambdaRole
     });
@@ -167,8 +147,12 @@ export class HtsgetLambdaStack extends Stack {
   /**
    * Convert JSON config to htsget-rs env representation.
    */
-  static configToEnv(config: any): string {
-    return JSON.stringify(config).replaceAll(":", "=");
+  static configToEnv(config: any): {[key: string]: string} {
+    const out: {[key: string]: string} = {};
+    for (const key in config) {
+      out[`HTSGET_${key.toUpperCase()}`] = JSON.stringify(config[key]).replaceAll(":", "=");
+    }
+    return out;
   }
 
   /**
@@ -183,14 +167,12 @@ export class HtsgetLambdaStack extends Stack {
     }
 
     const config = this.node.tryGetContext(env);
+    const configToml = toml.parse(fs.readFileSync(config.config).toString());
+
     return {
       environment: env,
-      resolvers: config?.resolvers ?? [{
-        storage_type: { type: "S3", bucket: "umccr-primary-data-dev" },
-        regex: '^umccr-primary-data-dev/(?P<key>.*)$',
-        substitution_string: '$key'
-      }],
-      cors_allow_origins: config?.cors_allow_origins ?? '[https://data.umccr.org, https://data.dev.umccr.org]',
+      config: HtsgetLambdaStack.configToEnv(configToml),
+      cors_allow_origins: config.cors_allow_origins
     };
   }
 }

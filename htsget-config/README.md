@@ -280,7 +280,7 @@ The following environment variables - corresponding to the TOML config - are ava
 In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set. The nested array of resolvers structure can be set using name key and value pairs, for example:
 
 ```shell
-export HTSGET_RESOLVERS="[{
+export HTSGET_="{resolvers=[{
     regex=regex,
     substitution_string=substitution_string,
     storage_type={
@@ -296,7 +296,7 @@ export HTSGET_RESOLVERS="[{
         allow_interval_start=100,
         allow_interval_end=1000
     }  
-}]"
+}]}"
 ```
 
 Similar to the [data_server](#data_server) option, the data server can be disabled by setting the equivalent environment variable:
