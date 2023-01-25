@@ -13,16 +13,26 @@ import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
 import {Certificate} from "aws-cdk-lib/aws-certificatemanager";
 
 /**
+ * Configuration for htsget-rs resolvers.
+ */
+export type Resolvers = {
+  regex: string;
+  substitution_string: string;
+  storage_type: {type: string, bucket: string};
+}
+
+/**
  * Configuration for HtsgetLambdaStack.
  */
 export type Config = {
   environment: string,
-  bucket: string;
+  resolvers: Resolvers[];
   cors_allow_origins: string[];
-  regex: string,
-  substitution_string: string;
 }
 
+/**
+ * Configuration values obtained from SSM.
+ */
 export type SSMConfig = {
   cert_apse2_arn: string;
   hosted_zone_id: string;
@@ -72,13 +82,9 @@ export class HtsgetLambdaStack extends Stack {
       environment: {
         HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS: `[${config.cors_allow_origins.toString()}]`,
         HTSGET_TICKET_SERVER_CORS_MAX_AGE: '300',
-        HTSGET_RESOLVERS: `[{
-          regex=${config.regex}, 
-          substitution_string=${config.substitution_string}, 
-          storage_type={type=S3, bucket=${config.bucket}}
-        }]`,
+        HTSGET_RESOLVERS: HtsgetLambdaStack.configToEnv(config.resolvers),
         HTSGET_NAME: "umccr-htsget-rs",
-        HTSGET_VERSION: "0.1.0",
+        HTSGET_VERSION: "\"0.1\"",
         HTSGET_ORGANIZATION_NAME: "UMCCR",
         HTSGET_ORGANIZATION_URL: "https://umccr.org/",
         HTSGET_CONTACT_URL: "https://umccr.org/",
@@ -159,6 +165,13 @@ export class HtsgetLambdaStack extends Stack {
   }
 
   /**
+   * Convert JSON config to htsget-rs env representation.
+   */
+  static configToEnv(config: any): string {
+    return JSON.stringify(config).replaceAll(":", "=");
+  }
+
+  /**
    * Get the environment configuration from cdk.json. Pass `--context "env=dev"` or `--context "env=prod"` to
    * control the environment.
    */
@@ -172,10 +185,12 @@ export class HtsgetLambdaStack extends Stack {
     const config = this.node.tryGetContext(env);
     return {
       environment: env,
-      bucket: config?.bucket ?? 'umccr-primary-data-dev',
+      resolvers: config?.resolvers ?? [{
+        storage_type: { type: "S3", bucket: "umccr-primary-data-dev" },
+        regex: '^umccr-primary-data-dev/(?P<key>.*)$',
+        substitution_string: '$key'
+      }],
       cors_allow_origins: config?.cors_allow_origins ?? '[https://data.umccr.org, https://data.dev.umccr.org]',
-      regex: config?.regex ?? '^umccr-primary-data-dev/(?P<accession>.*)$',
-      substitution_string: config?.substitution_string ?? '$accession'
     };
   }
 }
