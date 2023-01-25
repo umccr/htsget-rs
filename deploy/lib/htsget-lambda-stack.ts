@@ -154,13 +154,13 @@ export class HtsgetLambdaStack extends Stack {
    */
   getSSMConfig(): SSMConfig {
     return {
-      cert_apse2_arn: StringParameter.fromStringParameterName(this, 'SSLCertAPSE2ARN', '/htsget/acm/apse2_arn').stringValue,
-      cog_app_client_id_local: StringParameter.fromStringParameterName(this, 'CogAppClientIDLocal', '/data_portal/client/cog_app_client_id_local').stringValue,
-      cog_app_client_id_stage: StringParameter.fromStringParameterName(this, 'CogAppClientIDStage', '/data_portal/client/cog_app_client_id_stage').stringValue,
-      cog_user_pool_id: StringParameter.fromStringParameterName(this, 'CogUserPoolID', '/data_portal/client/cog_user_pool_id').stringValue,
-      domain_name: StringParameter.fromStringParameterName(this, 'DomainName', '/htsget/domain').stringValue,
-      hosted_zone_id: StringParameter.fromStringParameterName(this, 'HostedZoneID', 'hosted_zone_id').stringValue,
-      hosted_zone_name: StringParameter.fromStringParameterName(this, 'HostedZoneName', 'hosted_zone_name').stringValue,
+      cert_apse2_arn: StringParameter.valueFromLookup(this, '/htsget/acm/apse2_arn'),
+      cog_app_client_id_local: StringParameter.valueFromLookup(this, '/data_portal/client/cog_app_client_id_local'),
+      cog_app_client_id_stage: StringParameter.valueFromLookup(this, '/data_portal/client/cog_app_client_id_stage'),
+      cog_user_pool_id: StringParameter.valueFromLookup(this, '/data_portal/client/cog_user_pool_id'),
+      domain_name: StringParameter.valueFromLookup(this, '/htsget/domain'),
+      hosted_zone_id: StringParameter.valueFromLookup(this, 'hosted_zone_id'),
+      hosted_zone_name: StringParameter.valueFromLookup(this, 'hosted_zone_name'),
     }
   }
 
