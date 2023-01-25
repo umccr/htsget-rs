@@ -3,68 +3,75 @@ name = "htsget-search"
 version = "0.1.0"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
+description = "This crate is the primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using [noodles] to query files and their indices"
+license = "MIT"
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
+repository = "https://github.com/umccr/htsget-rs"
 
 [features]
+s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
 default = ["s3-storage"]
-s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test-utils/s3-storage"]
-gds-storage = ["ica-gds", "dirs", "url", "serde", "serde_yaml"]
+gds-storage = ["ica-gds", "dirs", "url", "serde_yaml"]
 
 [dependencies]
-# Illumina GDS Storage backend credentials and url parsing
-dirs = { version = "4.0", optional = true }
-url = { version = "2.2", optional = true }
-serde = { version = "1.0", features = ["derive"], optional = true }
-serde_yaml = { version = "0.8", optional = true }
-#ica-gds = { path = "../../ica-rs/gds", optional = true}
-ica-gds = { version = "0.3", git = "https://github.com/umccr-illumina/ica-rs", optional = true }
-reqwest = { version = "0.11" } # TODO: Ideally remove this dep with hyper instead of introducing another one
-
-# Axum server dependencies.
+# Axum server
 hyper = "0.14"
-tower-http = { version = "0.3", features = ["trace"] }
-axum = "0.5.1"
-axum-extra = { version = "0.2.1", features = ["spa"] }
-rustls-pemfile = "0.3"
+tower-http = { version = "0.3", features = ["trace", "cors"] }
+http = "0.2"
+axum = "0.6"
+axum-extra = { version = "0.4", features = ["spa"] }
+rustls-pemfile = "1.0"
 tower = { version = "0.4", features = ["make"] }
-futures-util = "0.3"
-tokio-rustls = "0.23"
 
-async-trait = "0.1"
-thiserror = "1.0"
-tokio = { version = "1.17", features = ["full"] }
+# Async
+tokio-rustls = "0.23"
+tokio = { version = "1.21", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
-htsget-config = { path = "../htsget-config", default-features = false }
+futures-util = "0.3"
+async-trait = "0.1"
+
+# Noodles
+noodles = { version = "0.31", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bam = { version = "0.25", features = ["async"] }
+noodles-bcf = { version = "0.19", features = ["async"] }
+noodles-cram = { version = "0.22", features = ["async"] }
+noodles-vcf = { version = "0.23", features = ["async"] }
+
+# Amazon S3
+bytes = { version = "1.2", optional = true }
+aws-sdk-s3 = { version = "0.23", optional = true }
+aws-config = { version = "0.53", optional = true }
+
+# Illumina GDS storage backend
+dirs = { version = "4.0", optional = true }
+url = { version = "2.2", optional = true }
+serde_yaml = { version = "0.9", optional = true }
+#ica-gds = { path = "../../ica-rs/gds", optional = true}
+ica-gds = { version = "0.3", git = "https://github.com/umccr-illumina/ica-rs", optional = true }
+reqwest = { version = "0.11", optional = true } # TODO: Ideally remove this dep with hyper instead of introducing another one
+
+# Error control, tracing, config
+thiserror = "1.0"
+htsget-config = { version = "0.1.0", path = "../htsget-config", default-features = false }
 tracing = "0.1"
-base64 = "0.13"
-
-noodles = { version = "0.21", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-noodles-bam = { version = "0.17", features = ["async"] }
-noodles-bcf = { version = "0.13", features = ["async"] }
-noodles-cram = { version = "0.14", features = ["async"] }
-noodles-vcf = { version = "0.15", features = ["async"] }
-noodles-tabix = { version = "=0.9.0", features = ["async"] }
-
-# Aws S3 storage dependencies.
-bytes = { version = "1.1", optional = true }
-aws-sdk-s3 = { version = "0.9", optional = true }
-aws-config = { version = "0.9", optional = true }
+base64 = "0.21"
+serde = { version = "1" }
 
 [dev-dependencies]
-htsget-test-utils = { path = "../htsget-test-utils", default-features = false }
+htsget-test = { version = "0.1.0", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tempfile = "3.3"
-data-url = "0.1"
+data-url = "0.2"
 
 # Aws S3 storage dependencies.
 anyhow = "1.0"
 s3-server = "0.2"
-http = "0.2"
-aws-types = { version = "0.9", features = ["hardcoded-credentials"] }
+aws-types = { version = "0.53" }
 
 # Axum server dependencies
-hyper-tls = "0.5"
-
-criterion = { version = "0.3", features = ["async_tokio", "html_reports"] }
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
+criterion = { version = "0.4", features = ["async_tokio"] }
 
 [[bench]]
 name = "search-benchmarks"

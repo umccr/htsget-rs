@@ -15,7 +15,7 @@
 ##INFO=<ID=DS,Number=0,Type=Flag,Description="Were any of the samples downsampled?">
 ##INFO=<ID=Dels,Number=1,Type=Float,Description="Fraction of Reads Containing Spanning Deletions">
 ##INFO=<ID=FS,Number=1,Type=Float,Description="Phred-scaled p-value using Fisher's exact test to detect strand bias">
-##INFO=<ID=GC,Number=1,Type=Integer,Description="GC content around the variant (see docs for window size details)">
+##INFO=<ID=GC,Number=1,Type=Float,Description="GC content around the variant (see docs for window size details)">
 ##INFO=<ID=HRun,Number=1,Type=Integer,Description="Largest Contiguous Homopolymer Run of Variant Allele In Either Direction">
 ##INFO=<ID=HaplotypeScore,Number=1,Type=Float,Description="Consistency of the site with at most two segregating haplotypes">
 ##INFO=<ID=InbreedingCoeff,Number=1,Type=Float,Description="Inbreeding coefficient as estimated from the genotype likelihoods per-sample when compared against the Hardy-Weinberg expectation">

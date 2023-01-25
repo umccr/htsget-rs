@@ -18,7 +18,8 @@ use tokio::io::BufReader;
 
 // Htsget
 use crate::htsget::Url;
-use htsget_config::regex_resolver::{HtsGetIdResolver, RegexResolver};
+use htsget_config::Query;
+use htsget_config::regex_resolver::{Resolver, RegexResolver};
 
 use super::{GetOptions, Result};
 use crate::storage::{Headers, RangeUrlOptions, Storage, StorageError};
@@ -43,7 +44,8 @@ impl GDSStorage {
   async fn resolve_key<K: AsRef<str>>(&self, key: &K) -> Result<String> {
     self
       .id_resolver
-      .resolve_id(key.as_ref())
+      // FIXME: This must be wrong, a GDSv1 resolver doesn't work like this?
+      .resolve_id(&Query::new("id", htsget_config::Format::Bam))
       .ok_or_else(|| StorageError::InvalidKey(key.as_ref().to_string()))
   }
 
@@ -120,7 +122,7 @@ impl Storage for GDSStorage {
       .gds_presign_url(key)
       .await?
       .with_headers(headers)
-      .with_class(options.class);
+      .with_class(options.range.class);
     //debug!(calling_from = ?self, key, ?url, "Getting url with key {:?}", key);
     Ok(gds_presigned_url)
   }

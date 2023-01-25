@@ -1,10 +1,9 @@
 [workspace]
 members = [
+    "htsget-config",
+    "htsget-actix",
+    "htsget-http",
+    "htsget-lambda",
     "htsget-search",
-    "htsget-http-core",
-    "htsget-http-actix",
-    "htsget-http-lambda",
-    "htsget-test-utils",
-    "htsget-devtools",
-    "htsget-config"
+    "htsget-test",
 ]

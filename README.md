@@ -1,79 +1,140 @@
-![build](https://github.com/umccr/htsget-rs/actions/workflows/action.yml/badge.svg)
-
-[![Logo](doc/img/ga4gh-logo.svg)](https://ga4gh.org)
-
 # htsget-rs
 
-A Rust **server** implementation of the [htsget protocol][htsget-spec].
+[![MIT licensed][mit-badge]][mit-url]
+[![Build Status][actions-badge]][actions-url]
 
-## Quickstart
+[mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[mit-url]: https://github.com/umccr/htsget-rs/blob/main/LICENSE
+[actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/tests.yml/badge.svg
+[actions-url]: https://github.com/umccr/htsget-rs/actions?query=workflow%3Atests+branch%3Amain
 
-Htsget-rs is ready hit the ground running locally or deployed to commercial cloud providers such as Amazon Web Services.
+
+A **server** implementation of the [htsget protocol][htsget-protocol] for bioinformatics in Rust. It is:
+* **Fully-featured**: supports BAM and CRAM for reads, and VCF and BCF for variants, as well as other aspects of the protocol such as TLS, and CORS.
+* **Serverless**: supports local server instances using [Actix Web][actix-web], and serverless instances using [AWS Lambda Rust Runtime][aws-lambda-rust-runtime].
+* **Storage interchangeable**: supports local filesystem storage, and storage on AWS S3.
+* **Thoroughly tested and benchmarked**: tested using a purpose-built [test suite][htsget-test], and benchmarked using [criterion-rs].
+
+To get started, see [Usage].
+
+**Note**: htsget-rs is still experimental, and subject to change.
+
+[actix-web]: https://github.com/actix/actix-web
+[criterion-rs]: https://github.com/bheisler/criterion.rs
+[Usage]: #usage
+
+## Overview
+
+Htsget-rs implements the [htsget protocol][htsget-protocol], which is an HTTP-based protocol for querying bioinformatics files. 
+The htsget protocol outlines how a htsget server should behave, and it is an effective way to fetch regions of large bioinformatics files. 
+
+A htsget server responds to queries which ask for regions of bioinformatics files. It does this by returning an array of URL
+tickets, that the client must fetch and concatenate. This process is outlined in the [diagram below][htsget-diagram]:
+
+![htsget-diagram][htsget-diagram-png]
+
+htsget-rs implements this process as closely as possible, and aims to return byte ranges that are as small as possible.
+htsget-rs is written asynchronously using the [Tokio] runtime. It aims to be as efficient and safe as possible, having
+a thorough set of tests and benchmarks.
+
+htsget-rs implements the following components of the protocol:
+* `GET` requests.
+* `POST` requests.
+* BAM and CRAM for the `reads` endpoint.
+* VCF and BCF for the `variants` endpoint.
+* `service-info` endpoint. 
+* TLS on the data block server. 
+* CORS support on the ticket and data block servers.
+
+[htsget-protocol]: http://samtools.github.io/hts-specs/htsget.html
+[htsget-diagram]: http://samtools.github.io/hts-specs/htsget.html#diagram-of-core-mechanic
+[htsget-diagram-png]: https://samtools.github.io/hts-specs/pub/htsget-ticket.png
+[tokio]: https://github.com/tokio-rs/tokio
+
+## Usage
+
+Htsget-rs is configured using environment variables, for details on how to set them, see [htsget-config].
 
 ### Local
-Instantiating a demo htsget-rs server is as simple as running:
-
+To run a local instance htsget-rs, run [htsget-actix] by executing the following:
+```sh
+cargo run -p htsget-actix
 ```
-$ cargo run -p htsget-http-actix
+Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
+with data accessible from the [data] directory. See [htsget-actix] for more information.
+
+### Cloud
+Cloud based htsget-rs uses [htsget-lambda]. For more information and an example deployment of this crate see 
+[deploy].
+
+### Tests
+
+Tests can be run tests by executing:
+
+```sh
+cargo test --all-features
 ```
 
-Then the server is ready to listen to your requests on port 8080, please refer to the [htsget-http-actix crate README.md for furhter details][htsget-http-actix-readme].
+To run benchmarks, see the benchmark sections of [htsget-actix][htsget-actix-benches] and [htsget-search][htsget-search-benches].
 
-### Cŀoud
+[htsget-actix-benches]: htsget-actix/README.md#Benchmarks
+[htsget-search-benches]: htsget-search/README.md#Benchmarks
 
-To deploy to an AWS account, please refer to the `deploy/README.md` for further instructions.
+## Project Layout
 
-## Intro
+This repository consists of a workspace composed of the following crates:
 
-htsget makes bioinformatic data formats accessible through HTTP in a consistent way.
+- [htsget-config]: Configuration of the server.
+- [htsget-actix]: Local instance of the htsget server. Contains framework dependent code using [Actix Web][actix-web].
+- [htsget-http]: Handling of htsget HTTP requests. Framework independent code.
+- [htsget-lambda]: Cloud based instance of the htsget server. Contains framework dependent
+code using the [Rust Runtime for AWS Lambda][aws-lambda-rust-runtime].
+- [htsget-search]: Core logic needed to search bioinformatics files based on htsget queries.
+- [htsget-test]: Test suite used by other crates in the project.
 
-This repo implements a 100% Rust implementation of the [htsget spec][htsget-spec] using [Noodles][noodles]. This implementation gets rid of the [`unsafe` interfacing][rust-htslib] with the C-based [htslib](https://github.com/samtools/htslib), which has had [many vulnerabilities](https://github.com/samtools/htslib/pulls?q=oss-fuzz) along with other [problematic third party dependencies such as OpenSSL](https://www.openssl.org/news/vulnerabilities.html). In contrast, this repo uses the [independently audited RustLS counterpart](http://jbp.io/2020/06/14/rustls-audit.html) for SSL and [safe data format access via Noodles][noodles].
+Other directories contain further applications or data:
+- [data]: Contains example data files which can be used by htsget-rs, in folders denoting the file type.
+This directory also contains example events used by a cloud instance of htsget-rs in the [`events`][data-events] subdirectory.
+- [deploy]: An example deployment of [htsget-lambda].
 
-Our Rust implementation distinguishes itself from others in the following ways:
+In htsget-rs the ticket server handled by [htsget-actix] or [htsget-lambda], and the data
+block server is handled by the [storage backend][storage-backend], either [locally][local-storage], or using [AWS S3][s3-storage].
+This project layout is structured to allow for extensibility and modularity. For example, a new ticket server and data server could 
+be implemented using Cloudflare Workers in a `htsget-http-workers` crate and Cloudflare R2 in [htsget-search].
 
-|          	| [htsnexus][dnanexus] 	| [google][google-htsget] | [ga4gh][ga4gh-ref] | [EBI][ebi-htsget] | [gel-htsget][gel-htsget] | [htsget-rs][htsget-rs] | [CanDIG][candig-htsget]
-|---	    	  |---      | ---                |  ---	 |  ---	  | --- |	---             |   ---   |
-| maintained[1]   | ❌      | ❌ 	                | ✅    |  ❌    | ✅  |  ✅                |   ✅    |
-| local           | ✅      | ❌ 	                | ✅	   |  ✅	   | ✅ |   ✅                |   ✅    |
-| serverless      | ❌      | ❌	                | ❌    |  ❌    | ❌ |     ✅|   ❌    |
-| BAM             | ✅      | ✅ 	                | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
-| CRAM            | ✅	   | ❌ 	                | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
-| VCF             | ✅	   | [❌][google-novcf]  | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
-| BCF             | ✅	   | ✅  	            | ✅    |  ✅    | ✅ |   ✅                |   ✅    |
-| storage[2]      | ❌      | ❌  	            | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
-| [safe][safe-unsafe] | ❌  | ❌                  | ❌    |  ❌    | ❌ |   ✅                |   ❌    |
-| benchmarks      |  ❌     | ❌                  | ❌    |  ❌    | ❌ |  ✅ |   ❌    |
-| testsuite         |  ❌     | ❌                  | ✅    |   ✅    |  ✅ |   ✅    |    ✅    |
-| language        | C++     | Go                 | Go    |  Perl  | Python |  Rust          | Python  |
+See the [htsget-search overview][htsget-search-overview] for more information on the storage backend.
 
-Hover over some of the tick marks for a reference of the issues 👆 Regarding some of the criteria annotations in the table:
+[htsget-config]: htsget-config
+[htsget-actix]: htsget-actix
+[htsget-http]: htsget-http
+[htsget-lambda]: htsget-lambda
+[htsget-search]: htsget-search
+[htsget-search-overview]: htsget-search/README.md#Overview
+[htsget-test]: htsget-test
 
-1. No signs of activity in main repository in >6 months. Maintainers: [please open an issue if that's not the case or the repo has been relocated and/or deprecated](https://github.com/umccr/htsget-rs/issues/new).
-1. Decoupled (relatively easy to exchange) storage backends.
+[storage-backend]: htsget-search/src/storage
+[local-storage]: htsget-search/src/storage/local.rs
+[s3-storage]: htsget-search/src/storage/aws.rs
 
-[ebi-htsget]: https://github.com/andrewyatz/basic-htsget
-[gel-htsget]: https://gitlab.com/genomicsengland/htsget/gel-htsget
-[htsget-rs]: https://github.com/umccr/htsget-rs
-[dnanexus]: https://github.com/dnanexus-rnd/htsnexus
-[google-htsget]: https://github.com/googlegenomics/htsget
-[google-novcf]: https://github.com/googlegenomics/htsget/issues/34
-[ga4gh-ref]: https://github.com/ga4gh/htsget-refserver
-[candig-htsget]: https://github.com/CanDIG/htsget_app
-[aws-fixing]: https://github.com/umccr/htsget-rs/issues/47
-[benches]: https://github.com/umccr/htsget-rs/pull/59
-[safe-unsafe]: https://doc.rust-lang.org/nomicon/meet-safe-and-unsafe.html
+[data]: data
+[deploy]: deploy
 
-## Architecture
+[actix-web]: https://actix.rs/
+[aws-lambda-rust-runtime]: https://github.com/awslabs/aws-lambda-rust-runtime
+[data-events]: data/events
 
-Please refer to [the architecture of this project](doc/ARCHITECTURE.md) to get a grasp of how this project is structured and how to contribute if you'd like so :)
+## Contributing
+
+Thanks for your interest in contributing, we would love to have you! 
+See the [contributing guide][contributing] for more information.
+
+[contributing]: CONTRIBUTING.md
 
 ## License
 
-This project is distributed under the terms of the MIT license.
+This project is licensed under the [MIT license][license].
 
-See [LICENSE](LICENSE) for details.
-
-[noodles]: https://github.com/zaeleus/noodles
-[htsget-spec]: https://samtools.github.io/hts-specs/htsget.html
-[rust-htslib]: https://github.com/rust-bio/rust-htslib
-[htsget-http-actix-readme]: https://github.com/umccr/htsget-rs/blob/main/htsget-http-actix/README.md
+[htsget-actix]: htsget-actix
+[htsget-lambda]: htsget-lambda
+[license]: LICENSE
+[aws-lambda-rust-runtime]: https://github.com/awslabs/aws-lambda-rust-runtime
