@@ -26,10 +26,32 @@
     "@aws-cdk/aws-iam:minimizePolicies": true,
     "@aws-cdk/core:target-partitions": ["aws", "aws-cn"],
     "dev": {
-      "config": "config/config_dev.toml"
+      "config": "config/config_dev.toml",
+      "parameter_store_names": {
+        "arn_cert": "/htsget/acm/apse2_arn",
+        "jwt_aud": [
+          "/data_portal/client/cog_app_client_id_local",
+          "/data_portal/client/cog_app_client_id_stage"
+        ],
+        "cog_user_pool_id": "/data_portal/client/cog_user_pool_id",
+        "htsget_domain": "/htsget/domain",
+        "hosted_zone_id": "hosted_zone_id",
+        "hosted_zone_name": "hosted_zone_name"
+      }
     },
     "prod": {
-      "config": "config/config_prod.toml"
+      "config": "config/config_prod.toml",
+      "parameter_store_names": {
+        "arn_cert": "/htsget/acm/apse2_arn",
+        "jwt_aud": [
+          "/data_portal/client/cog_app_client_id_local",
+          "/data_portal/client/cog_app_client_id_stage"
+        ],
+        "cog_user_pool_id": "/data_portal/client/cog_user_pool_id",
+        "htsget_domain": "/htsget/domain",
+        "hosted_zone_id": "hosted_zone_id",
+        "hosted_zone_name": "hosted_zone_name"
+      }
     }
   }
 }

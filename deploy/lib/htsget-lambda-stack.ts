@@ -19,21 +19,21 @@ import * as toml from "toml";
  */
 export type Config = {
   environment: string;
-  config: { [key: string]: any };
-  cors_allow_origins: string[];
+  htsgetConfig: { [key: string]: any };
+  corsAllowOrigins: string[];
+  parameterStoreConfig: ParameterStoreConfig;
 };
 
 /**
- * Configuration values obtained from SSM.
+ * Configuration values obtained from AWS System Manager Parameter Store.
  */
-export type SSMConfig = {
-  cert_apse2_arn: string;
-  hosted_zone_id: string;
-  hosted_zone_name: string;
-  domain_name: string;
-  cog_user_pool_id: string;
-  cog_app_client_id_stage: string;
-  cog_app_client_id_local: string;
+export type ParameterStoreConfig = {
+  arnCert: string;
+  hostedZoneId: string;
+  hostedZoneName: string;
+  htsgetDomain: string;
+  cogUserPoolId: string;
+  jwtAud: string[];
 };
 
 /**
@@ -75,25 +75,22 @@ export class HtsgetLambdaStack extends Stack {
 
       memorySize: 128,
       timeout: Duration.seconds(10),
-      environment: { ...config.config },
+      environment: { ...config.htsgetConfig },
       architecture: Architecture.ARM_64,
       role: lambdaRole,
     });
 
-    const ssmConfig = this.getSSMConfig();
+    const parameterStoreConfig = config.parameterStoreConfig;
     const httpIntegration = new HttpLambdaIntegration(
       id + "HtsgetIntegration",
       htsgetLambda
     );
     const authorizer = new HttpJwtAuthorizer(
       id + "HtsgetAuthorizer",
-      `https://cognito-idp.${this.region}.amazonaws.com/${ssmConfig.cog_user_pool_id}`,
+      `https://cognito-idp.${this.region}.amazonaws.com/${parameterStoreConfig.cogUserPoolId}`,
       {
         identitySource: ["$request.header.Authorization"],
-        jwtAudience: [
-          ssmConfig.cog_app_client_id_stage,
-          ssmConfig.cog_app_client_id_local,
-        ],
+        jwtAudience: parameterStoreConfig.jwtAud,
       }
     );
 
@@ -101,16 +98,16 @@ export class HtsgetLambdaStack extends Stack {
       certificate: Certificate.fromCertificateArn(
         this,
         id + "HtsgetDomainCert",
-        ssmConfig.cert_apse2_arn
+        parameterStoreConfig.arnCert
       ),
-      domainName: ssmConfig.domain_name,
+      domainName: parameterStoreConfig.htsgetDomain,
     });
     const hostedZone = HostedZone.fromHostedZoneAttributes(
       this,
       id + "HtsgetHostedZone",
       {
-        hostedZoneId: ssmConfig.hosted_zone_id,
-        zoneName: ssmConfig.hosted_zone_name,
+        hostedZoneId: parameterStoreConfig.hostedZoneId,
+        zoneName: parameterStoreConfig.hostedZoneName,
       }
     );
     new ARecord(this, id + "HtsgetARecord", {
@@ -131,7 +128,7 @@ export class HtsgetLambdaStack extends Stack {
         domainName: domainName,
       },
       corsPreflight: {
-        allowOrigins: config.cors_allow_origins,
+        allowOrigins: config.corsAllowOrigins,
         allowHeaders: ["*"],
         allowMethods: [apigwv2.CorsHttpMethod.ANY],
         allowCredentials: true,
@@ -140,31 +137,33 @@ export class HtsgetLambdaStack extends Stack {
   }
 
   /**
-   * Get config values from SSM.
+   * Get config values from the Parameter Store.
    */
-  getSSMConfig(): SSMConfig {
+  getParameterStoreConfig(config: any): ParameterStoreConfig {
+    const parameterStoreNames = config.parameter_store_names;
     return {
-      cert_apse2_arn: StringParameter.valueFromLookup(
+      arnCert: StringParameter.valueFromLookup(
         this,
-        "/htsget/acm/apse2_arn"
+        parameterStoreNames.arn_cert
       ),
-      cog_app_client_id_local: StringParameter.valueFromLookup(
-        this,
-        "/data_portal/client/cog_app_client_id_local"
+      jwtAud: parameterStoreNames.jwt_aud.map((jwtAud: string) =>
+        StringParameter.valueFromLookup(this, jwtAud)
       ),
-      cog_app_client_id_stage: StringParameter.valueFromLookup(
+      cogUserPoolId: StringParameter.valueFromLookup(
         this,
-        "/data_portal/client/cog_app_client_id_stage"
+        parameterStoreNames.cog_user_pool_id
       ),
-      cog_user_pool_id: StringParameter.valueFromLookup(
+      htsgetDomain: StringParameter.valueFromLookup(
         this,
-        "/data_portal/client/cog_user_pool_id"
+        parameterStoreNames.htsget_domain
       ),
-      domain_name: StringParameter.valueFromLookup(this, "/htsget/domain"),
-      hosted_zone_id: StringParameter.valueFromLookup(this, "hosted_zone_id"),
-      hosted_zone_name: StringParameter.valueFromLookup(
+      hostedZoneId: StringParameter.valueFromLookup(
         this,
-        "hosted_zone_name"
+        parameterStoreNames.hosted_zone_id
+      ),
+      hostedZoneName: StringParameter.valueFromLookup(
+        this,
+        parameterStoreNames.hosted_zone_name
       ),
     };
   }
@@ -198,8 +197,9 @@ export class HtsgetLambdaStack extends Stack {
 
     return {
       environment: env,
-      config: HtsgetLambdaStack.configToEnv(configToml),
-      cors_allow_origins: config.cors_allow_origins,
+      htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
+      corsAllowOrigins: config.cors_allow_origins,
+      parameterStoreConfig: this.getParameterStoreConfig(config),
     };
   }
 }
