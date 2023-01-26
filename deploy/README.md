@@ -1,12 +1,12 @@
 # Deployment of htsget-lambda
 
-The [htsget-lambda] crate is a cloud-based implementation of [htsget-rs]. It uses AWS Lambda as the ticket server, and AWS S3 as the data block server. 
+The [htsget-lambda] crate is a cloud-based implementation of [htsget-rs]. It uses AWS Lambda as the ticket server, and AWS S3 as the data block server.
 
-This is an example that deploys [htsget-lambda] using [aws-cdk]. It is deployed as an AWS Rest [API Gateway Lambda proxy 
+This is an example that deploys [htsget-lambda] using [aws-cdk]. It is deployed as an AWS Rest [API Gateway Lambda proxy
 integration][aws-api-gateway]. The stack uses [RustFunction][rust-function] in order to integrate [htsget-lambda]
 with API Gateway.
 
-To configure the deployment change the environment variable inside the `RustFunction` props in 
+To configure the deployment change the environment variable inside the `RustFunction` props in
 [`htsget-lambda-stack.ts`][htsget-lambda-stack]. This changes the environment variables passed to [htsget-lambda].
 
 See [htsget-config] for a list of available configuration options.
@@ -23,9 +23,9 @@ See [htsget-config] for a list of available configuration options.
 
 ### Prerequisites
 
-* [aws-cli] should be installed and authenticated in the shell.
-* Node.js and [npm] should be installed.
-* [Rust][rust] should be installed.
+- [aws-cli] should be installed and authenticated in the shell.
+- Node.js and [npm] should be installed.
+- [Rust][rust] should be installed.
 
 After installing the basic dependencies, complete the following steps:
 
@@ -66,7 +66,7 @@ CDK should be bootstrapped once, if this hasn't been done before.
 cdk bootstrap
 ```
 
-In order to deploy, check that the 
+In order to deploy, check that the
 stack synthesizes correctly and then deploy.
 
 ```sh
@@ -81,6 +81,7 @@ awscurl --region ap-southeast-2 https://<ID>.execute-api.ap-southeast-2.amazonaw
 ```
 
 With a possible output:
+
 ```json
 {
   "id": "",
@@ -97,10 +98,7 @@ With a possible output:
   },
   "htsget": {
     "datatype": "reads",
-    "formats": [
-      "BAM",
-      "CRAM"
-    ],
+    "formats": ["BAM", "CRAM"],
     "fieldsParametersEffective": false,
     "TagsParametersEffective": false
   },
