@@ -12,7 +12,7 @@ import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
 import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
 import * as fs from "fs";
-import * as toml from "toml";
+import * as TOML from "@iarna/toml";
 
 /**
  * Configuration for HtsgetLambdaStack.
@@ -20,7 +20,12 @@ import * as toml from "toml";
 export type Config = {
   environment: string;
   htsgetConfig: { [key: string]: any };
-  corsAllowOrigins: string[];
+  allowCredentials?: boolean;
+  allowHeaders?: string[];
+  allowMethods?: apigwv2.CorsHttpMethod[];
+  allowOrigins?: string[];
+  exposeHeaders?: string[];
+  maxAge?: Duration;
   parameterStoreConfig: ParameterStoreConfig;
 };
 
@@ -128,10 +133,12 @@ export class HtsgetLambdaStack extends Stack {
         domainName: domainName,
       },
       corsPreflight: {
-        allowOrigins: config.corsAllowOrigins,
-        allowHeaders: ["*"],
-        allowMethods: [apigwv2.CorsHttpMethod.ANY],
-        allowCredentials: true,
+        allowCredentials: config.allowCredentials,
+        allowHeaders: config.allowHeaders,
+        allowMethods: config.allowMethods,
+        allowOrigins: config.allowOrigins,
+        exposeHeaders: config.exposeHeaders,
+        maxAge: config.maxAge,
       },
     });
   }
@@ -174,11 +181,44 @@ export class HtsgetLambdaStack extends Stack {
   static configToEnv(config: any): { [key: string]: string } {
     const out: { [key: string]: string } = {};
     for (const key in config) {
-      out[`HTSGET_${key.toUpperCase()}`] = JSON.stringify(
-        config[key]
-      ).replaceAll(":", "=");
+      out[`HTSGET_${key.toUpperCase()}`] = TOML.stringify.value(config[key]);
     }
     return out;
+  }
+
+  /**
+   * Convert htsget-rs CORS option to CORS options for API Gateway.
+   */
+  static convertCors(configToml: any, corsValue: string): string[] | undefined {
+    const value = configToml[corsValue];
+
+    if (
+      value !== undefined &&
+      (value.toString().toLowerCase() === "all" ||
+        value.toString().toLowerCase() === "mirror")
+    ) {
+      return ["*"];
+    } else if (Array.isArray(value)) {
+      return value;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Convert a string cors allow method option to CorsHttpMethod.
+   */
+  static corsToCorsHttpMethod(
+    cors?: string[]
+  ): apigwv2.CorsHttpMethod[] | undefined {
+    if (cors?.length === 1 && cors.includes("*")) {
+      return [apigwv2.CorsHttpMethod.ANY];
+    } else {
+      return cors?.map(
+        (element) =>
+          apigwv2.CorsHttpMethod[element as keyof typeof apigwv2.CorsHttpMethod]
+      );
+    }
   }
 
   /**
@@ -193,12 +233,35 @@ export class HtsgetLambdaStack extends Stack {
     }
 
     const config = this.node.tryGetContext(env);
-    const configToml = toml.parse(fs.readFileSync(config.config).toString());
+    const configToml = TOML.parse(fs.readFileSync(config.config).toString());
 
     return {
       environment: env,
       htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
-      corsAllowOrigins: config.cors_allow_origins,
+      allowCredentials:
+        configToml.ticket_server_cors_allow_credentials as boolean,
+      allowHeaders: HtsgetLambdaStack.convertCors(
+        configToml,
+        "ticket_server_cors_allow_headers"
+      ),
+      allowMethods: HtsgetLambdaStack.corsToCorsHttpMethod(
+        HtsgetLambdaStack.convertCors(
+          configToml,
+          "ticket_server_cors_allow_methods"
+        )
+      ),
+      allowOrigins: HtsgetLambdaStack.convertCors(
+        configToml,
+        "ticket_server_cors_allow_origins"
+      ),
+      exposeHeaders: HtsgetLambdaStack.convertCors(
+        configToml,
+        "ticket_server_cors_expose_headers"
+      ),
+      maxAge:
+        configToml.ticket_server_cors_max_age !== undefined
+          ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
+          : undefined,
       parameterStoreConfig: this.getParameterStoreConfig(config),
     };
   }
