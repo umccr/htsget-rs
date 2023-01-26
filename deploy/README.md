@@ -11,7 +11,7 @@ the htsget-rs server with [AWS Route 53][route-53].
 
 To configure the deployment change the config files in the [`config`][config] directory. There are two configuration files
 corresponding to the deployed environment. The config file used for deployment can be controlled by passing `--context "env=dev"` or
-`--context "env=prod"` to cdk.
+`--context "env=prod"` to cdk. When no context parameter is supplied, the default context is `dev`.
 
 These config files configure [htsget-lambda]. See [htsget-config] for a list of available configuration options.
 
@@ -99,8 +99,8 @@ In order to deploy, check that the
 stack synthesizes correctly and then deploy.
 
 ```sh
-cdk synth --context "env=dev"
-cdk deploy --context "env=dev"
+cdk synth
+cdk deploy
 ```
 
 ### Testing the endpoint
@@ -118,11 +118,11 @@ With a possible output:
 ```json
 {
   "id": "",
-  "name": "umccr-htsget-rs",
-  "version": "0.1",
+  "name": "",
+  "version": "",
   "organization": {
-    "name": "UMCCR",
-    "url": "https://umccr.org/"
+    "name": "",
+    "url": ""
   },
   "type": {
     "group": "",
@@ -135,11 +135,11 @@ With a possible output:
     "fieldsParametersEffective": false,
     "TagsParametersEffective": false
   },
-  "contactUrl": "https://umccr.org/",
-  "documentationUrl": "https://github.com/umccr/htsget-rs",
+  "contactUrl": "",
+  "documentationUrl": "",
   "createdAt": "",
   "UpdatedAt": "",
-  "environment": "dev"
+  "environment": ""
 }
 ```
 

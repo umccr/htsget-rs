@@ -26,7 +26,7 @@
     "@aws-cdk/aws-iam:minimizePolicies": true,
     "@aws-cdk/core:target-partitions": ["aws", "aws-cn"],
     "dev": {
-      "config": "config/config_dev.toml",
+      "config": "config/config_dev_umccr.toml",
       "parameter_store_names": {
         "arn_cert": "/htsget/acm/apse2_arn",
         "jwt_aud": [
@@ -40,7 +40,7 @@
       }
     },
     "prod": {
-      "config": "config/config_prod.toml",
+      "config": "config/config_prod_umccr.toml",
       "parameter_store_names": {
         "arn_cert": "/htsget/acm/apse2_arn",
         "jwt_aud": [

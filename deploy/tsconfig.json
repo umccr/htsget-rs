@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
+    "target": "ES2021",
     "module": "commonjs",
-    "lib": ["ESNext"],
+    "lib": ["ES2021"],
     "declaration": true,
     "strict": true,
     "noImplicitAny": true,
