@@ -80,7 +80,11 @@ export class HtsgetLambdaStack extends Stack {
 
       memorySize: 128,
       timeout: Duration.seconds(10),
-      environment: { ...config.htsgetConfig },
+      environment: {
+        ...config.htsgetConfig,
+        RUST_LOG:
+          "info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace",
+      },
       architecture: Architecture.ARM_64,
       role: lambdaRole,
     });
