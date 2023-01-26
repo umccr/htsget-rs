@@ -210,15 +210,15 @@ export class HtsgetLambdaStack extends Stack {
   }
 
   /**
-   * Convert a string cors allow method option to CorsHttpMethod.
+   * Convert a string CORS allowMethod option to CorsHttpMethod.
    */
-  static corsToCorsHttpMethod(
-    cors?: string[]
+  static corsAllowMethodToHttpMethod(
+    corsAllowMethod?: string[]
   ): apigwv2.CorsHttpMethod[] | undefined {
-    if (cors?.length === 1 && cors.includes('*')) {
+    if (corsAllowMethod?.length === 1 && corsAllowMethod.includes('*')) {
       return [apigwv2.CorsHttpMethod.ANY];
     } else {
-      return cors?.map(
+      return corsAllowMethod?.map(
         (element) =>
           apigwv2.CorsHttpMethod[element as keyof typeof apigwv2.CorsHttpMethod]
       );
@@ -248,7 +248,7 @@ export class HtsgetLambdaStack extends Stack {
         configToml,
         'ticket_server_cors_allow_headers'
       ),
-      allowMethods: HtsgetLambdaStack.corsToCorsHttpMethod(
+      allowMethods: HtsgetLambdaStack.corsAllowMethodToHttpMethod(
         HtsgetLambdaStack.convertCors(
           configToml,
           'ticket_server_cors_allow_methods'
