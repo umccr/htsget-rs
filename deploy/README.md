@@ -20,14 +20,14 @@ from [AWS System Manager Parameter Store][aws-ssm]. Parameters are fetched using
 which takes a parameter name. The properties in [`cdk.json`][cdk-json] `parameter_store_names` hold these parameter names,
 which correspond to the following values:
 
-| Property storing SSM parameter name   | Description of SSM parameter                           |
-|---------------------------------------|--------------------------------------------------------|
-| `arn_cert`                            | The ARN for the ACM certificate of the htsget domain.  |
-| `jwt_aud`                             | The JWT [audience][jwt-audience] for the token.        |
-| `cog_user_pool_id`                    | The Cognito user pool id which controls authorization. |
-| `htsget_domain`                       | The domain name for the htsget server.                 |
-| `hosted_zone_id`                      | The Route 53 hosted zone id for the htsget server.     |
-| `hosted_zone_name`                    | The Route 53 hosted zone name for the htsget server.   |
+| Property storing SSM parameter name | Description of SSM parameter                           |
+| ----------------------------------- | ------------------------------------------------------ |
+| `arn_cert`                          | The ARN for the ACM certificate of the htsget domain.  |
+| `jwt_aud`                           | The JWT [audience][jwt-audience] for the token.        |
+| `cog_user_pool_id`                  | The Cognito user pool id which controls authorization. |
+| `htsget_domain`                     | The domain name for the htsget server.                 |
+| `hosted_zone_id`                    | The Route 53 hosted zone id for the htsget server.     |
+| `hosted_zone_name`                  | The Route 53 hosted zone name for the htsget server.   |
 
 Modify these properties to change which parameter the values come from. SSM parameters can also be cached locally using
 the [CDK runtime context][cdk-context].
