@@ -20,14 +20,14 @@ from [AWS System Manager Parameter Store][aws-ssm]. Parameters are fetched using
 which takes a parameter name. The properties in [`cdk.json`][cdk-json] `parameter_store_names` hold these parameter names,
 which correspond to the following values:
 
-| Property storing SSM parameter name | Description of SSM parameter                           |
-| ----------------------------------- | ------------------------------------------------------ |
-| `arn_cert`                          | The ARN for the ACM certificate of the htsget domain.  |
-| `jwt_aud`                           | The JWT [audience][jwt-audience] for the token.        |
-| `cog_user_pool_id`                  | The Cognito user pool id which controls authorization. |
-| `htsget_domain`                     | The domain name for the htsget server.                 |
-| `hosted_zone_id`                    | The Route 53 hosted zone id for the htsget server.     |
-| `hosted_zone_name`                  | The Route 53 hosted zone name for the htsget server.   |
+| Property storing SSM parameter name   | Description of SSM parameter                           |
+|---------------------------------------|--------------------------------------------------------|
+| `arn_cert`                            | The ARN for the ACM certificate of the htsget domain.  |
+| `jwt_aud`                             | The JWT [audience][jwt-audience] for the token.        |
+| `cog_user_pool_id`                    | The Cognito user pool id which controls authorization. |
+| `htsget_domain`                       | The domain name for the htsget server.                 |
+| `hosted_zone_id`                      | The Route 53 hosted zone id for the htsget server.     |
+| `hosted_zone_name`                    | The Route 53 hosted zone name for the htsget server.   |
 
 Modify these properties to change which parameter the values come from. SSM parameters can also be cached locally using
 the [CDK runtime context][cdk-context].
@@ -36,14 +36,13 @@ the [CDK runtime context][cdk-context].
 [htsget-lambda]: ../htsget-lambda
 [htsget-config]: ../htsget-config
 [config]: config
-[htsget-lambda-stack]: lib/htsget-lambda-stack.ts
 [aws-cdk]: https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html
 [cdk-context]: https://docs.aws.amazon.com/cdk/v2/guide/context.html
 [cdk-lookup-value]: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ssm.StringParameter.html#static-valuewbrfromwbrlookupscope-parametername
 [cdk-json]: cdk.json
 [aws-ssm]: https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html
 [aws-api-gateway]: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html
-[aws-cognito]: https://docs.aws.amazon.com/cognito/index.html
+[aws-cognito]: https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-identity-pools.html
 [jwt-authorizer]: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-jwt-authorizer.html
 [jwt-audience]: https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/apis-apiid-authorizers-authorizerid.html#apis-apiid-authorizers-authorizerid-model-jwtconfiguration
 [route-53]: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html
