@@ -1,5 +1,14 @@
 ticket_server_cors_allow_headers = "All"
-ticket_server_cors_allow_origins = ["https://data.umccr.org", "https://data.dev.umccr.org"]
+ticket_server_cors_allow_origins = [
+    "https://data.umccr.org",
+    "https://data.dev.umccr.org",
+    "https://data.stg.umccr.org",
+    "https://data.prod.umccr.org",
+    "https://portal.dev.umccr.org",
+    "https://portal.stg.umccr.org",
+    "https://portal.prod.umccr.org",
+    "https://portal.umccr.org"
+]
 ticket_server_cors_allow_methods = "All"
 ticket_server_cors_allow_credentials = true
 ticket_server_cors_max_age = 300
