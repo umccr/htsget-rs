@@ -1,5 +1,4 @@
 target
-Cargo.lock
 *.code-workspace
 *.vcf.gz
 .vscode
