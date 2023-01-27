@@ -23,6 +23,25 @@ use crate::handlers::service_info::get_service_info_json;
 
 pub mod handlers;
 
+pub struct WorkerResponse(worker::Response);
+
+
+impl TryFrom<http::Response<ResponseBody>> for WorkerResponse {
+    type Error = Error;
+
+    fn try_from(http_response: http::Response<ResponseBody>) -> std::result::Result<Self, Self::Error> {
+        let (parts, body) = http_response.into_parts();
+
+        // let body_stream = ReadableStream::from_stream(BodyStream::new(body));
+        // let resp_body = ResponseBody::Stream(body);
+
+        let resp = worker::Response::from_body(body).map_err(|err| err)?
+            .with_headers(parts.headers.into())
+            .with_status(parts.status.as_u16());
+
+        Ok(WorkerResponse(resp))
+    }
+}
 
 fn log_request(req: &Request) {
   console_log!(
@@ -121,7 +140,10 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         endpoint,
         route_type: RouteType::ServiceInfo,
         ..
-      }) => get_service_info_json(self.searcher.clone(), endpoint, self.config_service_info),
+      }) => {
+        let response = get_service_info_json(self.searcher.clone(), endpoint, self.config_service_info)?;
+        WorkerResponse::try_from(response).map_err(|err| err.into()).map(|value| value.0)
+      },
       Some(Route {
         method: HtsgetMethod::Get,
         endpoint,
@@ -132,7 +154,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           self.searcher.clone(),
           Self::extract_query(&request),
           endpoint,
-        ).await
+        ).await.into()
       }
       Some(Route {
         method: HtsgetMethod::Post,

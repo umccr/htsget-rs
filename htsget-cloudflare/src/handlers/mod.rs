@@ -67,7 +67,7 @@ impl TryFrom<HtsGetError> for FormatJson<Response<ResponseBody>> {
 }
 
 /// Handles a response, converting errors to json and using the proper HTTP status code.
-fn handle_response(response: Result<JsonResponse>) -> http::Result<Response<ResponseBody>> {
+fn handle_response(response: Result<JsonResponse>) -> http::Result<worker::Response> {
   match response {
     Err(error) => Ok(FormatJson::try_from(error)?.into_inner()),
     Ok(json) => FormatJson(json).try_into(),
