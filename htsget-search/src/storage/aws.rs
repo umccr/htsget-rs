@@ -220,31 +220,19 @@ impl Storage for AwsS3Storage {
 
 #[cfg(test)]
 mod tests {
-  use aws_sdk_s3 as s3;
-
-  use aws_sdk_s3::Error as AwsS3Error;
-  use async_trait::async_trait;
-
-  pub struct ListObjectsResult {
-    pub objects: Vec<s3::model::Object>,
-    pub continuation_token: Option<String>,
-    pub has_more: bool,
-  }
-
-  #[async_trait]
-  pub trait ListObjects {
-      async fn list_objects(
-          &self,
-          bucket: &str,
-          prefix: &str,
-          continuation_token: Option<String>,
-      ) -> Result<ListObjectsResult, AwsS3Error>;
-  }
-
+  use std::env;
+  use std::fs;
   use std::future::Future;
   use std::path::Path;
+  use once_cell::sync::Lazy;
 
-  use aws_sdk_s3::{Client};
+  use s3s_aws;
+  use s3s::service::S3Service;
+
+  use aws_credential_types::provider::SharedCredentialsProvider;
+  use aws_sdk_s3::{Client, Credentials};
+  use aws_config::SdkConfig;
+  use aws_sdk_s3::Region;
 
   use crate::htsget::Headers;
   use crate::storage::aws::AwsS3Storage;
@@ -252,13 +240,40 @@ mod tests {
   use crate::storage::StorageError;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
 
+  const FS_ROOT: &str = concat!(env!("CARGO_TARGET_TMPDIR"), "/s3s-fs-tests-aws");
+  const DOMAIN_NAME: &str = "localhost:8014";
+  const REGION: &str = "us-west-2";
+
   async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
     F: FnOnce(Client) -> Fut,
     Fut: Future<Output = ()>,
   {
-    unimplemented!()
-  }
+    static CONFIG: Lazy<SdkConfig> = Lazy::new(|| {
+      let cred = Credentials::for_tests();
+
+      let conn = {
+          fs::create_dir_all(FS_ROOT).unwrap();
+          let fs = s3s_fs::FileSystem::new(FS_ROOT).unwrap();
+
+          let auth = s3s::SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
+
+          let mut service = S3Service::new(Box::new(fs));
+          service.set_auth(Box::new(auth));
+          service.set_base_domain(DOMAIN_NAME);
+
+          s3s_aws::Connector::from(service.into_shared())
+      };
+
+      SdkConfig::builder()
+          .credentials_provider(SharedCredentialsProvider::new(cred))
+          .http_connector(conn)
+          .region(Region::new(REGION))
+          .endpoint_url(format!("http://{DOMAIN_NAME}"))
+          .build()
+  });
+  &CONFIG
+   }
 
   async fn with_aws_s3_storage<F, Fut>(test: F)
   where
