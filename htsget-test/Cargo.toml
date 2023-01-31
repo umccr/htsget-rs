@@ -9,6 +9,7 @@ description = "Common test functions and utilities used by htsget-rs"
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-test/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-test/README.md"
 repository = "https://github.com/umccr/htsget-rs"
+publish = false
 
 [features]
 http-tests = [
