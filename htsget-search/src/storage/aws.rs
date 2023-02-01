@@ -222,7 +222,6 @@ mod tests {
   use std::env;
   use std::fs;
   use std::future::Future;
-  use std::net::TcpListener;
   use std::path::Path;
   use once_cell::sync::Lazy;
 
@@ -230,9 +229,8 @@ mod tests {
   use s3s::service::S3Service;
 
   use aws_credential_types::provider::SharedCredentialsProvider;
-  use aws_sdk_s3::{Client, Credentials};
+  use aws_sdk_s3::{Region, Client, Credentials};
   use aws_config::SdkConfig;
-  use aws_sdk_s3::Region;
 
   use crate::htsget::Headers;
   use crate::storage::aws::AwsS3Storage;
@@ -240,15 +238,16 @@ mod tests {
   use crate::storage::StorageError;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
 
-  const FS_ROOT: &str = concat!(env!("CARGO_TARGET_TMPDIR"), "/s3s-fs-tests-aws");
-  const DOMAIN_NAME: &str = "localhost:8014";
-  const REGION: &str = "us-west-2";
 
-  async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
+  async fn with_s3_test_server<F, Fut>(_server_base_path: &Path, _test: F)
   where
     F: FnOnce(Client) -> Fut,
     Fut: Future<Output = ()>,
   {
+    const FS_ROOT: &str = concat!(env!("CARGO_TARGET_TMPDIR"), "/s3s-fs-tests-aws");
+    const DOMAIN_NAME: &str = "localhost:8014";
+    const REGION: &str = "ap-southeast-2";
+  
     static CONFIG: Lazy<SdkConfig> = Lazy::new(|| {
       let cred = Credentials::for_tests();
 
@@ -272,8 +271,9 @@ mod tests {
           .endpoint_url(format!("http://{DOMAIN_NAME}"))
           .build()
   });
-  &CONFIG
-   }
+  //&CONFIG
+  ()
+  }
 
   async fn with_aws_s3_storage<F, Fut>(test: F)
   where
