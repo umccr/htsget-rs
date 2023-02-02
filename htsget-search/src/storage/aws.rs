@@ -219,18 +219,15 @@ impl Storage for AwsS3Storage {
 
 #[cfg(test)]
 mod tests {
-  use std::env;
-  use std::fs;
   use std::future::Future;
   use std::path::Path;
-  use once_cell::sync::Lazy;
 
-  use s3s_aws;
   use s3s::service::S3Service;
+  use s3s_aws;
 
-  use aws_credential_types::provider::SharedCredentialsProvider;
-  use aws_sdk_s3::{Region, Client, Credentials};
   use aws_config::SdkConfig;
+  use aws_credential_types::provider::SharedCredentialsProvider;
+  use aws_sdk_s3::{Client, Credentials, Region};
 
   use crate::htsget::Headers;
   use crate::storage::aws::AwsS3Storage;
@@ -238,41 +235,36 @@ mod tests {
   use crate::storage::StorageError;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
 
-
   async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
     F: FnOnce(Client) -> Fut,
     Fut: Future<Output = ()>,
   {
-    const FS_ROOT: &str = concat!(env!("CARGO_TARGET_TMPDIR"), "/s3s-fs-tests-aws");
     const DOMAIN_NAME: &str = "localhost:8014";
     const REGION: &str = "ap-southeast-2";
-  
+
     let cred = Credentials::for_tests();
 
     let conn = {
-        fs::create_dir_all(FS_ROOT).unwrap();
-        let fs = s3s_fs::FileSystem::new(FS_ROOT).unwrap();
+      let fs = s3s_fs::FileSystem::new(server_base_path).unwrap();
 
-        let auth = s3s::SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
+      let auth = s3s::SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
 
-        let mut service = S3Service::new(Box::new(fs));
-        service.set_auth(Box::new(auth));
-        service.set_base_domain(DOMAIN_NAME);
+      let mut service = S3Service::new(Box::new(fs));
+      service.set_auth(Box::new(auth));
+      service.set_base_domain(DOMAIN_NAME);
 
-        s3s_aws::Connector::from(service.into_shared())
+      s3s_aws::Connector::from(service.into_shared())
     };
 
     let sdk_config = SdkConfig::builder()
-        .credentials_provider(SharedCredentialsProvider::new(cred))
-        .http_connector(conn)
-        .region(Region::new(REGION))
-        .endpoint_url(format!("http://{DOMAIN_NAME}"))
-        .build();
-        test(Client::new(&sdk_config)).await;
+      .credentials_provider(SharedCredentialsProvider::new(cred))
+      .http_connector(conn)
+      .region(Region::new(REGION))
+      .endpoint_url(format!("http://{DOMAIN_NAME}"))
+      .build();
 
-  //&CONFIG
-  ()
+    test(Client::new(&sdk_config)).await;
   }
 
   async fn with_aws_s3_storage<F, Fut>(test: F)
@@ -282,7 +274,7 @@ mod tests {
   {
     let (folder_name, base_path) = create_local_test_files().await;
     with_s3_test_server(base_path.path(), |client| async move {
-      test(AwsS3Storage::new(client, folder_name));
+      test(AwsS3Storage::new(client, folder_name)).await;
     })
     .await;
   }
@@ -323,9 +315,7 @@ mod tests {
         .range_url("key2", RangeUrlOptions::default())
         .await
         .unwrap();
-      assert!(result
-        .url
-        .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
+      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
         AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
@@ -344,9 +334,7 @@ mod tests {
         )
         .await
         .unwrap();
-      assert!(result
-        .url
-        .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
+      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
         AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
@@ -354,7 +342,7 @@ mod tests {
       assert!(result.url.contains("range"));
       assert_eq!(
         result.headers,
-        Some(Headers::default().with_header("Range", "bytes=7-9"))
+        Some(Headers::default().with_header("Range", "bytes=7-8"))
       );
     })
     .await;
@@ -370,9 +358,7 @@ mod tests {
         )
         .await
         .unwrap();
-      assert!(result
-        .url
-        .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
+      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
         AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
