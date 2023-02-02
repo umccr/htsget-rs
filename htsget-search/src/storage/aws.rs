@@ -53,6 +53,8 @@ impl AwsS3Storage {
     AwsS3Storage::new(Client::new(&aws_config::load_from_env().await), bucket)
   }
 
+  /// Return an S3 pre-signed URL of the key. This function does not check that the key exists,
+  /// so this should be checked before calling it.
   pub async fn s3_presign_url<K: AsRef<str> + Send>(
     &self,
     key: K,
@@ -130,6 +132,7 @@ impl AwsS3Storage {
     }
   }
 
+  /// Get the key from S3 storage as a `ByteStream`.
   pub async fn get_content<K: AsRef<str> + Send>(
     &self,
     key: K,
@@ -184,7 +187,8 @@ impl Storage for AwsS3Storage {
     self.create_stream_reader(key, options).await
   }
 
-  /// Returns a S3-presigned htsget URL
+  /// Return an S3 pre-signed htsget URL. This function does not check that the key exists, so this
+  /// should be checked before calling it.
   #[instrument(level = "trace", skip(self))]
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
@@ -292,17 +296,6 @@ mod tests {
   async fn non_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage.get("non-existing-key", GetOptions::default()).await;
-      assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
-    })
-    .await;
-  }
-
-  #[tokio::test]
-  async fn url_of_non_existing_key() {
-    with_aws_s3_storage(|storage| async move {
-      let result = storage
-        .range_url("non-existing-key", RangeUrlOptions::default())
-        .await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
     })
     .await;

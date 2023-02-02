@@ -40,7 +40,8 @@ pub trait Storage {
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
-  /// Get the url of the object represented by the key using a bytes range.
+  /// Get the url of the object represented by the key using a bytes range. It is not required for
+  /// this function to check for the existent of the key, so this should be ensured beforehand.
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
