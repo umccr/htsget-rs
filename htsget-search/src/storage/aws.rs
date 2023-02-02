@@ -239,7 +239,7 @@ mod tests {
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
 
 
-  async fn with_s3_test_server<F, Fut>(_server_base_path: &Path, _test: F)
+  async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
     F: FnOnce(Client) -> Fut,
     Fut: Future<Output = ()>,
@@ -248,29 +248,29 @@ mod tests {
     const DOMAIN_NAME: &str = "localhost:8014";
     const REGION: &str = "ap-southeast-2";
   
-    static CONFIG: Lazy<SdkConfig> = Lazy::new(|| {
-      let cred = Credentials::for_tests();
+    let cred = Credentials::for_tests();
 
-      let conn = {
-          fs::create_dir_all(FS_ROOT).unwrap();
-          let fs = s3s_fs::FileSystem::new(FS_ROOT).unwrap();
+    let conn = {
+        fs::create_dir_all(FS_ROOT).unwrap();
+        let fs = s3s_fs::FileSystem::new(FS_ROOT).unwrap();
 
-          let auth = s3s::SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
+        let auth = s3s::SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
 
-          let mut service = S3Service::new(Box::new(fs));
-          service.set_auth(Box::new(auth));
-          service.set_base_domain(DOMAIN_NAME);
+        let mut service = S3Service::new(Box::new(fs));
+        service.set_auth(Box::new(auth));
+        service.set_base_domain(DOMAIN_NAME);
 
-          s3s_aws::Connector::from(service.into_shared())
-      };
+        s3s_aws::Connector::from(service.into_shared())
+    };
 
-      SdkConfig::builder()
-          .credentials_provider(SharedCredentialsProvider::new(cred))
-          .http_connector(conn)
-          .region(Region::new(REGION))
-          .endpoint_url(format!("http://{DOMAIN_NAME}"))
-          .build()
-  });
+    let sdk_config = SdkConfig::builder()
+        .credentials_provider(SharedCredentialsProvider::new(cred))
+        .http_connector(conn)
+        .region(Region::new(REGION))
+        .endpoint_url(format!("http://{DOMAIN_NAME}"))
+        .build();
+        test(Client::new(&sdk_config)).await;
+
   //&CONFIG
   ()
   }
