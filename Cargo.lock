@@ -1507,9 +1507,9 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
-version = "0.3.25"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04909a7a7e4633ae6c4a9ab280aeb86da1236243a77b694a49eacd659a4bd3ac"
+checksum = "ec90ff4d0fe1f57d600049061dc6bb68ed03c7d2fbd697274c41805dcb3f8608"
 
 [[package]]
 name = "futures-executor"
@@ -3083,8 +3083,9 @@ checksum = "7b4b9743ed687d4b4bcedf9ff5eaa7398495ae14e61cba0a295704edbc7decde"
 
 [[package]]
 name = "s3s"
-version = "0.2.1-dev"
-source = "git+https://github.com/Nugine/s3s#9ad83025580bf1880527c6b2f09195b0550245b0"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6596d170fa7fcd45c5ebe610071ef4216fd3947a94be34e26326a78dde00e01"
 dependencies = [
  "arrayvec",
  "ascii",
@@ -3092,7 +3093,9 @@ dependencies = [
  "atoi",
  "base64-simd 0.8.0",
  "bytes",
+ "bytestring",
  "chrono",
+ "crc32fast",
  "futures",
  "hex-simd",
  "hmac",
@@ -3111,14 +3114,15 @@ dependencies = [
  "thiserror",
  "time",
  "tracing",
- "transform-stream",
+ "transform-stream 0.3.0",
  "urlencoding",
 ]
 
 [[package]]
 name = "s3s-aws"
-version = "0.2.1-dev"
-source = "git+https://github.com/Nugine/s3s#9ad83025580bf1880527c6b2f09195b0550245b0"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24a13a8b28804752bba22abf0ea9372e994738d955596233c58fbc05947c43a0"
 dependencies = [
  "async-trait",
  "aws-sdk-s3",
@@ -3129,13 +3133,16 @@ dependencies = [
  "futures",
  "hyper",
  "s3s",
+ "sync_wrapper",
  "tracing",
+ "transform-stream 0.3.0",
 ]
 
 [[package]]
 name = "s3s-fs"
-version = "0.2.1-dev"
-source = "git+https://github.com/Nugine/s3s#9ad83025580bf1880527c6b2f09195b0550245b0"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f81932e78cde8e00a1f4a9c2258132c6aac49c4d137210fb77d2ab2bf9eeafab"
 dependencies = [
  "async-trait",
  "base64-simd 0.8.0",
@@ -3155,7 +3162,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-error",
- "transform-stream",
+ "transform-stream 0.2.0",
  "uuid",
 ]
 
@@ -3430,9 +3437,9 @@ dependencies = [
 
 [[package]]
 name = "sync_wrapper"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20518fe4a4c9acf048008599e464deb21beeae3d3578418951a189c235a7a9a8"
+checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
 name = "tempfile"
@@ -3765,6 +3772,15 @@ name = "transform-stream"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f96e766115f1fd3a8b2f68433a3165a8cde167fbd636c5bdb7c2373d79a5705"
+dependencies = [
+ "futures-core",
+]
+
+[[package]]
+name = "transform-stream"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05034de7a8fcb11796a36478a2a8b16dca6772644dec5f49f709d5c66a38d359"
 dependencies = [
  "futures-core",
 ]
