@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
-use htsget_config::Interval;
 use noodles::core::Position;
 use noodles::cram;
 use noodles::cram::crai;
@@ -16,6 +15,8 @@ use noodles::sam::Header;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::{io, select};
 use tracing::{instrument, trace};
+
+use htsget_config::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::Class::Body;

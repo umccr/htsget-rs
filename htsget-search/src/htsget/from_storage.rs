@@ -5,10 +5,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use htsget_config::regex_resolver::{Resolver, StorageType};
 use tokio::io::AsyncRead;
 use tracing::debug;
 use tracing::instrument;
+
+use htsget_config::regex_resolver::{Resolver, StorageType};
 
 use crate::htsget::search::Search;
 use crate::htsget::{Format, HtsGetError};
@@ -114,9 +115,9 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::path::PathBuf;
 
-  use htsget_config::config::cors::CorsConfig;
   use tempfile::TempDir;
 
+  use htsget_config::config::cors::CorsConfig;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{

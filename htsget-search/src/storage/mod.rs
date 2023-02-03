@@ -9,14 +9,15 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::encode;
-use htsget_config::config::cors::CorsConfig;
-use htsget_config::regex_resolver::{LocalResolver, Scheme};
-use htsget_config::Class;
 use http::{uri, HeaderValue};
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
+
+use htsget_config::config::cors::CorsConfig;
+use htsget_config::regex_resolver::{LocalResolver, Scheme};
+use htsget_config::Class;
 
 use crate::htsget::{Headers, Url};
 

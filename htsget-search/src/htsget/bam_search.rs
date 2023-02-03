@@ -182,7 +182,7 @@ pub(crate) mod tests {
     with_local_storage as with_local_storage_path,
     with_local_storage_tmp as with_local_storage_tmp_path,
   };
-  use crate::htsget::{Class::Body, Class::Header, Headers, Response, Url};
+  use crate::htsget::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 

@@ -8,10 +8,11 @@ use std::io;
 use std::io::ErrorKind;
 
 use async_trait::async_trait;
-use htsget_config::{Class, Format, Query};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::JoinError;
+
+use htsget_config::{Class, Format, Query};
 
 use crate::storage::StorageError;
 
@@ -105,10 +106,10 @@ impl From<HtsGetError> for io::Error {
 impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
-      err @ (StorageError::InvalidKey(_) | StorageError::InvalidInput(_)) => {
-        Self::InvalidInput(err.to_string())
+      err @ StorageError::InvalidInput(_) => Self::InvalidInput(err.to_string()),
+      err @ (StorageError::KeyNotFound(_) | StorageError::InvalidKey(_)) => {
+        Self::NotFound(err.to_string())
       }
-      err @ StorageError::KeyNotFound(_) => Self::NotFound(err.to_string()),
       err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
       err @ (StorageError::DataServerError(_)
       | StorageError::InvalidUri(_)
@@ -230,9 +231,11 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-  use htsget_config::{Fields, NoTags, TaggedTypeAll, Tags};
   use std::collections::HashSet;
+
+  use htsget_config::{Fields, NoTags, TaggedTypeAll, Tags};
+
+  use super::*;
 
   #[test]
   fn htsget_error_not_found() {
@@ -285,7 +288,7 @@ mod tests {
   #[test]
   fn htsget_error_from_storage_invalid_key() {
     let result = HtsGetError::from(StorageError::InvalidKey("error".to_string()));
-    assert!(matches!(result, HtsGetError::InvalidInput(_)));
+    assert!(matches!(result, HtsGetError::NotFound(_)));
   }
 
   #[test]

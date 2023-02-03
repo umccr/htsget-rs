@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use aws_sdk_s3::client::fluent_builders;
+use aws_sdk_s3::error::GetObjectErrorKind;
 use aws_sdk_s3::model::StorageClass;
 use aws_sdk_s3::output::HeadObjectOutput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
@@ -73,7 +74,14 @@ impl AwsS3Storage {
             .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
         )
         .await
-        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| {
+          let err = err.into_service_error();
+          if let GetObjectErrorKind::NoSuchKey(_) = err.kind {
+            StorageError::KeyNotFound(key.as_ref().to_string())
+          } else {
+            AwsS3Error(err.to_string(), key.as_ref().to_string())
+          }
+        })?
         .uri()
         .to_string(),
     )
@@ -226,12 +234,11 @@ mod tests {
   use std::future::Future;
   use std::path::Path;
 
-  use s3s::service::S3Service;
-  use s3s_aws;
-
   use aws_config::SdkConfig;
   use aws_credential_types::provider::SharedCredentialsProvider;
   use aws_sdk_s3::{Client, Credentials, Region};
+  use s3s::service::S3Service;
+  use s3s_aws;
 
   use crate::htsget::Headers;
   use crate::storage::aws::AwsS3Storage;
