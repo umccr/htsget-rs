@@ -6,11 +6,11 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use aws_sdk_s3::client::fluent_builders;
-use aws_sdk_s3::error::GetObjectErrorKind;
+use aws_sdk_s3::error::{GetObjectError, GetObjectErrorKind, HeadObjectErrorKind};
 use aws_sdk_s3::model::StorageClass;
 use aws_sdk_s3::output::HeadObjectOutput;
 use aws_sdk_s3::presigning::config::PresigningConfig;
-use aws_sdk_s3::types::ByteStream;
+use aws_sdk_s3::types::{ByteStream, SdkError};
 use aws_sdk_s3::Client;
 use bytes::Bytes;
 use fluent_builders::GetObject;
@@ -20,7 +20,7 @@ use tracing::instrument;
 
 use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
-use crate::storage::StorageError::AwsS3Error;
+use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
 use crate::storage::{BytesPosition, StorageError};
 use crate::storage::{BytesRange, Storage};
 
@@ -74,14 +74,7 @@ impl AwsS3Storage {
             .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
         )
         .await
-        .map_err(|err| {
-          let err = err.into_service_error();
-          if let GetObjectErrorKind::NoSuchKey(_) = err.kind {
-            StorageError::KeyNotFound(key.as_ref().to_string())
-          } else {
-            AwsS3Error(err.to_string(), key.as_ref().to_string())
-          }
-        })?
+        .map_err(|err| Self::map_get_error(key, err))?
         .uri()
         .to_string(),
     )
@@ -95,7 +88,14 @@ impl AwsS3Storage {
       .key(key.as_ref())
       .send()
       .await
-      .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))
+      .map_err(|err| {
+        let err = err.into_service_error();
+        if let HeadObjectErrorKind::NotFound(_) = err.kind {
+          KeyNotFound(key.as_ref().to_string())
+        } else {
+          AwsS3Error(err.to_string(), key.as_ref().to_string())
+        }
+      })
   }
 
   /// Returns the retrieval type of the object stored with the key.
@@ -163,7 +163,7 @@ impl AwsS3Storage {
       response
         .send()
         .await
-        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| Self::map_get_error(key, err))?
         .body,
     )
   }
@@ -175,6 +175,18 @@ impl AwsS3Storage {
   ) -> Result<StreamReader<ByteStream, Bytes>> {
     let response = self.get_content(key, options).await?;
     Ok(StreamReader::new(response))
+  }
+
+  fn map_get_error<K>(key: K, error: SdkError<GetObjectError>) -> StorageError
+  where
+    K: AsRef<str> + Send,
+  {
+    let error = error.into_service_error();
+    if let GetObjectErrorKind::NoSuchKey(_) = error.kind {
+      KeyNotFound(key.as_ref().to_string())
+    } else {
+      AwsS3Error(error.to_string(), key.as_ref().to_string())
+    }
   }
 }
 
@@ -230,9 +242,10 @@ impl Storage for AwsS3Storage {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use std::future::Future;
   use std::path::Path;
+  use std::sync::Arc;
 
   use aws_config::SdkConfig;
   use aws_credential_types::provider::SharedCredentialsProvider;
@@ -246,7 +259,7 @@ mod tests {
   use crate::storage::StorageError;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
 
-  async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
+  pub(crate) async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
     F: FnOnce(Client) -> Fut,
     Fut: Future<Output = ()>,
@@ -278,16 +291,24 @@ mod tests {
     test(Client::new(&sdk_config)).await;
   }
 
+  pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
+  where
+    F: FnOnce(Arc<AwsS3Storage>) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_s3_test_server(base_path, |client| async move {
+      test(Arc::new(AwsS3Storage::new(client, folder_name))).await;
+    })
+    .await;
+  }
+
   async fn with_aws_s3_storage<F, Fut>(test: F)
   where
-    F: FnOnce(AwsS3Storage) -> Fut,
+    F: FnOnce(Arc<AwsS3Storage>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (folder_name, base_path) = create_local_test_files().await;
-    with_s3_test_server(base_path.path(), |client| async move {
-      test(AwsS3Storage::new(client, folder_name)).await;
-    })
-    .await;
+    with_aws_s3_storage_fn(test, folder_name, base_path.path()).await;
   }
 
   #[tokio::test]
