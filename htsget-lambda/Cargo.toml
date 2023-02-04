@@ -16,7 +16,7 @@ default = ["s3-storage"]
 
 [dependencies]
 envy = "0.4"
-tokio = { version = "1.21", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.24", features = ["macros", "rt-multi-thread"] }
 tower-http = { version = "0.3", features = ["cors"] }
 lambda_http = { version = "0.7" }
 lambda_runtime = { version = "0.7" }
