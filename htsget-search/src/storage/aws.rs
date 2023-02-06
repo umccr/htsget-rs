@@ -1,4 +1,6 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
+//!
+
 use std::fmt::Debug;
 use std::io;
 use std::io::ErrorKind::Other;
@@ -81,6 +83,7 @@ impl AwsS3Storage {
   }
 
   async fn s3_head<K: AsRef<str> + Send>(&self, key: K) -> Result<HeadObjectOutput> {
+    println!("{:#?}", self.client.list_buckets().send().await.unwrap());
     self
       .client
       .head_object()
