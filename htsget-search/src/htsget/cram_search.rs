@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
-use htsget_config::Interval;
 use noodles::core::Position;
 use noodles::cram;
 use noodles::cram::crai;
@@ -16,6 +15,8 @@ use noodles::sam::Header;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::{io, select};
 use tracing::{instrument, trace};
+
+use htsget_config::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::Class::Body;
@@ -269,12 +270,17 @@ mod tests {
 
   use htsget_test::util::expected_cram_eof_data_url;
 
-  use crate::htsget::from_storage::tests::with_local_storage as with_local_storage_path;
-  use crate::htsget::{Class::Body, Class::Header, Headers, Response, Url};
+  #[cfg(feature = "s3-storage")]
+  use crate::htsget::from_storage::tests::with_aws_storage_fn;
+  use crate::htsget::from_storage::tests::with_local_storage_fn;
+  use crate::htsget::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;
+
+  const DATA_LOCATION: &str = "data/cram";
+  const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.cram.crai";
 
   #[tokio::test]
   async fn search_all_reads() {
@@ -434,12 +440,105 @@ mod tests {
     .await;
   }
 
+  #[tokio::test]
+  async fn search_non_existent_id_reference_name() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = CramSearch::new(storage.clone());
+        let query = Query::new("htsnexus_test_NA12878", Format::Cram);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_all_reads() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = CramSearch::new(storage.clone());
+        let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_header() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = CramSearch::new(storage.clone());
+        let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_reference_name_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = CramSearch::new(storage);
+        let query = Query::new("htsnexus_test_NA12878", Format::Cram);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_all_reads_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = CramSearch::new(storage);
+        let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_header_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = CramSearch::new(storage);
+        let query = Query::new("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
   async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    with_local_storage_path(test, "data/cram").await
+    with_local_storage_fn(test, "data/cram", &[]).await
   }
 
   fn expected_url() -> String {

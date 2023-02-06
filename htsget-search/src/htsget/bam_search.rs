@@ -178,15 +178,17 @@ pub(crate) mod tests {
 
   use htsget_test::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::{
-    with_local_storage as with_local_storage_path,
-    with_local_storage_tmp as with_local_storage_tmp_path,
-  };
-  use crate::htsget::{Class::Body, Class::Header, Headers, Response, Url};
+  #[cfg(feature = "s3-storage")]
+  use crate::htsget::from_storage::tests::with_aws_storage_fn;
+  use crate::htsget::from_storage::tests::with_local_storage_fn;
+  use crate::htsget::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;
+
+  const DATA_LOCATION: &str = "data/bam";
+  const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.bam.bai";
 
   #[tokio::test]
   async fn search_all_reads() {
@@ -354,29 +356,33 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn search_no_gzi() {
-    with_local_storage_tmp(|storage| async move {
-      let search = BamSearch::new(storage.clone());
-      let query = Query::new("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("11")
-        .with_start(5015000)
-        .with_end(5050000);
-      let response = search.search(query).await;
-      println!("{response:#?}");
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage.clone());
+        let query = Query::new("htsnexus_test_NA12878", Format::Bam)
+          .with_reference_name("11")
+          .with_start(5015000)
+          .with_end(5050000);
+        let response = search.search(query).await;
+        println!("{response:#?}");
 
-      let expected_response = Ok(Response::new(
-        Format::Bam,
-        vec![
-          Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
-            .with_class(Header),
-          Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951"))
-            .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
-        ],
-      ));
-      assert_eq!(response, expected_response)
-    })
+        let expected_response = Ok(Response::new(
+          Format::Bam,
+          vec![
+            Url::new(expected_url())
+              .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+              .with_class(Header),
+            Url::new(expected_url())
+              .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951"))
+              .with_class(Body),
+            Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          ],
+        ));
+        assert_eq!(response, expected_response)
+      },
+      DATA_LOCATION,
+      &["htsnexus_test_NA12878.bam", INDEX_FILE_LOCATION],
+    )
     .await
   }
 
@@ -399,25 +405,105 @@ pub(crate) mod tests {
     .await;
   }
 
+  #[tokio::test]
+  async fn search_non_existent_id_reference_name() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage.clone());
+        let query = Query::new("htsnexus_test_NA12878", Format::Bam);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_all_reads() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage.clone());
+        let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_header() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage.clone());
+        let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_reference_name_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage);
+        let query = Query::new("htsnexus_test_NA12878", Format::Bam);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_all_reads_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage);
+        let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_header_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage);
+        let query = Query::new("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    with_local_storage_path(test, "data/bam").await
-  }
-
-  async fn with_local_storage_tmp<F, Fut>(test: F)
-  where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-    Fut: Future<Output = ()>,
-  {
-    with_local_storage_tmp_path(
-      test,
-      "data/bam",
-      &["htsnexus_test_NA12878.bam", "htsnexus_test_NA12878.bam.bai"],
-    )
-    .await
+    with_local_storage_fn(test, DATA_LOCATION, &[]).await
   }
 
   pub(crate) fn expected_url() -> String {

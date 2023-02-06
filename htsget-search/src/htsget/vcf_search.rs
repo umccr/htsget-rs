@@ -134,15 +134,17 @@ pub(crate) mod tests {
 
   use htsget_test::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::{
-    with_local_storage as with_local_storage_path,
-    with_local_storage_tmp as with_local_storage_tmp_path,
-  };
-  use crate::htsget::{Class, Headers, Response, Url};
+  #[cfg(feature = "s3-storage")]
+  use crate::htsget::from_storage::tests::with_aws_storage_fn;
+  use crate::htsget::from_storage::tests::with_local_storage_fn;
+  use crate::htsget::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
 
   use super::*;
+
+  const VCF_LOCATION: &str = "data/vcf";
+  const INDEX_FILE_LOCATION: &str = "spec-v4.3.vcf.gz.tbi";
 
   #[tokio::test]
   async fn search_all_variants() {
@@ -207,8 +209,13 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn search_no_gzi() {
-    with_local_storage_tmp(
+    with_local_storage_fn(
       |storage| async move { test_reference_name_with_seq_range(storage).await },
+      VCF_LOCATION,
+      &[
+        "sample1-bcbio-cancer.vcf.gz",
+        "sample1-bcbio-cancer.vcf.gz.tbi",
+      ],
     )
     .await;
   }
@@ -218,7 +225,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "spec-v4.3";
-      let query = Query::new(filename, Format::Vcf).with_class(Class::Header);
+      let query = Query::new(filename, Format::Vcf).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -226,11 +233,104 @@ pub(crate) mod tests {
         Format::Vcf,
         vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-822"))
-          .with_class(Class::Header)],
+          .with_class(Header)],
       ));
       assert_eq!(response, expected_response)
     })
     .await;
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_reference_name() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = VcfSearch::new(storage.clone());
+        let query = Query::new("vcf-spec-v4.3", Format::Vcf);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      VCF_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_all_reads() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = VcfSearch::new(storage.clone());
+        let query = Query::new("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      VCF_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_header() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = VcfSearch::new(storage.clone());
+        let query = Query::new("vcf-spec-v4.3", Format::Vcf).with_class(Header);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      VCF_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_reference_name_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = VcfSearch::new(storage);
+        let query = Query::new("vcf-spec-v4.3", Format::Vcf);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      VCF_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_all_reads_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = VcfSearch::new(storage);
+        let query = Query::new("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      VCF_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_header_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = VcfSearch::new(storage);
+        let query = Query::new("vcf-spec-v4.3", Format::Vcf).with_class(Header);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(_)));
+      },
+      VCF_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
   }
 
   async fn test_reference_name_with_seq_range(storage: Arc<LocalStorage<HttpTicketFormatter>>) {
@@ -263,23 +363,7 @@ pub(crate) mod tests {
     F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    with_local_storage_path(test, "data/vcf").await
-  }
-
-  async fn with_local_storage_tmp<F, Fut>(test: F)
-  where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-    Fut: Future<Output = ()>,
-  {
-    with_local_storage_tmp_path(
-      test,
-      "data/vcf",
-      &[
-        "sample1-bcbio-cancer.vcf.gz",
-        "sample1-bcbio-cancer.vcf.gz.tbi",
-      ],
-    )
-    .await
+    with_local_storage_fn(test, "data/vcf", &[]).await
   }
 
   pub(crate) fn expected_url(name: &str) -> String {

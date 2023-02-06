@@ -269,6 +269,12 @@ where
         self.build_response(&query, blocks).await
       }
       Class::Header => {
+        // Check to see if the key exists.
+        self
+          .get_storage()
+          .head(query.format().fmt_file(query.id()))
+          .await?;
+
         let index = self.read_index(&query).await?;
         let header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
 
@@ -292,6 +298,7 @@ where
         DataBlock::Range(range) => {
           let storage = self.get_storage();
           let query_owned = query.clone();
+
           storage_futures.push_back(tokio::spawn(async move {
             storage
               .range_url(
@@ -306,6 +313,7 @@ where
         }
       }
     }
+
     let mut urls = Vec::new();
     loop {
       select! {
@@ -313,6 +321,7 @@ where
         else => break
       }
     }
+
     return Ok(Response::new(query.format(), urls));
   }
 
