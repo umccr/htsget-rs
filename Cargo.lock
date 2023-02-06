@@ -1389,15 +1389,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "envy"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f47e0157f2cb54f5ae1bd371b30a2ae4311e1c028f575cd4e81de7353215965"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1732,7 +1723,6 @@ version = "0.1.1"
 dependencies = [
  "async-trait",
  "bytes",
- "envy",
  "htsget-config",
  "htsget-http",
  "htsget-search",
@@ -1760,7 +1750,6 @@ dependencies = [
  "aws-config",
  "aws-credential-types",
  "aws-sdk-s3",
- "aws-types",
  "axum",
  "axum-extra",
  "base64 0.20.0",
