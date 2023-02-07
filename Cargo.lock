@@ -1764,10 +1764,6 @@ dependencies = [
  "http",
  "hyper",
  "noodles",
- "noodles-bam",
- "noodles-bcf",
- "noodles-cram",
- "noodles-vcf",
  "reqwest",
  "rustls-pemfile",
  "s3s",
@@ -2333,6 +2329,8 @@ dependencies = [
  "noodles-core",
  "noodles-cram",
  "noodles-csi",
+ "noodles-fasta",
+ "noodles-fastq",
  "noodles-sam",
  "noodles-tabix",
  "noodles-vcf",
@@ -2440,6 +2438,17 @@ dependencies = [
  "memchr",
  "noodles-bgzf",
  "noodles-core",
+ "tokio",
+]
+
+[[package]]
+name = "noodles-fastq"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27c7d065ab7c0814ea9df05624a1be1410d2039b091213ac1cb5281866c3fdfb"
+dependencies = [
+ "futures",
+ "tokio",
 ]
 
 [[package]]
@@ -2449,6 +2458,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "647b9f1b0b3815ee21aef82823bd9062c40706c6d9148935aef3e2b7a9c572f6"
 dependencies = [
  "bitflags",
+ "futures",
  "indexmap",
  "lexical-core",
  "memchr",
@@ -2456,6 +2466,7 @@ dependencies = [
  "noodles-core",
  "noodles-csi",
  "noodles-fasta",
+ "tokio",
 ]
 
 [[package]]
