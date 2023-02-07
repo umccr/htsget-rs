@@ -10,7 +10,7 @@ use noodles::csi::index::ReferenceSequence;
 use noodles::csi::{BinningIndex, Index};
 use noodles::vcf::Header;
 use noodles::{bgzf, csi};
-use noodles_bcf as bcf;
+use noodles::bcf as bcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tracing::{instrument, trace};

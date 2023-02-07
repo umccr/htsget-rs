@@ -12,7 +12,7 @@ use noodles::tabix;
 use noodles::tabix::index::ReferenceSequence;
 use noodles::tabix::Index;
 use noodles::vcf::Header;
-use noodles_vcf as vcf;
+use noodles::vcf as vcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tracing::{instrument, trace};

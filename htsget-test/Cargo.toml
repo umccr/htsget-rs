@@ -1,6 +1,6 @@
 [package]
 name = "htsget-test"
-version = "0.1.1"
+version = "0.1.0"
 rust-version = "1.60"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"

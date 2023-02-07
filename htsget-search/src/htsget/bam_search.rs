@@ -12,7 +12,7 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::BinningIndex;
 use noodles::sam::Header;
-use noodles_bam as bam;
+use noodles::bam as bam;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tracing::{instrument, trace};

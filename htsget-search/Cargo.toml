@@ -33,11 +33,7 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.32", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-noodles-bam = { version = "0.26", features = ["async"] }
-noodles-bcf = { version = "0.20", features = ["async"] }
-noodles-cram = { version = "0.23", features = ["async"] }
-noodles-vcf = { version = "0.24", features = ["async"] }
+noodles = { version = "0.32", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
@@ -52,7 +48,7 @@ base64 = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
-htsget-test = { version = "0.1.1", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-test = { path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tempfile = "3.3"
 data-url = "0.2"
 
