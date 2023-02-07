@@ -5,12 +5,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
+use noodles::bcf;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::{BinningIndex, Index};
 use noodles::vcf::Header;
 use noodles::{bgzf, csi};
-use noodles::bcf as bcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
