@@ -40,11 +40,12 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: fmt
+          args: --all -- --check
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --all-targets --all-features  -- -D warnings
       - name: Build all features
         uses: actions-rs/cargo@v1
         with:
