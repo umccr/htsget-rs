@@ -37,9 +37,9 @@ default = ["s3-storage"]
 
 [dependencies]
 # Server tests dependencies
-htsget-http = { version = "0.1.0", path = "../htsget-http", default-features = false, optional = true }
-htsget-config = { version = "0.1.0", path = "../htsget-config", default-features = false, optional = true }
-htsget-search = { version = "0.1.0", path = "../htsget-search", default-features = false, optional = true }
+htsget-http = { version = "0.1.1", path = "../htsget-http", default-features = false, optional = true }
+htsget-config = { version = "0.1.1", path = "../htsget-config", default-features = false, optional = true }
+htsget-search = { version = "0.1.1", path = "../htsget-search", default-features = false, optional = true }
 
 noodles-vcf = { version = "0.24", features = ["async"], optional = true }
 noodles-bgzf = { version = "0.19", features = ["async"], optional = true }
