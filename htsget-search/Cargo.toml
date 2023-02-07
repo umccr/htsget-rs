@@ -55,10 +55,8 @@ serde = "1.0"
 htsget-test = { version = "0.1.1", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tempfile = "3.3"
 data-url = "0.2"
-once_cell = "1.17"
 
 # Aws S3 storage.
-anyhow = "1.0"
 aws-credential-types = { version = "0.54", features = ["test-util"] }
 s3s = { version = "0.3" }
 s3s-fs = { version = "0.3" }
