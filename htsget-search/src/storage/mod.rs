@@ -8,7 +8,8 @@ use std::net::AddrParseError;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use base64::encode;
+use base64::engine::general_purpose;
+use base64::Engine;
 use http::{uri, HeaderValue};
 use thiserror::Error;
 use tokio::io::AsyncRead;
@@ -58,7 +59,11 @@ pub trait Storage {
   where
     Self: Sized,
   {
-    Url::new(format!("data:;base64,{}", encode(data))).set_class(class)
+    Url::new(format!(
+      "data:;base64,{}",
+      general_purpose::STANDARD.encode(data)
+    ))
+    .set_class(class)
   }
 }
 

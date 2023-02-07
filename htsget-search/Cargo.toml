@@ -26,21 +26,21 @@ tower = { version = "0.4", features = ["make"] }
 
 # Async
 tokio-rustls = "0.23"
-tokio = { version = "1.24", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.31", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-noodles-bam = { version = "0.25", features = ["async"] }
-noodles-bcf = { version = "0.19", features = ["async"] }
-noodles-cram = { version = "0.22", features = ["async"] }
-noodles-vcf = { version = "0.23", features = ["async"] }
+noodles = { version = "0.32", features = ["core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles-bam = { version = "0.26", features = ["async"] }
+noodles-bcf = { version = "0.20", features = ["async"] }
+noodles-cram = { version = "0.23", features = ["async"] }
+noodles-vcf = { version = "0.24", features = ["async"] }
 
 # Amazon S3
-bytes = { version = "1.2", optional = true }
+bytes = { version = "1.4", optional = true }
 aws-sdk-s3 = { version = "0.24", optional = true, features = ["test-util"] }
 aws-config = { version = "0.54", optional = true }
 
@@ -48,11 +48,11 @@ aws-config = { version = "0.54", optional = true }
 thiserror = "1.0"
 htsget-config = { version = "0.1.1", path = "../htsget-config", default-features = false }
 tracing = "0.1"
-base64 = "0.20"
+base64 = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
-htsget-test = { path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-test = { version = "0.1.1", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tempfile = "3.3"
 data-url = "0.2"
 once_cell = "1.17"

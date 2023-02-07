@@ -1,3 +1,5 @@
+use base64::engine::general_purpose;
+use base64::Engine;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -36,7 +38,7 @@ pub async fn test_response(response: Response, class: Class) {
 
   let merged_response = join_all(expected_response.htsget.urls.iter().map(|url| async {
     if let Some(data_uri) = url.url.strip_prefix("data:;base64,") {
-      base64::decode(data_uri).unwrap()
+      general_purpose::STANDARD.decode(data_uri).unwrap()
     } else {
       client
         .get(&url.url)
