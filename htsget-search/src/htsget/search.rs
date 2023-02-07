@@ -14,8 +14,9 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::gzi;
+use noodles::csi::binning_index::ReferenceSequenceExt;
 use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::csi::BinningIndex;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
@@ -365,7 +366,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
-  ReferenceSequence: BinningIndexReferenceSequence,
+  ReferenceSequence: ReferenceSequenceExt,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   Header: FromStr + Send + Sync,
   <Header as FromStr>::Err: Display,
@@ -540,7 +541,7 @@ where
   Reader: Send + Sync,
   Header: FromStr + Send + Sync,
   <Header as FromStr>::Err: Display,
-  ReferenceSequence: BinningIndexReferenceSequence + Sync,
+  ReferenceSequence: ReferenceSequenceExt + Sync,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {
