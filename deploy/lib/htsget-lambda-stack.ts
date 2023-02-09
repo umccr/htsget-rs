@@ -130,8 +130,9 @@ export class HtsgetLambdaStack extends Stack {
       ),
     });
 
-    new apigwv2.HttpApi(this, id + 'ApiGw', {
-      defaultIntegration: httpIntegration,
+    const httpApi = new apigwv2.HttpApi(this, id + 'ApiGw', {
+      // Use explicit routes GET, POST with {proxy+} path
+      // defaultIntegration: httpIntegration,
       defaultAuthorizer: authorizer,
       defaultDomainMapping: {
         domainName: domainName,
@@ -145,6 +146,13 @@ export class HtsgetLambdaStack extends Stack {
         maxAge: config.maxAge,
       },
     });
+
+    httpApi.addRoutes(
+        {
+          path: '/{proxy+}',
+          methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+          integration: httpIntegration,
+        });
   }
 
   /**
