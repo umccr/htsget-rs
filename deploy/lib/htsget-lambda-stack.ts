@@ -79,7 +79,7 @@ export class HtsgetLambdaStack extends Stack {
       target: 'aarch64-unknown-linux-gnu',
 
       memorySize: 128,
-      timeout: Duration.seconds(10),
+      timeout: Duration.seconds(28),
       environment: {
         ...config.htsgetConfig,
         RUST_LOG:

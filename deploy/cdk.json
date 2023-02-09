@@ -31,7 +31,8 @@
         "arn_cert": "/htsget/acm/apse2_arn",
         "jwt_aud": [
           "/data_portal/client/cog_app_client_id_local",
-          "/data_portal/client/cog_app_client_id_stage"
+          "/data_portal/client/cog_app_client_id_stage",
+          "/data_portal/client/data2/cog_app_client_id_stage"
         ],
         "cog_user_pool_id": "/data_portal/client/cog_user_pool_id",
         "htsget_domain": "/htsget/domain",
@@ -45,7 +46,8 @@
         "arn_cert": "/htsget/acm/apse2_arn",
         "jwt_aud": [
           "/data_portal/client/cog_app_client_id_local",
-          "/data_portal/client/cog_app_client_id_stage"
+          "/data_portal/client/cog_app_client_id_stage",
+          "/data_portal/client/data2/cog_app_client_id_stage"
         ],
         "cog_user_pool_id": "/data_portal/client/cog_user_pool_id",
         "htsget_domain": "/htsget/domain",
