@@ -8,15 +8,17 @@ use std::net::AddrParseError;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use base64::{Engine as _, engine::{general_purpose}};
-use htsget_config::config::cors::CorsConfig;
-use htsget_config::regex_resolver::{LocalResolver, Scheme};
-use htsget_config::Class;
+use base64::engine::general_purpose;
+use base64::Engine;
 use http::{uri, HeaderValue};
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
+
+use htsget_config::config::cors::CorsConfig;
+use htsget_config::regex_resolver::{LocalResolver, Scheme};
+use htsget_config::Class;
 
 use crate::htsget::{Headers, Url};
 
@@ -44,7 +46,8 @@ pub trait Storage {
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
-  /// Get the url of the object represented by the key using a bytes range.
+  /// Get the url of the object represented by the key using a bytes range. It is not required for
+  /// this function to check for the existent of the key, so this should be ensured beforehand.
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
@@ -60,7 +63,11 @@ pub trait Storage {
   where
     Self: Sized,
   {
-    Url::new(format!("data:;base64,{}", general_purpose::URL_SAFE.encode(&data))).await.set_class(class)
+    Url::new(format!(
+      "data:;base64,{}",
+      general_purpose::STANDARD.encode(data)
+    ))
+    .await.set_class(class)
   }
 }
 
@@ -774,8 +781,8 @@ mod tests {
   #[tokio::test]
   async fn data_url() {
     let result =
-      LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
-    let url = data_url::DataUrl::process(&result.url.into());
+      LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Some(Class::Header)).await;
+    let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
   }
@@ -854,7 +861,7 @@ mod tests {
   async fn url_options_apply_with_bytes_range() {
     let result = RangeUrlOptions::default()
       .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)))
-      .apply(Url::new(""));
+      .apply(Url::new("").await);
     println!("{result:?}");
     assert_eq!(
       result,
@@ -865,9 +872,9 @@ mod tests {
     );
   }
 
-  #[test]
-  fn url_options_apply_no_bytes_range() {
-    let result = RangeUrlOptions::default().apply(Url::new(""));
-    assert_eq!(result, Url::new(""));
+  #[tokio::test]
+  async fn url_options_apply_no_bytes_range() {
+    let result = RangeUrlOptions::default().apply(Url::new("").await);
+    assert_eq!(result, Url::new("").await);
   }
 }
