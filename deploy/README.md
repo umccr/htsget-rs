@@ -61,13 +61,11 @@ After installing the basic dependencies, complete the following steps:
 1. Add the arm cross-compilation target to rust.
 2. Install [Zig][zig] using one of the methods show in [getting started][zig-getting-started], or by running the commands below and following the prompts. Zig is used by cargo-lambda for cross-compilation.
 3. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
-4. Install [aws-cdk] and typescript.
-5. Install packages from this directory and compile [htsget-lambda]. This should place artifacts compiled for arm64 under the `target/lambda` directory which can be deployed to AWS.
+4. Install packages from this directory and compile [htsget-lambda]. This should place artifacts compiled for arm64 under the `target/lambda` directory which can be deployed to AWS.
 
 Below is a summary of commands to run in this directory:
 
 ```sh
-npm install -g aws-cdk typescript
 rustup target add aarch64-unknown-linux-gnu
 cargo install cargo-lambda
 npm install
@@ -92,15 +90,15 @@ to ensure that prerequisites are met.
 CDK should be bootstrapped once, if this hasn't been done before.
 
 ```sh
-cdk bootstrap
+npx cdk bootstrap
 ```
 
 In order to deploy, check that the
 stack synthesizes correctly and then deploy.
 
 ```sh
-cdk synth
-cdk deploy
+npx cdk synth
+npx cdk deploy
 ```
 
 ### Testing the endpoint
