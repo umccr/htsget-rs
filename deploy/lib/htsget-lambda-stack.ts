@@ -1,18 +1,18 @@
-import { Duration, Stack, StackProps, Tags } from 'aws-cdk-lib';
-import { Construct } from 'constructs';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import { RustFunction, Settings } from 'rust.aws-cdk-lambda';
-import { Architecture } from 'aws-cdk-lib/aws-lambda';
-import * as apigwv2 from '@aws-cdk/aws-apigatewayv2-alpha';
-import { STACK_NAME } from '../bin/htsget-lambda';
-import { HttpLambdaIntegration } from '@aws-cdk/aws-apigatewayv2-integrations-alpha';
-import { StringParameter } from 'aws-cdk-lib/aws-ssm';
-import { HttpJwtAuthorizer } from '@aws-cdk/aws-apigatewayv2-authorizers-alpha';
-import { ARecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
-import { ApiGatewayv2DomainProperties } from 'aws-cdk-lib/aws-route53-targets';
-import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
-import * as fs from 'fs';
-import * as TOML from '@iarna/toml';
+import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
+import { Construct } from "constructs";
+import * as iam from "aws-cdk-lib/aws-iam";
+import { RustFunction, Settings } from "rust.aws-cdk-lambda";
+import { Architecture } from "aws-cdk-lib/aws-lambda";
+import * as apigwv2 from "@aws-cdk/aws-apigatewayv2-alpha";
+import { STACK_NAME } from "../bin/htsget-lambda";
+import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
+import { StringParameter } from "aws-cdk-lib/aws-ssm";
+import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
+import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
+import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
+import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
+import * as fs from "fs";
+import * as TOML from "@iarna/toml";
 
 /**
  * Configuration for HtsgetLambdaStack.
@@ -48,42 +48,47 @@ export class HtsgetLambdaStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    Tags.of(this).add('Stack', STACK_NAME);
+    Tags.of(this).add("Stack", STACK_NAME);
 
-    const lambdaRole = new iam.Role(this, id + 'Role', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-      description: 'Lambda execution role for ' + id,
+    const lambdaRole = new iam.Role(this, id + "Role", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      description: "Lambda execution role for " + id,
     });
 
     const s3BucketPolicy = new iam.PolicyStatement({
-      actions: ['s3:List*', 's3:Get*'],
-      resources: ['arn:aws:s3:::*'],
+      actions: ["s3:List*", "s3:Get*"],
+      resources: ["arn:aws:s3:::*"],
     });
 
     lambdaRole.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName(
-        'service-role/AWSLambdaBasicExecutionRole'
+        "service-role/AWSLambdaBasicExecutionRole"
       )
     );
     lambdaRole.addToPolicy(s3BucketPolicy);
 
     // Set the workspace directory of htsget.
-    Settings.WORKSPACE_DIR = '../';
+    Settings.WORKSPACE_DIR = "../";
     // Don't build htsget packages other than htsget-lambda.
     Settings.BUILD_INDIVIDUALLY = true;
 
     const config = this.getConfig();
-    let htsgetLambda = new RustFunction(this, id + 'Function', {
+    let htsgetLambda = new RustFunction(this, id + "Function", {
       // Build htsget-lambda only.
-      package: 'htsget-lambda',
-      target: 'aarch64-unknown-linux-gnu',
+      package: "htsget-lambda",
+      target: "aarch64-unknown-linux-gnu",
 
       memorySize: 128,
       timeout: Duration.seconds(28),
       environment: {
         ...config.htsgetConfig,
         RUST_LOG:
-          'info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace',
+          "info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace",
+      },
+      buildEnvironment: {
+        RUSTFLAGS: "-C target-cpu=neoverse-n1",
+        CARGO_PROFILE_RELEASE_LTO: "true",
+        CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1",
       },
       architecture: Architecture.ARM_64,
       role: lambdaRole,
@@ -91,37 +96,37 @@ export class HtsgetLambdaStack extends Stack {
 
     const parameterStoreConfig = config.parameterStoreConfig;
     const httpIntegration = new HttpLambdaIntegration(
-      id + 'HtsgetIntegration',
+      id + "HtsgetIntegration",
       htsgetLambda
     );
     const authorizer = new HttpJwtAuthorizer(
-      id + 'HtsgetAuthorizer',
+      id + "HtsgetAuthorizer",
       `https://cognito-idp.${this.region}.amazonaws.com/${parameterStoreConfig.cogUserPoolId}`,
       {
-        identitySource: ['$request.header.Authorization'],
+        identitySource: ["$request.header.Authorization"],
         jwtAudience: parameterStoreConfig.jwtAud,
       }
     );
 
-    const domainName = new apigwv2.DomainName(this, id + 'HtsgetDomainName', {
+    const domainName = new apigwv2.DomainName(this, id + "HtsgetDomainName", {
       certificate: Certificate.fromCertificateArn(
         this,
-        id + 'HtsgetDomainCert',
+        id + "HtsgetDomainCert",
         parameterStoreConfig.arnCert
       ),
       domainName: parameterStoreConfig.htsgetDomain,
     });
     const hostedZone = HostedZone.fromHostedZoneAttributes(
       this,
-      id + 'HtsgetHostedZone',
+      id + "HtsgetHostedZone",
       {
         hostedZoneId: parameterStoreConfig.hostedZoneId,
         zoneName: parameterStoreConfig.hostedZoneName,
       }
     );
-    new ARecord(this, id + 'HtsgetARecord', {
+    new ARecord(this, id + "HtsgetARecord", {
       zone: hostedZone,
-      recordName: 'htsget',
+      recordName: "htsget",
       target: RecordTarget.fromAlias(
         new ApiGatewayv2DomainProperties(
           domainName.regionalDomainName,
@@ -130,7 +135,7 @@ export class HtsgetLambdaStack extends Stack {
       ),
     });
 
-    const httpApi = new apigwv2.HttpApi(this, id + 'ApiGw', {
+    const httpApi = new apigwv2.HttpApi(this, id + "ApiGw", {
       // Use explicit routes GET, POST with {proxy+} path
       // defaultIntegration: httpIntegration,
       defaultAuthorizer: authorizer,
@@ -147,12 +152,11 @@ export class HtsgetLambdaStack extends Stack {
       },
     });
 
-    httpApi.addRoutes(
-        {
-          path: '/{proxy+}',
-          methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
-          integration: httpIntegration,
-        });
+    httpApi.addRoutes({
+      path: "/{proxy+}",
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      integration: httpIntegration,
+    });
   }
 
   /**
@@ -206,10 +210,10 @@ export class HtsgetLambdaStack extends Stack {
 
     if (
       value !== undefined &&
-      (value.toString().toLowerCase() === 'all' ||
-        value.toString().toLowerCase() === 'mirror')
+      (value.toString().toLowerCase() === "all" ||
+        value.toString().toLowerCase() === "mirror")
     ) {
-      return ['*'];
+      return ["*"];
     } else if (Array.isArray(value)) {
       return value;
     }
@@ -223,7 +227,7 @@ export class HtsgetLambdaStack extends Stack {
   static corsAllowMethodToHttpMethod(
     corsAllowMethod?: string[]
   ): apigwv2.CorsHttpMethod[] | undefined {
-    if (corsAllowMethod?.length === 1 && corsAllowMethod.includes('*')) {
+    if (corsAllowMethod?.length === 1 && corsAllowMethod.includes("*")) {
       return [apigwv2.CorsHttpMethod.ANY];
     } else {
       return corsAllowMethod?.map(
@@ -238,10 +242,10 @@ export class HtsgetLambdaStack extends Stack {
    * control the environment.
    */
   getConfig(): Config {
-    let env: string = this.node.tryGetContext('env');
+    let env: string = this.node.tryGetContext("env");
     if (!env) {
-      console.log('No environment supplied, using `dev` environment config');
-      env = 'dev';
+      console.log("No environment supplied, using `dev` environment config");
+      env = "dev";
     }
 
     const config = this.node.tryGetContext(env);
@@ -254,21 +258,21 @@ export class HtsgetLambdaStack extends Stack {
         configToml.ticket_server_cors_allow_credentials as boolean,
       allowHeaders: HtsgetLambdaStack.convertCors(
         configToml,
-        'ticket_server_cors_allow_headers'
+        "ticket_server_cors_allow_headers"
       ),
       allowMethods: HtsgetLambdaStack.corsAllowMethodToHttpMethod(
         HtsgetLambdaStack.convertCors(
           configToml,
-          'ticket_server_cors_allow_methods'
+          "ticket_server_cors_allow_methods"
         )
       ),
       allowOrigins: HtsgetLambdaStack.convertCors(
         configToml,
-        'ticket_server_cors_allow_origins'
+        "ticket_server_cors_allow_origins"
       ),
       exposeHeaders: HtsgetLambdaStack.convertCors(
         configToml,
-        'ticket_server_cors_expose_headers'
+        "ticket_server_cors_expose_headers"
       ),
       maxAge:
         configToml.ticket_server_cors_max_age !== undefined
