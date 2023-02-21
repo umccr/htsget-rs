@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use htsget_config::config::cors::{AllowType, CorsConfig};
-use htsget_config::config::{DataServerConfig, TicketServerConfig};
+use htsget_config::config::{CertificateKeyPair, DataServerConfig, TicketServerConfig};
 use htsget_config::regex_resolver::{LocalResolver, RegexResolver, Scheme, StorageType};
 use htsget_config::TaggedTypeAll;
 use http::uri::Authority;
@@ -106,7 +106,7 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> RegexResolver 
 pub fn default_config_fixed_port() -> Config {
   let addr = "127.0.0.1:8081".parse().unwrap();
 
-  default_test_config_params(addr, None, None, Scheme::Http)
+  default_test_config_params(addr, None, Scheme::Http)
 }
 
 fn get_dynamic_addr() -> SocketAddr {
@@ -128,8 +128,7 @@ pub fn default_cors_config() -> CorsConfig {
 
 fn default_test_config_params(
   addr: SocketAddr,
-  key: Option<PathBuf>,
-  cert: Option<PathBuf>,
+  tls: Option<CertificateKeyPair>,
   scheme: Scheme,
 ) -> Config {
   let cors = default_cors_config();
@@ -138,8 +137,7 @@ fn default_test_config_params(
     addr,
     default_dir_data(),
     PathBuf::from("/data"),
-    key,
-    cert,
+    tls,
     cors.clone(),
   );
 
@@ -154,7 +152,7 @@ fn default_test_config_params(
 pub fn default_test_config() -> Config {
   let addr = get_dynamic_addr();
 
-  default_test_config_params(addr, None, None, Scheme::Http)
+  default_test_config_params(addr, None, Scheme::Http)
 }
 
 /// Config with tls ticket server, using the current cargo manifest directory.
@@ -162,7 +160,11 @@ pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
   let addr = get_dynamic_addr();
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
 
-  default_test_config_params(addr, Some(key_path), Some(cert_path), Scheme::Https)
+  default_test_config_params(
+    addr,
+    Some(CertificateKeyPair::new(cert_path, key_path)),
+    Scheme::Https,
+  )
 }
 
 /// Get the event associated with the file.

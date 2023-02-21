@@ -236,6 +236,7 @@ mod tests {
       request: test::TestRequest,
       _formatter: HttpTicketFormatter,
     ) -> ServiceResponse<EitherBody<BoxBody>> {
+      println!("{:#?}", self.config);
       let app = test::init_service(
         App::new()
           .configure(|service_config: &mut web::ServiceConfig| {

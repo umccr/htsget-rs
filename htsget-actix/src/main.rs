@@ -8,12 +8,12 @@ use htsget_search::storage::data_server::HttpTicketFormatter;
 async fn main() -> std::io::Result<()> {
   Config::setup_tracing()?;
 
-  if let Some(config) = Config::parse_args() {
-    let config = Config::from_config(config)?;
+  if let Some(path) = Config::parse_args() {
+    let config = Config::from_path(&path)?;
 
     if config.data_server().enabled() {
       let server = config.data_server().clone();
-      let mut formatter = HttpTicketFormatter::try_from(server.clone())?;
+      let mut formatter = HttpTicketFormatter::from(server.clone());
 
       let local_server = formatter.bind_data_server().await?;
       let local_server =

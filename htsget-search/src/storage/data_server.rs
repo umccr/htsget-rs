@@ -7,7 +7,7 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::net::{AddrParseError, SocketAddr};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -28,7 +28,7 @@ use tracing::instrument;
 use tracing::{info, trace};
 
 use htsget_config::config::cors::CorsConfig;
-use htsget_config::config::DataServerConfig;
+use htsget_config::config::{CertificateKeyPair, DataServerConfig};
 
 use crate::storage::StorageError::{DataServerError, IoError};
 use crate::storage::{configure_cors, UrlFormatter};
@@ -37,14 +37,6 @@ use super::{Result, StorageError};
 
 /// The maximum amount of time a CORS request can be cached for.
 pub const CORS_MAX_AGE: u64 = 86400;
-
-/// A certificate and key pair used for tls.
-/// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Debug, Clone)]
-pub struct CertificateKeyPair {
-  cert: PathBuf,
-  key: PathBuf,
-}
 
 /// Ticket server url formatter.
 #[derive(Debug, Clone)]
@@ -67,13 +59,10 @@ impl HttpTicketFormatter {
     }
   }
 
-  pub fn new_with_tls<P: AsRef<Path>>(addr: SocketAddr, cors: CorsConfig, cert: P, key: P) -> Self {
+  pub fn new_with_tls(addr: SocketAddr, cors: CorsConfig, tls: CertificateKeyPair) -> Self {
     Self {
       addr,
-      cert_key_pair: Some(CertificateKeyPair {
-        cert: PathBuf::from(cert.as_ref()),
-        key: PathBuf::from(key.as_ref()),
-      }),
+      cert_key_pair: Some(tls),
       scheme: Scheme::HTTPS,
       cors,
     }
@@ -104,23 +93,15 @@ impl HttpTicketFormatter {
   }
 }
 
-impl TryFrom<DataServerConfig> for HttpTicketFormatter {
-  type Error = StorageError;
-
-  /// Returns a ticket server with tls if both cert and key are not None, without tls if cert and key
-  /// are both None, and otherwise an error.
-  fn try_from(config: DataServerConfig) -> Result<Self> {
-    match (config.cert(), config.key()) {
-      (Some(cert), Some(key)) => Ok(Self::new_with_tls(
-        config.addr(),
-        config.cors().clone(),
-        cert,
-        key,
-      )),
-      (Some(_), None) | (None, Some(_)) => Err(DataServerError(
-        "both the cert and key must be provided for the ticket server".to_string(),
-      )),
-      (None, None) => Ok(Self::new(config.addr(), config.cors().clone())),
+impl From<DataServerConfig> for HttpTicketFormatter {
+  /// Returns a ticket server with TLS enabled if the tls config is not None or without TLS enabled
+  /// if it is None.
+  fn from(config: DataServerConfig) -> Self {
+    let addr = config.addr();
+    let cors = config.cors().clone();
+    match config.into_tls() {
+      None => Self::new(addr, cors),
+      Some(tls) => Self::new_with_tls(addr, cors, tls),
     }
   }
 }
@@ -177,8 +158,8 @@ impl DataServer {
         .serve(app)
         .await
         .map_err(|err| DataServerError(err.to_string())),
-      Some(CertificateKeyPair { cert, key }) => {
-        let rustls_config = Self::rustls_server_config(key, cert)?;
+      Some(tls) => {
+        let rustls_config = Self::rustls_server_config(tls.key(), tls.cert())?;
         let acceptor = TlsAcceptor::from(rustls_config);
 
         loop {
@@ -384,10 +365,7 @@ mod tests {
 
     test_server(
       "https",
-      Some(CertificateKeyPair {
-        cert: cert_path,
-        key: key_path,
-      }),
+      Some(CertificateKeyPair::new(cert_path, key_path)),
       base_path.path().to_path_buf(),
     )
     .await;
@@ -402,13 +380,7 @@ mod tests {
 
   #[test]
   fn https_formatter_authority() {
-    let formatter = HttpTicketFormatter::new_with_tls(
-      "127.0.0.1:8080".parse().unwrap(),
-      CorsConfig::default(),
-      "",
-      "",
-    );
-    test_formatter_authority(formatter, "https");
+    test_formatter_authority(tls_formatter(), "https");
   }
 
   #[test]
@@ -420,13 +392,7 @@ mod tests {
 
   #[test]
   fn https_scheme() {
-    let formatter = HttpTicketFormatter::new_with_tls(
-      "127.0.0.1:8080".parse().unwrap(),
-      CorsConfig::default(),
-      "",
-      "",
-    );
-    assert_eq!(formatter.get_scheme(), &Scheme::HTTPS);
+    assert_eq!(tls_formatter().get_scheme(), &Scheme::HTTPS);
   }
 
   #[tokio::test]
@@ -461,6 +427,14 @@ mod tests {
       &format!("http://localhost:{port}/data/key1"),
     )
     .await;
+  }
+
+  fn tls_formatter() -> HttpTicketFormatter {
+    HttpTicketFormatter::new_with_tls(
+      "127.0.0.1:8080".parse().unwrap(),
+      CorsConfig::default(),
+      CertificateKeyPair::new("".parse().unwrap(), "".parse().unwrap()),
+    )
   }
 
   async fn start_server<P>(cert_key_pair: Option<CertificateKeyPair>, path: P) -> u16

@@ -8,8 +8,8 @@ use htsget_lambda::{handle_request, Router};
 async fn main() -> Result<(), Error> {
   Config::setup_tracing()?;
 
-  if let Some(config) = Config::parse_args() {
-    let config = Config::from_config(config)?;
+  if let Some(path) = Config::parse_args() {
+    let config = Config::from_path(&path)?;
 
     let service_info = config.ticket_server().service_info().clone();
     let cors = config.ticket_server().cors().clone();

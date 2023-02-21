@@ -195,6 +195,31 @@ impl TicketServerConfig {
   }
 }
 
+/// A certificate and key pair used for TLS.
+/// This is the path to the PEM formatted X.509 certificate and private key.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CertificateKeyPair {
+  cert: PathBuf,
+  key: PathBuf,
+}
+
+impl CertificateKeyPair {
+  /// Create a new certificate key pair.
+  pub fn new(cert: PathBuf, key: PathBuf) -> Self {
+    Self { cert, key }
+  }
+
+  /// Get the cert.
+  pub fn cert(&self) -> &Path {
+    &self.cert
+  }
+
+  /// Get the key.
+  pub fn key(&self) -> &Path {
+    &self.key
+  }
+}
+
 with_prefix!(cors_prefix "cors_");
 
 /// Configuration for the htsget server.
@@ -205,8 +230,8 @@ pub struct DataServerConfig {
   addr: SocketAddr,
   local_path: PathBuf,
   serve_at: PathBuf,
-  key: Option<PathBuf>,
-  cert: Option<PathBuf>,
+  #[serde(flatten)]
+  tls: Option<CertificateKeyPair>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
@@ -218,8 +243,7 @@ impl DataServerConfig {
     addr: SocketAddr,
     local_path: PathBuf,
     serve_at: PathBuf,
-    key: Option<PathBuf>,
-    cert: Option<PathBuf>,
+    tls: Option<CertificateKeyPair>,
     cors: CorsConfig,
   ) -> Self {
     Self {
@@ -227,8 +251,7 @@ impl DataServerConfig {
       addr,
       local_path,
       serve_at,
-      key,
-      cert,
+      tls,
       cors,
     }
   }
@@ -248,14 +271,14 @@ impl DataServerConfig {
     &self.serve_at
   }
 
-  /// Get the key.
-  pub fn key(&self) -> Option<&Path> {
-    self.key.as_deref()
+  /// Get the TLS config
+  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+    self.tls.as_ref()
   }
 
-  /// Get the cert.
-  pub fn cert(&self) -> Option<&Path> {
-    self.cert.as_deref()
+  /// Get the TLS config
+  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+    self.tls
   }
 
   /// Get cors config.
@@ -308,8 +331,7 @@ impl Default for DataServerConfig {
         .expect("expected valid address"),
       local_path: default_path().into(),
       serve_at: default_serve_at().into(),
-      key: None,
-      cert: None,
+      tls: None,
       cors: CorsConfig::default(),
     }
   }
@@ -432,11 +454,11 @@ impl Config {
     }
   }
 
-  /// Read the environment variables into a Config struct.
+  /// Read a config struct from a TOML file.
   #[instrument]
-  pub fn from_config(config: PathBuf) -> io::Result<Self> {
+  pub fn from_path(path: &Path) -> io::Result<Self> {
     let config = Figment::from(Serialized::defaults(Config::default()))
-      .merge(Toml::file(config))
+      .merge(Toml::file(path))
       .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
       .extract()
       .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;
@@ -514,7 +536,7 @@ mod tests {
         jail.set_env(key, value);
       }
 
-      test_fn(Config::from_config("test.toml".into()).map_err(|err| err.to_string())?);
+      test_fn(Config::from_path(Path::new("test.toml")).map_err(|err| err.to_string())?);
 
       Ok(())
     });
