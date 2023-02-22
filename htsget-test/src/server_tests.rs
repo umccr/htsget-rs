@@ -144,10 +144,7 @@ pub fn test_response_service_info(response: &Response) {
 
   println!("{:#?}", expected);
   assert!(response.is_success());
-  assert_eq!(
-    expected,
-    response.deserialize_body::<Value>().unwrap()
-  );
+  assert_eq!(expected, response.deserialize_body::<Value>().unwrap());
 }
 
 /// A get test using the tester.
