@@ -144,6 +144,7 @@ mod tests {
   use actix_web::dev::ServiceResponse;
   use actix_web::{test, web, App};
   use async_trait::async_trait;
+  use htsget_search::htsget::JsonResponse;
   use tempfile::TempDir;
 
   use htsget_search::storage::data_server::HttpTicketFormatter;
@@ -151,7 +152,7 @@ mod tests {
   use htsget_test::http_tests::{
     Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
-  use htsget_test::server_tests::formatter_and_expected_path;
+  use htsget_test::server_tests::expected_url_path;
   use htsget_test::{cors_tests, server_tests};
 
   use crate::Config;
@@ -205,7 +206,15 @@ mod tests {
     }
 
     async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
-      let (expected_path, formatter) = formatter_and_expected_path(self.get_config()).await;
+      let mut formatter =
+        HttpTicketFormatter::try_from(self.get_config().data_server().clone()).unwrap();
+      let server = formatter.bind_data_server().await.unwrap();
+      let addr = server.local_addr();
+
+      let path = self.get_config().data_server().local_path().to_path_buf();
+      tokio::spawn(async move { server.serve(path).await.unwrap() });
+
+      let expected_path = expected_url_path(self.get_config(), addr);
 
       let response = self.get_response(request.0, formatter).await;
       let status: u16 = response.status().into();
@@ -256,27 +265,30 @@ mod tests {
 
   #[actix_web::test]
   async fn get_http_tickets() {
-    server_tests::test_get(&ActixTestServer::default()).await;
+    server_tests::test_get::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn post_http_tickets() {
-    server_tests::test_post(&ActixTestServer::default()).await;
+    server_tests::test_post::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_get_http_tickets() {
-    server_tests::test_parameterized_get(&ActixTestServer::default()).await;
+    server_tests::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_http_tickets() {
-    server_tests::test_parameterized_post(&ActixTestServer::default()).await;
+    server_tests::test_parameterized_post::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_class_header_http_tickets() {
-    server_tests::test_parameterized_post_class_header(&ActixTestServer::default()).await;
+    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
+      &ActixTestServer::default(),
+    )
+    .await;
   }
 
   #[actix_web::test]
@@ -287,33 +299,41 @@ mod tests {
   #[actix_web::test]
   async fn get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_get(&ActixTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_get::<JsonResponse, _>(&ActixTestServer::new_with_tls(base_path.path()))
+      .await;
   }
 
   #[actix_web::test]
   async fn post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_post(&ActixTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_post::<JsonResponse, _>(&ActixTestServer::new_with_tls(base_path.path()))
+      .await;
   }
 
   #[actix_web::test]
   async fn parameterized_get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_get(&ActixTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::new_with_tls(
+      base_path.path(),
+    ))
+    .await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post(&ActixTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_parameterized_post::<JsonResponse, _>(&ActixTestServer::new_with_tls(
+      base_path.path(),
+    ))
+    .await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_class_header_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post_class_header(&ActixTestServer::new_with_tls(
-      base_path.path(),
-    ))
+    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
+      &ActixTestServer::new_with_tls(base_path.path()),
+    )
     .await;
   }
 
