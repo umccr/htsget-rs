@@ -1,6 +1,6 @@
 [package]
 name = "htsget-config"
-version = "0.1.3"
+version = "0.1.4"
 rust-version = "1.64"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
