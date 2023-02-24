@@ -23,6 +23,7 @@ futures-util = { version = "0.3" }
 htsget-http = { version = "0.1.3", path = "../htsget-http", default-features = false }
 htsget-search = { version = "0.1.3", path = "../htsget-search", default-features = false }
 htsget-config = { version = "0.1.3", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.1.3", path = "../htsget-test", features = ["server-tests", "cors-tests"], default-features = false }
 futures = { version = "0.3" }
 tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
 
@@ -30,7 +31,6 @@ tracing-actix-web = "0.7"
 tracing = "0.1"
 
 [dev-dependencies]
-htsget-test = { version = "0.1.3", path = "../htsget-test", features = ["server-tests", "cors-tests"], default-features = false }
 async-trait = "0.1"
 
 criterion = { version = "0.4", features = ["async_tokio"] }
