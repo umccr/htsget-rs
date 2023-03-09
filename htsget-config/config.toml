@@ -22,8 +22,7 @@ data_server_cors_expose_headers = []
 regex = '.*'
 substitution_string = '$0'
 
-[resolvers.storage_type]
-type = 'Local'
+[resolvers.storage]
 scheme = 'Http'
 authority = '127.0.0.1:8081'
 local_path = 'data'

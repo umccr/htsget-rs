@@ -26,34 +26,34 @@ environment = "dev"
 [[resolvers]]
 regex = '^umccr-10c-data-dev/(?P<key>.*)$'
 substitution_string = '$key'
-storage_type = { type = 'S3', bucket = 'umccr-10c-data-dev' }
+storage = { bucket = 'umccr-10c-data-dev' }
 
 [[resolvers]]
 regex = '^umccr-10f-data-dev/(?P<key>.*)$'
 substitution_string = '$key'
-storage_type = { type = 'S3', bucket = 'umccr-10f-data-dev' }
+storage = { bucket = 'umccr-10f-data-dev' }
 
 [[resolvers]]
 regex = '^umccr-10g-data-dev/(?P<key>.*)$'
 substitution_string = '$key'
-storage_type = { type = 'S3', bucket = 'umccr-10g-data-dev' }
+storage = { bucket = 'umccr-10g-data-dev' }
 
 [[resolvers]]
 regex = '^umccr-agha-test-dev/(?P<key>.*)$'
 substitution_string = '$key'
-storage_type = { type = 'S3', bucket = 'umccr-agha-test-dev' }
+storage = { bucket = 'umccr-agha-test-dev' }
 
 [[resolvers]]
 regex = '^umccr-research-dev/(?P<key>.*)$'
 substitution_string = '$key'
-storage_type = { type = 'S3', bucket = 'umccr-research-dev' }
+storage = { bucket = 'umccr-research-dev' }
 
 [[resolvers]]
 regex = '^umccr-primary-data-dev/(?P<key>.*)$'
 substitution_string = '$key'
-storage_type = { type = 'S3', bucket = 'umccr-primary-data-dev' }
+storage = { bucket = 'umccr-primary-data-dev' }
 
 [[resolvers]]
 regex = '^umccr-validation-prod/(?P<key>.*)$'
 substitution_string = '$key'
-storage_type = { type = 'S3', bucket = 'umccr-validation-prod' }
+storage = { bucket = 'umccr-validation-prod' }

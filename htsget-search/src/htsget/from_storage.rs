@@ -9,7 +9,7 @@ use tokio::io::AsyncRead;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::regex_resolver::{Resolver, StorageType};
+use htsget_config::regex_resolver::{Resolver, Storage as StorageConfig};
 
 use crate::htsget::search::Search;
 use crate::htsget::{Format, HtsGetError};
@@ -45,14 +45,20 @@ impl HtsGet for &[RegexResolver] {
   async fn search(&self, query: Query) -> Result<Response> {
     for resolver in self.iter() {
       if let Some(id) = resolver.resolve_id(&query) {
-        match resolver.storage_type() {
-          StorageType::Local(url) => {
-            let searcher = HtsGetFromStorage::local_from(url.local_path(), url.clone())?;
+        match resolver.storage().clone() {
+          StorageConfig::Local {
+            scheme,
+            authority,
+            local_path,
+            path_prefix,
+          } => {
+            let searcher =
+              HtsGetFromStorage::local_from(local_path, (scheme, authority, path_prefix))?;
             return searcher.search(query.with_id(id)).await;
           }
           #[cfg(feature = "s3-storage")]
-          StorageType::S3(s3) => {
-            let searcher = HtsGetFromStorage::s3_from(s3.bucket().to_string()).await;
+          StorageConfig::S3 { bucket } => {
+            let searcher = HtsGetFromStorage::s3_from(bucket.to_string()).await;
             return searcher.search(query.with_id(id)).await;
           }
           _ => {}

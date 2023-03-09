@@ -14,9 +14,7 @@ use tracing::{debug, info};
 
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
-#[cfg(feature = "s3-storage")]
-pub use htsget_config::regex_resolver::aws::S3Resolver;
-pub use htsget_config::regex_resolver::StorageType;
+pub use htsget_config::regex_resolver::Storage;
 use htsget_http::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::configure_cors;

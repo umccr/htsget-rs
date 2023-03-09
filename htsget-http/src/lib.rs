@@ -5,9 +5,7 @@ pub use error::{HtsGetError, Result};
 pub use htsget_config::config::{
   Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, TicketServerConfig,
 };
-#[cfg(feature = "s3-storage")]
-pub use htsget_config::regex_resolver::aws::S3Resolver;
-pub use htsget_config::regex_resolver::StorageType;
+pub use htsget_config::regex_resolver::Storage;
 use htsget_config::Query;
 use htsget_search::htsget::Response;
 pub use http_core::{get, post};

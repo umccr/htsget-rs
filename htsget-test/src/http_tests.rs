@@ -6,7 +6,7 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{CertificateKeyPair, DataServerConfig, TicketServerConfig};
-use htsget_config::regex_resolver::{LocalResolver, RegexResolver, Scheme, StorageType};
+use htsget_config::regex_resolver::{RegexResolver, Scheme, Storage};
 use htsget_config::TaggedTypeAll;
 use http::uri::Authority;
 use http::HeaderMap;
@@ -92,14 +92,18 @@ pub fn default_dir_data() -> PathBuf {
 
 /// Get the default test resolver.
 pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> RegexResolver {
-  let resolver = LocalResolver::new(
-    scheme,
-    Authority::from_str(&addr.to_string()).unwrap(),
-    default_dir_data().to_str().unwrap().to_string(),
-    "/data".to_string(),
-  );
-
-  RegexResolver::new(StorageType::Local(resolver), ".*", "$0", Default::default()).unwrap()
+  RegexResolver::new(
+    Storage::Local {
+      scheme,
+      authority: Authority::from_str(&addr.to_string()).unwrap(),
+      local_path: default_dir_data().to_str().unwrap().to_string(),
+      path_prefix: "/data".to_string(),
+    },
+    ".*",
+    "$0",
+    Default::default(),
+  )
+  .unwrap()
 }
 
 /// Default config with fixed port.

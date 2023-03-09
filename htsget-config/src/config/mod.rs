@@ -509,10 +509,8 @@ impl Config {
 mod tests {
   use super::*;
   #[cfg(feature = "s3-storage")]
-  use crate::regex_resolver::aws::S3Resolver;
-  #[cfg(feature = "s3-storage")]
   use crate::regex_resolver::{AllowGuard, ReferenceNames};
-  use crate::regex_resolver::{Scheme, StorageType};
+  use crate::regex_resolver::{Scheme, Storage};
   use crate::Format::Bam;
   #[cfg(feature = "s3-storage")]
   use crate::{Class, Fields, Interval, Tags};
@@ -625,13 +623,15 @@ mod tests {
       vec![(
         "HTSGET_RESOLVERS",
         "[{ regex=regex, substitution_string=substitution_string, \
-        storage_type={ type=S3, bucket=bucket }, \
+        storage={ bucket=bucket }, \
         allow_guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
         allow_formats=[BAM], allow_classes=[body], allow_interval_start=100, \
         allow_interval_end=1000 } }]",
       )],
       |config| {
-        let storage_type = StorageType::S3(S3Resolver::new("bucket".to_string()));
+        let storage = Storage::S3 {
+          bucket: "bucket".to_string(),
+        };
         let allow_guard = AllowGuard::new(
           ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),
           Fields::List(HashSet::from_iter(vec!["QNAME".to_string()])),
@@ -647,7 +647,7 @@ mod tests {
 
         assert_eq!(resolver.regex().to_string(), "regex");
         assert_eq!(resolver.substitution_string(), "substitution_string");
-        assert_eq!(resolver.storage_type(), &storage_type);
+        assert_eq!(resolver.storage(), &storage);
         assert_eq!(resolver.allow_guard(), &allow_guard);
       },
     );
@@ -730,23 +730,22 @@ mod tests {
   }
 
   #[test]
-  fn config_storage_type_local_file() {
+  fn config_storage_local_file() {
     test_config_from_file(
       r#"
             [[resolvers]]
             regex = "regex"
 
-            [resolvers.storage_type]
-            type = "Local"
+            [resolvers.storage]
             local_path = "path"
             scheme = "HTTPS"
             path_prefix = "path"
         "#,
       |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage_type());
+        println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
-            config.resolvers().first().unwrap().storage_type(),
-            StorageType::Local(resolver) if resolver.local_path() == "path" && resolver.scheme() == Scheme::Https && resolver.path_prefix() == "path"
+            config.resolvers().first().unwrap().storage(),
+            Storage::Local { scheme, local_path, path_prefix, .. } if local_path == "path" && scheme == &Scheme::Https && path_prefix == "path"
         ));
       },
     );
@@ -754,20 +753,20 @@ mod tests {
 
   #[cfg(feature = "s3-storage")]
   #[test]
-  fn config_storage_type_s3_file() {
+  fn config_storage_s3_file() {
     test_config_from_file(
       r#"
             [[resolvers]]
             regex = "regex"
 
-            [resolvers.storage_type]
-            type = "S3"
+            [resolvers.storage]
             bucket = "bucket"
         "#,
       |config| {
+        println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
-            config.resolvers().first().unwrap().storage_type(),
-            StorageType::S3(resolver) if resolver.bucket() == "bucket"
+            config.resolvers().first().unwrap().storage(),
+            Storage::S3 { bucket } if bucket == "bucket"
         ));
       },
     );

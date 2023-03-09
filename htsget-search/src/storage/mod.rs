@@ -10,6 +10,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
+use http::uri::Authority;
 use http::{uri, HeaderValue};
 use thiserror::Error;
 use tokio::io::AsyncRead;
@@ -17,7 +18,7 @@ use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, Expos
 use tracing::instrument;
 
 use htsget_config::config::cors::CorsConfig;
-use htsget_config::regex_resolver::{LocalResolver, Scheme};
+use htsget_config::regex_resolver::Scheme;
 use htsget_config::Class;
 
 use crate::htsget::{Headers, Url};
@@ -104,15 +105,15 @@ pub enum StorageError {
   AwsS3Error(String, String),
 }
 
-impl UrlFormatter for LocalResolver {
+impl UrlFormatter for (Scheme, Authority, String) {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     uri::Builder::new()
-      .scheme(match self.scheme() {
+      .scheme(match self.0 {
         Scheme::Http => uri::Scheme::HTTP,
         Scheme::Https => uri::Scheme::HTTPS,
       })
-      .authority(self.authority().to_string())
-      .path_and_query(format!("{}/{}", self.path_prefix(), key.as_ref()))
+      .authority(self.1.to_string())
+      .path_and_query(format!("{}/{}", self.2, key.as_ref()))
       .build()
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
       .map(|value| value.to_string())

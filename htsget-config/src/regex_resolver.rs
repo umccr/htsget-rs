@@ -6,13 +6,20 @@ use std::collections::HashSet;
 use tracing::instrument;
 
 use crate::config::{default_localstorage_addr, default_path, default_serve_at};
-#[cfg(feature = "s3-storage")]
-use crate::regex_resolver::aws::S3Resolver;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
 use crate::{Class, Fields, Format, Interval, Query, TaggedTypeAll, Tags};
 
-#[cfg(feature = "s3-storage")]
-pub mod aws;
+fn default_authority() -> Authority {
+  Authority::from_static(default_localstorage_addr())
+}
+
+fn default_local_path() -> String {
+  default_path().into()
+}
+
+fn default_path_prefix() -> String {
+  default_serve_at().into()
+}
 
 /// Represents an id resolver, which matches the id, replacing the match in the substitution text.
 pub trait Resolver {
@@ -26,21 +33,36 @@ pub trait QueryAllowed {
   fn query_allowed(&self, query: &Query) -> bool;
 }
 
-/// Specify the storage type to use.
+/// Specify the storage backend to use.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(tag = "type")]
+#[serde(untagged, deny_unknown_fields)]
 #[non_exhaustive]
-pub enum StorageType {
-  #[serde(alias = "local", alias = "LOCAL")]
-  Local(LocalResolver),
+pub enum Storage {
+  Local {
+    #[serde(default)]
+    scheme: Scheme,
+    #[serde(with = "http_serde::authority", default = "default_authority")]
+    authority: Authority,
+    #[serde(default = "default_local_path")]
+    local_path: String,
+    #[serde(default = "default_path_prefix")]
+    path_prefix: String,
+  },
   #[cfg(feature = "s3-storage")]
-  #[serde(alias = "s3")]
-  S3(S3Resolver),
+  S3 {
+    #[serde(default)]
+    bucket: String,
+  },
 }
 
-impl Default for StorageType {
+impl Default for Storage {
   fn default() -> Self {
-    Self::Local(LocalResolver::default())
+    Self::Local {
+      scheme: Scheme::default(),
+      authority: default_authority(),
+      local_path: default_local_path(),
+      path_prefix: default_path_prefix(),
+    }
   }
 }
 
@@ -60,65 +82,6 @@ impl Default for Scheme {
   }
 }
 
-/// A local resolver, which can return files from the local file system.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(default)]
-pub struct LocalResolver {
-  scheme: Scheme,
-  #[serde(with = "http_serde::authority")]
-  authority: Authority,
-  local_path: String,
-  path_prefix: String,
-}
-
-impl LocalResolver {
-  /// Create a local resolver.
-  pub fn new(
-    scheme: Scheme,
-    authority: Authority,
-    local_path: String,
-    path_prefix: String,
-  ) -> Self {
-    Self {
-      scheme,
-      authority,
-      local_path,
-      path_prefix,
-    }
-  }
-
-  /// Get the scheme.
-  pub fn scheme(&self) -> Scheme {
-    self.scheme
-  }
-
-  /// Get the authority.
-  pub fn authority(&self) -> &Authority {
-    &self.authority
-  }
-
-  /// Get the local path.
-  pub fn local_path(&self) -> &str {
-    &self.local_path
-  }
-
-  /// Get the path prefix.
-  pub fn path_prefix(&self) -> &str {
-    &self.path_prefix
-  }
-}
-
-impl Default for LocalResolver {
-  fn default() -> Self {
-    Self {
-      scheme: Scheme::default(),
-      authority: Authority::from_static(default_localstorage_addr()),
-      local_path: default_path().into(),
-      path_prefix: default_serve_at().into(),
-    }
-  }
-}
-
 /// A regex resolver is a resolver that matches ids using Regex.
 #[derive(Serialize, Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -127,7 +90,7 @@ pub struct RegexResolver {
   regex: Regex,
   // Todo: should match guard be allowed as variables inside the substitution string?
   substitution_string: String,
-  storage_type: StorageType,
+  storage: Storage,
   allow_guard: AllowGuard,
 }
 
@@ -270,7 +233,7 @@ impl QueryAllowed for AllowGuard {
 
 impl Default for RegexResolver {
   fn default() -> Self {
-    Self::new(StorageType::default(), ".*", "$0", AllowGuard::default())
+    Self::new(Storage::default(), ".*", "$0", AllowGuard::default())
       .expect("expected valid resolver")
   }
 }
@@ -278,7 +241,7 @@ impl Default for RegexResolver {
 impl RegexResolver {
   /// Create a new regex resolver.
   pub fn new(
-    storage_type: StorageType,
+    storage: Storage,
     regex: &str,
     replacement_string: &str,
     allow_guard: AllowGuard,
@@ -286,7 +249,7 @@ impl RegexResolver {
     Ok(Self {
       regex: Regex::new(regex)?,
       substitution_string: replacement_string.to_string(),
-      storage_type,
+      storage,
       allow_guard,
     })
   }
@@ -306,9 +269,9 @@ impl RegexResolver {
     &self.allow_guard
   }
 
-  /// Get the storage type.
-  pub fn storage_type(&self) -> &StorageType {
-    &self.storage_type
+  /// Get the storage backend.
+  pub fn storage(&self) -> &Storage {
+    &self.storage
   }
 
   /// Get allow formats.
@@ -364,13 +327,8 @@ pub mod tests {
 
   #[test]
   fn resolver_resolve_id() {
-    let resolver = RegexResolver::new(
-      StorageType::default(),
-      ".*",
-      "$0-test",
-      AllowGuard::default(),
-    )
-    .unwrap();
+    let resolver =
+      RegexResolver::new(Storage::default(), ".*", "$0-test", AllowGuard::default()).unwrap();
     assert_eq!(
       resolver.resolve_id(&Query::new("id", Bam)).unwrap(),
       "id-test"

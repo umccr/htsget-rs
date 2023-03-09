@@ -147,14 +147,10 @@ substitution = '$group1/data/$group2'
 
 For more information about regex options see the [regex crate](https://docs.rs/regex/).
 
-Each resolver also maps to a certain storage type. This storage type can be used to set query IDs which are served from local storage, or on AWS S3.
-To set the storage type for a resolver, add a `[resolvers.storage_type]` table. Set the type option to control the data server storage type:
+Each resolver also maps to a certain storage backend. This storage backend can be used to set query IDs which are served from local storage, or on AWS S3.
+To set the storage backend for a resolver, add a `[resolvers.storage]` table.
 
-| Option              | Description                                                                                                                         | Type                         | Default             |
-|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|---------------------|
-| `type`              | The storage type.                                                                                                                   | Either `'Local'` or `'S3'`   | `'Local'`           |
-
-If the type is `Local`, then the following options can be set:
+To use `LocalStorage`, set the following options:
 
 | Option              | Description                                                                                                                         | Type                         | Default            |
 |---------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
@@ -163,7 +159,7 @@ If the type is `Local`, then the following options can be set:
 | `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Filesystem path              | `'data'`           |
 | `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | URL path                     | `'/data'`          |
 
-If the type is `S3`, then the following option can be set:
+To use `AwsS3Storage`, set the following options:
 
 | Option   | Description                                              | Type            | Default |
 |----------|----------------------------------------------------------|-----------------|---------|
@@ -192,8 +188,7 @@ An example of a fully configured resolver:
 regex = '.*'
 substitution_string = '$0'
 
-[resolvers.storage_type]
-type = 'S3'
+[resolvers.storage]
 bucket = 'bucket'
 
 [resolvers.allow_guard]
@@ -283,8 +278,7 @@ In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set
 export HTSGET_RESOLVERS="[{
     regex=regex,
     substitution_string=substitution_string,
-    storage_type={
-        type=S3,
+    storage={
         bucket=bucket
     },
     allow_guard={
