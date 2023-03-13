@@ -506,17 +506,9 @@ impl Config {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
-  #[cfg(feature = "s3-storage")]
-  use crate::regex_resolver::{AllowGuard, ReferenceNames};
-  use crate::regex_resolver::{Scheme, Storage};
-  use crate::Format::Bam;
-  #[cfg(feature = "s3-storage")]
-  use crate::{Class, Fields, Interval, Tags};
   use figment::Jail;
-  #[cfg(feature = "s3-storage")]
-  use std::collections::HashSet;
   use std::fmt::Display;
 
   fn test_config<K, V, F>(contents: Option<&str>, env_variables: Vec<(K, V)>, test_fn: F)
@@ -540,7 +532,7 @@ mod tests {
     });
   }
 
-  fn test_config_from_env<K, V, F>(env_variables: Vec<(K, V)>, test_fn: F)
+  pub(crate) fn test_config_from_env<K, V, F>(env_variables: Vec<(K, V)>, test_fn: F)
   where
     K: AsRef<str>,
     V: Display,
@@ -549,7 +541,7 @@ mod tests {
     test_config(None, env_variables, test_fn);
   }
 
-  fn test_config_from_file<F>(contents: &str, test_fn: F)
+  pub(crate) fn test_config_from_file<F>(contents: &str, test_fn: F)
   where
     F: FnOnce(Config),
   {
@@ -607,53 +599,6 @@ mod tests {
   }
 
   #[test]
-  fn config_resolvers_env() {
-    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{regex=regex}]")], |config| {
-      assert_eq!(
-        config.resolvers().first().unwrap().regex().as_str(),
-        "regex"
-      );
-    });
-  }
-
-  #[cfg(feature = "s3-storage")]
-  #[test]
-  fn config_resolvers_all_options_env() {
-    test_config_from_env(
-      vec![(
-        "HTSGET_RESOLVERS",
-        "[{ regex=regex, substitution_string=substitution_string, \
-        storage={ bucket=bucket }, \
-        allow_guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
-        allow_formats=[BAM], allow_classes=[body], allow_interval_start=100, \
-        allow_interval_end=1000 } }]",
-      )],
-      |config| {
-        let storage = Storage::S3 {
-          bucket: "bucket".to_string(),
-        };
-        let allow_guard = AllowGuard::new(
-          ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),
-          Fields::List(HashSet::from_iter(vec!["QNAME".to_string()])),
-          Tags::List(HashSet::from_iter(vec!["RG".to_string()])),
-          vec![Bam],
-          vec![Class::Body],
-          Interval {
-            start: Some(100),
-            end: Some(1000),
-          },
-        );
-        let resolver = config.resolvers.first().unwrap();
-
-        assert_eq!(resolver.regex().to_string(), "regex");
-        assert_eq!(resolver.substitution_string(), "substitution_string");
-        assert_eq!(resolver.storage(), &storage);
-        assert_eq!(resolver.allow_guard(), &allow_guard);
-      },
-    );
-  }
-
-  #[test]
   fn config_ticket_server_addr_file() {
     test_config_from_file(r#"ticket_server_addr = "127.0.0.1:8082""#, |config| {
       assert_eq!(
@@ -692,83 +637,5 @@ mod tests {
     test_config_from_file(r#"data_server_enabled = true"#, |config| {
       assert!(config.data_server().enabled());
     });
-  }
-
-  #[test]
-  fn config_resolvers_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-        "#,
-      |config| {
-        assert_eq!(
-          config.resolvers().first().unwrap().regex().as_str(),
-          "regex"
-        );
-      },
-    );
-  }
-
-  #[test]
-  fn config_resolvers_guard_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-
-            [resolvers.allow_guard]
-            allow_formats = ["BAM"]
-        "#,
-      |config| {
-        assert_eq!(
-          config.resolvers().first().unwrap().allow_formats(),
-          &vec![Bam]
-        );
-      },
-    );
-  }
-
-  #[test]
-  fn config_storage_local_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-
-            [resolvers.storage]
-            local_path = "path"
-            scheme = "HTTPS"
-            path_prefix = "path"
-        "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
-            config.resolvers().first().unwrap().storage(),
-            Storage::Local { scheme, local_path, path_prefix, .. } if local_path == "path" && scheme == &Scheme::Https && path_prefix == "path"
-        ));
-      },
-    );
-  }
-
-  #[cfg(feature = "s3-storage")]
-  #[test]
-  fn config_storage_s3_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-
-            [resolvers.storage]
-            bucket = "bucket"
-        "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
-            config.resolvers().first().unwrap().storage(),
-            Storage::S3 { bucket } if bucket == "bucket"
-        ));
-      },
-    );
   }
 }
