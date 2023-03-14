@@ -474,14 +474,15 @@ impl Config {
   /// Read a config struct from a TOML file.
   #[instrument]
   pub fn from_path(path: &Path) -> io::Result<Self> {
-    let config = Figment::from(Serialized::defaults(Config::default()))
+    let config: Config = Figment::from(Serialized::defaults(Config::default()))
       .merge(Toml::file(path))
       .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
       .extract()
       .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;
 
     info!(config = ?config, "config created from environment variables");
-    Ok(config)
+
+    Ok(config.resolvers_from_data_server_config())
   }
 
   /// Setup tracing, using a global subscriber.
@@ -511,6 +512,11 @@ impl Config {
     &self.data_server
   }
 
+  /// Get the owned data server.
+  pub fn into_data_server(self) -> DataServerConfig {
+    self.data_server
+  }
+
   /// Get the resolvers.
   pub fn resolvers(&self) -> &[RegexResolver] {
     &self.resolvers
@@ -520,12 +526,28 @@ impl Config {
   pub fn owned_resolvers(self) -> Vec<RegexResolver> {
     self.resolvers
   }
+
+  /// Set the local resolvers from the data server config.
+  pub fn resolvers_from_data_server_config(self) -> Self {
+    let Config {
+      ticket_server,
+      data_server,
+      mut resolvers,
+    } = self;
+    resolvers
+      .iter_mut()
+      .for_each(|resolver| resolver.resolvers_from_data_server_config(&data_server));
+
+    Self::new(ticket_server, data_server, resolvers)
+  }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
   use super::*;
+  use crate::storage::Storage;
   use figment::Jail;
+  use http::uri::Authority;
   use std::fmt::Display;
 
   fn test_config<K, V, F>(contents: Option<&str>, env_variables: Vec<(K, V)>, test_fn: F)
@@ -654,5 +676,25 @@ pub(crate) mod tests {
     test_config_from_file(r#"data_server_enabled = true"#, |config| {
       assert!(config.data_server().enabled());
     });
+  }
+
+  #[test]
+  fn resolvers_from_data_server_config() {
+    test_config_from_file(
+      r#"
+    data_server_addr = "127.0.0.1:8080"
+    data_server_local_path = "path"
+    data_server_serve_at = "/path"
+
+    [[resolvers]]
+    storage = "Local"
+    "#,
+      |config| {
+        assert_eq!(config.resolvers.len(), 1);
+
+        assert!(matches!(config.resolvers.first().unwrap().storage(),
+      Storage::Local { local_storage } if local_storage.local_path() == "path" && local_storage.scheme() == Http && local_storage.authority() == &Authority::from_static("127.0.0.1:8080") && local_storage.path_prefix() == "/path"));
+      },
+    );
   }
 }

@@ -42,11 +42,11 @@ pub mod tests {
   fn config_storage_s3_file() {
     test_config_from_file(
       r#"
-            [[resolvers]]
-            regex = "regex"
+        [[resolvers]]
+        regex = "regex"
 
-            [resolvers.storage]
-            bucket = "bucket"
+        [resolvers.storage]
+        bucket = "bucket"
         "#,
       |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());

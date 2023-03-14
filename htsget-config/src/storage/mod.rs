@@ -105,15 +105,15 @@ pub mod tests {
   fn config_storage_tagged_local_file() {
     test_config_from_file(
       r#"
-            [[resolvers]]
-            regex = "regex"
-            storage = "Local"
-        "#,
+      [[resolvers]]
+      regex = "regex"
+      storage = "Local"
+      "#,
       |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
           config.resolvers().first().unwrap().storage(),
-          Storage::Tagged(TaggedStorageTypes::Local)
+          Storage::Local { .. }
         ));
       },
     );
@@ -124,7 +124,7 @@ pub mod tests {
     test_config_from_env(vec![("HTSGET_RESOLVERS", "[{storage=Local}]")], |config| {
       assert!(matches!(
         config.resolvers().first().unwrap().storage(),
-        Storage::Tagged(TaggedStorageTypes::Local)
+        Storage::Local { .. }
       ));
     });
   }
@@ -134,10 +134,10 @@ pub mod tests {
   fn config_storage_tagged_s3_file() {
     test_config_from_file(
       r#"
-            [[resolvers]]
-            regex = "regex"
-            storage = "S3"
-        "#,
+      [[resolvers]]
+      regex = "regex"
+      storage = "S3"
+      "#,
       |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(

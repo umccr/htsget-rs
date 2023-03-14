@@ -4,7 +4,8 @@ use serde_with::with_prefix;
 use std::collections::HashSet;
 use tracing::instrument;
 
-use crate::storage::Storage;
+use crate::config::DataServerConfig;
+use crate::storage::{Storage, TaggedStorageTypes};
 use crate::Format::{Bam, Bcf, Cram, Vcf};
 use crate::{Class, Fields, Format, Interval, Query, TaggedTypeAll, Tags};
 
@@ -192,6 +193,15 @@ impl RegexResolver {
     })
   }
 
+  /// Set the local resolvers from the data server config.
+  pub fn resolvers_from_data_server_config(&mut self, config: &DataServerConfig) {
+    if let Storage::Tagged(TaggedStorageTypes::Local) = self.storage() {
+      if let Some(local_storage) = config.into() {
+        self.storage = Storage::Local { local_storage };
+      }
+    }
+  }
+
   /// Get the regex.
   pub fn regex(&self) -> &Regex {
     &self.regex
@@ -280,8 +290,8 @@ pub mod tests {
   fn config_resolvers_file() {
     test_config_from_file(
       r#"
-            [[resolvers]]
-            regex = "regex"
+        [[resolvers]]
+        regex = "regex"
         "#,
       |config| {
         assert_eq!(
@@ -296,12 +306,12 @@ pub mod tests {
   fn config_resolvers_guard_file() {
     test_config_from_file(
       r#"
-            [[resolvers]]
-            regex = "regex"
+      [[resolvers]]
+      regex = "regex"
 
-            [resolvers.allow_guard]
-            allow_formats = ["BAM"]
-        "#,
+      [resolvers.allow_guard]
+      allow_formats = ["BAM"]
+      "#,
       |config| {
         assert_eq!(
           config.resolvers().first().unwrap().allow_formats(),

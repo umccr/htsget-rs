@@ -93,13 +93,13 @@ pub mod tests {
   fn config_storage_local_file() {
     test_config_from_file(
       r#"
-            [[resolvers]]
-            regex = "regex"
+        [[resolvers]]
+        regex = "regex"
 
-            [resolvers.storage]
-            local_path = "path"
-            scheme = "HTTPS"
-            path_prefix = "path"
+        [resolvers.storage]
+        local_path = "path"
+        scheme = "HTTPS"
+        path_prefix = "path"
         "#,
       |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
