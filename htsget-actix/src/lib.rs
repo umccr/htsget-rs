@@ -9,7 +9,7 @@ use tracing_actix_web::TracingLogger;
 
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig, USAGE};
-pub use htsget_config::regex_resolver::Storage;
+pub use htsget_config::storage::Storage;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::local::LocalStorage;

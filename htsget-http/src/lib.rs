@@ -5,7 +5,7 @@ pub use error::{HtsGetError, Result};
 pub use htsget_config::config::{
   Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, TicketServerConfig,
 };
-pub use htsget_config::regex_resolver::Storage;
+pub use htsget_config::storage::Storage;
 use htsget_config::Query;
 use htsget_search::htsget::Response;
 pub use http_core::{get, post};

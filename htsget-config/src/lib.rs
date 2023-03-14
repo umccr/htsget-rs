@@ -10,7 +10,8 @@ use std::{fmt, io};
 use tracing::instrument;
 
 pub mod config;
-pub mod regex_resolver;
+pub mod resolver;
+pub mod storage;
 
 /// An enumeration with all the possible formats.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,6 +161,17 @@ impl Interval {
   pub fn end(&self) -> Option<u32> {
     self.end
   }
+}
+
+/// Schemes that can be used with htsget.
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum Scheme {
+  #[default]
+  #[serde(alias = "Http", alias = "http")]
+  Http,
+  #[serde(alias = "Https", alias = "https")]
+  Https,
 }
 
 /// Tagged Any allow type for cors config.

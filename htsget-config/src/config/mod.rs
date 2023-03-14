@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
+use crate::resolver::RegexResolver;
 use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
@@ -19,7 +20,8 @@ use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
 
-use crate::regex_resolver::RegexResolver;
+use crate::Scheme;
+use crate::Scheme::{Http, Https};
 
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str =
@@ -195,6 +197,12 @@ impl TicketServerConfig {
   }
 }
 
+/// A trait to determine which scheme a key pair option has.
+pub(crate) trait KeyPairScheme {
+  /// Get the scheme.
+  fn get_scheme(&self) -> Scheme;
+}
+
 /// A certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -217,6 +225,15 @@ impl CertificateKeyPair {
   /// Get the key.
   pub fn key(&self) -> &Path {
     &self.key
+  }
+}
+
+impl KeyPairScheme for Option<&CertificateKeyPair> {
+  fn get_scheme(&self) -> Scheme {
+    match self {
+      None => Http,
+      Some(_) => Https,
+    }
   }
 }
 

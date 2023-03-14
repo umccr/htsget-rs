@@ -1,7 +1,7 @@
 #[cfg(any(feature = "cors-tests", feature = "server-tests"))]
 pub use htsget_config::{
   config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig},
-  regex_resolver::Storage,
+  storage::Storage,
 };
 
 #[cfg(feature = "cors-tests")]

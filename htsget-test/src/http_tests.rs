@@ -6,8 +6,9 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{CertificateKeyPair, DataServerConfig, TicketServerConfig};
-use htsget_config::regex_resolver::{RegexResolver, Scheme, Storage};
-use htsget_config::TaggedTypeAll;
+use htsget_config::resolver::RegexResolver;
+use htsget_config::storage::{local::LocalStorage, Storage};
+use htsget_config::{Scheme, TaggedTypeAll};
 use http::uri::Authority;
 use http::HeaderMap;
 use serde::de;
@@ -90,15 +91,16 @@ pub fn default_dir_data() -> PathBuf {
   default_dir().join("data")
 }
 
-/// Get the default test resolver.
+/// Get the default test storage.
 pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> RegexResolver {
+  let local_storage = LocalStorage::new(
+    scheme,
+    Authority::from_str(&addr.to_string()).unwrap(),
+    default_dir_data().to_str().unwrap().to_string(),
+    "/data".to_string(),
+  );
   RegexResolver::new(
-    Storage::Local {
-      scheme,
-      authority: Authority::from_str(&addr.to_string()).unwrap(),
-      local_path: default_dir_data().to_str().unwrap().to_string(),
-      path_prefix: "/data".to_string(),
-    },
+    Storage::Local { local_storage },
     ".*",
     "$0",
     Default::default(),

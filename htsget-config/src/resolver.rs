@@ -1,105 +1,26 @@
-use http::uri::Authority;
 use regex::{Error, Regex};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 use std::collections::HashSet;
 use tracing::instrument;
 
-use crate::config::{default_localstorage_addr, default_path, default_serve_at};
+use crate::storage::Storage;
 use crate::Format::{Bam, Bcf, Cram, Vcf};
 use crate::{Class, Fields, Format, Interval, Query, TaggedTypeAll, Tags};
 
-fn default_authority() -> Authority {
-  Authority::from_static(default_localstorage_addr())
-}
-
-fn default_local_path() -> String {
-  default_path().into()
-}
-
-fn default_path_prefix() -> String {
-  default_serve_at().into()
-}
-
-/// Represents an id resolver, which matches the id, replacing the match in the substitution text.
+/// Represents an id storage, which matches the id, replacing the match in the substitution text.
 pub trait Resolver {
   /// Resolve the id, returning the substituted string if there is a match.
   fn resolve_id(&self, query: &Query) -> Option<String>;
 }
 
-/// Determines whether the query matches for use with the resolver.
+/// Determines whether the query matches for use with the storage.
 pub trait QueryAllowed {
   /// Does this query match.
   fn query_allowed(&self, query: &Query) -> bool;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub enum TaggedStorageTypes {
-  #[serde(alias = "local", alias = "LOCAL")]
-  Local,
-  #[cfg(feature = "s3-storage")]
-  #[serde(alias = "s3")]
-  S3,
-}
-
-impl Default for TaggedStorageTypes {
-  #[cfg(not(feature = "s3-storage"))]
-  fn default() -> Self {
-    Self::Local
-  }
-
-  #[cfg(feature = "s3-storage")]
-  fn default() -> Self {
-    Self::S3
-  }
-}
-
-/// Specify the storage backend to use.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(untagged, deny_unknown_fields)]
-#[non_exhaustive]
-pub enum Storage {
-  Tagged(TaggedStorageTypes),
-  Local {
-    #[serde(default)]
-    scheme: Scheme,
-    #[serde(with = "http_serde::authority", default = "default_authority")]
-    authority: Authority,
-    #[serde(default = "default_local_path")]
-    local_path: String,
-    #[serde(default = "default_path_prefix")]
-    path_prefix: String,
-  },
-  #[cfg(feature = "s3-storage")]
-  S3 {
-    #[serde(default)]
-    bucket: String,
-  },
-}
-
-impl Default for Storage {
-  fn default() -> Self {
-    Self::Tagged(Default::default())
-  }
-}
-
-/// Schemes that can be used with htsget.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum Scheme {
-  #[serde(alias = "Http", alias = "http")]
-  Http,
-  #[serde(alias = "Https", alias = "https")]
-  Https,
-}
-
-impl Default for Scheme {
-  fn default() -> Self {
-    Self::Http
-  }
-}
-
-/// A regex resolver is a resolver that matches ids using Regex.
+/// A regex storage is a storage that matches ids using Regex.
 #[derive(Serialize, Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct RegexResolver {
@@ -113,7 +34,7 @@ pub struct RegexResolver {
 
 with_prefix!(allow_interval_prefix "allow_interval_");
 
-/// A query guard represents query parameters that can be allowed to resolver for a given query.
+/// A query guard represents query parameters that can be allowed to storage for a given query.
 #[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct AllowGuard {
@@ -251,12 +172,12 @@ impl QueryAllowed for AllowGuard {
 impl Default for RegexResolver {
   fn default() -> Self {
     Self::new(Storage::default(), ".*", "$0", AllowGuard::default())
-      .expect("expected valid resolver")
+      .expect("expected valid storage")
   }
 }
 
 impl RegexResolver {
-  /// Create a new regex resolver.
+  /// Create a new regex storage.
   pub fn new(
     storage: Storage,
     regex: &str,
@@ -342,6 +263,8 @@ impl Resolver for RegexResolver {
 pub mod tests {
   use super::*;
   use crate::config::tests::{test_config_from_env, test_config_from_file};
+  #[cfg(feature = "s3-storage")]
+  use crate::storage::s3::S3Storage;
 
   #[test]
   fn resolver_resolve_id() {
@@ -370,34 +293,6 @@ pub mod tests {
   }
 
   #[test]
-  fn config_storage_tagged_local_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-            storage = "Local"
-        "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
-          config.resolvers().first().unwrap().storage(),
-          Storage::Tagged(TaggedStorageTypes::Local)
-        ));
-      },
-    );
-  }
-
-  #[test]
-  fn config_storage_tagged_local_env() {
-    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{storage=Local}]")], |config| {
-      assert!(matches!(
-        config.resolvers().first().unwrap().storage(),
-        Storage::Tagged(TaggedStorageTypes::Local)
-      ));
-    });
-  }
-
-  #[test]
   fn config_resolvers_guard_file() {
     test_config_from_file(
       r#"
@@ -412,28 +307,6 @@ pub mod tests {
           config.resolvers().first().unwrap().allow_formats(),
           &vec![Bam]
         );
-      },
-    );
-  }
-
-  #[test]
-  fn config_storage_local_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-
-            [resolvers.storage]
-            local_path = "path"
-            scheme = "HTTPS"
-            path_prefix = "path"
-        "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
-            config.resolvers().first().unwrap().storage(),
-            Storage::Local { scheme, local_path, path_prefix, .. } if local_path == "path" && scheme == &Scheme::Https && path_prefix == "path"
-        ));
       },
     );
   }
@@ -462,7 +335,7 @@ pub mod tests {
       )],
       |config| {
         let storage = Storage::S3 {
-          bucket: "bucket".to_string(),
+          s3_storage: S3Storage::new("bucket".to_string()),
         };
         let allow_guard = AllowGuard::new(
           ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),
@@ -483,56 +356,5 @@ pub mod tests {
         assert_eq!(resolver.allow_guard(), &allow_guard);
       },
     );
-  }
-
-  #[cfg(feature = "s3-storage")]
-  #[test]
-  fn config_storage_s3_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-
-            [resolvers.storage]
-            bucket = "bucket"
-        "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
-            config.resolvers().first().unwrap().storage(),
-            Storage::S3 { bucket } if bucket == "bucket"
-        ));
-      },
-    );
-  }
-
-  #[cfg(feature = "s3-storage")]
-  #[test]
-  fn config_storage_tagged_s3_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-            storage = "S3"
-        "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
-          config.resolvers().first().unwrap().storage(),
-          Storage::Tagged(TaggedStorageTypes::S3)
-        ));
-      },
-    );
-  }
-
-  #[cfg(feature = "s3-storage")]
-  #[test]
-  fn config_storage_tagged_s3_env() {
-    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{storage=S3}]")], |config| {
-      assert!(matches!(
-        config.resolvers().first().unwrap().storage(),
-        Storage::Tagged(TaggedStorageTypes::S3)
-      ));
-    });
   }
 }

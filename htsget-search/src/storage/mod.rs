@@ -18,8 +18,7 @@ use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, Expos
 use tracing::instrument;
 
 use htsget_config::config::cors::CorsConfig;
-use htsget_config::regex_resolver::Scheme;
-use htsget_config::Class;
+use htsget_config::{Class, Scheme};
 
 use crate::htsget::{Headers, Url};
 

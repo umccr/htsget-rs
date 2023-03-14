@@ -9,7 +9,8 @@ use tokio::io::AsyncRead;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::regex_resolver::{Resolver, Storage as StorageConfig};
+use htsget_config::resolver::Resolver;
+use htsget_config::storage::Storage as StorageConfig;
 
 use crate::htsget::search::Search;
 use crate::htsget::{Format, HtsGetError};
@@ -46,19 +47,20 @@ impl HtsGet for &[RegexResolver] {
     for resolver in self.iter() {
       if let Some(id) = resolver.resolve_id(&query) {
         match resolver.storage().clone() {
-          StorageConfig::Local {
-            scheme,
-            authority,
-            local_path,
-            path_prefix,
-          } => {
-            let searcher =
-              HtsGetFromStorage::local_from(local_path, (scheme, authority, path_prefix))?;
+          StorageConfig::Local { local_storage } => {
+            let searcher = HtsGetFromStorage::local_from(
+              local_storage.local_path(),
+              (
+                local_storage.scheme(),
+                local_storage.authority().clone(),
+                local_storage.path_prefix().to_string(),
+              ),
+            )?;
             return searcher.search(query.with_id(id)).await;
           }
           #[cfg(feature = "s3-storage")]
-          StorageConfig::S3 { bucket } => {
-            let searcher = HtsGetFromStorage::s3_from(bucket.to_string()).await;
+          StorageConfig::S3 { s3_storage } => {
+            let searcher = HtsGetFromStorage::s3_from(s3_storage.bucket().to_string()).await;
             return searcher.search(query.with_id(id)).await;
           }
           _ => {}
@@ -66,9 +68,7 @@ impl HtsGet for &[RegexResolver] {
       }
     }
 
-    Err(HtsGetError::not_found(
-      "failed to match query with resolver",
-    ))
+    Err(HtsGetError::not_found("failed to match query with storage"))
   }
 }
 
@@ -118,6 +118,7 @@ impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
 #[cfg(test)]
 pub(crate) mod tests {
   use std::fs;
+  #[cfg(feature = "s3-storage")]
   use std::fs::create_dir;
   use std::future::Future;
   use std::path::PathBuf;

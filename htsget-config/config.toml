@@ -19,7 +19,7 @@ data_server_cors_expose_headers = []
 [[resolvers]]
 regex = ".*"
 substitution_string = "$0"
-storage = "S3"
+storage = "Local"
 
 [resolvers.allow_guard]
 allow_reference_names = "All"

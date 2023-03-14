@@ -14,7 +14,7 @@ use tracing::{debug, info};
 
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
-pub use htsget_config::regex_resolver::Storage;
+pub use htsget_config::storage::Storage;
 use htsget_http::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::configure_cors;
@@ -202,7 +202,7 @@ mod tests {
   use std::sync::Arc;
 
   use async_trait::async_trait;
-  use htsget_config::regex_resolver::RegexResolver;
+  use htsget_config::resolver::RegexResolver;
   use htsget_config::Class;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
