@@ -9,16 +9,17 @@ use tokio::io::AsyncRead;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::resolver::Resolver;
-use htsget_config::storage::Storage as StorageConfig;
+use htsget_config::resolver::{ResolveResponse, StorageResolver};
+use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+#[cfg(feature = "s3-storage")]
+use htsget_config::storage::s3::S3Storage;
 
 use crate::htsget::search::Search;
-use crate::htsget::{Format, HtsGetError};
 #[cfg(feature = "s3-storage")]
 use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
 use crate::storage::UrlFormatter;
-use crate::RegexResolver;
+use crate::Resolver;
 use crate::{
   htsget::bam_search::BamSearch,
   htsget::bcf_search::BcfSearch,
@@ -27,6 +28,7 @@ use crate::{
   htsget::{HtsGet, Query, Response, Result},
   storage::Storage,
 };
+use crate::{Format, HtsGetError};
 
 /// Implementation of the [HtsGet] trait using a [Storage].
 #[derive(Debug, Clone)]
@@ -35,40 +37,19 @@ pub struct HtsGetFromStorage<S> {
 }
 
 #[async_trait]
-impl HtsGet for Vec<RegexResolver> {
+impl HtsGet for Vec<Resolver> {
   async fn search(&self, query: Query) -> Result<Response> {
     self.as_slice().search(query).await
   }
 }
 
 #[async_trait]
-impl HtsGet for &[RegexResolver] {
-  async fn search(&self, query: Query) -> Result<Response> {
-    for resolver in self.iter() {
-      if let Some(id) = resolver.resolve_id(&query) {
-        match resolver.storage().clone() {
-          StorageConfig::Local { local_storage } => {
-            let searcher = HtsGetFromStorage::local_from(
-              local_storage.local_path(),
-              (
-                local_storage.scheme(),
-                local_storage.authority().clone(),
-                local_storage.path_prefix().to_string(),
-              ),
-            )?;
-            return searcher.search(query.with_id(id)).await;
-          }
-          #[cfg(feature = "s3-storage")]
-          StorageConfig::S3 { s3_storage } => {
-            let searcher = HtsGetFromStorage::s3_from(s3_storage.bucket().to_string()).await;
-            return searcher.search(query.with_id(id)).await;
-          }
-          _ => {}
-        }
-      }
-    }
-
-    Err(HtsGetError::not_found("failed to match query with storage"))
+impl HtsGet for &[Resolver] {
+  async fn search(&self, mut query: Query) -> Result<Response> {
+    self
+      .resolve_request::<ResolveFromStorage>(&mut query)
+      .await
+      .ok_or_else(|| HtsGetError::not_found("failed to match query with storage"))?
   }
 }
 
@@ -87,6 +68,27 @@ where
       Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
       Format::Bcf => BcfSearch::new(self.storage()).search(query).await,
     }
+  }
+}
+
+/// A type to implement `ResolveResponse`.
+struct ResolveFromStorage;
+
+#[async_trait]
+impl ResolveResponse for ResolveFromStorage {
+  async fn from_local(local_storage: &ConfigLocalStorage, query: &Query) -> Result<Response> {
+    let local_storage = local_storage.clone();
+    let path = local_storage.local_path().to_string();
+    let searcher = HtsGetFromStorage::new(LocalStorage::new(path, local_storage)?);
+    searcher.search(query.clone()).await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  async fn from_s3_storage(s3_storage: &S3Storage, query: &Query) -> Result<Response> {
+    let searcher = HtsGetFromStorage::new(
+      AwsS3Storage::new_with_default_config(s3_storage.bucket().to_string()).await,
+    );
+    searcher.search(query.clone()).await
   }
 }
 
@@ -134,10 +136,10 @@ pub(crate) mod tests {
   use crate::htsget::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
-  use crate::htsget::{Headers, Url};
   #[cfg(feature = "s3-storage")]
   use crate::storage::aws::tests::with_aws_s3_storage_fn;
   use crate::storage::data_server::HttpTicketFormatter;
+  use crate::{Headers, Url};
 
   use super::*;
 

@@ -5,5 +5,5 @@ members = [
     "htsget-http",
     "htsget-lambda",
     "htsget-search",
-    "htsget-test",
+    "htsget-test"
 ]

@@ -6,8 +6,7 @@ pub use htsget_config::config::{
   Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, TicketServerConfig,
 };
 pub use htsget_config::storage::Storage;
-use htsget_config::Query;
-use htsget_search::htsget::Response;
+use htsget_config::types::{Query, Response};
 pub use http_core::{get, post};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
@@ -110,17 +109,15 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
-  use htsget_config::config::cors::CorsConfig;
   use std::path::PathBuf;
   use std::sync::Arc;
 
-  use htsget_config::Format;
+  use htsget_config::config::cors::CorsConfig;
+  use htsget_config::types::{Format, Headers, JsonResponse, Url};
+  use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::HtsGet;
   use htsget_search::storage::data_server::HttpTicketFormatter;
-  use htsget_search::{
-    htsget::{from_storage::HtsGetFromStorage, Headers, JsonResponse, Url},
-    storage::local::LocalStorage,
-  };
+  use htsget_search::storage::local::LocalStorage;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   use super::*;

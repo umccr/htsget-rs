@@ -1,13 +1,15 @@
-pub mod local;
-#[cfg(feature = "s3-storage")]
-pub mod s3;
-
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::config::DataServerConfig;
+use crate::resolver::ResolveResponse;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
+use crate::types::{Query, Response, Result};
+
+pub mod local;
+#[cfg(feature = "s3-storage")]
+pub mod s3;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum TaggedStorageTypes {
@@ -35,14 +37,31 @@ impl Default for TaggedStorageTypes {
 #[derive(Debug)]
 pub struct ResolvedId(String);
 
-/// A trait for converting a type from `Storage`.
-pub trait FromStorage<T> {
-  /// Convert from `LocalStorage`.
-  fn from_local(local_storage: &LocalStorage) -> T;
+impl ResolvedId {
+  /// Create a new resolved id.
+  pub fn new(resolved_id: String) -> Self {
+    Self(resolved_id)
+  }
 
-  /// Convert from `S3Storage`.
-  #[cfg(feature = "s3-storage")]
-  fn from_s3_storage(s3_storage: &S3Storage) -> T;
+  /// Get the inner resolved id value.
+  pub fn into_inner(self) -> String {
+    self.0
+  }
+}
+
+/// A new type to represent a resolver and query.
+pub struct ResolverAndQuery<'a>(&'a Regex, &'a Query);
+
+impl<'a> ResolverAndQuery<'a> {
+  /// Create a new resovler and query.
+  pub fn new(resolver: &'a Regex, query: &'a Query) -> Self {
+    Self(resolver, query)
+  }
+
+  /// Get the inner values.
+  pub fn into_inner(self) -> (&'a Regex, &'a Query) {
+    (self.0, self.1)
+  }
 }
 
 /// Specify the storage backend to use as config values.
@@ -63,28 +82,32 @@ pub enum Storage {
 }
 
 impl Storage {
-  /// Resolve the local component `Storage` into a type that implements `FromStorage`.
-  pub fn resolve_local_storage<T: FromStorage<T>>(&self, config: &DataServerConfig) -> Option<T> {
+  /// Resolve the local component `Storage` into a type that implements `FromStorage`. Tagged
+  /// `Local` storage is not resolved because it is resolved into untagged `Local` storage when
+  /// `Config` is constructed.
+  pub async fn resolve_local_storage<T: ResolveResponse>(
+    &self,
+    query: &Query,
+  ) -> Option<Result<Response>> {
     match self {
-      Storage::Tagged(TaggedStorageTypes::Local) => {
-        let local_storage: Option<LocalStorage> = config.into();
-        Some(T::from_local(&local_storage?))
-      }
-      Storage::Local { local_storage } => Some(T::from_local(local_storage)),
-      #[cfg(feature = "s3-storage")]
+      Storage::Local { local_storage } => Some(T::from_local(local_storage, query).await),
       _ => None,
     }
   }
 
   /// Resolve the s3 component of `Storage` into a type that implements `FromStorage`.
   #[cfg(feature = "s3-storage")]
-  pub fn resolve_s3_storage<T: FromStorage<T>>(&self, resolved_id: String) -> Option<T> {
+  pub async fn resolve_s3_storage<T: ResolveResponse>(
+    &self,
+    regex: &Regex,
+    query: &Query,
+  ) -> Option<Result<Response>> {
     match self {
       Storage::Tagged(TaggedStorageTypes::S3) => {
-        let s3_storage: Option<S3Storage> = ResolvedId(resolved_id).into();
-        Some(T::from_s3_storage(&s3_storage?))
+        let storage: Option<S3Storage> = ResolverAndQuery::new(regex, query).into();
+        Some(T::from_s3_storage(&storage?, query).await)
       }
-      Storage::S3 { s3_storage } => Some(T::from_s3_storage(s3_storage)),
+      Storage::S3 { s3_storage } => Some(T::from_s3_storage(s3_storage, query).await),
       _ => None,
     }
   }
@@ -97,9 +120,10 @@ impl Default for Storage {
 }
 
 #[cfg(test)]
-pub mod tests {
-  use super::*;
+pub(crate) mod tests {
   use crate::config::tests::{test_config_from_env, test_config_from_file};
+
+  use super::*;
 
   #[test]
   fn config_storage_tagged_local_file() {

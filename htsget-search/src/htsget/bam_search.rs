@@ -18,8 +18,8 @@ use tokio::io::{AsyncRead, BufReader};
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
-use crate::htsget::Class::Body;
 use crate::htsget::HtsGetError;
+use crate::Class::Body;
 use crate::{
   htsget::{Format, Query, Result},
   storage::{BytesPosition, Storage},
@@ -181,9 +181,9 @@ pub(crate) mod tests {
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::htsget::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::local::LocalStorage;
+  use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
 
   use super::*;
 

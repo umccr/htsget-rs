@@ -1,11 +1,12 @@
+use std::str::FromStr;
+
 use http::uri::Authority;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 use crate::config::{
   default_localstorage_addr, default_path, default_serve_at, DataServerConfig, KeyPairScheme,
 };
-use crate::Scheme;
+use crate::types::Scheme;
 
 fn default_authority() -> Authority {
   Authority::from_static(default_localstorage_addr())
@@ -80,14 +81,16 @@ impl From<&DataServerConfig> for Option<LocalStorage> {
 }
 
 #[cfg(test)]
-pub mod tests {
-  use super::*;
+mod tests {
+  use std::net::SocketAddr;
+  use std::path::PathBuf;
+
   use crate::config::cors::CorsConfig;
   use crate::config::tests::test_config_from_file;
   use crate::storage::Storage;
-  use crate::Scheme::Http;
-  use std::net::SocketAddr;
-  use std::path::PathBuf;
+  use crate::types::Scheme::Http;
+
+  use super::*;
 
   #[test]
   fn config_storage_local_file() {

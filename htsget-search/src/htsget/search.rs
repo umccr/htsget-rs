@@ -23,12 +23,10 @@ use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{instrument, trace, trace_span, Instrument};
 
-use crate::htsget::Class::Body;
+use crate::htsget::ConcurrencyError;
+use crate::storage::{BytesPosition, RangeUrlOptions, Storage};
 use crate::storage::{DataBlock, GetOptions};
-use crate::{
-  htsget::{Class, Format, HtsGetError, Query, Response, Result},
-  storage::{BytesPosition, RangeUrlOptions, Storage},
-};
+use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
 
 // § 4.1.2 End-of-file marker <https://samtools.github.io/hts-specs/SAMv1.pdf>.
 pub(crate) static BGZF_EOF: &[u8] = &[
@@ -45,7 +43,7 @@ pub(crate) async fn find_first<T>(
   loop {
     select! {
       Some(next) = futures.next() => {
-        if let Some(next) = next.map_err(HtsGetError::from)? {
+        if let Some(next) = next.map_err(ConcurrencyError::new).map_err(HtsGetError::from)? {
           result = Some(next);
           break;
         }
@@ -318,7 +316,7 @@ where
     let mut urls = Vec::new();
     loop {
       select! {
-        Some(next) = storage_futures.next() => urls.push(next.map_err(HtsGetError::from)?.map_err(HtsGetError::from)?),
+        Some(next) = storage_futures.next() => urls.push(next.map_err(ConcurrencyError::new).map_err(HtsGetError::from)?.map_err(HtsGetError::from)?),
         else => break
       }
     }

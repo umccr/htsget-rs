@@ -1,6 +1,6 @@
-use crate::storage::ResolvedId;
 use serde::{Deserialize, Serialize};
-use std::path::{Component, PathBuf};
+
+use crate::storage::ResolverAndQuery;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
 #[serde(default)]
@@ -20,23 +20,25 @@ impl S3Storage {
   }
 }
 
-impl From<ResolvedId> for Option<S3Storage> {
-  fn from(resolved_id: ResolvedId) -> Self {
-    let path = PathBuf::from(resolved_id.0);
-    let path_segment = path.components().find_map(|component| match component {
-      Component::Normal(component) => component.to_str(),
-      _ => None,
-    })?;
+impl<'a> From<ResolverAndQuery<'a>> for Option<S3Storage> {
+  fn from(resolver_and_query: ResolverAndQuery) -> Self {
+    let (regex, query) = resolver_and_query.into_inner();
+    let bucket = regex.captures(query.id())?.get(1)?.as_str();
 
-    Some(S3Storage::new(path_segment.to_string()))
+    Some(S3Storage::new(bucket.to_string()))
   }
 }
 
 #[cfg(test)]
-pub mod tests {
-  use super::*;
+mod tests {
+  use regex::Regex;
+
   use crate::config::tests::test_config_from_file;
   use crate::storage::Storage;
+  use crate::types::Format::Bam;
+  use crate::types::Query;
+
+  use super::*;
 
   #[test]
   fn config_storage_s3_file() {
@@ -59,11 +61,23 @@ pub mod tests {
   }
 
   #[test]
-  fn s3_storage_from_data_server_config() {
-    let resolved_id = "/bucket/id";
-    let result: Option<S3Storage> = ResolvedId(resolved_id.to_string()).into();
+  fn s3_storage_from_resolver_and_query() {
+    let regex = Regex::new("^(bucket)/(?P<key>.*)$").unwrap();
+    let query = Query::new("bucket/id", Bam);
+
+    let result: Option<S3Storage> = ResolverAndQuery(&regex, &query).into();
     let expected = S3Storage::new("bucket".to_string());
 
     assert_eq!(result.unwrap(), expected);
+  }
+
+  #[test]
+  fn s3_storage_from_resolver_and_query_no_captures() {
+    let regex = Regex::new("^bucket/id$").unwrap();
+    let query = Query::new("/bucket/id", Bam);
+
+    let result: Option<S3Storage> = ResolverAndQuery(&regex, &query).into();
+
+    assert_eq!(result, None);
   }
 }

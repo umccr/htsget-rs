@@ -142,9 +142,9 @@ mod tests {
   use actix_web::dev::ServiceResponse;
   use actix_web::{test, web, App};
   use async_trait::async_trait;
-  use htsget_search::htsget::JsonResponse;
   use tempfile::TempDir;
 
+  use htsget_config::types::JsonResponse;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_test::http_tests::{config_with_tls, default_test_config};
   use htsget_test::http_tests::{

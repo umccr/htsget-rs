@@ -1,16 +1,16 @@
-import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
-import { Construct } from "constructs";
+import {Duration, Stack, StackProps, Tags} from "aws-cdk-lib";
+import {Construct} from "constructs";
 import * as iam from "aws-cdk-lib/aws-iam";
-import { RustFunction, Settings } from "rust.aws-cdk-lambda";
-import { Architecture } from "aws-cdk-lib/aws-lambda";
+import {RustFunction, Settings} from "rust.aws-cdk-lambda";
+import {Architecture} from "aws-cdk-lib/aws-lambda";
 import * as apigwv2 from "@aws-cdk/aws-apigatewayv2-alpha";
-import { STACK_NAME } from "../bin/htsget-lambda";
-import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
-import { StringParameter } from "aws-cdk-lib/aws-ssm";
-import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
-import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
-import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
-import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
+import {STACK_NAME} from "../bin/htsget-lambda";
+import {HttpLambdaIntegration} from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
+import {StringParameter} from "aws-cdk-lib/aws-ssm";
+import {HttpJwtAuthorizer} from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
+import {ARecord, HostedZone, RecordTarget} from "aws-cdk-lib/aws-route53";
+import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
+import {Certificate} from "aws-cdk-lib/aws-certificatemanager";
 import * as fs from "fs";
 import * as TOML from "@iarna/toml";
 

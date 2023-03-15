@@ -10,8 +10,8 @@ use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
 
-use crate::htsget::Url;
 use crate::storage::{Storage, UrlFormatter};
+use crate::Url;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -131,9 +131,9 @@ pub(crate) mod tests {
 
   use htsget_config::config::cors::CorsConfig;
 
-  use crate::htsget::{Headers, Url};
   use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
+  use crate::{Headers, Url};
 
   use super::*;
 

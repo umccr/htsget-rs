@@ -4,14 +4,15 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use htsget_config::config::cors::{AllowType, CorsConfig};
-use htsget_config::config::{CertificateKeyPair, DataServerConfig, TicketServerConfig};
-use htsget_config::resolver::RegexResolver;
-use htsget_config::storage::{local::LocalStorage, Storage};
-use htsget_config::{Scheme, TaggedTypeAll};
 use http::uri::Authority;
 use http::HeaderMap;
 use serde::de;
+
+use htsget_config::config::cors::{AllowType, CorsConfig};
+use htsget_config::config::{CertificateKeyPair, DataServerConfig, TicketServerConfig};
+use htsget_config::resolver::Resolver;
+use htsget_config::storage::{local::LocalStorage, Storage};
+use htsget_config::types::{Scheme, TaggedTypeAll};
 
 use crate::util::generate_test_certificates;
 use crate::Config;
@@ -92,14 +93,14 @@ pub fn default_dir_data() -> PathBuf {
 }
 
 /// Get the default test storage.
-pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> RegexResolver {
+pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Resolver {
   let local_storage = LocalStorage::new(
     scheme,
     Authority::from_str(&addr.to_string()).unwrap(),
     default_dir_data().to_str().unwrap().to_string(),
     "/data".to_string(),
   );
-  RegexResolver::new(
+  Resolver::new(
     Storage::Local { local_storage },
     ".*",
     "$0",

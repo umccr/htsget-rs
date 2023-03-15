@@ -1,13 +1,9 @@
-pub mod cors;
-
 use std::fmt::Debug;
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
-use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
-use crate::resolver::RegexResolver;
 use clap::Parser;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
@@ -20,8 +16,12 @@ use tracing::instrument;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
 
-use crate::Scheme;
-use crate::Scheme::{Http, Https};
+use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
+use crate::resolver::Resolver;
+use crate::types::Scheme;
+use crate::types::Scheme::{Http, Https};
+
+pub mod cors;
 
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str =
@@ -75,7 +75,7 @@ pub struct Config {
   ticket_server: TicketServerConfig,
   #[serde(flatten, with = "data_server_prefix")]
   data_server: DataServerConfig,
-  resolvers: Vec<RegexResolver>,
+  resolvers: Vec<Resolver>,
 }
 
 with_prefix!(ticket_server_cors_prefix "ticket_server_cors_");
@@ -437,7 +437,7 @@ impl Default for Config {
     Self {
       ticket_server: TicketServerConfig::default(),
       data_server: DataServerConfig::default(),
-      resolvers: vec![RegexResolver::default()],
+      resolvers: vec![Resolver::default()],
     }
   }
 }
@@ -447,7 +447,7 @@ impl Config {
   pub fn new(
     ticket_server: TicketServerConfig,
     data_server: DataServerConfig,
-    resolvers: Vec<RegexResolver>,
+    resolvers: Vec<Resolver>,
   ) -> Self {
     Self {
       ticket_server,
@@ -518,12 +518,12 @@ impl Config {
   }
 
   /// Get the resolvers.
-  pub fn resolvers(&self) -> &[RegexResolver] {
+  pub fn resolvers(&self) -> &[Resolver] {
     &self.resolvers
   }
 
   /// Get owned resolvers.
-  pub fn owned_resolvers(self) -> Vec<RegexResolver> {
+  pub fn owned_resolvers(self) -> Vec<Resolver> {
     self.resolvers
   }
 
@@ -544,11 +544,14 @@ impl Config {
 
 #[cfg(test)]
 pub(crate) mod tests {
-  use super::*;
-  use crate::storage::Storage;
+  use std::fmt::Display;
+
   use figment::Jail;
   use http::uri::Authority;
-  use std::fmt::Display;
+
+  use crate::storage::Storage;
+
+  use super::*;
 
   fn test_config<K, V, F>(contents: Option<&str>, env_variables: Vec<(K, V)>, test_fn: F)
   where

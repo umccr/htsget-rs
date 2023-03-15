@@ -1,12 +1,14 @@
-use crate::config::default_server_origin;
-use crate::TaggedTypeAll;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+
 use http::header::{HeaderName, HeaderValue as HeaderValueInner, InvalidHeaderValue};
 use http::Method;
 use serde::de::Error;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
+
+use crate::config::default_server_origin;
+use crate::types::TaggedTypeAll;
 
 /// The maximum default amount of time a CORS request can be cached for in seconds.
 const CORS_MAX_AGE: usize = 86400;
@@ -219,10 +221,12 @@ impl Default for CorsConfig {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-  use http::Method;
   use std::fmt::Debug;
+
+  use http::Method;
   use toml::de::Error;
+
+  use super::*;
 
   fn test_cors_config<T, F>(input: &str, expected: &T, get_result: F)
   where

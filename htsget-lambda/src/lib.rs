@@ -195,15 +195,12 @@ where
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use std::future::Future;
   use std::path::Path;
   use std::str::FromStr;
   use std::sync::Arc;
 
   use async_trait::async_trait;
-  use htsget_config::resolver::RegexResolver;
-  use htsget_config::Class;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
   use lambda_http::tower::ServiceExt;
@@ -212,14 +209,17 @@ mod tests {
   use query_map::QueryMap;
   use tempfile::TempDir;
 
+  use htsget_config::resolver::Resolver;
+  use htsget_config::types::{Class, JsonResponse};
   use htsget_http::Endpoint;
-  use htsget_search::htsget::JsonResponse;
   use htsget_search::storage::configure_cors;
   use htsget_search::storage::data_server::HttpTicketFormatter;
   use htsget_test::http_tests::{config_with_tls, default_test_config, get_test_file};
   use htsget_test::http_tests::{Header, Response as TestResponse, TestRequest, TestServer};
   use htsget_test::server_tests::{expected_url_path, test_response, test_response_service_info};
   use htsget_test::{cors_tests, server_tests};
+
+  use super::*;
 
   struct LambdaTestServer {
     config: Config,
@@ -643,7 +643,7 @@ mod tests {
 
   async fn with_router<'a, F, Fut>(test: F, config: &'a Config)
   where
-    F: FnOnce(Router<'a, Vec<RegexResolver>>) -> Fut,
+    F: FnOnce(Router<'a, Vec<Resolver>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let router = Router::new(
