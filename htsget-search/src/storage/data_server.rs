@@ -328,6 +328,10 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<DataTestRequest> for DataTestServer {
+    async fn get_expected_path(&self) -> String {
+      "".to_string()
+    }
+
     fn get_config(&self) -> &Config {
       &self.config
     }
@@ -336,13 +340,13 @@ mod tests {
       DataTestRequest::default()
     }
 
-    async fn test_server(&self, request: DataTestRequest) -> TestResponse {
+    async fn test_server(&self, request: DataTestRequest, expected_path: String) -> TestResponse {
       let response = request.build().send().await.unwrap();
       let status: u16 = response.status().into();
       let headers = response.headers().clone();
       let bytes = response.bytes().await.unwrap().to_vec();
 
-      TestResponse::new(status, headers, bytes, "".to_string())
+      TestResponse::new(status, headers, bytes, expected_path)
     }
   }
 
@@ -452,7 +456,7 @@ mod tests {
       .get_request()
       .method(Method::GET.to_string())
       .uri(format!("{scheme}://localhost:{port}/data/key1"));
-    let response = test_server.test_server(request).await;
+    let response = test_server.test_server(request, "".to_string()).await;
 
     assert!(response.is_success());
     assert_eq!(response.body, b"value1");

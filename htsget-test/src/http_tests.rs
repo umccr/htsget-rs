@@ -74,9 +74,10 @@ pub trait TestRequest {
 /// Mock server trait that should be implemented to use test functions.
 #[async_trait(?Send)]
 pub trait TestServer<T: TestRequest> {
+  async fn get_expected_path(&self) -> String;
   fn get_config(&self) -> &Config;
   fn get_request(&self) -> T;
-  async fn test_server(&self, request: T) -> Response;
+  async fn test_server(&self, request: T, expected_path: String) -> Response;
 }
 
 /// Get the default directory.
@@ -93,20 +94,31 @@ pub fn default_dir_data() -> PathBuf {
 }
 
 /// Get the default test storage.
-pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Resolver {
+pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Vec<Resolver> {
   let local_storage = LocalStorage::new(
     scheme,
     Authority::from_str(&addr.to_string()).unwrap(),
     default_dir_data().to_str().unwrap().to_string(),
     "/data".to_string(),
   );
-  Resolver::new(
-    Storage::Local { local_storage },
-    ".*",
-    "$0",
-    Default::default(),
-  )
-  .unwrap()
+  vec![
+    Resolver::new(
+      Storage::Local {
+        local_storage: local_storage.clone(),
+      },
+      "^1-(.*)$",
+      "$1",
+      Default::default(),
+    )
+    .unwrap(),
+    Resolver::new(
+      Storage::Local { local_storage },
+      "^2-(.*)$",
+      "$1",
+      Default::default(),
+    )
+    .unwrap(),
+  ]
 }
 
 /// Default config with fixed port.
@@ -151,7 +163,7 @@ fn default_test_config_params(
   Config::new(
     TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), cors, Default::default()),
     server_config,
-    vec![default_test_resolver(addr, scheme)],
+    default_test_resolver(addr, scheme),
   )
 }
 

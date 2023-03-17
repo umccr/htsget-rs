@@ -195,15 +195,7 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
-    fn get_config(&self) -> &Config {
-      &self.config
-    }
-
-    fn get_request(&self) -> ActixTestRequest<test::TestRequest> {
-      ActixTestRequest(test::TestRequest::default())
-    }
-
-    async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
+    async fn get_expected_path(&self) -> String {
       let mut bind_data_server =
         BindDataServer::try_from(self.get_config().data_server().clone()).unwrap();
       let server = bind_data_server.bind_data_server().await.unwrap();
@@ -212,9 +204,24 @@ mod tests {
       let path = self.get_config().data_server().local_path().to_path_buf();
       tokio::spawn(async move { server.serve(path).await.unwrap() });
 
-      let expected_path = expected_url_path(self.get_config(), addr);
+      expected_url_path(self.get_config(), addr)
+    }
 
+    fn get_config(&self) -> &Config {
+      &self.config
+    }
+
+    fn get_request(&self) -> ActixTestRequest<test::TestRequest> {
+      ActixTestRequest(test::TestRequest::default())
+    }
+
+    async fn test_server(
+      &self,
+      request: ActixTestRequest<test::TestRequest>,
+      expected_path: String,
+    ) -> TestResponse {
       let response = self.get_response(request.0).await;
+
       let status: u16 = response.status().into();
       let mut headers = response.headers().clone();
       let bytes = test::read_body(response).await.to_vec();

@@ -280,6 +280,10 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<LambdaTestRequest<Request>> for LambdaTestServer {
+    async fn get_expected_path(&self) -> String {
+      spawn_server(self.get_config()).await
+    }
+
     fn get_config(&self) -> &Config {
       &self.config
     }
@@ -288,9 +292,11 @@ mod tests {
       LambdaTestRequest(Request::default())
     }
 
-    async fn test_server(&self, request: LambdaTestRequest<Request>) -> TestResponse {
-      let expected_path = spawn_server(self.get_config()).await;
-
+    async fn test_server(
+      &self,
+      request: LambdaTestRequest<Request>,
+      expected_path: String,
+    ) -> TestResponse {
       let router = Router::new(
         Arc::new(self.config.clone().owned_resolvers()),
         self.config.ticket_server().service_info(),
