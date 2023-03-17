@@ -125,13 +125,14 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
 
+  use http::uri::Authority;
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
-  use htsget_config::config::cors::CorsConfig;
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::types::Scheme;
 
-  use crate::storage::data_server::HttpTicketFormatter;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
   use crate::{Headers, Url};
 
@@ -291,14 +292,19 @@ pub(crate) mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(LocalStorage<HttpTicketFormatter>) -> Fut,
+    F: FnOnce(LocalStorage<ConfigLocalStorage>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
     test(
       LocalStorage::new(
         base_path.path(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
+        ConfigLocalStorage::new(
+          Scheme::Http,
+          Authority::from_static("127.0.0.1:8081"),
+          "data".to_string(),
+          "/data".to_string(),
+        ),
       )
       .unwrap(),
     )

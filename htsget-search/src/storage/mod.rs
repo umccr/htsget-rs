@@ -432,7 +432,10 @@ impl RangeUrlOptions {
 mod tests {
   use std::collections::HashMap;
 
-  use crate::storage::data_server::HttpTicketFormatter;
+  use http::uri::Authority;
+
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+
   use crate::storage::local::LocalStorage;
 
   use super::*;
@@ -773,7 +776,7 @@ mod tests {
   #[test]
   fn data_url() {
     let result =
-      LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
+      LocalStorage::<ConfigLocalStorage>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
@@ -867,5 +870,34 @@ mod tests {
   fn url_options_apply_no_bytes_range() {
     let result = RangeUrlOptions::default().apply(Url::new(""));
     assert_eq!(result, Url::new(""));
+  }
+
+  #[test]
+  fn http_formatter_authority() {
+    let formatter = ConfigLocalStorage::new(
+      Scheme::Http,
+      Authority::from_static("127.0.0.1:8080"),
+      "data".to_string(),
+      "/data".to_string(),
+    );
+    test_formatter_authority(formatter, "http");
+  }
+
+  #[test]
+  fn https_formatter_authority() {
+    let formatter = ConfigLocalStorage::new(
+      Scheme::Https,
+      Authority::from_static("127.0.0.1:8080"),
+      "data".to_string(),
+      "/data".to_string(),
+    );
+    test_formatter_authority(formatter, "https");
+  }
+
+  fn test_formatter_authority(formatter: ConfigLocalStorage, scheme: &str) {
+    assert_eq!(
+      formatter.format_url("path").unwrap(),
+      format!("{}://127.0.0.1:8080{}/path", scheme, "/data")
+    )
   }
 }

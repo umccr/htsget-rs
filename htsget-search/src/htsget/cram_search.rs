@@ -269,14 +269,15 @@ where
 mod tests {
   use std::future::Future;
 
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::util::expected_cram_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::storage::data_server::HttpTicketFormatter;
-  use crate::storage::local::LocalStorage;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+
+  use crate::storage::local::LocalStorage;
 
   use super::*;
 
@@ -536,7 +537,7 @@ mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     with_local_storage_fn(test, "data/cram", &[]).await

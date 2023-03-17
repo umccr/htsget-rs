@@ -198,7 +198,7 @@ impl TicketServerConfig {
 }
 
 /// A trait to determine which scheme a key pair option has.
-pub(crate) trait KeyPairScheme {
+pub trait KeyPairScheme {
   /// Get the scheme.
   fn get_scheme(&self) -> Scheme;
 }

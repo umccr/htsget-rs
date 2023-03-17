@@ -125,9 +125,10 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::path::PathBuf;
 
+  use http::uri::Authority;
   use tempfile::TempDir;
 
-  use htsget_config::config::cors::CorsConfig;
+  use htsget_config::types::Scheme;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
@@ -138,7 +139,6 @@ pub(crate) mod tests {
   };
   #[cfg(feature = "s3-storage")]
   use crate::storage::aws::tests::with_aws_s3_storage_fn;
-  use crate::storage::data_server::HttpTicketFormatter;
   use crate::{Headers, Url};
 
   use super::*;
@@ -205,7 +205,7 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_local_storage_fn<F, Fut>(test: F, path: &str, file_names: &[&str])
   where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let tmp_dir = TempDir::new().unwrap();
@@ -214,7 +214,12 @@ pub(crate) mod tests {
     test(Arc::new(
       LocalStorage::new(
         base_path,
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
+        ConfigLocalStorage::new(
+          Scheme::Http,
+          Authority::from_static("127.0.0.1:8081"),
+          "data".to_string(),
+          "/data".to_string(),
+        ),
       )
       .unwrap(),
     ))

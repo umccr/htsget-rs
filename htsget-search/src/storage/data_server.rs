@@ -11,11 +11,9 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use axum::http;
 use axum::Router;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
-use http::uri::Scheme;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
 use rustls_pemfile::{certs, pkcs8_private_keys};
@@ -29,9 +27,10 @@ use tracing::{info, trace};
 
 use htsget_config::config::cors::CorsConfig;
 use htsget_config::config::{CertificateKeyPair, DataServerConfig};
+use htsget_config::types::Scheme;
 
+use crate::storage::configure_cors;
 use crate::storage::StorageError::{DataServerError, IoError};
-use crate::storage::{configure_cors, UrlFormatter};
 
 use super::{Result, StorageError};
 
@@ -40,21 +39,21 @@ pub const CORS_MAX_AGE: u64 = 86400;
 
 /// Ticket server url formatter.
 #[derive(Debug, Clone)]
-pub struct HttpTicketFormatter {
+pub struct BindDataServer {
   addr: SocketAddr,
   cert_key_pair: Option<CertificateKeyPair>,
   scheme: Scheme,
   cors: CorsConfig,
 }
 
-impl HttpTicketFormatter {
+impl BindDataServer {
   const SERVE_ASSETS_AT: &'static str = "/data";
 
   pub fn new(addr: SocketAddr, cors: CorsConfig) -> Self {
     Self {
       addr,
       cert_key_pair: None,
-      scheme: Scheme::HTTP,
+      scheme: Scheme::Http,
       cors,
     }
   }
@@ -63,7 +62,7 @@ impl HttpTicketFormatter {
     Self {
       addr,
       cert_key_pair: Some(tls),
-      scheme: Scheme::HTTPS,
+      scheme: Scheme::Https,
       cors,
     }
   }
@@ -93,7 +92,7 @@ impl HttpTicketFormatter {
   }
 }
 
-impl From<DataServerConfig> for HttpTicketFormatter {
+impl From<DataServerConfig> for BindDataServer {
   /// Returns a ticket server with TLS enabled if the tls config is not None or without TLS enabled
   /// if it is None.
   fn from(config: DataServerConfig) -> Self {
@@ -224,18 +223,6 @@ impl DataServer {
 impl From<hyper::Error> for StorageError {
   fn from(error: hyper::Error) -> Self {
     DataServerError(error.to_string())
-  }
-}
-
-impl UrlFormatter for HttpTicketFormatter {
-  fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
-    http::uri::Builder::new()
-      .scheme(self.get_scheme().clone())
-      .authority(self.addr.to_string())
-      .path_and_query(format!("{}/{}", Self::SERVE_ASSETS_AT, key.as_ref()))
-      .build()
-      .map_err(|err| StorageError::InvalidUri(err.to_string()))
-      .map(|value| value.to_string())
   }
 }
 
@@ -372,33 +359,19 @@ mod tests {
   }
 
   #[test]
-  fn http_formatter_authority() {
-    let formatter =
-      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
-    test_formatter_authority(formatter, "http");
-  }
-
-  #[test]
-  fn https_formatter_authority() {
-    test_formatter_authority(tls_formatter(), "https");
-  }
-
-  #[test]
   fn http_scheme() {
-    let formatter =
-      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
-    assert_eq!(formatter.get_scheme(), &Scheme::HTTP);
+    let formatter = BindDataServer::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
+    assert_eq!(formatter.get_scheme(), &Scheme::Http);
   }
 
   #[test]
   fn https_scheme() {
-    assert_eq!(tls_formatter().get_scheme(), &Scheme::HTTPS);
+    assert_eq!(tls_formatter().get_scheme(), &Scheme::Https);
   }
 
   #[tokio::test]
   async fn get_addr_local_addr() {
-    let mut formatter =
-      HttpTicketFormatter::new("127.0.0.1:0".parse().unwrap(), CorsConfig::default());
+    let mut formatter = BindDataServer::new("127.0.0.1:0".parse().unwrap(), CorsConfig::default());
     let server = formatter.bind_data_server().await.unwrap();
     assert_eq!(formatter.get_addr(), server.local_addr());
   }
@@ -429,8 +402,8 @@ mod tests {
     .await;
   }
 
-  fn tls_formatter() -> HttpTicketFormatter {
-    HttpTicketFormatter::new_with_tls(
+  fn tls_formatter() -> BindDataServer {
+    BindDataServer::new_with_tls(
       "127.0.0.1:8080".parse().unwrap(),
       CorsConfig::default(),
       CertificateKeyPair::new("".parse().unwrap(), "".parse().unwrap()),
@@ -466,16 +439,5 @@ mod tests {
 
     assert!(response.is_success());
     assert_eq!(response.body, b"value1");
-  }
-
-  fn test_formatter_authority(formatter: HttpTicketFormatter, scheme: &str) {
-    assert_eq!(
-      formatter.format_url("path").unwrap(),
-      format!(
-        "{}://127.0.0.1:8080{}/path",
-        scheme,
-        HttpTicketFormatter::SERVE_ASSETS_AT
-      )
-    )
   }
 }

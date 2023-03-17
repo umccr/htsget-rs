@@ -145,7 +145,7 @@ mod tests {
   use tempfile::TempDir;
 
   use htsget_config::types::JsonResponse;
-  use htsget_search::storage::data_server::HttpTicketFormatter;
+  use htsget_search::storage::data_server::BindDataServer;
   use htsget_test::http_tests::{config_with_tls, default_test_config};
   use htsget_test::http_tests::{
     Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
@@ -204,9 +204,9 @@ mod tests {
     }
 
     async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
-      let mut formatter =
-        HttpTicketFormatter::try_from(self.get_config().data_server().clone()).unwrap();
-      let server = formatter.bind_data_server().await.unwrap();
+      let mut bind_data_server =
+        BindDataServer::try_from(self.get_config().data_server().clone()).unwrap();
+      let server = bind_data_server.bind_data_server().await.unwrap();
       let addr = server.local_addr();
 
       let path = self.get_config().data_server().local_path().to_path_buf();
@@ -214,7 +214,7 @@ mod tests {
 
       let expected_path = expected_url_path(self.get_config(), addr);
 
-      let response = self.get_response(request.0, formatter).await;
+      let response = self.get_response(request.0).await;
       let status: u16 = response.status().into();
       let mut headers = response.headers().clone();
       let bytes = test::read_body(response).await.to_vec();
@@ -241,7 +241,6 @@ mod tests {
     async fn get_response(
       &self,
       request: test::TestRequest,
-      _formatter: HttpTicketFormatter,
     ) -> ServiceResponse<EitherBody<BoxBody>> {
       println!("{:#?}", self.config);
       let app = test::init_service(

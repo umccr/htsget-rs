@@ -2,7 +2,7 @@ use tokio::select;
 
 use htsget_actix::run_server;
 use htsget_actix::Config;
-use htsget_search::storage::data_server::HttpTicketFormatter;
+use htsget_search::storage::data_server::BindDataServer;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -13,9 +13,9 @@ async fn main() -> std::io::Result<()> {
 
     if config.data_server().enabled() {
       let server = config.data_server().clone();
-      let mut formatter = HttpTicketFormatter::from(server.clone());
+      let mut bind_data_server = BindDataServer::from(server.clone());
 
-      let local_server = formatter.bind_data_server().await?;
+      let local_server = bind_data_server.bind_data_server().await?;
       let local_server =
         tokio::spawn(async move { local_server.serve(&server.local_path()).await });
 

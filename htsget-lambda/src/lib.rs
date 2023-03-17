@@ -213,7 +213,7 @@ mod tests {
   use htsget_config::types::{Class, JsonResponse};
   use htsget_http::Endpoint;
   use htsget_search::storage::configure_cors;
-  use htsget_search::storage::data_server::HttpTicketFormatter;
+  use htsget_search::storage::data_server::BindDataServer;
   use htsget_test::http_tests::{config_with_tls, default_test_config, get_test_file};
   use htsget_test::http_tests::{Header, Response as TestResponse, TestRequest, TestServer};
   use htsget_test::server_tests::{expected_url_path, test_response, test_response_service_info};
@@ -659,8 +659,8 @@ mod tests {
   }
 
   async fn spawn_server(config: &Config) -> String {
-    let mut formatter = HttpTicketFormatter::try_from(config.data_server().clone()).unwrap();
-    let server = formatter.bind_data_server().await.unwrap();
+    let mut bind_data_server = BindDataServer::try_from(config.data_server().clone()).unwrap();
+    let server = bind_data_server.bind_data_server().await.unwrap();
     let addr = server.local_addr();
 
     let path = config.data_server().local_path().to_path_buf();

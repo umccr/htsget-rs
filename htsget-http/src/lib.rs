@@ -112,11 +112,13 @@ mod tests {
   use std::path::PathBuf;
   use std::sync::Arc;
 
-  use htsget_config::config::cors::CorsConfig;
-  use htsget_config::types::{Format, Headers, JsonResponse, Url};
+  use http::uri::Authority;
+
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::types::{Format, Headers, JsonResponse, Scheme, Url};
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::HtsGet;
-  use htsget_search::storage::data_server::HttpTicketFormatter;
+
   use htsget_search::storage::local::LocalStorage;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
@@ -268,7 +270,12 @@ mod tests {
     Arc::new(HtsGetFromStorage::new(
       LocalStorage::new(
         get_base_path(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
+        ConfigLocalStorage::new(
+          Scheme::Http,
+          Authority::from_static("127.0.0.1:8081"),
+          "data".to_string(),
+          "/data".to_string(),
+        ),
       )
       .unwrap(),
     ))
