@@ -44,26 +44,32 @@ pub struct BindDataServer {
   cert_key_pair: Option<CertificateKeyPair>,
   scheme: Scheme,
   cors: CorsConfig,
+  serve_at: String,
 }
 
 impl BindDataServer {
-  const SERVE_ASSETS_AT: &'static str = "/data";
-
-  pub fn new(addr: SocketAddr, cors: CorsConfig) -> Self {
+  pub fn new(addr: SocketAddr, cors: CorsConfig, serve_at: String) -> Self {
     Self {
       addr,
       cert_key_pair: None,
       scheme: Scheme::Http,
       cors,
+      serve_at,
     }
   }
 
-  pub fn new_with_tls(addr: SocketAddr, cors: CorsConfig, tls: CertificateKeyPair) -> Self {
+  pub fn new_with_tls(
+    addr: SocketAddr,
+    cors: CorsConfig,
+    tls: CertificateKeyPair,
+    serve_at: String,
+  ) -> Self {
     Self {
       addr,
       cert_key_pair: Some(tls),
       scheme: Scheme::Https,
       cors,
+      serve_at,
     }
   }
 
@@ -77,7 +83,7 @@ impl BindDataServer {
   pub async fn bind_data_server(&mut self) -> Result<DataServer> {
     let server = DataServer::bind_addr(
       self.addr,
-      Self::SERVE_ASSETS_AT,
+      &self.serve_at,
       self.cert_key_pair.take(),
       self.cors.clone(),
     )
@@ -98,9 +104,11 @@ impl From<DataServerConfig> for BindDataServer {
   fn from(config: DataServerConfig) -> Self {
     let addr = config.addr();
     let cors = config.cors().clone();
+    let serve_at = config.serve_at().to_string();
+
     match config.into_tls() {
-      None => Self::new(addr, cors),
-      Some(tls) => Self::new_with_tls(addr, cors, tls),
+      None => Self::new(addr, cors, serve_at),
+      Some(tls) => Self::new_with_tls(addr, cors, tls, serve_at),
     }
   }
 }
@@ -115,17 +123,17 @@ impl From<AddrParseError> for StorageError {
 #[derive(Debug)]
 pub struct DataServer {
   listener: AddrIncoming,
-  serve_assets_at: String,
+  serve_at: String,
   cert_key_pair: Option<CertificateKeyPair>,
   cors: CorsConfig,
 }
 
 impl DataServer {
   /// Eagerly bind the the address for use with the server, returning any errors.
-  #[instrument(skip(serve_assets_at, cert_key_pair))]
+  #[instrument(skip(serve_at, cert_key_pair))]
   pub async fn bind_addr(
     addr: SocketAddr,
-    serve_assets_at: impl Into<String>,
+    serve_at: impl Into<String>,
     cert_key_pair: Option<CertificateKeyPair>,
     cors: CorsConfig,
   ) -> Result<DataServer> {
@@ -137,7 +145,7 @@ impl DataServer {
     info!(address = ?listener.local_addr(), "data server address bound to");
     Ok(Self {
       listener,
-      serve_assets_at: serve_assets_at.into(),
+      serve_at: serve_at.into(),
       cert_key_pair,
       cors,
     })
@@ -147,7 +155,7 @@ impl DataServer {
   #[instrument(level = "trace", skip_all)]
   pub async fn serve<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
     let mut app = Router::new()
-      .merge(SpaRouter::new(&self.serve_assets_at, path))
+      .merge(SpaRouter::new(&self.serve_at, path))
       .layer(configure_cors(self.cors)?)
       .layer(TraceLayer::new_for_http())
       .into_make_service_with_connect_info::<SocketAddr>();
@@ -360,7 +368,11 @@ mod tests {
 
   #[test]
   fn http_scheme() {
-    let formatter = BindDataServer::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
+    let formatter = BindDataServer::new(
+      "127.0.0.1:8080".parse().unwrap(),
+      CorsConfig::default(),
+      "/data".to_string(),
+    );
     assert_eq!(formatter.get_scheme(), &Scheme::Http);
   }
 
@@ -371,7 +383,11 @@ mod tests {
 
   #[tokio::test]
   async fn get_addr_local_addr() {
-    let mut formatter = BindDataServer::new("127.0.0.1:0".parse().unwrap(), CorsConfig::default());
+    let mut formatter = BindDataServer::new(
+      "127.0.0.1:0".parse().unwrap(),
+      CorsConfig::default(),
+      "/data".to_string(),
+    );
     let server = formatter.bind_data_server().await.unwrap();
     assert_eq!(formatter.get_addr(), server.local_addr());
   }
@@ -407,6 +423,7 @@ mod tests {
       "127.0.0.1:8080".parse().unwrap(),
       CorsConfig::default(),
       CertificateKeyPair::new("".parse().unwrap(), "".parse().unwrap()),
+      "/data".to_string(),
     )
   }
 

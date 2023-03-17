@@ -246,7 +246,7 @@ pub struct DataServerConfig {
   enabled: bool,
   addr: SocketAddr,
   local_path: PathBuf,
-  serve_at: PathBuf,
+  serve_at: String,
   #[serde(flatten)]
   tls: Option<CertificateKeyPair>,
   #[serde(flatten, with = "cors_prefix")]
@@ -259,7 +259,7 @@ impl DataServerConfig {
     enabled: bool,
     addr: SocketAddr,
     local_path: PathBuf,
-    serve_at: PathBuf,
+    serve_at: String,
     tls: Option<CertificateKeyPair>,
     cors: CorsConfig,
   ) -> Self {
@@ -284,7 +284,7 @@ impl DataServerConfig {
   }
 
   /// Get the serve at path.
-  pub fn serve_at(&self) -> &Path {
+  pub fn serve_at(&self) -> &str {
     &self.serve_at
   }
 

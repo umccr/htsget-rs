@@ -75,7 +75,7 @@ impl From<&DataServerConfig> for Option<LocalStorage> {
       config.tls().get_scheme(),
       Authority::from_str(&config.addr().to_string()).ok()?,
       config.local_path().to_str()?.to_string(),
-      config.serve_at().to_str()?.to_string(),
+      config.serve_at().to_string(),
     ))
   }
 }
@@ -120,7 +120,7 @@ mod tests {
       true,
       SocketAddr::from_str("127.0.0.1:8080").unwrap(),
       PathBuf::from("data"),
-      PathBuf::from("/data"),
+      "/data".to_string(),
       None,
       CorsConfig::default(),
     );

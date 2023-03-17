@@ -143,7 +143,7 @@ fn default_test_config_params(
     true,
     addr,
     default_dir_data(),
-    PathBuf::from("/data"),
+    "/data".to_string(),
     tls,
     cors.clone(),
   );
