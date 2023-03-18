@@ -1,7 +1,6 @@
 //! Module providing an implementation of the [HtsGet] trait using a [Storage].
 //!
 
-use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -18,7 +17,6 @@ use crate::htsget::search::Search;
 #[cfg(feature = "s3-storage")]
 use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
-use crate::storage::UrlFormatter;
 use crate::Resolver;
 use crate::{
   htsget::bam_search::BamSearch,
@@ -47,7 +45,7 @@ impl HtsGet for Vec<Resolver> {
 impl HtsGet for &[Resolver] {
   async fn search(&self, mut query: Query) -> Result<Response> {
     self
-      .resolve_request::<ResolveFromStorage>(&mut query)
+      .resolve_request::<HtsGetFromStorage<()>>(&mut query)
       .await
       .ok_or_else(|| HtsGetError::not_found("failed to match query with storage"))?
   }
@@ -71,11 +69,8 @@ where
   }
 }
 
-/// A type to implement `ResolveResponse`.
-struct ResolveFromStorage;
-
 #[async_trait]
-impl ResolveResponse for ResolveFromStorage {
+impl<S> ResolveResponse for HtsGetFromStorage<S> {
   async fn from_local(local_storage: &ConfigLocalStorage, query: &Query) -> Result<Response> {
     let local_storage = local_storage.clone();
     let path = local_storage.local_path().to_string();
@@ -104,26 +99,13 @@ impl<S> HtsGetFromStorage<S> {
   }
 }
 
-#[cfg(feature = "s3-storage")]
-impl HtsGetFromStorage<AwsS3Storage> {
-  pub async fn s3_from(bucket: String) -> Self {
-    HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket).await)
-  }
-}
-
-impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
-  pub fn local_from<P: AsRef<Path>>(path: P, formatter: T) -> Result<Self> {
-    Ok(HtsGetFromStorage::new(LocalStorage::new(path, formatter)?))
-  }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
   use std::fs;
   #[cfg(feature = "s3-storage")]
   use std::fs::create_dir;
   use std::future::Future;
-  use std::path::PathBuf;
+  use std::path::{Path, PathBuf};
 
   use http::uri::Authority;
   use tempfile::TempDir;
