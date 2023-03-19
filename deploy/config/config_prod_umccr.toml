@@ -20,16 +20,13 @@ documentation_url = "https://github.com/umccr/htsget-rs"
 environment = "prod"
 
 [[resolvers]]
-regex = '^umccr-research-dev/(?P<key>.*)$'
+regex = '^(umccr-research-dev)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = { bucket = 'umccr-research-dev' }
 
 [[resolvers]]
-regex = '^umccr-validation-prod/(?P<key>.*)$'
+regex = '^(umccr-validation-prod)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = { bucket = 'umccr-validation-prod' }
 
 [[resolvers]]
-regex = '^umccr-primary-data-prod/(?P<key>.*)$'
+regex = '^(umccr-primary-data-prod)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = { bucket = 'umccr-primary-data-prod' }
