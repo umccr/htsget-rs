@@ -107,10 +107,11 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::path::{Path, PathBuf};
 
+  use htsget_config::storage;
   use http::uri::Authority;
   use tempfile::TempDir;
 
-  use htsget_config::types::Scheme;
+  use htsget_config::types::Scheme::Http;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
@@ -155,17 +156,60 @@ pub(crate) mod tests {
       let response = htsget.search(query).await;
       println!("{response:#?}");
 
-      let expected_response = Ok(Response::new(
-        Format::Vcf,
-        vec![
-          Url::new(vcf_expected_url(filename))
-            .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
-          Url::new(expected_bgzf_eof_data_url()),
-        ],
-      ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_vcf_response(filename));
     })
     .await;
+  }
+
+  #[tokio::test]
+  async fn from_local_storage() {
+    with_config_local_storage(
+      |_, local_storage| async move {
+        let filename = "spec-v4.3";
+        let query = Query::new(filename, Format::Vcf);
+        let response = HtsGetFromStorage::<()>::from_local(&local_storage, &query).await;
+
+        assert_eq!(response, expected_vcf_response(filename));
+      },
+      "data/vcf",
+      &[],
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn search_resolvers() {
+    with_config_local_storage(
+      |_, local_storage| async {
+        let resolvers = vec![Resolver::new(
+          storage::Storage::Local { local_storage },
+          ".*",
+          "$0",
+          Default::default(),
+        )
+        .unwrap()];
+
+        let filename = "spec-v4.3";
+        let query = Query::new(filename, Format::Vcf);
+        let response = resolvers.search(query).await;
+
+        assert_eq!(response, expected_vcf_response(filename));
+      },
+      "data/vcf",
+      &[],
+    )
+    .await;
+  }
+
+  fn expected_vcf_response(filename: &str) -> Result<Response> {
+    Ok(Response::new(
+      Format::Vcf,
+      vec![
+        Url::new(vcf_expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
+        Url::new(expected_bgzf_eof_data_url()),
+      ],
+    ))
   }
 
   async fn copy_files(from_path: &str, to_path: &Path, file_names: &[&str]) -> PathBuf {
@@ -185,27 +229,43 @@ pub(crate) mod tests {
     base_path
   }
 
-  pub(crate) async fn with_local_storage_fn<F, Fut>(test: F, path: &str, file_names: &[&str])
+  async fn with_config_local_storage<F, Fut>(test: F, path: &str, file_names: &[&str])
   where
-    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
+    F: FnOnce(PathBuf, ConfigLocalStorage) -> Fut,
     Fut: Future<Output = ()>,
   {
     let tmp_dir = TempDir::new().unwrap();
     let base_path = copy_files(path, tmp_dir.path(), file_names).await;
 
-    test(Arc::new(
-      LocalStorage::new(
-        base_path,
-        ConfigLocalStorage::new(
-          Scheme::Http,
-          Authority::from_static("127.0.0.1:8081"),
-          "data".to_string(),
-          "/data".to_string(),
-        ),
-      )
-      .unwrap(),
-    ))
+    println!("{:#?}", base_path);
+    test(
+      base_path.clone(),
+      ConfigLocalStorage::new(
+        Http,
+        Authority::from_static("127.0.0.1:8081"),
+        base_path.to_str().unwrap().to_string(),
+        "/data".to_string(),
+      ),
+    )
     .await
+  }
+
+  pub(crate) async fn with_local_storage_fn<F, Fut>(test: F, path: &str, file_names: &[&str])
+  where
+    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_config_local_storage(
+      |base_path, local_storage| async {
+        test(Arc::new(
+          LocalStorage::new(base_path, local_storage).unwrap(),
+        ))
+        .await
+      },
+      path,
+      file_names,
+    )
+    .await;
   }
 
   #[cfg(feature = "s3-storage")]
