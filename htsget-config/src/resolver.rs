@@ -386,13 +386,79 @@ mod tests {
   use crate::config::tests::{test_config_from_env, test_config_from_file};
   #[cfg(feature = "s3-storage")]
   use crate::storage::s3::S3Storage;
+  use crate::types::Scheme::Http;
+  use crate::types::Url;
+  use http::uri::Authority;
 
   use super::*;
+
+  struct TestResolveResponse;
+
+  #[async_trait]
+  impl ResolveResponse for TestResolveResponse {
+    async fn from_local(local_storage: &LocalStorage, _: &Query) -> Result<Response> {
+      Ok(Response::new(
+        Bam,
+        vec![Url::new(local_storage.authority().to_string())],
+      ))
+    }
+
+    #[cfg(feature = "s3-storage")]
+    async fn from_s3_storage(s3_storage: &S3Storage, _: &Query) -> Result<Response> {
+      Ok(Response::new(Bam, vec![Url::new(s3_storage.bucket())]))
+    }
+  }
+
+  #[tokio::test]
+  async fn resolver_resolve_local_request() {
+    let local_storage = LocalStorage::new(
+      Http,
+      Authority::from_static("127.0.0.1:8080"),
+      "data".to_string(),
+      "/data".to_string(),
+    );
+    let resolver = Resolver::new(
+      Storage::Local { local_storage },
+      "id",
+      "$0-test",
+      AllowGuard::default(),
+    )
+    .unwrap();
+
+    assert_eq!(
+      resolver
+        .resolve_request::<TestResolveResponse>(&mut Query::new("id", Bam))
+        .await
+        .unwrap()
+        .unwrap(),
+      Response::new(Bam, vec![Url::new("127.0.0.1:8080")])
+    );
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn resolver_resolve_s3_request() {
+    let resolver = Resolver::new(
+      Storage::Tagged(TaggedStorageTypes::S3),
+      "(id)-1",
+      "$1-test",
+      AllowGuard::default(),
+    )
+    .unwrap();
+    assert_eq!(
+      resolver
+        .resolve_request::<TestResolveResponse>(&mut Query::new("id-1", Bam))
+        .await
+        .unwrap()
+        .unwrap(),
+      Response::new(Bam, vec![Url::new("id")])
+    );
+  }
 
   #[test]
   fn resolver_resolve_id() {
     let resolver =
-      Resolver::new(Storage::default(), ".*", "$0-test", AllowGuard::default()).unwrap();
+      Resolver::new(Storage::default(), "id", "$0-test", AllowGuard::default()).unwrap();
     assert_eq!(
       resolver
         .resolve_id(&Query::new("id", Bam))

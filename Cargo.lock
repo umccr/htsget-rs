@@ -1702,6 +1702,7 @@ dependencies = [
  "serde_regex",
  "serde_with",
  "thiserror",
+ "tokio",
  "toml 0.7.2",
  "tracing",
  "tracing-subscriber",

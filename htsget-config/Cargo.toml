@@ -32,3 +32,4 @@ http-serde = "1.1"
 
 [dev-dependencies]
 figment = { version = "0.10", features = ["test"] }
+tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
