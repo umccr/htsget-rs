@@ -1,16 +1,16 @@
-import {Duration, Stack, StackProps, Tags} from "aws-cdk-lib";
-import {Construct} from "constructs";
+import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
+import { Construct } from "constructs";
 import * as iam from "aws-cdk-lib/aws-iam";
-import {RustFunction, Settings} from "rust.aws-cdk-lambda";
-import {Architecture} from "aws-cdk-lib/aws-lambda";
+import { RustFunction, Settings } from "rust.aws-cdk-lambda";
+import { Architecture } from "aws-cdk-lib/aws-lambda";
 import * as apigwv2 from "@aws-cdk/aws-apigatewayv2-alpha";
-import {STACK_NAME} from "../bin/htsget-lambda";
-import {HttpLambdaIntegration} from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
-import {StringParameter} from "aws-cdk-lib/aws-ssm";
-import {HttpJwtAuthorizer} from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
-import {ARecord, HostedZone, RecordTarget} from "aws-cdk-lib/aws-route53";
-import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
-import {Certificate} from "aws-cdk-lib/aws-certificatemanager";
+import { STACK_NAME } from "../bin/htsget-lambda";
+import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
+import { StringParameter } from "aws-cdk-lib/aws-ssm";
+import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
+import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
+import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
+import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
 import * as fs from "fs";
 import * as TOML from "@iarna/toml";
 
@@ -52,12 +52,12 @@ export class HtsgetLambdaStack extends Stack {
 
     const lambdaRole = new iam.Role(this, id + "Role", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      description: "Lambda execution role for " + id,
+      description: "Lambda execution role for " + id
     });
 
     const s3BucketPolicy = new iam.PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
-      resources: ["arn:aws:s3:::*"],
+      resources: ["arn:aws:s3:::*"]
     });
 
     lambdaRole.addManagedPolicy(
@@ -83,15 +83,15 @@ export class HtsgetLambdaStack extends Stack {
       environment: {
         ...config.htsgetConfig,
         RUST_LOG:
-          "info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace",
+          "info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace"
       },
       buildEnvironment: {
         RUSTFLAGS: "-C target-cpu=neoverse-n1",
         CARGO_PROFILE_RELEASE_LTO: "true",
-        CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1",
+        CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
       },
       architecture: Architecture.ARM_64,
-      role: lambdaRole,
+      role: lambdaRole
     });
 
     const parameterStoreConfig = config.parameterStoreConfig;
@@ -104,7 +104,7 @@ export class HtsgetLambdaStack extends Stack {
       `https://cognito-idp.${this.region}.amazonaws.com/${parameterStoreConfig.cogUserPoolId}`,
       {
         identitySource: ["$request.header.Authorization"],
-        jwtAudience: parameterStoreConfig.jwtAud,
+        jwtAudience: parameterStoreConfig.jwtAud
       }
     );
 
@@ -114,14 +114,14 @@ export class HtsgetLambdaStack extends Stack {
         id + "HtsgetDomainCert",
         parameterStoreConfig.arnCert
       ),
-      domainName: parameterStoreConfig.htsgetDomain,
+      domainName: parameterStoreConfig.htsgetDomain
     });
     const hostedZone = HostedZone.fromHostedZoneAttributes(
       this,
       id + "HtsgetHostedZone",
       {
         hostedZoneId: parameterStoreConfig.hostedZoneId,
-        zoneName: parameterStoreConfig.hostedZoneName,
+        zoneName: parameterStoreConfig.hostedZoneName
       }
     );
     new ARecord(this, id + "HtsgetARecord", {
@@ -132,7 +132,7 @@ export class HtsgetLambdaStack extends Stack {
           domainName.regionalDomainName,
           domainName.regionalHostedZoneId
         )
-      ),
+      )
     });
 
     const httpApi = new apigwv2.HttpApi(this, id + "ApiGw", {
@@ -140,7 +140,7 @@ export class HtsgetLambdaStack extends Stack {
       // defaultIntegration: httpIntegration,
       defaultAuthorizer: authorizer,
       defaultDomainMapping: {
-        domainName: domainName,
+        domainName: domainName
       },
       corsPreflight: {
         allowCredentials: config.allowCredentials,
@@ -148,14 +148,14 @@ export class HtsgetLambdaStack extends Stack {
         allowMethods: config.allowMethods,
         allowOrigins: config.allowOrigins,
         exposeHeaders: config.exposeHeaders,
-        maxAge: config.maxAge,
-      },
+        maxAge: config.maxAge
+      }
     });
 
     httpApi.addRoutes({
       path: "/{proxy+}",
       methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
-      integration: httpIntegration,
+      integration: httpIntegration
     });
   }
 
@@ -187,7 +187,7 @@ export class HtsgetLambdaStack extends Stack {
       hostedZoneName: StringParameter.valueFromLookup(
         this,
         parameterStoreNames.hosted_zone_name
-      ),
+      )
     };
   }
 
@@ -278,7 +278,7 @@ export class HtsgetLambdaStack extends Stack {
         configToml.ticket_server_cors_max_age !== undefined
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
-      parameterStoreConfig: this.getParameterStoreConfig(config),
+      parameterStoreConfig: this.getParameterStoreConfig(config)
     };
   }
 }
