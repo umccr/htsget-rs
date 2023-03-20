@@ -54,6 +54,7 @@ fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) ->
     .unwrap()
     .json()
     .unwrap();
+
   response
     .htsget
     .urls
@@ -144,6 +145,7 @@ fn start_htsget_rs() -> (DropGuard, String) {
     .arg("run")
     .arg("-p")
     .arg("htsget-actix")
+    .arg("--no-default-features")
     .env("HTSGET_PATH", default_dir_data())
     .env("RUST_LOG", "warn")
     .spawn()
@@ -234,7 +236,7 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_pair(
     &mut group,
     "[LIGHT] simple request",
-    format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
+    format_url(&htsget_rs_url, "reads/data/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
     &json_content,
   );
@@ -254,7 +256,7 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_pair(
     &mut group,
     "[LIGHT] with region",
-    format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
+    format_url(&htsget_rs_url, "reads/data/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
     &json_content,
   );
@@ -281,7 +283,7 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_pair(
     &mut group,
     "[LIGHT] with two regions",
-    format_url(&htsget_rs_url, "reads/bam/htsnexus_test_NA12878"),
+    format_url(&htsget_rs_url, "reads/data/bam/htsnexus_test_NA12878"),
     format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
     &json_content,
   );
@@ -301,7 +303,7 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_pair(
     &mut group,
     "[LIGHT] with VCF",
-    format_url(&htsget_rs_url, "variants/vcf/sample1-bcbio-cancer"),
+    format_url(&htsget_rs_url, "variants/data/vcf/sample1-bcbio-cancer"),
     format_url(&htsget_refserver_url, "variants/sample1-bcbio-cancer"),
     &json_content,
   );
@@ -321,7 +323,10 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_pair(
     &mut group,
     "[HEAVY] with big VCF",
-    format_url(&htsget_rs_url, "variants/vcf/internationalgenomesample"),
+    format_url(
+      &htsget_rs_url,
+      "variants/data/vcf/internationalgenomesample",
+    ),
     format_url(&htsget_refserver_url, "variants/internationalgenomesample"),
     &json_content,
   );

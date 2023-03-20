@@ -50,6 +50,7 @@ impl ResolvedId {
 }
 
 /// A new type to represent a resolver and query.
+#[derive(Debug)]
 pub struct ResolverAndQuery<'a>(&'a Regex, &'a Query);
 
 impl<'a> ResolverAndQuery<'a> {

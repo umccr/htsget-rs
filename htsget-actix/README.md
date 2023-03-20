@@ -29,16 +29,16 @@ This crate uses [htsget-config] for configuration. See [htsget-config] for detai
 
 To run an instance of this crate, execute the following command:
 ```sh
-cargo run -p htsget-actix
+cargo run -p htsget-actix --no-default-features
 ```
 Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
 with data accessible from the [`data`][data] directory.
 
-If only `LocalStorage` is required, compiling code related `AwsS3Storage` can be avoided by running the following:
-
+To use `AwsS3Storage`, avoid compiling with no default features:
 ```sh
-cargo run -p htsget-actix --no-default-features
+cargo run -p htsget-actix
 ```
+This will start a ticket server with `AwsS3Storage` using a bucket called `"data"`.
 
 See [htsget-search] for details on how to structure files.
 
@@ -70,25 +70,25 @@ Some example requests using `curl` are shown below:
 * GET
 
 ```sh
-curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
+curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 * POST
 
 ```sh
-curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
+curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 * Parametrised GET
 
 ```sh
-curl '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header'
+curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header'
 ```
 
 * Parametrised POST
 
 ```sh
-curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/vcf/sample1-bcbio-cancer'
+curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 * Service info

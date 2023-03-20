@@ -11,10 +11,10 @@ new HtsgetLambdaStack(app, STACK_NAME, {
   stackName: STACK_NAME,
   description: STACK_DESCRIPTION,
   tags: {
-    Stack: STACK_NAME
+    Stack: STACK_NAME,
   },
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION
-  }
+    region: process.env.CDK_DEFAULT_REGION,
+  },
 });

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::storage::ResolverAndQuery;
+use tracing::instrument;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
 #[serde(default)]
@@ -21,6 +22,7 @@ impl S3Storage {
 }
 
 impl<'a> From<ResolverAndQuery<'a>> for Option<S3Storage> {
+  #[instrument(level = "trace", ret)]
   fn from(resolver_and_query: ResolverAndQuery) -> Self {
     let (regex, query) = resolver_and_query.into_inner();
     let bucket = regex.captures(query.id())?.get(1)?.as_str();
