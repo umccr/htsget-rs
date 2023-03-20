@@ -203,8 +203,9 @@ bucket = 'bucket'
 ```
 
 #### Note
-By default, when htsget-rs is compiled with the `s3-storage` feature flag, `storage = 'S3'` is used. Otherwise,
-`storage = 'Local'` is used.
+By default, when htsget-rs is compiled with the `s3-storage` feature flag, `storage = 'S3'` is used when no `storage` options
+is specified. Otherwise, `storage = 'Local'` is used when no storage options is specified. Compilation includes the `s3-storage` 
+feature flag by default, so in order to have `storage = 'Local'` as the default, `--no-default-features` can be passed to `cargo`.
 
 #### Allow guard
 Additionally, the resolver component has a feature, which allows resolving IDs based on the other fields present in a query.

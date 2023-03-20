@@ -115,7 +115,7 @@ impl Storage {
 
 impl Default for Storage {
   fn default() -> Self {
-    Self::Tagged(TaggedStorageTypes::Local)
+    Self::Tagged(TaggedStorageTypes::default())
   }
 }
 
@@ -151,6 +151,18 @@ pub(crate) mod tests {
         Storage::Local { .. }
       ));
     });
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn default_tagged_storage_type_s3() {
+    assert_eq!(TaggedStorageTypes::default(), TaggedStorageTypes::S3);
+  }
+
+  #[cfg(not(feature = "s3-storage"))]
+  #[test]
+  fn default_tagged_storage_type_local() {
+    assert_eq!(TaggedStorageTypes::default(), TaggedStorageTypes::Local);
   }
 
   #[cfg(feature = "s3-storage")]
