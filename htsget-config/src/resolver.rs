@@ -337,6 +337,8 @@ impl StorageResolver for Resolver {
     query: &mut Query,
   ) -> Option<Result<Response>> {
     let resolved_id = self.resolve_id(query)?;
+    let _matched_id = query.id().to_string();
+
     query.set_id(resolved_id.into_inner());
 
     if let Some(response) = self.storage().resolve_local_storage::<T>(query).await {
@@ -346,7 +348,7 @@ impl StorageResolver for Resolver {
     #[cfg(feature = "s3-storage")]
     if let Some(response) = self
       .storage()
-      .resolve_s3_storage::<T>(self.regex(), query)
+      .resolve_s3_storage::<T>(self.regex(), &_matched_id, query)
       .await
     {
       return Some(response);

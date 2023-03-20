@@ -49,18 +49,18 @@ impl ResolvedId {
   }
 }
 
-/// A new type to represent a resolver and query.
+/// A new type to represent a resolver and its regex match
 #[derive(Debug)]
-pub struct ResolverAndQuery<'a>(&'a Regex, &'a Query);
+pub struct ResolverMatcher<'a>(&'a Regex, &'a str);
 
-impl<'a> ResolverAndQuery<'a> {
+impl<'a> ResolverMatcher<'a> {
   /// Create a new resovler and query.
-  pub fn new(resolver: &'a Regex, query: &'a Query) -> Self {
-    Self(resolver, query)
+  pub fn new(resolver: &'a Regex, regex_match: &'a str) -> Self {
+    Self(resolver, regex_match)
   }
 
   /// Get the inner values.
-  pub fn into_inner(self) -> (&'a Regex, &'a Query) {
+  pub fn into_inner(self) -> (&'a Regex, &'a str) {
     (self.0, self.1)
   }
 }
@@ -101,11 +101,12 @@ impl Storage {
   pub async fn resolve_s3_storage<T: ResolveResponse>(
     &self,
     regex: &Regex,
+    regex_match: &str,
     query: &Query,
   ) -> Option<Result<Response>> {
     match self {
       Storage::Tagged(TaggedStorageTypes::S3) => {
-        let storage: Option<S3Storage> = ResolverAndQuery::new(regex, query).into();
+        let storage: Option<S3Storage> = ResolverMatcher::new(regex, regex_match).into();
         Some(T::from_s3_storage(&storage?, query).await)
       }
       Storage::S3 { s3_storage } => Some(T::from_s3_storage(s3_storage, query).await),

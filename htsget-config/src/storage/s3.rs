@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::storage::ResolverAndQuery;
+use crate::storage::ResolverMatcher;
 use tracing::instrument;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
@@ -21,11 +21,11 @@ impl S3Storage {
   }
 }
 
-impl<'a> From<ResolverAndQuery<'a>> for Option<S3Storage> {
+impl<'a> From<ResolverMatcher<'a>> for Option<S3Storage> {
   #[instrument(level = "trace", ret)]
-  fn from(resolver_and_query: ResolverAndQuery) -> Self {
-    let (regex, query) = resolver_and_query.into_inner();
-    let bucket = regex.captures(query.id())?.get(1)?.as_str();
+  fn from(resolver_and_query: ResolverMatcher) -> Self {
+    let (regex, regex_match) = resolver_and_query.into_inner();
+    let bucket = regex.captures(regex_match)?.get(1)?.as_str();
 
     Some(S3Storage::new(bucket.to_string()))
   }
@@ -37,8 +37,6 @@ mod tests {
 
   use crate::config::tests::test_config_from_file;
   use crate::storage::Storage;
-  use crate::types::Format::Bam;
-  use crate::types::Query;
 
   use super::*;
 
@@ -65,9 +63,8 @@ mod tests {
   #[test]
   fn s3_storage_from_resolver_and_query() {
     let regex = Regex::new("^(bucket)/(?P<key>.*)$").unwrap();
-    let query = Query::new("bucket/id", Bam);
 
-    let result: Option<S3Storage> = ResolverAndQuery(&regex, &query).into();
+    let result: Option<S3Storage> = ResolverMatcher(&regex, "bucket/id").into();
     let expected = S3Storage::new("bucket".to_string());
 
     assert_eq!(result.unwrap(), expected);
@@ -76,9 +73,8 @@ mod tests {
   #[test]
   fn s3_storage_from_resolver_and_query_no_captures() {
     let regex = Regex::new("^bucket/id$").unwrap();
-    let query = Query::new("/bucket/id", Bam);
 
-    let result: Option<S3Storage> = ResolverAndQuery(&regex, &query).into();
+    let result: Option<S3Storage> = ResolverMatcher(&regex, "/bucket/id").into();
 
     assert_eq!(result, None);
   }
