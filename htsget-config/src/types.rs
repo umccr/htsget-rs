@@ -594,7 +594,7 @@ mod tests {
   }
 
   #[test]
-  fn htsget_error_concurrency_error() {
+  fn htsget_error_internal_error() {
     let result = HtsGetError::internal_error("error");
     assert!(matches!(result, HtsGetError::InternalError(message) if message == "error"));
   }
