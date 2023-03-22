@@ -141,34 +141,73 @@ For example, below is a `regex` option which matches a `/` between two groups, a
 inbetween the groups with the `substitution_string`.
 
 ```toml
-regex = '(?P<group1>.*?)/(?P<group2>.*)' 
-substitution = '$group1/data/$group2'
+[[resolvers]]
+regex = '(?P<group1>.*?)/(?P<group2>.*)'
+substitution_string = '$group1/data/$group2'
 ```
 
 For more information about regex options see the [regex crate](https://docs.rs/regex/).
 
-Each resolver also maps to a certain storage type. This storage type can be used to set query IDs which are served from local storage, or on AWS S3.
-To set the storage type for a resolver, add a `[resolvers.storage_type]` table. Set the type option to control the data server storage type:
+Each resolver also maps to a certain storage backend. This storage backend can be used to set query IDs which are served from local storage, or on AWS S3.
+To set the storage backend for a resolver, add a `[resolvers.storage]` table.
 
-| Option              | Description                                                                                                                         | Type                         | Default             |
-|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|---------------------|
-| `type`              | The storage type.                                                                                                                   | Either `'Local'` or `'S3'`   | `'Local'`           |
+To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for the fields below from the `data_server` config:
 
-If the type is `Local`, then the following options can be set:
+| Option              | Description                                                                                                                         | When `storage = 'Local'`                                                                                                         | Type                         | Default            |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
+| `scheme`            | The scheme present on URL tickets.                                                                                                  | Derived from `data_server_key` and `data_server_cert`. If no key and cert are present, then uses `Http`, otherwise uses `Https`. | Either `'Http'` or `'Https'` | `'Http'`           |
+| `authority`         | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | Same as `data_server_addr`.                                                                                                      | URL authority                | `'127.0.0.1:8081'` |
+| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Same as `data_server_local_path`.                                                                                                | Filesystem path              | `'data'`           |
+| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | Same as `data_server_serve_at`.                                                                                                  | URL path                     | `'/data'`          |
 
-| Option              | Description                                                                                                                         | Type                         | Default            |
-|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
-| `scheme`            | The scheme present on URL tickets.                                                                                                  | Either `'HTTP'` or `'HTTPS'` | `'HTTP'`           |
-| `authority`         | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | URL authority                | `'127.0.0.1:8081'` |
-| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Filesystem path              | `'data'`           |
-| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | URL path                     | `'/data'`          |
+To use `AwsS3Storage`, set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
 
-If the type is `S3`, then the following option can be set:
+| Option   | Description                                              | When `storage = 'S3'`                                                                                            | Type            | Default |
+|----------|----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|-----------------|---------|
+| `bucket` | The AWS S3 bucket where resources can be retrieved from. | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`. | String          | `''`    |
 
-| Option   | Description                                              | Type            | Default |
-|----------|----------------------------------------------------------|-----------------|---------|
-| `bucket` | The AWS S3 bucket where resources can be retrieved from. | String          | `''`    |
+For example, a `resolvers` value of:
+```toml
+[[resolvers]]
+regex = '^(example_bucket)/(?P<key>.*)$'
+substitution_string = '$key'
+storage = 'S3'
+```
+Will use "example_bucket" as the S3 bucket if that resolver matches, because this is the first capture group in the `regex`.
+Note, to use this feature, at least one capture group must be defined in the `regex`.
 
+If this is not the desired behaviour, all the values for `S3Storage` or `LocalStorage` can be set manually by adding a
+`[resolvers.storage]` table. For example, to manually set the config for `LocalStorage`:
+
+```toml
+[[resolvers]]
+regex = '.*'
+substitution_string = '$0'
+
+[resolvers.storage]
+scheme = 'Http'
+authority = '127.0.0.1:8081'
+local_path = 'data'
+path_prefix = '/data'
+```
+
+or, to manually set the config for `AwsS3Storage`:
+
+```toml
+[[resolvers]]
+regex = '.*'
+substitution_string = '$0'
+
+[resolvers.storage]
+bucket = 'bucket'
+```
+
+#### Note
+By default, when htsget-rs is compiled with the `s3-storage` feature flag, `storage = 'S3'` is used when no `storage` options
+are specified. Otherwise, `storage = 'Local'` is used when no storage options are specified. Compilation includes the `s3-storage` 
+feature flag by default, so in order to have `storage = 'Local'` as the default, `--no-default-features` can be passed to `cargo`.
+
+#### Allow guard
 Additionally, the resolver component has a feature, which allows resolving IDs based on the other fields present in a query.
 This is useful as allows the resolver to match an ID, if a particular set of query parameters are also present. For example, 
 a resolver can be set to only resolve IDs if the format is also BAM.
@@ -192,8 +231,7 @@ An example of a fully configured resolver:
 regex = '.*'
 substitution_string = '$0'
 
-[resolvers.storage_type]
-type = 'S3'
+[resolvers.storage]
 bucket = 'bucket'
 
 [resolvers.allow_guard]
@@ -283,8 +321,7 @@ In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set
 export HTSGET_RESOLVERS="[{
     regex=regex,
     substitution_string=substitution_string,
-    storage_type={
-        type=S3,
+    storage={
         bucket=bucket
     },
     allow_guard={

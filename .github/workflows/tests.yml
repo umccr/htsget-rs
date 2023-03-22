@@ -61,8 +61,13 @@ jobs:
         with:
           command: build
           args: --all-targets --features s3-storage
-      - name: Run cargo test
+      - name: Run cargo tests
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --all-features
+      - name: Run cargo tests no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --no-default-features

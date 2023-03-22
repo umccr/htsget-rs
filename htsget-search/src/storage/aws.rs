@@ -20,11 +20,11 @@ use tokio_util::io::StreamReader;
 use tracing::debug;
 use tracing::instrument;
 
-use crate::htsget::Url;
 use crate::storage::aws::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
 use crate::storage::{BytesPosition, StorageError};
 use crate::storage::{BytesRange, Storage};
+use crate::Url;
 
 use super::{GetOptions, RangeUrlOptions, Result};
 
@@ -256,11 +256,11 @@ pub(crate) mod tests {
   use s3s::service::S3Service;
   use s3s_aws;
 
-  use crate::htsget::Headers;
   use crate::storage::aws::AwsS3Storage;
   use crate::storage::local::tests::create_local_test_files;
   use crate::storage::StorageError;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
+  use crate::Headers;
 
   pub(crate) async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where

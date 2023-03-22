@@ -16,12 +16,13 @@ use tokio::io::{AsyncRead, BufReader};
 use tokio::{io, select};
 use tracing::{instrument, trace};
 
-use htsget_config::Interval;
+use htsget_config::types::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
-use crate::htsget::Class::Body;
-use crate::htsget::{Format, HtsGetError, Query, Result};
+use crate::htsget::ConcurrencyError;
 use crate::storage::{BytesPosition, DataBlock, Storage};
+use crate::Class::Body;
+use crate::{Format, HtsGetError, Query, Result};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
 static CRAM_EOF: &[u8] = &[
@@ -209,7 +210,7 @@ where
     loop {
       select! {
         Some(next) = futures.next() => {
-          if let Some(range) = next.map_err(HtsGetError::from)?? {
+          if let Some(range) = next.map_err(ConcurrencyError::new).map_err(HtsGetError::from)?? {
             byte_ranges.push(range);
           }
         },
@@ -268,13 +269,14 @@ where
 mod tests {
   use std::future::Future;
 
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::util::expected_cram_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::htsget::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-  use crate::storage::data_server::HttpTicketFormatter;
+  use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+
   use crate::storage::local::LocalStorage;
 
   use super::*;
@@ -535,7 +537,7 @@ mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     with_local_storage_fn(test, "data/cram", &[]).await

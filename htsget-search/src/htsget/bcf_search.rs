@@ -16,10 +16,8 @@ use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::{
-  htsget::{Format, Query, Result},
-  storage::{BytesPosition, Storage},
-};
+use crate::storage::{BytesPosition, Storage};
+use crate::{Format, Query, Result};
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -130,13 +128,14 @@ where
 mod tests {
   use std::future::Future;
 
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::htsget::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-  use crate::storage::data_server::HttpTicketFormatter;
+  use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+
   use crate::storage::local::LocalStorage;
 
   use super::*;
@@ -329,7 +328,7 @@ mod tests {
     .await
   }
 
-  async fn test_reference_sequence_with_seq_range(storage: Arc<LocalStorage<HttpTicketFormatter>>) {
+  async fn test_reference_sequence_with_seq_range(storage: Arc<LocalStorage<ConfigLocalStorage>>) {
     let search = BcfSearch::new(storage.clone());
     let filename = "sample1-bcbio-cancer";
     let query = Query::new(filename, Format::Bcf)
@@ -356,7 +355,7 @@ mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     with_local_storage_fn(test, "data/bcf", &[]).await

@@ -15,6 +15,8 @@ s3-storage = []
 default = ["s3-storage"]
 
 [dependencies]
+thiserror = "1.0"
+async-trait = "0.1"
 noodles = { version = "0.32", features = ["core"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "2.2"
@@ -30,3 +32,4 @@ http-serde = "1.1"
 
 [dev-dependencies]
 figment = { version = "0.10", features = ["test"] }
+tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }

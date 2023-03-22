@@ -1,5 +1,6 @@
-use lambda_http::Error;
 use std::sync::Arc;
+
+use lambda_http::Error;
 
 use htsget_lambda::Config;
 use htsget_lambda::{handle_request, Router};

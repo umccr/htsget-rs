@@ -2,30 +2,31 @@ use std::time::Duration;
 
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use htsget_config::resolver::ResolveResponse;
+use http::uri::Authority;
 use tokio::runtime::Runtime;
 
-use htsget_config::config::cors::CorsConfig;
-use htsget_config::Class::Header;
-use htsget_config::Format::{Bam, Bcf, Cram, Vcf};
-use htsget_config::Query;
+use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+use htsget_config::types::Class::Header;
+use htsget_config::types::Format::{Bam, Bcf, Cram, Vcf};
+use htsget_config::types::{HtsGetError, Query, Scheme};
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
-use htsget_search::htsget::HtsGet;
-use htsget_search::htsget::HtsGetError;
-use htsget_search::storage::data_server::HttpTicketFormatter;
 
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
 const NUMBER_OF_SAMPLES: usize = 50;
 
 async fn perform_query(query: Query) -> Result<(), HtsGetError> {
-  let htsget = HtsGetFromStorage::local_from(
-    "../data",
-    HttpTicketFormatter::new(
-      "127.0.0.1:8081".parse().expect("expected valid address"),
-      CorsConfig::default(),
+  HtsGetFromStorage::<()>::from_local(
+    &ConfigLocalStorage::new(
+      Scheme::Http,
+      Authority::from_static("127.0.0.1:8081"),
+      "../data".to_string(),
+      "/data".to_string(),
     ),
-  )?;
+    &query,
+  )
+  .await?;
 
-  htsget.search(query).await?;
   Ok(())
 }
 

@@ -1693,6 +1693,7 @@ dependencies = [
 name = "htsget-config"
 version = "0.1.4"
 dependencies = [
+ "async-trait",
  "clap 4.1.8",
  "figment",
  "http",
@@ -1702,6 +1703,8 @@ dependencies = [
  "serde",
  "serde_regex",
  "serde_with",
+ "thiserror",
+ "tokio",
  "toml 0.7.3",
  "tracing",
  "tracing-subscriber",

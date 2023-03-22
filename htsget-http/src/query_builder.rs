@@ -1,8 +1,8 @@
-use htsget_config::{Class, Fields, Format, Tags};
 use std::collections::HashSet;
+
 use tracing::instrument;
 
-use htsget_config::Query;
+use htsget_config::types::{Class, Fields, Format, Query, Tags};
 
 use crate::error::{HtsGetError, Result};
 
@@ -181,8 +181,9 @@ impl QueryBuilder {
 
 #[cfg(test)]
 mod tests {
+  use htsget_config::types::NoTags;
+
   use super::*;
-  use htsget_config::NoTags;
 
   #[test]
   fn query_without_id() {

@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use htsget_config::Format;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 use tracing::instrument;
 
+use htsget_config::types::Format;
 use htsget_search::htsget::HtsGet;
 
 use crate::ConfigServiceInfo;
