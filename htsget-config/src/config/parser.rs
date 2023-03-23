@@ -24,12 +24,13 @@ impl<'a> Parser<'a> {
   where
     for<'de> T: Deserialize<'de> + Debug,
   {
-    let config: T = Figment::from(Serialized::defaults(Config::default()))
+    let config = Figment::from(Serialized::defaults(Config::default()))
       .merge(match self {
         Parser::String(string) => Toml::string(string),
         Parser::Path(path) => Toml::file(path),
       })
       .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
+      .merge(Env::raw())
       .extract()
       .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;
 
