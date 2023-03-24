@@ -2,6 +2,7 @@
 //!
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
 
 use lambda_http::ext::RequestExt;
@@ -174,23 +175,31 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 }
 
-pub async fn handle_request<H>(cors: CorsConfig, router: &Router<'_, H>) -> Result<(), Error>
+pub async fn handle_request_service_fn<F, Fut>(cors: CorsConfig, service: F) -> Result<(), Error>
 where
-  H: HtsGet + Send + Sync + 'static,
+  F: FnMut(Request) -> Fut,
+  Fut: Future<Output = http::Result<Response<Body>>> + Send,
 {
   let cors_layer = configure_cors(cors)?;
 
-  let handler =
-    ServiceBuilder::new()
-      .layer(cors_layer)
-      .service(service_fn(|event: Request| async move {
-        info!(event = ?event, "received request");
-        router.route_request(event).await
-      }));
+  let handler = ServiceBuilder::new()
+    .layer(cors_layer)
+    .service(service_fn(service));
 
   lambda_http::run(handler).await?;
 
   Ok(())
+}
+
+pub async fn handle_request<H>(cors: CorsConfig, router: &Router<'_, H>) -> Result<(), Error>
+where
+  H: HtsGet + Send + Sync + 'static,
+{
+  handle_request_service_fn(cors, |event: Request| async move {
+    info!(event = ?event, "received request");
+    router.route_request(event).await
+  })
+  .await
 }
 
 #[cfg(test)]
