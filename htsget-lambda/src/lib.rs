@@ -514,32 +514,32 @@ mod tests {
     test_expected_invalid_method(&Method::DELETE, &uri, StatusCode::METHOD_NOT_ALLOWED);
   }
 
-  #[tokio::test]
-  async fn get_route_no_path() {
+  #[test]
+  fn get_route_no_path() {
     let uri = Uri::builder().path_and_query("").build().unwrap();
     test_expected_invalid_method(&Method::GET, &uri, StatusCode::NOT_FOUND);
   }
 
-  #[tokio::test]
-  async fn get_route_no_endpoint() {
+  #[test]
+  fn get_route_no_endpoint() {
     let uri = Uri::builder().path_and_query("/path/").build().unwrap();
     test_expected_invalid_method(&Method::GET, &uri, StatusCode::NOT_FOUND);
   }
 
-  #[tokio::test]
-  async fn get_route_reads_no_id() {
+  #[test]
+  fn get_route_reads_no_id() {
     let uri = Uri::builder().path_and_query("/reads/").build().unwrap();
     test_expected_invalid_method(&Method::GET, &uri, StatusCode::NOT_FOUND);
   }
 
-  #[tokio::test]
-  async fn get_route_variants_no_id() {
+  #[test]
+  fn get_route_variants_no_id() {
     let uri = Uri::builder().path_and_query("/variants/").build().unwrap();
     test_expected_invalid_method(&Method::GET, &uri, StatusCode::NOT_FOUND);
   }
 
-  #[tokio::test]
-  async fn get_route_reads_service_info() {
+  #[test]
+  fn get_route_reads_service_info() {
     let uri = Uri::builder()
       .path_and_query("/reads/service-info")
       .build()
@@ -555,8 +555,8 @@ mod tests {
     );
   }
 
-  #[tokio::test]
-  async fn get_route_variants_service_info() {
+  #[test]
+  fn get_route_variants_service_info() {
     let uri = Uri::builder()
       .path_and_query("/variants/service-info")
       .build()
@@ -572,8 +572,8 @@ mod tests {
     );
   }
 
-  #[tokio::test]
-  async fn get_route_reads_id() {
+  #[test]
+  fn route_get_reads_id() {
     let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
     let route = Route::get_route(&Method::GET, &uri).unwrap();
     assert_eq!(
@@ -586,8 +586,22 @@ mod tests {
     );
   }
 
-  #[tokio::test]
-  async fn get_route_variants_id() {
+  #[test]
+  fn route_post_reads_id() {
+    let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
+    let route = Route::get_route(&Method::POST, &uri).unwrap();
+    assert_eq!(
+      route,
+      Route {
+        method: HtsgetMethod::Post,
+        endpoint: Endpoint::Reads,
+        route_type: RouteType::Id("id".to_string())
+      }
+    );
+  }
+
+  #[test]
+  fn route_get_variants_id() {
     let uri = Uri::builder()
       .path_and_query("/variants/id")
       .build()
@@ -597,6 +611,23 @@ mod tests {
       route,
       Route {
         method: HtsgetMethod::Get,
+        endpoint: Endpoint::Variants,
+        route_type: RouteType::Id("id".to_string())
+      }
+    );
+  }
+
+  #[test]
+  fn route_post_variants_id() {
+    let uri = Uri::builder()
+      .path_and_query("/variants/id")
+      .build()
+      .unwrap();
+    let route = Route::get_route(&Method::POST, &uri).unwrap();
+    assert_eq!(
+      route,
+      Route {
+        method: HtsgetMethod::Post,
         endpoint: Endpoint::Variants,
         route_type: RouteType::Id("id".to_string())
       }
