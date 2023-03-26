@@ -120,19 +120,23 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     }
   }
 
-  /// Routes the request to the relevant htsget search endpoint using the lambda request, returning a http response.
-  pub async fn route_request(&self, request: Request) -> http::Result<Response<Body>> {
-    match Route::get_route(request.method(), &request.raw_http_path().parse::<Uri>()?) {
-      Ok(Route {
+  /// Routes the request to the relevant htsget search endpoint using the lambda request and route.
+  pub async fn route_resquest_with_route(
+    &self,
+    request: Request,
+    route: Route,
+  ) -> http::Result<Response<Body>> {
+    match route {
+      Route {
         endpoint,
         route_type: RouteType::ServiceInfo,
         ..
-      }) => get_service_info_json(self.searcher.clone(), endpoint, self.config_service_info),
-      Ok(Route {
+      } => get_service_info_json(self.searcher.clone(), endpoint, self.config_service_info),
+      Route {
         method: HtsgetMethod::Get,
         endpoint,
         route_type: RouteType::Id(id),
-      }) => {
+      } => {
         get(
           id,
           self.searcher.clone(),
@@ -141,11 +145,11 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         )
         .await
       }
-      Ok(Route {
+      Route {
         method: HtsgetMethod::Post,
         endpoint,
         route_type: RouteType::Id(id),
-      }) => match Self::extract_query_from_payload(&request) {
+      } => match Self::extract_query_from_payload(&request) {
         None => Ok(
           Response::builder()
             .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
@@ -153,6 +157,13 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         ),
         Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
       },
+    }
+  }
+
+  /// Routes the request to the relevant htsget search endpoint using the lambda request, returning a http response.
+  pub async fn route_request(&self, request: Request) -> http::Result<Response<Body>> {
+    match Route::get_route(request.method(), &request.raw_http_path().parse::<Uri>()?) {
+      Ok(route) => self.route_resquest_with_route(request, route).await,
       Err(err) => err,
     }
   }
