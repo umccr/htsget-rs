@@ -56,6 +56,54 @@ impl Route {
       route_type,
     }
   }
+
+  /// Gets the Route if the request is valid, otherwise returns an error with a response.
+  fn get_route(method: &Method, uri: &Uri) -> Result<Self, http::Result<Response<Body>>> {
+    let with_endpoint = |endpoint: Endpoint, endpoint_type: &str| {
+      if endpoint_type.is_empty() {
+        Err(
+          Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::Empty),
+        )
+      } else {
+        let method = match *method {
+          Method::GET => Ok(HtsgetMethod::Get),
+          Method::POST => Ok(HtsgetMethod::Post),
+          _ => Err(
+            Response::builder()
+              .status(StatusCode::METHOD_NOT_ALLOWED)
+              .body(Body::Empty),
+          ),
+        }?;
+        if endpoint_type == "service-info" {
+          Ok(Route::new(method, endpoint, RouteType::ServiceInfo))
+        } else {
+          Ok(Route::new(
+            method,
+            endpoint,
+            RouteType::Id(endpoint_type.to_string()),
+          ))
+        }
+      }
+    };
+
+    uri.path().strip_prefix("/reads/").map_or_else(
+      || {
+        uri.path().strip_prefix("/variants/").map_or_else(
+          || {
+            Err(
+              Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::Empty),
+            )
+          },
+          |variants| with_endpoint(Endpoint::Variants, variants),
+        )
+      },
+      |reads| with_endpoint(Endpoint::Reads, reads),
+    )
+  }
 }
 
 /// A Router is a struct which handles routing any htsget requests to the htsget search, using the config.
@@ -72,49 +120,15 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
     }
   }
 
-  /// Gets the Route if the request is valid, otherwise returns None.
-  fn get_route(&self, method: &Method, uri: &Uri) -> Option<Route> {
-    let with_endpoint = |endpoint: Endpoint, endpoint_type: &str| {
-      if endpoint_type.is_empty() {
-        None
-      } else {
-        let method = match *method {
-          Method::GET => Some(HtsgetMethod::Get),
-          Method::POST => Some(HtsgetMethod::Post),
-          _ => None,
-        }?;
-        if endpoint_type == "service-info" {
-          Some(Route::new(method, endpoint, RouteType::ServiceInfo))
-        } else {
-          Some(Route::new(
-            method,
-            endpoint,
-            RouteType::Id(endpoint_type.to_string()),
-          ))
-        }
-      }
-    };
-
-    uri.path().strip_prefix("/reads/").map_or_else(
-      || {
-        uri
-          .path()
-          .strip_prefix("/variants/")
-          .and_then(|variants| with_endpoint(Endpoint::Variants, variants))
-      },
-      |reads| with_endpoint(Endpoint::Reads, reads),
-    )
-  }
-
   /// Routes the request to the relevant htsget search endpoint using the lambda request, returning a http response.
   pub async fn route_request(&self, request: Request) -> http::Result<Response<Body>> {
-    match self.get_route(request.method(), &request.raw_http_path().parse::<Uri>()?) {
-      Some(Route {
+    match Route::get_route(request.method(), &request.raw_http_path().parse::<Uri>()?) {
+      Ok(Route {
         endpoint,
         route_type: RouteType::ServiceInfo,
         ..
       }) => get_service_info_json(self.searcher.clone(), endpoint, self.config_service_info),
-      Some(Route {
+      Ok(Route {
         method: HtsgetMethod::Get,
         endpoint,
         route_type: RouteType::Id(id),
@@ -127,7 +141,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         )
         .await
       }
-      Some(Route {
+      Ok(Route {
         method: HtsgetMethod::Post,
         endpoint,
         route_type: RouteType::Id(id),
@@ -139,11 +153,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
         ),
         Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
       },
-      _ => Ok(
-        Response::builder()
-          .status(StatusCode::METHOD_NOT_ALLOWED)
-          .body(Body::Empty)?,
-      ),
+      Err(err) => err,
     }
   }
 
@@ -498,162 +508,107 @@ mod tests {
     test_service_info_from_file("events/event_service_info.json", &config).await;
   }
 
-  #[tokio::test]
-  async fn get_route_invalid_method() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
-        assert!(router.get_route(&Method::DELETE, &uri).is_none());
-      },
-      &config,
-    )
-    .await;
+  #[test]
+  fn get_route_invalid_method() {
+    let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
+    test_expected_invalid_method(&Method::DELETE, &uri, StatusCode::METHOD_NOT_ALLOWED);
   }
 
   #[tokio::test]
   async fn get_route_no_path() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder().path_and_query("").build().unwrap();
-        assert!(router.get_route(&Method::GET, &uri).is_none());
-      },
-      &config,
-    )
-    .await;
+    let uri = Uri::builder().path_and_query("").build().unwrap();
+    test_expected_invalid_method(&Method::GET, &uri, StatusCode::NOT_FOUND);
   }
 
   #[tokio::test]
   async fn get_route_no_endpoint() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder().path_and_query("/path/").build().unwrap();
-        assert!(router.get_route(&Method::GET, &uri).is_none());
-      },
-      &config,
-    )
-    .await;
+    let uri = Uri::builder().path_and_query("/path/").build().unwrap();
+    test_expected_invalid_method(&Method::GET, &uri, StatusCode::NOT_FOUND);
   }
 
   #[tokio::test]
   async fn get_route_reads_no_id() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder().path_and_query("/reads/").build().unwrap();
-        assert!(router.get_route(&Method::GET, &uri).is_none());
-      },
-      &config,
-    )
-    .await;
+    let uri = Uri::builder().path_and_query("/reads/").build().unwrap();
+    test_expected_invalid_method(&Method::GET, &uri, StatusCode::NOT_FOUND);
   }
 
   #[tokio::test]
   async fn get_route_variants_no_id() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder().path_and_query("/variants/").build().unwrap();
-        assert!(router.get_route(&Method::GET, &uri).is_none());
-      },
-      &config,
-    )
-    .await;
+    let uri = Uri::builder().path_and_query("/variants/").build().unwrap();
+    test_expected_invalid_method(&Method::GET, &uri, StatusCode::NOT_FOUND);
   }
 
   #[tokio::test]
   async fn get_route_reads_service_info() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder()
-          .path_and_query("/reads/service-info")
-          .build()
-          .unwrap();
-        let route = router.get_route(&Method::GET, &uri);
-        assert_eq!(
-          route,
-          Some(Route {
-            method: HtsgetMethod::Get,
-            endpoint: Endpoint::Reads,
-            route_type: RouteType::ServiceInfo
-          })
-        );
-      },
-      &config,
-    )
-    .await;
+    let uri = Uri::builder()
+      .path_and_query("/reads/service-info")
+      .build()
+      .unwrap();
+    let route = Route::get_route(&Method::GET, &uri).unwrap();
+    assert_eq!(
+      route,
+      Route {
+        method: HtsgetMethod::Get,
+        endpoint: Endpoint::Reads,
+        route_type: RouteType::ServiceInfo
+      }
+    );
   }
 
   #[tokio::test]
   async fn get_route_variants_service_info() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder()
-          .path_and_query("/variants/service-info")
-          .build()
-          .unwrap();
-        let route = router.get_route(&Method::GET, &uri);
-        assert_eq!(
-          route,
-          Some(Route {
-            method: HtsgetMethod::Get,
-            endpoint: Endpoint::Variants,
-            route_type: RouteType::ServiceInfo
-          })
-        );
-      },
-      &config,
-    )
-    .await;
+    let uri = Uri::builder()
+      .path_and_query("/variants/service-info")
+      .build()
+      .unwrap();
+    let route = Route::get_route(&Method::GET, &uri).unwrap();
+    assert_eq!(
+      route,
+      Route {
+        method: HtsgetMethod::Get,
+        endpoint: Endpoint::Variants,
+        route_type: RouteType::ServiceInfo
+      }
+    );
   }
 
   #[tokio::test]
   async fn get_route_reads_id() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
-        let route = router.get_route(&Method::GET, &uri);
-        assert_eq!(
-          route,
-          Some(Route {
-            method: HtsgetMethod::Get,
-            endpoint: Endpoint::Reads,
-            route_type: RouteType::Id("id".to_string())
-          })
-        );
-      },
-      &config,
-    )
-    .await;
+    let uri = Uri::builder().path_and_query("/reads/id").build().unwrap();
+    let route = Route::get_route(&Method::GET, &uri).unwrap();
+    assert_eq!(
+      route,
+      Route {
+        method: HtsgetMethod::Get,
+        endpoint: Endpoint::Reads,
+        route_type: RouteType::Id("id".to_string())
+      }
+    );
   }
 
   #[tokio::test]
   async fn get_route_variants_id() {
-    let config = default_test_config();
-    with_router(
-      |router| async move {
-        let uri = Uri::builder()
-          .path_and_query("/variants/id")
-          .build()
-          .unwrap();
-        let route = router.get_route(&Method::GET, &uri);
-        assert_eq!(
-          route,
-          Some(Route {
-            method: HtsgetMethod::Get,
-            endpoint: Endpoint::Variants,
-            route_type: RouteType::Id("id".to_string())
-          })
-        );
-      },
-      &config,
-    )
-    .await;
+    let uri = Uri::builder()
+      .path_and_query("/variants/id")
+      .build()
+      .unwrap();
+    let route = Route::get_route(&Method::GET, &uri).unwrap();
+    assert_eq!(
+      route,
+      Route {
+        method: HtsgetMethod::Get,
+        endpoint: Endpoint::Variants,
+        route_type: RouteType::Id("id".to_string())
+      }
+    );
+  }
+
+  fn test_expected_invalid_method(method: &Method, uri: &Uri, expected_status_code: StatusCode) {
+    if let Err(err) = Route::get_route(method, uri) {
+      let err = err.unwrap();
+      assert_eq!(err.status(), expected_status_code);
+      assert_eq!(err.body(), &Body::Empty);
+    };
   }
 
   async fn with_router<'a, F, Fut>(test: F, config: &'a Config)
