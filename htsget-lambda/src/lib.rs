@@ -106,6 +106,20 @@ impl Route {
   }
 }
 
+impl TryFrom<&Request> for Route {
+  type Error = http::Result<Response<Body>>;
+
+  fn try_from(request: &Request) -> Result<Self, Self::Error> {
+    Self::get_route(
+      request.method(),
+      &request
+        .raw_http_path()
+        .parse::<Uri>()
+        .map_err(|err| Err(err.into()))?,
+    )
+  }
+}
+
 /// A Router is a struct which handles routing any htsget requests to the htsget search, using the config.
 pub struct Router<'a, H> {
   searcher: Arc<H>,
@@ -162,7 +176,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 
   /// Routes the request to the relevant htsget search endpoint using the lambda request, returning a http response.
   pub async fn route_request(&self, request: Request) -> http::Result<Response<Body>> {
-    match Route::get_route(request.method(), &request.raw_http_path().parse::<Uri>()?) {
+    match Route::try_from(&request) {
       Ok(route) => self.route_resquest_with_route(request, route).await,
       Err(err) => err,
     }
