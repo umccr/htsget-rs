@@ -135,7 +135,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   }
 
   /// Routes the request to the relevant htsget search endpoint using the lambda request and route.
-  pub async fn route_resquest_with_route(
+  pub async fn route_request_with_route(
     &self,
     request: Request,
     route: Route,
@@ -177,7 +177,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
   /// Routes the request to the relevant htsget search endpoint using the lambda request, returning a http response.
   pub async fn route_request(&self, request: Request) -> http::Result<Response<Body>> {
     match Route::try_from(&request) {
-      Ok(route) => self.route_resquest_with_route(request, route).await,
+      Ok(route) => self.route_request_with_route(request, route).await,
       Err(err) => err,
     }
   }
