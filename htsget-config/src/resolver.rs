@@ -170,8 +170,8 @@ impl AllowGuard {
 
   /// Set the allow fields.
   pub fn with_allow_fields(mut self, allow_fields: Fields) -> Self {
-      self.allow_fields = allow_fields;
-      self
+    self.allow_fields = allow_fields;
+    self
   }
 
   /// Set the allow tags.
@@ -188,14 +188,14 @@ impl AllowGuard {
 
   /// Set the allow classes.
   pub fn with_allow_classes(mut self, allow_classes: Vec<Class>) -> Self {
-      self.allow_classes = allow_classes;
-      self
+    self.allow_classes = allow_classes;
+    self
   }
 
   /// Set the allow interval.
   pub fn with_allow_interval(mut self, allow_interval: Interval) -> Self {
-      self.allow_interval = allow_interval;
-      self
+    self.allow_interval = allow_interval;
+    self
   }
 }
 

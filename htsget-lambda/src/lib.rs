@@ -35,7 +35,7 @@ pub struct Route {
 }
 
 /// Valid htsget http request methods.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum HtsgetMethod {
   Get,
   Post,
@@ -58,7 +58,7 @@ impl Route {
   }
 
   /// Gets the Route if the request is valid, otherwise returns an error with a response.
-  fn get_route(method: &Method, uri: &Uri) -> Result<Self, http::Result<Response<Body>>> {
+  pub fn get_route(method: &Method, uri: &Uri) -> Result<Self, http::Result<Response<Body>>> {
     let with_endpoint = |endpoint: Endpoint, endpoint_type: &str| {
       if endpoint_type.is_empty() {
         Err(
@@ -103,6 +103,18 @@ impl Route {
       },
       |reads| with_endpoint(Endpoint::Reads, reads),
     )
+  }
+
+  pub fn method(&self) -> HtsgetMethod {
+    self.method
+  }
+
+  pub fn endpoint(&self) -> &Endpoint {
+    &self.endpoint
+  }
+
+  pub fn route_type(&self) -> &RouteType {
+    &self.route_type
   }
 }
 
