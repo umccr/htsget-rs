@@ -250,49 +250,13 @@ pub(crate) mod tests {
   use std::path::Path;
   use std::sync::Arc;
 
-  use aws_config::SdkConfig;
-  use aws_credential_types::provider::SharedCredentialsProvider;
-  use aws_sdk_s3::{Client, Credentials, Region};
-  use s3s::service::S3Service;
-  use s3s_aws;
+  use htsget_test::aws_mocks::with_s3_test_server;
 
   use crate::storage::aws::AwsS3Storage;
   use crate::storage::local::tests::create_local_test_files;
   use crate::storage::StorageError;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
   use crate::Headers;
-
-  pub(crate) async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
-  where
-    F: FnOnce(Client) -> Fut,
-    Fut: Future<Output = ()>,
-  {
-    const DOMAIN_NAME: &str = "localhost:8014";
-    const REGION: &str = "ap-southeast-2";
-
-    let cred = Credentials::for_tests();
-
-    let conn = {
-      let fs = s3s_fs::FileSystem::new(server_base_path).unwrap();
-
-      let auth = s3s::SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
-
-      let mut service = S3Service::new(Box::new(fs));
-      service.set_auth(Box::new(auth));
-      service.set_base_domain(DOMAIN_NAME);
-
-      s3s_aws::Connector::from(service.into_shared())
-    };
-
-    let sdk_config = SdkConfig::builder()
-      .credentials_provider(SharedCredentialsProvider::new(cred))
-      .http_connector(conn)
-      .region(Region::new(REGION))
-      .endpoint_url(format!("http://{DOMAIN_NAME}"))
-      .build();
-
-    test(Client::new(&sdk_config)).await;
-  }
 
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
   where

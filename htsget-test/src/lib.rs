@@ -4,6 +4,8 @@ pub use htsget_config::{
   storage::Storage,
 };
 
+#[cfg(feature = "aws-mocks")]
+pub mod aws_mocks;
 #[cfg(feature = "cors-tests")]
 pub mod cors_tests;
 #[cfg(feature = "http-tests")]

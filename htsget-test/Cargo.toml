@@ -29,6 +29,15 @@ server-tests = [
     "dep:mime",
     "dep:base64"
 ]
+aws-mocks = [
+    "s3-storage",
+    "dep:aws-sdk-s3",
+    "dep:aws-config",
+    "dep:aws-credential-types",
+    "dep:s3s",
+    "dep:s3s-fs",
+    "dep:s3s-aws"
+]
 s3-storage = ["htsget-config?/s3-storage"]
 default = ["s3-storage"]
 
@@ -48,6 +57,13 @@ mime = { version = "0.3", optional = true }
 serde_json = { version = "1.0", features = ["preserve_order"], optional = true }
 serde = { version = "1.0", optional = true }
 base64 = { version = "0.21", optional = true }
+
+aws-sdk-s3 = { version = "0.24", features = ["test-util"], optional = true }
+aws-config = { version = "0.54", optional = true }
+aws-credential-types = { version = "0.54", features = ["test-util"], optional = true }
+s3s = { version = "0.3", optional = true }
+s3s-fs = { version = "0.3", optional = true }
+s3s-aws = { version = "0.3", optional = true }
 
 # Default dependencies
 rcgen = "0.10"

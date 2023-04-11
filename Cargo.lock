@@ -1755,7 +1755,6 @@ version = "0.1.4"
 dependencies = [
  "async-trait",
  "aws-config",
- "aws-credential-types",
  "aws-sdk-s3",
  "axum",
  "axum-extra",
@@ -1772,9 +1771,6 @@ dependencies = [
  "noodles",
  "reqwest",
  "rustls-pemfile",
- "s3s",
- "s3s-aws",
- "s3s-fs",
  "serde",
  "tempfile",
  "thiserror",
@@ -1791,6 +1787,9 @@ name = "htsget-test"
 version = "0.1.4"
 dependencies = [
  "async-trait",
+ "aws-config",
+ "aws-credential-types",
+ "aws-sdk-s3",
  "base64 0.21.0",
  "futures",
  "htsget-config",
@@ -1800,6 +1799,9 @@ dependencies = [
  "noodles-vcf",
  "rcgen",
  "reqwest",
+ "s3s",
+ "s3s-aws",
+ "s3s-fs",
  "serde",
  "serde_json",
  "tokio",
