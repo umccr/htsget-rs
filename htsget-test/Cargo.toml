@@ -31,6 +31,7 @@ server-tests = [
 ]
 aws-mocks = [
     "s3-storage",
+    "dep:tempfile",
     "dep:aws-sdk-s3",
     "dep:aws-config",
     "dep:aws-credential-types",
@@ -58,6 +59,7 @@ serde_json = { version = "1.0", features = ["preserve_order"], optional = true }
 serde = { version = "1.0", optional = true }
 base64 = { version = "0.21", optional = true }
 
+tempfile = { version = "3.3", optional = true }
 aws-sdk-s3 = { version = "0.24", features = ["test-util"], optional = true }
 aws-config = { version = "0.54", optional = true }
 aws-credential-types = { version = "0.54", features = ["test-util"], optional = true }

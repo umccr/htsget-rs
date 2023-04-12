@@ -1804,6 +1804,7 @@ dependencies = [
  "s3s-fs",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 

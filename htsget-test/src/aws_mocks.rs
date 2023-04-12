@@ -5,6 +5,7 @@ use aws_sdk_s3::{Client, Region};
 use s3s::service::S3Service;
 use std::future::Future;
 use std::path::Path;
+use tempfile::TempDir;
 
 /// Default domain to use for mock s3 server
 pub const DEFAULT_DOMAIN_NAME: &str = "localhost:8014";
@@ -52,4 +53,15 @@ where
   Fut: Future<Output = ()>,
 {
   run_s3_test_server(server_base_path, test, DEFAULT_DOMAIN_NAME, DEFAULT_REGION).await;
+}
+
+/// Run a mock s3 server. Uses the default domain name and region, and a temporary directory as the base path.
+pub async fn with_s3_test_server_tmp<F, Fut>(test: F)
+where
+  F: FnOnce(Client) -> Fut,
+  Fut: Future<Output = ()>,
+{
+  let tmp_dir = TempDir::new().unwrap();
+
+  run_s3_test_server(tmp_dir.path(), test, DEFAULT_DOMAIN_NAME, DEFAULT_REGION).await;
 }
