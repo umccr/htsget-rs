@@ -13,14 +13,14 @@ pub const DEFAULT_DOMAIN_NAME: &str = "localhost:8014";
 pub const DEFAULT_REGION: &str = "ap-southeast-2";
 
 /// Run a mock s3 server using the `server_base_path` and a test function. Specify the domain name and region to use for the mock server.
-pub async fn run_s3_test_server<F, Fut>(
-  server_base_path: &Path,
+pub async fn run_s3_test_server<'a, F, Fut>(
+  server_base_path: &'a Path,
   test: F,
-  domain_name: &'static str,
+  domain_name: &str,
   region: &'static str,
 ) where
-  F: FnOnce(Client, &Path) -> Fut,
-  Fut: Future<Output = ()>,
+  F: FnOnce(Client, &'a Path) -> Fut,
+  Fut: Future<Output = ()> + 'a,
 {
   let cred = Credentials::for_tests();
 
