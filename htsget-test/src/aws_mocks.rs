@@ -19,7 +19,7 @@ pub async fn run_s3_test_server<F, Fut>(
   domain_name: &'static str,
   region: &'static str,
 ) where
-  F: FnOnce(Client) -> Fut,
+  F: FnOnce(Client, &Path) -> Fut,
   Fut: Future<Output = ()>,
 {
   let cred = Credentials::for_tests();
@@ -43,7 +43,7 @@ pub async fn run_s3_test_server<F, Fut>(
     .endpoint_url(format!("http://{domain_name}"))
     .build();
 
-  test(Client::new(&sdk_config)).await;
+  test(Client::new(&sdk_config), server_base_path).await;
 }
 
 /// Run a mock s3 server using the `server_base_path` and a test function. Uses the default domain name and region.
@@ -52,13 +52,19 @@ where
   F: FnOnce(Client) -> Fut,
   Fut: Future<Output = ()>,
 {
-  run_s3_test_server(server_base_path, test, DEFAULT_DOMAIN_NAME, DEFAULT_REGION).await;
+  run_s3_test_server(
+    server_base_path,
+    |client, _| test(client),
+    DEFAULT_DOMAIN_NAME,
+    DEFAULT_REGION,
+  )
+  .await;
 }
 
 /// Run a mock s3 server. Uses the default domain name and region, and a temporary directory as the base path.
 pub async fn with_s3_test_server_tmp<F, Fut>(test: F)
 where
-  F: FnOnce(Client) -> Fut,
+  F: FnOnce(Client, &Path) -> Fut,
   Fut: Future<Output = ()>,
 {
   let tmp_dir = TempDir::new().unwrap();
