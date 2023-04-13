@@ -4,7 +4,7 @@ use aws_credential_types::Credentials;
 use aws_sdk_s3::{Client, Region};
 use s3s::service::S3Service;
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 /// Default domain to use for mock s3 server
@@ -13,14 +13,14 @@ pub const DEFAULT_DOMAIN_NAME: &str = "localhost:8014";
 pub const DEFAULT_REGION: &str = "ap-southeast-2";
 
 /// Run a mock s3 server using the `server_base_path` and a test function. Specify the domain name and region to use for the mock server.
-pub async fn run_s3_test_server<'a, F, Fut>(
-  server_base_path: &'a Path,
+pub async fn run_s3_test_server<F, Fut>(
+  server_base_path: &Path,
   test: F,
   domain_name: &str,
   region: &'static str,
 ) where
-  F: FnOnce(Client, &'a Path) -> Fut,
-  Fut: Future<Output = ()> + 'a,
+  F: FnOnce(Client, PathBuf) -> Fut,
+  Fut: Future<Output = ()>,
 {
   let cred = Credentials::for_tests();
 
@@ -43,7 +43,7 @@ pub async fn run_s3_test_server<'a, F, Fut>(
     .endpoint_url(format!("http://{domain_name}"))
     .build();
 
-  test(Client::new(&sdk_config), server_base_path).await;
+  test(Client::new(&sdk_config), server_base_path.to_path_buf()).await;
 }
 
 /// Run a mock s3 server using the `server_base_path` and a test function. Uses the default domain name and region.
@@ -64,7 +64,7 @@ where
 /// Run a mock s3 server. Uses the default domain name and region, and a temporary directory as the base path.
 pub async fn with_s3_test_server_tmp<F, Fut>(test: F)
 where
-  F: FnOnce(Client, &Path) -> Fut,
+  F: FnOnce(Client, PathBuf) -> Fut,
   Fut: Future<Output = ()>,
 {
   let tmp_dir = TempDir::new().unwrap();
