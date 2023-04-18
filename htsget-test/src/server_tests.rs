@@ -164,7 +164,7 @@ where
       tester
         .get_request()
         .method(Method::GET.to_string())
-        .uri("/variants/1-vcf/sample1-bcbio-cancer"),
+        .uri("/variants/2-vcf/sample1-bcbio-cancer"),
     ],
     Class::Body,
   )
