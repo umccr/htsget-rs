@@ -1,6 +1,7 @@
 //! Module providing the search capability using BAM/BAI files
 //!
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,10 +13,12 @@ use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::BinningIndex;
+use noodles::sam::header::record::value::map::read_group::platform::ParseError;
+use noodles::sam::header::record::value::map::read_group::Platform;
 use noodles::sam::Header;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
-use tracing::{instrument, trace};
+use tracing::{instrument, trace, warn};
 
 use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
 use crate::htsget::HtsGetError;
@@ -93,6 +96,31 @@ where
   async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
     let header = reader.read_header().await;
     reader.read_reference_sequences().await?;
+
+    if let Ok(header) = header.as_deref() {
+      for value in header.split_whitespace() {
+        if let Some(value) = value.strip_prefix("PL:") {
+          if let Err(ParseError::Invalid) = Platform::from_str(value) {
+            warn!(
+              "invalid read group platform `{value}`, only `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, \
+              `{}`, `{}`, `{}`, `{}`, or `{}` is supported",
+              Platform::Capillary.as_ref(),
+              Platform::DnbSeq.as_ref(),
+              Platform::Element.as_ref(),
+              Platform::Ls454.as_ref(),
+              Platform::Illumina.as_ref(),
+              Platform::Solid.as_ref(),
+              Platform::Helicos.as_ref(),
+              Platform::IonTorrent.as_ref(),
+              Platform::Ont.as_ref(),
+              Platform::PacBio.as_ref(),
+              Platform::Ultima.as_ref()
+            );
+          }
+        }
+      }
+    }
+
     header
   }
 
@@ -182,9 +210,8 @@ pub(crate) mod tests {
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-
   use crate::storage::local::LocalStorage;
+  use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
 
   use super::*;
 
