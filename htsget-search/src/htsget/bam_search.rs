@@ -100,25 +100,22 @@ where
     if let Ok(header) = header.as_deref() {
       for value in header.split_whitespace() {
         if let Some(value) = value.strip_prefix("PL:") {
-          if let Err(err) = Platform::from_str(value) {
-            match err {
-              ParseError::Empty => {}
-              ParseError::Invalid => {
-                warn!("invalid read group platform `{value}`, only `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, or `{}` is supported",
-                Platform::Capillary.as_ref(),
-                Platform::DnbSeq.as_ref(),
-                Platform::Element.as_ref(),
-                Platform::Ls454.as_ref(),
-                Platform::Illumina.as_ref(),
-                Platform::Solid.as_ref(),
-                Platform::Helicos.as_ref(),
-                Platform::IonTorrent.as_ref(),
-                Platform::Ont.as_ref(),
-                Platform::PacBio.as_ref(),
-                Platform::Ultima.as_ref()
-              );
-              }
-            }
+          if let Err(ParseError::Invalid) = Platform::from_str(value) {
+            warn!(
+              "invalid read group platform `{value}`, only `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, \
+              `{}`, `{}`, `{}`, `{}`, or `{}` is supported",
+              Platform::Capillary.as_ref(),
+              Platform::DnbSeq.as_ref(),
+              Platform::Element.as_ref(),
+              Platform::Ls454.as_ref(),
+              Platform::Illumina.as_ref(),
+              Platform::Solid.as_ref(),
+              Platform::Helicos.as_ref(),
+              Platform::IonTorrent.as_ref(),
+              Platform::Ont.as_ref(),
+              Platform::PacBio.as_ref(),
+              Platform::Ultima.as_ref()
+            );
           }
         }
       }
