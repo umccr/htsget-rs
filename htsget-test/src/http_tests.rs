@@ -156,13 +156,14 @@ fn default_test_config_params(
     addr,
     default_dir_data(),
     "/data".to_string(),
-    tls,
+    tls.clone(),
     cors.clone(),
   );
 
   Config::new(
-    TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), cors, Default::default()),
+    TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), tls, cors),
     server_config,
+    Default::default(),
     default_test_resolver(addr, scheme),
   )
 }

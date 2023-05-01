@@ -12,7 +12,7 @@ async fn main() -> Result<(), Error> {
   if let Some(path) = Config::parse_args() {
     let config = Config::from_path(&path)?;
 
-    let service_info = config.ticket_server().service_info().clone();
+    let service_info = config.service_info().clone();
     let cors = config.ticket_server().cors().clone();
     let router = &Router::new(Arc::new(config.owned_resolvers()), &service_info);
 

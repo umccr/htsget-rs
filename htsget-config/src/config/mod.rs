@@ -65,55 +65,58 @@ struct Args {
   print_default_config: bool,
 }
 
+with_prefix!(ticket_server_prefix "ticket_server_");
 with_prefix!(data_server_prefix "data_server_");
+with_prefix!(cors_prefix "cors_");
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
-  #[serde(flatten)]
+  #[serde(flatten, with = "ticket_server_prefix")]
   ticket_server: TicketServerConfig,
   #[serde(flatten, with = "data_server_prefix")]
   data_server: DataServerConfig,
+  #[serde(flatten)]
+  service_info: ServiceInfo,
   resolvers: Vec<Resolver>,
 }
-
-with_prefix!(ticket_server_cors_prefix "ticket_server_cors_");
 
 /// Configuration for the htsget ticket server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
-  ticket_server_addr: SocketAddr,
-  #[serde(flatten, with = "ticket_server_cors_prefix")]
-  cors: CorsConfig,
+  addr: SocketAddr,
   #[serde(flatten)]
-  service_info: ServiceInfo,
+  tls: Option<CertificateKeyPair>,
+  #[serde(flatten, with = "cors_prefix")]
+  cors: CorsConfig,
 }
 
 impl TicketServerConfig {
   /// Create a new ticket server config.
-  pub fn new(ticket_server_addr: SocketAddr, cors: CorsConfig, service_info: ServiceInfo) -> Self {
-    Self {
-      ticket_server_addr,
-      cors,
-      service_info,
-    }
+  pub fn new(addr: SocketAddr, tls: Option<CertificateKeyPair>, cors: CorsConfig) -> Self {
+    Self { addr, tls, cors }
   }
 
   /// Get the addr.
   pub fn addr(&self) -> SocketAddr {
-    self.ticket_server_addr
+    self.addr
+  }
+
+  /// Get the TLS config.
+  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+    self.tls.as_ref()
+  }
+
+  /// Get the TLS config.
+  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+    self.tls
   }
 
   /// Get cors config.
   pub fn cors(&self) -> &CorsConfig {
     &self.cors
-  }
-
-  /// Get service info.
-  pub fn service_info(&self) -> &ServiceInfo {
-    &self.service_info
   }
 
   /// Get allow credentials.
@@ -145,56 +148,6 @@ impl TicketServerConfig {
   pub fn expose_headers(&self) -> &AllowType<HeaderName> {
     self.cors.expose_headers()
   }
-
-  /// Get id.
-  pub fn id(&self) -> Option<&str> {
-    self.service_info.id()
-  }
-
-  /// Get name.
-  pub fn name(&self) -> Option<&str> {
-    self.service_info.name()
-  }
-
-  /// Get version.
-  pub fn version(&self) -> Option<&str> {
-    self.service_info.version()
-  }
-
-  /// Get organization name.
-  pub fn organization_name(&self) -> Option<&str> {
-    self.service_info.organization_name()
-  }
-
-  /// Get the organization url.
-  pub fn organization_url(&self) -> Option<&str> {
-    self.service_info.organization_url()
-  }
-
-  /// Get the contact url.
-  pub fn contact_url(&self) -> Option<&str> {
-    self.service_info.contact_url()
-  }
-
-  /// Get the documentation url.
-  pub fn documentation_url(&self) -> Option<&str> {
-    self.service_info.documentation_url()
-  }
-
-  /// Get created at.
-  pub fn created_at(&self) -> Option<&str> {
-    self.service_info.created_at()
-  }
-
-  /// Get updated at.
-  pub fn updated_at(&self) -> Option<&str> {
-    self.service_info.updated_at()
-  }
-
-  /// Get the environment.
-  pub fn environment(&self) -> Option<&str> {
-    self.service_info.environment()
-  }
 }
 
 /// A trait to determine which scheme a key pair option has.
@@ -205,7 +158,7 @@ pub trait KeyPairScheme {
 
 /// A certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct CertificateKeyPair {
   cert: PathBuf,
   key: PathBuf,
@@ -236,8 +189,6 @@ impl KeyPairScheme for Option<&CertificateKeyPair> {
     }
   }
 }
-
-with_prefix!(cors_prefix "cors_");
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -288,12 +239,12 @@ impl DataServerConfig {
     &self.serve_at
   }
 
-  /// Get the TLS config
+  /// Get the TLS config.
   pub fn tls(&self) -> Option<&CertificateKeyPair> {
     self.tls.as_ref()
   }
 
-  /// Get the TLS config
+  /// Get the TLS config.
   pub fn into_tls(self) -> Option<CertificateKeyPair> {
     self.tls
   }
@@ -425,9 +376,9 @@ impl ServiceInfo {
 impl Default for TicketServerConfig {
   fn default() -> Self {
     Self {
-      ticket_server_addr: default_addr().parse().expect("expected valid address"),
+      addr: default_addr().parse().expect("expected valid address"),
+      tls: None,
       cors: CorsConfig::default(),
-      service_info: ServiceInfo::default(),
     }
   }
 }
@@ -437,6 +388,7 @@ impl Default for Config {
     Self {
       ticket_server: TicketServerConfig::default(),
       data_server: DataServerConfig::default(),
+      service_info: ServiceInfo::default(),
       resolvers: vec![Resolver::default()],
     }
   }
@@ -447,11 +399,13 @@ impl Config {
   pub fn new(
     ticket_server: TicketServerConfig,
     data_server: DataServerConfig,
+    service_info: ServiceInfo,
     resolvers: Vec<Resolver>,
   ) -> Self {
     Self {
       ticket_server,
       data_server,
+      service_info,
       resolvers,
     }
   }
@@ -517,6 +471,11 @@ impl Config {
     self.data_server
   }
 
+  /// Get service info.
+  pub fn service_info(&self) -> &ServiceInfo {
+    &self.service_info
+  }
+
   /// Get the resolvers.
   pub fn resolvers(&self) -> &[Resolver] {
     &self.resolvers
@@ -532,13 +491,15 @@ impl Config {
     let Config {
       ticket_server,
       data_server,
+      service_info,
       mut resolvers,
     } = self;
+
     resolvers
       .iter_mut()
       .for_each(|resolver| resolver.resolvers_from_data_server_config(&data_server));
 
-    Self::new(ticket_server, data_server, resolvers)
+    Self::new(ticket_server, data_server, service_info, resolvers)
   }
 }
 
@@ -616,7 +577,7 @@ pub(crate) mod tests {
   #[test]
   fn config_service_info_id_env() {
     test_config_from_env(vec![("HTSGET_ID", "id")], |config| {
-      assert_eq!(config.ticket_server().id(), Some("id"));
+      assert_eq!(config.service_info().id(), Some("id"));
     });
   }
 
@@ -660,7 +621,7 @@ pub(crate) mod tests {
   #[test]
   fn config_service_info_id_file() {
     test_config_from_file(r#"id = "id""#, |config| {
-      assert_eq!(config.ticket_server().id(), Some("id"));
+      assert_eq!(config.service_info().id(), Some("id"));
     });
   }
 
@@ -672,6 +633,120 @@ pub(crate) mod tests {
         "127.0.0.1:8082".parse().unwrap()
       );
     });
+  }
+
+  #[test]
+  #[should_panic]
+  fn config_data_server_tls_no_cert() {
+    test_config_from_file(
+      r#"
+    data_server_key = "key.pem"
+    "#,
+      |config| {
+        assert_eq!(
+          config.data_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_data_server_tls() {
+    test_config_from_file(
+      r#"
+    data_server_key = "key.pem"
+    data_server_cert = "cert.pem"
+    "#,
+      |config| {
+        assert_eq!(
+          config.data_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_data_server_tls_env() {
+    test_config_from_env(
+      vec![
+        ("HTSGET_DATA_SERVER_KEY", "key.pem"),
+        ("HTSGET_DATA_SERVER_CERT", "cert.pem"),
+      ],
+      |config| {
+        assert_eq!(
+          config.data_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  #[should_panic]
+  fn config_ticket_server_tls_no_cert() {
+    test_config_from_file(
+      r#"
+    ticket_server_key = "key.pem"
+    "#,
+      |config| {
+        assert_eq!(
+          config.ticket_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_ticket_server_tls() {
+    test_config_from_file(
+      r#"
+    ticket_server_key = "key.pem"
+    ticket_server_cert = "cert.pem"
+    "#,
+      |config| {
+        assert_eq!(
+          config.ticket_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_ticket_server_tls_env() {
+    test_config_from_env(
+      vec![
+        ("HTSGET_TICKET_SERVER_KEY", "key.pem"),
+        ("HTSGET_TICKET_SERVER_CERT", "cert.pem"),
+      ],
+      |config| {
+        assert_eq!(
+          config.ticket_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
   }
 
   #[test]

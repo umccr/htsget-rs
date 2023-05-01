@@ -33,6 +33,8 @@ To configure the ticket server, set the following options:
 | Config File                                                                                   | Description                                                                                                                                                                                                | Type                                      | Default                     |
 |-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|-----------------------------|
 | <span id="ticket_server_addr">`ticket_server_addr`</span>                                     | The address for the ticket server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8080'`          | 
+| <span id="ticket_server_key">`ticket_server_key`</span>                                       | The path to the PEM formatted X.509 private key used by the data server. This is used to enable TLS with HTTPS.                                                                                            | Filesystem path                           | Not set                     |
+| <span id="ticket_server_cert">`ticket_server_cert`</span>                                     | The path to the PEM formatted X.509 certificate used by the data server. This is used to enable TLS with HTTPS.                                                                                            | Filesystem path                           | Not set                     |
 | <span id="ticket_server_cors_allow_credentials">`ticket_server_cors_allow_credentials`</span> | Controls the CORS Access-Control-Allow-Credentials for the ticket server.                                                                                                                                  | Boolean                                   | `false`                     |
 | <span id="ticket_server_cors_allow_origins">`ticket_server_cors_allow_origins`</span>         | Set the CORS Access-Control-Allow-Origin returned by the ticket server, this can be set to `All` to send a wildcard, `Mirror` to echo back the request sent by the client, or a specific array of origins. | `'All'`, `'Mirror'` or a array of origins | `['http://localhost:8080']` |
 | <span id="ticket_server_cors_allow_headers">`ticket_server_cors_allow_headers`</span>         | Set the CORS Access-Control-Allow-Headers returned by the ticket server, this can be set to `All` to allow all headers, or a specific array of headers.                                                    | `'All'`, or a array of headers            | `'All'`                     |
@@ -40,7 +42,7 @@ To configure the ticket server, set the following options:
 | <span id="ticket_server_cors_max_age">`ticket_server_cors_max_age`</span>                     | Set the CORS Access-Control-Max-Age for the ticket server which controls how long a preflight request can be cached for.                                                                                   | Seconds                                   | `86400`                     |
 | <span id="ticket_server_cors_expose_headers">`ticket_server_cors_expose_headers`</span>       | Set the CORS Access-Control-Expose-Headers returned by the ticket server, this can be set to `All` to expose all headers, or a specific array of headers.                                                  | `'All'`, or a array of headers            | `[]`                        |
 
-An example of config for the ticket server:
+TLS is supported by setting the `ticket_server_key` and `ticket_server_cert` options. An example of config for the ticket server:
 ```toml
 ticket_server_addr = '127.0.0.1:8080'
 ticket_server_cors_allow_credentials = false
@@ -57,7 +59,7 @@ To configure the data server, set the following options:
 
 | Option                                                                                    | Description                                                                                                                                                                                              | Type                                      | Default                     |
 |-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|-----------------------------|
-| <span id="data_server_addr">`data_server_addr`</span>                                     | The address for the data server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8080'`          | 
+| <span id="data_server_addr">`data_server_addr`</span>                                     | The address for the data server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8081'`          | 
 | <span id="data_server_local_path">`data_server_local_path`</span>                         | The local path which the data server can access to serve files.                                                                                                                                          | Filesystem path                           | `'data'`                    |
 | <span id="data_server_serve_at">`data_server_serve_at`</span>                             | The path which the data server will prefix to all response URLs for tickets.                                                                                                                             | URL path                                  | `'/data'`                   |
 | <span id="data_server_key">`data_server_key`</span>                                       | The path to the PEM formatted X.509 private key used by the data server. This is used to enable TLS with HTTPS.                                                                                          | Filesystem path                           | Not set                     |
@@ -69,7 +71,7 @@ To configure the data server, set the following options:
 | <span id="data_server_cors_max_age">`data_server_cors_max_age`</span>                     | Set the CORS Access-Control-Max-Age for the data server which controls how long a preflight request can be cached for.                                                                                   | Seconds                                   | `86400`                     |
 | <span id="data_server_cors_expose_headers">`data_server_cors_expose_headers`</span>       | Set the CORS Access-Control-Expose-Headers returned by the data server, this can be set to `All` to expose all headers, or a specific array of headers.                                                  | `'All'`, or a array of headers            | `[]`                        |
 
-An example of config for the data server:
+TLS is supported by setting the `data_server_key` and `data_server_cert` options.  An example of config for the data server:
 ```toml
 data_server_addr = '127.0.0.1:8081'
 data_server_local_path = 'data'
@@ -286,6 +288,8 @@ The following environment variables - corresponding to the TOML config - are ava
 | Variable                                      | Description                                                                         |
 |-----------------------------------------------|-------------------------------------------------------------------------------------|
 | `HTSGET_TICKET_SERVER_ADDR`                   | See [`ticket_server_addr`](#ticket_server_addr)                                     | 
+| `HTSGET_TICKET_SERVER_KEY`                    | See [`ticket_server_key`](#ticket_server_key)                                       |
+| `HTSGET_TICKET_SERVER_CERT`                   | See [`ticket_server_cert`](#ticket_server_cert)                                     |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_CREDENTIALS` | See [`ticket_server_cors_allow_credentials`](#ticket_server_cors_allow_credentials) |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS`     | See [`ticket_server_cors_allow_origins`](#ticket_server_cors_allow_origins)         |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_HEADERS`     | See [`ticket_server_cors_allow_headers`](#ticket_server_cors_allow_headers)         |
@@ -313,7 +317,7 @@ The following environment variables - corresponding to the TOML config - are ava
 | `HTSGET_CREATED_AT`                           | See [`created_at`](#created_at)                                                     |
 | `HTSGET_UPDATED_AT`                           | See [`updated_at`](#updated_at)                                                     |
 | `HTSGET_ENVIRONMENT`                          | See [`environment`](#environment)                                                   |
-| `HTSGET_RESOLVERS`                            | See [resolvers](#resolvers)                                                         |
+| `HTSGET_RESOLVERS`                            | See [`resolvers`](#resolvers)                                                         |
 
 In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set. The nested array of resolvers structure can be set using name key and value pairs, for example:
 
