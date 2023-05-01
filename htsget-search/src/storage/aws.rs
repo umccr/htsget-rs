@@ -6,16 +6,17 @@ use std::io;
 use std::io::ErrorKind::Other;
 use std::time::Duration;
 
-use async_trait::async_trait;
-use aws_sdk_s3::client::fluent_builders;
-use aws_sdk_s3::error::{GetObjectError, GetObjectErrorKind, HeadObjectErrorKind};
-use aws_sdk_s3::model::StorageClass;
-use aws_sdk_s3::output::HeadObjectOutput;
-use aws_sdk_s3::presigning::config::PresigningConfig;
-use aws_sdk_s3::types::{ByteStream, SdkError};
+use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::operation::get_object::builders::GetObjectFluentBuilder;
+use aws_sdk_s3::operation::get_object::GetObjectError;
+use aws_sdk_s3::operation::head_object::{HeadObjectError, HeadObjectOutput};
+use aws_sdk_s3::presigning::PresigningConfig;
+use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::types::StorageClass;
 use aws_sdk_s3::Client;
+
+use async_trait::async_trait;
 use bytes::Bytes;
-use fluent_builders::GetObject;
 use tokio_util::io::StreamReader;
 use tracing::debug;
 use tracing::instrument;
@@ -52,8 +53,15 @@ impl AwsS3Storage {
     AwsS3Storage { client, bucket }
   }
 
-  pub async fn new_with_default_config(bucket: String) -> Self {
-    AwsS3Storage::new(Client::new(&aws_config::load_from_env().await), bucket)
+  pub async fn new_with_default_config(bucket: String, endpoint: Option<String>) -> Self {
+    let sdk_config = aws_config::load_from_env().await;
+    let mut s3_config_builder = aws_sdk_s3::config::Builder::from(&sdk_config);
+    s3_config_builder.set_endpoint_url(endpoint); // For local S3 storage, i.e: Minio
+
+    let client = s3_config_builder.build();
+    let s3_client = aws_sdk_s3::Client::from_conf(client);
+
+    AwsS3Storage::new(s3_client, bucket)
   }
 
   /// Return an S3 pre-signed URL of the key. This function does not check that the key exists,
@@ -83,7 +91,6 @@ impl AwsS3Storage {
   }
 
   async fn s3_head<K: AsRef<str> + Send>(&self, key: K) -> Result<HeadObjectOutput> {
-    println!("{:#?}", self.client.list_buckets().send().await.unwrap());
     self
       .client
       .head_object()
@@ -93,7 +100,7 @@ impl AwsS3Storage {
       .await
       .map_err(|err| {
         let err = err.into_service_error();
-        if let HeadObjectErrorKind::NotFound(_) = err.kind {
+        if let HeadObjectError::NotFound(_) = err {
           KeyNotFound(key.as_ref().to_string())
         } else {
           AwsS3Error(err.to_string(), key.as_ref().to_string())
@@ -134,7 +141,7 @@ impl AwsS3Storage {
     Delayed(class)
   }
 
-  fn apply_range(builder: GetObject, range: BytesPosition) -> GetObject {
+  fn apply_range(builder: GetObjectFluentBuilder, range: BytesPosition) -> GetObjectFluentBuilder {
     let range: String = String::from(&BytesRange::from(&range));
     if range.is_empty() {
       builder
@@ -185,7 +192,7 @@ impl AwsS3Storage {
     K: AsRef<str> + Send,
   {
     let error = error.into_service_error();
-    if let GetObjectErrorKind::NoSuchKey(_) = error.kind {
+    if let GetObjectError::NoSuchKey(_) = error {
       KeyNotFound(key.as_ref().to_string())
     } else {
       AwsS3Error(error.to_string(), key.as_ref().to_string())
@@ -252,8 +259,11 @@ pub(crate) mod tests {
 
   use aws_config::SdkConfig;
   use aws_credential_types::provider::SharedCredentialsProvider;
-  use aws_sdk_s3::{Client, Credentials, Region};
-  use s3s::service::S3Service;
+  use aws_sdk_s3::config::{Credentials, Region};
+  use aws_sdk_s3::Client;
+
+  use s3s::auth::SimpleAuth;
+  use s3s::service::S3ServiceBuilder;
   use s3s_aws;
 
   use crate::storage::aws::AwsS3Storage;
@@ -275,13 +285,13 @@ pub(crate) mod tests {
     let conn = {
       let fs = s3s_fs::FileSystem::new(server_base_path).unwrap();
 
-      let auth = s3s::SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
+      let auth = SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
 
-      let mut service = S3Service::new(Box::new(fs));
-      service.set_auth(Box::new(auth));
+      let mut service = S3ServiceBuilder::new(fs);
+      service.set_auth(auth);
       service.set_base_domain(DOMAIN_NAME);
 
-      s3s_aws::Connector::from(service.into_shared())
+      s3s_aws::Connector::from(service.build().into_shared())
     };
 
     let sdk_config = SdkConfig::builder()
