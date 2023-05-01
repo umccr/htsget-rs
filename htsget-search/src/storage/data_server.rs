@@ -197,7 +197,8 @@ impl DataServer {
     self.listener.local_addr()
   }
 
-  fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
+  /// Load TLS server config.
+  pub fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
     let mut key_reader = BufReader::new(
       File::open(key).map_err(|err| IoError("failed to open key file".to_string(), err))?,
     );
@@ -383,6 +384,19 @@ mod tests {
   #[test]
   fn https_scheme() {
     assert_eq!(tls_formatter().get_scheme(), &Scheme::Https);
+  }
+
+  #[tokio::test]
+  async fn test_rustls_server_config() {
+    let (_, base_path) = create_local_test_files().await;
+    let (key_path, cert_path) = generate_test_certificates(base_path.path(), "key.pem", "cert.pem");
+
+    let server_config = DataServer::rustls_server_config(key_path, cert_path).unwrap();
+
+    assert_eq!(
+      server_config.alpn_protocols,
+      vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+    );
   }
 
   #[tokio::test]
