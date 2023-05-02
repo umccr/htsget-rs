@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.1.4...htsget-config-v0.2.0) - 2023-04-28
+
+### Added
+- use serve_at in data server rather than a constant
+- *(config)* set `Local` resolvers from data server config after parsing the `Config`
+- *(config)* add automatic config inference for local and s3 storage, and rearrange modules
+- [**breaking**] simplify storage config by allowing untagged enum representation
+
+### Other
+- *(config)* fix typo
+- *(config)* rename test
+- *(config)* add tests for resolving responses
+- *(config)* fix incorrectly using resolved id when searching for regex capture groups
+- a few style changes, changed default resolver
+- *(config)* add tests for default tagged storage type
+- *(config)* document new features and how to use them
+- [**breaking**] rename `HttpTicketFormatter` and remove `UrlFormatter` implementation for it
+- [**breaking**] move htsget structs to config, and resolve storage type in config
+- *(config)* leverage tagged enum types to allow selecting storage type without manually specifying config values
+
 ## [0.1.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.1.0...htsget-config-v0.1.1) - 2023-01-27
 
 ### Other

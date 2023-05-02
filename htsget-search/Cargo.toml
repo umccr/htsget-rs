@@ -1,6 +1,6 @@
 [package]
 name = "htsget-search"
-version = "0.1.4"
+version = "0.2.0"
 rust-version = "1.64"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
@@ -42,8 +42,8 @@ aws-config = { version = "0.54", optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"
-htsget-config = { version = "0.1.4", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.1.4", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-config = { version = "0.2.0", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.2.0", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"

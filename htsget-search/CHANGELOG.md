@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.1.4...htsget-search-v0.2.0) - 2023-04-28
+
+### Added
+- *(test)* add multiple resolvers for server tests and test resolution
+- use serve_at in data server rather than a constant
+- *(config)* add automatic config inference for local and s3 storage, and rearrange modules
+- [**breaking**] simplify storage config by allowing untagged enum representation
+
+### Other
+- *(search)* convert match to if let
+- *(search)* add warning when a non-valid PL read group header is found
+- *(search)* add additional tests for searching resolvers and from storage
+- *(search)* implement `ResolveResponse` on `HtsGetFromStorage`
+- [**breaking**] rename `HttpTicketFormatter` and remove `UrlFormatter` implementation for it
+- [**breaking**] move htsget structs to config, and resolve storage type in config
+
 ## [0.1.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.1.0...htsget-search-v0.1.1) - 2023-01-27
 
 ### Fixed
