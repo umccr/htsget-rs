@@ -167,7 +167,7 @@ impl DataServer {
         .map_err(|err| DataServerError(err.to_string())),
       Some(tls) => {
         let rustls_config = Self::rustls_server_config(tls.key(), tls.cert())?;
-        let acceptor = TlsAcceptor::from(rustls_config);
+        let acceptor = TlsAcceptor::from(Arc::new(rustls_config));
 
         loop {
           let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
@@ -198,7 +198,7 @@ impl DataServer {
   }
 
   /// Load TLS server config.
-  pub fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
+  pub fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<ServerConfig> {
     let mut key_reader = BufReader::new(
       File::open(key).map_err(|err| IoError("failed to open key file".to_string(), err))?,
     );
@@ -225,7 +225,7 @@ impl DataServer {
 
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
-    Ok(Arc::new(config))
+    Ok(config)
   }
 }
 
