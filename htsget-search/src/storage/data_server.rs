@@ -30,7 +30,7 @@ use htsget_config::config::{CertificateKeyPair, DataServerConfig};
 use htsget_config::types::Scheme;
 
 use crate::storage::configure_cors;
-use crate::storage::StorageError::{DataServerError, IoError};
+use crate::storage::StorageError::{IoError, ServerError};
 
 use super::{Result, StorageError};
 
@@ -164,7 +164,7 @@ impl DataServer {
       None => axum::Server::builder(self.listener)
         .serve(app)
         .await
-        .map_err(|err| DataServerError(err.to_string())),
+        .map_err(|err| ServerError(err.to_string())),
       Some(tls) => {
         let rustls_config = Self::rustls_server_config(tls.key(), tls.cert())?;
         let acceptor = TlsAcceptor::from(Arc::new(rustls_config));
@@ -172,14 +172,14 @@ impl DataServer {
         loop {
           let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
             .await
-            .ok_or_else(|| DataServerError("poll accept failed".to_string()))?
-            .map_err(|err| DataServerError(err.to_string()))?;
+            .ok_or_else(|| ServerError("poll accept failed".to_string()))?
+            .map_err(|err| ServerError(err.to_string()))?;
           let acceptor = acceptor.clone();
 
           let app = app
             .make_service(&stream)
             .await
-            .map_err(|err| DataServerError(err.to_string()))?;
+            .map_err(|err| ServerError(err.to_string()))?;
 
           trace!(stream = ?stream, "accepting stream");
           tokio::spawn(async move {
@@ -209,7 +209,9 @@ impl DataServer {
     let key = PrivateKey(
       pkcs8_private_keys(&mut key_reader)
         .map_err(|err| IoError("failed to read private keys".to_string(), err))?
-        .remove(0),
+        .into_iter()
+        .next()
+        .ok_or_else(|| ServerError("no private key found".to_string()))?,
     );
     let certs = certs(&mut cert_reader)
       .map_err(|err| IoError("failed to read certificate".to_string(), err))?
@@ -221,7 +223,7 @@ impl DataServer {
       .with_safe_defaults()
       .with_no_client_auth()
       .with_single_cert(certs, key)
-      .map_err(|err| DataServerError(err.to_string()))?;
+      .map_err(|err| ServerError(err.to_string()))?;
 
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
@@ -231,7 +233,7 @@ impl DataServer {
 
 impl From<hyper::Error> for StorageError {
   fn from(error: hyper::Error) -> Self {
-    DataServerError(error.to_string())
+    ServerError(error.to_string())
   }
 }
 

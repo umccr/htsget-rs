@@ -84,8 +84,8 @@ pub enum StorageError {
   #[error("{0}: {1}")]
   IoError(String, io::Error),
 
-  #[error("url response data server error: {0}")]
-  DataServerError(String),
+  #[error("server error: {0}")]
+  ServerError(String),
 
   #[error("invalid input: {0}")]
   InvalidInput(String),
