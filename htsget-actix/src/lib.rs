@@ -12,6 +12,7 @@ pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketSer
 pub use htsget_config::storage::Storage;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
+use htsget_search::storage::data_server::DataServer;
 use htsget_search::storage::local::LocalStorage;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
@@ -114,15 +115,28 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
 ) -> std::io::Result<Server> {
   let addr = config.addr();
 
+  let config_copy = config.clone();
   let server = HttpServer::new(Box::new(move || {
     App::new()
       .configure(|service_config: &mut web::ServiceConfig| {
         configure_server(service_config, htsget.clone(), service_info.clone());
       })
-      .wrap(configure_cors(config.cors().clone()))
+      .wrap(configure_cors(config_copy.cors().clone()))
       .wrap(TracingLogger::default())
-  }))
-  .bind(addr)?;
+  }));
+
+  let server = match config.tls() {
+    None => {
+      info!("using non-TLS ticket server");
+      server.bind(addr)?
+    }
+    Some(tls) => {
+      let tls_config = DataServer::rustls_server_config(tls.key(), tls.cert())?;
+
+      info!("using TLS ticket server");
+      server.bind_rustls(addr, tls_config)?
+    }
+  };
 
   info!(addresses = ?server.addrs(), "htsget query server addresses bound");
   Ok(server.run())
