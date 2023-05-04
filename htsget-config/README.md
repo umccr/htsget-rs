@@ -359,13 +359,36 @@ See [here][rust-log] for more information on setting this variable.
 [tracing]: https://github.com/tokio-rs/tracing
 [rust-log]: https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
 
-#### AWS config
+### Minio
 
-Config for AWS is read entirely from environment variables. A default configuration is loaded from environment variables using the [aws-config] crate.
-Check out the [AWS documentation][aws-sdk] for the rust SDK for more information. 
+Operating a local object storage like [Minio][minio] can be easily achieved by leveraging the `endpoint` directive as shown below:
 
-[aws-config]: https://docs.rs/aws-config/latest/aws_config/
-[aws-sdk]: https://docs.aws.amazon.com/sdk-for-rust/latest/dg/welcome.html
+```toml
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.storage]
+bucket = 'bucket'
+endpoint = "http://127.0.0.1:9000"
+```
+
+This will have htsget-rs behaving like the native AWS CLI, i.e:
+
+```
+mkdir /tmp/test
+minio server /tmp/test
+export AWS_ACCESS_KEY_ID=minioadmin
+export AWS_SECRET_ACCESS_KEY=minioadmin
+aws s3 mb --endpoint-url=http://localhost:9000 s3://bucket/
+aws s3 cp --recursive --endpoint-url=http://localhost:9000 htsget-rs/data/bam s3://bucket/
+cargo run -p htsget-actix -- --config ~/.htsget-rs/config.toml
+
+# On another session/terminal
+curl http://localhost:8080/reads/htsnexus_test_NA12878
+```
+
+Please don't run the example above as-is in production systems ;)
 
 ### As a library
 
@@ -385,3 +408,4 @@ This crate has the following features:
 This project is licensed under the [MIT license][license].
 
 [license]: LICENSE
+[minio]: https://min.io/

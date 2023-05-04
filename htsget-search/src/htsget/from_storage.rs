@@ -81,7 +81,11 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
   #[cfg(feature = "s3-storage")]
   async fn from_s3_storage(s3_storage: &S3Storage, query: &Query) -> Result<Response> {
     let searcher = HtsGetFromStorage::new(
-      AwsS3Storage::new_with_default_config(s3_storage.bucket().to_string()).await,
+      AwsS3Storage::new_with_default_config(
+        s3_storage.bucket().to_string(),
+        s3_storage.clone().endpoint(),
+      )
+      .await,
     );
     searcher.search(query.clone()).await
   }

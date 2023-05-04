@@ -37,8 +37,9 @@ noodles = { version = "0.32", features = ["async", "core", "bgzf", "bam", "bcf",
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
-aws-sdk-s3 = { version = "0.24", optional = true, features = ["test-util"] }
-aws-config = { version = "0.54", optional = true }
+aws-sdk-s3 = { version = "0.27", optional = true, features = ["test-util"] }
+aws-config = { version = "0.55", optional = true }
+aws-credential-types = { version = "0.55", features = ["test-util"] }
 
 # Error control, tracing, config
 thiserror = "1.0"
@@ -52,11 +53,10 @@ serde = "1.0"
 tempfile = "3.3"
 data-url = "0.2"
 
-# Aws S3 storage.
-aws-credential-types = { version = "0.54", features = ["test-util"] }
-s3s = { version = "0.3" }
-s3s-fs = { version = "0.3" }
-s3s-aws = { version = "0.3" }
+# S3 storage testing
+s3s = { version = "0.5" }
+s3s-fs = { version = "0.5" }
+s3s-aws = { version = "0.5" }
 
 # Axum server
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
