@@ -1,0 +1,11 @@
+data_server_addr = "0.0.0.0:8081"
+ticket_server_addr = "0.0.0.0:8080"
+ticket_server_cors_allow_origins = "All"
+
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.storage]
+bucket = 'archive'
+endpoint = "http://s3:9000/"

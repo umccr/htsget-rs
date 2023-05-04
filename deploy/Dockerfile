@@ -1,25 +1,22 @@
-# syntax=docker/dockerfile:1.4
-FROM rust:1.61.0 AS builder
+FROM rust:1.69.0 AS builder
 
-ARG TARGETPLATFORM
+WORKDIR /build
 
-WORKDIR /root
-
-RUN --mount=type=cache,target=/usr/local/cargo/registry,id=${TARGETPLATFORM} \
-    cargo install cargo-strip
+RUN cargo install cargo-strip
 
 COPY . .
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry,id=${TARGETPLATFORM} --mount=type=cache,target=/root/target,id=${TARGETPLATFORM} \
-    cargo build --release && \
-    cargo strip && \
-    mv /root/target/release/htsget-actix /root
+RUN cargo build --release && \
+    cargo strip
 
+FROM debian:sid-slim
 
-FROM gcr.io/distroless/cc-debian11
+RUN apt update && apt install -y libc6-dev && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /root/htsget-actix /
+COPY --from=builder /etc/ssl/certs/ /etc/ssl/certs/
+COPY --from=builder /build/target/release/htsget-actix /usr/local/bin/htsget-actix
 
-ENTRYPOINT ["./htsget-actix"]
+EXPOSE 8080
+EXPOSE 8081
 
-EXPOSE 3000
+CMD [ "htsget-actix" ]
