@@ -7,12 +7,12 @@ use htsget_search::storage::data_server::BindDataServer;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-  Config::setup_tracing()?;
-
   if let Some(path) =
     Config::parse_args_with_command(command!()).expect("expected valid command parsing")
   {
     let config = Config::from_path(&path)?;
+
+    config.setup_tracing()?;
 
     if config.data_server().enabled() {
       let server = config.data_server().clone();

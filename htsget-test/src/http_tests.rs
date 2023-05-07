@@ -161,6 +161,7 @@ fn default_test_config_params(
   );
 
   Config::new(
+    Default::default(),
     TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), tls, cors),
     server_config,
     Default::default(),

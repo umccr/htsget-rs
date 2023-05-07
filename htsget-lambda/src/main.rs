@@ -8,12 +8,12 @@ use htsget_lambda::{handle_request, Router};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-  Config::setup_tracing()?;
-
   if let Some(path) =
     Config::parse_args_with_command(command!()).expect("expected valid command parsing")
   {
     let config = Config::from_path(&path)?;
+
+    config.setup_tracing()?;
 
     let service_info = config.service_info().clone();
     let cors = config.ticket_server().cors().clone();

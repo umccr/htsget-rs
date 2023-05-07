@@ -9,14 +9,15 @@ use http::header::HeaderName;
 use http::Method;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
-use tracing::info;
-use tracing::instrument;
+use tracing::subscriber::set_global_default;
+use tracing_subscriber::fmt::{format, layer};
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::{fmt, EnvFilter, Registry};
+use tracing_subscriber::{EnvFilter, Registry};
 
 use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
 use crate::config::error::Error::{ArgParseError, IoError, TracingError};
 use crate::config::error::Result;
+use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
 use crate::resolver::Resolver;
 use crate::types::Scheme;
 use crate::types::Scheme::{Http, Https};
@@ -65,6 +66,16 @@ struct Args {
   print_default_config: bool,
 }
 
+/// Determines which tracing formatting style to use.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Default)]
+pub enum FormattingStyle {
+  #[default]
+  Full,
+  Compact,
+  Pretty,
+  Json,
+}
+
 with_prefix!(ticket_server_prefix "ticket_server_");
 with_prefix!(data_server_prefix "data_server_");
 with_prefix!(cors_prefix "cors_");
@@ -73,6 +84,7 @@ with_prefix!(cors_prefix "cors_");
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
+  formatting_style: FormattingStyle,
   #[serde(flatten, with = "ticket_server_prefix")]
   ticket_server: TicketServerConfig,
   #[serde(flatten, with = "data_server_prefix")]
@@ -386,6 +398,7 @@ impl Default for TicketServerConfig {
 impl Default for Config {
   fn default() -> Self {
     Self {
+      formatting_style: Full,
       ticket_server: TicketServerConfig::default(),
       data_server: DataServerConfig::default(),
       service_info: ServiceInfo::default(),
@@ -397,12 +410,14 @@ impl Default for Config {
 impl Config {
   /// Create a new config.
   pub fn new(
+    formatting: FormattingStyle,
     ticket_server: TicketServerConfig,
     data_server: DataServerConfig,
     service_info: ServiceInfo,
     resolvers: Vec<Resolver>,
   ) -> Self {
     Self {
+      formatting_style: formatting,
       ticket_server,
       data_server,
       service_info,
@@ -437,7 +452,6 @@ impl Config {
   }
 
   /// Read a config struct from a TOML file.
-  #[instrument]
   pub fn from_path(path: &Path) -> Result<Self> {
     let config: Config = Figment::from(Serialized::defaults(Config::default()))
       .merge(Toml::file(path))
@@ -445,22 +459,29 @@ impl Config {
       .extract()
       .map_err(|err| IoError(err.to_string()))?;
 
-    info!(config = ?config, "config created from environment variables");
-
     Ok(config.resolvers_from_data_server_config())
   }
 
   /// Setup tracing, using a global subscriber.
-  pub fn setup_tracing() -> Result<()> {
+  pub fn setup_tracing(&self) -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    let fmt_layer = fmt::Layer::default();
 
-    let subscriber = Registry::default().with(env_filter).with(fmt_layer);
+    let subscriber = Registry::default().with(env_filter);
 
-    tracing::subscriber::set_global_default(subscriber)
-      .map_err(|err| TracingError(err.to_string()))?;
+    match self.formatting_style() {
+      Full => set_global_default(subscriber.with(layer())),
+      Compact => set_global_default(subscriber.with(layer().event_format(format().compact()))),
+      Pretty => set_global_default(subscriber.with(layer().event_format(format().pretty()))),
+      Json => set_global_default(subscriber.with(layer().event_format(format().json()))),
+    }
+    .map_err(|err| TracingError(err.to_string()))?;
 
     Ok(())
+  }
+
+  /// Get the formatting style.
+  pub fn formatting_style(&self) -> FormattingStyle {
+    self.formatting_style
   }
 
   /// Get the ticket server.
@@ -496,6 +517,7 @@ impl Config {
   /// Set the local resolvers from the data server config.
   pub fn resolvers_from_data_server_config(self) -> Self {
     let Config {
+      formatting_style: formatting,
       ticket_server,
       data_server,
       service_info,
@@ -506,7 +528,13 @@ impl Config {
       .iter_mut()
       .for_each(|resolver| resolver.resolvers_from_data_server_config(&data_server));
 
-    Self::new(ticket_server, data_server, service_info, resolvers)
+    Self::new(
+      formatting,
+      ticket_server,
+      data_server,
+      service_info,
+      resolvers,
+    )
   }
 }
 

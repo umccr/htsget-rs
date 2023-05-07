@@ -30,7 +30,7 @@ The configuration consists of multiple parts, config for the ticket server, conf
 The ticket server responds to htsget requests by returning a set of URL tickets that the client must fetch and concatenate.
 To configure the ticket server, set the following options:
 
-| Config File                                                                                   | Description                                                                                                                                                                                                | Type                                      | Default                     |
+| Option                                                                                        | Description                                                                                                                                                                                                | Type                                      | Default                     |
 |-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|-----------------------------|
 | <span id="ticket_server_addr">`ticket_server_addr`</span>                                     | The address for the ticket server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8080'`          | 
 | <span id="ticket_server_key">`ticket_server_key`</span>                                       | The path to the PEM formatted X.509 private key used by the data server. This is used to enable TLS with HTTPS.                                                                                            | Filesystem path                           | Not set                     |
@@ -274,6 +274,31 @@ Use the `--help` flag to see more details on command line options.
 [htsget-actix]: ../htsget-actix
 [htsget-lambda]: ../htsget-lambda
 
+#### Log formatting
+
+The [Tracing][tracing] crate is used extensively by htsget-rs is for logging functionality. The `RUST_LOG` variable is
+read to configure the level that trace logs are emitted.
+
+For example, the following indicates trace level for all htsget crates, and info level for all other crates:
+
+```sh
+export RUST_LOG='info,htsget_lambda=trace,htsget_lambda=trace,htsget_config=trace,htsget_http=trace,htsget_search=trace,htsget_test=trace'
+```
+
+See [here][rust-log] for more information on setting this variable.
+
+The style of formatting can be configured by setting the following option:
+
+| Option                                                  | Description                          | Type                                                   | Default  |
+|---------------------------------------------------------|--------------------------------------|--------------------------------------------------------|----------|
+| <span id="formatting_style">`formatting_style`</span>   | The style of log formatting to use.  | One of `'Full'`, `'Compact'`, `'Pretty'`, or `'Json'`  | `'Full'` |
+
+See [here][formatting-style] for more information on how these values look.
+
+[tracing]: https://github.com/tokio-rs/tracing
+[rust-log]: https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
+[formatting-style]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html#formatters
+
 #### Configuring htsget-rs with environment variables
 
 All the htsget-rs config options can be set by environment variables, which is convenient for runtimes such as AWS Lambda.
@@ -317,7 +342,8 @@ The following environment variables - corresponding to the TOML config - are ava
 | `HTSGET_CREATED_AT`                           | See [`created_at`](#created_at)                                                     |
 | `HTSGET_UPDATED_AT`                           | See [`updated_at`](#updated_at)                                                     |
 | `HTSGET_ENVIRONMENT`                          | See [`environment`](#environment)                                                   |
-| `HTSGET_RESOLVERS`                            | See [`resolvers`](#resolvers)                                                         |
+| `HTSGET_RESOLVERS`                            | See [`resolvers`](#resolvers)                                                       |
+| `HTSGET_FORMATTING_STYLE`                     | See [`formatting_style`](#formatting_style)                                         |
 
 In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set. The nested array of resolvers structure can be set using name key and value pairs, for example:
 
@@ -346,22 +372,6 @@ Similar to the [data_server](#data_server) option, the data server can be disabl
 export HTSGET_DATA_SERVER_ENABLED=false
 ```
 [service-info]: https://samtools.github.io/hts-specs/htsget.html#ga4gh-service-info
-
-#### RUST_LOG
-
-The [Tracing][tracing] crate is used extensively by htsget-rs is for logging functionality. The `RUST_LOG` variable is
-read to configure the level that trace logs are emitted.
-
-For example, the following indicates trace level for all htsget crates, and info level for all other crates:
-
-```sh
-export RUST_LOG='info,htsget_lambda=trace,htsget_lambda=trace,htsget_config=trace,htsget_http=trace,htsget_search=trace,htsget_test=trace'
-```
-
-See [here][rust-log] for more information on setting this variable.
-
-[tracing]: https://github.com/tokio-rs/tracing
-[rust-log]: https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
 
 #### AWS config
 

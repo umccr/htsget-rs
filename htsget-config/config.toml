@@ -1,3 +1,4 @@
+formatting_style = "Full"
 ticket_server_addr = "127.0.0.1:8080"
 ticket_server_cors_allow_credentials = false
 ticket_server_cors_allow_origins = ["http://localhost:8080"]
