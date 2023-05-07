@@ -107,10 +107,10 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::path::{Path, PathBuf};
 
-  use htsget_config::storage;
   use http::uri::Authority;
   use tempfile::TempDir;
 
+  use htsget_config::storage;
   use htsget_config::types::Scheme::Http;
   use htsget_test::util::expected_bgzf_eof_data_url;
 

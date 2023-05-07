@@ -9,7 +9,9 @@ use htsget_search::storage::data_server::BindDataServer;
 async fn main() -> std::io::Result<()> {
   Config::setup_tracing()?;
 
-  if let Some(path) = Config::parse_args_with_command(command!()) {
+  if let Some(path) =
+    Config::parse_args_with_command(command!()).expect("expected valid command parsing")
+  {
     let config = Config::from_path(&path)?;
 
     if config.data_server().enabled() {

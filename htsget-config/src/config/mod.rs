@@ -1,6 +1,4 @@
 use std::fmt::Debug;
-use std::io;
-use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
@@ -17,11 +15,14 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
 
 use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
+use crate::config::error::Error::{ArgParseError, IoError, TracingError};
+use crate::config::error::Result;
 use crate::resolver::Resolver;
 use crate::types::Scheme;
 use crate::types::Scheme::{Http, Https};
 
 pub mod cors;
+pub mod error;
 
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str = "To configure htsget-rs use a config file or environment variables. \
@@ -411,10 +412,11 @@ impl Config {
 
   /// Parse the command line arguments. Returns the config path, or prints the default config.
   /// Augment the `Command` args from the `clap` parser. Returns an error if the
-  pub fn parse_args_with_command(augment_args: Command) -> Option<PathBuf> {
-    Self::parse_with_args(
-      Args::from_arg_matches(&Args::augment_args(augment_args).get_matches()).unwrap(),
-    )
+  pub fn parse_args_with_command(augment_args: Command) -> Result<Option<PathBuf>> {
+    Ok(Self::parse_with_args(
+      Args::from_arg_matches(&Args::augment_args(augment_args).get_matches())
+        .map_err(|err| ArgParseError(err.to_string()))?,
+    ))
   }
 
   /// Parse the command line arguments. Returns the config path, or prints the default config.
@@ -436,12 +438,12 @@ impl Config {
 
   /// Read a config struct from a TOML file.
   #[instrument]
-  pub fn from_path(path: &Path) -> io::Result<Self> {
+  pub fn from_path(path: &Path) -> Result<Self> {
     let config: Config = Figment::from(Serialized::defaults(Config::default()))
       .merge(Toml::file(path))
       .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
       .extract()
-      .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;
+      .map_err(|err| IoError(err.to_string()))?;
 
     info!(config = ?config, "config created from environment variables");
 
@@ -449,18 +451,14 @@ impl Config {
   }
 
   /// Setup tracing, using a global subscriber.
-  pub fn setup_tracing() -> io::Result<()> {
+  pub fn setup_tracing() -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let fmt_layer = fmt::Layer::default();
 
     let subscriber = Registry::default().with(env_filter).with(fmt_layer);
 
-    tracing::subscriber::set_global_default(subscriber).map_err(|err| {
-      io::Error::new(
-        ErrorKind::Other,
-        format!("failed to install `tracing` subscriber: {err}"),
-      )
-    })?;
+    tracing::subscriber::set_global_default(subscriber)
+      .map_err(|err| TracingError(err.to_string()))?;
 
     Ok(())
   }

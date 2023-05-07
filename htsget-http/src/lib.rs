@@ -118,7 +118,6 @@ mod tests {
   use htsget_config::types::{Format, Headers, JsonResponse, Scheme, Url};
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::HtsGet;
-
   use htsget_search::storage::local::LocalStorage;
   use htsget_test::util::expected_bgzf_eof_data_url;
 

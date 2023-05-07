@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use crate::storage::ResolverMatcher;
-use tracing::instrument;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
 #[serde(default)]

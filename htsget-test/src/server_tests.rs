@@ -2,12 +2,10 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use crate::util::expected_bgzf_eof_data_url;
 use base64::engine::general_purpose;
 use base64::Engine;
 use futures::future::join_all;
 use futures::TryStreamExt;
-use htsget_config::types::Format;
 use http::header::HeaderName;
 use http::{HeaderMap, HeaderValue, Method};
 use noodles_bgzf as bgzf;
@@ -17,8 +15,10 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use htsget_config::types::Class;
+use htsget_config::types::Format;
 
 use crate::http_tests::{Header, Response, TestRequest, TestServer};
+use crate::util::expected_bgzf_eof_data_url;
 use crate::Config;
 
 /// Test response with with class.
