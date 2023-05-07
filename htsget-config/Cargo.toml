@@ -4,7 +4,7 @@ version = "0.1.4"
 rust-version = "1.64"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
-description = "This crate is used to configure htsget-rs by using a config file or reading environment variables"
+description = "Used to configure htsget-rs by using a config file or reading environment variables."
 license = "MIT"
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
@@ -23,7 +23,7 @@ serde_with = "2.2"
 serde_regex = "1.1"
 regex = "1.7"
 figment = { version = "0.10", features = ["env", "toml"] }
-clap = { version = "4.1", features = ["derive", "env"] }
+clap = { version = "4.1", features = ["derive", "env", "cargo"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
 toml = "0.7"

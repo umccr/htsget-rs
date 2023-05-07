@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use htsget_config::command;
 use lambda_http::Error;
 
 use htsget_lambda::Config;
@@ -9,7 +10,7 @@ use htsget_lambda::{handle_request, Router};
 async fn main() -> Result<(), Error> {
   Config::setup_tracing()?;
 
-  if let Some(path) = Config::parse_args() {
+  if let Some(path) = Config::parse_args_with_command(command!()) {
     let config = Config::from_path(&path)?;
 
     let service_info = config.service_info().clone();

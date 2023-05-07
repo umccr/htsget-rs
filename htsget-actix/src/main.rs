@@ -2,13 +2,14 @@ use tokio::select;
 
 use htsget_actix::run_server;
 use htsget_actix::Config;
+use htsget_config::command;
 use htsget_search::storage::data_server::BindDataServer;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
   Config::setup_tracing()?;
 
-  if let Some(path) = Config::parse_args() {
+  if let Some(path) = Config::parse_args_with_command(command!()) {
     let config = Config::from_path(&path)?;
 
     if config.data_server().enabled() {

@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
-use clap::Parser;
+use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
 use http::header::HeaderName;
@@ -24,8 +24,7 @@ use crate::types::Scheme::{Http, Https};
 pub mod cors;
 
 /// Represents a usage string for htsget-rs.
-pub const USAGE: &str =
-  "htsget-rs can be configured using a config file or environment variables. \
+pub const USAGE: &str = "To configure htsget-rs use a config file or environment variables. \
 See the documentation of the htsget-config crate for more information.";
 
 const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
@@ -410,10 +409,20 @@ impl Config {
     }
   }
 
-  /// Parse the command line arguments
-  pub fn parse_args() -> Option<PathBuf> {
-    let args = Args::parse();
+  /// Parse the command line arguments. Returns the config path, or prints the default config.
+  /// Augment the `Command` args from the `clap` parser. Returns an error if the
+  pub fn parse_args_with_command(augment_args: Command) -> Option<PathBuf> {
+    Self::parse_with_args(
+      Args::from_arg_matches(&Args::augment_args(augment_args).get_matches()).unwrap(),
+    )
+  }
 
+  /// Parse the command line arguments. Returns the config path, or prints the default config.
+  pub fn parse_args() -> Option<PathBuf> {
+    Self::parse_with_args(Args::parse())
+  }
+
+  fn parse_with_args(args: Args) -> Option<PathBuf> {
     if args.print_default_config {
       println!(
         "{}",
