@@ -383,12 +383,13 @@ impl StorageResolver for &[Resolver] {
 
 #[cfg(test)]
 mod tests {
+  use http::uri::Authority;
+
   use crate::config::tests::{test_config_from_env, test_config_from_file};
   #[cfg(feature = "s3-storage")]
   use crate::storage::s3::S3Storage;
   use crate::types::Scheme::Http;
   use crate::types::Url;
-  use http::uri::Authority;
 
   use super::*;
 

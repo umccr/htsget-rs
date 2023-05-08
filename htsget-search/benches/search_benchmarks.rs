@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
-use htsget_config::resolver::ResolveResponse;
 use http::uri::Authority;
 use tokio::runtime::Runtime;
 
+use htsget_config::resolver::ResolveResponse;
 use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
 use htsget_config::types::Class::Header;
 use htsget_config::types::Format::{Bam, Bcf, Cram, Vcf};

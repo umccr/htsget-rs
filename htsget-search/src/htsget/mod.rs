@@ -43,7 +43,7 @@ impl From<StorageError> for HtsGetError {
         Self::NotFound(err.to_string())
       }
       err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
-      err @ (StorageError::DataServerError(_)
+      err @ (StorageError::ServerError(_)
       | StorageError::InvalidUri(_)
       | StorageError::InvalidAddress(_)
       | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),

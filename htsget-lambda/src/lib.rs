@@ -299,7 +299,7 @@ mod tests {
     ) -> TestResponse {
       let router = Router::new(
         Arc::new(self.config.clone().owned_resolvers()),
-        self.config.ticket_server().service_info(),
+        self.config.service_info(),
       );
 
       route_request_to_response(request.0, router, expected_path, &self.config).await
@@ -654,7 +654,7 @@ mod tests {
   {
     let router = Router::new(
       Arc::new(config.clone().owned_resolvers()),
-      config.ticket_server().service_info(),
+      config.service_info(),
     );
     test(router).await;
   }

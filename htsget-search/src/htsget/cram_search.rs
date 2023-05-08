@@ -275,9 +275,8 @@ mod tests {
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-
   use crate::storage::local::LocalStorage;
+  use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
 
   use super::*;
 
