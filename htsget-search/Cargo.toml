@@ -1,6 +1,6 @@
 [package]
 name = "htsget-search"
-version = "0.1.4"
+version = "0.2.0"
 rust-version = "1.64"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
@@ -37,13 +37,14 @@ noodles = { version = "0.32", features = ["async", "core", "bgzf", "bam", "bcf",
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
-aws-sdk-s3 = { version = "0.24", optional = true, features = ["test-util"] }
-aws-config = { version = "0.54", optional = true }
+aws-sdk-s3 = { version = "0.27", optional = true, features = ["test-util"] }
+aws-config = { version = "0.55", optional = true }
+aws-credential-types = { version = "0.55", features = ["test-util"] }
 
 # Error control, tracing, config
 thiserror = "1.0"
-htsget-config = { version = "0.1.4", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.1.4", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-config = { version = "0.2.0", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.2.0", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"
@@ -52,11 +53,10 @@ serde = "1.0"
 tempfile = "3.3"
 data-url = "0.2"
 
-# Aws S3 storage.
-aws-credential-types = { version = "0.54", features = ["test-util"] }
-s3s = { version = "0.3" }
-s3s-fs = { version = "0.3" }
-s3s-aws = { version = "0.3" }
+# S3 storage testing
+s3s = { version = "0.5" }
+s3s-fs = { version = "0.5" }
+s3s-aws = { version = "0.5" }
 
 # Axum server
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
