@@ -10,6 +10,7 @@ use crate::types::{Query, Response, Result};
 pub mod local;
 #[cfg(feature = "s3-storage")]
 pub mod s3;
+pub mod url;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum TaggedStorageTypes {
