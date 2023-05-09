@@ -55,10 +55,11 @@ impl AwsS3Storage {
 
   pub async fn new_with_default_config(bucket: String, endpoint: Option<String>) -> Self {
     let sdk_config = aws_config::load_from_env().await;
-    let mut s3_config_builder = aws_sdk_s3::config::Builder::from(&sdk_config);
-    s3_config_builder.set_endpoint_url(endpoint); // For local S3 storage, i.e: Minio
+    let client = aws_sdk_s3::config::Builder::from(&sdk_config)
+      .set_endpoint_url(endpoint)
+      .clone()
+      .build(); // For local S3 storage, i.e: Minio
 
-    let client = s3_config_builder.build();
     let s3_client = aws_sdk_s3::Client::from_conf(client);
 
     AwsS3Storage::new(s3_client, bucket)

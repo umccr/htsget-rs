@@ -7,5 +7,5 @@ regex = ".*"
 substitution_string = "$0"
 
 [resolvers.storage]
-bucket = 'archive'
+bucket = "archive"
 endpoint = "http://s3:9000/"
