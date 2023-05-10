@@ -1,3 +1,4 @@
+version: '3.7'
 services:
 
   htsget:
@@ -14,6 +15,9 @@ services:
       - AWS_ACCESS_KEY_ID=access
       - AWS_SECRET_ACCESS_KEY=secretkey
       - RUST_LOG=trace,htsget_actix=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace
+    extra_hosts:
+      - "archive.s3:172.22.0.2"
+      - "archive:172.22.0.2"
     volumes:
       - ./deploy/config:/config/
 
