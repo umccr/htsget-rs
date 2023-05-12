@@ -164,9 +164,10 @@ To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for 
 
 To use `AwsS3Storage`, set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
 
-| Option   | Description                                              | When `storage = 'S3'`                                                                                            | Type            | Default |
-|----------|----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|-----------------|---------|
-| `bucket` | The AWS S3 bucket where resources can be retrieved from. | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`. | String          | `''`    |
+| Option       | Description                                              | When `storage = 'S3'`                                                                                                 | Type            | Default |
+|--------------|----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|-----------------|---------|
+| `bucket`     | The AWS S3 bucket where resources can be retrieved from. | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`.      | String          | `''`    |
+| `path_style` | The S3 path style to request from the storage backend.   | If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used. | Boolean         | `false` |
 
 For example, a `resolvers` value of:
 ```toml
