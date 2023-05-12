@@ -14,20 +14,19 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::gzi;
+use noodles::csi::binning_index::ReferenceSequenceExt;
 use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::{BinningIndex, BinningIndexReferenceSequence};
+use noodles::csi::BinningIndex;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{instrument, trace, trace_span, Instrument};
 
-use crate::htsget::Class::Body;
+use crate::htsget::ConcurrencyError;
+use crate::storage::{BytesPosition, RangeUrlOptions, Storage};
 use crate::storage::{DataBlock, GetOptions};
-use crate::{
-  htsget::{Class, Format, HtsGetError, Query, Response, Result},
-  storage::{BytesPosition, RangeUrlOptions, Storage},
-};
+use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
 
 // § 4.1.2 End-of-file marker <https://samtools.github.io/hts-specs/SAMv1.pdf>.
 pub(crate) static BGZF_EOF: &[u8] = &[
@@ -44,7 +43,7 @@ pub(crate) async fn find_first<T>(
   loop {
     select! {
       Some(next) = futures.next() => {
-        if let Some(next) = next.map_err(HtsGetError::from)? {
+        if let Some(next) = next.map_err(ConcurrencyError::new).map_err(HtsGetError::from)? {
           result = Some(next);
           break;
         }
@@ -269,6 +268,12 @@ where
         self.build_response(&query, blocks).await
       }
       Class::Header => {
+        // Check to see if the key exists.
+        self
+          .get_storage()
+          .head(query.format().fmt_file(query.id()))
+          .await?;
+
         let index = self.read_index(&query).await?;
         let header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
 
@@ -292,6 +297,7 @@ where
         DataBlock::Range(range) => {
           let storage = self.get_storage();
           let query_owned = query.clone();
+
           storage_futures.push_back(tokio::spawn(async move {
             storage
               .range_url(
@@ -306,13 +312,15 @@ where
         }
       }
     }
+
     let mut urls = Vec::new();
     loop {
       select! {
-        Some(next) = storage_futures.next() => urls.push(next.map_err(HtsGetError::from)?.map_err(HtsGetError::from)?),
+        Some(next) = storage_futures.next() => urls.push(next.map_err(ConcurrencyError::new).map_err(HtsGetError::from)?.map_err(HtsGetError::from)?),
         else => break
       }
     }
+
     return Ok(Response::new(query.format(), urls));
   }
 
@@ -356,7 +364,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
-  ReferenceSequence: BinningIndexReferenceSequence,
+  ReferenceSequence: ReferenceSequenceExt,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   Header: FromStr + Send + Sync,
   <Header as FromStr>::Err: Display,
@@ -531,7 +539,7 @@ where
   Reader: Send + Sync,
   Header: FromStr + Send + Sync,
   <Header as FromStr>::Err: Display,
-  ReferenceSequence: BinningIndexReferenceSequence + Sync,
+  ReferenceSequence: ReferenceSequenceExt + Sync,
   Index: BinningIndex + BinningIndexExt + Send + Sync,
   T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
 {

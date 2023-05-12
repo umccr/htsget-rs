@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - flamegraphs
 
 jobs:
   tests:
@@ -40,11 +39,12 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: fmt
+          args: --all -- --check
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --all-targets --all-features  -- -D warnings
       - name: Build all features
         uses: actions-rs/cargo@v1
         with:
@@ -60,8 +60,13 @@ jobs:
         with:
           command: build
           args: --all-targets --features s3-storage
-      - name: Run cargo test
+      - name: Run cargo tests
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --all-features
+      - name: Run cargo tests no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --no-default-features

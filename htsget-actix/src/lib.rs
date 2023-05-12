@@ -9,11 +9,10 @@ use tracing_actix_web::TracingLogger;
 
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig, USAGE};
-#[cfg(feature = "s3-storage")]
-pub use htsget_config::regex_resolver::aws::S3Resolver;
-pub use htsget_config::regex_resolver::StorageType;
+pub use htsget_config::storage::Storage;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
+use htsget_search::storage::data_server::DataServer;
 use htsget_search::storage::local::LocalStorage;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
@@ -21,9 +20,6 @@ use crate::handlers::{get, post, reads_service_info, variants_service_info};
 pub mod handlers;
 
 pub type HtsGetStorage<T> = HtsGetFromStorage<LocalStorage<T>>;
-
-/// The maximum amount of time a CORS request can be cached for.
-pub const CORS_MAX_AGE: usize = 86400;
 
 /// Represents the actix app state.
 pub struct AppState<H: HtsGet> {
@@ -115,22 +111,32 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
 pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
   config: TicketServerConfig,
+  service_info: ServiceInfo,
 ) -> std::io::Result<Server> {
   let addr = config.addr();
 
+  let config_copy = config.clone();
   let server = HttpServer::new(Box::new(move || {
     App::new()
       .configure(|service_config: &mut web::ServiceConfig| {
-        configure_server(
-          service_config,
-          htsget.clone(),
-          config.service_info().clone(),
-        );
+        configure_server(service_config, htsget.clone(), service_info.clone());
       })
-      .wrap(configure_cors(config.cors().clone()))
+      .wrap(configure_cors(config_copy.cors().clone()))
       .wrap(TracingLogger::default())
-  }))
-  .bind(addr)?;
+  }));
+
+  let server = match config.tls() {
+    None => {
+      info!("using non-TLS ticket server");
+      server.bind(addr)?
+    }
+    Some(tls) => {
+      let tls_config = DataServer::rustls_server_config(tls.key(), tls.cert())?;
+
+      info!("using TLS ticket server");
+      server.bind_rustls(addr, tls_config)?
+    }
+  };
 
   info!(addresses = ?server.addrs(), "htsget query server addresses bound");
   Ok(server.run())
@@ -146,12 +152,13 @@ mod tests {
   use async_trait::async_trait;
   use tempfile::TempDir;
 
-  use htsget_search::storage::data_server::HttpTicketFormatter;
+  use htsget_config::types::JsonResponse;
+  use htsget_search::storage::data_server::BindDataServer;
   use htsget_test::http_tests::{config_with_tls, default_test_config};
   use htsget_test::http_tests::{
     Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
-  use htsget_test::server_tests::formatter_and_expected_path;
+  use htsget_test::server_tests::expected_url_path;
   use htsget_test::{cors_tests, server_tests};
 
   use crate::Config;
@@ -196,6 +203,18 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
+    async fn get_expected_path(&self) -> String {
+      let mut bind_data_server =
+        BindDataServer::try_from(self.get_config().data_server().clone()).unwrap();
+      let server = bind_data_server.bind_data_server().await.unwrap();
+      let addr = server.local_addr();
+
+      let path = self.get_config().data_server().local_path().to_path_buf();
+      tokio::spawn(async move { server.serve(path).await.unwrap() });
+
+      expected_url_path(self.get_config(), addr)
+    }
+
     fn get_config(&self) -> &Config {
       &self.config
     }
@@ -204,10 +223,13 @@ mod tests {
       ActixTestRequest(test::TestRequest::default())
     }
 
-    async fn test_server(&self, request: ActixTestRequest<test::TestRequest>) -> TestResponse {
-      let (expected_path, formatter) = formatter_and_expected_path(self.get_config()).await;
+    async fn test_server(
+      &self,
+      request: ActixTestRequest<test::TestRequest>,
+      expected_path: String,
+    ) -> TestResponse {
+      let response = self.get_response(request.0).await;
 
-      let response = self.get_response(request.0, formatter).await;
       let status: u16 = response.status().into();
       let mut headers = response.headers().clone();
       let bytes = test::read_body(response).await.to_vec();
@@ -234,7 +256,6 @@ mod tests {
     async fn get_response(
       &self,
       request: test::TestRequest,
-      _formatter: HttpTicketFormatter,
     ) -> ServiceResponse<EitherBody<BoxBody>> {
       let app = test::init_service(
         App::new()
@@ -242,7 +263,7 @@ mod tests {
             configure_server(
               service_config,
               self.config.clone().owned_resolvers(),
-              self.config.ticket_server().service_info().clone(),
+              self.config.service_info().clone(),
             );
           })
           .wrap(configure_cors(self.config.ticket_server().cors().clone())),
@@ -255,27 +276,30 @@ mod tests {
 
   #[actix_web::test]
   async fn get_http_tickets() {
-    server_tests::test_get(&ActixTestServer::default()).await;
+    server_tests::test_get::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn post_http_tickets() {
-    server_tests::test_post(&ActixTestServer::default()).await;
+    server_tests::test_post::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_get_http_tickets() {
-    server_tests::test_parameterized_get(&ActixTestServer::default()).await;
+    server_tests::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_http_tickets() {
-    server_tests::test_parameterized_post(&ActixTestServer::default()).await;
+    server_tests::test_parameterized_post::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_class_header_http_tickets() {
-    server_tests::test_parameterized_post_class_header(&ActixTestServer::default()).await;
+    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
+      &ActixTestServer::default(),
+    )
+    .await;
   }
 
   #[actix_web::test]
@@ -286,33 +310,41 @@ mod tests {
   #[actix_web::test]
   async fn get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_get(&ActixTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_get::<JsonResponse, _>(&ActixTestServer::new_with_tls(base_path.path()))
+      .await;
   }
 
   #[actix_web::test]
   async fn post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_post(&ActixTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_post::<JsonResponse, _>(&ActixTestServer::new_with_tls(base_path.path()))
+      .await;
   }
 
   #[actix_web::test]
   async fn parameterized_get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_get(&ActixTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::new_with_tls(
+      base_path.path(),
+    ))
+    .await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post(&ActixTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_parameterized_post::<JsonResponse, _>(&ActixTestServer::new_with_tls(
+      base_path.path(),
+    ))
+    .await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_class_header_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post_class_header(&ActixTestServer::new_with_tls(
-      base_path.path(),
-    ))
+    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
+      &ActixTestServer::new_with_tls(base_path.path()),
+    )
     .await;
   }
 

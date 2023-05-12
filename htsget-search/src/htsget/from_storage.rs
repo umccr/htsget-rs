@@ -1,22 +1,23 @@
 //! Module providing an implementation of the [HtsGet] trait using a [Storage].
 //!
 
-use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use htsget_config::regex_resolver::{Resolver, StorageType};
 use tokio::io::AsyncRead;
 use tracing::debug;
 use tracing::instrument;
 
+use htsget_config::resolver::{ResolveResponse, StorageResolver};
+use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+#[cfg(feature = "s3-storage")]
+use htsget_config::storage::s3::S3Storage;
+
 use crate::htsget::search::Search;
-use crate::htsget::{Format, HtsGetError};
 #[cfg(feature = "s3-storage")]
 use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
-use crate::storage::UrlFormatter;
-use crate::RegexResolver;
+use crate::Resolver;
 use crate::{
   htsget::bam_search::BamSearch,
   htsget::bcf_search::BcfSearch,
@@ -25,6 +26,7 @@ use crate::{
   htsget::{HtsGet, Query, Response, Result},
   storage::Storage,
 };
+use crate::{Format, HtsGetError};
 
 /// Implementation of the [HtsGet] trait using a [Storage].
 #[derive(Debug, Clone)]
@@ -33,35 +35,19 @@ pub struct HtsGetFromStorage<S> {
 }
 
 #[async_trait]
-impl HtsGet for Vec<RegexResolver> {
+impl HtsGet for Vec<Resolver> {
   async fn search(&self, query: Query) -> Result<Response> {
     self.as_slice().search(query).await
   }
 }
 
 #[async_trait]
-impl HtsGet for &[RegexResolver] {
-  async fn search(&self, query: Query) -> Result<Response> {
-    for resolver in self.iter() {
-      if let Some(id) = resolver.resolve_id(&query) {
-        match resolver.storage_type() {
-          StorageType::Local(url) => {
-            let searcher = HtsGetFromStorage::local_from(url.local_path(), url.clone())?;
-            return searcher.search(query.with_id(id)).await;
-          }
-          #[cfg(feature = "s3-storage")]
-          StorageType::S3(s3) => {
-            let searcher = HtsGetFromStorage::s3_from(s3.bucket().to_string()).await;
-            return searcher.search(query.with_id(id)).await;
-          }
-          _ => {}
-        }
-      }
-    }
-
-    Err(HtsGetError::not_found(
-      "failed to match query with resolver",
-    ))
+impl HtsGet for &[Resolver] {
+  async fn search(&self, mut query: Query) -> Result<Response> {
+    self
+      .resolve_request::<HtsGetFromStorage<()>>(&mut query)
+      .await
+      .ok_or_else(|| HtsGetError::not_found("failed to match query with storage"))?
   }
 }
 
@@ -83,6 +69,28 @@ where
   }
 }
 
+#[async_trait]
+impl<S> ResolveResponse for HtsGetFromStorage<S> {
+  async fn from_local(local_storage: &ConfigLocalStorage, query: &Query) -> Result<Response> {
+    let local_storage = local_storage.clone();
+    let path = local_storage.local_path().to_string();
+    let searcher = HtsGetFromStorage::new(LocalStorage::new(path, local_storage)?);
+    searcher.search(query.clone()).await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  async fn from_s3_storage(s3_storage: &S3Storage, query: &Query) -> Result<Response> {
+    let searcher = HtsGetFromStorage::new(
+      AwsS3Storage::new_with_default_config(
+        s3_storage.bucket().to_string(),
+        s3_storage.clone().endpoint(),
+      )
+      .await,
+    );
+    searcher.search(query.clone()).await
+  }
+}
+
 impl<S> HtsGetFromStorage<S> {
   pub fn new(storage: S) -> Self {
     Self {
@@ -95,28 +103,19 @@ impl<S> HtsGetFromStorage<S> {
   }
 }
 
-#[cfg(feature = "s3-storage")]
-impl HtsGetFromStorage<AwsS3Storage> {
-  pub async fn s3_from(bucket: String) -> Self {
-    HtsGetFromStorage::new(AwsS3Storage::new_with_default_config(bucket).await)
-  }
-}
-
-impl<T: UrlFormatter + Send + Sync> HtsGetFromStorage<LocalStorage<T>> {
-  pub fn local_from<P: AsRef<Path>>(path: P, formatter: T) -> Result<Self> {
-    Ok(HtsGetFromStorage::new(LocalStorage::new(path, formatter)?))
-  }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
   use std::fs;
+  #[cfg(feature = "s3-storage")]
+  use std::fs::create_dir;
   use std::future::Future;
-  use std::path::PathBuf;
+  use std::path::{Path, PathBuf};
 
-  use htsget_config::config::cors::CorsConfig;
+  use http::uri::Authority;
   use tempfile::TempDir;
 
+  use htsget_config::storage;
+  use htsget_config::types::Scheme::Http;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
@@ -125,8 +124,9 @@ pub(crate) mod tests {
   use crate::htsget::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
-  use crate::htsget::{Headers, Url};
-  use crate::storage::data_server::HttpTicketFormatter;
+  #[cfg(feature = "s3-storage")]
+  use crate::storage::aws::tests::with_aws_s3_storage_fn;
+  use crate::{Headers, Url};
 
   use super::*;
 
@@ -160,61 +160,130 @@ pub(crate) mod tests {
       let response = htsget.search(query).await;
       println!("{response:#?}");
 
-      let expected_response = Ok(Response::new(
-        Format::Vcf,
-        vec![
-          Url::new(vcf_expected_url(filename))
-            .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
-          Url::new(expected_bgzf_eof_data_url()),
-        ],
-      ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_vcf_response(filename));
     })
     .await;
   }
 
-  async fn with_local_storage_fn<F, Fut>(test: F, path: &str, file_names: Option<&[&str]>)
-  where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-    Fut: Future<Output = ()>,
-  {
+  #[tokio::test]
+  async fn from_local_storage() {
+    with_config_local_storage(
+      |_, local_storage| async move {
+        let filename = "spec-v4.3";
+        let query = Query::new(filename, Format::Vcf);
+        let response = HtsGetFromStorage::<()>::from_local(&local_storage, &query).await;
+
+        assert_eq!(response, expected_vcf_response(filename));
+      },
+      "data/vcf",
+      &[],
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn search_resolvers() {
+    with_config_local_storage(
+      |_, local_storage| async {
+        let resolvers = vec![Resolver::new(
+          storage::Storage::Local { local_storage },
+          ".*",
+          "$0",
+          Default::default(),
+        )
+        .unwrap()];
+
+        let filename = "spec-v4.3";
+        let query = Query::new(filename, Format::Vcf);
+        let response = resolvers.search(query).await;
+
+        assert_eq!(response, expected_vcf_response(filename));
+      },
+      "data/vcf",
+      &[],
+    )
+    .await;
+  }
+
+  fn expected_vcf_response(filename: &str) -> Result<Response> {
+    Ok(Response::new(
+      Format::Vcf,
+      vec![
+        Url::new(vcf_expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
+        Url::new(expected_bgzf_eof_data_url()),
+      ],
+    ))
+  }
+
+  async fn copy_files(from_path: &str, to_path: &Path, file_names: &[&str]) -> PathBuf {
     let mut base_path = std::env::current_dir()
       .unwrap()
       .parent()
       .unwrap()
-      .join(path);
+      .join(from_path);
 
-    let tmp_dir = TempDir::new().unwrap();
-    if let Some(file_names) = file_names {
-      for file_name in file_names {
-        fs::copy(base_path.join(file_name), tmp_dir.path().join(file_name)).unwrap();
-      }
-      base_path = PathBuf::from(tmp_dir.path());
+    for file_name in file_names {
+      fs::copy(base_path.join(file_name), to_path.join(file_name)).unwrap();
+    }
+    if !file_names.is_empty() {
+      base_path = PathBuf::from(to_path);
     }
 
-    test(Arc::new(
-      LocalStorage::new(
-        base_path,
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
-      )
-      .unwrap(),
-    ))
+    base_path
+  }
+
+  async fn with_config_local_storage<F, Fut>(test: F, path: &str, file_names: &[&str])
+  where
+    F: FnOnce(PathBuf, ConfigLocalStorage) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let tmp_dir = TempDir::new().unwrap();
+    let base_path = copy_files(path, tmp_dir.path(), file_names).await;
+
+    println!("{:#?}", base_path);
+    test(
+      base_path.clone(),
+      ConfigLocalStorage::new(
+        Http,
+        Authority::from_static("127.0.0.1:8081"),
+        base_path.to_str().unwrap().to_string(),
+        "/data".to_string(),
+      ),
+    )
     .await
   }
 
-  pub(crate) async fn with_local_storage<F, Fut>(test: F, path: &str)
+  pub(crate) async fn with_local_storage_fn<F, Fut>(test: F, path: &str, file_names: &[&str])
   where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    with_local_storage_fn(test, path, None).await;
+    with_config_local_storage(
+      |base_path, local_storage| async {
+        test(Arc::new(
+          LocalStorage::new(base_path, local_storage).unwrap(),
+        ))
+        .await
+      },
+      path,
+      file_names,
+    )
+    .await;
   }
 
-  pub(crate) async fn with_local_storage_tmp<F, Fut>(test: F, path: &str, file_names: &[&str])
+  #[cfg(feature = "s3-storage")]
+  pub(crate) async fn with_aws_storage_fn<F, Fut>(test: F, path: &str, file_names: &[&str])
   where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    F: FnOnce(Arc<AwsS3Storage>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    with_local_storage_fn(test, path, Some(file_names)).await;
+    let tmp_dir = TempDir::new().unwrap();
+    let to_path = tmp_dir.into_path().join("folder");
+    create_dir(&to_path).unwrap();
+
+    let base_path = copy_files(path, &to_path, file_names).await;
+
+    with_aws_s3_storage_fn(test, "folder".to_string(), base_path.parent().unwrap()).await;
   }
 }

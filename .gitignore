@@ -1,11 +1,9 @@
 target
-Cargo.lock
 *.code-workspace
 *.vcf.gz
 *.svg
 .vscode
 .idea
-package-lock.json
 deploy/.build
 output.txt
 cert.pem

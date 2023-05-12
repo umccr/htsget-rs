@@ -7,17 +7,13 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::net::{AddrParseError, SocketAddr};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use axum::http;
 use axum::Router;
 use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
-use htsget_config::config::cors::CorsConfig;
-use htsget_config::config::DataServerConfig;
-use http::uri::Scheme;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
 use rustls_pemfile::{certs, pkcs8_private_keys};
@@ -29,52 +25,51 @@ use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
 
-use crate::storage::StorageError::{DataServerError, IoError};
-use crate::storage::{configure_cors, UrlFormatter};
+use htsget_config::config::cors::CorsConfig;
+use htsget_config::config::{CertificateKeyPair, DataServerConfig};
+use htsget_config::types::Scheme;
+
+use crate::storage::configure_cors;
+use crate::storage::StorageError::{IoError, ServerError};
 
 use super::{Result, StorageError};
 
 /// The maximum amount of time a CORS request can be cached for.
 pub const CORS_MAX_AGE: u64 = 86400;
 
-/// A certificate and key pair used for tls.
-/// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Debug, Clone)]
-pub struct CertificateKeyPair {
-  cert: PathBuf,
-  key: PathBuf,
-}
-
 /// Ticket server url formatter.
 #[derive(Debug, Clone)]
-pub struct HttpTicketFormatter {
+pub struct BindDataServer {
   addr: SocketAddr,
   cert_key_pair: Option<CertificateKeyPair>,
   scheme: Scheme,
   cors: CorsConfig,
+  serve_at: String,
 }
 
-impl HttpTicketFormatter {
-  const SERVE_ASSETS_AT: &'static str = "/data";
-
-  pub fn new(addr: SocketAddr, cors: CorsConfig) -> Self {
+impl BindDataServer {
+  pub fn new(addr: SocketAddr, cors: CorsConfig, serve_at: String) -> Self {
     Self {
       addr,
       cert_key_pair: None,
-      scheme: Scheme::HTTP,
+      scheme: Scheme::Http,
       cors,
+      serve_at,
     }
   }
 
-  pub fn new_with_tls<P: AsRef<Path>>(addr: SocketAddr, cors: CorsConfig, cert: P, key: P) -> Self {
+  pub fn new_with_tls(
+    addr: SocketAddr,
+    cors: CorsConfig,
+    tls: CertificateKeyPair,
+    serve_at: String,
+  ) -> Self {
     Self {
       addr,
-      cert_key_pair: Some(CertificateKeyPair {
-        cert: PathBuf::from(cert.as_ref()),
-        key: PathBuf::from(key.as_ref()),
-      }),
-      scheme: Scheme::HTTPS,
+      cert_key_pair: Some(tls),
+      scheme: Scheme::Https,
       cors,
+      serve_at,
     }
   }
 
@@ -88,7 +83,7 @@ impl HttpTicketFormatter {
   pub async fn bind_data_server(&mut self) -> Result<DataServer> {
     let server = DataServer::bind_addr(
       self.addr,
-      Self::SERVE_ASSETS_AT,
+      &self.serve_at,
       self.cert_key_pair.take(),
       self.cors.clone(),
     )
@@ -103,23 +98,17 @@ impl HttpTicketFormatter {
   }
 }
 
-impl TryFrom<DataServerConfig> for HttpTicketFormatter {
-  type Error = StorageError;
+impl From<DataServerConfig> for BindDataServer {
+  /// Returns a ticket server with TLS enabled if the tls config is not None or without TLS enabled
+  /// if it is None.
+  fn from(config: DataServerConfig) -> Self {
+    let addr = config.addr();
+    let cors = config.cors().clone();
+    let serve_at = config.serve_at().to_string();
 
-  /// Returns a ticket server with tls if both cert and key are not None, without tls if cert and key
-  /// are both None, and otherwise an error.
-  fn try_from(config: DataServerConfig) -> Result<Self> {
-    match (config.cert(), config.key()) {
-      (Some(cert), Some(key)) => Ok(Self::new_with_tls(
-        config.addr(),
-        config.cors().clone(),
-        cert,
-        key,
-      )),
-      (Some(_), None) | (None, Some(_)) => Err(DataServerError(
-        "both the cert and key must be provided for the ticket server".to_string(),
-      )),
-      (None, None) => Ok(Self::new(config.addr(), config.cors().clone())),
+    match config.into_tls() {
+      None => Self::new(addr, cors, serve_at),
+      Some(tls) => Self::new_with_tls(addr, cors, tls, serve_at),
     }
   }
 }
@@ -134,17 +123,17 @@ impl From<AddrParseError> for StorageError {
 #[derive(Debug)]
 pub struct DataServer {
   listener: AddrIncoming,
-  serve_assets_at: String,
+  serve_at: String,
   cert_key_pair: Option<CertificateKeyPair>,
   cors: CorsConfig,
 }
 
 impl DataServer {
   /// Eagerly bind the the address for use with the server, returning any errors.
-  #[instrument(skip(serve_assets_at, cert_key_pair))]
+  #[instrument(skip(serve_at, cert_key_pair))]
   pub async fn bind_addr(
     addr: SocketAddr,
-    serve_assets_at: impl Into<String>,
+    serve_at: impl Into<String>,
     cert_key_pair: Option<CertificateKeyPair>,
     cors: CorsConfig,
   ) -> Result<DataServer> {
@@ -156,7 +145,7 @@ impl DataServer {
     info!(address = ?listener.local_addr(), "data server address bound to");
     Ok(Self {
       listener,
-      serve_assets_at: serve_assets_at.into(),
+      serve_at: serve_at.into(),
       cert_key_pair,
       cors,
     })
@@ -166,7 +155,7 @@ impl DataServer {
   #[instrument(level = "trace", skip_all)]
   pub async fn serve<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
     let mut app = Router::new()
-      .merge(SpaRouter::new(&self.serve_assets_at, path))
+      .merge(SpaRouter::new(&self.serve_at, path))
       .layer(configure_cors(self.cors)?)
       .layer(TraceLayer::new_for_http())
       .into_make_service_with_connect_info::<SocketAddr>();
@@ -175,22 +164,22 @@ impl DataServer {
       None => axum::Server::builder(self.listener)
         .serve(app)
         .await
-        .map_err(|err| DataServerError(err.to_string())),
-      Some(CertificateKeyPair { cert, key }) => {
-        let rustls_config = Self::rustls_server_config(key, cert)?;
-        let acceptor = TlsAcceptor::from(rustls_config);
+        .map_err(|err| ServerError(err.to_string())),
+      Some(tls) => {
+        let rustls_config = Self::rustls_server_config(tls.key(), tls.cert())?;
+        let acceptor = TlsAcceptor::from(Arc::new(rustls_config));
 
         loop {
           let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
             .await
-            .ok_or_else(|| DataServerError("poll accept failed".to_string()))?
-            .map_err(|err| DataServerError(err.to_string()))?;
+            .ok_or_else(|| ServerError("poll accept failed".to_string()))?
+            .map_err(|err| ServerError(err.to_string()))?;
           let acceptor = acceptor.clone();
 
           let app = app
             .make_service(&stream)
             .await
-            .map_err(|err| DataServerError(err.to_string()))?;
+            .map_err(|err| ServerError(err.to_string()))?;
 
           trace!(stream = ?stream, "accepting stream");
           tokio::spawn(async move {
@@ -208,7 +197,8 @@ impl DataServer {
     self.listener.local_addr()
   }
 
-  fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<Arc<ServerConfig>> {
+  /// Load TLS server config.
+  pub fn rustls_server_config<P: AsRef<Path>>(key: P, cert: P) -> Result<ServerConfig> {
     let mut key_reader = BufReader::new(
       File::open(key).map_err(|err| IoError("failed to open key file".to_string(), err))?,
     );
@@ -219,7 +209,9 @@ impl DataServer {
     let key = PrivateKey(
       pkcs8_private_keys(&mut key_reader)
         .map_err(|err| IoError("failed to read private keys".to_string(), err))?
-        .remove(0),
+        .into_iter()
+        .next()
+        .ok_or_else(|| ServerError("no private key found".to_string()))?,
     );
     let certs = certs(&mut cert_reader)
       .map_err(|err| IoError("failed to read certificate".to_string(), err))?
@@ -231,29 +223,17 @@ impl DataServer {
       .with_safe_defaults()
       .with_no_client_auth()
       .with_single_cert(certs, key)
-      .map_err(|err| DataServerError(err.to_string()))?;
+      .map_err(|err| ServerError(err.to_string()))?;
 
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
-    Ok(Arc::new(config))
+    Ok(config)
   }
 }
 
 impl From<hyper::Error> for StorageError {
   fn from(error: hyper::Error) -> Self {
-    DataServerError(error.to_string())
-  }
-}
-
-impl UrlFormatter for HttpTicketFormatter {
-  fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
-    http::uri::Builder::new()
-      .scheme(self.get_scheme().clone())
-      .authority(self.addr.to_string())
-      .path_and_query(format!("{}/{}", Self::SERVE_ASSETS_AT, key.as_ref()))
-      .build()
-      .map_err(|err| StorageError::InvalidUri(err.to_string()))
-      .map(|value| value.to_string())
+    ServerError(error.to_string())
   }
 }
 
@@ -351,6 +331,10 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<DataTestRequest> for DataTestServer {
+    async fn get_expected_path(&self) -> String {
+      "".to_string()
+    }
+
     fn get_config(&self) -> &Config {
       &self.config
     }
@@ -359,13 +343,13 @@ mod tests {
       DataTestRequest::default()
     }
 
-    async fn test_server(&self, request: DataTestRequest) -> TestResponse {
+    async fn test_server(&self, request: DataTestRequest, expected_path: String) -> TestResponse {
       let response = request.build().send().await.unwrap();
       let status: u16 = response.status().into();
       let headers = response.headers().clone();
       let bytes = response.bytes().await.unwrap().to_vec();
 
-      TestResponse::new(status, headers, bytes, "".to_string())
+      TestResponse::new(status, headers, bytes, expected_path)
     }
   }
 
@@ -383,55 +367,47 @@ mod tests {
 
     test_server(
       "https",
-      Some(CertificateKeyPair {
-        cert: cert_path,
-        key: key_path,
-      }),
+      Some(CertificateKeyPair::new(cert_path, key_path)),
       base_path.path().to_path_buf(),
     )
     .await;
   }
 
   #[test]
-  fn http_formatter_authority() {
-    let formatter =
-      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
-    test_formatter_authority(formatter, "http");
-  }
-
-  #[test]
-  fn https_formatter_authority() {
-    let formatter = HttpTicketFormatter::new_with_tls(
+  fn http_scheme() {
+    let formatter = BindDataServer::new(
       "127.0.0.1:8080".parse().unwrap(),
       CorsConfig::default(),
-      "",
-      "",
+      "/data".to_string(),
     );
-    test_formatter_authority(formatter, "https");
-  }
-
-  #[test]
-  fn http_scheme() {
-    let formatter =
-      HttpTicketFormatter::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
-    assert_eq!(formatter.get_scheme(), &Scheme::HTTP);
+    assert_eq!(formatter.get_scheme(), &Scheme::Http);
   }
 
   #[test]
   fn https_scheme() {
-    let formatter = HttpTicketFormatter::new_with_tls(
-      "127.0.0.1:8080".parse().unwrap(),
-      CorsConfig::default(),
-      "",
-      "",
+    assert_eq!(tls_formatter().get_scheme(), &Scheme::Https);
+  }
+
+  #[tokio::test]
+  async fn test_rustls_server_config() {
+    let (_, base_path) = create_local_test_files().await;
+    let (key_path, cert_path) = generate_test_certificates(base_path.path(), "key.pem", "cert.pem");
+
+    let server_config = DataServer::rustls_server_config(key_path, cert_path).unwrap();
+
+    assert_eq!(
+      server_config.alpn_protocols,
+      vec![b"h2".to_vec(), b"http/1.1".to_vec()]
     );
-    assert_eq!(formatter.get_scheme(), &Scheme::HTTPS);
   }
 
   #[tokio::test]
   async fn get_addr_local_addr() {
-    let mut formatter =
-      HttpTicketFormatter::new("127.0.0.1:0".parse().unwrap(), CorsConfig::default());
+    let mut formatter = BindDataServer::new(
+      "127.0.0.1:0".parse().unwrap(),
+      CorsConfig::default(),
+      "/data".to_string(),
+    );
     let server = formatter.bind_data_server().await.unwrap();
     assert_eq!(formatter.get_addr(), server.local_addr());
   }
@@ -462,6 +438,15 @@ mod tests {
     .await;
   }
 
+  fn tls_formatter() -> BindDataServer {
+    BindDataServer::new_with_tls(
+      "127.0.0.1:8080".parse().unwrap(),
+      CorsConfig::default(),
+      CertificateKeyPair::new("".parse().unwrap(), "".parse().unwrap()),
+      "/data".to_string(),
+    )
+  }
+
   async fn start_server<P>(cert_key_pair: Option<CertificateKeyPair>, path: P) -> u16
   where
     P: AsRef<Path> + Send + 'static,
@@ -487,20 +472,9 @@ mod tests {
       .get_request()
       .method(Method::GET.to_string())
       .uri(format!("{scheme}://localhost:{port}/data/key1"));
-    let response = test_server.test_server(request).await;
+    let response = test_server.test_server(request, "".to_string()).await;
 
     assert!(response.is_success());
     assert_eq!(response.body, b"value1");
-  }
-
-  fn test_formatter_authority(formatter: HttpTicketFormatter, scheme: &str) {
-    assert_eq!(
-      formatter.format_url("path").unwrap(),
-      format!(
-        "{}://127.0.0.1:8080{}/path",
-        scheme,
-        HttpTicketFormatter::SERVE_ASSETS_AT
-      )
-    )
   }
 }

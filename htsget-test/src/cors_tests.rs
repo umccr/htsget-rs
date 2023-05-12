@@ -21,7 +21,9 @@ pub async fn test_cors_simple_request_uri<T: TestRequest>(tester: &impl TestServ
       name: ORIGIN.to_string(),
       value: "http://example.com".to_string(),
     });
-  let response = tester.test_server(request).await;
+  let response = tester
+    .test_server(request, tester.get_expected_path().await)
+    .await;
 
   assert!(response.is_success());
   assert_eq!(
@@ -61,7 +63,9 @@ pub async fn test_cors_preflight_request_uri<T: TestRequest>(
       name: ACCESS_CONTROL_REQUEST_METHOD.to_string(),
       value: "POST".to_string(),
     });
-  let response = tester.test_server(request).await;
+  let response = tester
+    .test_server(request, tester.get_expected_path().await)
+    .await;
 
   assert!(response.is_success());
   assert_eq!(

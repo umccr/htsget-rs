@@ -8,17 +8,19 @@ use std::net::AddrParseError;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use base64::encode;
-use htsget_config::config::cors::CorsConfig;
-use htsget_config::regex_resolver::{LocalResolver, Scheme};
-use htsget_config::Class;
+use base64::engine::general_purpose;
+use base64::Engine;
 use http::{uri, HeaderValue};
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
-use crate::htsget::{Headers, Url};
+use htsget_config::config::cors::CorsConfig;
+use htsget_config::storage::local::LocalStorage;
+use htsget_config::types::{Class, Scheme};
+
+use crate::{Headers, Url};
 
 #[cfg(feature = "s3-storage")]
 pub mod aws;
@@ -40,7 +42,8 @@ pub trait Storage {
     options: GetOptions,
   ) -> Result<Self::Streamable>;
 
-  /// Get the url of the object represented by the key using a bytes range.
+  /// Get the url of the object represented by the key using a bytes range. It is not required for
+  /// this function to check for the existent of the key, so this should be ensured beforehand.
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
@@ -56,7 +59,11 @@ pub trait Storage {
   where
     Self: Sized,
   {
-    Url::new(format!("data:;base64,{}", encode(data))).set_class(class)
+    Url::new(format!(
+      "data:;base64,{}",
+      general_purpose::STANDARD.encode(data)
+    ))
+    .set_class(class)
   }
 }
 
@@ -77,8 +84,8 @@ pub enum StorageError {
   #[error("{0}: {1}")]
   IoError(String, io::Error),
 
-  #[error("url response data server error: {0}")]
-  DataServerError(String),
+  #[error("server error: {0}")]
+  ServerError(String),
 
   #[error("invalid input: {0}")]
   InvalidInput(String),
@@ -97,7 +104,7 @@ pub enum StorageError {
   AwsS3Error(String, String),
 }
 
-impl UrlFormatter for LocalResolver {
+impl UrlFormatter for LocalStorage {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     uri::Builder::new()
       .scheme(match self.scheme() {
@@ -425,7 +432,10 @@ impl RangeUrlOptions {
 mod tests {
   use std::collections::HashMap;
 
-  use crate::storage::data_server::HttpTicketFormatter;
+  use http::uri::Authority;
+
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+
   use crate::storage::local::LocalStorage;
 
   use super::*;
@@ -766,7 +776,7 @@ mod tests {
   #[test]
   fn data_url() {
     let result =
-      LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
+      LocalStorage::<ConfigLocalStorage>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
@@ -860,5 +870,34 @@ mod tests {
   fn url_options_apply_no_bytes_range() {
     let result = RangeUrlOptions::default().apply(Url::new(""));
     assert_eq!(result, Url::new(""));
+  }
+
+  #[test]
+  fn http_formatter_authority() {
+    let formatter = ConfigLocalStorage::new(
+      Scheme::Http,
+      Authority::from_static("127.0.0.1:8080"),
+      "data".to_string(),
+      "/data".to_string(),
+    );
+    test_formatter_authority(formatter, "http");
+  }
+
+  #[test]
+  fn https_formatter_authority() {
+    let formatter = ConfigLocalStorage::new(
+      Scheme::Https,
+      Authority::from_static("127.0.0.1:8080"),
+      "data".to_string(),
+      "/data".to_string(),
+    );
+    test_formatter_authority(formatter, "https");
+  }
+
+  fn test_formatter_authority(formatter: ConfigLocalStorage, scheme: &str) {
+    assert_eq!(
+      formatter.format_url("path").unwrap(),
+      format!("{}://127.0.0.1:8080{}/path", scheme, "/data")
+    )
   }
 }

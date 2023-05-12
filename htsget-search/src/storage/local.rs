@@ -2,6 +2,7 @@
 //!
 
 use std::fmt::Debug;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
@@ -9,8 +10,8 @@ use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
 
-use crate::htsget::Url;
 use crate::storage::{Storage, UrlFormatter};
+use crate::Url;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -45,7 +46,13 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
       .base_path
       .join(key)
       .canonicalize()
-      .map_err(|_| StorageError::InvalidKey(key.to_string()))
+      .map_err(|err| {
+        if let ErrorKind::NotFound = err.kind() {
+          StorageError::KeyNotFound(key.to_string())
+        } else {
+          StorageError::InvalidKey(key.to_string())
+        }
+      })
       .and_then(|path| {
         path
           .starts_with(&self.base_path)
@@ -118,14 +125,16 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
 
-  use htsget_config::config::cors::CorsConfig;
+  use http::uri::Authority;
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
-  use crate::htsget::{Headers, Url};
-  use crate::storage::data_server::HttpTicketFormatter;
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::types::Scheme;
+
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
+  use crate::{Headers, Url};
 
   use super::*;
 
@@ -133,7 +142,7 @@ pub(crate) mod tests {
   async fn get_non_existing_key() {
     with_local_storage(|storage| async move {
       let result = storage.get("non-existing-key").await;
-      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
+      assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "non-existing-key"));
     })
     .await;
   }
@@ -152,7 +161,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let result = Storage::get(&storage, "folder/../../passwords", GetOptions::default()).await;
       assert!(
-        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
+        matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder/../../passwords")
       );
     })
     .await;
@@ -172,7 +181,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let result =
         Storage::range_url(&storage, "non-existing-key", RangeUrlOptions::default()).await;
-      assert!(matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "non-existing-key"));
+      assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "non-existing-key"));
     })
     .await;
   }
@@ -196,7 +205,7 @@ pub(crate) mod tests {
       )
       .await;
       assert!(
-        matches!(result, Err(StorageError::InvalidKey(msg)) if msg == "folder/../../passwords")
+        matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder/../../passwords")
       );
     })
     .await;
@@ -283,14 +292,19 @@ pub(crate) mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(LocalStorage<HttpTicketFormatter>) -> Fut,
+    F: FnOnce(LocalStorage<ConfigLocalStorage>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
     test(
       LocalStorage::new(
         base_path.path(),
-        HttpTicketFormatter::new("127.0.0.1:8081".parse().unwrap(), CorsConfig::default()),
+        ConfigLocalStorage::new(
+          Scheme::Http,
+          Authority::from_static("127.0.0.1:8081"),
+          "data".to_string(),
+          "/data".to_string(),
+        ),
       )
       .unwrap(),
     )

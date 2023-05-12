@@ -7,8 +7,8 @@ use tokio::select;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_search::htsget::Response;
-use htsget_search::htsget::{HtsGet, JsonResponse};
+use htsget_config::types::{JsonResponse, Response};
+use htsget_search::htsget::HtsGet;
 
 use crate::{
   convert_to_query, match_endpoints_get_request, match_endpoints_post_request, merge_responses,

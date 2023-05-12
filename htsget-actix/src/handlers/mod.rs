@@ -1,7 +1,7 @@
 use actix_web::{http::StatusCode, Either, Responder};
 
+use htsget_config::types::JsonResponse;
 use htsget_http::Result;
-use htsget_search::htsget::JsonResponse;
 use pretty_json::PrettyJson;
 
 pub use crate::handlers::service_info::{
