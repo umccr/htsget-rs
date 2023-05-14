@@ -9,6 +9,7 @@ use crate::types::{Query, Response, Result};
 pub mod local;
 #[cfg(feature = "s3-storage")]
 pub mod s3;
+#[cfg(feature = "url-storage")]
 pub mod url;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

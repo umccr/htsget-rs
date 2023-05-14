@@ -12,6 +12,7 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
+url-storage = ["htsget-config/url-storage", "htsget-test/url-storage"]
 default = ["s3-storage"]
 
 [dependencies]
