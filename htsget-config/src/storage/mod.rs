@@ -1,4 +1,3 @@
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::resolver::ResolveResponse;
@@ -50,22 +49,6 @@ impl ResolvedId {
   }
 }
 
-/// A new type to represent a resolver and its regex match
-#[derive(Debug)]
-pub struct ResolverMatcher<'a>(&'a Regex, &'a str);
-
-impl<'a> ResolverMatcher<'a> {
-  /// Create a new resovler and query.
-  pub fn new(resolver: &'a Regex, regex_match: &'a str) -> Self {
-    Self(resolver, regex_match)
-  }
-
-  /// Get the inner values.
-  pub fn into_inner(self) -> (&'a Regex, &'a str) {
-    (self.0, self.1)
-  }
-}
-
 /// Specify the storage backend to use as config values.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged, deny_unknown_fields)]
@@ -101,14 +84,13 @@ impl Storage {
   #[cfg(feature = "s3-storage")]
   pub async fn resolve_s3_storage<T: ResolveResponse>(
     &self,
-    regex: &Regex,
-    regex_match: &str,
+    bucket: String,
     query: &Query,
   ) -> Option<Result<Response>> {
     match self {
       Storage::Tagged(TaggedStorageTypes::S3) => {
-        let storage: Option<S3Storage> = ResolverMatcher::new(regex, regex_match).into();
-        Some(T::from_s3_storage(&storage?, query).await)
+        let s3_storage = S3Storage::new(bucket, None);
+        Some(T::from_s3_storage(&s3_storage, query).await)
       }
       Storage::S3 { s3_storage } => Some(T::from_s3_storage(s3_storage, query).await),
       _ => None,

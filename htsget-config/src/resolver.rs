@@ -263,6 +263,11 @@ impl Resolver {
     }
   }
 
+  /// Get the match associated with the capture group at index `i` using the `regex_match`.
+  pub fn get_match<'a>(&'a self, i: usize, regex_match: &'a str) -> Option<&'a str> {
+    Some(self.regex().captures(regex_match)?.get(i)?.as_str())
+  }
+
   /// Get the regex.
   pub fn regex(&self) -> &Regex {
     &self.regex
@@ -346,9 +351,12 @@ impl StorageResolver for Resolver {
     }
 
     #[cfg(feature = "s3-storage")]
+    let first_match = self.get_match(1, &_matched_id)?;
+
+    #[cfg(feature = "s3-storage")]
     if let Some(response) = self
       .storage()
-      .resolve_s3_storage::<T>(self.regex(), &_matched_id, query)
+      .resolve_s3_storage::<T>(first_match.to_string(), query)
       .await
     {
       return Some(response);
@@ -454,6 +462,29 @@ mod tests {
         .unwrap(),
       Response::new(Bam, vec![Url::new("id")])
     );
+  }
+
+  #[test]
+  fn resolver_get_matches() {
+    let resolver = Resolver::new(
+      Storage::default(),
+      "^(id)/(?P<key>.*)$",
+      "$0",
+      AllowGuard::default(),
+    )
+    .unwrap();
+    let first_match = resolver.get_match(1, "id/key").unwrap();
+
+    assert_eq!(first_match, "id");
+  }
+
+  #[test]
+  fn resolver_get_matches_no_captures() {
+    let resolver =
+      Resolver::new(Storage::default(), "^id/id$", "$0", AllowGuard::default()).unwrap();
+    let first_match = resolver.get_match(1, "/id/key");
+
+    assert_eq!(first_match, None);
   }
 
   #[test]
