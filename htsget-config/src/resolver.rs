@@ -11,6 +11,8 @@ use crate::config::DataServerConfig;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
+#[cfg(feature = "url-storage")]
+use crate::storage::url::UrlStorage;
 use crate::storage::{ResolvedId, Storage, TaggedStorageTypes};
 use crate::types::Format::{Bam, Bcf, Cram, Vcf};
 use crate::types::{Class, Fields, Format, Interval, Query, Response, Result, TaggedTypeAll, Tags};
@@ -30,6 +32,10 @@ pub trait ResolveResponse {
   /// Convert from `S3Storage`.
   #[cfg(feature = "s3-storage")]
   async fn from_s3_storage(s3_storage: &S3Storage, query: &Query) -> Result<Response>;
+
+  /// Convert from `UrlStorage`.
+  #[cfg(feature = "url-storage")]
+  async fn from_url_storage(url_storage: &UrlStorage, query: &Query) -> Result<Response>;
 }
 
 /// A trait which uses storage to resolve requests into responses.
@@ -337,6 +343,7 @@ impl IdResolver for Resolver {
 
 #[async_trait]
 impl StorageResolver for Resolver {
+  #[instrument(level = "trace", skip(self), ret)]
   async fn resolve_request<T: ResolveResponse>(
     &self,
     query: &mut Query,
@@ -351,15 +358,29 @@ impl StorageResolver for Resolver {
     }
 
     #[cfg(feature = "s3-storage")]
-    let first_match = self.get_match(1, &_matched_id)?;
-
-    #[cfg(feature = "s3-storage")]
-    if let Some(response) = self
-      .storage()
-      .resolve_s3_storage::<T>(first_match.to_string(), query)
-      .await
     {
-      return Some(response);
+      let first_match = self.get_match(1, &_matched_id)?;
+
+      if let Some(response) = self
+        .storage()
+        .resolve_s3_storage::<T>(first_match.to_string(), query)
+        .await
+      {
+        return Some(response);
+      }
+    }
+
+    #[cfg(feature = "url-storage")]
+    {
+      let first_match = self.get_match(1, &_matched_id)?;
+
+      if let Some(response) = self
+        .storage()
+        .resolve_url_storage::<T>(first_match, query)
+        .await
+      {
+        return Some(response);
+      }
     }
 
     None
@@ -375,6 +396,7 @@ impl IdResolver for &[Resolver] {
 
 #[async_trait]
 impl StorageResolver for &[Resolver] {
+  #[instrument(level = "trace", skip(self), ret)]
   async fn resolve_request<T: ResolveResponse>(
     &self,
     query: &mut Query,
@@ -398,6 +420,8 @@ mod tests {
   use crate::storage::s3::S3Storage;
   use crate::types::Scheme::Http;
   use crate::types::Url;
+  #[cfg(feature = "url-storage")]
+  use {crate::storage::url::UrlStorage, crate::types::Scheme::Https};
 
   use super::*;
 
@@ -415,6 +439,14 @@ mod tests {
     #[cfg(feature = "s3-storage")]
     async fn from_s3_storage(s3_storage: &S3Storage, _: &Query) -> Result<Response> {
       Ok(Response::new(Bam, vec![Url::new(s3_storage.bucket())]))
+    }
+
+    #[cfg(feature = "url-storage")]
+    async fn from_url_storage(url_storage: &UrlStorage, _: &Query) -> Result<Response> {
+      Ok(Response::new(
+        Bam,
+        vec![Url::new(url_storage.authority().to_string())],
+      ))
     }
   }
 
@@ -434,14 +466,22 @@ mod tests {
     )
     .unwrap();
 
-    assert_eq!(
-      resolver
-        .resolve_request::<TestResolveResponse>(&mut Query::new("id", Bam))
-        .await
-        .unwrap()
-        .unwrap(),
-      Response::new(Bam, vec![Url::new("127.0.0.1:8080")])
-    );
+    expected_resolved_request(resolver, "127.0.0.1:8080").await;
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn resolver_resolve_s3_request_tagged() {
+    let s3_storage = S3Storage::new("id".to_string(), None);
+    let resolver = Resolver::new(
+      Storage::S3 { s3_storage },
+      "(id)-1",
+      "$1-test",
+      AllowGuard::default(),
+    )
+    .unwrap();
+
+    expected_resolved_request(resolver, "id").await;
   }
 
   #[cfg(feature = "s3-storage")]
@@ -454,14 +494,37 @@ mod tests {
       AllowGuard::default(),
     )
     .unwrap();
-    assert_eq!(
-      resolver
-        .resolve_request::<TestResolveResponse>(&mut Query::new("id-1", Bam))
-        .await
-        .unwrap()
-        .unwrap(),
-      Response::new(Bam, vec![Url::new("id")])
-    );
+
+    expected_resolved_request(resolver, "id").await;
+  }
+
+  #[cfg(feature = "url-storage")]
+  #[tokio::test]
+  async fn resolver_resolve_url_request_tagged() {
+    let resolver = Resolver::new(
+      Storage::Tagged(TaggedStorageTypes::Url),
+      "(id)-1",
+      "$1-test",
+      AllowGuard::default(),
+    )
+    .unwrap();
+
+    expected_resolved_request(resolver, "id").await;
+  }
+
+  #[cfg(feature = "url-storage")]
+  #[tokio::test]
+  async fn resolver_resolve_url_request() {
+    let url_storage = UrlStorage::new(Https, Https, Authority::from_static("id"), true);
+    let resolver = Resolver::new(
+      Storage::Url { url_storage },
+      "(id)-1",
+      "$1-test",
+      AllowGuard::default(),
+    )
+    .unwrap();
+
+    expected_resolved_request(resolver, "id").await;
   }
 
   #[test]
@@ -613,6 +676,17 @@ mod tests {
         assert_eq!(resolver.storage(), &storage);
         assert_eq!(resolver.allow_guard(), &allow_guard);
       },
+    );
+  }
+
+  async fn expected_resolved_request(resolver: Resolver, expected_id: &str) {
+    assert_eq!(
+      resolver
+        .resolve_request::<TestResolveResponse>(&mut Query::new("id-1", Bam))
+        .await
+        .unwrap()
+        .unwrap(),
+      Response::new(Bam, vec![Url::new(expected_id)])
     );
   }
 }

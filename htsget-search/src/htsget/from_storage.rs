@@ -12,6 +12,8 @@ use htsget_config::resolver::{ResolveResponse, StorageResolver};
 use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
 #[cfg(feature = "s3-storage")]
 use htsget_config::storage::s3::S3Storage;
+#[cfg(feature = "url-storage")]
+use htsget_config::storage::url::UrlStorage;
 
 use crate::htsget::search::Search;
 #[cfg(feature = "s3-storage")]
@@ -88,6 +90,11 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
       .await,
     );
     searcher.search(query.clone()).await
+  }
+
+  #[cfg(feature = "url-storage")]
+  async fn from_url_storage(_url_storage: &UrlStorage, _query: &Query) -> Result<Response> {
+    todo!()
   }
 }
 
