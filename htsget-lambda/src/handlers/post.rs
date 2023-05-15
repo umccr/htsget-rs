@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use lambda_http::http;
+use lambda_http::http::HeaderMap;
 use tracing::info;
 use tracing::instrument;
 
@@ -13,11 +14,13 @@ use crate::{Body, Response};
 /// Post request reads endpoint
 #[instrument(skip(searcher))]
 pub async fn post<H: HtsGet + Send + Sync + 'static>(
-  id_path: String,
+  id: String,
   searcher: Arc<H>,
   query: PostRequest,
+  headers: HeaderMap,
   endpoint: Endpoint,
 ) -> http::Result<Response<Body>> {
   info!(query = ?query, "POST request");
-  handle_response(htsget_post(searcher, query, id_path, endpoint).await)
+
+  handle_response(htsget_post(searcher, query, id, headers, endpoint).await)
 }

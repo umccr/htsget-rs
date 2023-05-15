@@ -4,13 +4,13 @@ use actix_web::{
   web::{Data, Path, Query},
   HttpRequest, Responder,
 };
-use http::HeaderMap;
 use tracing::info;
 use tracing::instrument;
 
 use htsget_http::{get, Endpoint, Request};
 use htsget_search::htsget::HtsGet;
 
+use crate::handlers::HeaderMap;
 use crate::AppState;
 
 use super::handle_response;
@@ -20,12 +20,13 @@ fn extract_request(
   path: Path<String>,
   http_request: HttpRequest,
 ) -> Request {
-  let mut query_information = request.into_inner();
-  query_information.insert("id".to_string(), path.into_inner());
+  let query = request.into_inner();
 
-  let headers = HeaderMap::from_iter(http_request.headers().clone().into_iter());
-
-  Request::new(query_information, headers)
+  Request::new(
+    path.into_inner(),
+    query,
+    HeaderMap::from(&http_request).into_inner(),
+  )
 }
 
 /// GET request reads endpoint

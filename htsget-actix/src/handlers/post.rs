@@ -1,6 +1,6 @@
 use actix_web::{
   web::{Data, Json, Path},
-  Responder,
+  HttpRequest, Responder,
 };
 use tracing::info;
 use tracing::instrument;
@@ -8,6 +8,7 @@ use tracing::instrument;
 use htsget_http::{post, Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 
+use crate::handlers::HeaderMap;
 use crate::AppState;
 
 use super::handle_response;
@@ -17,6 +18,7 @@ use super::handle_response;
 pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   request: Json<PostRequest>,
   path: Path<String>,
+  http_request: HttpRequest,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
   info!(request = ?request, "reads endpoint POST request");
@@ -26,6 +28,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
       app_state.get_ref().htsget.clone(),
       request.into_inner(),
       path.into_inner(),
+      HeaderMap::from(&http_request).into_inner(),
       Endpoint::Reads,
     )
     .await,
@@ -37,6 +40,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   request: Json<PostRequest>,
   path: Path<String>,
+  http_request: HttpRequest,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
   info!(request = ?request, "variants endpoint POST request");
@@ -46,6 +50,7 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
       app_state.get_ref().htsget.clone(),
       request.into_inner(),
       path.into_inner(),
+      HeaderMap::from(&http_request).into_inner(),
       Endpoint::Variants,
     )
     .await,

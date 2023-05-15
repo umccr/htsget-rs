@@ -15,14 +15,13 @@ use crate::{Body, Response};
 /// Get request reads endpoint
 #[instrument(skip(searcher))]
 pub async fn get<H: HtsGet + Send + Sync + 'static>(
-  id_path: String,
+  id: String,
   searcher: Arc<H>,
-  mut query: HashMap<String, String>,
+  query: HashMap<String, String>,
   headers: HeaderMap,
   endpoint: Endpoint,
 ) -> http::Result<Response<Body>> {
-  query.insert("id".to_string(), id_path);
-  let request = Request::new(query, headers);
+  let request = Request::new(id, query, headers);
 
   info!(request = ?request, "GET request");
 

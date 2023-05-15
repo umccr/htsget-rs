@@ -29,22 +29,25 @@ const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
 /// A request containing the required information to construct a Query.
 #[derive(Debug)]
 pub struct Request {
-  query_information: HashMap<String, String>,
+  id: String,
+  query: HashMap<String, String>,
   headers: HeaderMap,
 }
 
 impl Request {
   /// Create a new request.
-  pub fn new(query_information: HashMap<String, String>, headers: HeaderMap) -> Self {
-    Self {
-      query_information,
-      headers,
-    }
+  pub fn new(id: String, query: HashMap<String, String>, headers: HeaderMap) -> Self {
+    Self { id, query, headers }
   }
 
-  /// Get the mutable query information.
-  pub fn query_information_mut(&mut self) -> &mut HashMap<String, String> {
-    &mut self.query_information
+  /// Get the id.
+  pub fn id(&self) -> &str {
+    &self.id
+  }
+
+  /// Get the mutable query.
+  pub fn query_mut(&mut self) -> &mut HashMap<String, String> {
+    &mut self.query
   }
 
   /// Get the headers.
@@ -153,26 +156,33 @@ mod tests {
 
   #[tokio::test]
   async fn get_request() {
-    let mut request = HashMap::new();
-    request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+    let request = HashMap::new();
 
-    let request = Request::new(request, Default::default());
+    let mut expected_response_headers = HashMap::new();
+    expected_response_headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+
+    let request = Request::new(
+      "bam/htsnexus_test_NA12878".to_string(),
+      request,
+      Default::default(),
+    );
 
     assert_eq!(
       get(get_searcher(), request, Endpoint::Reads).await,
-      Ok(example_bam_json_response(headers))
+      Ok(expected_bam_json_response(expected_response_headers))
     );
   }
 
   #[tokio::test]
   async fn get_reads_request_with_variants_format() {
     let mut request = HashMap::new();
-    request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     request.insert("format".to_string(), "VCF".to_string());
 
-    let request = Request::new(request, Default::default());
+    let request = Request::new(
+      "bam/htsnexus_test_NA12878".to_string(),
+      request,
+      Default::default(),
+    );
 
     assert!(matches!(
       get(get_searcher(), request, Endpoint::Reads).await,
@@ -183,7 +193,6 @@ mod tests {
   #[tokio::test]
   async fn get_request_with_range() {
     let mut request = HashMap::new();
-    request.insert("id".to_string(), "vcf/sample1-bcbio-cancer".to_string());
     request.insert("referenceName".to_string(), "chrM".to_string());
     request.insert("start".to_string(), "149".to_string());
     request.insert("end".to_string(), "200".to_string());
@@ -191,11 +200,15 @@ mod tests {
     let mut expected_response_headers = HashMap::new();
     expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
 
-    let request = Request::new(request, Default::default());
+    let request = Request::new(
+      "vcf/sample1-bcbio-cancer".to_string(),
+      request,
+      Default::default(),
+    );
 
     assert_eq!(
       get(get_searcher(), request, Endpoint::Variants).await,
-      Ok(example_vcf_json_response(expected_response_headers))
+      Ok(expected_vcf_json_response(expected_response_headers))
     );
   }
 
@@ -209,17 +222,20 @@ mod tests {
       notags: None,
       regions: None,
     };
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+
+    let mut expected_response_headers = HashMap::new();
+    expected_response_headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+
     assert_eq!(
       post(
         get_searcher(),
         request,
         "bam/htsnexus_test_NA12878",
+        Default::default(),
         Endpoint::Reads
       )
       .await,
-      Ok(example_bam_json_response(headers))
+      Ok(expected_bam_json_response(expected_response_headers))
     );
   }
 
@@ -233,11 +249,13 @@ mod tests {
       notags: None,
       regions: None,
     };
+
     assert!(matches!(
       post(
         get_searcher(),
         request,
         "bam/htsnexus_test_NA12878",
+        Default::default(),
         Endpoint::Variants
       )
       .await,
@@ -259,21 +277,24 @@ mod tests {
         end: Some(200),
       }]),
     };
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+
+    let mut expected_response_headers = HashMap::new();
+    expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+
     assert_eq!(
       post(
         get_searcher(),
         request,
         "vcf/sample1-bcbio-cancer",
+        Default::default(),
         Endpoint::Variants
       )
       .await,
-      Ok(example_vcf_json_response(headers))
+      Ok(expected_vcf_json_response(expected_response_headers))
     );
   }
 
-  fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
+  fn expected_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
     JsonResponse::from(Response::new(
       Format::Vcf,
       vec![
@@ -284,7 +305,7 @@ mod tests {
     ))
   }
 
-  fn example_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
+  fn expected_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
     JsonResponse::from(Response::new(
       Format::Bam,
       vec![

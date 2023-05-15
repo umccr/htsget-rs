@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use futures::stream::FuturesOrdered;
 use futures::StreamExt;
+use http::HeaderMap;
 use tokio::select;
 use tracing::debug;
 use tracing::instrument;
@@ -23,7 +24,9 @@ pub async fn get(
   mut request: Request,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
-  let query_information = request.query_information_mut();
+  let id = request.id().to_string();
+  let query_information = request.query_mut();
+  query_information.insert("id".to_string(), id);
 
   match_endpoints_get_request(&endpoint, query_information)?;
   debug!(endpoint = ?endpoint, query_information = ?query_information, "getting GET response");
@@ -41,6 +44,7 @@ pub async fn post(
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
   mut request: PostRequest,
   id: impl Into<String>,
+  _headers: HeaderMap,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
   match_endpoints_post_request(&endpoint, &mut request)?;
