@@ -18,6 +18,7 @@ default = ["s3-storage"]
 [dependencies]
 actix-web = { version = "4.3", features = ["rustls"] }
 actix-cors = "0.6"
+http = "0.2"
 rustls = "0.21"
 rustls-pemfile = "1.0"
 serde = { version = "1.0", features = ["derive"] }

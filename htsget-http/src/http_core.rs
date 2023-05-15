@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures::stream::FuturesOrdered;
@@ -12,7 +11,7 @@ use htsget_search::htsget::HtsGet;
 
 use crate::{
   convert_to_query, match_endpoints_get_request, match_endpoints_post_request, merge_responses,
-  Endpoint, HtsGetError, PostRequest, Result,
+  Endpoint, HtsGetError, PostRequest, Request, Result,
 };
 
 /// Gets a JSON response for a GET request. The GET request parameters must
@@ -21,13 +20,15 @@ use crate::{
 #[instrument(level = "debug", skip_all, ret)]
 pub async fn get(
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
-  mut query_information: HashMap<String, String>,
+  mut request: Request,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
-  match_endpoints_get_request(&endpoint, &mut query_information)?;
+  let query_information = request.query_information_mut();
+
+  match_endpoints_get_request(&endpoint, query_information)?;
   debug!(endpoint = ?endpoint, query_information = ?query_information, "getting GET response");
 
-  let query = convert_to_query(&query_information)?;
+  let query = convert_to_query(query_information)?;
   let search_result = searcher.search(query).await;
 
   search_result.map_err(Into::into).map(JsonResponse::from)

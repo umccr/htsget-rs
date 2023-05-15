@@ -1,3 +1,4 @@
+use http::HeaderMap;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -24,6 +25,33 @@ const READS_DEFAULT_FORMAT: &str = "BAM";
 const VARIANTS_DEFAULT_FORMAT: &str = "VCF";
 const READS_FORMATS: [&str; 2] = ["BAM", "CRAM"];
 const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
+
+/// A request containing the required information to construct a Query.
+#[derive(Debug)]
+pub struct Request {
+  query_information: HashMap<String, String>,
+  headers: HeaderMap,
+}
+
+impl Request {
+  /// Create a new request.
+  pub fn new(query_information: HashMap<String, String>, headers: HeaderMap) -> Self {
+    Self {
+      query_information,
+      headers,
+    }
+  }
+
+  /// Get the mutable query information.
+  pub fn query_information_mut(&mut self) -> &mut HashMap<String, String> {
+    &mut self.query_information
+  }
+
+  /// Get the headers.
+  pub fn headers(&self) -> &HeaderMap {
+    &self.headers
+  }
+}
 
 /// A enum to distinguish between the two endpoint defined in the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
@@ -129,6 +157,9 @@ mod tests {
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     let mut headers = HashMap::new();
     headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+
+    let request = Request::new(request, Default::default());
+
     assert_eq!(
       get(get_searcher(), request, Endpoint::Reads).await,
       Ok(example_bam_json_response(headers))
@@ -140,6 +171,9 @@ mod tests {
     let mut request = HashMap::new();
     request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     request.insert("format".to_string(), "VCF".to_string());
+
+    let request = Request::new(request, Default::default());
+
     assert!(matches!(
       get(get_searcher(), request, Endpoint::Reads).await,
       Err(HtsGetError::UnsupportedFormat(_))
@@ -153,11 +187,15 @@ mod tests {
     request.insert("referenceName".to_string(), "chrM".to_string());
     request.insert("start".to_string(), "149".to_string());
     request.insert("end".to_string(), "200".to_string());
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+
+    let mut expected_response_headers = HashMap::new();
+    expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+
+    let request = Request::new(request, Default::default());
+
     assert_eq!(
       get(get_searcher(), request, Endpoint::Variants).await,
-      Ok(example_vcf_json_response(headers))
+      Ok(example_vcf_json_response(expected_response_headers))
     );
   }
 

@@ -20,6 +20,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
   info!(request = ?request, "reads endpoint POST request");
+
   handle_response(
     post(
       app_state.get_ref().htsget.clone(),
@@ -39,6 +40,7 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
   info!(request = ?request, "variants endpoint POST request");
+
   handle_response(
     post(
       app_state.get_ref().htsget.clone(),

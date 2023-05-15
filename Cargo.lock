@@ -1707,6 +1707,7 @@ dependencies = [
  "htsget-http",
  "htsget-search",
  "htsget-test",
+ "http",
  "reqwest",
  "rustls 0.21.1",
  "rustls-pemfile",

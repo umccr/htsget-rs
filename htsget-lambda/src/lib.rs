@@ -122,6 +122,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           id,
           self.searcher.clone(),
           Self::extract_query(&request),
+          request.headers().clone(),
           endpoint,
         )
         .await
