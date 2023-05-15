@@ -81,7 +81,7 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
   }
 
   #[cfg(feature = "s3-storage")]
-  async fn from_s3_storage(s3_storage: &S3Storage, query: &Query) -> Result<Response> {
+  async fn from_s3(s3_storage: &S3Storage, query: &Query) -> Result<Response> {
     let searcher = HtsGetFromStorage::new(
       AwsS3Storage::new_with_default_config(
         s3_storage.bucket().to_string(),
@@ -93,7 +93,7 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
   }
 
   #[cfg(feature = "url-storage")]
-  async fn from_url_storage(_url_storage: &UrlStorage, _query: &Query) -> Result<Response> {
+  async fn from_url(_url_storage: &UrlStorage, _query: &Query) -> Result<Response> {
     todo!()
   }
 }

@@ -104,9 +104,9 @@ impl Storage {
     match self {
       Storage::Tagged(TaggedStorageTypes::S3) => {
         let s3_storage = S3Storage::new(bucket, None);
-        Some(T::from_s3_storage(&s3_storage, query).await)
+        Some(T::from_s3(&s3_storage, query).await)
       }
-      Storage::S3 { s3_storage } => Some(T::from_s3_storage(s3_storage, query).await),
+      Storage::S3 { s3_storage } => Some(T::from_s3(s3_storage, query).await),
       _ => None,
     }
   }
@@ -122,14 +122,14 @@ impl Storage {
       Storage::Tagged(TaggedStorageTypes::Url) => match Authority::from_str(url) {
         Ok(authority) => {
           let url_storage = UrlStorage::new(Https, Https, authority, true);
-          Some(T::from_url_storage(&url_storage, query).await)
+          Some(T::from_url(&url_storage, query).await)
         }
         Err(err) => Some(Err(ParseError(format!(
           "failed to construct authority from matching id: {}",
           err
         )))),
       },
-      Storage::Url { url_storage } => Some(T::from_url_storage(url_storage, query).await),
+      Storage::Url { url_storage } => Some(T::from_url(url_storage, query).await),
       _ => None,
     }
   }

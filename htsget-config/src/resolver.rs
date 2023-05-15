@@ -31,11 +31,11 @@ pub trait ResolveResponse {
 
   /// Convert from `S3Storage`.
   #[cfg(feature = "s3-storage")]
-  async fn from_s3_storage(s3_storage: &S3Storage, query: &Query) -> Result<Response>;
+  async fn from_s3(s3_storage: &S3Storage, query: &Query) -> Result<Response>;
 
   /// Convert from `UrlStorage`.
   #[cfg(feature = "url-storage")]
-  async fn from_url_storage(url_storage: &UrlStorage, query: &Query) -> Result<Response>;
+  async fn from_url(url_storage: &UrlStorage, query: &Query) -> Result<Response>;
 }
 
 /// A trait which uses storage to resolve requests into responses.
@@ -437,12 +437,12 @@ mod tests {
     }
 
     #[cfg(feature = "s3-storage")]
-    async fn from_s3_storage(s3_storage: &S3Storage, _: &Query) -> Result<Response> {
+    async fn from_s3(s3_storage: &S3Storage, _: &Query) -> Result<Response> {
       Ok(Response::new(Bam, vec![Url::new(s3_storage.bucket())]))
     }
 
     #[cfg(feature = "url-storage")]
-    async fn from_url_storage(url_storage: &UrlStorage, _: &Query) -> Result<Response> {
+    async fn from_url(url_storage: &UrlStorage, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
         vec![Url::new(url_storage.authority().to_string())],
