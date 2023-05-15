@@ -676,7 +676,7 @@ dependencies = [
  "hyper-rustls",
  "lazy_static",
  "pin-project-lite",
- "rustls",
+ "rustls 0.20.8",
  "tokio",
  "tower",
  "tracing",
@@ -1104,6 +1104,7 @@ dependencies = [
  "anstyle",
  "bitflags",
  "clap_lex 0.4.1",
+ "once_cell",
  "strsim",
 ]
 

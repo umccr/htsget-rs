@@ -164,9 +164,10 @@ To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for 
 
 To use `AwsS3Storage`, set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
 
-| Option   | Description                                              | When `storage = 'S3'`                                                                                            | Type            | Default |
-|----------|----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|-----------------|---------|
-| `bucket` | The AWS S3 bucket where resources can be retrieved from. | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`. | String          | `''`    |
+| Option      | Description                                                                                                                                                    | When `storage = 'S3'`                                                                                            | Type   | Default                                |
+|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|--------|----------------------------------------|
+| `bucket`    | The AWS S3 bucket where resources can be retrieved from.                                                                                                       | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`. | String | `''`                                   |
+| `endpoint`  | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio). | Not set, uses regular AWS S3 services.                                                                           | String | Not set, uses regular AWS S3 services. |
 
 For example, a `resolvers` value of:
 ```toml
@@ -373,9 +374,9 @@ export HTSGET_DATA_SERVER_ENABLED=false
 ```
 [service-info]: https://samtools.github.io/hts-specs/htsget.html#ga4gh-service-info
 
-### Minio
+### MinIO
 
-Operating a local object storage like [Minio][minio] can be easily achieved by leveraging the `endpoint` directive as shown below:
+Operating a local object storage like [MinIO][minio] can be easily achieved by leveraging the `endpoint` directive as shown below:
 
 ```toml
 [[resolvers]]
