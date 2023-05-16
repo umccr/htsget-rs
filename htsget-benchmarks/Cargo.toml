@@ -3,12 +3,18 @@ name = "htsget-benchmarks"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+# Enable the correct features of htsget dependencies based on the feature flag of this crate.
+s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http/s3-storage"]
+default = ["s3-storage"]
+
 [dependencies]
 http = "0.2"
 async-trait = "0.1"
 
 # htsget-rs
-htsget-config = { version = "0.2.0" }
+# The path is not so important here, it's more about which feature flags are enabled.
+htsget-config = { version = "0.2.0", path = "../htsget-search", default-features = false }
 htsget-search = { version = "0.2.0", path = "../htsget-search", default-features = false }
 htsget-http = { version = "0.2.0", path = "../htsget-http", default-features = false }
 tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
