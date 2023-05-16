@@ -46,38 +46,55 @@ jobs:
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cargo-criterion
-      - name: Install cargo flamegraphs
-        uses: baptiste0928/cargo-install@v1
-        with:
-          crate: flamegraph
-      - name: Run search benchmarks
-        run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
-      - name: Generate flamegraphs and flamecharts for profiling
-        run: |
-             if [ "$RUNNER_OS" == "Linux" ]; then
-                  sudo cat /proc/sys/kernel/kptr_restrict
-                  sudo cat /proc/sys/kernel/perf_event_paranoid
-                  echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
-                  # Chart == X axis is time
-                  # cargo run record -P  ... TODO: not-perf
-                  #cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench >& flamechart.bin
-                  # Graph == X axis is stack profile population
-                  cargo flamegraph --deterministic --bench search-benchmarks -- --bench >& flamegraph.bin
-             else # PERFILE binary contents spewed on stdout on Linux?: https://github.com/flamegraph-rs/flamegraph/issues/248
-                  cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench
-                  # Graph == X axis is stack profile population
-                  cargo flamegraph --deterministic --bench search-benchmarks -- --bench
-             fi
-        shell: bash
-      - name: Batch flame* results under criterion-rs output
-        run: mkdir -p target/criterion/flameplots && cp flame*.svg flame*.bin target/criterion/flameplots
-      - name: Store search benchmark result
-        uses: brainstorm/github-action-benchmark@cargo-criterion-v3
-        with:
-          name: Search benchmark
-          tool: 'cargo-criterion'
-          output-file-path: search-benchmarks-output.json
-          native-benchmark-data-dir-path: target/criterion
-          fail-on-alert: false
-          github-token: ${{ secrets.HTSGET_RS_BENCHMARKS_TOKEN }}
-          auto-push: true
+      - name: Run bencher.dev
+        runs-on: ubuntu-latest
+        env:
+          BENCHER_PROJECT: htsget-rs
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          BENCHER_ADAPTER: magic
+          BENCHER_TESTBED: ubuntu-latest
+        steps:
+          - uses: bencherdev/bencher@v0.2.43
+          - name: Benchmark with Bencher
+            run: |
+              bencher run \
+              --if-branch "$GITHUB_REF_NAME" \
+              --else-if-branch "$GITHUB_BASE_REF" \
+              --else-if-branch main \
+              --err \
+              "cargo bench"
+      # - name: Install cargo flamegraphs
+      #   uses: baptiste0928/cargo-install@v1
+      #   with:
+      #     crate: flamegraph
+      # - name: Run search benchmarks
+      #   run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
+      # - name: Generate flamegraphs and flamecharts for profiling
+      #   run: |
+      #        if [ "$RUNNER_OS" == "Linux" ]; then
+      #             sudo cat /proc/sys/kernel/kptr_restrict
+      #             sudo cat /proc/sys/kernel/perf_event_paranoid
+      #             echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+      #             # Chart == X axis is time
+      #             # cargo run record -P  ... TODO: not-perf
+      #             #cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench >& flamechart.bin
+      #             # Graph == X axis is stack profile population
+      #             cargo flamegraph --deterministic --bench search-benchmarks -- --bench >& flamegraph.bin
+      #        else # PERFILE binary contents spewed on stdout on Linux?: https://github.com/flamegraph-rs/flamegraph/issues/248
+      #             cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench
+      #             # Graph == X axis is stack profile population
+      #             cargo flamegraph --deterministic --bench search-benchmarks -- --bench
+      #        fi
+      #   shell: bash
+      # - name: Batch flame* results under criterion-rs output
+      #   run: mkdir -p target/criterion/flameplots && cp flame*.svg flame*.bin target/criterion/flameplots
+      # - name: Store search benchmark result
+      #   uses: brainstorm/github-action-benchmark@cargo-criterion-v3
+      #   with:
+      #     name: Search benchmark
+      #     tool: 'cargo-criterion'
+      #     output-file-path: search-benchmarks-output.json
+      #     native-benchmark-data-dir-path: target/criterion
+      #     fail-on-alert: false
+      #     github-token: ${{ secrets.HTSGET_RS_BENCHMARKS_TOKEN }}
+      #     auto-push: true
