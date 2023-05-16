@@ -31,7 +31,7 @@ server-tests = [
 ]
 s3-storage = ["htsget-config?/s3-storage"]
 url-storage = ["htsget-config?/url-storage"]
-default = ["s3-storage"]
+default = []
 
 [dependencies]
 # Server tests dependencies

@@ -13,7 +13,7 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 s3-storage = []
 url-storage = []
-default = ["s3-storage"]
+default = []
 
 [dependencies]
 thiserror = "1.0"
