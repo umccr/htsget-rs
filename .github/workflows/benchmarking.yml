@@ -59,7 +59,8 @@ jobs:
                   sudo cat /proc/sys/kernel/perf_event_paranoid
                   echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
                   # Chart == X axis is time
-                  cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench >& flamechart.bin
+                  # cargo run record -P  ... TODO: not-perf
+                  #cargo flamegraph --deterministic --flamechart -o flamechart.svg --bench search-benchmarks -- --bench >& flamechart.bin
                   # Graph == X axis is stack profile population
                   cargo flamegraph --deterministic --bench search-benchmarks -- --bench >& flamegraph.bin
              else # PERFILE binary contents spewed on stdout on Linux?: https://github.com/flamegraph-rs/flamegraph/issues/248

@@ -6,6 +6,7 @@ members = [
     "htsget-lambda",
     "htsget-search",
     "htsget-test",
+    "htsget-benchmarks",
 ]
 
 # Flamegraphs require debuginfo for symbol names.
