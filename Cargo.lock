@@ -1769,7 +1769,7 @@ dependencies = [
  "criterion",
  "futures",
  "futures-util",
- "htsget-config 0.2.0",
+ "htsget-config",
  "htsget-http",
  "htsget-search",
  "htsget-test",
@@ -1790,7 +1790,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "criterion",
- "htsget-config 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "htsget-config",
  "htsget-http",
  "htsget-search",
  "http",
@@ -1820,33 +1820,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "htsget-config"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3936558208f33f2c112daa00ae75468c85d7a12481db03d93b0421732c8f619e"
-dependencies = [
- "async-trait",
- "clap 4.2.7",
- "figment",
- "http",
- "http-serde",
- "noodles",
- "regex",
- "serde",
- "serde_regex",
- "serde_with",
- "thiserror",
- "toml 0.7.3",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "htsget-http"
 version = "0.2.0"
 dependencies = [
  "futures",
- "htsget-config 0.2.0",
+ "htsget-config",
  "htsget-search",
  "htsget-test",
  "http",
@@ -1862,7 +1840,7 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "bytes",
- "htsget-config 0.2.0",
+ "htsget-config",
  "htsget-http",
  "htsget-search",
  "htsget-test",
@@ -1895,7 +1873,7 @@ dependencies = [
  "data-url",
  "futures",
  "futures-util",
- "htsget-config 0.2.0",
+ "htsget-config",
  "htsget-test",
  "http",
  "hyper",
@@ -1923,7 +1901,7 @@ dependencies = [
  "async-trait",
  "base64 0.21.0",
  "futures",
- "htsget-config 0.2.0",
+ "htsget-config",
  "http",
  "mime",
  "noodles-bgzf",

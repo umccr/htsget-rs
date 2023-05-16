@@ -14,7 +14,7 @@ async-trait = "0.1"
 
 # htsget-rs
 # The path is not so important here, it's more about which feature flags are enabled.
-htsget-config = { version = "0.2.0", path = "../htsget-search", default-features = false }
+htsget-config = { version = "0.2.0", path = "../htsget-config", default-features = false }
 htsget-search = { version = "0.2.0", path = "../htsget-search", default-features = false }
 htsget-http = { version = "0.2.0", path = "../htsget-http", default-features = false }
 tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
