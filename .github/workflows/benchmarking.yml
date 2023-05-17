@@ -51,8 +51,9 @@ jobs:
         uses: baptiste0928/cargo-install@v1
         with:
           crate: cargo-criterion
+      - uses: actions/checkout@v3
+      - uses: bencherdev/bencher@v0.2.43
       - name: Run bencher.dev
-        uses: bencherdev/bencher@v0.2.43
         run: |
           bencher run \
           --if-branch "$GITHUB_REF_NAME" \
