@@ -1773,7 +1773,6 @@ dependencies = [
  "htsget-http",
  "htsget-search",
  "htsget-test",
- "reqwest",
  "rustls 0.21.1",
  "rustls-pemfile",
  "serde",
@@ -1793,8 +1792,12 @@ dependencies = [
  "htsget-config",
  "htsget-http",
  "htsget-search",
+ "htsget-test",
  "http",
  "pprof",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
