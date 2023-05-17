@@ -15,6 +15,11 @@ permissions:
 jobs:
   benchmarks:
     runs-on: ${{ matrix.os }}
+    env:
+      BENCHER_PROJECT: htsget-rs
+      BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+      BENCHER_ADAPTER: magic
+      BENCHER_TESTBED: localhost 
     strategy:
       matrix:
         rust: [stable]
@@ -47,22 +52,14 @@ jobs:
         with:
           crate: cargo-criterion
       - name: Run bencher.dev
-        runs-on: ubuntu-latest
-        env:
-          BENCHER_PROJECT: htsget-rs
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          BENCHER_ADAPTER: magic
-          BENCHER_TESTBED: ubuntu-latest
-        steps:
-          - uses: bencherdev/bencher@v0.2.43
-          - name: Benchmark with Bencher
-            run: |
-              bencher run \
-              --if-branch "$GITHUB_REF_NAME" \
-              --else-if-branch "$GITHUB_BASE_REF" \
-              --else-if-branch main \
-              --err \
-              "cargo bench"
+        uses: bencherdev/bencher@v0.2.43
+        run: |
+          bencher run \
+          --if-branch "$GITHUB_REF_NAME" \
+          --else-if-branch "$GITHUB_BASE_REF" \
+          --else-if-branch main \
+          --err \
+          "cargo bench"
       # - name: Install cargo flamegraphs
       #   uses: baptiste0928/cargo-install@v1
       #   with:
