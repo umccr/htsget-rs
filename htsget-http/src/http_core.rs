@@ -9,6 +9,7 @@ use tracing::instrument;
 use htsget_config::types::{JsonResponse, Request, Response};
 use htsget_search::htsget::HtsGet;
 
+use crate::HtsGetError::InvalidInput;
 use crate::{
   convert_to_query, match_format, merge_responses, Endpoint, HtsGetError, PostRequest, Result,
 };
@@ -43,6 +44,12 @@ pub async fn post(
   request: Request,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
+  if !request.query().is_empty() {
+    return Err(InvalidInput(
+      "query parameters should be empty for a POST request".to_string(),
+    ));
+  }
+
   let queries = body.get_queries(request, &endpoint)?;
 
   debug!(endpoint = ?endpoint, queries = ?queries, "getting POST response");
