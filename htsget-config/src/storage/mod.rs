@@ -1,15 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "url-storage")]
+use crate::storage::url::UrlStorage;
+
 use crate::resolver::ResolveResponse;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
 use crate::types::{Query, Response, Result};
-#[cfg(feature = "url-storage")]
-use {
-  crate::storage::url::UrlStorage, crate::types::HtsGetError::ParseError,
-  crate::types::Scheme::Https, http::uri::Authority, std::str::FromStr,
-};
 
 pub mod local;
 #[cfg(feature = "s3-storage")]
@@ -24,9 +22,6 @@ pub enum TaggedStorageTypes {
   #[cfg(feature = "s3-storage")]
   #[serde(alias = "s3")]
   S3,
-  #[cfg(feature = "url-storage")]
-  #[serde(alias = "url", alias = "URL")]
-  Url,
 }
 
 /// If s3-storage is enabled, then the default is `S3`, otherwise it is `Local`.
@@ -115,20 +110,9 @@ impl Storage {
   #[cfg(feature = "url-storage")]
   pub async fn resolve_url_storage<T: ResolveResponse>(
     &self,
-    url: &str,
     query: &Query,
   ) -> Option<Result<Response>> {
     match self {
-      Storage::Tagged(TaggedStorageTypes::Url) => match Authority::from_str(url) {
-        Ok(authority) => {
-          let url_storage = UrlStorage::new(Https, Https, authority, true);
-          Some(T::from_url(&url_storage, query).await)
-        }
-        Err(err) => Some(Err(ParseError(format!(
-          "failed to construct authority from matching id: {}",
-          err
-        )))),
-      },
       Storage::Url { url_storage } => Some(T::from_url(url_storage, query).await),
       _ => None,
     }

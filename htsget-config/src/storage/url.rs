@@ -1,36 +1,56 @@
+use std::str::FromStr;
+
+use serde::{Deserialize, Serialize};
+use url::Url as InnerUrl;
+
+use crate::error::Error::ParseError;
+use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
 use crate::types::Scheme;
-use http::uri::Authority;
-use serde::{Deserialize, Serialize};
+
+pub fn default_url() -> Url {
+  Url(InnerUrl::from_str(&format!("https://{}", default_authority())).expect("expected valid url"))
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct UrlStorage {
-  request_scheme: Scheme,
+  url: Url,
   response_scheme: Scheme,
-  #[serde(with = "http_serde::authority")]
-  authority: Authority,
   forward_headers: bool,
+}
+
+/// A new type struct on top of `url::Url` which only allows http or https schemes when deserializing.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(try_from = "InnerUrl")]
+pub struct Url(InnerUrl);
+
+impl Url {
+  /// Get the inner url.
+  pub fn into_inner(self) -> InnerUrl {
+    self.0
+  }
+}
+
+impl TryFrom<InnerUrl> for Url {
+  type Error = Error;
+
+  fn try_from(url: InnerUrl) -> Result<Self> {
+    if url.scheme() == "http" || url.scheme() == "https" {
+      Ok(Self(url))
+    } else {
+      Err(ParseError("url scheme must be http or https".to_string()))
+    }
+  }
 }
 
 impl UrlStorage {
   /// Create a new url storage.
-  pub fn new(
-    request_scheme: Scheme,
-    response_scheme: Scheme,
-    authority: Authority,
-    forward_headers: bool,
-  ) -> Self {
+  pub fn new(url: InnerUrl, response_scheme: Scheme, forward_headers: bool) -> Self {
     Self {
-      request_scheme,
+      url: Url(url),
       response_scheme,
-      authority,
       forward_headers,
     }
-  }
-
-  /// Get the request scheme used in the ticket server.
-  pub fn request_scheme(&self) -> Scheme {
-    self.request_scheme
   }
 
   /// Get the response scheme used for data blocks.
@@ -38,9 +58,9 @@ impl UrlStorage {
     self.response_scheme
   }
 
-  /// Get the authority called when resolving the query.
-  pub fn authority(&self) -> &Authority {
-    &self.authority
+  /// Get the url called when resolving the query.
+  pub fn url(&self) -> &InnerUrl {
+    &self.url.0
   }
 
   /// Whether headers received in a query request should be
@@ -53,9 +73,8 @@ impl UrlStorage {
 impl Default for UrlStorage {
   fn default() -> Self {
     Self {
-      request_scheme: Scheme::Https,
+      url: default_url(),
       response_scheme: Scheme::Https,
-      authority: default_authority(),
       forward_headers: true,
     }
   }

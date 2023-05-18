@@ -371,16 +371,8 @@ impl StorageResolver for Resolver {
     }
 
     #[cfg(feature = "url-storage")]
-    {
-      let first_match = self.get_match(1, &_matched_id)?;
-
-      if let Some(response) = self
-        .storage()
-        .resolve_url_storage::<T>(first_match, query)
-        .await
-      {
-        return Some(response);
-      }
+    if let Some(response) = self.storage().resolve_url_storage::<T>(query).await {
+      return Some(response);
     }
 
     None
@@ -416,7 +408,10 @@ mod tests {
   use http::uri::Authority;
 
   #[cfg(feature = "url-storage")]
-  use {crate::storage::url::UrlStorage, crate::types::Scheme::Https};
+  use {
+    crate::storage::url::UrlStorage, crate::types::Scheme::Https, std::str::FromStr,
+    url::Url as InnerUrl,
+  };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
   #[cfg(feature = "s3-storage")]
@@ -446,7 +441,7 @@ mod tests {
     async fn from_url(url_storage: &UrlStorage, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
-        vec![Url::new(url_storage.authority().to_string())],
+        vec![Url::new(url_storage.url().as_str())],
       ))
     }
   }
@@ -501,22 +496,12 @@ mod tests {
 
   #[cfg(feature = "url-storage")]
   #[tokio::test]
-  async fn resolver_resolve_url_request_tagged() {
-    let resolver = Resolver::new(
-      Storage::Tagged(TaggedStorageTypes::Url),
-      "(id)-1",
-      "$1-test",
-      AllowGuard::default(),
-    )
-    .unwrap();
-
-    expected_resolved_request(resolver, "id").await;
-  }
-
-  #[cfg(feature = "url-storage")]
-  #[tokio::test]
   async fn resolver_resolve_url_request() {
-    let url_storage = UrlStorage::new(Https, Https, Authority::from_static("id"), true);
+    let url_storage = UrlStorage::new(
+      InnerUrl::from_str("https://example.com/").unwrap(),
+      Https,
+      true,
+    );
     let resolver = Resolver::new(
       Storage::Url { url_storage },
       "(id)-1",
@@ -525,7 +510,7 @@ mod tests {
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "id").await;
+    expected_resolved_request(resolver, "https://example.com/").await;
   }
 
   #[test]

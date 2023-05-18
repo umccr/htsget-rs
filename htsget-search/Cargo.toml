@@ -12,7 +12,7 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
-url-storage = ["htsget-config/url-storage", "htsget-test/url-storage"]
+url-storage = ["dep:reqwest", "htsget-config/url-storage", "htsget-test/url-storage"]
 default = []
 
 [dependencies]
@@ -41,6 +41,9 @@ bytes = { version = "1.4", optional = true }
 aws-sdk-s3 = { version = "0.27", optional = true, features = ["test-util"] }
 aws-config = { version = "0.55", optional = true }
 aws-credential-types = { version = "0.55", features = ["test-util"] }
+
+# Url storage
+reqwest = { version = "0.11", default-features = false, optional = true, features = ["rustls-tls"] }
 
 # Error control, tracing, config
 thiserror = "1.0"
