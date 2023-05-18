@@ -49,6 +49,8 @@ impl From<StorageError> for HtsGetError {
       | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
       #[cfg(feature = "s3-storage")]
       err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
+      #[cfg(feature = "url-storage")]
+      err @ StorageError::UrlParseError(_) => Self::ParseError(err.to_string()),
     }
   }
 }

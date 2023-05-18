@@ -108,6 +108,10 @@ pub enum StorageError {
   #[cfg(feature = "s3-storage")]
   #[error("aws error: {0}, with key: `{1}`")]
   AwsS3Error(String, String),
+
+  #[cfg(feature = "url-storage")]
+  #[error("parsing url: {0}")]
+  UrlParseError(String),
 }
 
 impl UrlFormatter for LocalStorage {
