@@ -10,7 +10,7 @@ use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
 
-use crate::storage::{Storage, UrlFormatter};
+use crate::storage::{HeadOptions, Storage, UrlFormatter};
 use crate::Url;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
@@ -81,7 +81,11 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
 
   /// Get the file at the location of the key.
   #[instrument(level = "debug", skip(self))]
-  async fn get<K: AsRef<str> + Send + Debug>(&self, key: K, _options: GetOptions) -> Result<File> {
+  async fn get<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    _options: GetOptions<'_>,
+  ) -> Result<File> {
     debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
     self.get(key).await
   }
@@ -91,7 +95,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
-    options: RangeUrlOptions,
+    options: RangeUrlOptions<'_>,
   ) -> Result<Url> {
     let path = self.get_path_from_key(&key)?;
     let path = path
@@ -108,7 +112,11 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
 
   /// Get the size of the file.
   #[instrument(level = "debug", skip(self))]
-  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
+  async fn head<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    _options: HeadOptions<'_>,
+  ) -> Result<u64> {
     let path = self.get_path_from_key(&key)?;
     let len = tokio::fs::metadata(path)
       .await
@@ -150,7 +158,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_folder() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(&storage, "folder", GetOptions::default()).await;
+      let result = Storage::get(
+        &storage,
+        "folder",
+        GetOptions::new_with_default_range(&Default::default()),
+      )
+      .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -159,7 +172,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(&storage, "folder/../../passwords", GetOptions::default()).await;
+      let result = Storage::get(
+        &storage,
+        "folder/../../passwords",
+        GetOptions::new_with_default_range(&Default::default()),
+      )
+      .await;
       assert!(
         matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder/../../passwords")
       );
@@ -170,7 +188,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(&storage, "folder/../key1", GetOptions::default()).await;
+      let result = Storage::get(
+        &storage,
+        "folder/../key1",
+        GetOptions::new_with_default_range(&Default::default()),
+      )
+      .await;
       assert!(matches!(result, Ok(_)));
     })
     .await;
@@ -179,8 +202,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result =
-        Storage::range_url(&storage, "non-existing-key", RangeUrlOptions::default()).await;
+      let result = Storage::range_url(
+        &storage,
+        "non-existing-key",
+        RangeUrlOptions::new_with_default_range(&Default::default()),
+      )
+      .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "non-existing-key"));
     })
     .await;
@@ -189,7 +216,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_folder() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(&storage, "folder", RangeUrlOptions::default()).await;
+      let result = Storage::range_url(
+        &storage,
+        "folder",
+        RangeUrlOptions::new_with_default_range(&Default::default()),
+      )
+      .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
     })
     .await;
@@ -201,7 +233,7 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../../passwords",
-        RangeUrlOptions::default(),
+        RangeUrlOptions::new_with_default_range(&Default::default()),
       )
       .await;
       assert!(
@@ -214,7 +246,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(&storage, "folder/../key1", RangeUrlOptions::default()).await;
+      let result = Storage::range_url(
+        &storage,
+        "folder/../key1",
+        RangeUrlOptions::new_with_default_range(&Default::default()),
+      )
+      .await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -227,7 +264,10 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(10), None)),
+        RangeUrlOptions::new(
+          BytesPosition::new(Some(7), Some(10), None),
+          &Default::default(),
+        ),
       )
       .await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1")
@@ -243,7 +283,7 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None, None)),
+        RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
       )
       .await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1")
@@ -256,7 +296,12 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn file_size() {
     with_local_storage(|storage| async move {
-      let result = Storage::head(&storage, "folder/../key1").await;
+      let result = Storage::head(
+        &storage,
+        "folder/../key1",
+        HeadOptions::new(&Default::default()),
+      )
+      .await;
       let expected: u64 = 6;
       assert!(matches!(result, Ok(size) if size == expected));
     })
