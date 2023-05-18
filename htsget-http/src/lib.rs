@@ -43,7 +43,7 @@ impl FromStr for Endpoint {
 
 /// Get the format from the string
 pub fn match_format(endpoint: &Endpoint, format: Option<impl Into<String>>) -> Result<Format> {
-  let format = format.map(Into::into);
+  let format = format.map(Into::into).map(|format| format.to_lowercase());
 
   match (endpoint, format) {
     (Endpoint::Reads, None) => Ok(Bam),

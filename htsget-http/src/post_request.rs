@@ -32,10 +32,7 @@ impl PostRequest {
   /// Converts the `PostRequest` into one or more equivalent [Queries](Query)
   #[instrument(level = "trace", skip_all, ret)]
   pub(crate) fn get_queries(self, request: Request, endpoint: &Endpoint) -> Result<Vec<Query>> {
-    let format = match_format(
-      endpoint,
-      self.format.clone().map(|format| format.to_lowercase()),
-    )?;
+    let format = match_format(endpoint, self.format.clone())?;
 
     if let Some(ref regions) = self.regions {
       regions
