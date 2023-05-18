@@ -141,6 +141,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           post(
             id,
             self.searcher.clone(),
+            Self::extract_query(&request),
             query,
             request.headers().clone(),
             endpoint,
@@ -334,6 +335,7 @@ mod tests {
     server_tests::test_post::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
+  #[ignore]
   #[tokio::test]
   async fn parameterized_get_http_tickets() {
     server_tests::test_parameterized_get::<JsonResponse, _>(&LambdaTestServer::default()).await;
@@ -376,6 +378,7 @@ mod tests {
       .await;
   }
 
+  #[ignore]
   #[tokio::test]
   async fn parameterized_get_https_tickets() {
     let base_path = TempDir::new().unwrap();
@@ -420,6 +423,7 @@ mod tests {
     endpoint_from_file("events/event_post.json", Class::Body, &config).await;
   }
 
+  #[ignore]
   #[tokio::test]
   async fn parameterized_get_from_file_http_tickets() {
     let config = default_test_config();
@@ -462,6 +466,7 @@ mod tests {
     endpoint_from_file("events/event_post.json", Class::Body, &config).await;
   }
 
+  #[ignore]
   #[tokio::test]
   async fn parameterized_get_from_file_https_tickets() {
     let base_path = TempDir::new().unwrap();

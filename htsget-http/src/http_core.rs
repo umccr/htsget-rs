@@ -2,17 +2,15 @@ use std::sync::Arc;
 
 use futures::stream::FuturesOrdered;
 use futures::StreamExt;
-use http::HeaderMap;
 use tokio::select;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::types::{JsonResponse, Response};
+use htsget_config::types::{JsonResponse, Request, Response};
 use htsget_search::htsget::HtsGet;
 
 use crate::{
-  convert_to_query, match_endpoints_get_request, match_endpoints_post_request, merge_responses,
-  Endpoint, HtsGetError, PostRequest, Request, Result,
+  convert_to_query, match_format, merge_responses, Endpoint, HtsGetError, PostRequest, Result,
 };
 
 /// Gets a JSON response for a GET request. The GET request parameters must
@@ -21,20 +19,19 @@ use crate::{
 #[instrument(level = "debug", skip_all, ret)]
 pub async fn get(
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
-  mut request: Request,
+  request: Request,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
-  let id = request.id().to_string();
-  let query_information = request.query_mut();
-  query_information.insert("id".to_string(), id);
+  let format = match_format(&endpoint, request.query().get("format"))?;
+  let query = convert_to_query(request, format)?;
 
-  match_endpoints_get_request(&endpoint, query_information)?;
-  debug!(endpoint = ?endpoint, query_information = ?query_information, "getting GET response");
+  debug!(endpoint = ?endpoint, query = ?query, "getting GET response");
 
-  let query = convert_to_query(query_information)?;
-  let search_result = searcher.search(query).await;
-
-  search_result.map_err(Into::into).map(JsonResponse::from)
+  searcher
+    .search(query)
+    .await
+    .map_err(Into::into)
+    .map(JsonResponse::from)
 }
 
 /// Gets a response in JSON for a POST request.
@@ -42,16 +39,16 @@ pub async fn get(
 #[instrument(level = "debug", skip_all, ret)]
 pub async fn post(
   searcher: Arc<impl HtsGet + Send + Sync + 'static>,
-  mut request: PostRequest,
-  id: impl Into<String>,
-  _headers: HeaderMap,
+  body: PostRequest,
+  request: Request,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
-  match_endpoints_post_request(&endpoint, &mut request)?;
-  debug!(endpoint = ?endpoint, request = ?request, "getting POST response");
+  let queries = body.get_queries(request, &endpoint)?;
+
+  debug!(endpoint = ?endpoint, queries = ?queries, "getting POST response");
 
   let mut futures = FuturesOrdered::new();
-  for query in request.get_queries(id)? {
+  for query in queries {
     let owned_searcher = searcher.clone();
     futures.push_back(tokio::spawn(
       async move { owned_searcher.search(query).await },

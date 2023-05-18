@@ -141,7 +141,7 @@ pub(crate) mod tests {
   async fn search_bam() {
     with_bam_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
-      let query = Query::new("htsnexus_test_NA12878", Format::Bam);
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
       let response = htsget.search(query).await;
       println!("{response:#?}");
 
@@ -163,7 +163,7 @@ pub(crate) mod tests {
     with_vcf_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
       let filename = "spec-v4.3";
-      let query = Query::new(filename, Format::Vcf);
+      let query = Query::new_with_default_request(filename, Format::Vcf);
       let response = htsget.search(query).await;
       println!("{response:#?}");
 
@@ -177,7 +177,7 @@ pub(crate) mod tests {
     with_config_local_storage(
       |_, local_storage| async move {
         let filename = "spec-v4.3";
-        let query = Query::new(filename, Format::Vcf);
+        let query = Query::new_with_default_request(filename, Format::Vcf);
         let response = HtsGetFromStorage::<()>::from_local(&local_storage, &query).await;
 
         assert_eq!(response, expected_vcf_response(filename));
@@ -201,7 +201,7 @@ pub(crate) mod tests {
         .unwrap()];
 
         let filename = "spec-v4.3";
-        let query = Query::new(filename, Format::Vcf);
+        let query = Query::new_with_default_request(filename, Format::Vcf);
         let response = resolvers.search(query).await;
 
         assert_eq!(response, expected_vcf_response(filename));

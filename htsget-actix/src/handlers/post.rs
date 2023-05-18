@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use actix_web::web::Query;
 use actix_web::{
   web::{Data, Json, Path},
   HttpRequest, Responder,
@@ -8,7 +11,7 @@ use tracing::instrument;
 use htsget_http::{post, Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 
-use crate::handlers::HeaderMap;
+use crate::handlers::extract_request;
 use crate::AppState;
 
 use super::handle_response;
@@ -16,19 +19,21 @@ use super::handle_response;
 /// POST request reads endpoint
 #[instrument(skip(app_state))]
 pub async fn reads<H: HtsGet + Send + Sync + 'static>(
-  request: Json<PostRequest>,
+  request: Query<HashMap<String, String>>,
+  body: Json<PostRequest>,
   path: Path<String>,
   http_request: HttpRequest,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
-  info!(request = ?request, "reads endpoint POST request");
+  let request = extract_request(request, path, http_request);
+
+  info!(body = ?body, "reads endpoint POST request");
 
   handle_response(
     post(
       app_state.get_ref().htsget.clone(),
-      request.into_inner(),
-      path.into_inner(),
-      HeaderMap::from(&http_request).into_inner(),
+      body.into_inner(),
+      request,
       Endpoint::Reads,
     )
     .await,
@@ -38,19 +43,21 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 /// POST request variants endpoint
 #[instrument(skip(app_state))]
 pub async fn variants<H: HtsGet + Send + Sync + 'static>(
-  request: Json<PostRequest>,
+  request: Query<HashMap<String, String>>,
+  body: Json<PostRequest>,
   path: Path<String>,
   http_request: HttpRequest,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
-  info!(request = ?request, "variants endpoint POST request");
+  let request = extract_request(request, path, http_request);
+
+  info!(body = ?body, "variants endpoint POST request");
 
   handle_response(
     post(
       app_state.get_ref().htsget.clone(),
-      request.into_inner(),
-      path.into_inner(),
-      HeaderMap::from(&http_request).into_inner(),
+      body.into_inner(),
+      request,
       Endpoint::Variants,
     )
     .await,

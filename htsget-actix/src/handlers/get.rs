@@ -7,27 +7,13 @@ use actix_web::{
 use tracing::info;
 use tracing::instrument;
 
-use htsget_http::{get, Endpoint, Request};
+use htsget_http::{get, Endpoint};
 use htsget_search::htsget::HtsGet;
 
-use crate::handlers::HeaderMap;
+use crate::handlers::extract_request;
 use crate::AppState;
 
 use super::handle_response;
-
-fn extract_request(
-  request: Query<HashMap<String, String>>,
-  path: Path<String>,
-  http_request: HttpRequest,
-) -> Request {
-  let query = request.into_inner();
-
-  Request::new(
-    path.into_inner(),
-    query,
-    HeaderMap::from(&http_request).into_inner(),
-  )
-}
 
 /// GET request reads endpoint
 #[instrument(skip(app_state))]

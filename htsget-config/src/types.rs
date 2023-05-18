@@ -4,6 +4,7 @@ use std::io::ErrorKind;
 use std::io::ErrorKind::Other;
 use std::{fmt, io, result};
 
+use http::HeaderMap;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
 use serde::{Deserialize, Serialize};
@@ -209,6 +210,45 @@ pub enum Tags {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NoTags(pub Option<HashSet<String>>);
 
+/// A struct containing the information from the HTTP request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Request {
+  path: String,
+  query: HashMap<String, String>,
+  headers: HeaderMap,
+}
+
+impl Request {
+  /// Create a new request.
+  pub fn new(id: String, query: HashMap<String, String>, headers: HeaderMap) -> Self {
+    Self {
+      path: id,
+      query,
+      headers,
+    }
+  }
+
+  /// Create a new request with default query and headers.
+  pub fn new_with_id(id: String) -> Self {
+    Self::new(id, Default::default(), Default::default())
+  }
+
+  /// Get the id.
+  pub fn path(&self) -> &str {
+    &self.path
+  }
+
+  /// Get the query.
+  pub fn query(&self) -> &HashMap<String, String> {
+    &self.query
+  }
+
+  /// Get the headers.
+  pub fn headers(&self) -> &HeaderMap {
+    &self.headers
+  }
+}
+
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -223,10 +263,13 @@ pub struct Query {
   fields: Fields,
   tags: Tags,
   no_tags: NoTags,
+  /// The raw HTTP request information.
+  request: Request,
 }
 
 impl Query {
-  pub fn new(id: impl Into<String>, format: Format) -> Self {
+  /// Create a new query.
+  pub fn new(id: impl Into<String>, format: Format, request: Request) -> Self {
     Self {
       id: id.into(),
       format,
@@ -236,53 +279,70 @@ impl Query {
       fields: Fields::Tagged(TaggedTypeAll::All),
       tags: Tags::Tagged(TaggedTypeAll::All),
       no_tags: NoTags(None),
+      request,
     }
   }
 
+  /// Create a new query with a default request.
+  pub fn new_with_default_request(id: impl Into<String>, format: Format) -> Self {
+    let id = id.into();
+    Self::new(id.clone(), format, Request::new_with_id(id))
+  }
+
+  /// Set the id.
   pub fn set_id(&mut self, id: impl Into<String>) {
     self.id = id.into();
   }
 
+  /// Set the is and return self.
   pub fn with_id(mut self, id: impl Into<String>) -> Self {
     self.set_id(id);
     self
   }
 
+  /// Set the format.
   pub fn with_format(mut self, format: Format) -> Self {
     self.format = format;
     self
   }
 
+  /// Set the class.
   pub fn with_class(mut self, class: Class) -> Self {
     self.class = class;
     self
   }
 
+  /// Set the reference name.
   pub fn with_reference_name(mut self, reference_name: impl Into<String>) -> Self {
     self.reference_name = Some(reference_name.into());
     self
   }
 
+  /// Set the interval.
   pub fn with_start(mut self, start: u32) -> Self {
     self.interval.start = Some(start);
     self
   }
 
+  /// Set the interval.
   pub fn with_end(mut self, end: u32) -> Self {
     self.interval.end = Some(end);
     self
   }
 
+  /// Set the interval.
   pub fn with_fields(mut self, fields: Fields) -> Self {
     self.fields = fields;
     self
   }
 
+  /// Set the interval.
   pub fn with_tags(mut self, tags: Tags) -> Self {
     self.tags = tags;
     self
   }
 
+  /// Set no tags.
   pub fn with_no_tags(mut self, no_tags: Vec<impl Into<String>>) -> Self {
     self.no_tags = NoTags(Some(
       no_tags.into_iter().map(|field| field.into()).collect(),
@@ -320,6 +380,10 @@ impl Query {
 
   pub fn no_tags(&self) -> &NoTags {
     &self.no_tags
+  }
+
+  pub fn request(&self) -> &Request {
+    &self.request
   }
 }
 
@@ -601,47 +665,46 @@ mod tests {
 
   #[test]
   fn query_new() {
-    let result = Query::new("NA12878", Format::Bam);
+    let result = Query::new_with_default_request("NA12878", Format::Bam);
     assert_eq!(result.id(), "NA12878");
   }
 
   #[test]
   fn query_with_format() {
-    let result = Query::new("NA12878", Format::Bam);
+    let result = Query::new_with_default_request("NA12878", Format::Bam);
     assert_eq!(result.format(), Format::Bam);
   }
 
   #[test]
   fn query_with_class() {
-    let result = Query::new("NA12878", Format::Bam).with_class(Class::Header);
+    let result = Query::new_with_default_request("NA12878", Format::Bam).with_class(Class::Header);
     assert_eq!(result.class(), Class::Header);
   }
 
   #[test]
   fn query_with_reference_name() {
-    let result = Query::new("NA12878", Format::Bam).with_reference_name("chr1");
+    let result =
+      Query::new_with_default_request("NA12878", Format::Bam).with_reference_name("chr1");
     assert_eq!(result.reference_name(), Some("chr1"));
   }
 
   #[test]
   fn query_with_start() {
-    let result = Query::new("NA12878", Format::Bam).with_start(0);
+    let result = Query::new_with_default_request("NA12878", Format::Bam).with_start(0);
     assert_eq!(result.interval().start(), Some(0));
   }
 
   #[test]
   fn query_with_end() {
-    let result = Query::new("NA12878", Format::Bam).with_end(0);
+    let result = Query::new_with_default_request("NA12878", Format::Bam).with_end(0);
     assert_eq!(result.interval().end(), Some(0));
   }
 
   #[test]
   fn query_with_fields() {
-    let result =
-      Query::new("NA12878", Format::Bam).with_fields(Fields::List(HashSet::from_iter(vec![
-        "QNAME".to_string(),
-        "FLAG".to_string(),
-      ])));
+    let result = Query::new_with_default_request("NA12878", Format::Bam).with_fields(Fields::List(
+      HashSet::from_iter(vec!["QNAME".to_string(), "FLAG".to_string()]),
+    ));
     assert_eq!(
       result.fields(),
       &Fields::List(HashSet::from_iter(vec![
@@ -653,13 +716,15 @@ mod tests {
 
   #[test]
   fn query_with_tags() {
-    let result = Query::new("NA12878", Format::Bam).with_tags(Tags::Tagged(TaggedTypeAll::All));
+    let result = Query::new_with_default_request("NA12878", Format::Bam)
+      .with_tags(Tags::Tagged(TaggedTypeAll::All));
     assert_eq!(result.tags(), &Tags::Tagged(TaggedTypeAll::All));
   }
 
   #[test]
   fn query_with_no_tags() {
-    let result = Query::new("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
+    let result =
+      Query::new_with_default_request("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
       result.no_tags(),
       &NoTags(Some(HashSet::from_iter(vec![

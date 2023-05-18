@@ -415,13 +415,14 @@ impl StorageResolver for &[Resolver] {
 mod tests {
   use http::uri::Authority;
 
+  #[cfg(feature = "url-storage")]
+  use {crate::storage::url::UrlStorage, crate::types::Scheme::Https};
+
   use crate::config::tests::{test_config_from_env, test_config_from_file};
   #[cfg(feature = "s3-storage")]
   use crate::storage::s3::S3Storage;
   use crate::types::Scheme::Http;
   use crate::types::Url;
-  #[cfg(feature = "url-storage")]
-  use {crate::storage::url::UrlStorage, crate::types::Scheme::Https};
 
   use super::*;
 
@@ -556,7 +557,7 @@ mod tests {
       Resolver::new(Storage::default(), "id", "$0-test", AllowGuard::default()).unwrap();
     assert_eq!(
       resolver
-        .resolve_id(&Query::new("id", Bam))
+        .resolve_id(&Query::new_with_default_request("id", Bam))
         .unwrap()
         .into_inner(),
       "id-test"
@@ -585,7 +586,7 @@ mod tests {
     assert_eq!(
       resolver
         .as_slice()
-        .resolve_id(&Query::new("id-1", Bam))
+        .resolve_id(&Query::new_with_default_request("id-1", Bam))
         .unwrap()
         .into_inner(),
       "id-1-test-1"
@@ -593,7 +594,7 @@ mod tests {
     assert_eq!(
       resolver
         .as_slice()
-        .resolve_id(&Query::new("id-2", Bam))
+        .resolve_id(&Query::new_with_default_request("id-2", Bam))
         .unwrap()
         .into_inner(),
       "id-2-test-2"
@@ -682,7 +683,7 @@ mod tests {
   async fn expected_resolved_request(resolver: Resolver, expected_id: &str) {
     assert_eq!(
       resolver
-        .resolve_request::<TestResolveResponse>(&mut Query::new("id-1", Bam))
+        .resolve_request::<TestResolveResponse>(&mut Query::new_with_default_request("id-1", Bam))
         .await
         .unwrap()
         .unwrap(),

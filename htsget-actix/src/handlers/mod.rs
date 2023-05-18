@@ -1,13 +1,16 @@
-use actix_web::{http::StatusCode, Either, HttpRequest, Responder};
+use std::collections::HashMap;
 
-use htsget_config::types::JsonResponse;
+use actix_web::web::{Path, Query};
+use actix_web::{http::StatusCode, Either, HttpRequest, Responder};
+use http::HeaderMap as HttpHeaderMap;
+
+use htsget_config::types::{JsonResponse, Request};
 use htsget_http::Result;
 use pretty_json::PrettyJson;
 
 pub use crate::handlers::service_info::{
   get_service_info_json, reads_service_info, variants_service_info,
 };
-use http::HeaderMap as HttpHeaderMap;
 
 pub mod get;
 pub mod post;
@@ -40,4 +43,18 @@ fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, imp
     }
     Ok(json) => Either::Right(PrettyJson(json).customize().with_status(StatusCode::OK)),
   }
+}
+
+fn extract_request(
+  request: Query<HashMap<String, String>>,
+  path: Path<String>,
+  http_request: HttpRequest,
+) -> Request {
+  let query = request.into_inner();
+
+  Request::new(
+    path.into_inner(),
+    query,
+    HeaderMap::from(&http_request).into_inner(),
+  )
 }

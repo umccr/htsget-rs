@@ -8,7 +8,10 @@ use htsget_config::types::Format;
 use htsget_search::htsget::HtsGet;
 
 use crate::ConfigServiceInfo;
-use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
+use crate::Endpoint;
+
+const READS_FORMATS: [&str; 2] = ["BAM", "CRAM"];
+const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
 
 /// A struct representing the information that should be present in a service-info response.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default)]

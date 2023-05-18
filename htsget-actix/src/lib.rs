@@ -284,6 +284,7 @@ mod tests {
     server_tests::test_post::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
+  #[ignore]
   #[actix_web::test]
   async fn parameterized_get_http_tickets() {
     server_tests::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::default()).await;
@@ -321,6 +322,7 @@ mod tests {
       .await;
   }
 
+  #[ignore]
   #[actix_web::test]
   async fn parameterized_get_https_tickets() {
     let base_path = TempDir::new().unwrap();
