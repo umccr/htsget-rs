@@ -162,7 +162,7 @@ To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for 
 | `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Same as `data_server_local_path`.                                                                                                | Filesystem path              | `'data'`           |
 | `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | Same as `data_server_serve_at`.                                                                                                  | URL path                     | `'/data'`          |
 
-To use `AwsS3Storage`, set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
+To use `S3Storage`, set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
 
 | Option      | Description                                                                                                                                                    | When `storage = 'S3'`                                                                                            | Type   | Default                                |
 |-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|--------|----------------------------------------|
@@ -194,7 +194,7 @@ local_path = 'data'
 path_prefix = '/data'
 ```
 
-or, to manually set the config for `AwsS3Storage`:
+or, to manually set the config for `S3Storage`:
 
 ```toml
 [[resolvers]]
@@ -416,7 +416,7 @@ regex, and changing it by using a substitution string.
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
 
 ## License
 

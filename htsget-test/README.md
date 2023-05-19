@@ -36,7 +36,7 @@ This library is intended to be used as a [development dependency][dev-dependenci
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
 * `server-tests`: used to enable server tests.
 
 [dev-dependencies]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies

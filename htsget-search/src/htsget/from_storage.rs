@@ -11,16 +11,16 @@ use tracing::instrument;
 use htsget_config::resolver::{ResolveResponse, StorageResolver};
 use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
 #[cfg(feature = "s3-storage")]
-use htsget_config::storage::s3::S3Storage;
+use htsget_config::storage::s3::S3Storage as S3StorageConfig;
 #[cfg(feature = "url-storage")]
 use {
   crate::storage::url::UrlStorage, htsget_config::storage::url::UrlStorage as UrlStorageConfig,
 };
 
 use crate::htsget::search::Search;
-#[cfg(feature = "s3-storage")]
-use crate::storage::aws::AwsS3Storage;
 use crate::storage::local::LocalStorage;
+#[cfg(feature = "s3-storage")]
+use crate::storage::s3::S3Storage;
 use crate::Resolver;
 use crate::{
   htsget::bam_search::BamSearch,
@@ -86,9 +86,9 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
   }
 
   #[cfg(feature = "s3-storage")]
-  async fn from_s3(s3_storage: &S3Storage, query: &Query) -> Result<Response> {
+  async fn from_s3(s3_storage: &S3StorageConfig, query: &Query) -> Result<Response> {
     let searcher = HtsGetFromStorage::new(
-      AwsS3Storage::new_with_default_config(
+      S3Storage::new_with_default_config(
         s3_storage.bucket().to_string(),
         s3_storage.clone().endpoint(),
       )
@@ -101,7 +101,7 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
   async fn from_url(url_storage_config: &UrlStorageConfig, query: &Query) -> Result<Response> {
     let searcher = HtsGetFromStorage::new(UrlStorage::try_from_str(
       reqwest::Client::default(),
-      &url_storage_config.url().to_string(),
+      url_storage_config.url().as_ref(),
       url_storage_config.response_scheme(),
       url_storage_config.forward_headers(),
     )?);
@@ -143,7 +143,7 @@ pub(crate) mod tests {
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
   };
   #[cfg(feature = "s3-storage")]
-  use crate::storage::aws::tests::with_aws_s3_storage_fn;
+  use crate::storage::s3::tests::with_aws_s3_storage_fn;
   use crate::{Headers, Url};
 
   use super::*;
@@ -293,7 +293,7 @@ pub(crate) mod tests {
   #[cfg(feature = "s3-storage")]
   pub(crate) async fn with_aws_storage_fn<F, Fut>(test: F, path: &str, file_names: &[&str])
   where
-    F: FnOnce(Arc<AwsS3Storage>) -> Fut,
+    F: FnOnce(Arc<S3Storage>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let tmp_dir = TempDir::new().unwrap();

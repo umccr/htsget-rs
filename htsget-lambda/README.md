@@ -44,7 +44,7 @@ routing queries are exposed in the public API.
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
 
 ## License
 

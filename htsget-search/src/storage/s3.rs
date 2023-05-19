@@ -20,7 +20,7 @@ use tokio_util::io::StreamReader;
 use tracing::debug;
 use tracing::instrument;
 
-use crate::storage::aws::Retrieval::{Delayed, Immediate};
+use crate::storage::s3::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
 use crate::storage::{BytesPosition, HeadOptions, StorageError};
 use crate::storage::{BytesRange, Storage};
@@ -39,17 +39,17 @@ pub enum Retrieval {
 
 /// Implementation for the [Storage] trait utilising data from an S3 bucket.
 #[derive(Debug, Clone)]
-pub struct AwsS3Storage {
+pub struct S3Storage {
   client: Client,
   bucket: String,
 }
 
-impl AwsS3Storage {
+impl S3Storage {
   // Allow the user to set this?
   pub const PRESIGNED_REQUEST_EXPIRY: u64 = 1000;
 
   pub fn new(client: Client, bucket: String) -> Self {
-    AwsS3Storage { client, bucket }
+    S3Storage { client, bucket }
   }
 
   pub async fn new_with_default_config(bucket: String, endpoint: Option<String>) -> Self {
@@ -60,7 +60,7 @@ impl AwsS3Storage {
     let client = s3_config_builder.build();
     let s3_client = aws_sdk_s3::Client::from_conf(client);
 
-    AwsS3Storage::new(s3_client, bucket)
+    S3Storage::new(s3_client, bucket)
   }
 
   /// Return an S3 pre-signed URL of the key. This function does not check that the key exists,
@@ -200,7 +200,7 @@ impl AwsS3Storage {
 }
 
 #[async_trait]
-impl Storage for AwsS3Storage {
+impl Storage for S3Storage {
   type Streamable = StreamReader<ByteStream, Bytes>;
 
   /// Gets the actual s3 object as a buffered reader.
@@ -268,8 +268,8 @@ pub(crate) mod tests {
   use s3s::service::S3ServiceBuilder;
   use s3s_aws;
 
-  use crate::storage::aws::AwsS3Storage;
   use crate::storage::local::tests::create_local_test_files;
+  use crate::storage::s3::S3Storage;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
   use crate::storage::{HeadOptions, StorageError};
   use crate::Headers;
@@ -308,18 +308,18 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
   where
-    F: FnOnce(Arc<AwsS3Storage>) -> Fut,
+    F: FnOnce(Arc<S3Storage>) -> Fut,
     Fut: Future<Output = ()>,
   {
     with_s3_test_server(base_path, |client| async move {
-      test(Arc::new(AwsS3Storage::new(client, folder_name))).await;
+      test(Arc::new(S3Storage::new(client, folder_name))).await;
     })
     .await;
   }
 
   async fn with_aws_s3_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<AwsS3Storage>) -> Fut,
+    F: FnOnce(Arc<S3Storage>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (folder_name, base_path) = create_local_test_files().await;
@@ -367,7 +367,7 @@ pub(crate) mod tests {
       assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
+        S3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
     })
     .await;
@@ -389,7 +389,7 @@ pub(crate) mod tests {
       assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
+        S3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
       assert!(result.url.contains("range"));
       assert_eq!(
@@ -413,7 +413,7 @@ pub(crate) mod tests {
       assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
+        S3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
       assert!(result.url.contains("range"));
       assert_eq!(

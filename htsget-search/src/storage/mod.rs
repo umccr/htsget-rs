@@ -22,10 +22,10 @@ use htsget_config::types::{Class, Scheme};
 
 use crate::{Headers, Url};
 
-#[cfg(feature = "s3-storage")]
-pub mod aws;
 pub mod data_server;
 pub mod local;
+#[cfg(feature = "s3-storage")]
+pub mod s3;
 #[cfg(feature = "url-storage")]
 pub mod url;
 
