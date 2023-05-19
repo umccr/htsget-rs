@@ -1,6 +1,9 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use htsget_config::error::Error::ParseError;
+use htsget_config::storage::url;
+use http::HeaderMap;
 use reqwest::{Client, Url};
 use tokio::fs::File;
 use tracing::instrument;
@@ -44,6 +47,13 @@ impl UrlStorage {
       response_scheme,
       forward_headers,
     ))
+  }
+
+  pub fn get_url_from_key<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<Url> {
+    self
+      .url
+      .join(key.as_ref())
+      .map_err(|err| UrlParseError(err.to_string()))
   }
 }
 
