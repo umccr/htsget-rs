@@ -105,6 +105,9 @@ pub enum StorageError {
   #[error("internal error: {0}")]
   InternalError(String),
 
+  #[error("response error: {0}")]
+  ResponseError(String),
+
   #[cfg(feature = "s3-storage")]
   #[error("aws error: {0}, with key: `{1}`")]
   AwsS3Error(String, String),

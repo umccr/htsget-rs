@@ -39,9 +39,9 @@ impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
       err @ StorageError::InvalidInput(_) => Self::InvalidInput(err.to_string()),
-      err @ (StorageError::KeyNotFound(_) | StorageError::InvalidKey(_)) => {
-        Self::NotFound(err.to_string())
-      }
+      err @ (StorageError::KeyNotFound(_)
+      | StorageError::InvalidKey(_)
+      | StorageError::ResponseError(_)) => Self::NotFound(err.to_string()),
       err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
       err @ (StorageError::ServerError(_)
       | StorageError::InvalidUri(_)
