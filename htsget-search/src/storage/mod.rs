@@ -35,7 +35,7 @@ type Result<T> = core::result::Result<T, StorageError>;
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
 pub trait Storage {
-  type Streamable: AsyncRead + Unpin + Send;
+  type Streamable: AsyncRead + Unpin + Send + Sync;
 
   /// Get the object using the key.
   async fn get<K: AsRef<str> + Send + Debug>(

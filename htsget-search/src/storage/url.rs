@@ -1,10 +1,14 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
+use std::pin::Pin;
 
 use async_trait::async_trait;
-use http::HeaderMap;
+use bytes::Bytes;
+use futures::Stream;
+use futures_util::TryStreamExt;
+use http::{HeaderMap, Method};
 use reqwest::{Client, Error, RequestBuilder, Url};
-use tokio::fs::File;
-use tracing::instrument;
+use tokio_util::io::StreamReader;
+use tracing::{debug, instrument};
 
 use htsget_config::types::Scheme;
 
@@ -32,9 +36,9 @@ impl UrlStorage {
     }
   }
 
-  fn map_err(error: Error, key: &str) -> StorageError {
+  fn map_err<K: Display>(key: K, error: Error) -> StorageError {
     match error.status() {
-      None => KeyNotFound(key.to_string()),
+      None => KeyNotFound(format!("{}", key)),
       Some(status) => KeyNotFound(format!("for {} with status: {}", key, status)),
     }
   }
@@ -46,41 +50,76 @@ impl UrlStorage {
   }
 
   /// Get a url from the key.
-  pub fn get_url_from_key<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<Url> {
+  pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<Url> {
     self
       .url
       .join(key.as_ref())
       .map_err(|err| UrlParseError(err.to_string()))
   }
 
+  /// Construct and send a request
+  pub async fn send_request<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    headers: &HeaderMap,
+    method: Method,
+  ) -> Result<reqwest::Response> {
+    let key = key.as_ref();
+    let url = self.get_url_from_key(key)?;
+    let url_key = url.to_string();
+
+    let builder = self.client.request(method, url);
+    let builder = Self::apply_headers(builder, headers);
+
+    builder
+      .send()
+      .await
+      .map_err(|err| Self::map_err(url_key, err))
+  }
+
   /// Get the head from the key.
-  pub async fn head_url<K: AsRef<str> + Send + Debug>(
+  pub async fn head_url<K: AsRef<str> + Send>(
     &self,
     key: K,
     headers: &HeaderMap,
   ) -> Result<reqwest::Response> {
-    let key = key.as_ref();
+    self.send_request(key, headers, Method::HEAD).await
+  }
 
-    let url = self.get_url_from_key(key)?;
-
-    let builder = self.client.head(url);
-    let builder = Self::apply_headers(builder, headers);
-
-    builder.send().await.map_err(|err| Self::map_err(err, key))
+  /// Get the key.
+  pub async fn get_url<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    headers: &HeaderMap,
+  ) -> Result<reqwest::Response> {
+    self.send_request(key, headers, Method::GET).await
   }
 }
 
 #[async_trait]
 impl Storage for UrlStorage {
-  type Streamable = File;
+  // There might be a nicer way to express this type.
+  type Streamable = StreamReader<Pin<Box<dyn Stream<Item = Result<Bytes>> + Send + Sync>>, Bytes>;
 
   #[instrument(level = "trace", skip(self))]
   async fn get<K: AsRef<str> + Send + Debug>(
     &self,
-    _key: K,
-    _options: GetOptions<'_>,
+    key: K,
+    options: GetOptions<'_>,
   ) -> Result<Self::Streamable> {
-    todo!()
+    let key = key.as_ref().to_string();
+    debug!(calling_from = ?self, key, "getting file with key {:?}", key);
+
+    let response = self
+      .get_url(key.to_string(), options.request_headers)
+      .await?;
+    let url = response.url().to_string();
+
+    Ok(StreamReader::new(Box::pin(
+      response
+        .bytes_stream()
+        .map_err(move |err| Self::map_err(url.to_string(), err)),
+    )))
   }
 
   #[instrument(level = "trace", skip(self))]
@@ -101,11 +140,14 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     let head = self.head_url(key, options.request_headers).await?;
 
-    head.content_length().ok_or_else(|| {
+    let len = head.content_length().ok_or_else(|| {
       ResponseError(format!(
         "no content length in head response for key: {}",
         key
       ))
-    })
+    })?;
+
+    debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
+    Ok(len)
   }
 }
