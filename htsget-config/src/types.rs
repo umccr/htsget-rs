@@ -465,15 +465,15 @@ impl From<io::Error> for HtsGetError {
 
 /// The headers that need to be supplied when requesting data from a url.
 #[derive(Debug, Default, PartialEq, Eq)]
-pub struct Headers(HashMap<String, Vec<String>>);
+pub struct Headers(HashMap<String, HashSet<String>>);
 
 impl Headers {
-  pub fn new(headers: HashMap<String, Vec<String>>) -> Self {
+  pub fn new(headers: HashMap<String, HashSet<String>>) -> Self {
     Self(headers)
   }
 
   pub fn with_header<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> Self {
-    self.0.entry(key.into()).or_default().push(value.into());
+    self.0.entry(key.into()).or_default().insert(value.into());
     self
   }
 
@@ -482,18 +482,18 @@ impl Headers {
   }
 
   pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
-    self.0.entry(key.into()).or_default().push(value.into());
+    self.0.entry(key.into()).or_default().insert(value.into());
   }
 
-  pub fn into_inner(self) -> HashMap<String, Vec<String>> {
+  pub fn into_inner(self) -> HashMap<String, HashSet<String>> {
     self.0
   }
 
-  pub fn as_ref_inner(&self) -> &HashMap<String, Vec<String>> {
+  pub fn as_ref_inner(&self) -> &HashMap<String, HashSet<String>> {
     &self.0
   }
 
-  pub fn key_pairs(&self) -> Vec<(&str, &str)> {
+  pub fn key_value_pairs(&self) -> HashSet<(&str, &str)> {
     self
       .0
       .iter()
@@ -509,7 +509,7 @@ impl Serialize for Headers {
     S: Serializer,
   {
     let mut map = serializer.serialize_map(Some(self.0.len()))?;
-    for (key, value) in self.key_pairs() {
+    for (key, value) in self.key_value_pairs() {
       map.serialize_entry(key, value)?;
     }
     map.end()
@@ -828,7 +828,10 @@ mod tests {
   fn headers_with_header() {
     let header = Headers::new(HashMap::new()).with_header("Range", "bytes=0-1023");
     let result = header.0.get("Range");
-    assert_eq!(result, Some(&vec!["bytes=0-1023".to_string()]));
+    assert_eq!(
+      result,
+      Some(&HashSet::from_iter(vec!["bytes=0-1023".to_string()]))
+    );
   }
 
   #[test]
@@ -841,18 +844,24 @@ mod tests {
     let mut header = Headers::new(HashMap::new());
     header.insert("Range", "bytes=0-1023");
     let result = header.0.get("Range");
-    assert_eq!(result, Some(&vec!["bytes=0-1023".to_string()]));
+    assert_eq!(
+      result,
+      Some(&HashSet::from_iter(vec!["bytes=0-1023".to_string()]))
+    );
   }
 
   #[test]
-  fn headers_key_pairs() {
+  fn headers_key_value_pairs() {
     let headers = Headers::new(HashMap::new())
       .with_header("Range", "bytes=0-1023")
       .with_header("Range", "bytes=1024-2047");
-    let result = headers.key_pairs();
+    let result = headers.key_value_pairs();
     assert_eq!(
       result,
-      vec![("Range", "bytes=0-1023"), ("Range", "bytes=1024-2047")]
+      HashSet::from_iter(vec![
+        ("Range", "bytes=0-1023"),
+        ("Range", "bytes=1024-2047")
+      ])
     );
   }
 

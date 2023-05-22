@@ -70,7 +70,7 @@ fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) ->
               json_url
                 .headers
                 .unwrap_or(Headers::default())
-                .key_pairs()
+                .key_value_pairs()
                 .into_iter()
                 .map(|(key, value)| {
                   (
