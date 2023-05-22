@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 use std::io::ErrorKind::Other;
 use std::{fmt, io, result};
 
@@ -178,6 +178,15 @@ pub enum Scheme {
   Http,
   #[serde(alias = "Https", alias = "https")]
   Https,
+}
+
+impl Display for Scheme {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Scheme::Http => write!(f, "http"),
+      Scheme::Https => write!(f, "https"),
+    }
+  }
 }
 
 /// Tagged Any allow type for cors config.

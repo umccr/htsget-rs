@@ -428,14 +428,14 @@ impl<'a> GetOptions<'a> {
 #[derive(Debug)]
 pub struct RangeUrlOptions<'a> {
   range: BytesPosition,
-  request_headers: &'a HeaderMap,
+  response_headers: &'a HeaderMap,
 }
 
 impl<'a> RangeUrlOptions<'a> {
-  pub fn new(range: BytesPosition, request_headers: &'a HeaderMap) -> Self {
+  pub fn new(range: BytesPosition, response_headers: &'a HeaderMap) -> Self {
     Self {
       range,
-      request_headers,
+      response_headers,
     }
   }
 

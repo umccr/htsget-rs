@@ -10,9 +10,9 @@ use reqwest::{Client, Error, RequestBuilder, Url};
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
-use htsget_config::types::Scheme;
+use htsget_config::types::{Headers, Scheme};
 
-use crate::storage::StorageError::{KeyNotFound, ResponseError, UrlParseError};
+use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
 use crate::Url as HtsGetUrl;
 
@@ -77,6 +77,38 @@ impl UrlStorage {
       .map_err(|err| Self::map_err(url_key, err))
   }
 
+  /// Construct and send a request
+  pub fn format_url<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    options: RangeUrlOptions<'_>,
+  ) -> Result<HtsGetUrl> {
+    let mut url = self.get_url_from_key(key)?;
+
+    url
+      .set_scheme(&self.response_scheme.to_string())
+      .map_err(|_| {
+        InternalError("failed to set scheme when formatting response url".to_string())
+      })?;
+
+    let mut url = HtsGetUrl::new(url);
+    if self.forward_headers {
+      url = url.with_headers(options.response_headers.iter().try_fold(
+        Headers::default(),
+        |acc, (key, value)| {
+          Ok::<_, StorageError>(acc.with_header(
+            key.to_string(),
+            value.to_str().map_err(|err| {
+              InternalError(format!("failed to convert header value to string: {}", err))
+            })?,
+          ))
+        },
+      )?)
+    }
+
+    Ok(options.apply(url))
+  }
+
   /// Get the head from the key.
   pub async fn head_url<K: AsRef<str> + Send>(
     &self,
@@ -125,10 +157,13 @@ impl Storage for UrlStorage {
   #[instrument(level = "trace", skip(self))]
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
-    _key: K,
-    _options: RangeUrlOptions<'_>,
+    key: K,
+    options: RangeUrlOptions<'_>,
   ) -> Result<HtsGetUrl> {
-    todo!()
+    let key = key.as_ref();
+    debug!(calling_from = ?self, key, "getting url with key {:?}", key);
+
+    self.format_url(key, options)
   }
 
   #[instrument(level = "trace", skip(self))]
