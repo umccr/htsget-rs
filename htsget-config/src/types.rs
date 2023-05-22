@@ -1,13 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
-use std::io::ErrorKind;
 use std::io::ErrorKind::Other;
 use std::{fmt, io, result};
 
 use http::HeaderMap;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
-use serde::{Deserialize, Serialize};
+use serde::de::{MapAccess, Visitor};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 use tracing::instrument;
 
@@ -443,7 +444,7 @@ impl HtsGetError {
 
 impl From<HtsGetError> for io::Error {
   fn from(error: HtsGetError) -> Self {
-    Self::new(ErrorKind::Other, error)
+    Self::new(Other, error)
   }
 }
 
@@ -454,16 +455,16 @@ impl From<io::Error> for HtsGetError {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Headers(HashMap<String, String>);
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Headers(HashMap<String, Vec<String>>);
 
 impl Headers {
-  pub fn new(headers: HashMap<String, String>) -> Self {
+  pub fn new(headers: HashMap<String, Vec<String>>) -> Self {
     Self(headers)
   }
 
   pub fn with_header<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> Self {
-    self.0.insert(key.into(), value.into());
+    self.0.entry(key.into()).or_default().push(value.into());
     self
   }
 
@@ -472,15 +473,71 @@ impl Headers {
   }
 
   pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
-    self.0.insert(key.into(), value.into());
+    self.0.entry(key.into()).or_default().push(value.into());
   }
 
-  pub fn into_inner(self) -> HashMap<String, String> {
+  pub fn into_inner(self) -> HashMap<String, Vec<String>> {
     self.0
   }
 
-  pub fn as_ref_inner(&self) -> &HashMap<String, String> {
+  pub fn as_ref_inner(&self) -> &HashMap<String, Vec<String>> {
     &self.0
+  }
+
+  pub fn key_pairs(&self) -> Vec<(&str, &str)> {
+    self
+      .0
+      .iter()
+      .flat_map(|(key, values)| values.iter().map(|value| (key.as_str(), value.as_str())))
+      .collect()
+  }
+}
+
+impl Serialize for Headers {
+  /// Serialization and deserialization uses a flattened multimap format for the headers.
+  fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    let mut map = serializer.serialize_map(Some(self.0.len()))?;
+    for (key, value) in self.key_pairs() {
+      map.serialize_entry(key, value)?;
+    }
+    map.end()
+  }
+}
+
+/// Visitor for headers deserialization.
+struct HeadersVisitor {}
+
+impl<'de> Visitor<'de> for HeadersVisitor {
+  type Value = Headers;
+
+  fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+    formatter.write_str("flattened key value pairs for headers")
+  }
+
+  fn visit_map<M>(self, mut access: M) -> result::Result<Self::Value, M::Error>
+  where
+    M: MapAccess<'de>,
+  {
+    let mut map = Headers(HashMap::with_capacity(access.size_hint().unwrap_or(0)));
+
+    while let Some((key, value)) = access.next_entry::<String, String>()? {
+      map.insert(key, value);
+    }
+
+    Ok(map)
+  }
+}
+
+impl<'de> Deserialize<'de> for Headers {
+  /// Serialization and deserialization uses a flattened multimap format for the headers.
+  fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    deserializer.deserialize_map(HeadersVisitor {})
   }
 }
 
@@ -762,7 +819,7 @@ mod tests {
   fn headers_with_header() {
     let header = Headers::new(HashMap::new()).with_header("Range", "bytes=0-1023");
     let result = header.0.get("Range");
-    assert_eq!(result, Some(&"bytes=0-1023".to_string()));
+    assert_eq!(result, Some(&vec!["bytes=0-1023".to_string()]));
   }
 
   #[test]
@@ -775,7 +832,19 @@ mod tests {
     let mut header = Headers::new(HashMap::new());
     header.insert("Range", "bytes=0-1023");
     let result = header.0.get("Range");
-    assert_eq!(result, Some(&"bytes=0-1023".to_string()));
+    assert_eq!(result, Some(&vec!["bytes=0-1023".to_string()]));
+  }
+
+  #[test]
+  fn headers_key_pairs() {
+    let headers = Headers::new(HashMap::new())
+      .with_header("Range", "bytes=0-1023")
+      .with_header("Range", "bytes=1024-2047");
+    let result = headers.key_pairs();
+    assert_eq!(
+      result,
+      vec![("Range", "bytes=0-1023"), ("Range", "bytes=1024-2047")]
+    );
   }
 
   #[test]

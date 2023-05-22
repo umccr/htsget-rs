@@ -124,7 +124,7 @@ mod tests {
   async fn get_request() {
     let request = HashMap::new();
 
-    let mut expected_response_headers = HashMap::new();
+    let mut expected_response_headers = Headers::default();
     expected_response_headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
 
     let request = Request::new(
@@ -163,7 +163,7 @@ mod tests {
     request.insert("start".to_string(), "149".to_string());
     request.insert("end".to_string(), "200".to_string());
 
-    let mut expected_response_headers = HashMap::new();
+    let mut expected_response_headers = Headers::default();
     expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
 
     let request = Request::new(
@@ -190,7 +190,7 @@ mod tests {
       regions: None,
     };
 
-    let mut expected_response_headers = HashMap::new();
+    let mut expected_response_headers = Headers::default();
     expected_response_headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
 
     assert_eq!(
@@ -233,7 +233,7 @@ mod tests {
       }]),
     };
 
-    let mut expected_response_headers = HashMap::new();
+    let mut expected_response_headers = Headers::default();
     expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
 
     assert_eq!(
@@ -242,23 +242,23 @@ mod tests {
     );
   }
 
-  fn expected_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
+  fn expected_vcf_json_response(headers: Headers) -> JsonResponse {
     JsonResponse::from(Response::new(
       Vcf,
       vec![
         Url::new("http://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
-          .with_headers(Headers::new(headers)),
+          .with_headers(headers),
         Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
   }
 
-  fn expected_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
+  fn expected_bam_json_response(headers: Headers) -> JsonResponse {
     JsonResponse::from(Response::new(
       Bam,
       vec![
         Url::new("http://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
-          .with_headers(Headers::new(headers)),
+          .with_headers(headers),
         Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
