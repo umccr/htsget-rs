@@ -565,7 +565,7 @@ mod tests {
       )],
       |config| {
         let storage = Storage::S3 {
-          s3_storage: S3Storage::new("bucket".to_string(), None),
+          s3_storage: S3Storage::new("bucket".to_string(), None, false),
         };
         let allow_guard = AllowGuard::new(
           ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),

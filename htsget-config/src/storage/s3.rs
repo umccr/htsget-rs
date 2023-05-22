@@ -14,7 +14,11 @@ pub struct S3Storage {
 impl S3Storage {
   /// Create a new S3 storage.
   pub fn new(bucket: String, endpoint: Option<String>, path_style: bool) -> Self {
-    Self { bucket, endpoint, path_style }
+    Self {
+      bucket,
+      endpoint,
+      path_style,
+    }
   }
 
   /// Get the bucket.
@@ -78,7 +82,7 @@ mod tests {
     let regex = Regex::new("^(bucket)/(?P<key>.*)$").unwrap();
 
     let result: Option<S3Storage> = ResolverMatcher(&regex, "bucket/id").into();
-    let expected = S3Storage::new("bucket".to_string(), None); // TODO: Fix custom endpoint func
+    let expected = S3Storage::new("bucket".to_string(), None, false); // TODO: Fix custom endpoint func
 
     assert_eq!(result.unwrap(), expected);
   }
