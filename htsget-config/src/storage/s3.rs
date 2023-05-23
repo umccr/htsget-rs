@@ -8,12 +8,17 @@ use crate::storage::ResolverMatcher;
 pub struct S3Storage {
   bucket: String,
   endpoint: Option<String>,
+  path_style: bool,
 }
 
 impl S3Storage {
   /// Create a new S3 storage.
-  pub fn new(bucket: String, endpoint: Option<String>) -> Self {
-    Self { bucket, endpoint }
+  pub fn new(bucket: String, endpoint: Option<String>, path_style: bool) -> Self {
+    Self {
+      bucket,
+      endpoint,
+      path_style,
+    }
   }
 
   /// Get the bucket.
@@ -25,6 +30,11 @@ impl S3Storage {
   pub fn endpoint(self) -> Option<String> {
     self.endpoint
   }
+
+  /// Get the path style
+  pub fn path_style(self) -> bool {
+    self.path_style
+  }
 }
 
 impl<'a> From<ResolverMatcher<'a>> for Option<S3Storage> {
@@ -34,7 +44,7 @@ impl<'a> From<ResolverMatcher<'a>> for Option<S3Storage> {
     let bucket = regex.captures(regex_match)?.get(1)?.as_str();
     let endpoint = None;
 
-    Some(S3Storage::new(bucket.to_string(), endpoint))
+    Some(S3Storage::new(bucket.to_string(), endpoint, false))
   }
 }
 
@@ -72,7 +82,7 @@ mod tests {
     let regex = Regex::new("^(bucket)/(?P<key>.*)$").unwrap();
 
     let result: Option<S3Storage> = ResolverMatcher(&regex, "bucket/id").into();
-    let expected = S3Storage::new("bucket".to_string(), None); // TODO: Fix custom endpoint func
+    let expected = S3Storage::new("bucket".to_string(), None, false); // TODO: Fix custom endpoint func
 
     assert_eq!(result.unwrap(), expected);
   }

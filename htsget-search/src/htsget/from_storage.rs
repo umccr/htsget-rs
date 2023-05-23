@@ -84,6 +84,7 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
       AwsS3Storage::new_with_default_config(
         s3_storage.bucket().to_string(),
         s3_storage.clone().endpoint(),
+        s3_storage.clone().path_style(),
       )
       .await,
     );
