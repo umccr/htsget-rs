@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
 use futures_util::TryStreamExt;
+use http::header::CONTENT_LENGTH;
 use http::{HeaderMap, Method};
 use reqwest::{Client, Error, RequestBuilder, Url};
 use tokio_util::io::StreamReader;
@@ -175,12 +176,19 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     let head = self.head_key(key, options.request_headers()).await?;
 
-    let len = head.content_length().ok_or_else(|| {
-      ResponseError(format!(
-        "no content length in head response for key: {}",
-        key
-      ))
-    })?;
+    // Interestingly, reqwest's `content_length` function does not return the content-length header.
+    // See https://github.com/seanmonstar/reqwest/issues/843.
+    let len = head
+      .headers()
+      .get(CONTENT_LENGTH)
+      .and_then(|content_length| content_length.to_str().ok())
+      .and_then(|content_length| content_length.parse().ok())
+      .ok_or_else(|| {
+        ResponseError(format!(
+          "failed to get content length from head response for key: {}",
+          key
+        ))
+      })?;
 
     debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
     Ok(len)
@@ -189,11 +197,16 @@ impl Storage for UrlStorage {
 
 #[cfg(test)]
 mod tests {
+  use axum::Router;
   use std::future::Future;
+  use std::net::TcpListener;
+  use std::path::Path;
   use std::str::FromStr;
 
+  use crate::storage::local::tests::create_local_test_files;
   use http::{HeaderName, HeaderValue};
-  use mockito::Server;
+  use tokio::io::AsyncReadExt;
+  use tower_http::services::ServeDir;
 
   use super::*;
 
@@ -207,14 +220,14 @@ mod tests {
     );
 
     assert_eq!(
-      storage.get_url_from_key("test.bam").unwrap(),
-      Url::parse("https://example.com/test.bam").unwrap()
+      storage.get_url_from_key("assets/key1").unwrap(),
+      Url::parse("https://example.com/assets/key1").unwrap()
     );
   }
 
   #[tokio::test]
   async fn send_request() {
-    with_test_server(|url| async move {
+    with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         Client::new(),
         Url::parse(&url).unwrap(),
@@ -222,11 +235,12 @@ mod tests {
         true,
       );
 
-      let headers = HeaderMap::default();
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
 
       let response = String::from_utf8(
         storage
-          .send_request("test.bam", &headers, Method::GET)
+          .send_request("assets/key1", headers, Method::GET)
           .await
           .unwrap()
           .bytes()
@@ -235,14 +249,14 @@ mod tests {
           .to_vec(),
       )
       .unwrap();
-      assert_eq!(response, "body");
+      assert_eq!(response, "value1");
     })
     .await;
   }
 
   #[tokio::test]
   async fn get_key() {
-    with_test_server(|url| async move {
+    with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         Client::new(),
         Url::parse(&url).unwrap(),
@@ -250,11 +264,12 @@ mod tests {
         true,
       );
 
-      let headers = HeaderMap::default();
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
 
       let response = String::from_utf8(
         storage
-          .get_key("test.bam", &headers)
+          .get_key("assets/key1", headers)
           .await
           .unwrap()
           .bytes()
@@ -263,14 +278,14 @@ mod tests {
           .to_vec(),
       )
       .unwrap();
-      assert_eq!(response, "body");
+      assert_eq!(response, "value1");
     })
     .await;
   }
 
   #[tokio::test]
   async fn head_key() {
-    with_test_server(|url| async move {
+    with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         Client::new(),
         Url::parse(&url).unwrap(),
@@ -278,15 +293,81 @@ mod tests {
         true,
       );
 
-      let headers = HeaderMap::default();
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
 
-      let response = storage
-        .get_key("test.bam", &headers)
+      let response: u64 = storage
+        .get_key("assets/key1", headers)
         .await
         .unwrap()
-        .content_length()
+        .headers()
+        .get(CONTENT_LENGTH)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .parse()
         .unwrap();
-      assert_eq!(response, 4);
+      assert_eq!(response, 6);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn get_storage() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        Client::new(),
+        Url::parse(&url).unwrap(),
+        Scheme::Https,
+        true,
+      );
+
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
+      let options = GetOptions::new_with_default_range(headers);
+
+      let mut reader = storage.get("assets/key1", options).await.unwrap();
+
+      let mut response = [0; 6];
+      reader.read_exact(&mut response).await.unwrap();
+
+      assert_eq!(String::from_utf8(response.to_vec()).unwrap(), "value1");
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn range_url_storage() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(Client::new(), Url::parse(&url).unwrap(), Scheme::Http, true);
+
+      let mut headers = HeaderMap::default();
+      let options = test_range_options(&mut headers);
+
+      assert_eq!(
+        storage.range_url("assets/key1", options).await.unwrap(),
+        HtsGetUrl::new(format!("{}/assets/key1", url))
+          .with_headers(Headers::default().with_header("authorization", "secret"))
+      );
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn head_storage() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        Client::new(),
+        Url::parse(&url).unwrap(),
+        Scheme::Https,
+        true,
+      );
+
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
+      let options = HeadOptions::new(headers);
+
+      assert_eq!(storage.head("assets/key1", options).await.unwrap(), 6);
     })
     .await;
   }
@@ -304,8 +385,8 @@ mod tests {
     let options = test_range_options(&mut headers);
 
     assert_eq!(
-      storage.format_url("test.bam", options).unwrap(),
-      HtsGetUrl::new("https://example.com/test.bam")
+      storage.format_url("assets/key1", options).unwrap(),
+      HtsGetUrl::new("https://example.com/assets/key1")
         .with_headers(Headers::default().with_header("authorization", "secret"))
     );
   }
@@ -323,8 +404,8 @@ mod tests {
     let options = test_range_options(&mut headers);
 
     assert_eq!(
-      storage.format_url("test.bam", options).unwrap(),
-      HtsGetUrl::new("http://example.com/test.bam")
+      storage.format_url("assets/key1", options).unwrap(),
+      HtsGetUrl::new("http://example.com/assets/key1")
         .with_headers(Headers::default().with_header("authorization", "secret"))
     );
   }
@@ -342,36 +423,50 @@ mod tests {
     let options = test_range_options(&mut headers);
 
     assert_eq!(
-      storage.format_url("test.bam", options).unwrap(),
-      HtsGetUrl::new("https://example.com/test.bam")
+      storage.format_url("assets/key1", options).unwrap(),
+      HtsGetUrl::new("https://example.com/assets/key1")
     );
   }
 
-  pub(crate) async fn with_test_server<F, Fut>(test: F)
+  pub(crate) async fn with_url_test_server<F, Fut>(test: F)
   where
     F: FnOnce(String) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let mut server = Server::new();
-
-    let mock = server
-      .mock("GET", "/test.bam")
-      .with_status(201)
-      .with_header("content-type", "text/plain")
-      .with_header("Authorization", "secret")
-      .with_body("body")
-      .create();
-
-    mock.expect(1);
-
-    test(server.url()).await;
+    let (_, base_path) = create_local_test_files().await;
+    with_test_server(base_path.path(), test).await;
   }
 
-  fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions {
+  pub(crate) async fn with_test_server<F, Fut>(server_base_path: &Path, test: F)
+  where
+    F: FnOnce(String) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let router =
+      Router::new().nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()));
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(
+      axum::Server::from_tcp(listener)
+        .unwrap()
+        .serve(router.into_make_service()),
+    );
+
+    test(format!("http://{}", addr)).await;
+  }
+
+  fn test_headers(headers: &mut HeaderMap) -> &HeaderMap {
     headers.append(
       HeaderName::from_str("authorization").unwrap(),
       HeaderValue::from_str("secret").unwrap(),
     );
+    headers
+  }
+
+  fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions {
+    let headers = test_headers(headers);
     let options = RangeUrlOptions::new_with_default_range(headers);
 
     options
