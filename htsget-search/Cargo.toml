@@ -12,11 +12,12 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
-url-storage = ["dep:reqwest", "htsget-config/url-storage", "htsget-test/url-storage"]
+url-storage = ["dep:reqwest", "dep:bytes", "htsget-config/url-storage", "htsget-test/url-storage"]
 default = []
 
 [dependencies]
 # Axum server
+url = "2.3"
 hyper = "0.14"
 tower-http = { version = "0.3", features = ["trace", "cors"] }
 http = "0.2"

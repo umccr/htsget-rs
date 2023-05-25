@@ -67,7 +67,7 @@ impl From<Format> for String {
   }
 }
 
-impl fmt::Display for Format {
+impl Display for Format {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
       Format::Bam => write!(f, "BAM"),

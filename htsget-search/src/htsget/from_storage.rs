@@ -11,7 +11,7 @@ use tracing::instrument;
 use htsget_config::resolver::{ResolveResponse, StorageResolver};
 use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
 #[cfg(feature = "s3-storage")]
-use htsget_config::storage::s3::S3Storage as S3StorageConfig;
+use {crate::storage::s3::S3Storage, htsget_config::storage::s3::S3Storage as S3StorageConfig};
 #[cfg(feature = "url-storage")]
 use {
   crate::storage::url::UrlStorage, htsget_config::storage::url::UrlStorage as UrlStorageConfig,
@@ -19,8 +19,6 @@ use {
 
 use crate::htsget::search::Search;
 use crate::storage::local::LocalStorage;
-#[cfg(feature = "s3-storage")]
-use crate::storage::s3::S3Storage;
 use crate::Resolver;
 use crate::{
   htsget::bam_search::BamSearch,

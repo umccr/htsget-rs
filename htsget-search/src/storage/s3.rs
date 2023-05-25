@@ -58,7 +58,7 @@ impl S3Storage {
     s3_config_builder.set_endpoint_url(endpoint); // For local S3 storage, i.e: Minio
 
     let client = s3_config_builder.build();
-    let s3_client = aws_sdk_s3::Client::from_conf(client);
+    let s3_client = Client::from_conf(client);
 
     S3Storage::new(s3_client, bucket)
   }
@@ -68,7 +68,7 @@ impl S3Storage {
   pub async fn s3_presign_url<K: AsRef<str> + Send>(
     &self,
     key: K,
-    range: BytesPosition,
+    range: &BytesPosition,
   ) -> Result<String> {
     let response = self
       .client
@@ -140,8 +140,8 @@ impl S3Storage {
     Delayed(class)
   }
 
-  fn apply_range(builder: GetObjectFluentBuilder, range: BytesPosition) -> GetObjectFluentBuilder {
-    let range: String = String::from(&BytesRange::from(&range));
+  fn apply_range(builder: GetObjectFluentBuilder, range: &BytesPosition) -> GetObjectFluentBuilder {
+    let range: String = String::from(&BytesRange::from(range));
     if range.is_empty() {
       builder
     } else {
@@ -167,7 +167,7 @@ impl S3Storage {
       .get_object()
       .bucket(&self.bucket)
       .key(key.as_ref());
-    let response = Self::apply_range(response, options.range);
+    let response = Self::apply_range(response, options.range());
     Ok(
       response
         .send()
@@ -225,7 +225,7 @@ impl Storage for S3Storage {
     options: RangeUrlOptions<'_>,
   ) -> Result<Url> {
     let key = key.as_ref();
-    let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
+    let presigned_url = self.s3_presign_url(key, options.range()).await?;
     let url = options.apply(Url::new(presigned_url));
 
     debug!(calling_from = ?self, key, ?url, "getting url with key {:?}", key);

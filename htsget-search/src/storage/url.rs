@@ -93,7 +93,7 @@ impl UrlStorage {
 
     let mut url = HtsGetUrl::new(url);
     if self.forward_headers {
-      url = url.with_headers(options.response_headers.iter().try_fold(
+      url = url.with_headers(options.response_headers().iter().try_fold(
         Headers::default(),
         |acc, (key, value)| {
           Ok::<_, StorageError>(acc.with_header(
@@ -143,7 +143,7 @@ impl Storage for UrlStorage {
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
     let response = self
-      .get_url(key.to_string(), options.request_headers)
+      .get_url(key.to_string(), options.request_headers())
       .await?;
     let url = response.url().to_string();
 
@@ -173,7 +173,7 @@ impl Storage for UrlStorage {
     options: HeadOptions<'_>,
   ) -> Result<u64> {
     let key = key.as_ref();
-    let head = self.head_url(key, options.request_headers).await?;
+    let head = self.head_url(key, options.request_headers()).await?;
 
     let len = head.content_length().ok_or_else(|| {
       ResponseError(format!(

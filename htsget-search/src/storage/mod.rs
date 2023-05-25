@@ -112,7 +112,6 @@ pub enum StorageError {
   #[error("aws error: {0}, with key: `{1}`")]
   AwsS3Error(String, String),
 
-  #[cfg(feature = "url-storage")]
   #[error("parsing url: {0}")]
   UrlParseError(String),
 }
@@ -423,6 +422,16 @@ impl<'a> GetOptions<'a> {
     self.range = range;
     self
   }
+
+  /// Get the range.
+  pub fn range(&self) -> &BytesPosition {
+    &self.range
+  }
+
+  /// Get the request headers.
+  pub fn request_headers(&self) -> &'a HeaderMap {
+    self.request_headers
+  }
 }
 
 #[derive(Debug)]
@@ -449,24 +458,41 @@ impl<'a> RangeUrlOptions<'a> {
   }
 
   pub fn apply(self, url: Url) -> Url {
-    let range: String = String::from(&BytesRange::from(&self.range));
+    let range: String = String::from(&BytesRange::from(self.range()));
     let url = if range.is_empty() {
       url
     } else {
       url.with_headers(Headers::default().with_header("Range", range))
     };
-    url.set_class(self.range.class)
+    url.set_class(self.range().class)
+  }
+
+  /// Get the range.
+  pub fn range(&self) -> &BytesPosition {
+    &self.range
+  }
+
+  /// Get the response headers.
+  pub fn response_headers(&self) -> &'a HeaderMap {
+    self.response_headers
   }
 }
 
+/// A struct to represent options passed to a `Storage` head call.
 #[derive(Debug)]
 pub struct HeadOptions<'a> {
   request_headers: &'a HeaderMap,
 }
 
 impl<'a> HeadOptions<'a> {
+  /// Create a new HeadOptions struct.
   pub fn new(request_headers: &'a HeaderMap) -> Self {
     Self { request_headers }
+  }
+
+  /// Get the request headers.
+  pub fn request_headers(&self) -> &'a HeaderMap {
+    self.request_headers
   }
 }
 
@@ -878,8 +904,8 @@ mod tests {
     let request_headers = Default::default();
     let result = GetOptions::new_with_default_range(&request_headers).with_max_length(1);
     assert_eq!(
-      result.range,
-      BytesPosition::default().with_start(0).with_end(1)
+      result.range(),
+      &BytesPosition::default().with_start(0).with_end(1)
     );
   }
 
@@ -889,8 +915,8 @@ mod tests {
     let result = GetOptions::new_with_default_range(&request_headers)
       .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
     assert_eq!(
-      result.range,
-      BytesPosition::new(Some(5), Some(11), Some(Class::Header))
+      result.range(),
+      &BytesPosition::new(Some(5), Some(11), Some(Class::Header))
     );
   }
 
@@ -900,8 +926,8 @@ mod tests {
     let result = RangeUrlOptions::new_with_default_range(&request_headers)
       .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
     assert_eq!(
-      result.range,
-      BytesPosition::new(Some(5), Some(11), Some(Class::Header))
+      result.range(),
+      &BytesPosition::new(Some(5), Some(11), Some(Class::Header))
     );
   }
 

@@ -11,7 +11,8 @@ use tracing::debug;
 use tracing::instrument;
 
 use crate::storage::{HeadOptions, Storage, UrlFormatter};
-use crate::Url;
+use crate::Url as HtsGetUrl;
+use url::Url;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -42,6 +43,7 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
 
   pub(crate) fn get_path_from_key<K: AsRef<str>>(&self, key: K) -> Result<PathBuf> {
     let key: &str = key.as_ref();
+
     self
       .base_path
       .join(key)
@@ -96,17 +98,28 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     &self,
     key: K,
     options: RangeUrlOptions<'_>,
-  ) -> Result<Url> {
+  ) -> Result<HtsGetUtl> {
     let path = self.get_path_from_key(&key)?;
-    let path = path
-      .strip_prefix(&self.base_path)
-      .map_err(|err| StorageError::InternalError(err.to_string()))?
-      .to_string_lossy();
 
-    let url = Url::new(self.url_formatter.format_url(path)?);
+    let base_url = Url::from_file_path(&self.base_path)
+      .map_err(|_| StorageError::UrlParseError("failed to parse base path as url".to_string()))?;
+    let path_url = Url::from_file_path(path)
+      .map_err(|_| StorageError::UrlParseError("failed to parse key path as url".to_string()))?;
+
+    // Get the difference between the two URLs and strip and leading slashes.
+    let path = path_url
+      .path()
+      .strip_prefix(base_url.path())
+      .ok_or_else(|| {
+        StorageError::UrlParseError("failed parse relative component of key path url".to_string())
+      })?;
+    let path = path.trim_start_matches('/');
+
+    let url = HtsGetUtl::new(self.url_formatter.format_url(path)?);
     let url = options.apply(url);
 
     debug!(calling_from = ?self, key = key.as_ref(), ?url, "getting url with key {:?}", key.as_ref());
+
     Ok(url)
   }
 
