@@ -197,14 +197,18 @@ impl Storage for UrlStorage {
 
 #[cfg(test)]
 mod tests {
-  use axum::Router;
+  use axum::middleware::Next;
+  use axum::response::Response;
+  use axum::{middleware, Router};
   use std::future::Future;
   use std::net::TcpListener;
   use std::path::Path;
+  use std::result;
   use std::str::FromStr;
 
   use crate::storage::local::tests::create_local_test_files;
-  use http::{HeaderName, HeaderValue};
+  use http::header::AUTHORIZATION;
+  use http::{HeaderName, HeaderValue, Request, StatusCode};
   use tokio::io::AsyncReadExt;
   use tower_http::services::ServeDir;
 
@@ -347,7 +351,7 @@ mod tests {
       assert_eq!(
         storage.range_url("assets/key1", options).await.unwrap(),
         HtsGetUrl::new(format!("{}/assets/key1", url))
-          .with_headers(Headers::default().with_header("authorization", "secret"))
+          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
       );
     })
     .await;
@@ -387,7 +391,7 @@ mod tests {
     assert_eq!(
       storage.format_url("assets/key1", options).unwrap(),
       HtsGetUrl::new("https://example.com/assets/key1")
-        .with_headers(Headers::default().with_header("authorization", "secret"))
+        .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
     );
   }
 
@@ -406,7 +410,7 @@ mod tests {
     assert_eq!(
       storage.format_url("assets/key1", options).unwrap(),
       HtsGetUrl::new("http://example.com/assets/key1")
-        .with_headers(Headers::default().with_header("authorization", "secret"))
+        .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
     );
   }
 
@@ -437,13 +441,29 @@ mod tests {
     with_test_server(base_path.path(), test).await;
   }
 
+  async fn test_auth<B>(
+    request: Request<B>,
+    next: Next<B>,
+  ) -> result::Result<Response, StatusCode> {
+    let auth_header = request
+      .headers()
+      .get(AUTHORIZATION)
+      .and_then(|header| header.to_str().ok());
+
+    match auth_header {
+      Some("secret") => Ok(next.run(request).await),
+      _ => Err(StatusCode::UNAUTHORIZED),
+    }
+  }
+
   pub(crate) async fn with_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
     F: FnOnce(String) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let router =
-      Router::new().nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()));
+    let router = Router::new()
+      .nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()))
+      .route_layer(middleware::from_fn(test_auth));
 
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
@@ -459,7 +479,7 @@ mod tests {
 
   fn test_headers(headers: &mut HeaderMap) -> &HeaderMap {
     headers.append(
-      HeaderName::from_str("authorization").unwrap(),
+      HeaderName::from_str(AUTHORIZATION.as_str()).unwrap(),
       HeaderValue::from_str("secret").unwrap(),
     );
     headers
