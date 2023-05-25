@@ -98,7 +98,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     &self,
     key: K,
     options: RangeUrlOptions<'_>,
-  ) -> Result<HtsGetUtl> {
+  ) -> Result<HtsGetUrl> {
     let path = self.get_path_from_key(&key)?;
 
     let base_url = Url::from_file_path(&self.base_path)
@@ -115,7 +115,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
       })?;
     let path = path.trim_start_matches('/');
 
-    let url = HtsGetUtl::new(self.url_formatter.format_url(path)?);
+    let url = HtsGetUrl::new(self.url_formatter.format_url(path)?);
     let url = options.apply(url);
 
     debug!(calling_from = ?self, key = key.as_ref(), ?url, "getting url with key {:?}", key.as_ref());

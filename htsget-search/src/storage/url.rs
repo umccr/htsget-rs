@@ -186,3 +186,23 @@ impl Storage for UrlStorage {
     Ok(len)
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn get_url_from_key() {
+    let storage = UrlStorage::new(
+      Client::new(),
+      Url::parse("https://example.com").unwrap(),
+      Scheme::Https,
+      false,
+    );
+
+    assert_eq!(
+      storage.get_url_from_key("test.bam").unwrap().to_string(),
+      "https://example.com/test.bam"
+    );
+  }
+}
