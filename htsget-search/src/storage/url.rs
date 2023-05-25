@@ -110,7 +110,7 @@ impl UrlStorage {
   }
 
   /// Get the head from the key.
-  pub async fn head_url<K: AsRef<str> + Send>(
+  pub async fn head_key<K: AsRef<str> + Send>(
     &self,
     key: K,
     headers: &HeaderMap,
@@ -119,7 +119,7 @@ impl UrlStorage {
   }
 
   /// Get the key.
-  pub async fn get_url<K: AsRef<str> + Send>(
+  pub async fn get_key<K: AsRef<str> + Send>(
     &self,
     key: K,
     headers: &HeaderMap,
@@ -143,7 +143,7 @@ impl Storage for UrlStorage {
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
     let response = self
-      .get_url(key.to_string(), options.request_headers())
+      .get_key(key.to_string(), options.request_headers())
       .await?;
     let url = response.url().to_string();
 
@@ -173,7 +173,7 @@ impl Storage for UrlStorage {
     options: HeadOptions<'_>,
   ) -> Result<u64> {
     let key = key.as_ref();
-    let head = self.head_url(key, options.request_headers()).await?;
+    let head = self.head_key(key, options.request_headers()).await?;
 
     let len = head.content_length().ok_or_else(|| {
       ResponseError(format!(
@@ -189,9 +189,11 @@ impl Storage for UrlStorage {
 
 #[cfg(test)]
 mod tests {
+  use std::future::Future;
   use std::str::FromStr;
 
   use http::{HeaderName, HeaderValue};
+  use mockito::Server;
 
   use super::*;
 
@@ -208,6 +210,85 @@ mod tests {
       storage.get_url_from_key("test.bam").unwrap(),
       Url::parse("https://example.com/test.bam").unwrap()
     );
+  }
+
+  #[tokio::test]
+  async fn send_request() {
+    with_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        Client::new(),
+        Url::parse(&url).unwrap(),
+        Scheme::Https,
+        true,
+      );
+
+      let headers = HeaderMap::default();
+
+      let response = String::from_utf8(
+        storage
+          .send_request("test.bam", &headers, Method::GET)
+          .await
+          .unwrap()
+          .bytes()
+          .await
+          .unwrap()
+          .to_vec(),
+      )
+      .unwrap();
+      assert_eq!(response, "body");
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn get_key() {
+    with_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        Client::new(),
+        Url::parse(&url).unwrap(),
+        Scheme::Https,
+        true,
+      );
+
+      let headers = HeaderMap::default();
+
+      let response = String::from_utf8(
+        storage
+          .get_key("test.bam", &headers)
+          .await
+          .unwrap()
+          .bytes()
+          .await
+          .unwrap()
+          .to_vec(),
+      )
+      .unwrap();
+      assert_eq!(response, "body");
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn head_key() {
+    with_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        Client::new(),
+        Url::parse(&url).unwrap(),
+        Scheme::Https,
+        true,
+      );
+
+      let headers = HeaderMap::default();
+
+      let response = storage
+        .get_key("test.bam", &headers)
+        .await
+        .unwrap()
+        .content_length()
+        .unwrap();
+      assert_eq!(response, 4);
+    })
+    .await;
   }
 
   #[test]
@@ -264,6 +345,26 @@ mod tests {
       storage.format_url("test.bam", options).unwrap(),
       HtsGetUrl::new("https://example.com/test.bam")
     );
+  }
+
+  pub(crate) async fn with_test_server<F, Fut>(test: F)
+  where
+    F: FnOnce(String) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let mut server = Server::new();
+
+    let mock = server
+      .mock("GET", "/test.bam")
+      .with_status(201)
+      .with_header("content-type", "text/plain")
+      .with_header("Authorization", "secret")
+      .with_body("body")
+      .create();
+
+    mock.expect(1);
+
+    test(server.url()).await;
   }
 
   fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions {
