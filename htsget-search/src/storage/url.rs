@@ -189,6 +189,10 @@ impl Storage for UrlStorage {
 
 #[cfg(test)]
 mod tests {
+  use std::str::FromStr;
+
+  use http::{HeaderName, HeaderValue};
+
   use super::*;
 
   #[test]
@@ -197,12 +201,78 @@ mod tests {
       Client::new(),
       Url::parse("https://example.com").unwrap(),
       Scheme::Https,
-      false,
+      true,
     );
 
     assert_eq!(
-      storage.get_url_from_key("test.bam").unwrap().to_string(),
-      "https://example.com/test.bam"
+      storage.get_url_from_key("test.bam").unwrap(),
+      Url::parse("https://example.com/test.bam").unwrap()
     );
+  }
+
+  #[test]
+  fn format_url() {
+    let storage = UrlStorage::new(
+      Client::new(),
+      Url::parse("https://example.com").unwrap(),
+      Scheme::Https,
+      true,
+    );
+
+    let mut headers = HeaderMap::default();
+    let options = test_range_options(&mut headers);
+
+    assert_eq!(
+      storage.format_url("test.bam", options).unwrap(),
+      HtsGetUrl::new("https://example.com/test.bam")
+        .with_headers(Headers::default().with_header("authorization", "secret"))
+    );
+  }
+
+  #[test]
+  fn format_url_different_response_scheme() {
+    let storage = UrlStorage::new(
+      Client::new(),
+      Url::parse("https://example.com").unwrap(),
+      Scheme::Http,
+      true,
+    );
+
+    let mut headers = HeaderMap::default();
+    let options = test_range_options(&mut headers);
+
+    assert_eq!(
+      storage.format_url("test.bam", options).unwrap(),
+      HtsGetUrl::new("http://example.com/test.bam")
+        .with_headers(Headers::default().with_header("authorization", "secret"))
+    );
+  }
+
+  #[test]
+  fn format_url_no_headers() {
+    let storage = UrlStorage::new(
+      Client::new(),
+      Url::parse("https://example.com").unwrap(),
+      Scheme::Https,
+      false,
+    );
+
+    let mut headers = HeaderMap::default();
+    let options = test_range_options(&mut headers);
+
+    assert_eq!(
+      storage.format_url("test.bam", options).unwrap(),
+      HtsGetUrl::new("https://example.com/test.bam")
+    );
+  }
+
+  fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions {
+    headers.append(
+      HeaderName::from_str("authorization").unwrap(),
+      HeaderValue::from_str("secret").unwrap(),
+    );
+    let options = RangeUrlOptions::new_with_default_range(headers);
+
+    options
   }
 }
