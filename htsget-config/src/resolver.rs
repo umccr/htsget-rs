@@ -468,7 +468,7 @@ mod tests {
   #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn resolver_resolve_s3_request_tagged() {
-    let s3_storage = S3Storage::new("id".to_string(), None);
+    let s3_storage = S3Storage::new("id".to_string(), None, false);
     let resolver = Resolver::new(
       Storage::S3 { s3_storage },
       "(id)-1",
@@ -645,7 +645,7 @@ mod tests {
       )],
       |config| {
         let storage = Storage::S3 {
-          s3_storage: S3Storage::new("bucket".to_string(), None),
+          s3_storage: S3Storage::new("bucket".to_string(), None, false),
         };
         let allow_guard = AllowGuard::new(
           ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),

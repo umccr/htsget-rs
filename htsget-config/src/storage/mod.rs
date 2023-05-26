@@ -98,7 +98,7 @@ impl Storage {
   ) -> Option<Result<Response>> {
     match self {
       Storage::Tagged(TaggedStorageTypes::S3) => {
-        let s3_storage = S3Storage::new(bucket, None);
+        let s3_storage = S3Storage::new(bucket, None, false);
         Some(T::from_s3(&s3_storage, query).await)
       }
       Storage::S3 { s3_storage } => Some(T::from_s3(s3_storage, query).await),

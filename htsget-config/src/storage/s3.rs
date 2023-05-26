@@ -5,12 +5,17 @@ use serde::{Deserialize, Serialize};
 pub struct S3Storage {
   bucket: String,
   endpoint: Option<String>,
+  path_style: bool,
 }
 
 impl S3Storage {
   /// Create a new S3 storage.
-  pub fn new(bucket: String, endpoint: Option<String>) -> Self {
-    Self { bucket, endpoint }
+  pub fn new(bucket: String, endpoint: Option<String>, path_style: bool) -> Self {
+    Self {
+      bucket,
+      endpoint,
+      path_style,
+    }
   }
 
   /// Get the bucket.
@@ -21,6 +26,11 @@ impl S3Storage {
   /// Get the endpoint
   pub fn endpoint(self) -> Option<String> {
     self.endpoint
+  }
+
+  /// Get the path style
+  pub fn path_style(self) -> bool {
+    self.path_style
   }
 }
 
