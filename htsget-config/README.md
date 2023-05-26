@@ -179,6 +179,13 @@ To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and
 | `response_scheme` | The scheme used for the tickets returned by the ticket server.                                                                                                   | Either `Http` or `Https` | `Https`                                  |
 | `forward_headers` | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                                   |
 
+When using `UrlStorage`, the following requests will be made to the `url`.
+* `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
+* `GET` request to fetch the entire index file (e.g. `GET /data.bam.bai`).
+* `HEAD` request on the data file to get its length (e.g. `HEAD /data.bam`).
+
+All headers received in the initial query will be included when making these requests.
+
 For example, a `resolvers` value of:
 ```toml
 [[resolvers]]
