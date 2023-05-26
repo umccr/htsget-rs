@@ -323,6 +323,6 @@ pub fn expected_response(class: Class, url_path: String) -> Value {
     "htsget": {
       "format": Format::Vcf,
       "urls": urls
-      }
+    }
   })
 }

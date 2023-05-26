@@ -11,7 +11,8 @@ use reqwest::{Client, Error, RequestBuilder, Url};
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
-use htsget_config::types::{Headers, Scheme};
+use htsget_config::error;
+use htsget_config::types::Scheme;
 
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
@@ -94,17 +95,12 @@ impl UrlStorage {
 
     let mut url = HtsGetUrl::new(url);
     if self.forward_headers {
-      url = url.with_headers(options.response_headers().iter().try_fold(
-        Headers::default(),
-        |acc, (key, value)| {
-          Ok::<_, StorageError>(acc.with_header(
-            key.to_string(),
-            value.to_str().map_err(|err| {
-              InternalError(format!("failed to convert header value to string: {}", err))
-            })?,
-          ))
-        },
-      )?)
+      url = url.with_headers(
+        options
+          .response_headers()
+          .try_into()
+          .map_err(|err: error::Error| StorageError::InvalidInput(err.to_string()))?,
+      )
     }
 
     Ok(options.apply(url))
@@ -197,20 +193,23 @@ impl Storage for UrlStorage {
 
 #[cfg(test)]
 mod tests {
-  use axum::middleware::Next;
-  use axum::response::Response;
-  use axum::{middleware, Router};
   use std::future::Future;
   use std::net::TcpListener;
   use std::path::Path;
   use std::result;
   use std::str::FromStr;
 
-  use crate::storage::local::tests::create_local_test_files;
+  use axum::middleware::Next;
+  use axum::response::Response;
+  use axum::{middleware, Router};
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use tokio::io::AsyncReadExt;
   use tower_http::services::ServeDir;
+
+  use htsget_config::types::Headers;
+
+  use crate::storage::local::tests::create_local_test_files;
 
   use super::*;
 
@@ -465,6 +464,7 @@ mod tests {
       .nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()))
       .route_layer(middleware::from_fn(test_auth));
 
+    // TODO fix this in htsget-test to bind and return tcp listener.
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
 

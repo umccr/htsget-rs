@@ -1,12 +1,10 @@
 use std::path::PathBuf;
 use std::process::{Child, Command};
-use std::str::FromStr;
 use std::thread::sleep;
 use std::{fs, time::Duration};
 
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
-use http::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::blocking::Client;
 use reqwest::blocking::ClientBuilder;
 use reqwest::Result;
@@ -60,26 +58,20 @@ fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) ->
   response
     .htsget
     .urls
-    .into_iter()
+    .iter()
     .map(|json_url| {
       Ok(
         client
-          .get(json_url.url)
-          .headers({
-            HeaderMap::from_iter(
-              json_url
-                .headers
-                .unwrap_or(Headers::default())
-                .key_value_pairs()
-                .into_iter()
-                .map(|(key, value)| {
-                  (
-                    HeaderName::from_str(key).unwrap(),
-                    HeaderValue::from_str(value).unwrap(),
-                  )
-                }),
-            )
-          })
+          .get(&json_url.url)
+          .headers(
+            json_url
+              .headers
+              .as_ref()
+              .unwrap_or(&Headers::default())
+              .as_ref_inner()
+              .try_into()
+              .unwrap(),
+          )
           .send()?
           .bytes()?
           .len(),

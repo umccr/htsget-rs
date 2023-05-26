@@ -1755,6 +1755,7 @@ dependencies = [
  "noodles",
  "regex",
  "serde",
+ "serde_json",
  "serde_regex",
  "serde_with",
  "thiserror",
