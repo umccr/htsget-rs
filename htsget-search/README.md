@@ -76,6 +76,7 @@ used to process requests.
 
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
+* `url-storage`: used to enable `UrlStorage` functionality.
 
 [htsget]: src/htsget
 [storage]: src/storage

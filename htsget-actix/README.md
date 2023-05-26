@@ -40,6 +40,8 @@ cargo run -p htsget-actix --features s3-storage
 ```
 This will start a ticket server with `S3Storage` using a bucket called `"data"`.
 
+To use `UrlStorage`, compile with the `url-storage` feature.
+
 See [htsget-search] for details on how to structure files.
 
 [htsget-config]: ../htsget-config
@@ -107,6 +109,7 @@ are exposed in the public API.
 
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
+* `url-storage`: used to enable `UrlStorage` functionality.
 
 ## Benchmarks
 Benchmarks for this crate written using [Criterion.rs][criterion-rs], and aim to compare the performance of this crate with the 
