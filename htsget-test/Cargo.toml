@@ -30,7 +30,8 @@ server-tests = [
     "dep:base64"
 ]
 s3-storage = ["htsget-config?/s3-storage"]
-default = ["s3-storage"]
+url-storage = ["htsget-config?/url-storage"]
+default = []
 
 [dependencies]
 # Server tests dependencies

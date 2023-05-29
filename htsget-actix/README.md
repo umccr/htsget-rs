@@ -29,16 +29,18 @@ This crate uses [htsget-config] for configuration. See [htsget-config] for detai
 
 To run an instance of this crate, execute the following command:
 ```sh
-cargo run -p htsget-actix --no-default-features
+cargo run -p htsget-actix
 ```
 Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
 with data accessible from the [`data`][data] directory.
 
-To use `AwsS3Storage`, avoid compiling with no default features:
+To use `S3Storage`, compile with the `s3-storage` feature:
 ```sh
-cargo run -p htsget-actix
+cargo run -p htsget-actix --features s3-storage
 ```
-This will start a ticket server with `AwsS3Storage` using a bucket called `"data"`.
+This will start a ticket server with `S3Storage` using a bucket called `"data"`.
+
+To use `UrlStorage`, compile with the `url-storage` feature.
 
 See [htsget-search] for details on how to structure files.
 
@@ -106,7 +108,8 @@ are exposed in the public API.
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
+* `url-storage`: used to enable `UrlStorage` functionality.
 
 ## Benchmarks
 Benchmarks for this crate written using [Criterion.rs][criterion-rs], and aim to compare the performance of this crate with the 

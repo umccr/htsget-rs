@@ -24,7 +24,7 @@ use tokio::task::JoinHandle;
 use tracing::{instrument, trace, trace_span, Instrument};
 
 use crate::htsget::ConcurrencyError;
-use crate::storage::{BytesPosition, RangeUrlOptions, Storage};
+use crate::storage::{BytesPosition, HeadOptions, RangeUrlOptions, Storage};
 use crate::storage::{DataBlock, GetOptions};
 use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
 
@@ -205,7 +205,10 @@ where
   async fn position_at_eof(&self, query: &Query) -> Result<u64> {
     let file_size = self
       .get_storage()
-      .head(query.format().fmt_file(query.id()))
+      .head(
+        query.format().fmt_file(query.id()),
+        HeadOptions::new(query.request().headers()),
+      )
       .await?;
     Ok(
       file_size
@@ -220,7 +223,10 @@ where
     trace!("reading index");
     let storage = self
       .get_storage()
-      .get(query.format().fmt_index(query.id()), GetOptions::default())
+      .get(
+        query.format().fmt_index(query.id()),
+        GetOptions::new_with_default_range(query.request().headers()),
+      )
       .await?;
     Self::read_index_inner(storage)
       .await
@@ -271,7 +277,10 @@ where
         // Check to see if the key exists.
         self
           .get_storage()
-          .head(query.format().fmt_file(query.id()))
+          .head(
+            query.format().fmt_file(query.id()),
+            HeadOptions::new(query.request().headers()),
+          )
           .await?;
 
         let index = self.read_index(&query).await?;
@@ -302,7 +311,7 @@ where
             storage
               .range_url(
                 query_owned.format().fmt_file(query_owned.id()),
-                RangeUrlOptions::from(range),
+                RangeUrlOptions::new(range, query_owned.request().headers()),
               )
               .await
           }));
@@ -328,8 +337,11 @@ where
   #[instrument(level = "trace", skip(self, index))]
   async fn get_header(&self, query: &Query, index: &Index) -> Result<Header> {
     trace!("getting header");
-    let get_options =
-      GetOptions::default().with_range(self.get_byte_ranges_for_header(index).await?);
+    let get_options = GetOptions::new(
+      self.get_byte_ranges_for_header(index).await?,
+      query.request().headers(),
+    );
+
     let reader_type = self
       .get_storage()
       .get(query.format().fmt_file(query.id()), get_options)
@@ -429,7 +441,10 @@ where
 
     let gzi_data = self
       .get_storage()
-      .get(query.format().fmt_gzi(query.id())?, GetOptions::default())
+      .get(
+        query.format().fmt_gzi(query.id())?,
+        GetOptions::new_with_default_range(query.request().headers()),
+      )
       .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {

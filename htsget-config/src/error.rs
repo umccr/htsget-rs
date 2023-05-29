@@ -16,6 +16,9 @@ pub enum Error {
 
   #[error("failed to setup tracing: {0}")]
   TracingError(String),
+
+  #[error("parse error: {0}")]
+  ParseError(String),
 }
 
 impl From<Error> for io::Error {

@@ -12,7 +12,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::Router;
-use axum_extra::routing::SpaRouter;
 use futures_util::future::poll_fn;
 use hyper::server::accept::Accept;
 use hyper::server::conn::{AddrIncoming, Http};
@@ -21,6 +20,7 @@ use tokio::net::TcpListener;
 use tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio_rustls::TlsAcceptor;
 use tower::MakeService;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing::instrument;
 use tracing::{info, trace};
@@ -155,11 +155,12 @@ impl DataServer {
   #[instrument(level = "trace", skip_all)]
   pub async fn serve<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
     let mut app = Router::new()
-      .merge(SpaRouter::new(&self.serve_at, path))
+      .nest_service(&self.serve_at, ServeDir::new(path))
       .layer(configure_cors(self.cors)?)
       .layer(TraceLayer::new_for_http())
       .into_make_service_with_connect_info::<SocketAddr>();
 
+    // TODO write using new axum functions.
     match self.cert_key_pair {
       None => axum::Server::builder(self.listener)
         .serve(app)

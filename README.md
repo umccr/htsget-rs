@@ -114,7 +114,7 @@ See the [htsget-search overview][htsget-search-overview] for more information on
 
 [storage-backend]: htsget-search/src/storage
 [local-storage]: htsget-search/src/storage/local.rs
-[s3-storage]: htsget-search/src/storage/aws.rs
+[s3-storage]: htsget-search/src/storage/s3.rs
 
 [data]: data
 [deploy]: deploy

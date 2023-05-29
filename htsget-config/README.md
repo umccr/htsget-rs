@@ -150,8 +150,8 @@ substitution_string = '$group1/data/$group2'
 
 For more information about regex options see the [regex crate](https://docs.rs/regex/).
 
-Each resolver also maps to a certain storage backend. This storage backend can be used to set query IDs which are served from local storage, or on AWS S3.
-To set the storage backend for a resolver, add a `[resolvers.storage]` table.
+Each resolver also maps to a certain storage backend. This storage backend can be used to set query IDs which are served from local storage, from S3-style bucket storage, or from HTTP URLs.
+To set the storage backend for a resolver, add a `[resolvers.storage]` table. Some storage backends require feature flags to be set when compiling htsget-rs.
 
 To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for the fields below from the `data_server` config:
 
@@ -162,13 +162,29 @@ To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for 
 | `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Same as `data_server_local_path`.                                                                                                | Filesystem path              | `'data'`           |
 | `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | Same as `data_server_serve_at`.                                                                                                  | URL path                     | `'/data'`          |
 
-To use `AwsS3Storage`, set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
+To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
 
-| Option       | Description                                                                                                                                                    | When `storage = 'S3'`                                                                                                 | Type    | Default                                |
-|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|---------|----------------------------------------|
-| `bucket`     | The AWS S3 bucket where resources can be retrieved from.                                                                                                       | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`.      | String  | `''`                                   |
-| `endpoint`   | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio). | Not set, uses regular AWS S3 services.                                                                                | String  | Not set, uses regular AWS S3 services. |
-| `path_style` | The S3 path style to request from the storage backend.                                                                                                         | If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used. | Boolean | `false`                                |
+| Option       | Description                                                                                                                                                                   | When `storage = 'S3'`                                                                                            | Type    | Default                                |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|---------|----------------------------------------|
+| `bucket`     | The AWS S3 bucket where resources can be retrieved from.                                                                                                                      | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`. | String  | `''`                                   |
+| `endpoint`   | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio).                | Not set, uses regular AWS S3 services.                                                                           | String  | Not set, uses regular AWS S3 services. |
+| `path_style` | The S3 path style to request from the storage backend. If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used.  | `fasle`                                                                                                          | Boolean | `false`                                |
+
+`UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
+To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
+
+| Option            | Description                                                                                                                                                      | Type                     | Default                                  |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|------------------------------------------|
+| `url`             | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | Not set, must be set to use URL storage. |
+| `response_scheme` | The scheme used for the tickets returned by the ticket server.                                                                                                   | Either `Http` or `Https` | `Https`                                  |
+| `forward_headers` | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                                   |
+
+When using `UrlStorage`, the following requests will be made to the `url`.
+* `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
+* `GET` request to fetch the entire index file (e.g. `GET /data.bam.bai`).
+* `HEAD` request on the data file to get its length (e.g. `HEAD /data.bam`).
+
+All headers received in the initial query will be included when making these requests.
 
 For example, a `resolvers` value of:
 ```toml
@@ -180,7 +196,7 @@ storage = 'S3'
 Will use "example_bucket" as the S3 bucket if that resolver matches, because this is the first capture group in the `regex`.
 Note, to use this feature, at least one capture group must be defined in the `regex`.
 
-If this is not the desired behaviour, all the values for `S3Storage` or `LocalStorage` can be set manually by adding a
+Note, all the values for `S3Storage` or `LocalStorage` can be also be set manually by adding a
 `[resolvers.storage]` table. For example, to manually set the config for `LocalStorage`:
 
 ```toml
@@ -195,7 +211,7 @@ local_path = 'data'
 path_prefix = '/data'
 ```
 
-or, to manually set the config for `AwsS3Storage`:
+or, to manually set the config for `S3Storage`:
 
 ```toml
 [[resolvers]]
@@ -205,6 +221,8 @@ substitution_string = '$0'
 [resolvers.storage]
 bucket = 'bucket'
 ```
+
+`UrlStorage` can only be specified manually.
 
 #### Note
 By default, when htsget-rs is compiled with the `s3-storage` feature flag, `storage = 'S3'` is used when no `storage` options
@@ -417,7 +435,8 @@ regex, and changing it by using a substitution string.
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
+* `url-storage`: used to enable `UrlStorage` functionality.
 
 ## License
 

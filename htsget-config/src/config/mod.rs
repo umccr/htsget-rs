@@ -15,15 +15,14 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Registry};
 
 use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
-use crate::config::error::Error::{ArgParseError, IoError, TracingError};
-use crate::config::error::Result;
 use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
+use crate::error::Error::{ArgParseError, IoError, TracingError};
+use crate::error::Result;
 use crate::resolver::Resolver;
 use crate::types::Scheme;
 use crate::types::Scheme::{Http, Https};
 
 pub mod cors;
-pub mod error;
 
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str = "To configure htsget-rs use a config file or environment variables. \

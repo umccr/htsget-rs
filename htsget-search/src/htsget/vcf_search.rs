@@ -149,7 +149,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Vcf);
+      let query = Query::new_with_default_request(filename, Format::Vcf);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -164,7 +164,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "spec-v4.3";
-      let query = Query::new(filename, Format::Vcf).with_reference_name("20");
+      let query = Query::new_with_default_request(filename, Format::Vcf).with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -192,7 +192,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Vcf)
+      let query = Query::new_with_default_request(filename, Format::Vcf)
         .with_reference_name("chrM")
         .with_start(151)
         .with_end(153);
@@ -223,7 +223,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let search = VcfSearch::new(storage.clone());
       let filename = "spec-v4.3";
-      let query = Query::new(filename, Format::Vcf).with_class(Header);
+      let query = Query::new_with_default_request(filename, Format::Vcf).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -243,7 +243,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage.clone());
-        let query = Query::new("vcf-spec-v4.3", Format::Vcf);
+        let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -258,7 +258,8 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage.clone());
-        let query = Query::new("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -273,7 +274,8 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage.clone());
-        let query = Query::new("vcf-spec-v4.3", Format::Vcf).with_class(Header);
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -289,7 +291,7 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage);
-        let query = Query::new("vcf-spec-v4.3", Format::Vcf);
+        let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf);
         let response = search.search(query).await;
         assert!(matches!(response, Err(_)));
       },
@@ -305,7 +307,8 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage);
-        let query = Query::new("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(matches!(response, Err(_)));
       },
@@ -321,7 +324,8 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage);
-        let query = Query::new("vcf-spec-v4.3", Format::Vcf).with_class(Header);
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(_)));
       },
@@ -334,7 +338,7 @@ pub(crate) mod tests {
   async fn test_reference_name_with_seq_range(storage: Arc<LocalStorage<ConfigLocalStorage>>) {
     let search = VcfSearch::new(storage.clone());
     let filename = "sample1-bcbio-cancer";
-    let query = Query::new(filename, Format::Vcf)
+    let query = Query::new_with_default_request(filename, Format::Vcf)
       .with_reference_name("chrM")
       .with_start(151)
       .with_end(153);

@@ -122,6 +122,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           id,
           self.searcher.clone(),
           Self::extract_query(&request),
+          request.headers().clone(),
           endpoint,
         )
         .await
@@ -136,7 +137,17 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
             .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
             .body(Body::Empty)?,
         ),
-        Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
+        Some(query) => {
+          post(
+            id,
+            self.searcher.clone(),
+            Self::extract_query(&request),
+            query,
+            request.headers().clone(),
+            endpoint,
+          )
+          .await
+        }
       },
       _ => Ok(
         Response::builder()

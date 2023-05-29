@@ -39,9 +39,9 @@ impl From<StorageError> for HtsGetError {
   fn from(err: StorageError) -> Self {
     match err {
       err @ StorageError::InvalidInput(_) => Self::InvalidInput(err.to_string()),
-      err @ (StorageError::KeyNotFound(_) | StorageError::InvalidKey(_)) => {
-        Self::NotFound(err.to_string())
-      }
+      err @ (StorageError::KeyNotFound(_)
+      | StorageError::InvalidKey(_)
+      | StorageError::ResponseError(_)) => Self::NotFound(err.to_string()),
       err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
       err @ (StorageError::ServerError(_)
       | StorageError::InvalidUri(_)
@@ -49,6 +49,7 @@ impl From<StorageError> for HtsGetError {
       | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
       #[cfg(feature = "s3-storage")]
       err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
+      err @ StorageError::UrlParseError(_) => Self::ParseError(err.to_string()),
     }
   }
 }

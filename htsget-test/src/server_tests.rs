@@ -26,7 +26,10 @@ pub async fn test_response<R>(response: Response, class: Class)
 where
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
-  println!("response: {response:?}");
+  println!(
+    "response body: {}",
+    String::from_utf8_lossy(response.body.as_slice())
+  );
   assert!(response.is_success());
   let body = response.deserialize_body::<R>().unwrap();
 
@@ -320,6 +323,6 @@ pub fn expected_response(class: Class, url_path: String) -> Value {
     "htsget": {
       "format": Format::Vcf,
       "urls": urls
-      }
+    }
   })
 }

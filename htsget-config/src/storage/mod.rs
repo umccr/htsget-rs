@@ -1,5 +1,7 @@
-use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "url-storage")]
+use crate::storage::url::UrlStorage;
 
 use crate::resolver::ResolveResponse;
 use crate::storage::local::LocalStorage;
@@ -10,6 +12,8 @@ use crate::types::{Query, Response, Result};
 pub mod local;
 #[cfg(feature = "s3-storage")]
 pub mod s3;
+#[cfg(feature = "url-storage")]
+pub mod url;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum TaggedStorageTypes {
@@ -49,22 +53,6 @@ impl ResolvedId {
   }
 }
 
-/// A new type to represent a resolver and its regex match
-#[derive(Debug)]
-pub struct ResolverMatcher<'a>(&'a Regex, &'a str);
-
-impl<'a> ResolverMatcher<'a> {
-  /// Create a new resovler and query.
-  pub fn new(resolver: &'a Regex, regex_match: &'a str) -> Self {
-    Self(resolver, regex_match)
-  }
-
-  /// Get the inner values.
-  pub fn into_inner(self) -> (&'a Regex, &'a str) {
-    (self.0, self.1)
-  }
-}
-
 /// Specify the storage backend to use as config values.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged, deny_unknown_fields)]
@@ -79,6 +67,11 @@ pub enum Storage {
   S3 {
     #[serde(flatten)]
     s3_storage: S3Storage,
+  },
+  #[cfg(feature = "url-storage")]
+  Url {
+    #[serde(flatten)]
+    url_storage: UrlStorage,
   },
 }
 
@@ -100,16 +93,27 @@ impl Storage {
   #[cfg(feature = "s3-storage")]
   pub async fn resolve_s3_storage<T: ResolveResponse>(
     &self,
-    regex: &Regex,
-    regex_match: &str,
+    bucket: String,
     query: &Query,
   ) -> Option<Result<Response>> {
     match self {
       Storage::Tagged(TaggedStorageTypes::S3) => {
-        let storage: Option<S3Storage> = ResolverMatcher::new(regex, regex_match).into();
-        Some(T::from_s3_storage(&storage?, query).await)
+        let s3_storage = S3Storage::new(bucket, None, false);
+        Some(T::from_s3(&s3_storage, query).await)
       }
-      Storage::S3 { s3_storage } => Some(T::from_s3_storage(s3_storage, query).await),
+      Storage::S3 { s3_storage } => Some(T::from_s3(s3_storage, query).await),
+      _ => None,
+    }
+  }
+
+  /// Resolve the url component of `Storage` into a type that implements `FromStorage`.
+  #[cfg(feature = "url-storage")]
+  pub async fn resolve_url_storage<T: ResolveResponse>(
+    &self,
+    query: &Query,
+  ) -> Option<Result<Response>> {
+    match self {
+      Storage::Url { url_storage } => Some(T::from_url(url_storage, query).await),
       _ => None,
     }
   }

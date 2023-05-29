@@ -12,11 +12,13 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = ["htsget-config/s3-storage", "htsget-config/s3-storage", "htsget-http/s3-storage", "htsget-test/s3-storage"]
-default = ["s3-storage"]
+url-storage = ["htsget-config/url-storage", "htsget-config/url-storage", "htsget-http/url-storage", "htsget-test/url-storage"]
+default = []
 
 [dependencies]
 actix-web = { version = "4.3", features = ["rustls"] }
 actix-cors = "0.6"
+http = "0.2"
 rustls = "0.21"
 rustls-pemfile = "1.0"
 serde = { version = "1.0", features = ["derive"] }

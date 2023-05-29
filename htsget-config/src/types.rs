@@ -1,14 +1,17 @@
 use std::collections::{HashMap, HashSet};
-use std::fmt::Formatter;
-use std::io::ErrorKind;
+use std::fmt::{Debug, Display, Formatter};
 use std::io::ErrorKind::Other;
 use std::{fmt, io, result};
 
+use http::HeaderMap;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::instrument;
+
+use crate::error::Error;
+use crate::error::Error::ParseError;
 
 pub type Result<T> = result::Result<T, HtsGetError>;
 
@@ -65,7 +68,7 @@ impl From<Format> for String {
   }
 }
 
-impl fmt::Display for Format {
+impl Display for Format {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
       Format::Bam => write!(f, "BAM"),
@@ -178,6 +181,15 @@ pub enum Scheme {
   Https,
 }
 
+impl Display for Scheme {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Scheme::Http => write!(f, "http"),
+      Scheme::Https => write!(f, "https"),
+    }
+  }
+}
+
 /// Tagged Any allow type for cors config.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum TaggedTypeAll {
@@ -209,6 +221,45 @@ pub enum Tags {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NoTags(pub Option<HashSet<String>>);
 
+/// A struct containing the information from the HTTP request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Request {
+  path: String,
+  query: HashMap<String, String>,
+  headers: HeaderMap,
+}
+
+impl Request {
+  /// Create a new request.
+  pub fn new(id: String, query: HashMap<String, String>, headers: HeaderMap) -> Self {
+    Self {
+      path: id,
+      query,
+      headers,
+    }
+  }
+
+  /// Create a new request with default query and headers.
+  pub fn new_with_id(id: String) -> Self {
+    Self::new(id, Default::default(), Default::default())
+  }
+
+  /// Get the id.
+  pub fn path(&self) -> &str {
+    &self.path
+  }
+
+  /// Get the query.
+  pub fn query(&self) -> &HashMap<String, String> {
+    &self.query
+  }
+
+  /// Get the headers.
+  pub fn headers(&self) -> &HeaderMap {
+    &self.headers
+  }
+}
+
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -223,10 +274,13 @@ pub struct Query {
   fields: Fields,
   tags: Tags,
   no_tags: NoTags,
+  /// The raw HTTP request information.
+  request: Request,
 }
 
 impl Query {
-  pub fn new(id: impl Into<String>, format: Format) -> Self {
+  /// Create a new query.
+  pub fn new(id: impl Into<String>, format: Format, request: Request) -> Self {
     Self {
       id: id.into(),
       format,
@@ -236,53 +290,70 @@ impl Query {
       fields: Fields::Tagged(TaggedTypeAll::All),
       tags: Tags::Tagged(TaggedTypeAll::All),
       no_tags: NoTags(None),
+      request,
     }
   }
 
+  /// Create a new query with a default request.
+  pub fn new_with_default_request(id: impl Into<String>, format: Format) -> Self {
+    let id = id.into();
+    Self::new(id.clone(), format, Request::new_with_id(id))
+  }
+
+  /// Set the id.
   pub fn set_id(&mut self, id: impl Into<String>) {
     self.id = id.into();
   }
 
+  /// Set the is and return self.
   pub fn with_id(mut self, id: impl Into<String>) -> Self {
     self.set_id(id);
     self
   }
 
+  /// Set the format.
   pub fn with_format(mut self, format: Format) -> Self {
     self.format = format;
     self
   }
 
+  /// Set the class.
   pub fn with_class(mut self, class: Class) -> Self {
     self.class = class;
     self
   }
 
+  /// Set the reference name.
   pub fn with_reference_name(mut self, reference_name: impl Into<String>) -> Self {
     self.reference_name = Some(reference_name.into());
     self
   }
 
+  /// Set the interval.
   pub fn with_start(mut self, start: u32) -> Self {
     self.interval.start = Some(start);
     self
   }
 
+  /// Set the interval.
   pub fn with_end(mut self, end: u32) -> Self {
     self.interval.end = Some(end);
     self
   }
 
+  /// Set the interval.
   pub fn with_fields(mut self, fields: Fields) -> Self {
     self.fields = fields;
     self
   }
 
+  /// Set the interval.
   pub fn with_tags(mut self, tags: Tags) -> Self {
     self.tags = tags;
     self
   }
 
+  /// Set no tags.
   pub fn with_no_tags(mut self, no_tags: Vec<impl Into<String>>) -> Self {
     self.no_tags = NoTags(Some(
       no_tags.into_iter().map(|field| field.into()).collect(),
@@ -320,6 +391,10 @@ impl Query {
 
   pub fn no_tags(&self) -> &NoTags {
     &self.no_tags
+  }
+
+  pub fn request(&self) -> &Request {
+    &self.request
   }
 }
 
@@ -379,7 +454,7 @@ impl HtsGetError {
 
 impl From<HtsGetError> for io::Error {
   fn from(error: HtsGetError) -> Self {
-    Self::new(ErrorKind::Other, error)
+    Self::new(Other, error)
   }
 }
 
@@ -398,8 +473,10 @@ impl Headers {
     Self(headers)
   }
 
+  /// Insert an entry into the headers. If the entry already exists, the value will be appended to
+  /// the existing value, separated by a comma. Returns self.
   pub fn with_header<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> Self {
-    self.0.insert(key.into(), value.into());
+    self.insert(key, value);
     self
   }
 
@@ -407,8 +484,15 @@ impl Headers {
     self.0.is_empty()
   }
 
+  /// Insert an entry into the headers. If the entry already exists, the value will be appended to
+  /// the existing value, separated by a comma.
   pub fn insert<K: Into<String>, V: Into<String>>(&mut self, key: K, value: V) {
-    self.0.insert(key.into(), value.into());
+    let entry = self.0.entry(key.into()).or_default();
+    if entry.is_empty() {
+      entry.push_str(&value.into());
+    } else {
+      entry.push_str(&format!(", {}", value.into()));
+    }
   }
 
   pub fn into_inner(self) -> HashMap<String, String> {
@@ -417,6 +501,23 @@ impl Headers {
 
   pub fn as_ref_inner(&self) -> &HashMap<String, String> {
     &self.0
+  }
+}
+
+impl TryFrom<&HeaderMap> for Headers {
+  type Error = Error;
+
+  fn try_from(headers: &HeaderMap) -> result::Result<Self, Self::Error> {
+    headers
+      .iter()
+      .try_fold(Headers::default(), |acc, (key, value)| {
+        Ok(acc.with_header(
+          key.to_string(),
+          value.to_str().map_err(|err| {
+            ParseError(format!("failed to convert header value to string: {}", err))
+          })?,
+        ))
+      })
   }
 }
 
@@ -488,6 +589,10 @@ impl Response {
 #[cfg(test)]
 mod tests {
   use std::collections::{HashMap, HashSet};
+  use std::str::FromStr;
+
+  use http::{HeaderMap, HeaderName, HeaderValue};
+  use serde_json::{json, to_value};
 
   use crate::types::{
     Class, Fields, Format, Headers, HtsGetError, Interval, NoTags, Query, Response, TaggedTypeAll,
@@ -601,47 +706,46 @@ mod tests {
 
   #[test]
   fn query_new() {
-    let result = Query::new("NA12878", Format::Bam);
+    let result = Query::new_with_default_request("NA12878", Format::Bam);
     assert_eq!(result.id(), "NA12878");
   }
 
   #[test]
   fn query_with_format() {
-    let result = Query::new("NA12878", Format::Bam);
+    let result = Query::new_with_default_request("NA12878", Format::Bam);
     assert_eq!(result.format(), Format::Bam);
   }
 
   #[test]
   fn query_with_class() {
-    let result = Query::new("NA12878", Format::Bam).with_class(Class::Header);
+    let result = Query::new_with_default_request("NA12878", Format::Bam).with_class(Class::Header);
     assert_eq!(result.class(), Class::Header);
   }
 
   #[test]
   fn query_with_reference_name() {
-    let result = Query::new("NA12878", Format::Bam).with_reference_name("chr1");
+    let result =
+      Query::new_with_default_request("NA12878", Format::Bam).with_reference_name("chr1");
     assert_eq!(result.reference_name(), Some("chr1"));
   }
 
   #[test]
   fn query_with_start() {
-    let result = Query::new("NA12878", Format::Bam).with_start(0);
+    let result = Query::new_with_default_request("NA12878", Format::Bam).with_start(0);
     assert_eq!(result.interval().start(), Some(0));
   }
 
   #[test]
   fn query_with_end() {
-    let result = Query::new("NA12878", Format::Bam).with_end(0);
+    let result = Query::new_with_default_request("NA12878", Format::Bam).with_end(0);
     assert_eq!(result.interval().end(), Some(0));
   }
 
   #[test]
   fn query_with_fields() {
-    let result =
-      Query::new("NA12878", Format::Bam).with_fields(Fields::List(HashSet::from_iter(vec![
-        "QNAME".to_string(),
-        "FLAG".to_string(),
-      ])));
+    let result = Query::new_with_default_request("NA12878", Format::Bam).with_fields(Fields::List(
+      HashSet::from_iter(vec!["QNAME".to_string(), "FLAG".to_string()]),
+    ));
     assert_eq!(
       result.fields(),
       &Fields::List(HashSet::from_iter(vec![
@@ -653,13 +757,15 @@ mod tests {
 
   #[test]
   fn query_with_tags() {
-    let result = Query::new("NA12878", Format::Bam).with_tags(Tags::Tagged(TaggedTypeAll::All));
+    let result = Query::new_with_default_request("NA12878", Format::Bam)
+      .with_tags(Tags::Tagged(TaggedTypeAll::All));
     assert_eq!(result.tags(), &Tags::Tagged(TaggedTypeAll::All));
   }
 
   #[test]
   fn query_with_no_tags() {
-    let result = Query::new("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
+    let result =
+      Query::new_with_default_request("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
       result.no_tags(),
       &NoTags(Some(HashSet::from_iter(vec![
@@ -711,6 +817,55 @@ mod tests {
     header.insert("Range", "bytes=0-1023");
     let result = header.0.get("Range");
     assert_eq!(result, Some(&"bytes=0-1023".to_string()));
+  }
+
+  #[test]
+  fn headers_multiple_values() {
+    let headers = Headers::new(HashMap::new())
+      .with_header("Range", "bytes=0-1023")
+      .with_header("Range", "bytes=1024-2047");
+    let result = headers.0.get("Range");
+
+    assert_eq!(result, Some(&"bytes=0-1023, bytes=1024-2047".to_string()));
+  }
+
+  #[test]
+  fn headers_try_from_header_map() {
+    let mut headers = HeaderMap::new();
+    headers.append(
+      HeaderName::from_str("Range").unwrap(),
+      HeaderValue::from_str("bytes=0-1023").unwrap(),
+    );
+    headers.append(
+      HeaderName::from_str("Range").unwrap(),
+      HeaderValue::from_str("bytes=1024-2047").unwrap(),
+    );
+    headers.append(
+      HeaderName::from_str("Range").unwrap(),
+      HeaderValue::from_str("bytes=2048-3071, bytes=3072-4095").unwrap(),
+    );
+    let headers: Headers = (&headers).try_into().unwrap();
+
+    let result = headers.0.get("range");
+    assert_eq!(
+      result,
+      Some(&"bytes=0-1023, bytes=1024-2047, bytes=2048-3071, bytes=3072-4095".to_string())
+    );
+  }
+
+  #[test]
+  fn serialize_headers() {
+    let headers = Headers::new(HashMap::new())
+      .with_header("Range", "bytes=0-1023")
+      .with_header("Range", "bytes=1024-2047");
+
+    let result = to_value(headers).unwrap();
+    assert_eq!(
+      result,
+      json!({
+        "Range" : "bytes=0-1023, bytes=1024-2047"
+      })
+    );
   }
 
   #[test]
