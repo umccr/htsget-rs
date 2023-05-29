@@ -1,6 +1,7 @@
 target
 *.code-workspace
 *.vcf.gz
+*.svg
 .vscode
 .idea
 deploy/.build
