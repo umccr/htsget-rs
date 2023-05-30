@@ -1,6 +1,6 @@
 [package]
 name = "htsget-test"
-version = "0.3.0"
+version = "0.4.0"
 rust-version = "1.60"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
@@ -35,7 +35,7 @@ default = []
 
 [dependencies]
 # Server tests dependencies
-htsget-config = { version = "0.3.0", path = "../htsget-config", default-features = false, optional = true }
+htsget-config = { version = "0.4.0", path = "../htsget-config", default-features = false, optional = true }
 
 noodles-vcf = { version = "0.24", features = ["async"], optional = true }
 noodles-bgzf = { version = "0.19", features = ["async"], optional = true }
