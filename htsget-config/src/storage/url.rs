@@ -8,11 +8,12 @@ use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
 use crate::types::Scheme;
 
-pub fn default_url() -> Url {
+fn default_url() -> Url {
   Url(InnerUrl::from_str(&format!("https://{}", default_authority())).expect("expected valid url"))
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(default)]
 pub struct UrlStorage {
   url: Url,
   response_scheme: Scheme,
