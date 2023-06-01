@@ -1,4 +1,5 @@
 use tokio::select;
+use tracing::debug;
 
 use htsget_actix::run_server;
 use htsget_actix::Config;
@@ -13,6 +14,8 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_path(&path)?;
 
     config.setup_tracing()?;
+
+    debug!(config = ?config, "config parsed");
 
     if config.data_server().enabled() {
       let server = config.data_server().clone();

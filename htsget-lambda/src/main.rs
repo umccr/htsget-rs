@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use lambda_http::Error;
+use tracing::debug;
 
 use htsget_config::command;
 use htsget_lambda::Config;
@@ -14,6 +15,8 @@ async fn main() -> Result<(), Error> {
     let config = Config::from_path(&path)?;
 
     config.setup_tracing()?;
+
+    debug!(config = ?config, "config parsed");
 
     let service_info = config.service_info().clone();
     let cors = config.ticket_server().cors().clone();
