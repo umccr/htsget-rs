@@ -9,30 +9,46 @@ Average time (µs)
 History
 </text>
 <polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="91,58 91,567 "/>
-<text x="82" y="512" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-2
-</text>
-<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,512 91,512 "/>
-<text x="82" y="430" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-2.1
-</text>
-<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,430 91,430 "/>
-<text x="82" y="348" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-2.2
-</text>
-<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,348 91,348 "/>
-<text x="82" y="265" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+<text x="82" y="522" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 2.3
 </text>
-<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,265 91,265 "/>
-<text x="82" y="183" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,522 91,522 "/>
+<text x="82" y="475" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 2.4
 </text>
-<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,183 91,183 "/>
-<text x="82" y="101" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,475 91,475 "/>
+<text x="82" y="428" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 2.5
 </text>
-<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,101 91,101 "/>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,428 91,428 "/>
+<text x="82" y="381" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+2.6
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,381 91,381 "/>
+<text x="82" y="333" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+2.7
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,333 91,333 "/>
+<text x="82" y="286" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+2.8
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,286 91,286 "/>
+<text x="82" y="239" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+2.9
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,239 91,239 "/>
+<text x="82" y="191" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+3
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,191 91,191 "/>
+<text x="82" y="144" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+3.1
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,144 91,144 "/>
+<text x="82" y="97" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+3.2
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,97 91,97 "/>
 <polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="92,568 927,568 "/>
 <text x="92" y="578" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 #0
@@ -42,8 +58,8 @@ History
 #1
 </text>
 <polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="927,568 927,573 "/>
-<polyline fill="none" opacity="1" stroke="#1F78B4" stroke-width="1" points="92,406 927,250 "/>
-<polygon opacity="0.25" fill="#1F78B4" points="92,404 927,249 927,250 92,408 "/>
+<polyline fill="none" opacity="1" stroke="#1F78B4" stroke-width="1" points="92,454 927,213 "/>
+<polygon opacity="0.25" fill="#1F78B4" points="92,445 927,200 927,227 92,463 "/>
 <text x="809" y="73" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 Point estimate
 </text>
