@@ -173,11 +173,11 @@ To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and s
 `UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
 To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
 
-| Option            | Description                                                                                                                                                      | Type                     | Default                                  |
-|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|------------------------------------------|
-| `url`             | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | Not set, must be set to use URL storage. |
-| `response_scheme` | The scheme used for the tickets returned by the ticket server.                                                                                                   | Either `Http` or `Https` | `Https`                                  |
-| `forward_headers` | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                                   |
+| Option            | Description                                                                                                                                                      | Type                     | Default                     |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------|
+| `url`             | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | `"https://127.0.0.1:8081/"` |
+| `response_scheme` | The scheme used for the tickets returned by the ticket server.                                                                                                   | Either `Http` or `Https` | `Https`                     |
+| `forward_headers` | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                      |
 
 When using `UrlStorage`, the following requests will be made to the `url`.
 * `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
@@ -223,6 +223,10 @@ bucket = 'bucket'
 ```
 
 `UrlStorage` can only be specified manually.
+
+There are additional examples of config files located under [`examples/config-files`][examples-config-files]
+
+[examples-config-files]: examples/config-files
 
 #### Note
 By default, when htsget-rs is compiled with the `s3-storage` feature flag, `storage = 'S3'` is used when no `storage` options
