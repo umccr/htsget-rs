@@ -28,7 +28,7 @@ tower = { version = "0.4", features = ["make"] }
 
 # Async
 tokio-rustls = "0.23"
-tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"
@@ -39,7 +39,7 @@ noodles = { version = "0.40", features = ["async", "core", "bgzf", "bam", "bcf",
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
-aws-sdk-s3 = { version = "0.27", optional = true, features = ["test-util"] }
+aws-sdk-s3 = { version = "0.28", optional = true, features = ["test-util"] }
 aws-config = { version = "0.55", optional = true }
 aws-credential-types = { version = "0.55", features = ["test-util"] }
 
@@ -55,19 +55,19 @@ base64 = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
-tempfile = "3.3"
+tempfile = "3.5"
 data-url = "0.2"
 mockito = "1.0"
 
 # S3 storage testing
-s3s = { version = "0.5" }
-s3s-fs = { version = "0.5" }
-s3s-aws = { version = "0.5" }
+s3s = { version = "0.6" }
+s3s-fs = { version = "0.6" }
+s3s-aws = { version = "0.6" }
 
 # Axum server
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
 
-criterion = { version = "0.4", features = ["async_tokio"] }
+criterion = { version = "0.5", features = ["async_tokio"] }
 
 [[bench]]
 name = "search-benchmarks"

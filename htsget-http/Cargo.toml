@@ -23,5 +23,5 @@ htsget-search = { version = "0.4.1", path = "../htsget-search", default-features
 htsget-config = { version = "0.5.0", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.4.1", path = "../htsget-test", default-features = false }
 futures = { version = "0.3" }
-tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"

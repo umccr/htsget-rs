@@ -7,7 +7,7 @@ use std::sync::Arc;
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::tower::ServiceBuilder;
-use lambda_http::{http, service_fn, Body, Request, Response};
+use lambda_http::{http, service_fn, Body, Request, RequestPayloadExt, Response};
 use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
