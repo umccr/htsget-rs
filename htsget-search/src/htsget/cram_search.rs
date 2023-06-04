@@ -19,7 +19,7 @@ use tracing::{instrument, trace};
 use htsget_config::types::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
-use crate::htsget::ConcurrencyError;
+use crate::htsget::{ConcurrencyError, ParsedHeader};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 use crate::Class::Body;
 use crate::{Format, HtsGetError, Query, Result};
@@ -138,9 +138,16 @@ where
     AsyncReader::new(BufReader::new(inner))
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     reader.read_file_definition().await?;
-    reader.read_file_header().await
+
+    Ok(
+      reader
+        .read_file_header()
+        .await?
+        .parse::<ParsedHeader<Header>>()?
+        .into_inner(),
+    )
   }
 
   async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {

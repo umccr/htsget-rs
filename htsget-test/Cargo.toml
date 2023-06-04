@@ -21,8 +21,7 @@ cors-tests = ["http-tests", "dep:htsget-config"]
 server-tests = [
     "http-tests",
     "dep:htsget-config",
-    "dep:noodles-vcf",
-    "dep:noodles-bgzf",
+    "dep:noodles",
     "dep:reqwest",
     "dep:tokio",
     "dep:futures",
@@ -37,8 +36,7 @@ default = []
 # Server tests dependencies
 htsget-config = { version = "0.5.0", path = "../htsget-config", default-features = false, optional = true }
 
-noodles-vcf = { version = "0.24", features = ["async"], optional = true }
-noodles-bgzf = { version = "0.19", features = ["async"], optional = true }
+noodles = { version = "0.40", optional = true, features = ["async", "bgzf", "vcf"] }
 
 reqwest = { version = "0.11", default-features = false, features = ["json", "blocking", "rustls-tls"], optional = true }
 tokio = { version = "1.25", features = ["rt-multi-thread"], optional = true }

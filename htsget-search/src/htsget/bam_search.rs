@@ -7,12 +7,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use noodles::bam;
 use noodles::bam::bai;
-use noodles::bam::bai::index::ReferenceSequence;
-use noodles::bam::bai::Index;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::BinningIndex;
+use noodles::csi::index::ReferenceSequence;
+use noodles::csi::Index;
 use noodles::sam::header::record::value::map::read_group::platform::ParseError;
 use noodles::sam::header::record::value::map::read_group::Platform;
 use noodles::sam::Header;
@@ -20,8 +18,9 @@ use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tracing::{instrument, trace, warn};
 
-use crate::htsget::search::{BgzfSearch, BinningIndexExt, Search, SearchAll, SearchReads};
+use crate::htsget::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::htsget::HtsGetError;
+use crate::htsget::ParsedHeader;
 use crate::Class::Body;
 use crate::{
   htsget::{Format, Query, Result},
@@ -35,23 +34,8 @@ pub struct BamSearch<S> {
   storage: Arc<S>,
 }
 
-impl BinningIndexExt for Index {
-  #[instrument(level = "trace", skip_all)]
-  fn get_all_chunks(&self) -> Vec<&Chunk> {
-    trace!("getting vec of chunks");
-    self
-      .reference_sequences()
-      .iter()
-      .flat_map(|ref_seq| ref_seq.bins())
-      .flat_map(|bin| bin.chunks())
-      .collect()
-  }
-}
-
 #[async_trait]
-impl<S, ReaderType>
-  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
-  for BamSearch<S>
+impl<S, ReaderType> BgzfSearch<S, ReaderType, AsyncReader<ReaderType>, Header> for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
@@ -93,7 +77,7 @@ where
     AsyncReader::new(inner)
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     let header = reader.read_header().await;
     reader.read_reference_sequences().await?;
 
@@ -121,7 +105,7 @@ where
       }
     }
 
-    header
+    Ok(header?.parse::<ParsedHeader<Header>>()?.into_inner())
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {

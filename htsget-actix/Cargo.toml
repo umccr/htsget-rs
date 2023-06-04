@@ -16,6 +16,9 @@ url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget
 default = []
 
 [dependencies]
+noodles = { version = "0.40", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles_old = { package = "noodles", version = "0.34", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+
 actix-web = { version = "4.3", features = ["rustls"] }
 actix-cors = "0.6"
 http = "0.2"

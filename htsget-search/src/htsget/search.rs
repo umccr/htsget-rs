@@ -6,17 +6,15 @@
 //!
 
 use std::collections::HashSet;
-use std::fmt::Display;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::gzi;
-use noodles::csi::binning_index::ReferenceSequenceExt;
 use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::BinningIndex;
+use noodles::csi::index::ReferenceSequence;
+use noodles::csi::Index;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
@@ -107,8 +105,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
-  Header: FromStr + Send + Sync,
-  <Header as FromStr>::Err: Display,
+  Header: Send + Sync,
   Index: Send + Sync,
 {
   /// Get reference sequence from name.
@@ -176,13 +173,12 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
-  Header: FromStr + Send + Sync,
-  <Header as FromStr>::Err: Display,
+  Header: Send + Sync,
   Reader: Send,
   Self: Sync + Send,
 {
   fn init_reader(inner: ReaderType) -> Reader;
-  async fn read_raw_header(reader: &mut Reader) -> io::Result<String>;
+  async fn read_header(reader: &mut Reader) -> io::Result<Header>;
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
@@ -348,15 +344,9 @@ where
       .await?;
     let mut reader = Self::init_reader(reader_type);
 
-    Self::read_raw_header(&mut reader)
-      .await
-      .map_err(|err| {
-        HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
-      })?
-      .parse::<Header>()
-      .map_err(|err| {
-        HtsGetError::parse_error(format!("parsing `{}` header: {}", self.get_format(), err))
-      })
+    Self::read_header(&mut reader).await.map_err(|err| {
+      HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
+    })
   }
 }
 
@@ -370,16 +360,13 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+pub trait BgzfSearch<S, ReaderType, Reader, Header>:
   Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
-  ReferenceSequence: ReferenceSequenceExt,
-  Index: BinningIndex + BinningIndexExt + Send + Sync,
-  Header: FromStr + Send + Sync,
-  <Header as FromStr>::Err: Display,
+  Header: Send + Sync,
 {
   #[instrument(level = "trace", skip_all)]
   fn index_positions(index: &Index) -> Vec<u64> {
@@ -390,10 +377,13 @@ where
     // See https://github.com/samtools/htslib/issues/1482
     positions.extend(
       index
-        .get_all_chunks()
+        .reference_sequences()
         .iter()
+        .flat_map(|ref_seq| ref_seq.bins())
+        .flat_map(|(_, bin)| bin.chunks())
         .flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]),
     );
+
     positions.extend(
       index
         .reference_sequences()
@@ -546,17 +536,14 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
+impl<S, ReaderType, Reader, Header, T>
   SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
-  Header: FromStr + Send + Sync,
-  <Header as FromStr>::Err: Display,
-  ReferenceSequence: ReferenceSequenceExt + Sync,
-  Index: BinningIndex + BinningIndexExt + Send + Sync,
-  T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+  Header: Send + Sync,
+  T: BgzfSearch<S, ReaderType, Reader, Header> + Send + Sync,
 {
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
@@ -585,10 +572,4 @@ where
   fn get_eof_data_block(&self) -> Option<DataBlock> {
     Some(DataBlock::Data(Vec::from(BGZF_EOF), Some(Body)))
   }
-}
-
-/// Extension trait for binning indicies.
-pub trait BinningIndexExt {
-  /// Get all chunks associated with this index from the reference sequences.
-  fn get_all_chunks(&self) -> Vec<&Chunk>;
 }

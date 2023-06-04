@@ -18,7 +18,7 @@ default = []
 [dependencies]
 thiserror = "1.0"
 async-trait = "0.1"
-noodles = { version = "0.32", features = ["core"] }
+noodles = { version = "0.40", features = ["core"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "2.2"
 serde_regex = "1.1"

@@ -8,8 +8,8 @@ use futures::future::join_all;
 use futures::TryStreamExt;
 use http::header::HeaderName;
 use http::{HeaderMap, HeaderValue, Method};
-use noodles_bgzf as bgzf;
-use noodles_vcf as vcf;
+use noodles::bgzf;
+use noodles::vcf;
 use reqwest::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -96,7 +96,7 @@ where
   .unwrap();
 
   let mut reader = vcf::AsyncReader::new(bgzf::AsyncReader::new(merged_response.as_slice()));
-  let header = reader.read_header().await.unwrap().parse().unwrap();
+  let header = reader.read_header().await.unwrap();
   println!("{header}");
 
   let mut records = reader.records(&header);
