@@ -1,13 +1,14 @@
-use std::fmt::{Debug, Display};
-use std::pin::Pin;
+use std::fmt::Debug;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::Stream;
+use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
 use http::header::CONTENT_LENGTH;
-use http::{HeaderMap, Method};
-use reqwest::{Client, Error, RequestBuilder, Url};
+use http::{uri, HeaderMap, Method, Request, Response, Uri};
+use hyper::client::HttpConnector;
+use hyper::{Body, Client, Error};
+use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
@@ -21,15 +22,20 @@ use crate::Url as HtsGetUrl;
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
 pub struct UrlStorage {
-  client: Client,
-  url: Url,
+  client: Client<HttpsConnector<HttpConnector>>,
+  url: Uri,
   response_scheme: Scheme,
   forward_headers: bool,
 }
 
 impl UrlStorage {
   /// Construct a new UrlStorage.
-  pub fn new(client: Client, url: Url, response_scheme: Scheme, forward_headers: bool) -> Self {
+  pub fn new(
+    client: Client<HttpsConnector<HttpConnector>>,
+    url: Uri,
+    response_scheme: Scheme,
+    forward_headers: bool,
+  ) -> Self {
     Self {
       client,
       url,
@@ -38,24 +44,26 @@ impl UrlStorage {
     }
   }
 
-  fn map_err<K: Display>(key: K, error: Error) -> StorageError {
-    match error.status() {
-      None => KeyNotFound(format!("{}", key)),
-      Some(status) => KeyNotFound(format!("for {} with status: {}", key, status)),
+  /// Construct a new UrlStorage with a default client.
+  pub fn new_with_default_client(url: Uri, response_scheme: Scheme, forward_headers: bool) -> Self {
+    Self {
+      client: Client::builder().build(
+        HttpsConnectorBuilder::new()
+          .with_native_roots()
+          .https_only()
+          .enable_all_versions()
+          .build(),
+      ),
+      url,
+      response_scheme,
+      forward_headers,
     }
   }
 
-  fn apply_headers(builder: RequestBuilder, headers: &HeaderMap) -> RequestBuilder {
-    headers
-      .iter()
-      .fold(builder, |builder, (key, value)| builder.header(key, value))
-  }
-
   /// Get a url from the key.
-  pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<Url> {
-    self
-      .url
-      .join(key.as_ref())
+  pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<Uri> {
+    format!("{}{}", self.url, key.as_ref())
+      .parse::<Uri>()
       .map_err(|err| UrlParseError(err.to_string()))
   }
 
@@ -65,18 +73,33 @@ impl UrlStorage {
     key: K,
     headers: &HeaderMap,
     method: Method,
-  ) -> Result<reqwest::Response> {
+  ) -> Result<Response<Body>> {
     let key = key.as_ref();
     let url = self.get_url_from_key(key)?;
-    let url_key = url.to_string();
 
-    let builder = self.client.request(method, url);
-    let builder = Self::apply_headers(builder, headers);
+    let request = Request::builder().method(method).uri(&url);
 
-    builder
-      .send()
+    let request = headers
+      .iter()
+      .fold(request, |acc, (key, value)| acc.header(key, value))
+      .body(Body::empty())
+      .map_err(|err| UrlParseError(err.to_string()))?;
+
+    let response = self
+      .client
+      .request(request)
       .await
-      .map_err(|err| Self::map_err(url_key, err))
+      .map_err(|err| KeyNotFound(format!("{} with key {}", err, key)))?;
+
+    let status = response.status();
+    if status.is_client_error() || status.is_server_error() {
+      Err(KeyNotFound(format!(
+        "url returned {} for key {}",
+        status, key
+      )))
+    } else {
+      Ok(response)
+    }
   }
 
   /// Construct and send a request
@@ -85,15 +108,24 @@ impl UrlStorage {
     key: K,
     options: RangeUrlOptions<'_>,
   ) -> Result<HtsGetUrl> {
-    let mut url = self.get_url_from_key(key)?;
+    let mut url = self.get_url_from_key(key)?.into_parts();
 
-    url
-      .set_scheme(&self.response_scheme.to_string())
-      .map_err(|_| {
-        InternalError("failed to set scheme when formatting response url".to_string())
-      })?;
+    url.scheme = Some(
+      self
+        .response_scheme
+        .to_string()
+        .parse::<uri::Scheme>()
+        .map_err(|err| {
+          InternalError(format!(
+            "failed to set scheme when formatting response url: {}",
+            err
+          ))
+        })?,
+    );
+    let url = Uri::from_parts(url)
+      .map_err(|err| InternalError(format!("failed to convert to uri from parts: {}", err)))?;
 
-    let mut url = HtsGetUrl::new(url);
+    let mut url = HtsGetUrl::new(url.to_string());
     if self.forward_headers {
       url = url.with_headers(
         options
@@ -111,7 +143,7 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
-  ) -> Result<reqwest::Response> {
+  ) -> Result<Response<Body>> {
     self.send_request(key, headers, Method::HEAD).await
   }
 
@@ -120,15 +152,14 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
-  ) -> Result<reqwest::Response> {
+  ) -> Result<Response<Body>> {
     self.send_request(key, headers, Method::GET).await
   }
 }
 
 #[async_trait]
 impl Storage for UrlStorage {
-  // There might be a nicer way to express this type.
-  type Streamable = StreamReader<Pin<Box<dyn Stream<Item = Result<Bytes>> + Send + Sync>>, Bytes>;
+  type Streamable = StreamReader<MapErr<Body, fn(Error) -> StorageError>, Bytes>;
 
   #[instrument(level = "trace", skip(self))]
   async fn get<K: AsRef<str> + Send + Debug>(
@@ -142,13 +173,10 @@ impl Storage for UrlStorage {
     let response = self
       .get_key(key.to_string(), options.request_headers())
       .await?;
-    let url = response.url().to_string();
 
-    Ok(StreamReader::new(Box::pin(
-      response
-        .bytes_stream()
-        .map_err(move |err| Self::map_err(url.to_string(), err)),
-    )))
+    Ok(StreamReader::new(response.into_body().map_err(|err| {
+      ResponseError(format!("reading body from response: {}", err))
+    })))
   }
 
   #[instrument(level = "trace", skip(self))]
@@ -172,8 +200,6 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     let head = self.head_key(key, options.request_headers()).await?;
 
-    // Interestingly, reqwest's `content_length` function does not return the content-length header.
-    // See https://github.com/seanmonstar/reqwest/issues/843.
     let len = head
       .headers()
       .get(CONTENT_LENGTH)
@@ -204,6 +230,7 @@ mod tests {
   use axum::{middleware, Router};
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue, Request, StatusCode};
+  use hyper::body::to_bytes;
   use tokio::io::AsyncReadExt;
   use tower_http::services::ServeDir;
 
@@ -216,15 +243,15 @@ mod tests {
   #[test]
   fn get_url_from_key() {
     let storage = UrlStorage::new(
-      Client::new(),
-      Url::parse("https://example.com").unwrap(),
+      test_client(),
+      Uri::from_str("https://example.com").unwrap(),
       Scheme::Https,
       true,
     );
 
     assert_eq!(
       storage.get_url_from_key("assets/key1").unwrap(),
-      Url::parse("https://example.com/assets/key1").unwrap()
+      Uri::from_str("https://example.com/assets/key1").unwrap()
     );
   }
 
@@ -232,8 +259,8 @@ mod tests {
   async fn send_request() {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
-        Client::new(),
-        Url::parse(&url).unwrap(),
+        test_client(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -242,14 +269,16 @@ mod tests {
       let headers = test_headers(&mut headers);
 
       let response = String::from_utf8(
-        storage
-          .send_request("assets/key1", headers, Method::GET)
-          .await
-          .unwrap()
-          .bytes()
-          .await
-          .unwrap()
-          .to_vec(),
+        to_bytes(
+          storage
+            .send_request("assets/key1", headers, Method::GET)
+            .await
+            .unwrap()
+            .into_body(),
+        )
+        .await
+        .unwrap()
+        .to_vec(),
       )
       .unwrap();
       assert_eq!(response, "value1");
@@ -261,8 +290,8 @@ mod tests {
   async fn get_key() {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
-        Client::new(),
-        Url::parse(&url).unwrap(),
+        test_client(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -271,14 +300,16 @@ mod tests {
       let headers = test_headers(&mut headers);
 
       let response = String::from_utf8(
-        storage
-          .get_key("assets/key1", headers)
-          .await
-          .unwrap()
-          .bytes()
-          .await
-          .unwrap()
-          .to_vec(),
+        to_bytes(
+          storage
+            .get_key("assets/key1", headers)
+            .await
+            .unwrap()
+            .into_body(),
+        )
+        .await
+        .unwrap()
+        .to_vec(),
       )
       .unwrap();
       assert_eq!(response, "value1");
@@ -290,8 +321,8 @@ mod tests {
   async fn head_key() {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
-        Client::new(),
-        Url::parse(&url).unwrap(),
+        test_client(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -319,8 +350,8 @@ mod tests {
   async fn get_storage() {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
-        Client::new(),
-        Url::parse(&url).unwrap(),
+        test_client(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -342,7 +373,12 @@ mod tests {
   #[tokio::test]
   async fn range_url_storage() {
     with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(Client::new(), Url::parse(&url).unwrap(), Scheme::Http, true);
+      let storage = UrlStorage::new(
+        test_client(),
+        Uri::from_str(&url).unwrap(),
+        Scheme::Http,
+        true,
+      );
 
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
@@ -360,8 +396,8 @@ mod tests {
   async fn head_storage() {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
-        Client::new(),
-        Url::parse(&url).unwrap(),
+        test_client(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -378,8 +414,8 @@ mod tests {
   #[test]
   fn format_url() {
     let storage = UrlStorage::new(
-      Client::new(),
-      Url::parse("https://example.com").unwrap(),
+      test_client(),
+      Uri::from_str("https://example.com").unwrap(),
       Scheme::Https,
       true,
     );
@@ -397,8 +433,8 @@ mod tests {
   #[test]
   fn format_url_different_response_scheme() {
     let storage = UrlStorage::new(
-      Client::new(),
-      Url::parse("https://example.com").unwrap(),
+      test_client(),
+      Uri::from_str("https://example.com").unwrap(),
       Scheme::Http,
       true,
     );
@@ -416,8 +452,8 @@ mod tests {
   #[test]
   fn format_url_no_headers() {
     let storage = UrlStorage::new(
-      Client::new(),
-      Url::parse("https://example.com").unwrap(),
+      test_client(),
+      Uri::from_str("https://example.com").unwrap(),
       Scheme::Https,
       false,
     );
@@ -429,6 +465,16 @@ mod tests {
       storage.format_url("assets/key1", options).unwrap(),
       HtsGetUrl::new("https://example.com/assets/key1")
     );
+  }
+
+  fn test_client() -> Client<HttpsConnector<HttpConnector>> {
+    Client::builder().build(
+      HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .https_or_http()
+        .enable_all_versions()
+        .build(),
+    )
   }
 
   pub(crate) async fn with_url_test_server<F, Fut>(test: F)

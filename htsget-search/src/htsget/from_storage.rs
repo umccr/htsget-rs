@@ -15,6 +15,7 @@ use {crate::storage::s3::S3Storage, htsget_config::storage::s3::S3Storage as S3S
 #[cfg(feature = "url-storage")]
 use {
   crate::storage::url::UrlStorage, htsget_config::storage::url::UrlStorage as UrlStorageConfig,
+  http::Uri, std::str::FromStr,
 };
 
 use crate::htsget::search::Search;
@@ -98,9 +99,9 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
 
   #[cfg(feature = "url-storage")]
   async fn from_url(url_storage_config: &UrlStorageConfig, query: &Query) -> Result<Response> {
-    let searcher = HtsGetFromStorage::new(UrlStorage::new(
-      reqwest::Client::default(),
-      url_storage_config.url().clone(),
+    let searcher = HtsGetFromStorage::new(UrlStorage::new_with_default_client(
+      Uri::from_str(url_storage_config.url().as_ref())
+        .map_err(|err| HtsGetError::internal_error(format!("failed converting to Uri: {}", err)))?,
       url_storage_config.response_scheme(),
       url_storage_config.forward_headers(),
     ));

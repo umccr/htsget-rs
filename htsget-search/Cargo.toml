@@ -12,13 +12,13 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
-url-storage = ["dep:bytes", "dep:reqwest", "htsget-config/url-storage", "htsget-test/url-storage"]
+url-storage = ["dep:bytes", "dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
 default = []
 
 [dependencies]
 # Axum server
 url = "2.3"
-hyper = "0.14"
+hyper = { version = "0.14", features = ["http2", "server"] }
 tower-http = { version = "0.4", features = ["trace", "cors", "fs"] }
 http = "0.2"
 axum = "0.6"
@@ -44,7 +44,7 @@ aws-config = { version = "0.55", optional = true }
 aws-credential-types = { version = "0.55", features = ["test-util"] }
 
 # Url storage
-reqwest = { version = "0.11", default-features = false, optional = true, features = ["rustls-tls", "stream"] }
+hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2"], optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"
