@@ -409,8 +409,8 @@ mod tests {
 
   #[cfg(feature = "url-storage")]
   use {
-    crate::storage::url::UrlStorage, crate::types::Scheme::Https, std::str::FromStr,
-    url::Url as InnerUrl,
+    crate::storage::url::UrlStorage, crate::types::Scheme::Https, http::Uri as InnerUrl,
+    std::str::FromStr,
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
@@ -441,7 +441,7 @@ mod tests {
     async fn from_url(url_storage: &UrlStorage, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
-        vec![Url::new(url_storage.url().as_str())],
+        vec![Url::new(url_storage.url().to_string())],
       ))
     }
   }

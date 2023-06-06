@@ -1749,7 +1749,6 @@ dependencies = [
  "toml 0.7.3",
  "tracing",
  "tracing-subscriber",
- "url",
 ]
 
 [[package]]
@@ -3972,7 +3971,6 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
- "serde",
 ]
 
 [[package]]
