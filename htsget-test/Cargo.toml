@@ -1,7 +1,7 @@
 [package]
 name = "htsget-test"
 version = "0.4.1"
-rust-version = "1.60"
+rust-version = "1.65"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 license = "MIT"
