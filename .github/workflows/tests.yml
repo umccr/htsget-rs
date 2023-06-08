@@ -21,7 +21,9 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-            toolchain: ${{ matrix.rust }}
+            # Todo: remove this when clippy introduces https://github.com/rust-lang/rust-clippy/pull/10865 in nightly or stable.
+            toolchain: 1.69
+            # toolchain: ${{ matrix.rust }}
             override: true
             components: rustfmt, clippy
       - name: Cargo cache
