@@ -30,17 +30,7 @@ jobs:
             override: true
             components: rustfmt, clippy
       - name: Cargo cache
-        uses: actions/cache@v3
-        continue-on-error: false
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-cache3-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: ${{ runner.os }}-cargo-cache3-
+        uses: Swatinem/rust-cache@v2
       - name: Install cargo-criterion
         uses: baptiste0928/cargo-install@v1
         with:
