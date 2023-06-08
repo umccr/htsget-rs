@@ -41,6 +41,16 @@ jobs:
         with:
           command: build
           args: --all-targets --no-default-features
+      - name: Build s3-storage
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-targets --features s3-storage
+      - name: Build url-storage
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-targets --features url-storage
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
