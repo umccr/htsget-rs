@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.5.0...htsget-config-v0.6.0) - 2023-06-08
+
+### Other
+- nightly clippy suggestions
+- *(config)* avoid double new type struct by using named inner field and transparent container attribute
+- use http::Uri directly in config
+- update remaining dependencies, hold back tokio-rustls due to conflicting versions with actix-web
+- update noodles, remove repeated code in search
+
 ## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.4.0...htsget-config-v0.5.0) - 2023-06-02
 
 ### Fixed

@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.4.1...htsget-search-v0.5.0) - 2023-06-08
+
+### Other
+- nightly clippy suggestions
+- remove unused dependencies and update msrv
+- use http::Uri directly in config
+- *(search)* swap out reqwest for hyper
+- update remaining dependencies, hold back tokio-rustls due to conflicting versions with actix-web
+- update noodles, remove repeated code in search
+
 ## [0.4.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.4.0...htsget-search-v0.4.1) - 2023-06-02
 
 ### Other

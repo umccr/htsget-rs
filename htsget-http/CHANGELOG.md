@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.1...htsget-http-v0.4.2) - 2023-06-08
+
+### Other
+- remove unused dependencies and update msrv
+- update remaining dependencies, hold back tokio-rustls due to conflicting versions with actix-web
+
 ## [0.4.1](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.0...htsget-http-v0.4.1) - 2023-06-02
 
 ### Other
