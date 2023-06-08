@@ -98,8 +98,7 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
 
   #[cfg(feature = "url-storage")]
   async fn from_url(url_storage_config: &UrlStorageConfig, query: &Query) -> Result<Response> {
-    let searcher = HtsGetFromStorage::new(UrlStorage::new(
-      reqwest::Client::default(),
+    let searcher = HtsGetFromStorage::new(UrlStorage::new_with_default_client(
       url_storage_config.url().clone(),
       url_storage_config.response_scheme(),
       url_storage_config.forward_headers(),

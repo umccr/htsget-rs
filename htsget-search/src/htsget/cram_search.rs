@@ -19,7 +19,7 @@ use tracing::{instrument, trace};
 use htsget_config::types::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
-use crate::htsget::ConcurrencyError;
+use crate::htsget::{ConcurrencyError, ParsedHeader};
 use crate::storage::{BytesPosition, DataBlock, Storage};
 use crate::Class::Body;
 use crate::{Format, HtsGetError, Query, Result};
@@ -138,9 +138,16 @@ where
     AsyncReader::new(BufReader::new(inner))
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     reader.read_file_definition().await?;
-    reader.read_file_header().await
+
+    Ok(
+      reader
+        .read_file_header()
+        .await?
+        .parse::<ParsedHeader<Header>>()?
+        .into_inner(),
+    )
   }
 
   async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {
@@ -499,7 +506,7 @@ mod tests {
         let search = CramSearch::new(storage);
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -516,7 +523,7 @@ mod tests {
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
           .with_reference_name("20");
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -533,7 +540,7 @@ mod tests {
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],

@@ -3,6 +3,9 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
+use std::fmt::Display;
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use tokio::task::JoinError;
 
@@ -51,6 +54,30 @@ impl From<StorageError> for HtsGetError {
       err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
       err @ StorageError::UrlParseError(_) => Self::ParseError(err.to_string()),
     }
+  }
+}
+
+/// A struct to represent a parsed header
+pub struct ParsedHeader<T>(T);
+
+impl<T> ParsedHeader<T> {
+  /// Get the inner header value.
+  pub fn into_inner(self) -> T {
+    self.0
+  }
+}
+
+impl<T> FromStr for ParsedHeader<T>
+where
+  T: FromStr,
+  <T as FromStr>::Err: Display,
+{
+  type Err = HtsGetError;
+
+  fn from_str(header: &str) -> Result<Self> {
+    Ok(ParsedHeader(header.parse::<T>().map_err(|err| {
+      HtsGetError::parse_error(format!("parsing header: {}", err))
+    })?))
   }
 }
 

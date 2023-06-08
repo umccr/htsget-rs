@@ -861,7 +861,7 @@ mod tests {
         DataBlock::Range(pos) => pos.class,
         DataBlock::Data(_, class) => class,
       };
-      assert!(matches!(class, Some(_)));
+      assert!(class.is_some());
     }
   }
 
@@ -876,7 +876,7 @@ mod tests {
         DataBlock::Range(pos) => pos.class,
         DataBlock::Data(_, class) => class,
       };
-      assert!(matches!(class, None));
+      assert!(class.is_none());
     }
   }
 

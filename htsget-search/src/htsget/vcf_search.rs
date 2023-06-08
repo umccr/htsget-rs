@@ -6,18 +6,18 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf;
-use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::BinningIndex;
+use noodles::csi::index::ReferenceSequence;
+use noodles::csi::Index;
 use noodles::tabix;
-use noodles::tabix::index::ReferenceSequence;
-use noodles::tabix::Index;
 use noodles::vcf;
 use noodles::vcf::Header;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
-use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
+use htsget_config::types::HtsGetError;
+
+use crate::htsget::search::{find_first, BgzfSearch, Search};
 use crate::storage::{BytesPosition, Storage};
 use crate::{Format, Query, Result};
 
@@ -28,23 +28,8 @@ pub struct VcfSearch<S> {
   storage: Arc<S>,
 }
 
-impl BinningIndexExt for Index {
-  #[instrument(level = "trace", skip_all)]
-  fn get_all_chunks(&self) -> Vec<&Chunk> {
-    trace!("getting vec of chunks");
-    self
-      .reference_sequences()
-      .iter()
-      .flat_map(|ref_seq| ref_seq.bins())
-      .flat_map(|bin| bin.chunks())
-      .collect()
-  }
-}
-
 #[async_trait]
-impl<S, ReaderType>
-  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
-  for VcfSearch<S>
+impl<S, ReaderType> BgzfSearch<S, ReaderType, AsyncReader<ReaderType>, Header> for VcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
@@ -62,7 +47,7 @@ where
     AsyncReader::new(bgzf::AsyncReader::new(inner))
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     reader.read_header().await
   }
 
@@ -82,7 +67,13 @@ where
     // We are assuming the order of the names and the references sequences
     // in the index is the same
     let mut futures = FuturesOrdered::new();
-    for (index, name) in index.header().reference_sequence_names().iter().enumerate() {
+    for (index, name) in index
+      .header()
+      .ok_or_else(|| HtsGetError::parse_error("no tabix header found in index"))?
+      .reference_sequence_names()
+      .iter()
+      .enumerate()
+    {
       let owned_name = name.to_owned();
       let owned_reference_name = reference_name.clone();
       futures.push_back(tokio::spawn(async move {
@@ -293,7 +284,7 @@ pub(crate) mod tests {
         let search = VcfSearch::new(storage);
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -310,7 +301,7 @@ pub(crate) mod tests {
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -327,7 +318,7 @@ pub(crate) mod tests {
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],

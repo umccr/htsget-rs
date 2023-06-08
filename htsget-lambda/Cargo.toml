@@ -1,7 +1,7 @@
 [package]
 name = "htsget-lambda"
 version = "0.4.1"
-rust-version = "1.64"
+rust-version = "1.65"
 authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 license = "MIT"
@@ -16,10 +16,10 @@ url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget
 default = []
 
 [dependencies]
-tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
-tower-http = { version = "0.3", features = ["cors"] }
-lambda_http = { version = "0.7" }
-lambda_runtime = { version = "0.7" }
+tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
+tower-http = { version = "0.4", features = ["cors"] }
+lambda_http = { version = "0.8" }
+lambda_runtime = { version = "0.8" }
 htsget-config = { version = "0.5.0", path = "../htsget-config", default-features = false }
 htsget-search = { version = "0.4.1", path = "../htsget-search", default-features = false }
 htsget-http = { version = "0.4.1", path = "../htsget-http", default-features = false }
@@ -27,7 +27,7 @@ htsget-test = { version = "0.4.1", path = "../htsget-test", features = ["server-
 serde = { version = "1.0" }
 serde_json = "1.0"
 mime = "0.3"
-regex = "1.7"
+regex = "1.8"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 bytes = "1.4"
@@ -35,4 +35,4 @@ bytes = "1.4"
 [dev-dependencies]
 async-trait = "0.1"
 query_map = { version = "0.6", features = ["url-query"] }
-tempfile = "3.3"
+tempfile = "3.5"
