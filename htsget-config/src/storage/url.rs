@@ -9,9 +9,10 @@ use crate::storage::local::default_authority;
 use crate::types::Scheme;
 
 fn default_url() -> ValidatedUrl {
-  ValidatedUrl(Url(
-    InnerUrl::from_str(&format!("https://{}", default_authority())).expect("expected valid url"),
-  ))
+  ValidatedUrl(Url {
+    inner: InnerUrl::from_str(&format!("https://{}", default_authority()))
+      .expect("expected valid url"),
+  })
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -24,7 +25,11 @@ pub struct UrlStorage {
 
 /// A wrapper around `http::Uri` type which implements serialize and deserialize.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-struct Url(#[serde(with = "http_serde::uri")] InnerUrl);
+#[serde(transparent)]
+struct Url {
+  #[serde(with = "http_serde::uri")]
+  inner: InnerUrl,
+}
 
 /// A new type struct on top of `http::Uri` which only allows http or https schemes when deserializing.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -34,7 +39,7 @@ pub struct ValidatedUrl(Url);
 impl ValidatedUrl {
   /// Get the inner url.
   pub fn into_inner(self) -> InnerUrl {
-    self.0 .0
+    self.0.inner
   }
 }
 
@@ -42,7 +47,7 @@ impl TryFrom<Url> for ValidatedUrl {
   type Error = Error;
 
   fn try_from(url: Url) -> Result<Self> {
-    match url.0.scheme() {
+    match url.inner.scheme() {
       Some(scheme) if scheme == "http" || scheme == "https" => Ok(Self(url)),
       _ => Err(ParseError("url scheme must be http or https".to_string())),
     }
@@ -53,7 +58,7 @@ impl UrlStorage {
   /// Create a new url storage.
   pub fn new(url: InnerUrl, response_scheme: Scheme, forward_headers: bool) -> Self {
     Self {
-      url: ValidatedUrl(Url(url)),
+      url: ValidatedUrl(Url { inner: url }),
       response_scheme,
       forward_headers,
     }
@@ -66,7 +71,7 @@ impl UrlStorage {
 
   /// Get the url called when resolving the query.
   pub fn url(&self) -> &InnerUrl {
-    &self.url.0 .0
+    &self.url.0.inner
   }
 
   /// Whether headers received in a query request should be
