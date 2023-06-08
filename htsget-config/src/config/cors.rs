@@ -281,6 +281,6 @@ mod tests {
   fn tagged_any_allow_type_err_on_mirror() {
     let allow_type_method = "expose_headers = \"Mirror\"";
     let config: Result<CorsConfig, Error> = toml::from_str(allow_type_method);
-    assert!(matches!(config, Err(_)));
+    assert!(config.is_err());
   }
 }

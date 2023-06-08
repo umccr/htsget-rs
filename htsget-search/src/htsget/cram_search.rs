@@ -506,7 +506,7 @@ mod tests {
         let search = CramSearch::new(storage);
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -523,7 +523,7 @@ mod tests {
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
           .with_reference_name("20");
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -540,7 +540,7 @@ mod tests {
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],

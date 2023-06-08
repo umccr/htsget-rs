@@ -207,7 +207,7 @@ pub(crate) mod tests {
         GetOptions::new_with_default_range(&Default::default()),
       )
       .await;
-      assert!(matches!(result, Ok(_)));
+      assert!(result.is_ok());
     })
     .await;
   }

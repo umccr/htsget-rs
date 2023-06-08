@@ -281,7 +281,7 @@ mod tests {
         let search = BcfSearch::new(storage);
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -298,7 +298,7 @@ mod tests {
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -315,7 +315,7 @@ mod tests {
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],

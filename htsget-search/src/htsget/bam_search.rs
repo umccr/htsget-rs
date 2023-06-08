@@ -475,7 +475,7 @@ pub(crate) mod tests {
         let search = BamSearch::new(storage);
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -492,7 +492,7 @@ pub(crate) mod tests {
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("20");
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -509,7 +509,7 @@ pub(crate) mod tests {
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],

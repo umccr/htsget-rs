@@ -284,7 +284,7 @@ pub(crate) mod tests {
         let search = VcfSearch::new(storage);
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -301,7 +301,7 @@ pub(crate) mod tests {
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -318,7 +318,7 @@ pub(crate) mod tests {
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
-        assert!(matches!(response, Err(_)));
+        assert!(response.is_err());
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
