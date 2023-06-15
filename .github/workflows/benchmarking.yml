@@ -21,16 +21,18 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 1
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-            toolchain: ${{ matrix.rust }}
-            override: true
-            components: rustfmt, clippy
-      - name: Cargo cache
+          # Todo: remove this when clippy introduces https://github.com/rust-lang/rust-clippy/pull/10865 in nightly or stable.
+          toolchain: 1.69
+          # toolchain: ${{ matrix.rust }}
+          override: true
+      - name: Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-cache
+          save-if: false
       - name: Install cargo-criterion
         uses: baptiste0928/cargo-install@v1
         with:
