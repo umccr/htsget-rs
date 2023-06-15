@@ -21,31 +21,18 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-            toolchain: ${{ matrix.rust }}
+            # Todo: remove this when clippy introduces https://github.com/rust-lang/rust-clippy/pull/10865 in nightly or stable.
+            toolchain: 1.69
+            # toolchain: ${{ matrix.rust }}
             override: true
             components: rustfmt, clippy
       - name: Cargo cache
-        uses: actions/cache@v3
-        continue-on-error: false
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-cache3-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: ${{ runner.os }}-cargo-cache3-
+        uses: Swatinem/rust-cache@v2
       - name: Cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-      - name: Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --all-features  -- -D warnings
       - name: Build all features
         uses: actions-rs/cargo@v1
         with:
@@ -56,13 +43,28 @@ jobs:
         with:
           command: build
           args: --all-targets --no-default-features
-      - name: Build s3-storage feature
+      - name: Build s3-storage
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --all-targets --features s3-storage
-      - name: Run cargo test
+      - name: Build url-storage
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-targets --features url-storage
+      - name: Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --all-features  -- -D warnings
+      - name: Run cargo tests
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --all-features
+      - name: Run cargo tests no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --no-default-features

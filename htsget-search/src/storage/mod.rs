@@ -10,22 +10,24 @@ use std::time::Duration;
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
-use http::{uri, HeaderValue};
+use http::{uri, HeaderMap, HeaderValue};
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
 use htsget_config::config::cors::CorsConfig;
-use htsget_config::regex_resolver::{LocalResolver, Scheme};
-use htsget_config::Class;
+use htsget_config::storage::local::LocalStorage;
+use htsget_config::types::{Class, Scheme};
 
-use crate::htsget::{Headers, Url};
+use crate::{Headers, Url};
 
-#[cfg(feature = "s3-storage")]
-pub mod aws;
 pub mod data_server;
 pub mod local;
+#[cfg(feature = "s3-storage")]
+pub mod s3;
+#[cfg(feature = "url-storage")]
+pub mod url;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
@@ -33,13 +35,13 @@ type Result<T> = core::result::Result<T, StorageError>;
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
 pub trait Storage {
-  type Streamable: AsyncRead + Unpin + Send;
+  type Streamable: AsyncRead + Unpin + Send + Sync;
 
   /// Get the object using the key.
   async fn get<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
-    options: GetOptions,
+    options: GetOptions<'_>,
   ) -> Result<Self::Streamable>;
 
   /// Get the url of the object represented by the key using a bytes range. It is not required for
@@ -47,11 +49,15 @@ pub trait Storage {
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
-    options: RangeUrlOptions,
+    options: RangeUrlOptions<'_>,
   ) -> Result<Url>;
 
   /// Get the size of the object represented by the key.
-  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64>;
+  async fn head<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    options: HeadOptions<'_>,
+  ) -> Result<u64>;
 
   /// Get the url of the object using an inline data uri.
   #[instrument(level = "trace", ret)]
@@ -84,8 +90,8 @@ pub enum StorageError {
   #[error("{0}: {1}")]
   IoError(String, io::Error),
 
-  #[error("url response data server error: {0}")]
-  DataServerError(String),
+  #[error("server error: {0}")]
+  ServerError(String),
 
   #[error("invalid input: {0}")]
   InvalidInput(String),
@@ -99,12 +105,18 @@ pub enum StorageError {
   #[error("internal error: {0}")]
   InternalError(String),
 
+  #[error("response error: {0}")]
+  ResponseError(String),
+
   #[cfg(feature = "s3-storage")]
   #[error("aws error: {0}, with key: `{1}`")]
   AwsS3Error(String, String),
+
+  #[error("parsing url: {0}")]
+  UrlParseError(String),
 }
 
-impl UrlFormatter for LocalResolver {
+impl UrlFormatter for LocalStorage {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     uri::Builder::new()
       .scheme(match self.scheme() {
@@ -383,12 +395,24 @@ impl BytesPosition {
   }
 }
 
-#[derive(Debug, Default)]
-pub struct GetOptions {
+#[derive(Debug)]
+pub struct GetOptions<'a> {
   range: BytesPosition,
+  request_headers: &'a HeaderMap,
 }
 
-impl GetOptions {
+impl<'a> GetOptions<'a> {
+  pub fn new(range: BytesPosition, request_headers: &'a HeaderMap) -> Self {
+    Self {
+      range,
+      request_headers,
+    }
+  }
+
+  pub fn new_with_default_range(request_headers: &'a HeaderMap) -> Self {
+    Self::new(Default::default(), request_headers)
+  }
+
   pub fn with_max_length(mut self, max_length: u64) -> Self {
     self.range = BytesPosition::default().with_start(0).with_end(max_length);
     self
@@ -398,33 +422,77 @@ impl GetOptions {
     self.range = range;
     self
   }
-}
 
-#[derive(Debug, Default)]
-pub struct RangeUrlOptions {
-  range: BytesPosition,
-}
+  /// Get the range.
+  pub fn range(&self) -> &BytesPosition {
+    &self.range
+  }
 
-impl From<BytesPosition> for RangeUrlOptions {
-  fn from(bytes_position: BytesPosition) -> Self {
-    Self::default().with_range(bytes_position)
+  /// Get the request headers.
+  pub fn request_headers(&self) -> &'a HeaderMap {
+    self.request_headers
   }
 }
 
-impl RangeUrlOptions {
+#[derive(Debug)]
+pub struct RangeUrlOptions<'a> {
+  range: BytesPosition,
+  response_headers: &'a HeaderMap,
+}
+
+impl<'a> RangeUrlOptions<'a> {
+  pub fn new(range: BytesPosition, response_headers: &'a HeaderMap) -> Self {
+    Self {
+      range,
+      response_headers,
+    }
+  }
+
+  pub fn new_with_default_range(request_headers: &'a HeaderMap) -> Self {
+    Self::new(Default::default(), request_headers)
+  }
+
   pub fn with_range(mut self, range: BytesPosition) -> Self {
     self.range = range;
     self
   }
 
   pub fn apply(self, url: Url) -> Url {
-    let range: String = String::from(&BytesRange::from(&self.range));
+    let range: String = String::from(&BytesRange::from(self.range()));
     let url = if range.is_empty() {
       url
     } else {
       url.with_headers(Headers::default().with_header("Range", range))
     };
-    url.set_class(self.range.class)
+    url.set_class(self.range().class)
+  }
+
+  /// Get the range.
+  pub fn range(&self) -> &BytesPosition {
+    &self.range
+  }
+
+  /// Get the response headers.
+  pub fn response_headers(&self) -> &'a HeaderMap {
+    self.response_headers
+  }
+}
+
+/// A struct to represent options passed to a `Storage` head call.
+#[derive(Debug)]
+pub struct HeadOptions<'a> {
+  request_headers: &'a HeaderMap,
+}
+
+impl<'a> HeadOptions<'a> {
+  /// Create a new HeadOptions struct.
+  pub fn new(request_headers: &'a HeaderMap) -> Self {
+    Self { request_headers }
+  }
+
+  /// Get the request headers.
+  pub fn request_headers(&self) -> &'a HeaderMap {
+    self.request_headers
   }
 }
 
@@ -432,7 +500,10 @@ impl RangeUrlOptions {
 mod tests {
   use std::collections::HashMap;
 
-  use crate::storage::data_server::HttpTicketFormatter;
+  use http::uri::Authority;
+
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+
   use crate::storage::local::LocalStorage;
 
   use super::*;
@@ -773,7 +844,7 @@ mod tests {
   #[test]
   fn data_url() {
     let result =
-      LocalStorage::<HttpTicketFormatter>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
+      LocalStorage::<ConfigLocalStorage>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
@@ -790,7 +861,7 @@ mod tests {
         DataBlock::Range(pos) => pos.class,
         DataBlock::Data(_, class) => class,
       };
-      assert!(matches!(class, Some(_)));
+      assert!(class.is_some());
     }
   }
 
@@ -805,7 +876,7 @@ mod tests {
         DataBlock::Range(pos) => pos.class,
         DataBlock::Data(_, class) => class,
       };
-      assert!(matches!(class, None));
+      assert!(class.is_none());
     }
   }
 
@@ -830,30 +901,43 @@ mod tests {
 
   #[test]
   fn get_options_with_max_length() {
-    let result = GetOptions::default().with_max_length(1);
+    let request_headers = Default::default();
+    let result = GetOptions::new_with_default_range(&request_headers).with_max_length(1);
     assert_eq!(
-      result.range,
-      BytesPosition::default().with_start(0).with_end(1)
+      result.range(),
+      &BytesPosition::default().with_start(0).with_end(1)
     );
   }
 
   #[test]
   fn get_options_with_range() {
-    let result = GetOptions::default().with_range(BytesPosition::default());
-    assert_eq!(result.range, BytesPosition::default());
+    let request_headers = Default::default();
+    let result = GetOptions::new_with_default_range(&request_headers)
+      .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
+    assert_eq!(
+      result.range(),
+      &BytesPosition::new(Some(5), Some(11), Some(Class::Header))
+    );
   }
 
   #[test]
   fn url_options_with_range() {
-    let result = RangeUrlOptions::default().with_range(BytesPosition::default());
-    assert_eq!(result.range, BytesPosition::default());
+    let request_headers = Default::default();
+    let result = RangeUrlOptions::new_with_default_range(&request_headers)
+      .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
+    assert_eq!(
+      result.range(),
+      &BytesPosition::new(Some(5), Some(11), Some(Class::Header))
+    );
   }
 
   #[test]
   fn url_options_apply_with_bytes_range() {
-    let result = RangeUrlOptions::default()
-      .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)))
-      .apply(Url::new(""));
+    let result = RangeUrlOptions::new(
+      BytesPosition::new(Some(5), Some(11), Some(Class::Header)),
+      &Default::default(),
+    )
+    .apply(Url::new(""));
     println!("{result:?}");
     assert_eq!(
       result,
@@ -865,7 +949,36 @@ mod tests {
 
   #[test]
   fn url_options_apply_no_bytes_range() {
-    let result = RangeUrlOptions::default().apply(Url::new(""));
+    let result = RangeUrlOptions::new_with_default_range(&Default::default()).apply(Url::new(""));
     assert_eq!(result, Url::new(""));
+  }
+
+  #[test]
+  fn http_formatter_authority() {
+    let formatter = ConfigLocalStorage::new(
+      Scheme::Http,
+      Authority::from_static("127.0.0.1:8080"),
+      "data".to_string(),
+      "/data".to_string(),
+    );
+    test_formatter_authority(formatter, "http");
+  }
+
+  #[test]
+  fn https_formatter_authority() {
+    let formatter = ConfigLocalStorage::new(
+      Scheme::Https,
+      Authority::from_static("127.0.0.1:8080"),
+      "data".to_string(),
+      "/data".to_string(),
+    );
+    test_formatter_authority(formatter, "https");
+  }
+
+  fn test_formatter_authority(formatter: ConfigLocalStorage, scheme: &str) {
+    assert_eq!(
+      formatter.format_url("path").unwrap(),
+      format!("{}://127.0.0.1:8080{}/path", scheme, "/data")
+    )
   }
 }

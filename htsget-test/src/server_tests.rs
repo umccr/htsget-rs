@@ -1,19 +1,21 @@
-use base64::engine::general_purpose;
-use base64::Engine;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use base64::engine::general_purpose;
+use base64::Engine;
 use futures::future::join_all;
 use futures::TryStreamExt;
-use htsget_config::{Class, Format};
 use http::header::HeaderName;
 use http::{HeaderMap, HeaderValue, Method};
-use noodles_bgzf as bgzf;
-use noodles_vcf as vcf;
+use noodles::bgzf;
+use noodles::vcf;
 use reqwest::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{json, Value};
+
+use htsget_config::types::Class;
+use htsget_config::types::Format;
 
 use crate::http_tests::{Header, Response, TestRequest, TestServer};
 use crate::util::expected_bgzf_eof_data_url;
@@ -24,11 +26,13 @@ pub async fn test_response<R>(response: Response, class: Class)
 where
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
-  println!("response: {response:?}");
+  println!(
+    "response body: {}",
+    String::from_utf8_lossy(response.body.as_slice())
+  );
   assert!(response.is_success());
   let body = response.deserialize_body::<R>().unwrap();
 
-  // println!("{body:#?}");
   let expected_response = expected_response(class, response.expected_url_path);
   assert_eq!(
     body,
@@ -92,7 +96,7 @@ where
   .unwrap();
 
   let mut reader = vcf::AsyncReader::new(bgzf::AsyncReader::new(merged_response.as_slice()));
-  let header = reader.read_header().await.unwrap().parse().unwrap();
+  let header = reader.read_header().await.unwrap();
   println!("{header}");
 
   let mut records = reader.records(&header);
@@ -153,24 +157,50 @@ where
   T: TestRequest,
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
-  let request = tester
-    .get_request()
-    .method(Method::GET.to_string())
-    .uri("/variants/vcf/sample1-bcbio-cancer");
-  let response = tester.test_server(request).await;
-
-  test_response::<R>(response, Class::Body).await;
+  test_responses::<R, T>(
+    tester,
+    vec![
+      tester
+        .get_request()
+        .method(Method::GET.to_string())
+        .uri("/variants/1-vcf/sample1-bcbio-cancer"),
+      tester
+        .get_request()
+        .method(Method::GET.to_string())
+        .uri("/variants/1-vcf/sample1-bcbio-cancer"),
+    ],
+    Class::Body,
+  )
+  .await;
 }
 
-fn post_request<T: TestRequest>(tester: &impl TestServer<T>) -> T {
+fn post_request_one<T: TestRequest>(tester: &impl TestServer<T>) -> T {
   tester
     .get_request()
     .method(Method::POST.to_string())
-    .uri("/variants/vcf/sample1-bcbio-cancer")
+    .uri("/variants/1-vcf/sample1-bcbio-cancer")
     .insert_header(Header {
       name: http::header::CONTENT_TYPE.to_string(),
       value: mime::APPLICATION_JSON.to_string(),
     })
+}
+
+fn post_request_two<T: TestRequest>(tester: &impl TestServer<T>) -> T {
+  post_request_one(tester).uri("/variants/2-vcf/sample1-bcbio-cancer")
+}
+
+/// Test an array of requests and their responses
+async fn test_responses<R, T>(tester: &impl TestServer<T>, requests: Vec<T>, class: Class)
+where
+  T: TestRequest,
+  R: for<'de> Deserialize<'de> + Eq + Debug,
+{
+  let expected_path = tester.get_expected_path().await;
+
+  for request in requests.into_iter() {
+    let response = tester.test_server(request, expected_path.clone()).await;
+    test_response::<R>(response, class).await;
+  }
 }
 
 /// A post test using the tester.
@@ -179,10 +209,15 @@ where
   T: TestRequest,
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
-  let request = post_request(tester).set_payload("{}");
-  let response = tester.test_server(request).await;
-
-  test_response::<R>(response, Class::Body).await;
+  test_responses::<R, T>(
+    tester,
+    vec![
+      post_request_one(tester).set_payload("{}"),
+      post_request_two(tester).set_payload("{}"),
+    ],
+    Class::Body,
+  )
+  .await;
 }
 
 /// A parameterized get test.
@@ -191,13 +226,21 @@ where
   T: TestRequest,
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
-  let request = tester
-    .get_request()
-    .method(Method::GET.to_string())
-    .uri("/variants/vcf/sample1-bcbio-cancer?format=VCF&class=header");
-  let response = tester.test_server(request).await;
-
-  test_response::<R>(response, Class::Header).await;
+  test_responses::<R, T>(
+    tester,
+    vec![
+      tester
+        .get_request()
+        .method(Method::GET.to_string())
+        .uri("/variants/1-vcf/sample1-bcbio-cancer?format=VCF&class=header"),
+      tester
+        .get_request()
+        .method(Method::GET.to_string())
+        .uri("/variants/2-vcf/sample1-bcbio-cancer?format=VCF&class=header"),
+    ],
+    Class::Header,
+  )
+  .await;
 }
 
 /// A parameterized post test.
@@ -206,11 +249,17 @@ where
   T: TestRequest,
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
-  let request = post_request(tester)
-    .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}");
-  let response = tester.test_server(request).await;
-
-  test_response::<R>(response, Class::Body).await;
+  test_responses::<R, T>(
+    tester,
+    vec![
+      post_request_one(tester)
+        .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}"),
+      post_request_two(tester)
+        .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}"),
+    ],
+    Class::Body,
+  )
+  .await;
 }
 
 /// A parameterized post test with header as the class.
@@ -219,11 +268,19 @@ where
   T: TestRequest,
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
-  let request = post_request(tester).set_payload(
-    "{\"format\": \"VCF\", \"class\": \"header\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
-  );
-  let response = tester.test_server(request).await;
-  test_response::<R>(response, Class::Header).await;
+  test_responses::<R, T>(
+    tester,
+    vec![
+    post_request_one(tester).set_payload(
+      "{\"format\": \"VCF\", \"class\": \"header\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
+    ),
+    post_request_two(tester).set_payload(
+      "{\"format\": \"VCF\", \"class\": \"header\", \"regions\": [{\"referenceName\": \"chrM\"}]}",
+    )
+  ],
+    Class::Header,
+  )
+  .await;
 }
 
 /// A service info test.
@@ -232,7 +289,9 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
     .get_request()
     .method(Method::GET.to_string())
     .uri("/variants/service-info");
-  let response = tester.test_server(request).await;
+  let response = tester
+    .test_server(request, tester.get_expected_path().await)
+    .await;
 
   test_response_service_info(&response);
 }
@@ -264,6 +323,6 @@ pub fn expected_response(class: Class, url_path: String) -> Value {
     "htsget": {
       "format": Format::Vcf,
       "urls": urls
-      }
+    }
   })
 }

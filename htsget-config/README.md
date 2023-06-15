@@ -30,9 +30,11 @@ The configuration consists of multiple parts, config for the ticket server, conf
 The ticket server responds to htsget requests by returning a set of URL tickets that the client must fetch and concatenate.
 To configure the ticket server, set the following options:
 
-| Config File                                                                                   | Description                                                                                                                                                                                                | Type                                      | Default                     |
+| Option                                                                                        | Description                                                                                                                                                                                                | Type                                      | Default                     |
 |-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|-----------------------------|
 | <span id="ticket_server_addr">`ticket_server_addr`</span>                                     | The address for the ticket server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8080'`          | 
+| <span id="ticket_server_key">`ticket_server_key`</span>                                       | The path to the PEM formatted X.509 private key used by the data server. This is used to enable TLS with HTTPS.                                                                                            | Filesystem path                           | Not set                     |
+| <span id="ticket_server_cert">`ticket_server_cert`</span>                                     | The path to the PEM formatted X.509 certificate used by the data server. This is used to enable TLS with HTTPS.                                                                                            | Filesystem path                           | Not set                     |
 | <span id="ticket_server_cors_allow_credentials">`ticket_server_cors_allow_credentials`</span> | Controls the CORS Access-Control-Allow-Credentials for the ticket server.                                                                                                                                  | Boolean                                   | `false`                     |
 | <span id="ticket_server_cors_allow_origins">`ticket_server_cors_allow_origins`</span>         | Set the CORS Access-Control-Allow-Origin returned by the ticket server, this can be set to `All` to send a wildcard, `Mirror` to echo back the request sent by the client, or a specific array of origins. | `'All'`, `'Mirror'` or a array of origins | `['http://localhost:8080']` |
 | <span id="ticket_server_cors_allow_headers">`ticket_server_cors_allow_headers`</span>         | Set the CORS Access-Control-Allow-Headers returned by the ticket server, this can be set to `All` to allow all headers, or a specific array of headers.                                                    | `'All'`, or a array of headers            | `'All'`                     |
@@ -40,7 +42,7 @@ To configure the ticket server, set the following options:
 | <span id="ticket_server_cors_max_age">`ticket_server_cors_max_age`</span>                     | Set the CORS Access-Control-Max-Age for the ticket server which controls how long a preflight request can be cached for.                                                                                   | Seconds                                   | `86400`                     |
 | <span id="ticket_server_cors_expose_headers">`ticket_server_cors_expose_headers`</span>       | Set the CORS Access-Control-Expose-Headers returned by the ticket server, this can be set to `All` to expose all headers, or a specific array of headers.                                                  | `'All'`, or a array of headers            | `[]`                        |
 
-An example of config for the ticket server:
+TLS is supported by setting the `ticket_server_key` and `ticket_server_cert` options. An example of config for the ticket server:
 ```toml
 ticket_server_addr = '127.0.0.1:8080'
 ticket_server_cors_allow_credentials = false
@@ -57,7 +59,7 @@ To configure the data server, set the following options:
 
 | Option                                                                                    | Description                                                                                                                                                                                              | Type                                      | Default                     |
 |-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|-----------------------------|
-| <span id="data_server_addr">`data_server_addr`</span>                                     | The address for the data server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8080'`          | 
+| <span id="data_server_addr">`data_server_addr`</span>                                     | The address for the data server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8081'`          | 
 | <span id="data_server_local_path">`data_server_local_path`</span>                         | The local path which the data server can access to serve files.                                                                                                                                          | Filesystem path                           | `'data'`                    |
 | <span id="data_server_serve_at">`data_server_serve_at`</span>                             | The path which the data server will prefix to all response URLs for tickets.                                                                                                                             | URL path                                  | `'/data'`                   |
 | <span id="data_server_key">`data_server_key`</span>                                       | The path to the PEM formatted X.509 private key used by the data server. This is used to enable TLS with HTTPS.                                                                                          | Filesystem path                           | Not set                     |
@@ -69,7 +71,7 @@ To configure the data server, set the following options:
 | <span id="data_server_cors_max_age">`data_server_cors_max_age`</span>                     | Set the CORS Access-Control-Max-Age for the data server which controls how long a preflight request can be cached for.                                                                                   | Seconds                                   | `86400`                     |
 | <span id="data_server_cors_expose_headers">`data_server_cors_expose_headers`</span>       | Set the CORS Access-Control-Expose-Headers returned by the data server, this can be set to `All` to expose all headers, or a specific array of headers.                                                  | `'All'`, or a array of headers            | `[]`                        |
 
-An example of config for the data server:
+TLS is supported by setting the `data_server_key` and `data_server_cert` options.  An example of config for the data server:
 ```toml
 data_server_addr = '127.0.0.1:8081'
 data_server_local_path = 'data'
@@ -141,34 +143,97 @@ For example, below is a `regex` option which matches a `/` between two groups, a
 inbetween the groups with the `substitution_string`.
 
 ```toml
-regex = '(?P<group1>.*?)/(?P<group2>.*)' 
-substitution = '$group1/data/$group2'
+[[resolvers]]
+regex = '(?P<group1>.*?)/(?P<group2>.*)'
+substitution_string = '$group1/data/$group2'
 ```
 
 For more information about regex options see the [regex crate](https://docs.rs/regex/).
 
-Each resolver also maps to a certain storage type. This storage type can be used to set query IDs which are served from local storage, or on AWS S3.
-To set the storage type for a resolver, add a `[resolvers.storage_type]` table. Set the type option to control the data server storage type:
+Each resolver also maps to a certain storage backend. This storage backend can be used to set query IDs which are served from local storage, from S3-style bucket storage, or from HTTP URLs.
+To set the storage backend for a resolver, add a `[resolvers.storage]` table. Some storage backends require feature flags to be set when compiling htsget-rs.
 
-| Option              | Description                                                                                                                         | Type                         | Default             |
-|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|---------------------|
-| `type`              | The storage type.                                                                                                                   | Either `'Local'` or `'S3'`   | `'Local'`           |
+To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for the fields below from the `data_server` config:
 
-If the type is `Local`, then the following options can be set:
+| Option              | Description                                                                                                                         | When `storage = 'Local'`                                                                                                         | Type                         | Default            |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
+| `scheme`            | The scheme present on URL tickets.                                                                                                  | Derived from `data_server_key` and `data_server_cert`. If no key and cert are present, then uses `Http`, otherwise uses `Https`. | Either `'Http'` or `'Https'` | `'Http'`           |
+| `authority`         | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | Same as `data_server_addr`.                                                                                                      | URL authority                | `'127.0.0.1:8081'` |
+| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Same as `data_server_local_path`.                                                                                                | Filesystem path              | `'data'`           |
+| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | Same as `data_server_serve_at`.                                                                                                  | URL path                     | `'/data'`          |
 
-| Option              | Description                                                                                                                         | Type                         | Default            |
-|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
-| `scheme`            | The scheme present on URL tickets.                                                                                                  | Either `'HTTP'` or `'HTTPS'` | `'HTTP'`           |
-| `authority`         | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | URL authority                | `'127.0.0.1:8081'` |
-| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Filesystem path              | `'data'`           |
-| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | URL path                     | `'/data'`          |
+To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
 
-If the type is `S3`, then the following option can be set:
+| Option       | Description                                                                                                                                                                   | When `storage = 'S3'`                                                                                            | Type    | Default                                |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|---------|----------------------------------------|
+| `bucket`     | The AWS S3 bucket where resources can be retrieved from.                                                                                                                      | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`. | String  | `''`                                   |
+| `endpoint`   | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio).                | Not set, uses regular AWS S3 services.                                                                           | String  | Not set, uses regular AWS S3 services. |
+| `path_style` | The S3 path style to request from the storage backend. If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used.  | `fasle`                                                                                                          | Boolean | `false`                                |
 
-| Option   | Description                                              | Type            | Default |
-|----------|----------------------------------------------------------|-----------------|---------|
-| `bucket` | The AWS S3 bucket where resources can be retrieved from. | String          | `''`    |
+`UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
+To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
 
+| Option            | Description                                                                                                                                                      | Type                     | Default                     |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------|
+| `url`             | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | `"https://127.0.0.1:8081/"` |
+| `response_scheme` | The scheme used for the tickets returned by the ticket server.                                                                                                   | Either `Http` or `Https` | `Https`                     |
+| `forward_headers` | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                      |
+
+When using `UrlStorage`, the following requests will be made to the `url`.
+* `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
+* `GET` request to fetch the entire index file (e.g. `GET /data.bam.bai`).
+* `HEAD` request on the data file to get its length (e.g. `HEAD /data.bam`).
+
+All headers received in the initial query will be included when making these requests.
+
+For example, a `resolvers` value of:
+```toml
+[[resolvers]]
+regex = '^(example_bucket)/(?P<key>.*)$'
+substitution_string = '$key'
+storage = 'S3'
+```
+Will use "example_bucket" as the S3 bucket if that resolver matches, because this is the first capture group in the `regex`.
+Note, to use this feature, at least one capture group must be defined in the `regex`.
+
+Note, all the values for `S3Storage` or `LocalStorage` can be also be set manually by adding a
+`[resolvers.storage]` table. For example, to manually set the config for `LocalStorage`:
+
+```toml
+[[resolvers]]
+regex = '.*'
+substitution_string = '$0'
+
+[resolvers.storage]
+scheme = 'Http'
+authority = '127.0.0.1:8081'
+local_path = 'data'
+path_prefix = '/data'
+```
+
+or, to manually set the config for `S3Storage`:
+
+```toml
+[[resolvers]]
+regex = '.*'
+substitution_string = '$0'
+
+[resolvers.storage]
+bucket = 'bucket'
+```
+
+`UrlStorage` can only be specified manually.
+
+There are additional examples of config files located under [`examples/config-files`][examples-config-files]
+
+[examples-config-files]: examples/config-files
+
+#### Note
+By default, when htsget-rs is compiled with the `s3-storage` feature flag, `storage = 'S3'` is used when no `storage` options
+are specified. Otherwise, `storage = 'Local'` is used when no storage options are specified. Compilation includes the `s3-storage` 
+feature flag by default, so in order to have `storage = 'Local'` as the default, `--no-default-features` can be passed to `cargo`.
+
+#### Allow guard
 Additionally, the resolver component has a feature, which allows resolving IDs based on the other fields present in a query.
 This is useful as allows the resolver to match an ID, if a particular set of query parameters are also present. For example, 
 a resolver can be set to only resolve IDs if the format is also BAM.
@@ -192,8 +257,7 @@ An example of a fully configured resolver:
 regex = '.*'
 substitution_string = '$0'
 
-[resolvers.storage_type]
-type = 'S3'
+[resolvers.storage]
 bucket = 'bucket'
 
 [resolvers.allow_guard]
@@ -234,6 +298,31 @@ Use the `--help` flag to see more details on command line options.
 [htsget-actix]: ../htsget-actix
 [htsget-lambda]: ../htsget-lambda
 
+#### Log formatting
+
+The [Tracing][tracing] crate is used extensively by htsget-rs is for logging functionality. The `RUST_LOG` variable is
+read to configure the level that trace logs are emitted.
+
+For example, the following indicates trace level for all htsget crates, and info level for all other crates:
+
+```sh
+export RUST_LOG='info,htsget_lambda=trace,htsget_lambda=trace,htsget_config=trace,htsget_http=trace,htsget_search=trace,htsget_test=trace'
+```
+
+See [here][rust-log] for more information on setting this variable.
+
+The style of formatting can be configured by setting the following option:
+
+| Option                                                  | Description                          | Type                                                   | Default  |
+|---------------------------------------------------------|--------------------------------------|--------------------------------------------------------|----------|
+| <span id="formatting_style">`formatting_style`</span>   | The style of log formatting to use.  | One of `'Full'`, `'Compact'`, `'Pretty'`, or `'Json'`  | `'Full'` |
+
+See [here][formatting-style] for more information on how these values look.
+
+[tracing]: https://github.com/tokio-rs/tracing
+[rust-log]: https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
+[formatting-style]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html#formatters
+
 #### Configuring htsget-rs with environment variables
 
 All the htsget-rs config options can be set by environment variables, which is convenient for runtimes such as AWS Lambda.
@@ -248,6 +337,8 @@ The following environment variables - corresponding to the TOML config - are ava
 | Variable                                      | Description                                                                         |
 |-----------------------------------------------|-------------------------------------------------------------------------------------|
 | `HTSGET_TICKET_SERVER_ADDR`                   | See [`ticket_server_addr`](#ticket_server_addr)                                     | 
+| `HTSGET_TICKET_SERVER_KEY`                    | See [`ticket_server_key`](#ticket_server_key)                                       |
+| `HTSGET_TICKET_SERVER_CERT`                   | See [`ticket_server_cert`](#ticket_server_cert)                                     |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_CREDENTIALS` | See [`ticket_server_cors_allow_credentials`](#ticket_server_cors_allow_credentials) |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS`     | See [`ticket_server_cors_allow_origins`](#ticket_server_cors_allow_origins)         |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_HEADERS`     | See [`ticket_server_cors_allow_headers`](#ticket_server_cors_allow_headers)         |
@@ -275,7 +366,8 @@ The following environment variables - corresponding to the TOML config - are ava
 | `HTSGET_CREATED_AT`                           | See [`created_at`](#created_at)                                                     |
 | `HTSGET_UPDATED_AT`                           | See [`updated_at`](#updated_at)                                                     |
 | `HTSGET_ENVIRONMENT`                          | See [`environment`](#environment)                                                   |
-| `HTSGET_RESOLVERS`                            | See [resolvers](#resolvers)                                                         |
+| `HTSGET_RESOLVERS`                            | See [`resolvers`](#resolvers)                                                       |
+| `HTSGET_FORMATTING_STYLE`                     | See [`formatting_style`](#formatting_style)                                         |
 
 In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set. The nested array of resolvers structure can be set using name key and value pairs, for example:
 
@@ -283,8 +375,7 @@ In order to use `HTSGET_RESOLVERS`, the entire resolver config array must be set
 export HTSGET_RESOLVERS="[{
     regex=regex,
     substitution_string=substitution_string,
-    storage_type={
-        type=S3,
+    storage={
         bucket=bucket
     },
     allow_guard={
@@ -306,29 +397,36 @@ export HTSGET_DATA_SERVER_ENABLED=false
 ```
 [service-info]: https://samtools.github.io/hts-specs/htsget.html#ga4gh-service-info
 
-#### RUST_LOG
+### MinIO
 
-The [Tracing][tracing] crate is used extensively by htsget-rs is for logging functionality. The `RUST_LOG` variable is
-read to configure the level that trace logs are emitted.
+Operating a local object storage like [MinIO][minio] can be easily achieved by leveraging the `endpoint` directive as shown below:
 
-For example, the following indicates trace level for all htsget crates, and info level for all other crates:
+```toml
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
 
-```sh
-export RUST_LOG='info,htsget_lambda=trace,htsget_lambda=trace,htsget_config=trace,htsget_http=trace,htsget_search=trace,htsget_test=trace'
+[resolvers.storage]
+bucket = 'bucket'
+endpoint = "http://127.0.0.1:9000"
 ```
 
-See [here][rust-log] for more information on setting this variable.
+This will have htsget-rs behaving like the native AWS CLI, i.e:
 
-[tracing]: https://github.com/tokio-rs/tracing
-[rust-log]: https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
+```
+mkdir /tmp/test
+minio server /tmp/test
+export AWS_ACCESS_KEY_ID=minioadmin
+export AWS_SECRET_ACCESS_KEY=minioadmin
+aws s3 mb --endpoint-url=http://localhost:9000 s3://bucket/
+aws s3 cp --recursive --endpoint-url=http://localhost:9000 htsget-rs/data/bam s3://bucket/
+cargo run -p htsget-actix -- --config ~/.htsget-rs/config.toml
 
-#### AWS config
+# On another session/terminal
+curl http://localhost:8080/reads/htsnexus_test_NA12878
+```
 
-Config for AWS is read entirely from environment variables. A default configuration is loaded from environment variables using the [aws-config] crate.
-Check out the [AWS documentation][aws-sdk] for the rust SDK for more information. 
-
-[aws-config]: https://docs.rs/aws-config/latest/aws_config/
-[aws-sdk]: https://docs.aws.amazon.com/sdk-for-rust/latest/dg/welcome.html
+Please don't run the example above as-is in production systems ;)
 
 ### As a library
 
@@ -341,10 +439,12 @@ regex, and changing it by using a substitution string.
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
+* `url-storage`: used to enable `UrlStorage` functionality.
 
 ## License
 
 This project is licensed under the [MIT license][license].
 
 [license]: LICENSE
+[minio]: https://min.io/

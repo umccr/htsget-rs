@@ -1,11 +1,11 @@
 [package]
 name = "htsget-test"
-version = "0.1.4"
-rust-version = "1.60"
+version = "0.4.2"
+rust-version = "1.65"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 license = "MIT"
-description = "Common test functions and utilities used by htsget-rs"
+description = "Common test functions and utilities used by htsget-rs."
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-test/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-test/README.md"
 repository = "https://github.com/umccr/htsget-rs"
@@ -21,8 +21,7 @@ cors-tests = ["http-tests", "dep:htsget-config"]
 server-tests = [
     "http-tests",
     "dep:htsget-config",
-    "dep:noodles-vcf",
-    "dep:noodles-bgzf",
+    "dep:noodles",
     "dep:reqwest",
     "dep:tokio",
     "dep:futures",
@@ -30,17 +29,17 @@ server-tests = [
     "dep:base64"
 ]
 s3-storage = ["htsget-config?/s3-storage"]
-default = ["s3-storage"]
+url-storage = ["htsget-config?/url-storage"]
+default = []
 
 [dependencies]
 # Server tests dependencies
-htsget-config = { version = "0.1.4", path = "../htsget-config", default-features = false, optional = true }
+htsget-config = { version = "0.6.0", path = "../htsget-config", default-features = false, optional = true }
 
-noodles-vcf = { version = "0.24", features = ["async"], optional = true }
-noodles-bgzf = { version = "0.19", features = ["async"], optional = true }
+noodles = { version = "0.40", optional = true, features = ["async", "bgzf", "vcf"] }
 
 reqwest = { version = "0.11", default-features = false, features = ["json", "blocking", "rustls-tls"], optional = true }
-tokio = { version = "1.25", features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1.28", features = ["rt-multi-thread"], optional = true }
 futures = { version = "0.3", optional = true }
 async-trait = { version = "0.1", optional = true }
 http = { version = "0.2", optional = true }

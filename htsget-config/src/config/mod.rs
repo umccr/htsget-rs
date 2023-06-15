@@ -1,29 +1,31 @@
-pub mod cors;
-
 use std::fmt::Debug;
-use std::io;
-use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
-use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
-use clap::Parser;
+use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
 use http::header::HeaderName;
 use http::Method;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
-use tracing::info;
-use tracing::instrument;
+use tracing::subscriber::set_global_default;
+use tracing_subscriber::fmt::{format, layer};
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::{fmt, EnvFilter, Registry};
+use tracing_subscriber::{EnvFilter, Registry};
 
-use crate::regex_resolver::RegexResolver;
+use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
+use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
+use crate::error::Error::{ArgParseError, IoError, TracingError};
+use crate::error::Result;
+use crate::resolver::Resolver;
+use crate::types::Scheme;
+use crate::types::Scheme::{Http, Https};
+
+pub mod cors;
 
 /// Represents a usage string for htsget-rs.
-pub const USAGE: &str =
-  "htsget-rs can be configured using a config file or environment variables. \
+pub const USAGE: &str = "To configure htsget-rs use a config file or environment variables. \
 See the documentation of the htsget-config crate for more information.";
 
 const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
@@ -63,55 +65,69 @@ struct Args {
   print_default_config: bool,
 }
 
+/// Determines which tracing formatting style to use.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Default)]
+pub enum FormattingStyle {
+  #[default]
+  Full,
+  Compact,
+  Pretty,
+  Json,
+}
+
+with_prefix!(ticket_server_prefix "ticket_server_");
 with_prefix!(data_server_prefix "data_server_");
+with_prefix!(cors_prefix "cors_");
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
-  #[serde(flatten)]
+  formatting_style: FormattingStyle,
+  #[serde(flatten, with = "ticket_server_prefix")]
   ticket_server: TicketServerConfig,
   #[serde(flatten, with = "data_server_prefix")]
   data_server: DataServerConfig,
-  resolvers: Vec<RegexResolver>,
+  #[serde(flatten)]
+  service_info: ServiceInfo,
+  resolvers: Vec<Resolver>,
 }
-
-with_prefix!(ticket_server_cors_prefix "ticket_server_cors_");
 
 /// Configuration for the htsget ticket server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TicketServerConfig {
-  ticket_server_addr: SocketAddr,
-  #[serde(flatten, with = "ticket_server_cors_prefix")]
-  cors: CorsConfig,
+  addr: SocketAddr,
   #[serde(flatten)]
-  service_info: ServiceInfo,
+  tls: Option<CertificateKeyPair>,
+  #[serde(flatten, with = "cors_prefix")]
+  cors: CorsConfig,
 }
 
 impl TicketServerConfig {
   /// Create a new ticket server config.
-  pub fn new(ticket_server_addr: SocketAddr, cors: CorsConfig, service_info: ServiceInfo) -> Self {
-    Self {
-      ticket_server_addr,
-      cors,
-      service_info,
-    }
+  pub fn new(addr: SocketAddr, tls: Option<CertificateKeyPair>, cors: CorsConfig) -> Self {
+    Self { addr, tls, cors }
   }
 
   /// Get the addr.
   pub fn addr(&self) -> SocketAddr {
-    self.ticket_server_addr
+    self.addr
+  }
+
+  /// Get the TLS config.
+  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+    self.tls.as_ref()
+  }
+
+  /// Get the TLS config.
+  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+    self.tls
   }
 
   /// Get cors config.
   pub fn cors(&self) -> &CorsConfig {
     &self.cors
-  }
-
-  /// Get service info.
-  pub fn service_info(&self) -> &ServiceInfo {
-    &self.service_info
   }
 
   /// Get allow credentials.
@@ -143,61 +159,17 @@ impl TicketServerConfig {
   pub fn expose_headers(&self) -> &AllowType<HeaderName> {
     self.cors.expose_headers()
   }
+}
 
-  /// Get id.
-  pub fn id(&self) -> Option<&str> {
-    self.service_info.id()
-  }
-
-  /// Get name.
-  pub fn name(&self) -> Option<&str> {
-    self.service_info.name()
-  }
-
-  /// Get version.
-  pub fn version(&self) -> Option<&str> {
-    self.service_info.version()
-  }
-
-  /// Get organization name.
-  pub fn organization_name(&self) -> Option<&str> {
-    self.service_info.organization_name()
-  }
-
-  /// Get the organization url.
-  pub fn organization_url(&self) -> Option<&str> {
-    self.service_info.organization_url()
-  }
-
-  /// Get the contact url.
-  pub fn contact_url(&self) -> Option<&str> {
-    self.service_info.contact_url()
-  }
-
-  /// Get the documentation url.
-  pub fn documentation_url(&self) -> Option<&str> {
-    self.service_info.documentation_url()
-  }
-
-  /// Get created at.
-  pub fn created_at(&self) -> Option<&str> {
-    self.service_info.created_at()
-  }
-
-  /// Get updated at.
-  pub fn updated_at(&self) -> Option<&str> {
-    self.service_info.updated_at()
-  }
-
-  /// Get the environment.
-  pub fn environment(&self) -> Option<&str> {
-    self.service_info.environment()
-  }
+/// A trait to determine which scheme a key pair option has.
+pub trait KeyPairScheme {
+  /// Get the scheme.
+  fn get_scheme(&self) -> Scheme;
 }
 
 /// A certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct CertificateKeyPair {
   cert: PathBuf,
   key: PathBuf,
@@ -220,7 +192,14 @@ impl CertificateKeyPair {
   }
 }
 
-with_prefix!(cors_prefix "cors_");
+impl KeyPairScheme for Option<&CertificateKeyPair> {
+  fn get_scheme(&self) -> Scheme {
+    match self {
+      None => Http,
+      Some(_) => Https,
+    }
+  }
+}
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -229,7 +208,7 @@ pub struct DataServerConfig {
   enabled: bool,
   addr: SocketAddr,
   local_path: PathBuf,
-  serve_at: PathBuf,
+  serve_at: String,
   #[serde(flatten)]
   tls: Option<CertificateKeyPair>,
   #[serde(flatten, with = "cors_prefix")]
@@ -242,7 +221,7 @@ impl DataServerConfig {
     enabled: bool,
     addr: SocketAddr,
     local_path: PathBuf,
-    serve_at: PathBuf,
+    serve_at: String,
     tls: Option<CertificateKeyPair>,
     cors: CorsConfig,
   ) -> Self {
@@ -267,16 +246,16 @@ impl DataServerConfig {
   }
 
   /// Get the serve at path.
-  pub fn serve_at(&self) -> &Path {
+  pub fn serve_at(&self) -> &str {
     &self.serve_at
   }
 
-  /// Get the TLS config
+  /// Get the TLS config.
   pub fn tls(&self) -> Option<&CertificateKeyPair> {
     self.tls.as_ref()
   }
 
-  /// Get the TLS config
+  /// Get the TLS config.
   pub fn into_tls(self) -> Option<CertificateKeyPair> {
     self.tls
   }
@@ -408,9 +387,9 @@ impl ServiceInfo {
 impl Default for TicketServerConfig {
   fn default() -> Self {
     Self {
-      ticket_server_addr: default_addr().parse().expect("expected valid address"),
+      addr: default_addr().parse().expect("expected valid address"),
+      tls: None,
       cors: CorsConfig::default(),
-      service_info: ServiceInfo::default(),
     }
   }
 }
@@ -418,9 +397,11 @@ impl Default for TicketServerConfig {
 impl Default for Config {
   fn default() -> Self {
     Self {
+      formatting_style: Full,
       ticket_server: TicketServerConfig::default(),
       data_server: DataServerConfig::default(),
-      resolvers: vec![RegexResolver::default()],
+      service_info: ServiceInfo::default(),
+      resolvers: vec![Resolver::default()],
     }
   }
 }
@@ -428,21 +409,36 @@ impl Default for Config {
 impl Config {
   /// Create a new config.
   pub fn new(
+    formatting: FormattingStyle,
     ticket_server: TicketServerConfig,
     data_server: DataServerConfig,
-    resolvers: Vec<RegexResolver>,
+    service_info: ServiceInfo,
+    resolvers: Vec<Resolver>,
   ) -> Self {
     Self {
+      formatting_style: formatting,
       ticket_server,
       data_server,
+      service_info,
       resolvers,
     }
   }
 
-  /// Parse the command line arguments
-  pub fn parse_args() -> Option<PathBuf> {
-    let args = Args::parse();
+  /// Parse the command line arguments. Returns the config path, or prints the default config.
+  /// Augment the `Command` args from the `clap` parser. Returns an error if the
+  pub fn parse_args_with_command(augment_args: Command) -> Result<Option<PathBuf>> {
+    Ok(Self::parse_with_args(
+      Args::from_arg_matches(&Args::augment_args(augment_args).get_matches())
+        .map_err(|err| ArgParseError(err.to_string()))?,
+    ))
+  }
 
+  /// Parse the command line arguments. Returns the config path, or prints the default config.
+  pub fn parse_args() -> Option<PathBuf> {
+    Self::parse_with_args(Args::parse())
+  }
+
+  fn parse_with_args(args: Args) -> Option<PathBuf> {
     if args.print_default_config {
       println!(
         "{}",
@@ -455,33 +451,36 @@ impl Config {
   }
 
   /// Read a config struct from a TOML file.
-  #[instrument]
-  pub fn from_path(path: &Path) -> io::Result<Self> {
-    let config = Figment::from(Serialized::defaults(Config::default()))
+  pub fn from_path(path: &Path) -> Result<Self> {
+    let config: Config = Figment::from(Serialized::defaults(Config::default()))
       .merge(Toml::file(path))
       .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
       .extract()
-      .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;
+      .map_err(|err| IoError(err.to_string()))?;
 
-    info!(config = ?config, "config created from environment variables");
-    Ok(config)
+    Ok(config.resolvers_from_data_server_config())
   }
 
   /// Setup tracing, using a global subscriber.
-  pub fn setup_tracing() -> io::Result<()> {
+  pub fn setup_tracing(&self) -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    let fmt_layer = fmt::Layer::default();
 
-    let subscriber = Registry::default().with(env_filter).with(fmt_layer);
+    let subscriber = Registry::default().with(env_filter);
 
-    tracing::subscriber::set_global_default(subscriber).map_err(|err| {
-      io::Error::new(
-        ErrorKind::Other,
-        format!("failed to install `tracing` subscriber: {err}"),
-      )
-    })?;
+    match self.formatting_style() {
+      Full => set_global_default(subscriber.with(layer())),
+      Compact => set_global_default(subscriber.with(layer().event_format(format().compact()))),
+      Pretty => set_global_default(subscriber.with(layer().event_format(format().pretty()))),
+      Json => set_global_default(subscriber.with(layer().event_format(format().json()))),
+    }
+    .map_err(|err| TracingError(err.to_string()))?;
 
     Ok(())
+  }
+
+  /// Get the formatting style.
+  pub fn formatting_style(&self) -> FormattingStyle {
+    self.formatting_style
   }
 
   /// Get the ticket server.
@@ -494,32 +493,60 @@ impl Config {
     &self.data_server
   }
 
+  /// Get the owned data server.
+  pub fn into_data_server(self) -> DataServerConfig {
+    self.data_server
+  }
+
+  /// Get service info.
+  pub fn service_info(&self) -> &ServiceInfo {
+    &self.service_info
+  }
+
   /// Get the resolvers.
-  pub fn resolvers(&self) -> &[RegexResolver] {
+  pub fn resolvers(&self) -> &[Resolver] {
     &self.resolvers
   }
 
   /// Get owned resolvers.
-  pub fn owned_resolvers(self) -> Vec<RegexResolver> {
+  pub fn owned_resolvers(self) -> Vec<Resolver> {
     self.resolvers
+  }
+
+  /// Set the local resolvers from the data server config.
+  pub fn resolvers_from_data_server_config(self) -> Self {
+    let Config {
+      formatting_style: formatting,
+      ticket_server,
+      data_server,
+      service_info,
+      mut resolvers,
+    } = self;
+
+    resolvers
+      .iter_mut()
+      .for_each(|resolver| resolver.resolvers_from_data_server_config(&data_server));
+
+    Self::new(
+      formatting,
+      ticket_server,
+      data_server,
+      service_info,
+      resolvers,
+    )
   }
 }
 
 #[cfg(test)]
-mod tests {
-  use super::*;
-  #[cfg(feature = "s3-storage")]
-  use crate::regex_resolver::aws::S3Resolver;
-  #[cfg(feature = "s3-storage")]
-  use crate::regex_resolver::{AllowGuard, ReferenceNames};
-  use crate::regex_resolver::{Scheme, StorageType};
-  use crate::Format::Bam;
-  #[cfg(feature = "s3-storage")]
-  use crate::{Class, Fields, Interval, Tags};
-  use figment::Jail;
-  #[cfg(feature = "s3-storage")]
-  use std::collections::HashSet;
+pub(crate) mod tests {
   use std::fmt::Display;
+
+  use figment::Jail;
+  use http::uri::Authority;
+
+  use crate::storage::Storage;
+
+  use super::*;
 
   fn test_config<K, V, F>(contents: Option<&str>, env_variables: Vec<(K, V)>, test_fn: F)
   where
@@ -542,7 +569,7 @@ mod tests {
     });
   }
 
-  fn test_config_from_env<K, V, F>(env_variables: Vec<(K, V)>, test_fn: F)
+  pub(crate) fn test_config_from_env<K, V, F>(env_variables: Vec<(K, V)>, test_fn: F)
   where
     K: AsRef<str>,
     V: Display,
@@ -551,7 +578,7 @@ mod tests {
     test_config(None, env_variables, test_fn);
   }
 
-  fn test_config_from_file<F>(contents: &str, test_fn: F)
+  pub(crate) fn test_config_from_file<F>(contents: &str, test_fn: F)
   where
     F: FnOnce(Config),
   {
@@ -584,7 +611,7 @@ mod tests {
   #[test]
   fn config_service_info_id_env() {
     test_config_from_env(vec![("HTSGET_ID", "id")], |config| {
-      assert_eq!(config.ticket_server().id(), Some("id"));
+      assert_eq!(config.service_info().id(), Some("id"));
     });
   }
 
@@ -609,51 +636,6 @@ mod tests {
   }
 
   #[test]
-  fn config_resolvers_env() {
-    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{regex=regex}]")], |config| {
-      assert_eq!(
-        config.resolvers().first().unwrap().regex().as_str(),
-        "regex"
-      );
-    });
-  }
-
-  #[cfg(feature = "s3-storage")]
-  #[test]
-  fn config_resolvers_all_options_env() {
-    test_config_from_env(
-      vec![(
-        "HTSGET_RESOLVERS",
-        "[{ regex=regex, substitution_string=substitution_string, \
-        storage_type={ type=S3, bucket=bucket }, \
-        allow_guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
-        allow_formats=[BAM], allow_classes=[body], allow_interval_start=100, \
-        allow_interval_end=1000 } }]",
-      )],
-      |config| {
-        let storage_type = StorageType::S3(S3Resolver::new("bucket".to_string()));
-        let allow_guard = AllowGuard::new(
-          ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),
-          Fields::List(HashSet::from_iter(vec!["QNAME".to_string()])),
-          Tags::List(HashSet::from_iter(vec!["RG".to_string()])),
-          vec![Bam],
-          vec![Class::Body],
-          Interval {
-            start: Some(100),
-            end: Some(1000),
-          },
-        );
-        let resolver = config.resolvers.first().unwrap();
-
-        assert_eq!(resolver.regex().to_string(), "regex");
-        assert_eq!(resolver.substitution_string(), "substitution_string");
-        assert_eq!(resolver.storage_type(), &storage_type);
-        assert_eq!(resolver.allow_guard(), &allow_guard);
-      },
-    );
-  }
-
-  #[test]
   fn config_ticket_server_addr_file() {
     test_config_from_file(r#"ticket_server_addr = "127.0.0.1:8082""#, |config| {
       assert_eq!(
@@ -673,7 +655,7 @@ mod tests {
   #[test]
   fn config_service_info_id_file() {
     test_config_from_file(r#"id = "id""#, |config| {
-      assert_eq!(config.ticket_server().id(), Some("id"));
+      assert_eq!(config.service_info().id(), Some("id"));
     });
   }
 
@@ -688,6 +670,120 @@ mod tests {
   }
 
   #[test]
+  #[should_panic]
+  fn config_data_server_tls_no_cert() {
+    test_config_from_file(
+      r#"
+    data_server_key = "key.pem"
+    "#,
+      |config| {
+        assert_eq!(
+          config.data_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_data_server_tls() {
+    test_config_from_file(
+      r#"
+    data_server_key = "key.pem"
+    data_server_cert = "cert.pem"
+    "#,
+      |config| {
+        assert_eq!(
+          config.data_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_data_server_tls_env() {
+    test_config_from_env(
+      vec![
+        ("HTSGET_DATA_SERVER_KEY", "key.pem"),
+        ("HTSGET_DATA_SERVER_CERT", "cert.pem"),
+      ],
+      |config| {
+        assert_eq!(
+          config.data_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  #[should_panic]
+  fn config_ticket_server_tls_no_cert() {
+    test_config_from_file(
+      r#"
+    ticket_server_key = "key.pem"
+    "#,
+      |config| {
+        assert_eq!(
+          config.ticket_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_ticket_server_tls() {
+    test_config_from_file(
+      r#"
+    ticket_server_key = "key.pem"
+    ticket_server_cert = "cert.pem"
+    "#,
+      |config| {
+        assert_eq!(
+          config.ticket_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_ticket_server_tls_env() {
+    test_config_from_env(
+      vec![
+        ("HTSGET_TICKET_SERVER_KEY", "key.pem"),
+        ("HTSGET_TICKET_SERVER_CERT", "cert.pem"),
+      ],
+      |config| {
+        assert_eq!(
+          config.ticket_server().tls(),
+          Some(&CertificateKeyPair {
+            key: "key.pem".into(),
+            cert: "cert.pem".into()
+          })
+        );
+      },
+    );
+  }
+
+  #[test]
   fn config_no_data_server_file() {
     test_config_from_file(r#"data_server_enabled = true"#, |config| {
       assert!(config.data_server().enabled());
@@ -695,80 +791,21 @@ mod tests {
   }
 
   #[test]
-  fn config_resolvers_file() {
+  fn resolvers_from_data_server_config() {
     test_config_from_file(
       r#"
-            [[resolvers]]
-            regex = "regex"
-        "#,
+    data_server_addr = "127.0.0.1:8080"
+    data_server_local_path = "path"
+    data_server_serve_at = "/path"
+
+    [[resolvers]]
+    storage = "Local"
+    "#,
       |config| {
-        assert_eq!(
-          config.resolvers().first().unwrap().regex().as_str(),
-          "regex"
-        );
-      },
-    );
-  }
+        assert_eq!(config.resolvers.len(), 1);
 
-  #[test]
-  fn config_resolvers_guard_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-
-            [resolvers.allow_guard]
-            allow_formats = ["BAM"]
-        "#,
-      |config| {
-        assert_eq!(
-          config.resolvers().first().unwrap().allow_formats(),
-          &vec![Bam]
-        );
-      },
-    );
-  }
-
-  #[test]
-  fn config_storage_type_local_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-
-            [resolvers.storage_type]
-            type = "Local"
-            local_path = "path"
-            scheme = "HTTPS"
-            path_prefix = "path"
-        "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage_type());
-        assert!(matches!(
-            config.resolvers().first().unwrap().storage_type(),
-            StorageType::Local(resolver) if resolver.local_path() == "path" && resolver.scheme() == Scheme::Https && resolver.path_prefix() == "path"
-        ));
-      },
-    );
-  }
-
-  #[cfg(feature = "s3-storage")]
-  #[test]
-  fn config_storage_type_s3_file() {
-    test_config_from_file(
-      r#"
-            [[resolvers]]
-            regex = "regex"
-
-            [resolvers.storage_type]
-            type = "S3"
-            bucket = "bucket"
-        "#,
-      |config| {
-        assert!(matches!(
-            config.resolvers().first().unwrap().storage_type(),
-            StorageType::S3(resolver) if resolver.bucket() == "bucket"
-        ));
+        assert!(matches!(config.resolvers.first().unwrap().storage(),
+      Storage::Local { local_storage } if local_storage.local_path() == "path" && local_storage.scheme() == Http && local_storage.authority() == &Authority::from_static("127.0.0.1:8080") && local_storage.path_prefix() == "/path"));
       },
     );
   }

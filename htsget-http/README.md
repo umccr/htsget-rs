@@ -36,7 +36,8 @@ These functions take query and endpoint information, and process it using [htsge
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
+* `url-storage`: used to enable `UrlStorage` functionality.
 
 [warp]: https://github.com/seanmonstar/warp
 [htsget-search]: ../htsget-search

@@ -1,10 +1,10 @@
 [package]
 name = "htsget-search"
-version = "0.1.4"
-rust-version = "1.64"
+version = "0.5.0"
+rust-version = "1.65"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
-description = "This crate is the primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using [noodles] to query files and their indices"
+description = "The primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using noodles to query files and their indices."
 license = "MIT"
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
@@ -12,56 +12,61 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
-default = ["s3-storage"]
+url-storage = ["dep:bytes", "dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
+default = []
 
 [dependencies]
 # Axum server
-hyper = "0.14"
-tower-http = { version = "0.3", features = ["trace", "cors"] }
+url = "2.3"
+hyper = { version = "0.14", features = ["http1", "http2", "server"] }
+tower-http = { version = "0.4", features = ["trace", "cors", "fs"] }
 http = "0.2"
 axum = "0.6"
-axum-extra = { version = "0.5", features = ["spa"] }
 rustls-pemfile = "1.0"
 tower = { version = "0.4", features = ["make"] }
 
 # Async
 tokio-rustls = "0.23"
-tokio = { version = "1.25", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.32", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.40", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
-aws-sdk-s3 = { version = "0.24", optional = true, features = ["test-util"] }
-aws-config = { version = "0.54", optional = true }
+aws-sdk-s3 = { version = "0.28", optional = true }
+aws-config = { version = "0.55", optional = true }
+
+# Url storage
+hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"], optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"
-htsget-config = { version = "0.1.4", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.1.4", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-config = { version = "0.6.0", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.4.2", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
-tempfile = "3.3"
-data-url = "0.2"
+tempfile = "3.5"
+data-url = "0.3"
+mockito = "1.0"
 
-# Aws S3 storage.
-aws-credential-types = { version = "0.54", features = ["test-util"] }
-s3s = { version = "0.3" }
-s3s-fs = { version = "0.3" }
-s3s-aws = { version = "0.3" }
+# S3 storage testing
+s3s = { version = "0.6" }
+s3s-fs = { version = "0.6" }
+s3s-aws = { version = "0.6" }
+aws-credential-types = { version = "0.55", features = ["test-util"] }
 
 # Axum server
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
 
-criterion = { version = "0.4", features = ["async_tokio"] }
+criterion = { version = "0.5", features = ["async_tokio"] }
 
 [[bench]]
 name = "search-benchmarks"

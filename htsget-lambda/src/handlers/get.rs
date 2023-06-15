@@ -2,9 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use lambda_http::http;
+use lambda_http::http::HeaderMap;
 use tracing::info;
 use tracing::instrument;
 
+use htsget_config::types::Request;
 use htsget_http::{get as htsget_get, Endpoint};
 use htsget_search::htsget::HtsGet;
 
@@ -14,12 +16,15 @@ use crate::{Body, Response};
 /// Get request reads endpoint
 #[instrument(skip(searcher))]
 pub async fn get<H: HtsGet + Send + Sync + 'static>(
-  id_path: String,
+  id: String,
   searcher: Arc<H>,
-  mut query: HashMap<String, String>,
+  query: HashMap<String, String>,
+  headers: HeaderMap,
   endpoint: Endpoint,
 ) -> http::Result<Response<Body>> {
-  info!(query = ?query, "GET request");
-  query.insert("id".to_string(), id_path);
-  handle_response(htsget_get(searcher, query, endpoint).await)
+  let request = Request::new(id, query, headers);
+
+  info!(request = ?request, "GET request");
+
+  handle_response(htsget_get(searcher, request, endpoint).await)
 }
