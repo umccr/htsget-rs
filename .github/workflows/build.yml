@@ -28,6 +28,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: build-cache
+          save-if: ${{ github.ref == 'refs/head/main' }}
       - name: Build all features
         uses: actions-rs/cargo@v1
         with:
