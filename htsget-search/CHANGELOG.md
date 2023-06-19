@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.5.0...htsget-search-v0.5.1) - 2023-06-19
+
+### Fixed
+- avoid overwriting forwarded headers in url when formatting response
+
+### Other
+- add tests for extending urls and headers
+- *(search)* allow http or https url storage client
+
 ## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.4.1...htsget-search-v0.5.0) - 2023-06-08
 
 ### Other
