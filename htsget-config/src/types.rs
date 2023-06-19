@@ -843,6 +843,23 @@ mod tests {
   }
 
   #[test]
+  fn headers_extend() {
+    let mut headers = Headers::new(HashMap::new());
+    headers.insert("Range", "bytes=0-1023");
+
+    let mut extend_with = Headers::new(HashMap::new());
+    extend_with.insert("header", "value");
+
+    headers.extend(extend_with);
+
+    let result = headers.0.get("Range");
+    assert_eq!(result, Some(&"bytes=0-1023".to_string()));
+
+    let result = headers.0.get("header");
+    assert_eq!(result, Some(&"value".to_string()));
+  }
+
+  #[test]
   fn headers_multiple_values() {
     let headers = Headers::new(HashMap::new())
       .with_header("Range", "bytes=0-1023")
@@ -896,6 +913,25 @@ mod tests {
     let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
       .with_headers(Headers::new(HashMap::new()));
     assert_eq!(result.headers, None);
+  }
+
+  #[test]
+  fn url_add_headers() {
+    let mut headers = Headers::new(HashMap::new());
+    headers.insert("Range", "bytes=0-1023");
+
+    let mut extend_with = Headers::new(HashMap::new());
+    extend_with.insert("header", "value");
+
+    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
+      .with_headers(headers)
+      .add_headers(extend_with);
+
+    let expected_headers = Headers::new(HashMap::new())
+      .with_header("Range", "bytes=0-1023")
+      .with_header("header", "value");
+
+    assert_eq!(result.headers, Some(expected_headers));
   }
 
   #[test]
