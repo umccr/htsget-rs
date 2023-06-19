@@ -50,7 +50,7 @@ impl UrlStorage {
       client: Client::builder().build(
         HttpsConnectorBuilder::new()
           .with_native_roots()
-          .https_only()
+          .https_or_http()
           .enable_all_versions()
           .build(),
       ),
