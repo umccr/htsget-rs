@@ -495,10 +495,17 @@ impl Headers {
     }
   }
 
+  /// Add to the headers.
+  pub fn extend(&mut self, headers: Headers) {
+    self.0.extend(headers.into_inner());
+  }
+
+  /// Get the inner HashMap.
   pub fn into_inner(self) -> HashMap<String, String> {
     self.0
   }
 
+  /// Get a reference to the inner HashMap.
   pub fn as_ref_inner(&self) -> &HashMap<String, String> {
     &self.0
   }
@@ -532,6 +539,7 @@ pub struct Url {
 }
 
 impl Url {
+  /// Create a new Url.
   pub fn new<S: Into<String>>(url: S) -> Self {
     Self {
       url: url.into(),
@@ -540,16 +548,31 @@ impl Url {
     }
   }
 
+  /// Add to the headers of the Url.
+  pub fn add_headers(mut self, headers: Headers) -> Self {
+    if !headers.is_empty() {
+      self
+        .headers
+        .get_or_insert_with(Headers::default)
+        .extend(headers);
+    }
+
+    self
+  }
+
+  /// Set the headers of the Url.
   pub fn with_headers(mut self, headers: Headers) -> Self {
     self.headers = Some(headers).filter(|h| !h.is_empty());
     self
   }
 
+  /// Set the class of the Url using an optional value.
   pub fn set_class(mut self, class: Option<Class>) -> Self {
     self.class = class;
     self
   }
 
+  /// Set the class of the Url.
   pub fn with_class(self, class: Class) -> Self {
     self.set_class(Some(class))
   }

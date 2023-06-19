@@ -459,11 +459,13 @@ impl<'a> RangeUrlOptions<'a> {
 
   pub fn apply(self, url: Url) -> Url {
     let range: String = String::from(&BytesRange::from(self.range()));
+
     let url = if range.is_empty() {
       url
     } else {
-      url.with_headers(Headers::default().with_header("Range", range))
+      url.add_headers(Headers::default().with_header("Range", range))
     };
+
     url.set_class(self.range().class)
   }
 
