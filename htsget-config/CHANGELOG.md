@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.6.0...htsget-config-v0.6.1) - 2023-06-19
+
+### Fixed
+- avoid overwriting forwarded headers in url when formatting response
+
+### Other
+- add tests for extending urls and headers
+- *(config)* make example url storage config runnable with default config
+
 ## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.5.0...htsget-config-v0.6.0) - 2023-06-08
 
 ### Other
