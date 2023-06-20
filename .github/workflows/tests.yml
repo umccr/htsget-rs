@@ -19,8 +19,8 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-            # Todo: remove this when clippy introduces https://github.com/rust-lang/rust-clippy/pull/10865 in nightly or stable.
-            toolchain: 1.69
+            # Todo: remove this when clippy introduces https://github.com/rust-lang/rust-clippy/pull/10865 in stable.
+            toolchain: nightly
             # toolchain: ${{ matrix.rust }}
             override: true
             components: rustfmt, clippy
