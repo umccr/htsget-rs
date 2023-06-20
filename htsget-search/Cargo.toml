@@ -34,7 +34,7 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.40", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.42", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
@@ -53,9 +53,8 @@ base64 = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
-tempfile = "3.5"
+tempfile = "3.6"
 data-url = "0.3"
-mockito = "1.0"
 
 # S3 storage testing
 s3s = { version = "0.6" }

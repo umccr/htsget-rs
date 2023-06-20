@@ -35,4 +35,4 @@ bytes = "1.4"
 [dev-dependencies]
 async-trait = "0.1"
 query_map = { version = "0.6", features = ["url-query"] }
-tempfile = "3.5"
+tempfile = "3.6"
