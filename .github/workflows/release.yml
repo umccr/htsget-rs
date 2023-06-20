@@ -17,9 +17,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          # Todo: remove this when clippy introduces https://github.com/rust-lang/rust-clippy/pull/10865 in nightly or stable.
-          toolchain: 1.69
-          # toolchain: ${{ matrix.rust }}
+          toolchain: ${{ matrix.rust }}
           override: true
       - name: Run release-plz
         uses: MarcoIeni/release-plz-action@main
