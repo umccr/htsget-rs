@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.5.1...htsget-search-v0.5.2) - 2023-06-20
+
+### Other
+- bump deps
+
 ## [0.5.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.5.0...htsget-search-v0.5.1) - 2023-06-19
 
 ### Fixed

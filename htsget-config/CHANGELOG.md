@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.6.1...htsget-config-v0.6.2) - 2023-06-20
+
+### Other
+- bump deps
+
 ## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.6.0...htsget-config-v0.6.1) - 2023-06-19
 
 ### Fixed
