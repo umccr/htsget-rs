@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use http::Uri as InnerUrl;
 use serde::{Deserialize, Serialize};
+use serde_with::with_prefix;
 
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
@@ -15,12 +16,17 @@ fn default_url() -> ValidatedUrl {
   })
 }
 
+with_prefix!(client_auth_prefix "client_");
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct UrlStorage {
   url: ValidatedUrl,
   response_scheme: Scheme,
   forward_headers: bool,
+  // root_ca_store: Option<PathBuf>,
+  // #[serde(flatten, with = "client_auth_prefix")]
+  // client_auth: Option<CertificateKeyPair>,
 }
 
 /// A wrapper around `http::Uri` type which implements serialize and deserialize.

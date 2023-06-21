@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "url-storage")]
-use crate::storage::url::UrlStorage;
-
 use crate::resolver::ResolveResponse;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
+#[cfg(feature = "url-storage")]
+use crate::storage::url::UrlStorage;
 use crate::types::{Query, Response, Result};
 
 pub mod local;

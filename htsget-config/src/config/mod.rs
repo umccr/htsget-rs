@@ -19,8 +19,7 @@ use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
 use crate::error::Error::{ArgParseError, IoError, TracingError};
 use crate::error::Result;
 use crate::resolver::Resolver;
-use crate::types::Scheme;
-use crate::types::Scheme::{Http, Https};
+use crate::tls::CertificateKeyPair;
 
 pub mod cors;
 
@@ -158,46 +157,6 @@ impl TicketServerConfig {
   /// Get expose headers.
   pub fn expose_headers(&self) -> &AllowType<HeaderName> {
     self.cors.expose_headers()
-  }
-}
-
-/// A trait to determine which scheme a key pair option has.
-pub trait KeyPairScheme {
-  /// Get the scheme.
-  fn get_scheme(&self) -> Scheme;
-}
-
-/// A certificate and key pair used for TLS.
-/// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct CertificateKeyPair {
-  cert: PathBuf,
-  key: PathBuf,
-}
-
-impl CertificateKeyPair {
-  /// Create a new certificate key pair.
-  pub fn new(cert: PathBuf, key: PathBuf) -> Self {
-    Self { cert, key }
-  }
-
-  /// Get the cert.
-  pub fn cert(&self) -> &Path {
-    &self.cert
-  }
-
-  /// Get the key.
-  pub fn key(&self) -> &Path {
-    &self.key
-  }
-}
-
-impl KeyPairScheme for Option<&CertificateKeyPair> {
-  fn get_scheme(&self) -> Scheme {
-    match self {
-      None => Http,
-      Some(_) => Https,
-    }
   }
 }
 
@@ -541,6 +500,7 @@ impl Config {
 pub(crate) mod tests {
   use std::fmt::Display;
 
+  use crate::types::Scheme::Http;
   use figment::Jail;
   use http::uri::Authority;
 
@@ -679,10 +639,10 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.data_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
+          Some(&CertificateKeyPair::new(
+            "cert.pem".into(),
+            "key.pem".into(),
+          ))
         );
       },
     );
@@ -698,10 +658,10 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.data_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
+          Some(&CertificateKeyPair::new(
+            "cert.pem".into(),
+            "key.pem".into(),
+          ))
         );
       },
     );
@@ -717,10 +677,10 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.data_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
+          Some(&CertificateKeyPair::new(
+            "cert.pem".into(),
+            "key.pem".into(),
+          ))
         );
       },
     );
@@ -736,10 +696,10 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.ticket_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
+          Some(&CertificateKeyPair::new(
+            "cert.pem".into(),
+            "key.pem".into(),
+          ))
         );
       },
     );
@@ -755,10 +715,10 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.ticket_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
+          Some(&CertificateKeyPair::new(
+            "cert.pem".into(),
+            "key.pem".into(),
+          ))
         );
       },
     );
@@ -774,10 +734,10 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.ticket_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
+          Some(&CertificateKeyPair::new(
+            "cert.pem".into(),
+            "key.pem".into(),
+          ))
         );
       },
     );

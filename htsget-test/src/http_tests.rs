@@ -9,9 +9,10 @@ use http::HeaderMap;
 use serde::de;
 
 use htsget_config::config::cors::{AllowType, CorsConfig};
-use htsget_config::config::{CertificateKeyPair, DataServerConfig, TicketServerConfig};
+use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::resolver::Resolver;
 use htsget_config::storage::{local::LocalStorage, Storage};
+use htsget_config::tls::CertificateKeyPair;
 use htsget_config::types::{Scheme, TaggedTypeAll};
 
 use crate::util::generate_test_certificates;

@@ -26,7 +26,8 @@ use tracing::instrument;
 use tracing::{info, trace};
 
 use htsget_config::config::cors::CorsConfig;
-use htsget_config::config::{CertificateKeyPair, DataServerConfig};
+use htsget_config::config::DataServerConfig;
+use htsget_config::tls::CertificateKeyPair;
 use htsget_config::types::Scheme;
 
 use crate::storage::configure_cors;
