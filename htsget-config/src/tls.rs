@@ -2,13 +2,13 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use rustls::{Certificate, PrivateKey, RootCertStore};
+use rustls::{Certificate, PrivateKey};
 use rustls_pemfile::read_one;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::error::Error::{IoError, ParseError};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::types::Scheme;
 use crate::types::Scheme::{Http, Https};
 
@@ -20,13 +20,58 @@ pub trait KeyPairScheme {
 
 /// A certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(try_from = "CertificateKeyPairPath")]
 pub struct CertificateKeyPair {
+  cert: Vec<Certificate>,
+  key: PrivateKey,
+}
+
+impl CertificateKeyPair {
+  /// Create a new CertificateKeyPair.
+  pub fn new(cert: Vec<Certificate>, key: PrivateKey) -> Self {
+    Self { cert, key }
+  }
+
+  /// Get the owned certificate and private key.
+  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey) {
+    (self.cert, self.key)
+  }
+}
+
+/// The location of a certificate and key pair used for TLS.
+/// This is the path to the PEM formatted X.509 certificate and private key.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct CertificateKeyPairPath {
   cert: PathBuf,
   key: PathBuf,
 }
 
-impl CertificateKeyPair {
+impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
+  type Error = Error;
+
+  fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
+    let cert = load_certs(key_pair.cert)?;
+    let key = load_key(key_pair.key)?;
+
+    Ok(Self::new(cert, key))
+  }
+}
+
+/// A wrapper around a `RootCertStore` to support deserialization.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(try_from = "PathBuf")]
+pub struct RootCertStore(rustls::RootCertStore);
+
+impl TryFrom<PathBuf> for RootCertStore {
+  type Error = Error;
+
+  fn try_from(path: PathBuf) -> Result<Self> {
+    Ok(Self(load_root_ca(path)?))
+  }
+}
+
+impl CertificateKeyPairPath {
   /// Create a new certificate key pair.
   pub fn new(cert: PathBuf, key: PathBuf) -> Self {
     Self { cert, key }
@@ -43,7 +88,7 @@ impl CertificateKeyPair {
   }
 }
 
-impl KeyPairScheme for Option<&CertificateKeyPair> {
+impl KeyPairScheme for Option<&CertificateKeyPairPath> {
   fn get_scheme(&self) -> Scheme {
     match self {
       None => Http,
@@ -52,6 +97,7 @@ impl KeyPairScheme for Option<&CertificateKeyPair> {
   }
 }
 
+/// Load a private key from a file. Supports RSA, PKCS8, and Sec1 encoded keys.
 pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
   let mut key_reader = BufReader::new(
     File::open(key).map_err(|err| IoError(format!("failed to open key file: {}", err)))?,
@@ -72,6 +118,7 @@ pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
   Err(ParseError("no key found in pem file".to_string()))
 }
 
+/// Load certificates from a file.
 fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
   let mut cert_reader = BufReader::new(
     File::open(certs).map_err(|err| IoError(format!("failed to open cert file: {}", err)))?,
@@ -90,10 +137,11 @@ fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
   Ok(certs)
 }
 
-pub fn load_root_ca<P: AsRef<Path>>(certs: P) -> Result<RootCertStore> {
+/// Load certificates from a file and place them in a root CA store.
+pub fn load_root_ca<P: AsRef<Path>>(certs: P) -> Result<rustls::RootCertStore> {
   let certs: Vec<Vec<u8>> = load_certs(certs)?.into_iter().map(|cert| cert.0).collect();
 
-  let mut roots = RootCertStore::empty();
+  let mut roots = rustls::RootCertStore::empty();
   let (_, ignored) = roots.add_parsable_certificates(&certs);
 
   if ignored != 0 {

@@ -27,7 +27,7 @@ use tracing::{info, trace};
 
 use htsget_config::config::cors::CorsConfig;
 use htsget_config::config::DataServerConfig;
-use htsget_config::tls::CertificateKeyPair;
+use htsget_config::tls::CertificateKeyPairPath;
 use htsget_config::types::Scheme;
 
 use crate::storage::configure_cors;
@@ -42,7 +42,7 @@ pub const CORS_MAX_AGE: u64 = 86400;
 #[derive(Debug, Clone)]
 pub struct BindDataServer {
   addr: SocketAddr,
-  cert_key_pair: Option<CertificateKeyPair>,
+  cert_key_pair: Option<CertificateKeyPairPath>,
   scheme: Scheme,
   cors: CorsConfig,
   serve_at: String,
@@ -62,7 +62,7 @@ impl BindDataServer {
   pub fn new_with_tls(
     addr: SocketAddr,
     cors: CorsConfig,
-    tls: CertificateKeyPair,
+    tls: CertificateKeyPairPath,
     serve_at: String,
   ) -> Self {
     Self {
@@ -125,7 +125,7 @@ impl From<AddrParseError> for StorageError {
 pub struct DataServer {
   listener: AddrIncoming,
   serve_at: String,
-  cert_key_pair: Option<CertificateKeyPair>,
+  cert_key_pair: Option<CertificateKeyPairPath>,
   cors: CorsConfig,
 }
 
@@ -135,7 +135,7 @@ impl DataServer {
   pub async fn bind_addr(
     addr: SocketAddr,
     serve_at: impl Into<String>,
-    cert_key_pair: Option<CertificateKeyPair>,
+    cert_key_pair: Option<CertificateKeyPairPath>,
     cors: CorsConfig,
   ) -> Result<DataServer> {
     let listener = TcpListener::bind(addr)
@@ -369,7 +369,7 @@ mod tests {
 
     test_server(
       "https",
-      Some(CertificateKeyPair::new(cert_path, key_path)),
+      Some(CertificateKeyPairPath::new(cert_path, key_path)),
       base_path.path().to_path_buf(),
     )
     .await;
@@ -444,12 +444,12 @@ mod tests {
     BindDataServer::new_with_tls(
       "127.0.0.1:8080".parse().unwrap(),
       CorsConfig::default(),
-      CertificateKeyPair::new("".parse().unwrap(), "".parse().unwrap()),
+      CertificateKeyPairPath::new("".parse().unwrap(), "".parse().unwrap()),
       "/data".to_string(),
     )
   }
 
-  async fn start_server<P>(cert_key_pair: Option<CertificateKeyPair>, path: P) -> u16
+  async fn start_server<P>(cert_key_pair: Option<CertificateKeyPairPath>, path: P) -> u16
   where
     P: AsRef<Path> + Send + 'static,
   {
@@ -463,7 +463,7 @@ mod tests {
     port
   }
 
-  async fn test_server<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P)
+  async fn test_server<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPairPath>, path: P)
   where
     P: AsRef<Path> + Send + 'static,
   {

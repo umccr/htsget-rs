@@ -19,7 +19,7 @@ use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
 use crate::error::Error::{ArgParseError, IoError, TracingError};
 use crate::error::Result;
 use crate::resolver::Resolver;
-use crate::tls::CertificateKeyPair;
+use crate::tls::CertificateKeyPairPath;
 
 pub mod cors;
 
@@ -98,14 +98,14 @@ pub struct Config {
 pub struct TicketServerConfig {
   addr: SocketAddr,
   #[serde(flatten)]
-  tls: Option<CertificateKeyPair>,
+  tls: Option<CertificateKeyPairPath>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
 
 impl TicketServerConfig {
   /// Create a new ticket server config.
-  pub fn new(addr: SocketAddr, tls: Option<CertificateKeyPair>, cors: CorsConfig) -> Self {
+  pub fn new(addr: SocketAddr, tls: Option<CertificateKeyPairPath>, cors: CorsConfig) -> Self {
     Self { addr, tls, cors }
   }
 
@@ -115,12 +115,12 @@ impl TicketServerConfig {
   }
 
   /// Get the TLS config.
-  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+  pub fn tls(&self) -> Option<&CertificateKeyPairPath> {
     self.tls.as_ref()
   }
 
   /// Get the TLS config.
-  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+  pub fn into_tls(self) -> Option<CertificateKeyPairPath> {
     self.tls
   }
 
@@ -169,7 +169,7 @@ pub struct DataServerConfig {
   local_path: PathBuf,
   serve_at: String,
   #[serde(flatten)]
-  tls: Option<CertificateKeyPair>,
+  tls: Option<CertificateKeyPairPath>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
@@ -181,7 +181,7 @@ impl DataServerConfig {
     addr: SocketAddr,
     local_path: PathBuf,
     serve_at: String,
-    tls: Option<CertificateKeyPair>,
+    tls: Option<CertificateKeyPairPath>,
     cors: CorsConfig,
   ) -> Self {
     Self {
@@ -210,12 +210,12 @@ impl DataServerConfig {
   }
 
   /// Get the TLS config.
-  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+  pub fn tls(&self) -> Option<&CertificateKeyPairPath> {
     self.tls.as_ref()
   }
 
   /// Get the TLS config.
-  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+  pub fn into_tls(self) -> Option<CertificateKeyPairPath> {
     self.tls
   }
 
@@ -639,7 +639,7 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.data_server().tls(),
-          Some(&CertificateKeyPair::new(
+          Some(&CertificateKeyPairPath::new(
             "cert.pem".into(),
             "key.pem".into(),
           ))
@@ -658,7 +658,7 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.data_server().tls(),
-          Some(&CertificateKeyPair::new(
+          Some(&CertificateKeyPairPath::new(
             "cert.pem".into(),
             "key.pem".into(),
           ))
@@ -677,7 +677,7 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.data_server().tls(),
-          Some(&CertificateKeyPair::new(
+          Some(&CertificateKeyPairPath::new(
             "cert.pem".into(),
             "key.pem".into(),
           ))
@@ -696,7 +696,7 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.ticket_server().tls(),
-          Some(&CertificateKeyPair::new(
+          Some(&CertificateKeyPairPath::new(
             "cert.pem".into(),
             "key.pem".into(),
           ))
@@ -715,7 +715,7 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.ticket_server().tls(),
-          Some(&CertificateKeyPair::new(
+          Some(&CertificateKeyPairPath::new(
             "cert.pem".into(),
             "key.pem".into(),
           ))
@@ -734,7 +734,7 @@ pub(crate) mod tests {
       |config| {
         assert_eq!(
           config.ticket_server().tls(),
-          Some(&CertificateKeyPair::new(
+          Some(&CertificateKeyPairPath::new(
             "cert.pem".into(),
             "key.pem".into(),
           ))
