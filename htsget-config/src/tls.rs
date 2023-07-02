@@ -18,8 +18,9 @@ pub trait KeyPairScheme {
   fn get_scheme(&self) -> Scheme;
 }
 
-/// A certificate and key pair used for TLS.
-/// This is the path to the PEM formatted X.509 certificate and private key.
+/// A certificate and key pair used for TLS. This is the path to the PEM formatted
+/// X.509 certificate and private key. Serialization is not implemented because there
+/// is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(try_from = "CertificateKeyPairPath")]
 pub struct CertificateKeyPair {
@@ -58,7 +59,8 @@ impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
   }
 }
 
-/// A wrapper around a `RootCertStore` to support deserialization.
+/// A wrapper around a `RootCertStore` to support deserialization. Serialization is not implemented
+/// because there is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(try_from = "PathBuf")]
 pub struct RootCertStore(rustls::RootCertStore);
@@ -119,7 +121,7 @@ pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
 }
 
 /// Load certificates from a file.
-fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
+pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
   let mut cert_reader = BufReader::new(
     File::open(certs).map_err(|err| IoError(format!("failed to open cert file: {}", err)))?,
   );
@@ -164,37 +166,35 @@ mod tests {
   use std::path::Path;
 
   use rcgen::generate_simple_self_signed;
-  use rustls_pemfile::pkcs8_private_keys;
+  use rustls_pemfile::{certs, pkcs8_private_keys};
   use tempfile::TempDir;
 
   use super::*;
 
   #[test]
   fn test_load_key() {
-    with_test_certificates(|path| {
+    with_test_certificates(|path, key, _| {
       let key_path = path.join("key.pem");
-      let key = load_key(key_path).unwrap();
+      let loaded_key = load_key(key_path).unwrap();
 
-      let mut key_reader = Cursor::new(key.0);
-
-      let result = pkcs8_private_keys(&mut key_reader);
-      assert!(result.is_ok());
+      assert_eq!(loaded_key, key);
     });
   }
 
   #[test]
   fn test_load_cert() {
-    with_test_certificates(|path| {
+    with_test_certificates(|path, _, cert| {
       let cert_path = path.join("cert.pem");
       let certs = load_certs(cert_path).unwrap();
 
       assert_eq!(certs.len(), 1);
+      assert_eq!(certs.into_iter().next().unwrap(), cert);
     });
   }
 
   #[test]
   fn test_load_root_ca() {
-    with_test_certificates(|path| {
+    with_test_certificates(|path, _, _| {
       let cert_path = path.join("cert.pem");
       let certs = load_root_ca(cert_path).unwrap();
 
@@ -202,9 +202,9 @@ mod tests {
     });
   }
 
-  fn with_test_certificates<F>(test: F)
+  pub(crate) fn with_test_certificates<F>(test: F)
   where
-    F: FnOnce(&Path),
+    F: FnOnce(&Path, PrivateKey, Certificate),
   {
     let tmp_dir = TempDir::new().unwrap();
 
@@ -212,9 +212,28 @@ mod tests {
     let cert_path = tmp_dir.path().join("cert.pem");
 
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
-    write(key_path, cert.serialize_private_key_pem()).unwrap();
-    write(cert_path, cert.serialize_pem().unwrap()).unwrap();
 
-    test(tmp_dir.path());
+    let key = cert.serialize_private_key_pem();
+    let cert = cert.serialize_pem().unwrap();
+
+    write(key_path, &key).unwrap();
+    write(cert_path, &cert).unwrap();
+
+    let key = PrivateKey(
+      pkcs8_private_keys(&mut Cursor::new(key))
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap(),
+    );
+    let cert = Certificate(
+      certs(&mut Cursor::new(cert))
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap(),
+    );
+
+    test(tmp_dir.path(), key, cert);
   }
 }
