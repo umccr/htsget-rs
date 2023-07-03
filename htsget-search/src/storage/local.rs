@@ -13,6 +13,7 @@ use tracing::instrument;
 use crate::storage::{HeadOptions, Storage, UrlFormatter};
 use crate::Url as HtsGetUrl;
 use url::Url;
+use super::crypt4gh::Crypt4gh;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -22,6 +23,16 @@ use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 pub struct LocalStorage<T> {
   base_path: PathBuf,
   url_formatter: T,
+  crypy4gh_data: Crypt4GhData,
+}
+
+#[derive(Debug, Clone)]
+pub struct Crypt4GhData {
+  
+}
+
+impl<T> Crypt4gh for LocalStorage<T> {
+  type Streamable = File;
 }
 
 impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
@@ -89,9 +100,19 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     _options: GetOptions<'_>,
   ) -> Result<File> {
     debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
-    self.get(key).await
+    let file = self.get(key).await?;
+
+    let decrypted_data = decrypt_wrapper(file);
+
+    Ok(decryped_data)
   }
 
+
+  // /// Decrypt Crypt4GH payload
+  // async fn decrypt_crypt4gh_header(data: &[u8]) -> File {
+  //   let decryped_data = self.decrypt_header(data, self.crypy4gh_data.keys, self.crypy4gh_data.public_keys);
+  // }
+  
   /// Get a url for the file at key.
   #[instrument(level = "debug", skip(self))]
   async fn range_url<K: AsRef<str> + Send + Debug>(
