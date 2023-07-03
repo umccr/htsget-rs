@@ -19,7 +19,7 @@ use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
 use crate::error::Error::{ArgParseError, IoError, TracingError};
 use crate::error::Result;
 use crate::resolver::Resolver;
-use crate::tls::CertificateKeyPairPath;
+use crate::tls::CertificateKeyPair;
 
 pub mod cors;
 
@@ -97,15 +97,15 @@ pub struct Config {
 #[serde(default)]
 pub struct TicketServerConfig {
   addr: SocketAddr,
-  #[serde(flatten)]
-  tls: Option<CertificateKeyPairPath>,
+  #[serde(flatten, skip_serializing)]
+  tls: Option<CertificateKeyPair>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
 
 impl TicketServerConfig {
   /// Create a new ticket server config.
-  pub fn new(addr: SocketAddr, tls: Option<CertificateKeyPairPath>, cors: CorsConfig) -> Self {
+  pub fn new(addr: SocketAddr, tls: Option<CertificateKeyPair>, cors: CorsConfig) -> Self {
     Self { addr, tls, cors }
   }
 
@@ -115,12 +115,12 @@ impl TicketServerConfig {
   }
 
   /// Get the TLS config.
-  pub fn tls(&self) -> Option<&CertificateKeyPairPath> {
+  pub fn tls(&self) -> Option<&CertificateKeyPair> {
     self.tls.as_ref()
   }
 
   /// Get the TLS config.
-  pub fn into_tls(self) -> Option<CertificateKeyPairPath> {
+  pub fn into_tls(self) -> Option<CertificateKeyPair> {
     self.tls
   }
 
@@ -168,8 +168,8 @@ pub struct DataServerConfig {
   addr: SocketAddr,
   local_path: PathBuf,
   serve_at: String,
-  #[serde(flatten)]
-  tls: Option<CertificateKeyPairPath>,
+  #[serde(flatten, skip_serializing)]
+  tls: Option<CertificateKeyPair>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
@@ -181,7 +181,7 @@ impl DataServerConfig {
     addr: SocketAddr,
     local_path: PathBuf,
     serve_at: String,
-    tls: Option<CertificateKeyPairPath>,
+    tls: Option<CertificateKeyPair>,
     cors: CorsConfig,
   ) -> Self {
     Self {
@@ -210,12 +210,12 @@ impl DataServerConfig {
   }
 
   /// Get the TLS config.
-  pub fn tls(&self) -> Option<&CertificateKeyPairPath> {
+  pub fn tls(&self) -> Option<&CertificateKeyPair> {
     self.tls.as_ref()
   }
 
   /// Get the TLS config.
-  pub fn into_tls(self) -> Option<CertificateKeyPairPath> {
+  pub fn into_tls(self) -> Option<CertificateKeyPair> {
     self.tls
   }
 
@@ -500,11 +500,13 @@ impl Config {
 pub(crate) mod tests {
   use std::fmt::Display;
 
-  use crate::types::Scheme::Http;
   use figment::Jail;
   use http::uri::Authority;
+  use rustls::{Certificate, PrivateKey};
 
   use crate::storage::Storage;
+  use crate::tls::tests::with_test_certificates;
+  use crate::types::Scheme::Http;
 
   use super::*;
 
@@ -512,7 +514,7 @@ pub(crate) mod tests {
   where
     K: AsRef<str>,
     V: Display,
-    F: FnOnce(Config),
+    F: FnOnce(Config, PrivateKey, Certificate),
   {
     Jail::expect_with(|jail| {
       if let Some(contents) = contents {
@@ -523,7 +525,11 @@ pub(crate) mod tests {
         jail.set_env(key, value);
       }
 
-      test_fn(Config::from_path(Path::new("test.toml")).map_err(|err| err.to_string())?);
+      let config = Config::from_path(Path::new("test.toml")).map_err(|err| err.to_string())?;
+
+      with_test_certificates(|_path, key, cert| {
+        test_fn(config, key, cert);
+      });
 
       Ok(())
     });
@@ -533,14 +539,14 @@ pub(crate) mod tests {
   where
     K: AsRef<str>,
     V: Display,
-    F: FnOnce(Config),
+    F: FnOnce(Config, PrivateKey, Certificate),
   {
     test_config(None, env_variables, test_fn);
   }
 
   pub(crate) fn test_config_from_file<F>(contents: &str, test_fn: F)
   where
-    F: FnOnce(Config),
+    F: FnOnce(Config, PrivateKey, Certificate),
   {
     test_config(Some(contents), Vec::<(&str, &str)>::new(), test_fn);
   }
@@ -549,7 +555,7 @@ pub(crate) mod tests {
   fn config_ticket_server_addr_env() {
     test_config_from_env(
       vec![("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8082")],
-      |config| {
+      |config, _, _| {
         assert_eq!(
           config.ticket_server().addr(),
           "127.0.0.1:8082".parse().unwrap()
@@ -562,7 +568,7 @@ pub(crate) mod tests {
   fn config_ticket_server_cors_allow_origin_env() {
     test_config_from_env(
       vec![("HTSGET_TICKET_SERVER_CORS_ALLOW_CREDENTIALS", true)],
-      |config| {
+      |config, _, _| {
         assert!(config.ticket_server().allow_credentials());
       },
     );
@@ -570,7 +576,7 @@ pub(crate) mod tests {
 
   #[test]
   fn config_service_info_id_env() {
-    test_config_from_env(vec![("HTSGET_ID", "id")], |config| {
+    test_config_from_env(vec![("HTSGET_ID", "id")], |config, _, _| {
       assert_eq!(config.service_info().id(), Some("id"));
     });
   }
@@ -579,7 +585,7 @@ pub(crate) mod tests {
   fn config_data_server_addr_env() {
     test_config_from_env(
       vec![("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082")],
-      |config| {
+      |config, _, _| {
         assert_eq!(
           config.data_server().addr(),
           "127.0.0.1:8082".parse().unwrap()
@@ -590,38 +596,47 @@ pub(crate) mod tests {
 
   #[test]
   fn config_no_data_server_env() {
-    test_config_from_env(vec![("HTSGET_DATA_SERVER_ENABLED", "true")], |config| {
-      assert!(config.data_server().enabled());
-    });
+    test_config_from_env(
+      vec![("HTSGET_DATA_SERVER_ENABLED", "true")],
+      |config, _, _| {
+        assert!(config.data_server().enabled());
+      },
+    );
   }
 
   #[test]
   fn config_ticket_server_addr_file() {
-    test_config_from_file(r#"ticket_server_addr = "127.0.0.1:8082""#, |config| {
-      assert_eq!(
-        config.ticket_server().addr(),
-        "127.0.0.1:8082".parse().unwrap()
-      );
-    });
+    test_config_from_file(
+      r#"ticket_server_addr = "127.0.0.1:8082""#,
+      |config, _, _| {
+        assert_eq!(
+          config.ticket_server().addr(),
+          "127.0.0.1:8082".parse().unwrap()
+        );
+      },
+    );
   }
 
   #[test]
   fn config_ticket_server_cors_allow_origin_file() {
-    test_config_from_file(r#"ticket_server_cors_allow_credentials = true"#, |config| {
-      assert!(config.ticket_server().allow_credentials());
-    });
+    test_config_from_file(
+      r#"ticket_server_cors_allow_credentials = true"#,
+      |config, _, _| {
+        assert!(config.ticket_server().allow_credentials());
+      },
+    );
   }
 
   #[test]
   fn config_service_info_id_file() {
-    test_config_from_file(r#"id = "id""#, |config| {
+    test_config_from_file(r#"id = "id""#, |config, _, _| {
       assert_eq!(config.service_info().id(), Some("id"));
     });
   }
 
   #[test]
   fn config_data_server_addr_file() {
-    test_config_from_file(r#"data_server_addr = "127.0.0.1:8082""#, |config| {
+    test_config_from_file(r#"data_server_addr = "127.0.0.1:8082""#, |config, _, _| {
       assert_eq!(
         config.data_server().addr(),
         "127.0.0.1:8082".parse().unwrap()
@@ -636,15 +651,7 @@ pub(crate) mod tests {
       r#"
     data_server_key = "key.pem"
     "#,
-      |config| {
-        assert_eq!(
-          config.data_server().tls(),
-          Some(&CertificateKeyPairPath::new(
-            "cert.pem".into(),
-            "key.pem".into(),
-          ))
-        );
-      },
+      test_certificate_key_pair_fn(),
     );
   }
 
@@ -655,15 +662,7 @@ pub(crate) mod tests {
     data_server_key = "key.pem"
     data_server_cert = "cert.pem"
     "#,
-      |config| {
-        assert_eq!(
-          config.data_server().tls(),
-          Some(&CertificateKeyPairPath::new(
-            "cert.pem".into(),
-            "key.pem".into(),
-          ))
-        );
-      },
+      test_certificate_key_pair_fn(),
     );
   }
 
@@ -674,15 +673,7 @@ pub(crate) mod tests {
         ("HTSGET_DATA_SERVER_KEY", "key.pem"),
         ("HTSGET_DATA_SERVER_CERT", "cert.pem"),
       ],
-      |config| {
-        assert_eq!(
-          config.data_server().tls(),
-          Some(&CertificateKeyPairPath::new(
-            "cert.pem".into(),
-            "key.pem".into(),
-          ))
-        );
-      },
+      test_certificate_key_pair_fn(),
     );
   }
 
@@ -693,15 +684,7 @@ pub(crate) mod tests {
       r#"
     ticket_server_key = "key.pem"
     "#,
-      |config| {
-        assert_eq!(
-          config.ticket_server().tls(),
-          Some(&CertificateKeyPairPath::new(
-            "cert.pem".into(),
-            "key.pem".into(),
-          ))
-        );
-      },
+      test_certificate_key_pair_fn(),
     );
   }
 
@@ -712,15 +695,7 @@ pub(crate) mod tests {
     ticket_server_key = "key.pem"
     ticket_server_cert = "cert.pem"
     "#,
-      |config| {
-        assert_eq!(
-          config.ticket_server().tls(),
-          Some(&CertificateKeyPairPath::new(
-            "cert.pem".into(),
-            "key.pem".into(),
-          ))
-        );
-      },
+      test_certificate_key_pair_fn(),
     );
   }
 
@@ -731,21 +706,13 @@ pub(crate) mod tests {
         ("HTSGET_TICKET_SERVER_KEY", "key.pem"),
         ("HTSGET_TICKET_SERVER_CERT", "cert.pem"),
       ],
-      |config| {
-        assert_eq!(
-          config.ticket_server().tls(),
-          Some(&CertificateKeyPairPath::new(
-            "cert.pem".into(),
-            "key.pem".into(),
-          ))
-        );
-      },
+      test_certificate_key_pair_fn(),
     );
   }
 
   #[test]
   fn config_no_data_server_file() {
-    test_config_from_file(r#"data_server_enabled = true"#, |config| {
+    test_config_from_file(r#"data_server_enabled = true"#, |config, _, _| {
       assert!(config.data_server().enabled());
     });
   }
@@ -761,12 +728,29 @@ pub(crate) mod tests {
     [[resolvers]]
     storage = "Local"
     "#,
-      |config| {
+      |config, _, _| {
         assert_eq!(config.resolvers.len(), 1);
 
         assert!(matches!(config.resolvers.first().unwrap().storage(),
       Storage::Local { local_storage } if local_storage.local_path() == "path" && local_storage.scheme() == Http && local_storage.authority() == &Authority::from_static("127.0.0.1:8080") && local_storage.path_prefix() == "/path"));
       },
     );
+  }
+
+  fn test_certificate_key_pair_fn() -> impl FnOnce(Config, PrivateKey, Certificate) {
+    |config: Config, key: PrivateKey, cert: Certificate| {
+      assert_eq!(
+        config.ticket_server().tls(),
+        Some(&CertificateKeyPair::new(
+          vec![cert.clone()],
+          key.clone(),
+          rustls::ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert], key)
+            .unwrap()
+        ))
+      )
+    }
   }
 }

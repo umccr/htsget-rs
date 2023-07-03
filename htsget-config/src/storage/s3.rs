@@ -49,7 +49,7 @@ mod tests {
         [resolvers.storage]
         bucket = "bucket"
         "#,
-      |config| {
+      |config, _, _| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
             config.resolvers().first().unwrap().storage(),

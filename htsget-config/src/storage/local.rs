@@ -112,7 +112,7 @@ mod tests {
         scheme = "HTTPS"
         path_prefix = "path"
         "#,
-      |config| {
+      |config, _, _| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
             config.resolvers().first().unwrap().storage(),

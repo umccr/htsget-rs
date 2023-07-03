@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use rustls::{Certificate, PrivateKey};
+use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::read_one;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -21,22 +21,33 @@ pub trait KeyPairScheme {
 /// A certificate and key pair used for TLS. This is the path to the PEM formatted
 /// X.509 certificate and private key. Serialization is not implemented because there
 /// is no way to convert back to a `PathBuf`.
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(try_from = "CertificateKeyPairPath")]
 pub struct CertificateKeyPair {
-  cert: Vec<Certificate>,
+  certs: Vec<Certificate>,
   key: PrivateKey,
+  server_config: ServerConfig,
+}
+
+impl PartialEq for CertificateKeyPair {
+  fn eq(&self, other: &Self) -> bool {
+    self.certs == other.certs && self.key == other.key
+  }
 }
 
 impl CertificateKeyPair {
   /// Create a new CertificateKeyPair.
-  pub fn new(cert: Vec<Certificate>, key: PrivateKey) -> Self {
-    Self { cert, key }
+  pub fn new(certs: Vec<Certificate>, key: PrivateKey, server_config: ServerConfig) -> Self {
+    Self {
+      certs,
+      key,
+      server_config,
+    }
   }
 
   /// Get the owned certificate and private key.
-  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey) {
-    (self.cert, self.key)
+  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey, ServerConfig) {
+    (self.certs, self.key, self.server_config)
   }
 }
 
@@ -54,8 +65,9 @@ impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
   fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
     let cert = load_certs(key_pair.cert)?;
     let key = load_key(key_pair.key)?;
+    let server_config = tls_server_config(cert.clone(), key.clone())?;
 
-    Ok(Self::new(cert, key))
+    Ok(Self::new(cert, key, server_config))
   }
 }
 
@@ -79,18 +91,18 @@ impl CertificateKeyPairPath {
     Self { cert, key }
   }
 
-  /// Get the cert.
-  pub fn cert(&self) -> &Path {
+  /// Get the certs path.
+  pub fn certs(&self) -> &Path {
     &self.cert
   }
 
-  /// Get the key.
+  /// Get the key path.
   pub fn key(&self) -> &Path {
     &self.key
   }
 }
 
-impl KeyPairScheme for Option<&CertificateKeyPairPath> {
+impl KeyPairScheme for Option<&CertificateKeyPair> {
   fn get_scheme(&self) -> Scheme {
     match self {
       None => Http,
@@ -159,8 +171,21 @@ pub fn load_root_ca<P: AsRef<Path>>(certs: P) -> Result<rustls::RootCertStore> {
   Ok(roots)
 }
 
+/// Load TLS server config.
+pub fn tls_server_config(certs: Vec<Certificate>, key: PrivateKey) -> Result<ServerConfig> {
+  let mut config = ServerConfig::builder()
+    .with_safe_defaults()
+    .with_no_client_auth()
+    .with_single_cert(certs, key)
+    .map_err(|err| ParseError(err.to_string()))?;
+
+  config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+  Ok(config)
+}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use std::fs::write;
   use std::io::Cursor;
   use std::path::Path;
@@ -199,6 +224,18 @@ mod tests {
       let certs = load_root_ca(cert_path).unwrap();
 
       assert_eq!(certs.len(), 1);
+    });
+  }
+
+  #[tokio::test]
+  async fn test_tls_server_config() {
+    with_test_certificates(|_, key, cert| {
+      let server_config = tls_server_config(vec![cert], key).unwrap();
+
+      assert_eq!(
+        server_config.alpn_protocols,
+        vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+      );
     });
   }
 

@@ -593,7 +593,7 @@ mod tests {
         [[resolvers]]
         regex = "regex"
         "#,
-      |config| {
+      |config, _, _| {
         assert_eq!(
           config.resolvers().first().unwrap().regex().as_str(),
           "regex"
@@ -612,7 +612,7 @@ mod tests {
       [resolvers.allow_guard]
       allow_formats = ["BAM"]
       "#,
-      |config| {
+      |config, _, _| {
         assert_eq!(
           config.resolvers().first().unwrap().allow_formats(),
           &vec![Bam]
@@ -623,12 +623,15 @@ mod tests {
 
   #[test]
   fn config_resolvers_env() {
-    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{regex=regex}]")], |config| {
-      assert_eq!(
-        config.resolvers().first().unwrap().regex().as_str(),
-        "regex"
-      );
-    });
+    test_config_from_env(
+      vec![("HTSGET_RESOLVERS", "[{regex=regex}]")],
+      |config, _, _| {
+        assert_eq!(
+          config.resolvers().first().unwrap().regex().as_str(),
+          "regex"
+        );
+      },
+    );
   }
 
   #[cfg(feature = "s3-storage")]
@@ -643,7 +646,7 @@ mod tests {
         allow_formats=[BAM], allow_classes=[body], allow_interval_start=100, \
         allow_interval_end=1000 } }]",
       )],
-      |config| {
+      |config, _, _| {
         let storage = Storage::S3 {
           s3_storage: S3Storage::new("bucket".to_string(), None, false),
         };
