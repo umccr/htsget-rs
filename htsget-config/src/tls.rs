@@ -63,11 +63,19 @@ impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
   type Error = Error;
 
   fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
-    let cert = load_certs(key_pair.cert)?;
-    let key = load_key(key_pair.key)?;
-    let server_config = tls_server_config(cert.clone(), key.clone())?;
+    println!("key_pair: {:?}", key_pair);
+    let cert = load_certs(key_pair.cert);
+    let key = load_key(key_pair.key);
 
-    Ok(Self::new(cert, key, server_config))
+    println!("key: {:#?}", key);
+    println!("cert: {:#?}", cert);
+
+    let cert = cert?;
+    let key = key?;
+
+    let server_config = tls_server_config(cert.clone(), key.clone());
+
+    Ok(Self::new(cert, key, server_config?))
   }
 }
 

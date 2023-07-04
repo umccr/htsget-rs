@@ -514,7 +514,7 @@ pub(crate) mod tests {
   where
     K: AsRef<str>,
     V: Display,
-    F: FnOnce(Config, PrivateKey, Certificate),
+    F: FnOnce(Config),
   {
     Jail::expect_with(|jail| {
       if let Some(contents) = contents {
@@ -525,11 +525,7 @@ pub(crate) mod tests {
         jail.set_env(key, value);
       }
 
-      let config = Config::from_path(Path::new("test.toml")).map_err(|err| err.to_string())?;
-
-      with_test_certificates(|_path, key, cert| {
-        test_fn(config, key, cert);
-      });
+      test_fn(Config::from_path(Path::new("test.toml")).map_err(|err| err.to_string())?);
 
       Ok(())
     });
@@ -539,14 +535,14 @@ pub(crate) mod tests {
   where
     K: AsRef<str>,
     V: Display,
-    F: FnOnce(Config, PrivateKey, Certificate),
+    F: FnOnce(Config),
   {
     test_config(None, env_variables, test_fn);
   }
 
   pub(crate) fn test_config_from_file<F>(contents: &str, test_fn: F)
   where
-    F: FnOnce(Config, PrivateKey, Certificate),
+    F: FnOnce(Config),
   {
     test_config(Some(contents), Vec::<(&str, &str)>::new(), test_fn);
   }
@@ -555,7 +551,7 @@ pub(crate) mod tests {
   fn config_ticket_server_addr_env() {
     test_config_from_env(
       vec![("HTSGET_TICKET_SERVER_ADDR", "127.0.0.1:8082")],
-      |config, _, _| {
+      |config| {
         assert_eq!(
           config.ticket_server().addr(),
           "127.0.0.1:8082".parse().unwrap()
@@ -568,7 +564,7 @@ pub(crate) mod tests {
   fn config_ticket_server_cors_allow_origin_env() {
     test_config_from_env(
       vec![("HTSGET_TICKET_SERVER_CORS_ALLOW_CREDENTIALS", true)],
-      |config, _, _| {
+      |config| {
         assert!(config.ticket_server().allow_credentials());
       },
     );
@@ -576,7 +572,7 @@ pub(crate) mod tests {
 
   #[test]
   fn config_service_info_id_env() {
-    test_config_from_env(vec![("HTSGET_ID", "id")], |config, _, _| {
+    test_config_from_env(vec![("HTSGET_ID", "id")], |config| {
       assert_eq!(config.service_info().id(), Some("id"));
     });
   }
@@ -585,7 +581,7 @@ pub(crate) mod tests {
   fn config_data_server_addr_env() {
     test_config_from_env(
       vec![("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082")],
-      |config, _, _| {
+      |config| {
         assert_eq!(
           config.data_server().addr(),
           "127.0.0.1:8082".parse().unwrap()
@@ -596,47 +592,38 @@ pub(crate) mod tests {
 
   #[test]
   fn config_no_data_server_env() {
-    test_config_from_env(
-      vec![("HTSGET_DATA_SERVER_ENABLED", "true")],
-      |config, _, _| {
-        assert!(config.data_server().enabled());
-      },
-    );
+    test_config_from_env(vec![("HTSGET_DATA_SERVER_ENABLED", "true")], |config| {
+      assert!(config.data_server().enabled());
+    });
   }
 
   #[test]
   fn config_ticket_server_addr_file() {
-    test_config_from_file(
-      r#"ticket_server_addr = "127.0.0.1:8082""#,
-      |config, _, _| {
-        assert_eq!(
-          config.ticket_server().addr(),
-          "127.0.0.1:8082".parse().unwrap()
-        );
-      },
-    );
+    test_config_from_file(r#"ticket_server_addr = "127.0.0.1:8082""#, |config| {
+      assert_eq!(
+        config.ticket_server().addr(),
+        "127.0.0.1:8082".parse().unwrap()
+      );
+    });
   }
 
   #[test]
   fn config_ticket_server_cors_allow_origin_file() {
-    test_config_from_file(
-      r#"ticket_server_cors_allow_credentials = true"#,
-      |config, _, _| {
-        assert!(config.ticket_server().allow_credentials());
-      },
-    );
+    test_config_from_file(r#"ticket_server_cors_allow_credentials = true"#, |config| {
+      assert!(config.ticket_server().allow_credentials());
+    });
   }
 
   #[test]
   fn config_service_info_id_file() {
-    test_config_from_file(r#"id = "id""#, |config, _, _| {
+    test_config_from_file(r#"id = "id""#, |config| {
       assert_eq!(config.service_info().id(), Some("id"));
     });
   }
 
   #[test]
   fn config_data_server_addr_file() {
-    test_config_from_file(r#"data_server_addr = "127.0.0.1:8082""#, |config, _, _| {
+    test_config_from_file(r#"data_server_addr = "127.0.0.1:8082""#, |config| {
       assert_eq!(
         config.data_server().addr(),
         "127.0.0.1:8082".parse().unwrap()
@@ -647,72 +634,126 @@ pub(crate) mod tests {
   #[test]
   #[should_panic]
   fn config_data_server_tls_no_cert() {
-    test_config_from_file(
-      r#"
-    data_server_key = "key.pem"
-    "#,
-      test_certificate_key_pair_fn(),
-    );
+    with_test_certificates(|path, key, cert| {
+      let key_path = path.join("key.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
+        data_server_key = "{}"
+        "#,
+          key_path.to_string_lossy()
+        ),
+        |config| {
+          assert_certificate_key_pair_fn(config.data_server().tls(), key, cert);
+        },
+      );
+    });
   }
 
   #[test]
   fn config_data_server_tls() {
-    test_config_from_file(
-      r#"
-    data_server_key = "key.pem"
-    data_server_cert = "cert.pem"
-    "#,
-      test_certificate_key_pair_fn(),
-    );
+    with_test_certificates(|path, key, cert| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
+        data_server_key = "{}"
+        data_server_cert = "{}"
+        "#,
+          key_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          assert_certificate_key_pair_fn(config.data_server().tls(), key, cert);
+        },
+      );
+    });
   }
 
   #[test]
   fn config_data_server_tls_env() {
-    test_config_from_env(
-      vec![
-        ("HTSGET_DATA_SERVER_KEY", "key.pem"),
-        ("HTSGET_DATA_SERVER_CERT", "cert.pem"),
-      ],
-      test_certificate_key_pair_fn(),
-    );
+    with_test_certificates(|path, key, cert| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_env(
+        vec![
+          ("HTSGET_DATA_SERVER_KEY", key_path.to_string_lossy()),
+          ("HTSGET_DATA_SERVER_CERT", cert_path.to_string_lossy()),
+        ],
+        |config| {
+          assert_certificate_key_pair_fn(config.data_server().tls(), key, cert);
+        },
+      );
+    });
   }
 
   #[test]
   #[should_panic]
   fn config_ticket_server_tls_no_cert() {
-    test_config_from_file(
-      r#"
-    ticket_server_key = "key.pem"
-    "#,
-      test_certificate_key_pair_fn(),
-    );
+    with_test_certificates(|path, key, cert| {
+      let key_path = path.join("key.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
+        ticket_server_key = "{}"
+        "#,
+          key_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          assert_certificate_key_pair_fn(config.ticket_server().tls(), key, cert);
+        },
+      );
+    });
   }
 
   #[test]
   fn config_ticket_server_tls() {
-    test_config_from_file(
-      r#"
-    ticket_server_key = "key.pem"
-    ticket_server_cert = "cert.pem"
-    "#,
-      test_certificate_key_pair_fn(),
-    );
+    with_test_certificates(|path, key, cert| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
+        ticket_server_key = "{}"
+        ticket_server_cert = "{}"
+        "#,
+          key_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          assert_certificate_key_pair_fn(config.ticket_server().tls(), key, cert);
+        },
+      );
+    });
   }
 
   #[test]
   fn config_ticket_server_tls_env() {
-    test_config_from_env(
-      vec![
-        ("HTSGET_TICKET_SERVER_KEY", "key.pem"),
-        ("HTSGET_TICKET_SERVER_CERT", "cert.pem"),
-      ],
-      test_certificate_key_pair_fn(),
-    );
+    with_test_certificates(|path, key, cert| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_env(
+        vec![
+          ("HTSGET_TICKET_SERVER_KEY", key_path.to_string_lossy()),
+          ("HTSGET_TICKET_SERVER_CERT", cert_path.to_string_lossy()),
+        ],
+        |config| {
+          assert_certificate_key_pair_fn(config.ticket_server().tls(), key, cert);
+        },
+      );
+    });
   }
 
   #[test]
   fn config_no_data_server_file() {
-    test_config_from_file(r#"data_server_enabled = true"#, |config, _, _| {
+    test_config_from_file(r#"data_server_enabled = true"#, |config| {
       assert!(config.data_server().enabled());
     });
   }
@@ -728,7 +769,7 @@ pub(crate) mod tests {
     [[resolvers]]
     storage = "Local"
     "#,
-      |config, _, _| {
+      |config| {
         assert_eq!(config.resolvers.len(), 1);
 
         assert!(matches!(config.resolvers.first().unwrap().storage(),
@@ -737,20 +778,22 @@ pub(crate) mod tests {
     );
   }
 
-  fn test_certificate_key_pair_fn() -> impl FnOnce(Config, PrivateKey, Certificate) {
-    |config: Config, key: PrivateKey, cert: Certificate| {
-      assert_eq!(
-        config.ticket_server().tls(),
-        Some(&CertificateKeyPair::new(
-          vec![cert.clone()],
-          key.clone(),
-          rustls::ServerConfig::builder()
-            .with_safe_defaults()
-            .with_no_client_auth()
-            .with_single_cert(vec![cert], key)
-            .unwrap()
-        ))
-      )
-    }
+  fn assert_certificate_key_pair_fn(
+    tls_config: Option<&CertificateKeyPair>,
+    key: PrivateKey,
+    cert: Certificate,
+  ) {
+    assert_eq!(
+      tls_config,
+      Some(&CertificateKeyPair::new(
+        vec![cert.clone()],
+        key.clone(),
+        rustls::ServerConfig::builder()
+          .with_safe_defaults()
+          .with_no_client_auth()
+          .with_single_cert(vec![cert], key)
+          .unwrap()
+      ))
+    );
   }
 }

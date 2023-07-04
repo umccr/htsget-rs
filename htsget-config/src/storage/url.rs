@@ -115,7 +115,7 @@ mod tests {
         response_scheme = "Http"
         forward_headers = false
         "#,
-      |config, _, _| {
+      |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
             config.resolvers().first().unwrap().storage(),

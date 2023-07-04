@@ -138,7 +138,7 @@ pub(crate) mod tests {
       regex = "regex"
       storage = "Local"
       "#,
-      |config, _, _| {
+      |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
           config.resolvers().first().unwrap().storage(),
@@ -150,15 +150,12 @@ pub(crate) mod tests {
 
   #[test]
   fn config_storage_tagged_local_env() {
-    test_config_from_env(
-      vec![("HTSGET_RESOLVERS", "[{storage=Local}]")],
-      |config, _, _| {
-        assert!(matches!(
-          config.resolvers().first().unwrap().storage(),
-          Storage::Local { .. }
-        ));
-      },
-    );
+    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{storage=Local}]")], |config| {
+      assert!(matches!(
+        config.resolvers().first().unwrap().storage(),
+        Storage::Local { .. }
+      ));
+    });
   }
 
   #[cfg(feature = "s3-storage")]
@@ -182,7 +179,7 @@ pub(crate) mod tests {
       regex = "regex"
       storage = "S3"
       "#,
-      |config, _, _| {
+      |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
           config.resolvers().first().unwrap().storage(),
@@ -195,14 +192,11 @@ pub(crate) mod tests {
   #[cfg(feature = "s3-storage")]
   #[test]
   fn config_storage_tagged_s3_env() {
-    test_config_from_env(
-      vec![("HTSGET_RESOLVERS", "[{storage=S3}]")],
-      |config, _, _| {
-        assert!(matches!(
-          config.resolvers().first().unwrap().storage(),
-          Storage::Tagged(TaggedStorageTypes::S3)
-        ));
-      },
-    );
+    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{storage=S3}]")], |config| {
+      assert!(matches!(
+        config.resolvers().first().unwrap().storage(),
+        Storage::Tagged(TaggedStorageTypes::S3)
+      ));
+    });
   }
 }
