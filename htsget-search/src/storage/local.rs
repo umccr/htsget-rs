@@ -100,11 +100,10 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     _options: GetOptions<'_>,
   ) -> Result<File> {
     debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
-    let file = self.get(key).await?;
+    self.get(key).await
+    // let decrypted_data = decrypt_wrapper(file);
 
-    let decrypted_data = decrypt_wrapper(file);
-
-    Ok(decryped_data)
+    // Ok(decryped_data)
   }
 
 

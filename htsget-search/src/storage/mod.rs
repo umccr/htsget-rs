@@ -29,6 +29,7 @@ pub mod s3;
 #[cfg(feature = "url-storage")]
 pub mod url;
 pub mod crypt4gh;
+pub mod crypt4gh_block;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
