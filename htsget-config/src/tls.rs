@@ -268,7 +268,7 @@ pub fn tls_client_config(
     config.with_root_certificates(root_store)
   };
 
-  let config = if let Some(key_pair) = key_pair {
+  let mut config = if let Some(key_pair) = key_pair {
     let (certs, key) = key_pair.into_inner();
     config
       .with_single_cert(certs, key)
@@ -276,6 +276,8 @@ pub fn tls_client_config(
   } else {
     config.with_no_client_auth()
   };
+
+  config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
   Ok(config)
 }
@@ -330,6 +332,20 @@ pub(crate) mod tests {
 
       assert_eq!(
         server_config.alpn_protocols,
+        vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+      );
+    });
+  }
+
+  #[tokio::test]
+  async fn test_tls_client_config() {
+    with_test_certificates(|path, key, cert| {
+      let certs = load_root_store_from_path(path.join("cert.pem")).unwrap();
+      let client_config =
+        tls_client_config(Some(CertificateKeyPair::new(vec![cert], key)), Some(certs)).unwrap();
+
+      assert_eq!(
+        client_config.alpn_protocols,
         vec![b"h2".to_vec(), b"http/1.1".to_vec()]
       );
     });
