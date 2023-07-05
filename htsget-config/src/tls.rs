@@ -2,7 +2,8 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use rustls::{Certificate, PrivateKey, ServerConfig};
+use rustls::{Certificate, ClientConfig, PrivateKey, RootCertStore, ServerConfig};
+use rustls_native_certs::load_native_certs;
 use rustls_pemfile::read_one;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -18,36 +19,43 @@ pub trait KeyPairScheme {
   fn get_scheme(&self) -> Scheme;
 }
 
-/// A certificate and key pair used for TLS. This is the path to the PEM formatted
-/// X.509 certificate and private key. Serialization is not implemented because there
+/// A certificate and key pair used for TLS. Serialization is not implemented because there
 /// is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(try_from = "CertificateKeyPairPath")]
-pub struct CertificateKeyPair {
-  certs: Vec<Certificate>,
-  key: PrivateKey,
+pub struct TlsServerConfig {
   server_config: ServerConfig,
 }
 
-impl PartialEq for CertificateKeyPair {
-  fn eq(&self, other: &Self) -> bool {
-    self.certs == other.certs && self.key == other.key
+/// A certificate and key pair used for TLS. Serialization is not implemented because there
+/// is no way to convert back to a `PathBuf`.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(try_from = "RootCertStorePair")]
+pub struct TlsClientConfig {
+  client_config: ClientConfig,
+}
+
+impl TlsServerConfig {
+  /// Create a new TlsServerConfig.
+  pub fn new(server_config: ServerConfig) -> Self {
+    Self { server_config }
+  }
+
+  /// Get the inner server config.
+  pub fn into_inner(self) -> ServerConfig {
+    self.server_config
   }
 }
 
-impl CertificateKeyPair {
-  /// Create a new CertificateKeyPair.
-  pub fn new(certs: Vec<Certificate>, key: PrivateKey, server_config: ServerConfig) -> Self {
-    Self {
-      certs,
-      key,
-      server_config,
-    }
+impl TlsClientConfig {
+  /// Create a new TlsClientConfig.
+  pub fn new(client_config: ClientConfig) -> Self {
+    Self { client_config }
   }
 
-  /// Get the owned certificate and private key.
-  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey, ServerConfig) {
-    (self.certs, self.key, self.server_config)
+  /// Get the inner client config.
+  pub fn into_inner(self) -> ClientConfig {
+    self.client_config
   }
 }
 
@@ -59,37 +67,80 @@ pub struct CertificateKeyPairPath {
   key: PathBuf,
 }
 
+/// The certificate and key pair used for TLS.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CertificateKeyPair {
+  certs: Vec<Certificate>,
+  key: PrivateKey,
+}
+
+impl CertificateKeyPair {
+  /// Create a new CertificateKeyPair.
+  pub fn new(certs: Vec<Certificate>, key: PrivateKey) -> Self {
+    Self { certs, key }
+  }
+
+  /// Get the owned certificate and private key.
+  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey) {
+    (self.certs, self.key)
+  }
+}
+
+/// The location of a certificate and key pair used for TLS.
+/// This is the path to the PEM formatted X.509 certificate and private key.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct RootCertStorePair {
+  #[serde(flatten)]
+  key_pair: Option<CertificateKeyPairPath>,
+  root_store: Option<PathBuf>,
+}
+
+impl RootCertStorePair {
+  /// Create a new RootCertStorePair.
+  pub fn new(key_pair: Option<CertificateKeyPairPath>, root_store: Option<PathBuf>) -> Self {
+    Self {
+      key_pair,
+      root_store,
+    }
+  }
+
+  /// Get the owned root store pair.
+  pub fn into_inner(self) -> (Option<CertificateKeyPairPath>, Option<PathBuf>) {
+    (self.key_pair, self.root_store)
+  }
+}
+
+impl TryFrom<CertificateKeyPairPath> for TlsServerConfig {
+  type Error = Error;
+
+  fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
+    let server_config = tls_server_config(key_pair.try_into()?)?;
+
+    Ok(Self::new(server_config))
+  }
+}
+
 impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
   type Error = Error;
 
   fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
-    println!("key_pair: {:?}", key_pair);
-    let cert = load_certs(key_pair.cert);
-    let key = load_key(key_pair.key);
+    let certs = load_certs(key_pair.cert)?;
+    let key = load_key(key_pair.key)?;
 
-    println!("key: {:#?}", key);
-    println!("cert: {:#?}", cert);
-
-    let cert = cert?;
-    let key = key?;
-
-    let server_config = tls_server_config(cert.clone(), key.clone());
-
-    Ok(Self::new(cert, key, server_config?))
+    Ok(CertificateKeyPair::new(certs, key))
   }
 }
 
-/// A wrapper around a `RootCertStore` to support deserialization. Serialization is not implemented
-/// because there is no way to convert back to a `PathBuf`.
-#[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "PathBuf")]
-pub struct RootCertStore(rustls::RootCertStore);
-
-impl TryFrom<PathBuf> for RootCertStore {
+impl TryFrom<RootCertStorePair> for TlsClientConfig {
   type Error = Error;
 
-  fn try_from(path: PathBuf) -> Result<Self> {
-    Ok(Self(load_root_ca(path)?))
+  fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
+    let (key_pair, root_store) = root_store_pair.into_inner();
+
+    let key_pair = key_pair.map(TryInto::try_into).transpose()?;
+    let root_store = root_store.map(load_root_store_from_path).transpose()?;
+
+    tls_client_config(key_pair, root_store).map(Self::new)
   }
 }
 
@@ -110,7 +161,7 @@ impl CertificateKeyPairPath {
   }
 }
 
-impl KeyPairScheme for Option<&CertificateKeyPair> {
+impl KeyPairScheme for Option<&TlsServerConfig> {
   fn get_scheme(&self) -> Scheme {
     match self {
       None => Http,
@@ -160,10 +211,15 @@ pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
 }
 
 /// Load certificates from a file and place them in a root CA store.
-pub fn load_root_ca<P: AsRef<Path>>(certs: P) -> Result<rustls::RootCertStore> {
+pub fn load_root_store_from_path<P: AsRef<Path>>(certs: P) -> Result<RootCertStore> {
   let certs: Vec<Vec<u8>> = load_certs(certs)?.into_iter().map(|cert| cert.0).collect();
 
-  let mut roots = rustls::RootCertStore::empty();
+  load_root_store(certs)
+}
+
+/// Load certificates and place them in a root CA store.
+pub fn load_root_store(certs: Vec<Vec<u8>>) -> Result<RootCertStore> {
+  let mut roots = RootCertStore::empty();
   let (_, ignored) = roots.add_parsable_certificates(&certs);
 
   if ignored != 0 {
@@ -180,7 +236,9 @@ pub fn load_root_ca<P: AsRef<Path>>(certs: P) -> Result<rustls::RootCertStore> {
 }
 
 /// Load TLS server config.
-pub fn tls_server_config(certs: Vec<Certificate>, key: PrivateKey) -> Result<ServerConfig> {
+pub fn tls_server_config(key_pair: CertificateKeyPair) -> Result<ServerConfig> {
+  let (certs, key) = key_pair.into_inner();
+
   let mut config = ServerConfig::builder()
     .with_safe_defaults()
     .with_no_client_auth()
@@ -188,6 +246,36 @@ pub fn tls_server_config(certs: Vec<Certificate>, key: PrivateKey) -> Result<Ser
     .map_err(|err| ParseError(err.to_string()))?;
 
   config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+  Ok(config)
+}
+
+/// Load TLS client config. Defaults to the system's native root store if `root_store` is `None`,
+/// and to no client authentication if `key_pair` is `None`.
+pub fn tls_client_config(
+  key_pair: Option<CertificateKeyPair>,
+  root_store: Option<RootCertStore>,
+) -> Result<ClientConfig> {
+  let config = ClientConfig::builder().with_safe_defaults();
+
+  let config = if let Some(root_store) = root_store {
+    config.with_root_certificates(root_store)
+  } else {
+    let certs =
+      load_native_certs().map_err(|err| ParseError(format!("loading native certs: {}", err)))?;
+    let root_store = load_root_store(certs.into_iter().map(|cert| cert.0).collect())?;
+
+    config.with_root_certificates(root_store)
+  };
+
+  let config = if let Some(key_pair) = key_pair {
+    let (certs, key) = key_pair.into_inner();
+    config
+      .with_single_cert(certs, key)
+      .map_err(|err| ParseError(format!("single cert: {}", err)))?
+  } else {
+    config.with_no_client_auth()
+  };
 
   Ok(config)
 }
@@ -229,7 +317,7 @@ pub(crate) mod tests {
   fn test_load_root_ca() {
     with_test_certificates(|path, _, _| {
       let cert_path = path.join("cert.pem");
-      let certs = load_root_ca(cert_path).unwrap();
+      let certs = load_root_store_from_path(cert_path).unwrap();
 
       assert_eq!(certs.len(), 1);
     });
@@ -238,7 +326,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn test_tls_server_config() {
     with_test_certificates(|_, key, cert| {
-      let server_config = tls_server_config(vec![cert], key).unwrap();
+      let server_config = tls_server_config(CertificateKeyPair::new(vec![cert], key)).unwrap();
 
       assert_eq!(
         server_config.alpn_protocols,

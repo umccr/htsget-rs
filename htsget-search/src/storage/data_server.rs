@@ -23,7 +23,7 @@ use tracing::{info, trace};
 
 use htsget_config::config::cors::CorsConfig;
 use htsget_config::config::DataServerConfig;
-use htsget_config::tls::CertificateKeyPair;
+use htsget_config::tls::TlsServerConfig;
 use htsget_config::types::Scheme;
 
 use crate::storage::configure_cors;
@@ -38,7 +38,7 @@ pub const CORS_MAX_AGE: u64 = 86400;
 #[derive(Debug, Clone)]
 pub struct BindDataServer {
   addr: SocketAddr,
-  cert_key_pair: Option<CertificateKeyPair>,
+  cert_key_pair: Option<TlsServerConfig>,
   scheme: Scheme,
   cors: CorsConfig,
   serve_at: String,
@@ -58,7 +58,7 @@ impl BindDataServer {
   pub fn new_with_tls(
     addr: SocketAddr,
     cors: CorsConfig,
-    tls: CertificateKeyPair,
+    tls: TlsServerConfig,
     serve_at: String,
   ) -> Self {
     Self {
@@ -121,7 +121,7 @@ impl From<AddrParseError> for StorageError {
 pub struct DataServer {
   listener: AddrIncoming,
   serve_at: String,
-  cert_key_pair: Option<CertificateKeyPair>,
+  cert_key_pair: Option<TlsServerConfig>,
   cors: CorsConfig,
 }
 
@@ -131,7 +131,7 @@ impl DataServer {
   pub async fn bind_addr(
     addr: SocketAddr,
     serve_at: impl Into<String>,
-    cert_key_pair: Option<CertificateKeyPair>,
+    cert_key_pair: Option<TlsServerConfig>,
     cors: CorsConfig,
   ) -> Result<DataServer> {
     let listener = TcpListener::bind(addr)
@@ -164,8 +164,7 @@ impl DataServer {
         .await
         .map_err(|err| ServerError(err.to_string())),
       Some(tls) => {
-        let (_, _, server_config) = tls.into_inner();
-        let acceptor = TlsAcceptor::from(Arc::new(server_config));
+        let acceptor = TlsAcceptor::from(Arc::new(tls.into_inner()));
 
         loop {
           let stream = poll_fn(|cx| Pin::new(&mut self.listener).poll_accept(cx))
@@ -399,7 +398,7 @@ mod tests {
     )
   }
 
-  async fn start_server<P>(cert_key_pair: Option<CertificateKeyPair>, path: P) -> u16
+  async fn start_server<P>(cert_key_pair: Option<TlsServerConfig>, path: P) -> u16
   where
     P: AsRef<Path> + Send + 'static,
   {
@@ -413,7 +412,7 @@ mod tests {
     port
   }
 
-  async fn test_server<P>(scheme: &str, cert_key_pair: Option<CertificateKeyPair>, path: P)
+  async fn test_server<P>(scheme: &str, cert_key_pair: Option<TlsServerConfig>, path: P)
   where
     P: AsRef<Path> + Send + 'static,
   {

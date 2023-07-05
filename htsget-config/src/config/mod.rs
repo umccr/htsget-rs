@@ -19,7 +19,7 @@ use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
 use crate::error::Error::{ArgParseError, IoError, TracingError};
 use crate::error::Result;
 use crate::resolver::Resolver;
-use crate::tls::CertificateKeyPair;
+use crate::tls::TlsServerConfig;
 
 pub mod cors;
 
@@ -98,14 +98,14 @@ pub struct Config {
 pub struct TicketServerConfig {
   addr: SocketAddr,
   #[serde(flatten, skip_serializing)]
-  tls: Option<CertificateKeyPair>,
+  tls: Option<TlsServerConfig>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
 
 impl TicketServerConfig {
   /// Create a new ticket server config.
-  pub fn new(addr: SocketAddr, tls: Option<CertificateKeyPair>, cors: CorsConfig) -> Self {
+  pub fn new(addr: SocketAddr, tls: Option<TlsServerConfig>, cors: CorsConfig) -> Self {
     Self { addr, tls, cors }
   }
 
@@ -115,12 +115,12 @@ impl TicketServerConfig {
   }
 
   /// Get the TLS config.
-  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+  pub fn tls(&self) -> Option<&TlsServerConfig> {
     self.tls.as_ref()
   }
 
   /// Get the TLS config.
-  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+  pub fn into_tls(self) -> Option<TlsServerConfig> {
     self.tls
   }
 
@@ -169,7 +169,7 @@ pub struct DataServerConfig {
   local_path: PathBuf,
   serve_at: String,
   #[serde(flatten, skip_serializing)]
-  tls: Option<CertificateKeyPair>,
+  tls: Option<TlsServerConfig>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
@@ -181,7 +181,7 @@ impl DataServerConfig {
     addr: SocketAddr,
     local_path: PathBuf,
     serve_at: String,
-    tls: Option<CertificateKeyPair>,
+    tls: Option<TlsServerConfig>,
     cors: CorsConfig,
   ) -> Self {
     Self {
@@ -210,12 +210,12 @@ impl DataServerConfig {
   }
 
   /// Get the TLS config.
-  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+  pub fn tls(&self) -> Option<&TlsServerConfig> {
     self.tls.as_ref()
   }
 
   /// Get the TLS config.
-  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+  pub fn into_tls(self) -> Option<TlsServerConfig> {
     self.tls
   }
 
@@ -502,7 +502,6 @@ pub(crate) mod tests {
 
   use figment::Jail;
   use http::uri::Authority;
-  use rustls::{Certificate, PrivateKey};
 
   use crate::storage::Storage;
   use crate::tls::tests::with_test_certificates;
@@ -632,9 +631,8 @@ pub(crate) mod tests {
   }
 
   #[test]
-  #[should_panic]
   fn config_data_server_tls_no_cert() {
-    with_test_certificates(|path, key, cert| {
+    with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
 
       test_config_from_file(
@@ -642,10 +640,10 @@ pub(crate) mod tests {
           r#"
         data_server_key = "{}"
         "#,
-          key_path.to_string_lossy()
+          key_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert_certificate_key_pair_fn(config.data_server().tls(), key, cert);
+          assert!(config.data_server().tls().is_none());
         },
       );
     });
@@ -653,7 +651,7 @@ pub(crate) mod tests {
 
   #[test]
   fn config_data_server_tls() {
-    with_test_certificates(|path, key, cert| {
+    with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
       let cert_path = path.join("cert.pem");
 
@@ -667,7 +665,7 @@ pub(crate) mod tests {
           cert_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert_certificate_key_pair_fn(config.data_server().tls(), key, cert);
+          assert!(config.data_server().tls().is_some());
         },
       );
     });
@@ -675,7 +673,7 @@ pub(crate) mod tests {
 
   #[test]
   fn config_data_server_tls_env() {
-    with_test_certificates(|path, key, cert| {
+    with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
       let cert_path = path.join("cert.pem");
 
@@ -685,16 +683,15 @@ pub(crate) mod tests {
           ("HTSGET_DATA_SERVER_CERT", cert_path.to_string_lossy()),
         ],
         |config| {
-          assert_certificate_key_pair_fn(config.data_server().tls(), key, cert);
+          assert!(config.data_server().tls().is_some());
         },
       );
     });
   }
 
   #[test]
-  #[should_panic]
   fn config_ticket_server_tls_no_cert() {
-    with_test_certificates(|path, key, cert| {
+    with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
 
       test_config_from_file(
@@ -705,7 +702,7 @@ pub(crate) mod tests {
           key_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert_certificate_key_pair_fn(config.ticket_server().tls(), key, cert);
+          assert!(config.ticket_server().tls().is_none());
         },
       );
     });
@@ -713,7 +710,7 @@ pub(crate) mod tests {
 
   #[test]
   fn config_ticket_server_tls() {
-    with_test_certificates(|path, key, cert| {
+    with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
       let cert_path = path.join("cert.pem");
 
@@ -727,7 +724,7 @@ pub(crate) mod tests {
           cert_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert_certificate_key_pair_fn(config.ticket_server().tls(), key, cert);
+          assert!(config.ticket_server().tls().is_some());
         },
       );
     });
@@ -735,7 +732,7 @@ pub(crate) mod tests {
 
   #[test]
   fn config_ticket_server_tls_env() {
-    with_test_certificates(|path, key, cert| {
+    with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
       let cert_path = path.join("cert.pem");
 
@@ -745,7 +742,7 @@ pub(crate) mod tests {
           ("HTSGET_TICKET_SERVER_CERT", cert_path.to_string_lossy()),
         ],
         |config| {
-          assert_certificate_key_pair_fn(config.ticket_server().tls(), key, cert);
+          assert!(config.ticket_server().tls().is_some());
         },
       );
     });
@@ -775,25 +772,6 @@ pub(crate) mod tests {
         assert!(matches!(config.resolvers.first().unwrap().storage(),
       Storage::Local { local_storage } if local_storage.local_path() == "path" && local_storage.scheme() == Http && local_storage.authority() == &Authority::from_static("127.0.0.1:8080") && local_storage.path_prefix() == "/path"));
       },
-    );
-  }
-
-  fn assert_certificate_key_pair_fn(
-    tls_config: Option<&CertificateKeyPair>,
-    key: PrivateKey,
-    cert: Certificate,
-  ) {
-    assert_eq!(
-      tls_config,
-      Some(&CertificateKeyPair::new(
-        vec![cert.clone()],
-        key.clone(),
-        rustls::ServerConfig::builder()
-          .with_safe_defaults()
-          .with_no_client_auth()
-          .with_single_cert(vec![cert], key)
-          .unwrap()
-      ))
     );
   }
 }

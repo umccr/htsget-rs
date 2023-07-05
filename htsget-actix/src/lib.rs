@@ -130,10 +130,8 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
       server.bind(addr)?
     }
     Some(tls) => {
-      let (_, _, server_config) = tls.into_inner();
-
       info!("using TLS ticket server");
-      server.bind_rustls(addr, server_config)?
+      server.bind_rustls(addr, tls.into_inner())?
     }
   };
 
