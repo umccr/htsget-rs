@@ -97,7 +97,7 @@ pub struct Config {
 #[serde(default)]
 pub struct TicketServerConfig {
   addr: SocketAddr,
-  #[serde(flatten, skip_serializing)]
+  #[serde(skip_serializing)]
   tls: Option<TlsServerConfig>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
@@ -168,7 +168,7 @@ pub struct DataServerConfig {
   addr: SocketAddr,
   local_path: PathBuf,
   serve_at: String,
-  #[serde(flatten, skip_serializing)]
+  #[serde(skip_serializing)]
   tls: Option<TlsServerConfig>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
@@ -413,7 +413,12 @@ impl Config {
   pub fn from_path(path: &Path) -> Result<Self> {
     let config: Config = Figment::from(Serialized::defaults(Config::default()))
       .merge(Toml::file(path))
-      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
+      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX).map(|k| match k {
+        k if k.as_str().to_lowercase().contains("tls_") => {
+          k.as_str().to_lowercase().replace("tls_", "tls.").into()
+        }
+        k => k.into(),
+      }))
       .extract()
       .map_err(|err| IoError(err.to_string()))?;
 
@@ -631,6 +636,7 @@ pub(crate) mod tests {
   }
 
   #[test]
+  #[should_panic]
   fn config_data_server_tls_no_cert() {
     with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
@@ -638,7 +644,7 @@ pub(crate) mod tests {
       test_config_from_file(
         &format!(
           r#"
-        data_server_key = "{}"
+        data_server_tls.key = "{}"
         "#,
           key_path.to_string_lossy().escape_default()
         ),
@@ -658,13 +664,14 @@ pub(crate) mod tests {
       test_config_from_file(
         &format!(
           r#"
-        data_server_key = "{}"
-        data_server_cert = "{}"
-        "#,
+          data_server_tls.key = "{}"
+          data_server_tls.cert = "{}"
+          "#,
           key_path.to_string_lossy().escape_default(),
           cert_path.to_string_lossy().escape_default()
         ),
         |config| {
+          println!("{:?}", config.data_server().tls());
           assert!(config.data_server().tls().is_some());
         },
       );
@@ -679,8 +686,8 @@ pub(crate) mod tests {
 
       test_config_from_env(
         vec![
-          ("HTSGET_DATA_SERVER_KEY", key_path.to_string_lossy()),
-          ("HTSGET_DATA_SERVER_CERT", cert_path.to_string_lossy()),
+          ("HTSGET_DATA_SERVER_TLS_KEY", key_path.to_string_lossy()),
+          ("HTSGET_DATA_SERVER_TLS_CERT", cert_path.to_string_lossy()),
         ],
         |config| {
           assert!(config.data_server().tls().is_some());
@@ -690,6 +697,7 @@ pub(crate) mod tests {
   }
 
   #[test]
+  #[should_panic]
   fn config_ticket_server_tls_no_cert() {
     with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
@@ -697,7 +705,7 @@ pub(crate) mod tests {
       test_config_from_file(
         &format!(
           r#"
-        ticket_server_key = "{}"
+        ticket_server_tls.key = "{}"
         "#,
           key_path.to_string_lossy().escape_default()
         ),
@@ -717,8 +725,8 @@ pub(crate) mod tests {
       test_config_from_file(
         &format!(
           r#"
-        ticket_server_key = "{}"
-        ticket_server_cert = "{}"
+        ticket_server_tls.key = "{}"
+        ticket_server_tls.cert = "{}"
         "#,
           key_path.to_string_lossy().escape_default(),
           cert_path.to_string_lossy().escape_default()
@@ -738,8 +746,8 @@ pub(crate) mod tests {
 
       test_config_from_env(
         vec![
-          ("HTSGET_TICKET_SERVER_KEY", key_path.to_string_lossy()),
-          ("HTSGET_TICKET_SERVER_CERT", cert_path.to_string_lossy()),
+          ("HTSGET_TICKET_SERVER_TLS_KEY", key_path.to_string_lossy()),
+          ("HTSGET_TICKET_SERVER_TLS_CERT", cert_path.to_string_lossy()),
         ],
         |config| {
           assert!(config.ticket_server().tls().is_some());

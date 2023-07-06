@@ -501,6 +501,8 @@ mod tests {
       InnerUrl::from_str("https://example.com/").unwrap(),
       Https,
       true,
+      None,
+      false,
     );
     let resolver = Resolver::new(
       Storage::Url { url_storage },
@@ -644,9 +646,6 @@ mod tests {
         allow_interval_end=1000 } }]",
       )],
       |config| {
-        let storage = Storage::S3 {
-          s3_storage: S3Storage::new("bucket".to_string(), None, false),
-        };
         let allow_guard = AllowGuard::new(
           ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),
           Fields::List(HashSet::from_iter(vec!["QNAME".to_string()])),
@@ -656,10 +655,13 @@ mod tests {
           Interval::new(Some(100), Some(1000)),
         );
         let resolver = config.resolvers().first().unwrap();
+        let expected_storage = S3Storage::new("bucket".to_string(), None, false);
 
         assert_eq!(resolver.regex().to_string(), "regex");
         assert_eq!(resolver.substitution_string(), "substitution_string");
-        assert_eq!(resolver.storage(), &storage);
+        assert!(
+          matches!(resolver.storage(), Storage::S3 { s3_storage } if s3_storage == &expected_storage)
+        );
         assert_eq!(resolver.allow_guard(), &allow_guard);
       },
     );

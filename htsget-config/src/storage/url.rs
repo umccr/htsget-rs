@@ -7,6 +7,7 @@ use serde_with::with_prefix;
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
+use crate::tls::TlsClientConfig;
 use crate::types::Scheme;
 
 fn default_url() -> ValidatedUrl {
@@ -18,15 +19,15 @@ fn default_url() -> ValidatedUrl {
 
 with_prefix!(client_auth_prefix "client_");
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct UrlStorage {
   url: ValidatedUrl,
   response_scheme: Scheme,
   forward_headers: bool,
-  // root_ca_store: Option<PathBuf>,
-  // #[serde(flatten, with = "client_auth_prefix")]
-  // client_auth: Option<CertificateKeyPair>,
+  #[serde(skip_serializing)]
+  tls: Option<TlsClientConfig>,
+  tls_disabled: bool,
 }
 
 /// A wrapper around `http::Uri` type which implements serialize and deserialize.
@@ -62,11 +63,19 @@ impl TryFrom<Url> for ValidatedUrl {
 
 impl UrlStorage {
   /// Create a new url storage.
-  pub fn new(url: InnerUrl, response_scheme: Scheme, forward_headers: bool) -> Self {
+  pub fn new(
+    url: InnerUrl,
+    response_scheme: Scheme,
+    forward_headers: bool,
+    tls: Option<TlsClientConfig>,
+    tls_disabled: bool,
+  ) -> Self {
     Self {
       url: ValidatedUrl(Url { inner: url }),
       response_scheme,
       forward_headers,
+      tls,
+      tls_disabled,
     }
   }
 
@@ -85,6 +94,16 @@ impl UrlStorage {
   pub fn forward_headers(&self) -> bool {
     self.forward_headers
   }
+
+  /// Get the tls client config.
+  pub fn tls(&self) -> Option<&TlsClientConfig> {
+    self.tls.as_ref()
+  }
+
+  /// Whether TLS is disabled for the client connector.
+  pub fn tls_disabled(&self) -> bool {
+    self.tls_disabled
+  }
 }
 
 impl Default for UrlStorage {
@@ -93,6 +112,8 @@ impl Default for UrlStorage {
       url: default_url(),
       response_scheme: Scheme::Https,
       forward_headers: true,
+      tls: None,
+      tls_disabled: false,
     }
   }
 }
@@ -101,12 +122,18 @@ impl Default for UrlStorage {
 mod tests {
   use crate::config::tests::test_config_from_file;
   use crate::storage::Storage;
+  use crate::tls::tests::with_test_certificates;
   use crate::types::Scheme;
 
   #[test]
   fn config_storage_url_file() {
-    test_config_from_file(
-      r#"
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
         [[resolvers]]
         regex = "regex"
 
@@ -114,14 +141,26 @@ mod tests {
         url = "https://example.com/"
         response_scheme = "Http"
         forward_headers = false
+        tls.key = "{}"
+        tls.cert = "{}"
+        tls.root_store = "{}"
         "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
-            config.resolvers().first().unwrap().storage(),
-            Storage::Url { url_storage } if *url_storage.url() == "https://example.com/" && url_storage.response_scheme() == Scheme::Http && !url_storage.forward_headers()
-        ));
-      },
-    );
+          key_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          println!("{:?}", config.resolvers().first().unwrap().storage());
+          assert!(matches!(
+              config.resolvers().first().unwrap().storage(),
+              Storage::Url { url_storage } if *url_storage.url() == "https://example.com/"
+                && url_storage.response_scheme() == Scheme::Http
+                && !url_storage.forward_headers()
+                && url_storage.tls().is_some()
+                && !url_storage.tls_disabled()
+          ));
+        },
+      );
+    });
   }
 }
