@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
 use http::Uri as InnerUrl;
+use hyper::client::HttpConnector;
+use hyper::Client;
+use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
@@ -20,28 +23,91 @@ fn default_url() -> ValidatedUrl {
 with_prefix!(client_auth_prefix "client_");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default)]
 pub struct UrlStorage {
   url: ValidatedUrl,
   response_scheme: Scheme,
   forward_headers: bool,
   #[serde(skip_serializing)]
-  tls: Option<TlsClientConfig>,
-  tls_disabled: bool,
+  tls: TlsClientConfig,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(from = "UrlStorage")]
+pub struct UrlStorageClient {
+  url: ValidatedUrl,
+  response_scheme: Scheme,
+  forward_headers: bool,
+  client: Client<HttpsConnector<HttpConnector>>,
+}
+
+impl From<UrlStorage> for UrlStorageClient {
+  fn from(storage: UrlStorage) -> Self {
+    let client = Client::builder().build(
+      HttpsConnectorBuilder::new()
+        .with_tls_config(storage.tls.into_inner())
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build(),
+    );
+
+    Self::new(
+      storage.url,
+      storage.response_scheme,
+      storage.forward_headers,
+      client,
+    )
+  }
+}
+
+impl UrlStorageClient {
+  /// Create a new url storage client.
+  pub fn new(
+    url: ValidatedUrl,
+    response_scheme: Scheme,
+    forward_headers: bool,
+    client: Client<HttpsConnector<HttpConnector>>,
+  ) -> Self {
+    Self {
+      url,
+      response_scheme,
+      forward_headers,
+      client,
+    }
+  }
+
+  /// Get the url called when resolving the query.
+  pub fn url(&self) -> &InnerUrl {
+    &self.url.0.inner
+  }
+
+  /// Get the response scheme used for data blocks.
+  pub fn response_scheme(&self) -> Scheme {
+    self.response_scheme
+  }
+
+  /// Whether to forward headers in the url tickets.
+  pub fn forward_headers(&self) -> bool {
+    self.forward_headers
+  }
+
+  pub fn client_cloned(&self) -> Client<HttpsConnector<HttpConnector>> {
+    self.client.clone()
+  }
 }
 
 /// A wrapper around `http::Uri` type which implements serialize and deserialize.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(transparent)]
-struct Url {
+pub(crate) struct Url {
   #[serde(with = "http_serde::uri")]
-  inner: InnerUrl,
+  pub(crate) inner: InnerUrl,
 }
 
 /// A new type struct on top of `http::Uri` which only allows http or https schemes when deserializing.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(try_from = "Url")]
-pub struct ValidatedUrl(Url);
+pub struct ValidatedUrl(pub(crate) Url);
 
 impl ValidatedUrl {
   /// Get the inner url.
@@ -67,15 +133,13 @@ impl UrlStorage {
     url: InnerUrl,
     response_scheme: Scheme,
     forward_headers: bool,
-    tls: Option<TlsClientConfig>,
-    tls_disabled: bool,
+    tls: TlsClientConfig,
   ) -> Self {
     Self {
       url: ValidatedUrl(Url { inner: url }),
       response_scheme,
       forward_headers,
       tls,
-      tls_disabled,
     }
   }
 
@@ -96,13 +160,8 @@ impl UrlStorage {
   }
 
   /// Get the tls client config.
-  pub fn tls(&self) -> Option<&TlsClientConfig> {
-    self.tls.as_ref()
-  }
-
-  /// Whether TLS is disabled for the client connector.
-  pub fn tls_disabled(&self) -> bool {
-    self.tls_disabled
+  pub fn tls(&self) -> &TlsClientConfig {
+    &self.tls
   }
 }
 
@@ -112,8 +171,7 @@ impl Default for UrlStorage {
       url: default_url(),
       response_scheme: Scheme::Https,
       forward_headers: true,
-      tls: None,
-      tls_disabled: false,
+      tls: TlsClientConfig::default(),
     }
   }
 }
@@ -156,8 +214,6 @@ mod tests {
               Storage::Url { url_storage } if *url_storage.url() == "https://example.com/"
                 && url_storage.response_scheme() == Scheme::Http
                 && !url_storage.forward_headers()
-                && url_storage.tls().is_some()
-                && !url_storage.tls_disabled()
           ));
         },
       );

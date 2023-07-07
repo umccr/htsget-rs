@@ -1,3 +1,4 @@
+use hyper_rustls::ConfigBuilderExt;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -33,6 +34,17 @@ pub struct TlsServerConfig {
 #[serde(try_from = "RootCertStorePair")]
 pub struct TlsClientConfig {
   client_config: ClientConfig,
+}
+
+impl Default for TlsClientConfig {
+  fn default() -> Self {
+    Self {
+      client_config: ClientConfig::builder()
+        .with_safe_defaults()
+        .with_native_roots()
+        .with_no_client_auth(),
+    }
+  }
 }
 
 impl TlsServerConfig {
@@ -268,7 +280,7 @@ pub fn tls_client_config(
     config.with_root_certificates(root_store)
   };
 
-  let mut config = if let Some(key_pair) = key_pair {
+  let config = if let Some(key_pair) = key_pair {
     let (certs, key) = key_pair.into_inner();
     config
       .with_single_cert(certs, key)
@@ -277,7 +289,7 @@ pub fn tls_client_config(
     config.with_no_client_auth()
   };
 
-  config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+  // No need to define ALPN protocols for hyper-rustls connector.
 
   Ok(config)
 }
@@ -342,12 +354,9 @@ pub(crate) mod tests {
     with_test_certificates(|path, key, cert| {
       let certs = load_root_store_from_path(path.join("cert.pem")).unwrap();
       let client_config =
-        tls_client_config(Some(CertificateKeyPair::new(vec![cert], key)), Some(certs)).unwrap();
+        tls_client_config(Some(CertificateKeyPair::new(vec![cert], key)), Some(certs));
 
-      assert_eq!(
-        client_config.alpn_protocols,
-        vec![b"h2".to_vec(), b"http/1.1".to_vec()]
-      );
+      assert!(client_config.is_ok());
     });
   }
 

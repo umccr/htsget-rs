@@ -5,7 +5,7 @@ use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
 #[cfg(feature = "url-storage")]
-use crate::storage::url::UrlStorage;
+use crate::storage::url::UrlStorageClient;
 use crate::types::{Query, Response, Result};
 
 pub mod local;
@@ -69,8 +69,8 @@ pub enum Storage {
   },
   #[cfg(feature = "url-storage")]
   Url {
-    #[serde(flatten)]
-    url_storage: UrlStorage,
+    #[serde(flatten, skip_serializing)]
+    url_storage: UrlStorageClient,
   },
 }
 

@@ -473,7 +473,8 @@ mod tests {
       HttpsConnectorBuilder::new()
         .with_native_roots()
         .https_or_http()
-        .enable_all_versions()
+        .enable_http1()
+        .enable_http2()
         .build(),
     )
   }
