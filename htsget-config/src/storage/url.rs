@@ -23,6 +23,7 @@ fn default_url() -> ValidatedUrl {
 with_prefix!(client_auth_prefix "client_");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct UrlStorage {
   url: ValidatedUrl,
   response_scheme: Scheme,
