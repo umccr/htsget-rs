@@ -33,8 +33,7 @@ To configure the ticket server, set the following options:
 | Option                                                                                        | Description                                                                                                                                                                                                | Type                                      | Default                     |
 |-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|-----------------------------|
 | <span id="ticket_server_addr">`ticket_server_addr`</span>                                     | The address for the ticket server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8080'`          | 
-| <span id="ticket_server_key">`ticket_server_key`</span>                                       | The path to the PEM formatted X.509 private key used by the data server. This is used to enable TLS with HTTPS.                                                                                            | Filesystem path                           | Not set                     |
-| <span id="ticket_server_cert">`ticket_server_cert`</span>                                     | The path to the PEM formatted X.509 certificate used by the data server. This is used to enable TLS with HTTPS.                                                                                            | Filesystem path                           | Not set                     |
+| <span id="ticket_server_tls">`ticket_server_tls`</span>                                       | Enable TLS for the ticket server. See [TLS](#tls) for more details.                                                                                                                                        | TOML table                                | Not enabled                 |
 | <span id="ticket_server_cors_allow_credentials">`ticket_server_cors_allow_credentials`</span> | Controls the CORS Access-Control-Allow-Credentials for the ticket server.                                                                                                                                  | Boolean                                   | `false`                     |
 | <span id="ticket_server_cors_allow_origins">`ticket_server_cors_allow_origins`</span>         | Set the CORS Access-Control-Allow-Origin returned by the ticket server, this can be set to `All` to send a wildcard, `Mirror` to echo back the request sent by the client, or a specific array of origins. | `'All'`, `'Mirror'` or a array of origins | `['http://localhost:8080']` |
 | <span id="ticket_server_cors_allow_headers">`ticket_server_cors_allow_headers`</span>         | Set the CORS Access-Control-Allow-Headers returned by the ticket server, this can be set to `All` to allow all headers, or a specific array of headers.                                                    | `'All'`, or a array of headers            | `'All'`                     |
@@ -62,8 +61,7 @@ To configure the data server, set the following options:
 | <span id="data_server_addr">`data_server_addr`</span>                                     | The address for the data server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8081'`          | 
 | <span id="data_server_local_path">`data_server_local_path`</span>                         | The local path which the data server can access to serve files.                                                                                                                                          | Filesystem path                           | `'data'`                    |
 | <span id="data_server_serve_at">`data_server_serve_at`</span>                             | The path which the data server will prefix to all response URLs for tickets.                                                                                                                             | URL path                                  | `'/data'`                   |
-| <span id="data_server_key">`data_server_key`</span>                                       | The path to the PEM formatted X.509 private key used by the data server. This is used to enable TLS with HTTPS.                                                                                          | Filesystem path                           | Not set                     |
-| <span id="data_server_cert">`data_server_cert`</span>                                     | The path to the PEM formatted X.509 certificate used by the data server. This is used to enable TLS with HTTPS.                                                                                          | Filesystem path                           | Not set                     |
+| <span id="data_server_tls">`data_server_tls`</span>                                       | Enable TLS for the data server. See [TLS](#tls) for more details.                                                                                                                                        | TOML table                                | Not enabled                 |
 | <span id="data_server_cors_allow_credentials">`data_server_cors_allow_credentials`</span> | Controls the CORS Access-Control-Allow-Credentials for the data server.                                                                                                                                  | Boolean                                   | `false`                     |
 | <span id="data_server_cors_allow_origins">`data_server_cors_allow_origins`</span>         | Set the CORS Access-Control-Allow-Origin returned by the data server, this can be set to `All` to send a wildcard, `Mirror` to echo back the request sent by the client, or a specific array of origins. | `'All'`, `'Mirror'` or a array of origins | `['http://localhost:8080']` |
 | <span id="data_server_cors_allow_headers">`data_server_cors_allow_headers`</span>         | Set the CORS Access-Control-Allow-Headers returned by the data server, this can be set to `All` to allow all headers, or a specific array of headers.                                                    | `'All'`, or a array of headers            | `'All'`                     |
@@ -173,14 +171,12 @@ To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and s
 `UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
 To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
 
-| Option                      | Description                                                                                                                                                      | Type                     | Default                     |
-|-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------|
-| <span id="url">`url`</span> | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | `"https://127.0.0.1:8081/"` |
-| `response_scheme`           | The scheme used for the tickets returned by the ticket server.                                                                                                   | Either `Http` or `Https` | `Https`                     |
-| `forward_headers`           | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                      |
-| `root_ca_store`             | The path to a custom pem file root CA store. Defaults to the native root CA store if not set.                                                                    | Filesystem path          | Not Set                     |
-| `client_key`                | The path to the PEM formatted X.509 private key used by the client connecting to the [`url`](#url). This is used to enable client authentication.                | Filesystem path          | Not Set                     |
-| `client_cert`               | The path to the PEM formatted X.509 certificate used by the client connecting to the [`url`](#url). This is used to enable client authentication.                | Filesystem path          | Not Set                     |
+| Option                      | Description                                                                                                                                                      | Type                     | Default                                                                                                         |
+|-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
+| <span id="url">`url`</span> | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| `response_scheme`           | The scheme used for the tickets returned by the ticket server.                                                                                                   | Either `Http` or `Https` | `Https`                                                                                                         |
+| `forward_headers`           | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                                                                                                          |
+| `tls`                       | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.                                      | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
 When using `UrlStorage`, the following requests will be made to the `url`.
 * `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
@@ -227,9 +223,7 @@ bucket = 'bucket'
 
 `UrlStorage` can only be specified manually.
 
-There are additional examples of config files located under [`examples/config-files`][examples-config-files]
-
-[examples-config-files]: examples/config-files
+There are additional examples of config files located under [`examples/config-files`][examples-config-files].
 
 #### Note
 By default, when htsget-rs is compiled with the `s3-storage` feature flag, `storage = 'S3'` is used when no `storage` options
@@ -274,6 +268,32 @@ allow_interval_end = 1000
 ```
 
 In this example, the resolver will only match the query ID if the query is for `chr1` with positions between `100` and `1000`.
+
+#### TLS
+
+TLS can be configured for the ticket server, data server, or the url storage client. These options read private keys and
+certificates from PEM-formatted files. Certificates must be in X.509 format and private keys can be RSA, PKCS8, or SEC1 (EC) encoded. 
+The following options are available:
+
+| Option                 | Description                                                                                                                               | Type              | Default |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
+| `key`                  | The path to the PEM formatted X.509 certificate. Specifies TLS for servers or client authentication for clients.                          | Filesystem path   | Not Set | 
+| `cert`                 | The path to the PEM formatted RSA, PKCS8, or SEC1 encoded EC private key. Specifies TLS for servers or client authentication for clients. | Filesystem path   | Not Set |
+| `root_store`           | The path to the PEM formatted root certificate store. Only used to specify non-native root certificates for client TLS.                   | Filesystem path   | Not Set |
+
+When used by the ticket and data servers, `key` and `cert` enable TLS, and when used with the url storage client, they enable client authentication.
+The root store is only used by the url storage client. Note, the url storage client always allows TLS, however the default configuration performs no client authentication
+and uses the native root certificate store.
+
+For example, TLS for the ticket server can be enabled by specifying the key and cert options:
+```toml
+ticket_server_tls.cert = "cert.pem"
+ticket_server_tls.key = "key.pem"
+```
+
+Further TLS examples are available under [`examples/config-files`][examples-config-files].
+
+[examples-config-files]: examples/config-files
 
 #### Config file location
 
@@ -340,8 +360,8 @@ The following environment variables - corresponding to the TOML config - are ava
 | Variable                                      | Description                                                                         |
 |-----------------------------------------------|-------------------------------------------------------------------------------------|
 | `HTSGET_TICKET_SERVER_ADDR`                   | See [`ticket_server_addr`](#ticket_server_addr)                                     | 
-| `HTSGET_TICKET_SERVER_KEY`                    | See [`ticket_server_key`](#ticket_server_key)                                       |
-| `HTSGET_TICKET_SERVER_CERT`                   | See [`ticket_server_cert`](#ticket_server_cert)                                     |
+| `HTSGET_TICKET_SERVER_TLS_KEY`                | See [`TLS`](#tls)                                                                   |
+| `HTSGET_TICKET_SERVER_TLS_CERT`               | See [`TLS`](#tls)                                                                   |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_CREDENTIALS` | See [`ticket_server_cors_allow_credentials`](#ticket_server_cors_allow_credentials) |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS`     | See [`ticket_server_cors_allow_origins`](#ticket_server_cors_allow_origins)         |
 | `HTSGET_TICKET_SERVER_CORS_ALLOW_HEADERS`     | See [`ticket_server_cors_allow_headers`](#ticket_server_cors_allow_headers)         |
@@ -351,8 +371,8 @@ The following environment variables - corresponding to the TOML config - are ava
 | `HTSGET_DATA_SERVER_ADDR`                     | See [`data_server_addr`](#data_server_addr)                                         |
 | `HTSGET_DATA_SERVER_LOCAL_PATH`               | See [`data_server_local_path`](#data_server_local_path)                             |
 | `HTSGET_DATA_SERVER_SERVE_AT`                 | See [`data_server_serve_at`](#data_server_serve_at)                                 |
-| `HTSGET_DATA_SERVER_KEY`                      | See [`data_server_key`](#data_server_key)                                           |
-| `HTSGET_DATA_SERVER_CERT`                     | See [`data_server_cert`](#data_server_cert)                                         |
+| `HTSGET_DATA_SERVER_TLS_KEY`                  | See [`TLS`](#tls)                                                                   |
+| `HTSGET_DATA_SERVER_TLS_CERT`                 | See [`TLS`](#tls)                                                                   |
 | `HTSGET_DATA_SERVER_CORS_ALLOW_CREDENTIALS`   | See [`data_server_cors_allow_credentials`](#data_server_cors_allow_credentials)     |
 | `HTSGET_DATA_SERVER_CORS_ALLOW_ORIGINS`       | See [`data_server_cors_allow_origins`](#data_server_cors_allow_origins)             |
 | `HTSGET_DATA_SERVER_CORS_ALLOW_HEADERS`       | See [`data_server_cors_allow_headers`](#data_server_cors_allow_headers)             |

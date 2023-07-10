@@ -1,10 +1,10 @@
 # An example config file for a TLS ticket server that uses S3 as a storage backend.
-# Run with `cargo run -p htsget-actix --features s3-storage -- --config-file tls_ticket_server.toml`
+# Run with `cargo run -p htsget-actix --features s3-storage -- --config htsget-config/examples/config-files/tls_ticket_server.toml`
 
 ticket_server_addr = "0.0.0.0:8080"
 ticket_server_cors_allow_origins = "All"
-ticket_server_cert = "cert.pem"
-ticket_server_key = "key.pem"
+ticket_server_tls.cert = "cert.pem"
+ticket_server_tls.key = "key.pem"
 data_server_addr = "0.0.0.0:8081"
 
 [[resolvers]]
