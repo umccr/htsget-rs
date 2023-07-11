@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.4.5...htsget-actix-v0.5.0) - 2023-07-11
+
+### Added
+- [**breaking**] implement client tls config
+- [**breaking**] add server config to certificate key pair
+
 ## [0.4.5](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.4.4...htsget-actix-v0.4.5) - 2023-06-25
 
 ### Other
