@@ -9,9 +9,12 @@ use http::HeaderMap;
 use serde::de;
 
 use htsget_config::config::cors::{AllowType, CorsConfig};
-use htsget_config::config::{CertificateKeyPair, DataServerConfig, TicketServerConfig};
+use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::resolver::Resolver;
 use htsget_config::storage::{local::LocalStorage, Storage};
+use htsget_config::tls::{
+  load_certs, load_key, tls_server_config, CertificateKeyPair, TlsServerConfig,
+};
 use htsget_config::types::{Scheme, TaggedTypeAll};
 
 use crate::util::generate_test_certificates;
@@ -147,7 +150,7 @@ pub fn default_cors_config() -> CorsConfig {
 
 fn default_test_config_params(
   addr: SocketAddr,
-  tls: Option<CertificateKeyPair>,
+  tls: Option<TlsServerConfig>,
   scheme: Scheme,
 ) -> Config {
   let cors = default_cors_config();
@@ -183,9 +186,18 @@ pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
 
   default_test_config_params(
     addr,
-    Some(CertificateKeyPair::new(cert_path, key_path)),
+    Some(test_tls_server_config(key_path, cert_path)),
     Scheme::Https,
   )
+}
+
+/// Get a test tls server config.
+pub fn test_tls_server_config(key_path: PathBuf, cert_path: PathBuf) -> TlsServerConfig {
+  let key = load_key(key_path).unwrap();
+  let certs = load_certs(cert_path).unwrap();
+  let server_config = tls_server_config(CertificateKeyPair::new(certs, key)).unwrap();
+
+  TlsServerConfig::new(server_config)
 }
 
 /// Get the event associated with the file.

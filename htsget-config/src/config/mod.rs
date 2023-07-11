@@ -19,8 +19,7 @@ use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
 use crate::error::Error::{ArgParseError, IoError, TracingError};
 use crate::error::Result;
 use crate::resolver::Resolver;
-use crate::types::Scheme;
-use crate::types::Scheme::{Http, Https};
+use crate::tls::TlsServerConfig;
 
 pub mod cors;
 
@@ -98,15 +97,15 @@ pub struct Config {
 #[serde(default)]
 pub struct TicketServerConfig {
   addr: SocketAddr,
-  #[serde(flatten)]
-  tls: Option<CertificateKeyPair>,
+  #[serde(skip_serializing)]
+  tls: Option<TlsServerConfig>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
 
 impl TicketServerConfig {
   /// Create a new ticket server config.
-  pub fn new(addr: SocketAddr, tls: Option<CertificateKeyPair>, cors: CorsConfig) -> Self {
+  pub fn new(addr: SocketAddr, tls: Option<TlsServerConfig>, cors: CorsConfig) -> Self {
     Self { addr, tls, cors }
   }
 
@@ -116,12 +115,12 @@ impl TicketServerConfig {
   }
 
   /// Get the TLS config.
-  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+  pub fn tls(&self) -> Option<&TlsServerConfig> {
     self.tls.as_ref()
   }
 
   /// Get the TLS config.
-  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+  pub fn into_tls(self) -> Option<TlsServerConfig> {
     self.tls
   }
 
@@ -161,46 +160,6 @@ impl TicketServerConfig {
   }
 }
 
-/// A trait to determine which scheme a key pair option has.
-pub trait KeyPairScheme {
-  /// Get the scheme.
-  fn get_scheme(&self) -> Scheme;
-}
-
-/// A certificate and key pair used for TLS.
-/// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct CertificateKeyPair {
-  cert: PathBuf,
-  key: PathBuf,
-}
-
-impl CertificateKeyPair {
-  /// Create a new certificate key pair.
-  pub fn new(cert: PathBuf, key: PathBuf) -> Self {
-    Self { cert, key }
-  }
-
-  /// Get the cert.
-  pub fn cert(&self) -> &Path {
-    &self.cert
-  }
-
-  /// Get the key.
-  pub fn key(&self) -> &Path {
-    &self.key
-  }
-}
-
-impl KeyPairScheme for Option<&CertificateKeyPair> {
-  fn get_scheme(&self) -> Scheme {
-    match self {
-      None => Http,
-      Some(_) => Https,
-    }
-  }
-}
-
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -209,8 +168,8 @@ pub struct DataServerConfig {
   addr: SocketAddr,
   local_path: PathBuf,
   serve_at: String,
-  #[serde(flatten)]
-  tls: Option<CertificateKeyPair>,
+  #[serde(skip_serializing)]
+  tls: Option<TlsServerConfig>,
   #[serde(flatten, with = "cors_prefix")]
   cors: CorsConfig,
 }
@@ -222,7 +181,7 @@ impl DataServerConfig {
     addr: SocketAddr,
     local_path: PathBuf,
     serve_at: String,
-    tls: Option<CertificateKeyPair>,
+    tls: Option<TlsServerConfig>,
     cors: CorsConfig,
   ) -> Self {
     Self {
@@ -251,12 +210,12 @@ impl DataServerConfig {
   }
 
   /// Get the TLS config.
-  pub fn tls(&self) -> Option<&CertificateKeyPair> {
+  pub fn tls(&self) -> Option<&TlsServerConfig> {
     self.tls.as_ref()
   }
 
   /// Get the TLS config.
-  pub fn into_tls(self) -> Option<CertificateKeyPair> {
+  pub fn into_tls(self) -> Option<TlsServerConfig> {
     self.tls
   }
 
@@ -454,7 +413,12 @@ impl Config {
   pub fn from_path(path: &Path) -> Result<Self> {
     let config: Config = Figment::from(Serialized::defaults(Config::default()))
       .merge(Toml::file(path))
-      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
+      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX).map(|k| match k {
+        k if k.as_str().to_lowercase().contains("tls_") => {
+          k.as_str().to_lowercase().replace("tls_", "tls.").into()
+        }
+        k => k.into(),
+      }))
       .extract()
       .map_err(|err| IoError(err.to_string()))?;
 
@@ -545,6 +509,8 @@ pub(crate) mod tests {
   use http::uri::Authority;
 
   use crate::storage::Storage;
+  use crate::tls::tests::with_test_certificates;
+  use crate::types::Scheme::Http;
 
   use super::*;
 
@@ -672,115 +638,122 @@ pub(crate) mod tests {
   #[test]
   #[should_panic]
   fn config_data_server_tls_no_cert() {
-    test_config_from_file(
-      r#"
-    data_server_key = "key.pem"
-    "#,
-      |config| {
-        assert_eq!(
-          config.data_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
-        );
-      },
-    );
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
+        data_server_tls.key = "{}"
+        "#,
+          key_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          assert!(config.data_server().tls().is_none());
+        },
+      );
+    });
   }
 
   #[test]
   fn config_data_server_tls() {
-    test_config_from_file(
-      r#"
-    data_server_key = "key.pem"
-    data_server_cert = "cert.pem"
-    "#,
-      |config| {
-        assert_eq!(
-          config.data_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
-        );
-      },
-    );
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
+          data_server_tls.key = "{}"
+          data_server_tls.cert = "{}"
+          "#,
+          key_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          println!("{:?}", config.data_server().tls());
+          assert!(config.data_server().tls().is_some());
+        },
+      );
+    });
   }
 
   #[test]
   fn config_data_server_tls_env() {
-    test_config_from_env(
-      vec![
-        ("HTSGET_DATA_SERVER_KEY", "key.pem"),
-        ("HTSGET_DATA_SERVER_CERT", "cert.pem"),
-      ],
-      |config| {
-        assert_eq!(
-          config.data_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
-        );
-      },
-    );
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_env(
+        vec![
+          ("HTSGET_DATA_SERVER_TLS_KEY", key_path.to_string_lossy()),
+          ("HTSGET_DATA_SERVER_TLS_CERT", cert_path.to_string_lossy()),
+        ],
+        |config| {
+          assert!(config.data_server().tls().is_some());
+        },
+      );
+    });
   }
 
   #[test]
   #[should_panic]
   fn config_ticket_server_tls_no_cert() {
-    test_config_from_file(
-      r#"
-    ticket_server_key = "key.pem"
-    "#,
-      |config| {
-        assert_eq!(
-          config.ticket_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
-        );
-      },
-    );
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
+        ticket_server_tls.key = "{}"
+        "#,
+          key_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          assert!(config.ticket_server().tls().is_none());
+        },
+      );
+    });
   }
 
   #[test]
   fn config_ticket_server_tls() {
-    test_config_from_file(
-      r#"
-    ticket_server_key = "key.pem"
-    ticket_server_cert = "cert.pem"
-    "#,
-      |config| {
-        assert_eq!(
-          config.ticket_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
-        );
-      },
-    );
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_file(
+        &format!(
+          r#"
+        ticket_server_tls.key = "{}"
+        ticket_server_tls.cert = "{}"
+        "#,
+          key_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          assert!(config.ticket_server().tls().is_some());
+        },
+      );
+    });
   }
 
   #[test]
   fn config_ticket_server_tls_env() {
-    test_config_from_env(
-      vec![
-        ("HTSGET_TICKET_SERVER_KEY", "key.pem"),
-        ("HTSGET_TICKET_SERVER_CERT", "cert.pem"),
-      ],
-      |config| {
-        assert_eq!(
-          config.ticket_server().tls(),
-          Some(&CertificateKeyPair {
-            key: "key.pem".into(),
-            cert: "cert.pem".into()
-          })
-        );
-      },
-    );
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+
+      test_config_from_env(
+        vec![
+          ("HTSGET_TICKET_SERVER_TLS_KEY", key_path.to_string_lossy()),
+          ("HTSGET_TICKET_SERVER_TLS_CERT", cert_path.to_string_lossy()),
+        ],
+        |config| {
+          assert!(config.ticket_server().tls().is_some());
+        },
+      );
+    });
   }
 
   #[test]

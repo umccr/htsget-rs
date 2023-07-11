@@ -9,10 +9,10 @@ use async_trait::async_trait;
 use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
+use url::Url;
 
 use crate::storage::{HeadOptions, Storage, UrlFormatter};
 use crate::Url as HtsGetUrl;
-use url::Url;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 

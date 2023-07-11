@@ -42,7 +42,7 @@ aws-sdk-s3 = { version = "0.28", optional = true }
 aws-config = { version = "0.55", optional = true }
 
 # Url storage
-hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"], optional = true }
+hyper-rustls = { version = "0.23", features = ["rustls-native-certs", "http2", "http1"], optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"

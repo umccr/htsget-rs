@@ -3,9 +3,8 @@ use std::str::FromStr;
 use http::uri::Authority;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{
-  default_localstorage_addr, default_path, default_serve_at, DataServerConfig, KeyPairScheme,
-};
+use crate::config::{default_localstorage_addr, default_path, default_serve_at, DataServerConfig};
+use crate::tls::KeyPairScheme;
 use crate::types::Scheme;
 
 pub(crate) fn default_authority() -> Authority {

@@ -12,7 +12,6 @@ pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketSer
 pub use htsget_config::storage::Storage;
 use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
-use htsget_search::storage::data_server::DataServer;
 use htsget_search::storage::local::LocalStorage;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
@@ -125,16 +124,14 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
       .wrap(TracingLogger::default())
   }));
 
-  let server = match config.tls() {
+  let server = match config.into_tls() {
     None => {
       info!("using non-TLS ticket server");
       server.bind(addr)?
     }
     Some(tls) => {
-      let tls_config = DataServer::rustls_server_config(tls.key(), tls.cert())?;
-
       info!("using TLS ticket server");
-      server.bind_rustls(addr, tls_config)?
+      server.bind_rustls(addr, tls.into_inner())?
     }
   };
 
