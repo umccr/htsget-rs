@@ -11,8 +11,9 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
-url-storage = ["dep:bytes", "dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
+s3-storage = ["dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
+url-storage = ["dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
+crypt4gh = ["dep:bytes"]
 default = []
 
 [dependencies]
@@ -26,7 +27,7 @@ rustls-pemfile = "1.0"
 tower = { version = "0.4", features = ["make"] }
 
 # Async
-tokio-rustls = "0.24"
+tokio-rustls = "0.23"
 tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
@@ -37,7 +38,7 @@ async-trait = "0.1"
 noodles = { version = "0.40", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
-bytes = { version = "1.4" }
+bytes = { version = "1.4", optional = true }
 aws-sdk-s3 = { version = "0.28", optional = true }
 aws-config = { version = "0.55", optional = true }
 
