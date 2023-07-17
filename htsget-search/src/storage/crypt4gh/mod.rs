@@ -1,4 +1,6 @@
-use crate::storage::crypt4gh::block::{BlockCodec, ENCRYPTED_BLOCK_SIZE, MAC_SIZE, NONCE_SIZE};
+use crate::storage::crypt4gh::block::{
+  Block, BlockType, ENCRYPTED_BLOCK_SIZE, MAC_SIZE, NONCE_SIZE,
+};
 use bytes::Bytes;
 use crypt4gh::Keys;
 use futures::ready;
@@ -134,7 +136,7 @@ where
 pin_project! {
     struct DataBlockStreamDecryptor<R> {
         #[pin]
-        inner: FramedRead<R, BlockCodec>,
+        inner: FramedRead<R, Block>,
         keys: Vec<Keys>,
         sender_pubkey: Option<SenderPublicKey>
     }
@@ -146,7 +148,7 @@ where
 {
   pub fn new(inner: R, keys: Vec<Keys>, sender_pubkey: Option<SenderPublicKey>) -> Self {
     Self {
-      inner: FramedRead::new(inner, BlockCodec),
+      inner: FramedRead::new(inner, Block::new()),
       keys,
       sender_pubkey,
     }
@@ -167,12 +169,24 @@ where
     let item = this.inner.poll_next(cx);
 
     match ready!(item) {
-      Some(Ok(buf)) => Poll::Ready(Some(Ok(DataBlockDecryptor::new(
-        buf,
-        // Todo make this so it doesn't use owned Keys and SenderPublicKey as it will be called asynchronously.
-        this.keys.clone(),
-        this.sender_pubkey.clone(),
-      )))),
+      Some(Ok(buf)) => {
+        match buf {
+          BlockType::HeaderInfo(_) => {
+            todo!()
+          }
+          BlockType::HeaderPacket(_) => {
+            todo!()
+          }
+          BlockType::DataBlock(buf) => {
+            Poll::Ready(Some(Ok(DataBlockDecryptor::new(
+              buf,
+              // Todo make this so it doesn't use owned Keys and SenderPublicKey as it will be called asynchronously.
+              this.keys.clone(),
+              this.sender_pubkey.clone(),
+            ))))
+          }
+        }
+      }
       Some(Err(e)) => Poll::Ready(Some(Err(e))),
       None => Poll::Ready(None),
     }
