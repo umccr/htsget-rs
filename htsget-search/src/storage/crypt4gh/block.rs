@@ -24,44 +24,20 @@ pub enum BlockType {
   HeaderInfo(HeaderInfo),
   /// The header packets, either data encryption key packets or data edit list packets.
   /// Corresponds to `deconstruct_header_body`.
-  HeaderPacket(Bytes),
+  HeaderPackets(Bytes),
   /// The encrypted data blocks
   /// Corresponds to `body_decrypt`.
   DataBlock(Bytes),
 }
 
-impl BlockType {
-  fn decode_header_info(src: &mut BytesMut) -> Result<Option<Self>, io::Error> {
-    if src.len() < HEADER_INFO_SIZE {
-      src.reserve(HEADER_INFO_SIZE);
-      return Ok(None);
-    }
-
-    // todo: remove asserts within `deconstruct_header_info`
-    Ok(Some(Self::HeaderInfo(
-      deconstruct_header_info(src.split_to(HEADER_INFO_SIZE).as_ref().try_into().map_err(
-        |err| {
-          io::Error::new(
-            io::ErrorKind::Other,
-            format!("converting slice to fixed size array: {}", err),
-          )
-        },
-      )?)
-      .map_err(|err| {
-        io::Error::new(
-          io::ErrorKind::Other,
-          format!("deconstructing header info: {}", err),
-        )
-      })?,
-    )))
-  }
-}
-
 /// State to keep track of the current block being decoded corresponding to `BlockType`.
 #[derive(Debug)]
 enum BlockState {
+  /// Expecting header info.
   HeaderInfo,
-  HeaderPacket,
+  /// Expecting header packets and the number of header packets.
+  HeaderPackets(u32),
+  /// Expecting a data block.
   DataBlock,
 }
 
@@ -71,7 +47,30 @@ pub struct Block {
 }
 
 impl Block {
-  pub fn new() -> Self {
+  fn decode_header_info(src: &mut BytesMut) -> Result<HeaderInfo, io::Error> {
+    deconstruct_header_info(
+      src
+        .split_to(HEADER_INFO_SIZE)
+        .as_ref()
+        .try_into()
+        .map_err(|err| {
+          io::Error::new(
+            io::ErrorKind::Other,
+            format!("converting slice to fixed size array: {}", err),
+          )
+        })?,
+    )
+    .map_err(|err| {
+      io::Error::new(
+        io::ErrorKind::Other,
+        format!("deconstructing header info: {}", err),
+      )
+    })
+  }
+}
+
+impl Default for Block {
+  fn default() -> Self {
     Self {
       next_block: BlockState::HeaderInfo,
     }
@@ -84,8 +83,19 @@ impl Decoder for Block {
 
   fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
     match self.next_block {
-      BlockState::HeaderInfo => BlockType::decode_header_info(src),
-      BlockState::HeaderPacket => {
+      BlockState::HeaderInfo => {
+        if src.len() < HEADER_INFO_SIZE {
+          src.reserve(HEADER_INFO_SIZE);
+          return Ok(None);
+        }
+
+        let header_info = Self::decode_header_info(src)?;
+
+        self.next_block = BlockState::HeaderPackets(header_info.packets_count);
+
+        Ok(Some(BlockType::HeaderInfo(header_info)))
+      }
+      BlockState::HeaderPackets(header_packets) => {
         todo!();
       }
       BlockState::DataBlock => {
@@ -93,6 +103,8 @@ impl Decoder for Block {
           src.reserve(DATA_BLOCK_SIZE);
           return Ok(None);
         }
+
+        self.next_block = BlockState::DataBlock;
 
         Ok(Some(BlockType::DataBlock(
           src.split_to(DATA_BLOCK_SIZE).freeze(),

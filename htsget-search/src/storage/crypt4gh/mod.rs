@@ -148,7 +148,7 @@ where
 {
   pub fn new(inner: R, keys: Vec<Keys>, sender_pubkey: Option<SenderPublicKey>) -> Self {
     Self {
-      inner: FramedRead::new(inner, Block::new()),
+      inner: FramedRead::new(inner, Default::default()),
       keys,
       sender_pubkey,
     }
@@ -174,7 +174,7 @@ where
           BlockType::HeaderInfo(_) => {
             todo!()
           }
-          BlockType::HeaderPacket(_) => {
+          BlockType::HeaderPackets(_) => {
             todo!()
           }
           BlockType::DataBlock(buf) => {
