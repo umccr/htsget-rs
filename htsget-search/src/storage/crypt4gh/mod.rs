@@ -4,7 +4,7 @@ use crate::storage::crypt4gh::block::{
 use crate::storage::crypt4gh::error::Error::JoinHandleError;
 use bytes::Bytes;
 use crypt4gh::Keys;
-use error::{Error, Result};
+use error::Result;
 use futures::ready;
 use futures::Stream;
 use pin_project_lite::pin_project;
@@ -253,11 +253,7 @@ impl Future for DataBlockDecryptor {
   type Output = Result<PlainTextBytes>;
 
   fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-    self
-      .project()
-      .handle
-      .poll(cx)
-      .map_err(|err| JoinHandleError(err))?
+    self.project().handle.poll(cx).map_err(JoinHandleError)?
   }
 }
 

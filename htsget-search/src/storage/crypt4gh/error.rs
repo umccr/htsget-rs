@@ -1,5 +1,6 @@
 use crypt4gh::error::Crypt4GHError;
 use std::array::TryFromSliceError;
+use std::num::TryFromIntError;
 use std::{io, result};
 use thiserror::Error;
 use tokio::task;
@@ -12,6 +13,8 @@ pub type Result<T> = result::Result<T, Error>;
 pub enum Error {
   #[error("converting slice to fixed size array: `{0}`")]
   SliceConversionError(TryFromSliceError),
+  #[error("converting between numeric types: `{0}`")]
+  NumericConversionError(TryFromIntError),
   #[error("decoding header info: `{0}`")]
   DecodingHeaderInfo(Crypt4GHError),
   #[error("decoding header packet: `{0}`")]
@@ -20,6 +23,8 @@ pub enum Error {
   IOError(io::Error),
   #[error("join handle error: `{0}`")]
   JoinHandleError(task::JoinError),
+  #[error("maximum header size exceeded")]
+  MaximumHeaderSize,
 }
 
 impl From<io::Error> for Error {

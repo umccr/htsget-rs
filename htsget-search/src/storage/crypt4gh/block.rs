@@ -1,7 +1,9 @@
 use super::error::{Error, Result};
+use crate::storage::crypt4gh::error::Error::{
+  DecodingHeaderInfo, MaximumHeaderSize, NumericConversionError, SliceConversionError,
+};
 use bytes::{Bytes, BytesMut};
-use crypt4gh::header::{deconstruct_header_info, DecryptedHeaderPackets, HeaderInfo};
-use std::io;
+use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use tokio_util::codec::Decoder;
 
 pub const ENCRYPTED_BLOCK_SIZE: usize = 65535;
@@ -18,6 +20,9 @@ pub const HEADER_INFO_SIZE: usize =
   MAGIC_STRING_SIZE + VERSION_STRING_SIZE + HEADER_PACKET_COUNT_SIZE;
 
 const HEADER_PACKET_LENGTH_SIZE: usize = 4;
+
+/// Have some sort of maximum header size to prevent any overflows.
+const MAX_HEADER_SIZE: usize = 8 * 1024 * 1024;
 
 /// The type that a block is decoded into.
 #[derive(Debug)]
@@ -38,7 +43,7 @@ pub enum BlockType {
 enum BlockState {
   /// Expecting header info.
   HeaderInfo,
-  /// Expecting header packets and the number of header packets.
+  /// Expecting header packets and the number of header packets left to decode.
   HeaderPackets(u32),
   /// Expecting a data block.
   DataBlock,
@@ -56,9 +61,9 @@ impl Block {
         .split_to(HEADER_INFO_SIZE)
         .as_ref()
         .try_into()
-        .map_err(|err| Error::SliceConversionError(err))?,
+        .map_err(SliceConversionError)?,
     )
-    .map_err(|err| Error::DecodingHeaderInfo(err))
+    .map_err(DecodingHeaderInfo)
   }
 }
 
@@ -88,22 +93,40 @@ impl Decoder for Block {
 
         Ok(Some(BlockType::HeaderInfo(header_info)))
       }
-      BlockState::HeaderPackets(header_packets) => {
-        // Reserve enough to read the header packet length.
+      BlockState::HeaderPackets(mut header_packets) => {
+        // Get enough bytes to read the header packet length.
         if src.len() < HEADER_PACKET_LENGTH_SIZE {
           src.reserve(HEADER_PACKET_LENGTH_SIZE);
           return Ok(None);
         }
 
         // Read the header packet length.
-        let length = u32::from_le_bytes(
-          src
-            .as_ref()
+        let length: usize =
+          u32::from_le_bytes(src.as_ref().try_into().map_err(SliceConversionError)?)
             .try_into()
-            .map_err(|err| Error::SliceConversionError(err))?,
-        );
+            .map_err(NumericConversionError)?;
 
-        todo!();
+        // Have a maximum header size to prevent any overflows.
+        if length > MAX_HEADER_SIZE {
+          return Err(MaximumHeaderSize);
+        }
+
+        // Get enough bytes to read the entire header packet.
+        if src.len() < length {
+          src.reserve(length - src.len());
+          return Ok(None);
+        }
+
+        // Keep processing header packets if there are any left,
+        // otherwise go to data blocks.
+        header_packets -= 1;
+        if header_packets > 0 {
+          self.next_block = BlockState::HeaderPackets(header_packets);
+        } else {
+          self.next_block = BlockState::DataBlock;
+        }
+
+        Ok(Some(BlockType::HeaderPacket(src.split_to(length).freeze())))
       }
       BlockState::DataBlock => {
         if src.len() < DATA_BLOCK_SIZE {
