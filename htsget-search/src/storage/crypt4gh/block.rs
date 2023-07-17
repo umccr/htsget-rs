@@ -1,5 +1,6 @@
+use super::error::{Error, Result};
 use bytes::{Bytes, BytesMut};
-use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
+use crypt4gh::header::{deconstruct_header_info, DecryptedHeaderPackets, HeaderInfo};
 use std::io;
 use tokio_util::codec::Decoder;
 
@@ -16,15 +17,17 @@ const HEADER_PACKET_COUNT_SIZE: usize = 4;
 pub const HEADER_INFO_SIZE: usize =
   MAGIC_STRING_SIZE + VERSION_STRING_SIZE + HEADER_PACKET_COUNT_SIZE;
 
+const HEADER_PACKET_LENGTH_SIZE: usize = 4;
+
 /// The type that a block is decoded into.
 #[derive(Debug)]
 pub enum BlockType {
   /// The magic string, version string and header packet count.
   /// Corresponds to `deconstruct_header_info`.
   HeaderInfo(HeaderInfo),
-  /// The header packets, either data encryption key packets or data edit list packets.
+  /// A header packet, either a data encryption key packet or a data edit list packet.
   /// Corresponds to `deconstruct_header_body`.
-  HeaderPackets(Bytes),
+  HeaderPacket(Bytes),
   /// The encrypted data blocks
   /// Corresponds to `body_decrypt`.
   DataBlock(Bytes),
@@ -47,25 +50,15 @@ pub struct Block {
 }
 
 impl Block {
-  fn decode_header_info(src: &mut BytesMut) -> Result<HeaderInfo, io::Error> {
+  fn decode_header_info(src: &mut BytesMut) -> Result<HeaderInfo> {
     deconstruct_header_info(
       src
         .split_to(HEADER_INFO_SIZE)
         .as_ref()
         .try_into()
-        .map_err(|err| {
-          io::Error::new(
-            io::ErrorKind::Other,
-            format!("converting slice to fixed size array: {}", err),
-          )
-        })?,
+        .map_err(|err| Error::SliceConversionError(err))?,
     )
-    .map_err(|err| {
-      io::Error::new(
-        io::ErrorKind::Other,
-        format!("deconstructing header info: {}", err),
-      )
-    })
+    .map_err(|err| Error::DecodingHeaderInfo(err))
   }
 }
 
@@ -79,9 +72,9 @@ impl Default for Block {
 
 impl Decoder for Block {
   type Item = BlockType;
-  type Error = io::Error;
+  type Error = Error;
 
-  fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+  fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>> {
     match self.next_block {
       BlockState::HeaderInfo => {
         if src.len() < HEADER_INFO_SIZE {
@@ -96,6 +89,20 @@ impl Decoder for Block {
         Ok(Some(BlockType::HeaderInfo(header_info)))
       }
       BlockState::HeaderPackets(header_packets) => {
+        // Reserve enough to read the header packet length.
+        if src.len() < HEADER_PACKET_LENGTH_SIZE {
+          src.reserve(HEADER_PACKET_LENGTH_SIZE);
+          return Ok(None);
+        }
+
+        // Read the header packet length.
+        let length = u32::from_le_bytes(
+          src
+            .as_ref()
+            .try_into()
+            .map_err(|err| Error::SliceConversionError(err))?,
+        );
+
         todo!();
       }
       BlockState::DataBlock => {

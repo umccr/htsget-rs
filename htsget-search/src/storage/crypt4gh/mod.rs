@@ -1,8 +1,10 @@
 use crate::storage::crypt4gh::block::{
   Block, BlockType, ENCRYPTED_BLOCK_SIZE, MAC_SIZE, NONCE_SIZE,
 };
+use crate::storage::crypt4gh::error::Error::JoinHandleError;
 use bytes::Bytes;
 use crypt4gh::Keys;
+use error::{Error, Result};
 use futures::ready;
 use futures::Stream;
 use pin_project_lite::pin_project;
@@ -16,6 +18,7 @@ use tokio::task::JoinHandle;
 use tokio_util::codec::FramedRead;
 
 pub mod block;
+pub mod error;
 
 #[derive(Debug, Clone)]
 pub struct SenderPublicKey {
@@ -159,7 +162,7 @@ impl<R> Stream for DataBlockStreamDecryptor<R>
 where
   R: AsyncRead,
 {
-  type Item = io::Result<DataBlockDecryptor>;
+  type Item = Result<DataBlockDecryptor>;
 
   fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
     let this = self.project();
@@ -174,7 +177,7 @@ where
           BlockType::HeaderInfo(_) => {
             todo!()
           }
-          BlockType::HeaderPackets(_) => {
+          BlockType::HeaderPacket(_) => {
             todo!()
           }
           BlockType::DataBlock(buf) => {
@@ -196,7 +199,7 @@ where
 pin_project! {
     pub struct DataBlockDecryptor {
         #[pin]
-        handle: JoinHandle<io::Result<PlainTextBytes>>
+        handle: JoinHandle<Result<PlainTextBytes>>
     }
 }
 
@@ -223,7 +226,7 @@ impl DataBlockDecryptor {
     src: Bytes,
     keys: Vec<Keys>,
     sender_pubkey: Option<SenderPublicKey>,
-  ) -> io::Result<PlainTextBytes> {
+  ) -> Result<PlainTextBytes> {
     let mut read_buffer = io::Cursor::new(src);
     let mut write_buffer = io::Cursor::new(vec![]);
 
@@ -247,10 +250,14 @@ impl DataBlockDecryptor {
 }
 
 impl Future for DataBlockDecryptor {
-  type Output = io::Result<PlainTextBytes>;
+  type Output = Result<PlainTextBytes>;
 
   fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-    self.project().handle.poll(cx)?
+    self
+      .project()
+      .handle
+      .poll(cx)
+      .map_err(|err| JoinHandleError(err))?
   }
 }
 
