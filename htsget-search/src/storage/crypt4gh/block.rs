@@ -66,13 +66,15 @@ impl Block {
     .map_err(DecodingHeaderInfo)
   }
 
-  /// Decodes the header info, updates the state and returns the block type.
+  /// Parses the header info, updates the state and returns the block type.
   pub fn decode_header_info(&mut self, src: &mut BytesMut) -> Result<Option<BlockType>> {
+    // Header info is a fixed size.
     if src.len() < HEADER_INFO_SIZE {
       src.reserve(HEADER_INFO_SIZE);
       return Ok(None);
     }
 
+    // Parse the header info because it contains the number of header packets.
     let header_info = Self::get_header_info(src)?;
 
     self.next_block = BlockState::HeaderPackets(header_info.packets_count);
@@ -122,7 +124,8 @@ impl Block {
 
   /// Decodes data blocks, updates the state and returns a data block type.
   pub fn decode_data_block(&mut self, src: &mut BytesMut) -> Result<Option<BlockType>> {
-    // Data blocks are a fixed size, so we can return the next data block without much processing.
+    // Data blocks are a fixed size, so we can return the
+    // next data block without much processing.
     if src.len() < DATA_BLOCK_SIZE {
       src.reserve(DATA_BLOCK_SIZE);
       return Ok(None);
@@ -154,5 +157,40 @@ impl Decoder for Block {
       BlockState::HeaderPackets(header_packets) => self.decode_header_packets(src, header_packets),
       BlockState::DataBlock => self.decode_data_block(src),
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use futures_util::StreamExt;
+  use tokio::fs::File;
+  use tokio_util::codec::FramedRead;
+
+  #[tokio::test]
+  async fn decode_header_info() {
+    let src = read_crypt4gh_file("htsnexus_test_NA12878.bam.c4gh").await;
+    let mut reader = FramedRead::new(src, Block::default());
+
+    let header_info = reader.next().await.unwrap().unwrap();
+
+    // Assert that the first block output is a header info with one packet.
+    assert!(
+      matches!(header_info, BlockType::HeaderInfo(header_info) if header_info.packets_count == 1)
+    );
+  }
+
+  pub async fn read_crypt4gh_file(file_name: &str) -> File {
+    File::open(
+      std::env::current_dir()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("data")
+        .join("crypt4gh")
+        .join(file_name),
+    )
+    .await
+    .unwrap()
   }
 }
