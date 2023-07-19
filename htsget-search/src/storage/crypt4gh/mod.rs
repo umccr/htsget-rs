@@ -1,5 +1,5 @@
 use crate::storage::crypt4gh::block::{
-  Block, BlockType, ENCRYPTED_BLOCK_SIZE, MAC_SIZE, NONCE_SIZE,
+  Block, DecodedBlock, ENCRYPTED_BLOCK_SIZE, MAC_SIZE, NONCE_SIZE,
 };
 use crate::storage::crypt4gh::error::Error::JoinHandleError;
 use bytes::Bytes;
@@ -174,13 +174,13 @@ where
     match ready!(item) {
       Some(Ok(buf)) => {
         match buf {
-          BlockType::HeaderInfo(_) => {
+          DecodedBlock::HeaderInfo(_) => {
             todo!()
           }
-          BlockType::HeaderPacket(_) => {
+          DecodedBlock::HeaderPacket(_) => {
             todo!()
           }
-          BlockType::DataBlock(buf) => {
+          DecodedBlock::DataBlock(buf) => {
             Poll::Ready(Some(Ok(DataBlockDecryptor::new(
               buf,
               // Todo make this so it doesn't use owned Keys and SenderPublicKey as it will be called asynchronously.

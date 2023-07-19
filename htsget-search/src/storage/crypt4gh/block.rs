@@ -26,7 +26,7 @@ const MAX_HEADER_SIZE: usize = 8 * 1024 * 1024;
 
 /// The type that a block is decoded into.
 #[derive(Debug)]
-pub enum BlockType {
+pub enum DecodedBlock {
   /// The magic string, version string and header packet count.
   /// Corresponds to `deconstruct_header_info`.
   HeaderInfo(HeaderInfo),
@@ -67,7 +67,7 @@ impl Block {
   }
 
   /// Parses the header info, updates the state and returns the block type.
-  pub fn decode_header_info(&mut self, src: &mut BytesMut) -> Result<Option<BlockType>> {
+  pub fn decode_header_info(&mut self, src: &mut BytesMut) -> Result<Option<DecodedBlock>> {
     // Header info is a fixed size.
     if src.len() < HEADER_INFO_SIZE {
       src.reserve(HEADER_INFO_SIZE);
@@ -79,7 +79,7 @@ impl Block {
 
     self.next_block = BlockState::HeaderPackets(header_info.packets_count);
 
-    Ok(Some(BlockType::HeaderInfo(header_info)))
+    Ok(Some(DecodedBlock::HeaderInfo(header_info)))
   }
 
   /// Decodes header packets, updates the state and returns a header packet block type.
@@ -87,7 +87,7 @@ impl Block {
     &mut self,
     src: &mut BytesMut,
     mut header_packets: u32,
-  ) -> Result<Option<BlockType>> {
+  ) -> Result<Option<DecodedBlock>> {
     // Get enough bytes to read the header packet length.
     if src.len() < HEADER_PACKET_LENGTH_SIZE {
       src.reserve(HEADER_PACKET_LENGTH_SIZE);
@@ -119,11 +119,13 @@ impl Block {
       self.next_block = BlockState::DataBlock;
     }
 
-    Ok(Some(BlockType::HeaderPacket(src.split_to(length).freeze())))
+    Ok(Some(DecodedBlock::HeaderPacket(
+      src.split_to(length).freeze(),
+    )))
   }
 
   /// Decodes data blocks, updates the state and returns a data block type.
-  pub fn decode_data_block(&mut self, src: &mut BytesMut) -> Result<Option<BlockType>> {
+  pub fn decode_data_block(&mut self, src: &mut BytesMut) -> Result<Option<DecodedBlock>> {
     // Data blocks are a fixed size, so we can return the
     // next data block without much processing.
     if src.len() < DATA_BLOCK_SIZE {
@@ -133,7 +135,7 @@ impl Block {
 
     self.next_block = BlockState::DataBlock;
 
-    Ok(Some(BlockType::DataBlock(
+    Ok(Some(DecodedBlock::DataBlock(
       src.split_to(DATA_BLOCK_SIZE).freeze(),
     )))
   }
@@ -148,7 +150,7 @@ impl Default for Block {
 }
 
 impl Decoder for Block {
-  type Item = BlockType;
+  type Item = DecodedBlock;
   type Error = Error;
 
   fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>> {
@@ -176,7 +178,7 @@ mod tests {
 
     // Assert that the first block output is a header info with one packet.
     assert!(
-      matches!(header_info, BlockType::HeaderInfo(header_info) if header_info.packets_count == 1)
+      matches!(header_info, DecodedBlock::HeaderInfo(header_info) if header_info.packets_count == 1)
     );
   }
 
