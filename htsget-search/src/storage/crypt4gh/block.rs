@@ -55,7 +55,7 @@ pub struct Block {
 }
 
 impl Block {
-  fn decode_header_info(src: &mut BytesMut) -> Result<HeaderInfo> {
+  fn get_header_info(src: &mut BytesMut) -> Result<HeaderInfo> {
     deconstruct_header_info(
       src
         .split_to(HEADER_INFO_SIZE)
@@ -64,6 +64,75 @@ impl Block {
         .map_err(SliceConversionError)?,
     )
     .map_err(DecodingHeaderInfo)
+  }
+
+  /// Decodes the header info, updates the state and returns the block type.
+  pub fn decode_header_info(&mut self, src: &mut BytesMut) -> Result<Option<BlockType>> {
+    if src.len() < HEADER_INFO_SIZE {
+      src.reserve(HEADER_INFO_SIZE);
+      return Ok(None);
+    }
+
+    let header_info = Self::get_header_info(src)?;
+
+    self.next_block = BlockState::HeaderPackets(header_info.packets_count);
+
+    Ok(Some(BlockType::HeaderInfo(header_info)))
+  }
+
+  /// Decodes header packets, updates the state and returns a header packet block type.
+  pub fn decode_header_packets(
+    &mut self,
+    src: &mut BytesMut,
+    mut header_packets: u32,
+  ) -> Result<Option<BlockType>> {
+    // Get enough bytes to read the header packet length.
+    if src.len() < HEADER_PACKET_LENGTH_SIZE {
+      src.reserve(HEADER_PACKET_LENGTH_SIZE);
+      return Ok(None);
+    }
+
+    // Read the header packet length.
+    let length: usize = u32::from_le_bytes(src.as_ref().try_into().map_err(SliceConversionError)?)
+      .try_into()
+      .map_err(NumericConversionError)?;
+
+    // Have a maximum header size to prevent any overflows.
+    if length > MAX_HEADER_SIZE {
+      return Err(MaximumHeaderSize);
+    }
+
+    // Get enough bytes to read the entire header packet.
+    if src.len() < length {
+      src.reserve(length - src.len());
+      return Ok(None);
+    }
+
+    // Keep processing header packets if there are any left,
+    // otherwise go to data blocks.
+    header_packets -= 1;
+    if header_packets > 0 {
+      self.next_block = BlockState::HeaderPackets(header_packets);
+    } else {
+      self.next_block = BlockState::DataBlock;
+    }
+
+    Ok(Some(BlockType::HeaderPacket(src.split_to(length).freeze())))
+  }
+
+  /// Decodes data blocks, updates the state and returns a data block type.
+  pub fn decode_data_block(&mut self, src: &mut BytesMut) -> Result<Option<BlockType>> {
+    // Data blocks are a fixed size, so we can return the next data block without much processing.
+    if src.len() < DATA_BLOCK_SIZE {
+      src.reserve(DATA_BLOCK_SIZE);
+      return Ok(None);
+    }
+
+    self.next_block = BlockState::DataBlock;
+
+    Ok(Some(BlockType::DataBlock(
+      src.split_to(DATA_BLOCK_SIZE).freeze(),
+    )))
   }
 }
 
@@ -81,65 +150,9 @@ impl Decoder for Block {
 
   fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>> {
     match self.next_block {
-      BlockState::HeaderInfo => {
-        if src.len() < HEADER_INFO_SIZE {
-          src.reserve(HEADER_INFO_SIZE);
-          return Ok(None);
-        }
-
-        let header_info = Self::decode_header_info(src)?;
-
-        self.next_block = BlockState::HeaderPackets(header_info.packets_count);
-
-        Ok(Some(BlockType::HeaderInfo(header_info)))
-      }
-      BlockState::HeaderPackets(mut header_packets) => {
-        // Get enough bytes to read the header packet length.
-        if src.len() < HEADER_PACKET_LENGTH_SIZE {
-          src.reserve(HEADER_PACKET_LENGTH_SIZE);
-          return Ok(None);
-        }
-
-        // Read the header packet length.
-        let length: usize =
-          u32::from_le_bytes(src.as_ref().try_into().map_err(SliceConversionError)?)
-            .try_into()
-            .map_err(NumericConversionError)?;
-
-        // Have a maximum header size to prevent any overflows.
-        if length > MAX_HEADER_SIZE {
-          return Err(MaximumHeaderSize);
-        }
-
-        // Get enough bytes to read the entire header packet.
-        if src.len() < length {
-          src.reserve(length - src.len());
-          return Ok(None);
-        }
-
-        // Keep processing header packets if there are any left,
-        // otherwise go to data blocks.
-        header_packets -= 1;
-        if header_packets > 0 {
-          self.next_block = BlockState::HeaderPackets(header_packets);
-        } else {
-          self.next_block = BlockState::DataBlock;
-        }
-
-        Ok(Some(BlockType::HeaderPacket(src.split_to(length).freeze())))
-      }
-      BlockState::DataBlock => {
-        if src.len() < DATA_BLOCK_SIZE {
-          src.reserve(DATA_BLOCK_SIZE);
-          return Ok(None);
-        }
-
-        self.next_block = BlockState::DataBlock;
-
-        Ok(Some(BlockType::DataBlock(
-          src.split_to(DATA_BLOCK_SIZE).freeze(),
-        )))
-      }
+      BlockState::HeaderInfo => self.decode_header_info(src),
+      BlockState::HeaderPackets(header_packets) => self.decode_header_packets(src, header_packets),
+      BlockState::DataBlock => self.decode_data_block(src),
     }
   }
 }
