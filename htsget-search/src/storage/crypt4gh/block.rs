@@ -6,7 +6,7 @@ use bytes::{Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use tokio_util::codec::Decoder;
 
-pub const ENCRYPTED_BLOCK_SIZE: usize = 65535;
+pub const ENCRYPTED_BLOCK_SIZE: usize = 65536;
 pub const NONCE_SIZE: usize = 12; // ChaCha20 IETF Nonce size
 pub const MAC_SIZE: usize = 16;
 
@@ -178,12 +178,14 @@ impl Decoder for Block {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crypt4gh::header::deconstruct_header_body;
+  use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
   use crypt4gh::keys::{get_private_key, get_public_key};
-  use crypt4gh::Keys;
+  use crypt4gh::{body_decrypt, Keys, WriteInfo};
+  use std::io::Cursor;
 
   use futures_util::StreamExt;
   use htsget_test::http_tests::{get_test_file, get_test_path};
+  use tokio::io::AsyncReadExt;
   use tokio_util::codec::FramedRead;
 
   #[tokio::test]
@@ -208,7 +210,56 @@ mod tests {
 
     // The second block should contain a header packet.
     let header_packet = reader.skip(1).next().await.unwrap().unwrap();
+    let header = get_header_packets(recipient_private_key, sender_public_key, header_packet);
 
+    // Assert that the header packet contains only one data encryption key packet.
+    assert_eq!(header.data_enc_packets.len(), 1);
+    assert!(header.edit_list_packet.is_none());
+
+    // Todo handle case where there is more than one header packet.
+  }
+
+  #[tokio::test]
+  async fn decode_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = FramedRead::new(src, Block::default()).skip(1);
+
+    let header_packet = reader.next().await.unwrap().unwrap();
+    let header = get_header_packets(recipient_private_key, sender_public_key, header_packet);
+
+    // The third block should be a data block.
+    let data_block = reader.next().await.unwrap().unwrap();
+
+    let data_block = if let DecodedBlock::DataBlock(data_block) = data_block {
+      Some(data_block)
+    } else {
+      None
+    }
+    .unwrap();
+
+    let read_buf = Cursor::new(data_block.to_vec());
+    let mut write_buf = Cursor::new(vec![]);
+    let mut write_info = WriteInfo::new(0, None, &mut write_buf);
+
+    body_decrypt(read_buf, &header.data_enc_packets, &mut write_info, 0).unwrap();
+
+    let decrypted_bytes = write_buf.into_inner();
+
+    let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
+    let mut original_bytes = [0u8; 65536];
+    original_file.read_exact(&mut original_bytes).await.unwrap();
+
+    // The decrypted block should be equal to the first 64KiB of the original file.
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  fn get_header_packets(
+    recipient_private_key: Keys,
+    sender_public_key: Vec<u8>,
+    header_packet: DecodedBlock,
+  ) -> DecryptedHeaderPackets {
     let header_packet = if let DecodedBlock::HeaderPacket(header_packet) = header_packet {
       Some(header_packet)
     } else {
@@ -219,18 +270,12 @@ mod tests {
     // Assert the size of the header packet is correct.
     assert_eq!(header_packet.len(), 104);
 
-    let header = deconstruct_header_body(
+    deconstruct_header_body(
       vec![header_packet.to_vec()],
       &[recipient_private_key],
       &Some(sender_public_key),
     )
-    .unwrap();
-
-    // Assert that the header packet contains only one data encryption key packet.
-    assert_eq!(header.data_enc_packets.len(), 1);
-    assert!(header.edit_list_packet.is_none());
-
-    // Todo handle case where there is more than one header packet.
+    .unwrap()
   }
 
   /// Returns the private keys of the recipient and the senders public key from the context of decryption.
