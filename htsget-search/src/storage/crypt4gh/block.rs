@@ -61,12 +61,15 @@ impl Block {
         .split_to(HEADER_INFO_SIZE)
         .as_ref()
         .try_into()
-        .map_err(SliceConversionError)?,
+        .map_err(|_| SliceConversionError)?,
     )
     .map_err(DecodingHeaderInfo)
   }
 
-  /// Parses the header info, updates the state and returns the block type.
+  /// Parses the header info, updates the state and returns the block type. Unlike the other
+  /// `decode` methods, this method parses the header info before returning a decoded block
+  /// because the header info contains the number of packets which is required for decoding
+  /// the rest of the source.
   pub fn decode_header_info(&mut self, src: &mut BytesMut) -> Result<Option<DecodedBlock>> {
     // Header info is a fixed size.
     if src.len() < HEADER_INFO_SIZE {
@@ -95,9 +98,19 @@ impl Block {
     }
 
     // Read the header packet length.
-    let length: usize = u32::from_le_bytes(src.as_ref().try_into().map_err(SliceConversionError)?)
-      .try_into()
-      .map_err(NumericConversionError)?;
+    let mut length: usize = u32::from_le_bytes(
+      src
+        .split_to(HEADER_PACKET_LENGTH_SIZE)
+        .freeze()
+        .as_ref()
+        .try_into()
+        .map_err(|_| SliceConversionError)?,
+    )
+    .try_into()
+    .map_err(|_| NumericConversionError)?;
+
+    // We have already taken 4 bytes out of the length.
+    length -= HEADER_PACKET_LENGTH_SIZE;
 
     // Have a maximum header size to prevent any overflows.
     if length > MAX_HEADER_SIZE {
@@ -165,13 +178,17 @@ impl Decoder for Block {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crypt4gh::header::deconstruct_header_body;
+  use crypt4gh::keys::{get_private_key, get_public_key};
+  use crypt4gh::Keys;
+
   use futures_util::StreamExt;
-  use tokio::fs::File;
+  use htsget_test::http_tests::{get_test_file, get_test_path};
   use tokio_util::codec::FramedRead;
 
   #[tokio::test]
   async fn decode_header_info() {
-    let src = read_crypt4gh_file("htsnexus_test_NA12878.bam.c4gh").await;
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let mut reader = FramedRead::new(src, Block::default());
 
     let header_info = reader.next().await.unwrap().unwrap();
@@ -182,17 +199,55 @@ mod tests {
     );
   }
 
-  pub async fn read_crypt4gh_file(file_name: &str) -> File {
-    File::open(
-      std::env::current_dir()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("data")
-        .join("crypt4gh")
-        .join(file_name),
+  #[tokio::test]
+  async fn decode_header_packets() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let reader = FramedRead::new(src, Block::default());
+
+    // The second block should contain a header packet.
+    let header_packet = reader.skip(1).next().await.unwrap().unwrap();
+
+    let header_packet = if let DecodedBlock::HeaderPacket(header_packet) = header_packet {
+      Some(header_packet)
+    } else {
+      None
+    }
+    .unwrap();
+
+    // Assert the size of the header packet is correct.
+    assert_eq!(header_packet.len(), 104);
+
+    let header = deconstruct_header_body(
+      vec![header_packet.to_vec()],
+      &[recipient_private_key],
+      &Some(sender_public_key),
     )
-    .await
-    .unwrap()
+    .unwrap();
+
+    // Assert that the header packet contains only one data encryption key packet.
+    assert_eq!(header.data_enc_packets.len(), 1);
+    assert!(header.edit_list_packet.is_none());
+
+    // Todo handle case where there is more than one header packet.
+  }
+
+  /// Returns the private keys of the recipient and the senders public key from the context of decryption.
+  async fn get_keys() -> (Keys, Vec<u8>) {
+    let recipient_private_key = get_private_key(&get_test_path("crypt4gh/keys/bob.sec"), || {
+      Ok("".to_string())
+    })
+    .unwrap();
+    let sender_public_key = get_public_key(&get_test_path("crypt4gh/keys/alice.pub")).unwrap();
+
+    (
+      Keys {
+        method: 0,
+        privkey: recipient_private_key,
+        recipient_pubkey: sender_public_key.clone(),
+      },
+      sender_public_key,
+    )
   }
 }

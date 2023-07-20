@@ -1,4 +1,3 @@
-use std::fs;
 use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -7,6 +6,8 @@ use async_trait::async_trait;
 use http::uri::Authority;
 use http::HeaderMap;
 use serde::de;
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{CertificateKeyPair, DataServerConfig, TicketServerConfig};
@@ -188,8 +189,25 @@ pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
   )
 }
 
-/// Get the event associated with the file.
-pub fn get_test_file<P: AsRef<Path>>(path: P) -> String {
-  let path = default_dir().join("data").join(path);
-  fs::read_to_string(path).expect("failed to read file")
+/// Get a test file as a string.
+pub async fn get_test_file_string<P: AsRef<Path>>(path: P) -> String {
+  let mut string = String::new();
+  get_test_file(path)
+    .await
+    .read_to_string(&mut string)
+    .await
+    .expect("failed to read to string");
+  string
+}
+
+/// Get a test file path.
+pub fn get_test_path<P: AsRef<Path>>(path: P) -> PathBuf {
+  default_dir().join("data").join(path)
+}
+
+/// Get a test file.
+pub async fn get_test_file<P: AsRef<Path>>(path: P) -> File {
+  File::open(get_test_path(path))
+    .await
+    .expect("failed to read file")
 }

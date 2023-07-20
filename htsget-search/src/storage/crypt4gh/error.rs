@@ -11,10 +11,10 @@ pub type Result<T> = result::Result<T, Error>;
 /// Errors related to Crypt4GH.
 #[derive(Error, Debug)]
 pub enum Error {
-  #[error("converting slice to fixed size array: `{0}`")]
-  SliceConversionError(TryFromSliceError),
-  #[error("converting between numeric types: `{0}`")]
-  NumericConversionError(TryFromIntError),
+  #[error("converting slice to fixed size array")]
+  SliceConversionError,
+  #[error("converting between numeric types")]
+  NumericConversionError,
   #[error("decoding header info: `{0}`")]
   DecodingHeaderInfo(Crypt4GHError),
   #[error("decoding header packet: `{0}`")]
