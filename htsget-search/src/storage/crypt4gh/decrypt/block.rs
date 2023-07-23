@@ -1,7 +1,7 @@
-use super::error::{Error, Result};
 use crate::storage::crypt4gh::error::Error::{
   DecodingHeaderInfo, MaximumHeaderSize, NumericConversionError, SliceConversionError,
 };
+use crate::storage::crypt4gh::error::{Error, Result};
 use bytes::{Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use tokio_util::codec::Decoder;

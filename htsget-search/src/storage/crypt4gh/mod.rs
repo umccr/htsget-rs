@@ -1,4 +1,4 @@
-use crate::storage::crypt4gh::block::{
+use crate::storage::crypt4gh::decrypt::block::{
   Block, DecodedBlock, ENCRYPTED_BLOCK_SIZE, MAC_SIZE, NONCE_SIZE,
 };
 use crate::storage::crypt4gh::error::Error::JoinHandleError;
@@ -17,7 +17,7 @@ use tokio::io::AsyncRead;
 use tokio::task::JoinHandle;
 use tokio_util::codec::FramedRead;
 
-pub mod block;
+pub mod decrypt;
 pub mod error;
 
 #[derive(Debug, Clone)]
