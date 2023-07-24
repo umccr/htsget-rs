@@ -180,11 +180,13 @@ pub(crate) mod tests {
   use super::*;
   use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
   use crypt4gh::{body_decrypt, Keys, WriteInfo};
+  use futures_util::stream::Skip;
   use std::io::Cursor;
 
   use crate::storage::crypt4gh::tests::get_keys;
   use futures_util::StreamExt;
   use htsget_test::http_tests::get_test_file;
+  use tokio::fs::File;
   use tokio::io::AsyncReadExt;
   use tokio_util::codec::FramedRead;
 
@@ -203,18 +205,11 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn decode_header_packets() {
-    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
-
-    let reader = FramedRead::new(src, Block::default());
-
-    // The second block should contain a header packet.
-    let header_packet = reader.skip(1).next().await.unwrap().unwrap();
+    let (recipient_private_key, sender_public_key, header_packet, _) =
+      get_first_header_packet().await;
     let header = get_header_packets(recipient_private_key, sender_public_key, header_packet);
 
-    // Assert that the header packet contains only one data encryption key packet.
-    assert_eq!(header.data_enc_packets.len(), 1);
-    assert!(header.edit_list_packet.is_none());
+    assert_first_header_packet(header);
 
     // Todo handle case where there is more than one header packet.
   }
@@ -234,6 +229,12 @@ pub(crate) mod tests {
     assert_first_data_block(decrypted_bytes).await;
   }
 
+  /// Assert that the first header packet is a data encryption key packet.
+  pub(crate) fn assert_first_header_packet(header: DecryptedHeaderPackets) {
+    assert_eq!(header.data_enc_packets.len(), 1);
+    assert!(header.edit_list_packet.is_none());
+  }
+
   /// Assert that the first data block is equal to the first 64KiB of the original file.
   pub(crate) async fn assert_first_data_block(decrypted_bytes: Vec<u8>) {
     let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
@@ -243,14 +244,36 @@ pub(crate) mod tests {
     assert_eq!(decrypted_bytes, original_bytes);
   }
 
-  /// Get the first data block from the test file.
-  pub(crate) async fn get_first_data_block() -> (DecryptedHeaderPackets, Bytes) {
+  /// Get the first header packet from the test file.
+  pub(crate) async fn get_first_header_packet(
+  ) -> (Keys, Vec<u8>, Bytes, Skip<FramedRead<File, Block>>) {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = FramedRead::new(src, Block::default()).skip(1);
 
+    // The second block should contain a header packet.
     let header_packet = reader.next().await.unwrap().unwrap();
+
+    let header_packet = if let DecodedBlock::HeaderPacket(header_packet) = header_packet {
+      Some(header_packet)
+    } else {
+      None
+    }
+    .unwrap();
+
+    (
+      recipient_private_key,
+      sender_public_key,
+      header_packet,
+      reader,
+    )
+  }
+
+  /// Get the first data block from the test file.
+  pub(crate) async fn get_first_data_block() -> (DecryptedHeaderPackets, Bytes) {
+    let (recipient_private_key, sender_public_key, header_packet, mut reader) =
+      get_first_header_packet().await;
     let header = get_header_packets(recipient_private_key, sender_public_key, header_packet);
 
     // The third block should be a data block.
@@ -261,7 +284,7 @@ pub(crate) mod tests {
     } else {
       None
     }
-        .unwrap();
+    .unwrap();
 
     (header, data_block)
   }
@@ -270,15 +293,8 @@ pub(crate) mod tests {
   pub(crate) fn get_header_packets(
     recipient_private_key: Keys,
     sender_public_key: Vec<u8>,
-    header_packet: DecodedBlock,
+    header_packet: Bytes,
   ) -> DecryptedHeaderPackets {
-    let header_packet = if let DecodedBlock::HeaderPacket(header_packet) = header_packet {
-      Some(header_packet)
-    } else {
-      None
-    }
-    .unwrap();
-
     // Assert the size of the header packet is correct.
     assert_eq!(header_packet.len(), 104);
 

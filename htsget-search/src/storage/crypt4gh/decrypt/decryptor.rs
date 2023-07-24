@@ -147,6 +147,14 @@ impl HeaderPacketDecryptor {
   }
 }
 
+impl Future for HeaderPacketDecryptor {
+  type Output = Result<DecryptedHeaderPackets>;
+
+  fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    self.project().handle.poll(cx).map_err(JoinHandleError)?
+  }
+}
+
 #[derive(Debug)]
 pub struct PlainTextBytes(Bytes);
 
@@ -186,15 +194,37 @@ impl Future for DataBlockDecryptor {
 
 #[cfg(test)]
 mod tests {
-  use crate::storage::crypt4gh::decrypt::decoder::tests::{assert_first_data_block, get_first_data_block};
   use super::*;
+  use crate::storage::crypt4gh::decrypt::decoder::tests::{
+    assert_first_data_block, assert_first_header_packet, get_first_data_block,
+    get_first_header_packet,
+  };
 
+  #[tokio::test]
+  async fn header_packet_decryptor() {
+    let (recipient_private_key, sender_public_key, header_packet, _) =
+      get_first_header_packet().await;
+
+    let data = HeaderPacketDecryptor::new(
+      header_packet,
+      vec![recipient_private_key],
+      Some(SenderPublicKey {
+        bytes: sender_public_key,
+      }),
+    )
+    .await
+    .unwrap();
+
+    assert_first_header_packet(data);
+  }
 
   #[tokio::test]
   async fn data_block_decryptor() {
     let (header_packets, data_block) = get_first_data_block().await;
 
-    let data = DataBlockDecryptor::new(data_block, header_packets.data_enc_packets).await.unwrap();
+    let data = DataBlockDecryptor::new(data_block, header_packets.data_enc_packets)
+      .await
+      .unwrap();
 
     assert_first_data_block(data.0.to_vec()).await;
   }
