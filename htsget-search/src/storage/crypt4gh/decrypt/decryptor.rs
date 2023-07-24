@@ -1,21 +1,18 @@
-use crate::storage::crypt4gh::decrypt::decoder::{
-  Block, DecodedBlock, ENCRYPTED_BLOCK_SIZE, MAC_SIZE, NONCE_SIZE,
-};
+use crate::storage::crypt4gh::decrypt::decoder::{Block, DecodedBlock};
 use crate::storage::crypt4gh::error::Error::{Crypt4GHError, JoinHandleError};
 use crate::storage::crypt4gh::error::Result;
-use axum::routing::head;
 use bytes::Bytes;
 use crypt4gh::error::Crypt4GHError::NoSupportedEncryptionMethod;
 use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
-use crypt4gh::Keys;
+use crypt4gh::{body_decrypt, Keys, WriteInfo};
 use futures::ready;
 use futures::Stream;
 use pin_project_lite::pin_project;
 use std::future::Future;
+use std::io;
+use std::io::Cursor;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{cmp, io};
-use tokio::io::AsyncBufRead;
 use tokio::io::AsyncRead;
 use tokio::task::JoinHandle;
 use tokio_util::codec::FramedRead;
@@ -58,9 +55,6 @@ where
 
   fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
     let this = self.project();
-
-    // (Nonce + 64kb + MAC) block from decoder.
-    // This is an encryted data block.
     let item = this.inner.poll_next(cx);
 
     match ready!(item) {
@@ -71,6 +65,7 @@ where
             Poll::Pending
           }
           DecodedBlock::HeaderPacket(header_packet) => {
+            // This block should be asynchronous in the number of header packets.
             let header_packet = Pin::new(&mut HeaderPacketDecryptor::new(
               header_packet,
               this.keys.clone(),
@@ -102,16 +97,16 @@ where
             }
           }
           DecodedBlock::DataBlock(bytes) => {
-            // If we get here and there are no session keys, then return an error,
-            // otherwise decode the data blocks.
+            // This block shouldn't execute until all the header packets have been processed.
+            // If we get here and there are no session keys, then return an error, otherwise
+            // decode the data blocks.
             if this.session_keys.is_empty() {
               Poll::Ready(Some(Err(Crypt4GHError(NoSupportedEncryptionMethod))))
             } else {
               Poll::Ready(Some(Ok(DataBlockDecryptor::new(
                 bytes,
                 // Todo make this so it doesn't use owned Keys and SenderPublicKey as it will be called asynchronously.
-                this.keys.clone(),
-                this.sender_pubkey.clone(),
+                this.session_keys.clone(),
               ))))
             }
           }
@@ -163,38 +158,21 @@ pin_project! {
 }
 
 impl DataBlockDecryptor {
-  fn new(src: Bytes, keys: Vec<Keys>, sender_pubkey: Option<SenderPublicKey>) -> Self {
+  fn new(data_block: Bytes, keys: Vec<Vec<u8>>) -> Self {
     Self {
-      handle: tokio::task::spawn_blocking(move || {
-        DataBlockDecryptor::decrypt(src, keys, sender_pubkey)
-      }),
+      handle: tokio::task::spawn_blocking(move || DataBlockDecryptor::decrypt(data_block, keys)),
     }
   }
 
-  fn decrypt(
-    src: Bytes,
-    keys: Vec<Keys>,
-    sender_pubkey: Option<SenderPublicKey>,
-  ) -> Result<PlainTextBytes> {
-    let mut read_buffer = io::Cursor::new(src);
-    let mut write_buffer = io::Cursor::new(vec![]);
+  fn decrypt(data_block: Bytes, keys: Vec<Vec<u8>>) -> Result<PlainTextBytes> {
+    let read_buf = Cursor::new(data_block.to_vec());
+    let mut write_buf = Cursor::new(vec![]);
+    // Todo allow limit to be passed here.
+    let mut write_info = WriteInfo::new(0, None, &mut write_buf);
 
-    crypt4gh::decrypt(
-      keys.as_slice(),
-      &mut read_buffer,
-      &mut write_buffer,
-      0,
-      None,
-      &sender_pubkey.map(|pubkey| pubkey.bytes),
-    )
-    .map_err(|err| {
-      io::Error::new(
-        io::ErrorKind::Other,
-        format!("decrypting read buffer: {}", err),
-      )
-    })?;
+    body_decrypt(read_buf, keys.as_slice(), &mut write_info, 0).map_err(Crypt4GHError)?;
 
-    Ok(PlainTextBytes(write_buffer.into_inner().into()))
+    Ok(PlainTextBytes(write_buf.into_inner().into()))
   }
 }
 
