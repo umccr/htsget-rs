@@ -1,10 +1,4 @@
-use crate::storage::crypt4gh::decrypt::decoder::{
-  Block, DecodedBlock, ENCRYPTED_BLOCK_SIZE, MAC_SIZE, NONCE_SIZE,
-};
-use crate::storage::crypt4gh::error::Error::JoinHandleError;
-use bytes::Bytes;
 use crypt4gh::Keys;
-use error::Result;
 use futures::ready;
 use futures::Stream;
 use pin_project_lite::pin_project;
@@ -14,8 +8,6 @@ use std::task::{Context, Poll};
 use std::{cmp, io};
 use tokio::io::AsyncBufRead;
 use tokio::io::AsyncRead;
-use tokio::task::JoinHandle;
-use tokio_util::codec::FramedRead;
 
 pub mod decrypt;
 pub mod error;
@@ -35,100 +27,100 @@ pub mod error;
 //     }
 // }
 
-pin_project! {
-    pub struct Crypt4gh<R> {
-        #[pin]
-        inner: R,
-        keys: Keys,
-        sender_pubkey: Option<SenderPublicKey>
-    }
-}
+// pin_project! {
+//     pub struct Crypt4gh<R> {
+//         #[pin]
+//         inner: R,
+//         keys: Keys,
+//         sender_pubkey: Option<SenderPublicKey>
+//     }
+// }
+//
+// impl<R> Crypt4gh<R> {
+//   pub fn new(inner: R, keys: Keys, sender_pubkey: Option<SenderPublicKey>) -> Self {
+//     Self {
+//       inner,
+//       keys,
+//       sender_pubkey,
+//     }
+//   }
+// }
 
-impl<R> Crypt4gh<R> {
-  pub fn new(inner: R, keys: Keys, sender_pubkey: Option<SenderPublicKey>) -> Self {
-    Self {
-      inner,
-      keys,
-      sender_pubkey,
-    }
-  }
-}
-
-impl<R> AsyncRead for Crypt4gh<R>
-where
-  R: AsyncRead,
-{
-  fn poll_read(
-    mut self: Pin<&mut Self>,
-    cx: &mut Context<'_>,
-    buf: &mut tokio::io::ReadBuf<'_>,
-  ) -> Poll<io::Result<()>> {
-    let src = ready!(self.as_mut().poll_fill_buf(cx))?;
-
-    let amt = cmp::min(src.len(), buf.remaining());
-    buf.put_slice(&src[..amt]);
-
-    self.consume(amt);
-
-    Poll::Ready(Ok(()))
-
-    // let this = self.project();
-
-    // // TODO: read the number of bytes we need, e.g. 64kb per block
-    // // TODO: loop over the whole async read.
-    // match ready!(this.inner.read_exact(cx)) {
-    //     Some(Ok(buf)) => Poll::Ready(Ok(Cryptor::new(buf, this.keys, this.sender_pubkey).decrypt())),
-    //     Some(Err(e)) => Poll::Ready(Err(e)),
-    //     None => Poll::Ready(None),
-    // }
-  }
-
-  // fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-  //     match self.project().inner.poll_next(cx) {
-
-  //     }
-  //     match ready!(self.project().inner.poll_next(cx)) {
-  //         Some(Ok(buf)) => Poll::Ready(Some(Ok(Inflate::new(buf)))),
-  //         Some(Err(e)) => Poll::Ready(Some(Err(e))),
-  //         None => Poll::Ready(None),
-  //     }
-  // }
-}
-
-impl<R> AsyncBufRead for Crypt4gh<R>
-where
-  R: AsyncRead,
-{
-  fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
-    let this = self.project();
-
-    todo!();
-    // if !this.block.data().has_remaining() {
-    //   let mut stream = this.stream.as_pin_mut().expect("missing stream");
-    //
-    //   loop {
-    //     match ready!(stream.as_mut().poll_next(cx)) {
-    //       Some(Ok(mut block)) => {
-    //         block.set_position(*this.position);
-    //         *this.position += block.size();
-    //         let data_len = block.data().len();
-    //         *this.block = block;
-    //
-    //         if data_len > 0 {
-    //           break;
-    //         }
-    //       }
-    //       Some(Err(e)) => return Poll::Ready(Err(e)),
-    //       None => return Poll::Ready(Ok(&[])),
-    //     }
-    //   }
-    // }
-    //
-    // return Poll::Ready(Ok(this.block.data().as_ref()));
-  }
-
-  fn consume(self: Pin<&mut Self>, _amt: usize) {}
-}
+// impl<R> AsyncRead for Crypt4gh<R>
+// where
+//   R: AsyncRead,
+// {
+//   fn poll_read(
+//     mut self: Pin<&mut Self>,
+//     cx: &mut Context<'_>,
+//     buf: &mut tokio::io::ReadBuf<'_>,
+//   ) -> Poll<io::Result<()>> {
+//     let src = ready!(self.as_mut().poll_fill_buf(cx))?;
+//
+//     let amt = cmp::min(src.len(), buf.remaining());
+//     buf.put_slice(&src[..amt]);
+//
+//     self.consume(amt);
+//
+//     Poll::Ready(Ok(()))
+//
+//     // let this = self.project();
+//
+//     // // TODO: read the number of bytes we need, e.g. 64kb per block
+//     // // TODO: loop over the whole async read.
+//     // match ready!(this.inner.read_exact(cx)) {
+//     //     Some(Ok(buf)) => Poll::Ready(Ok(Cryptor::new(buf, this.keys, this.sender_pubkey).decrypt())),
+//     //     Some(Err(e)) => Poll::Ready(Err(e)),
+//     //     None => Poll::Ready(None),
+//     // }
+//   }
+//
+//   // fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+//   //     match self.project().inner.poll_next(cx) {
+//
+//   //     }
+//   //     match ready!(self.project().inner.poll_next(cx)) {
+//   //         Some(Ok(buf)) => Poll::Ready(Some(Ok(Inflate::new(buf)))),
+//   //         Some(Err(e)) => Poll::Ready(Some(Err(e))),
+//   //         None => Poll::Ready(None),
+//   //     }
+//   // }
+// }
+//
+// impl<R> AsyncBufRead for Crypt4gh<R>
+// where
+//   R: AsyncRead,
+// {
+//   fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
+//     let this = self.project();
+//
+//     todo!();
+//     // if !this.block.data().has_remaining() {
+//     //   let mut stream = this.stream.as_pin_mut().expect("missing stream");
+//     //
+//     //   loop {
+//     //     match ready!(stream.as_mut().poll_next(cx)) {
+//     //       Some(Ok(mut block)) => {
+//     //         block.set_position(*this.position);
+//     //         *this.position += block.size();
+//     //         let data_len = block.data().len();
+//     //         *this.block = block;
+//     //
+//     //         if data_len > 0 {
+//     //           break;
+//     //         }
+//     //       }
+//     //       Some(Err(e)) => return Poll::Ready(Err(e)),
+//     //       None => return Poll::Ready(Ok(&[])),
+//     //     }
+//     //   }
+//     // }
+//     //
+//     // return Poll::Ready(Ok(this.block.data().as_ref()));
+//   }
+//
+//   fn consume(self: Pin<&mut Self>, _amt: usize) {}
+// }
 
 #[cfg(test)]
 pub(crate) mod tests {

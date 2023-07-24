@@ -1,6 +1,4 @@
 use crypt4gh::error::Crypt4GHError;
-use std::array::TryFromSliceError;
-use std::num::TryFromIntError;
 use std::{io, result};
 use thiserror::Error;
 use tokio::task;
@@ -25,10 +23,18 @@ pub enum Error {
   JoinHandleError(task::JoinError),
   #[error("maximum header size exceeded")]
   MaximumHeaderSize,
+  #[error("crypt4gh error: `{0}`")]
+  Crypt4GHError(Crypt4GHError),
 }
 
 impl From<io::Error> for Error {
   fn from(error: io::Error) -> Self {
     Self::IOError(error)
+  }
+}
+
+impl From<Crypt4GHError> for Error {
+  fn from(error: Crypt4GHError) -> Self {
+    Self::Crypt4GHError(error)
   }
 }
