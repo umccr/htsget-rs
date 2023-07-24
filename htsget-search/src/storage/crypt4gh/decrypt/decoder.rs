@@ -176,15 +176,15 @@ impl Decoder for Block {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
   use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
-  use crypt4gh::keys::{get_private_key, get_public_key};
   use crypt4gh::{body_decrypt, Keys, WriteInfo};
   use std::io::Cursor;
 
+  use crate::storage::crypt4gh::tests::get_keys;
   use futures_util::StreamExt;
-  use htsget_test::http_tests::{get_test_file, get_test_path};
+  use htsget_test::http_tests::get_test_file;
   use tokio::io::AsyncReadExt;
   use tokio_util::codec::FramedRead;
 
@@ -221,6 +221,30 @@ mod tests {
 
   #[tokio::test]
   async fn decode_data_block() {
+    let (header, data_block) = get_first_data_block().await;
+
+    let read_buf = Cursor::new(data_block.to_vec());
+    let mut write_buf = Cursor::new(vec![]);
+    let mut write_info = WriteInfo::new(0, None, &mut write_buf);
+
+    body_decrypt(read_buf, &header.data_enc_packets, &mut write_info, 0).unwrap();
+
+    let decrypted_bytes = write_buf.into_inner();
+
+    assert_first_data_block(decrypted_bytes).await;
+  }
+
+  /// Assert that the first data block is equal to the first 64KiB of the original file.
+  pub(crate) async fn assert_first_data_block(decrypted_bytes: Vec<u8>) {
+    let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
+    let mut original_bytes = [0u8; 65536];
+    original_file.read_exact(&mut original_bytes).await.unwrap();
+
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  /// Get the first data block from the test file.
+  pub(crate) async fn get_first_data_block() -> (DecryptedHeaderPackets, Bytes) {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
@@ -237,25 +261,13 @@ mod tests {
     } else {
       None
     }
-    .unwrap();
+        .unwrap();
 
-    let read_buf = Cursor::new(data_block.to_vec());
-    let mut write_buf = Cursor::new(vec![]);
-    let mut write_info = WriteInfo::new(0, None, &mut write_buf);
-
-    body_decrypt(read_buf, &header.data_enc_packets, &mut write_info, 0).unwrap();
-
-    let decrypted_bytes = write_buf.into_inner();
-
-    let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
-    let mut original_bytes = [0u8; 65536];
-    original_file.read_exact(&mut original_bytes).await.unwrap();
-
-    // The decrypted block should be equal to the first 64KiB of the original file.
-    assert_eq!(decrypted_bytes, original_bytes);
+    (header, data_block)
   }
 
-  fn get_header_packets(
+  /// Get the header packets from a decoded block.
+  pub(crate) fn get_header_packets(
     recipient_private_key: Keys,
     sender_public_key: Vec<u8>,
     header_packet: DecodedBlock,
@@ -276,23 +288,5 @@ mod tests {
       &Some(sender_public_key),
     )
     .unwrap()
-  }
-
-  /// Returns the private keys of the recipient and the senders public key from the context of decryption.
-  async fn get_keys() -> (Keys, Vec<u8>) {
-    let recipient_private_key = get_private_key(&get_test_path("crypt4gh/keys/bob.sec"), || {
-      Ok("".to_string())
-    })
-    .unwrap();
-    let sender_public_key = get_public_key(&get_test_path("crypt4gh/keys/alice.pub")).unwrap();
-
-    (
-      Keys {
-        method: 0,
-        privkey: recipient_private_key,
-        recipient_pubkey: sender_public_key.clone(),
-      },
-      sender_public_key,
-    )
   }
 }

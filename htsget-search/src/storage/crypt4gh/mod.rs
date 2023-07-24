@@ -124,10 +124,13 @@ pub mod error;
 
 #[cfg(test)]
 pub(crate) mod tests {
+  use crypt4gh::header::deconstruct_header_body;
+  use crypt4gh::keys::{get_private_key, get_public_key};
   use std::io;
 
   use super::*;
   use hex_literal::hex;
+  use htsget_test::http_tests::get_test_path;
 
   const PLAINTEXT: &[u8] = &[
     0xbe, 0x07, 0x5f, 0xc5, 0x3c, 0x81, 0xf2, 0xd5, 0xcf, 0x14, 0x13, 0x16, 0xeb, 0xeb, 0x0c, 0x7b,
@@ -199,5 +202,23 @@ pub(crate) mod tests {
     // let plaintext = DataBlockStreamDecryptor::new().decrypt();
     //
     // assert_eq!(PLAINTEXT, plaintext);
+  }
+
+  /// Returns the private keys of the recipient and the senders public key from the context of decryption.
+  pub(crate) async fn get_keys() -> (Keys, Vec<u8>) {
+    let recipient_private_key = get_private_key(&get_test_path("crypt4gh/keys/bob.sec"), || {
+      Ok("".to_string())
+    })
+    .unwrap();
+    let sender_public_key = get_public_key(&get_test_path("crypt4gh/keys/alice.pub")).unwrap();
+
+    (
+      Keys {
+        method: 0,
+        privkey: recipient_private_key,
+        recipient_pubkey: sender_public_key.clone(),
+      },
+      sender_public_key,
+    )
   }
 }

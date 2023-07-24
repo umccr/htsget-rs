@@ -183,3 +183,19 @@ impl Future for DataBlockDecryptor {
     self.project().handle.poll(cx).map_err(JoinHandleError)?
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use crate::storage::crypt4gh::decrypt::decoder::tests::{assert_first_data_block, get_first_data_block};
+  use super::*;
+
+
+  #[tokio::test]
+  async fn data_block_decryptor() {
+    let (header_packets, data_block) = get_first_data_block().await;
+
+    let data = DataBlockDecryptor::new(data_block, header_packets.data_enc_packets).await.unwrap();
+
+    assert_first_data_block(data.0.to_vec()).await;
+  }
+}
