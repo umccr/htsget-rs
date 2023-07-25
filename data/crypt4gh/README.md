@@ -18,7 +18,7 @@ crypt4gh encrypt --sk keys/alice.sec --recipient_pk keys/bob.pub < htsnexus_test
 ## Decrypt
 
 ```sh
-crypt4gh decrypt --range 0-65535 --sk data/crypt4gh/keys/bob.sec \
+crypt4gh decryptor --range 0-65535 --sk data/crypt4gh/keys/bob.sec \
                                  --sender-pk data/crypt4gh/keys/alice.pub \
                                  < data/crypt4gh/htsnexus_test_NA12878.bam.c4gh \
                                  > out.bam

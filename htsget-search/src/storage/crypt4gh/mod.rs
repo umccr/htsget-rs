@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use crypt4gh::Keys;
 use futures::ready;
 use futures::Stream;
@@ -9,8 +10,43 @@ use std::{cmp, io};
 use tokio::io::AsyncBufRead;
 use tokio::io::AsyncRead;
 
-pub mod decrypt;
+mod decoder;
+pub mod decryptor;
 pub mod error;
+
+/// A wrapper around a vec of bytes that represent a sender public key.
+#[derive(Debug, Clone)]
+pub struct SenderPublicKey {
+  bytes: Vec<u8>,
+}
+
+impl SenderPublicKey {
+  /// Create a new sender public key from bytes.
+  pub fn new(bytes: Vec<u8>) -> Self {
+    Self { bytes }
+  }
+
+  /// Get the inner bytes.
+  pub fn into_inner(self) -> Vec<u8> {
+    self.bytes
+  }
+}
+
+/// A wrapper around a vec of bytes that represents plain text bytes.
+#[derive(Debug, Clone)]
+pub struct PlainTextBytes(Bytes);
+
+impl PlainTextBytes {
+  /// Create new plain text bytes from bytes.
+  pub fn new(bytes: Bytes) -> Self {
+    Self(bytes)
+  }
+
+  /// Get the inner bytes.
+  pub fn into_inner(self) -> Bytes {
+    self.0
+  }
+}
 
 // #[async_trait]
 // pub trait Crypt4gh {
@@ -21,7 +57,7 @@ pub mod error;
 //         let mut chunk: [u8; 65535];
 //         encrypted_data.read_exact(&mut chunk).await.unwrap();
 
-//         crypt4gh::decrypt(keys, read_buffer, write_buffer, range_start, range_span, sender_pubkey)
+//         crypt4gh::decryptor(keys, read_buffer, write_buffer, range_start, range_span, sender_pubkey)
 
 //         panic!();
 //     }
@@ -69,7 +105,7 @@ pub mod error;
 //     // // TODO: read the number of bytes we need, e.g. 64kb per block
 //     // // TODO: loop over the whole async read.
 //     // match ready!(this.inner.read_exact(cx)) {
-//     //     Some(Ok(buf)) => Poll::Ready(Ok(Cryptor::new(buf, this.keys, this.sender_pubkey).decrypt())),
+//     //     Some(Ok(buf)) => Poll::Ready(Ok(Cryptor::new(buf, this.keys, this.sender_pubkey).decryptor())),
 //     //     Some(Err(e)) => Poll::Ready(Err(e)),
 //     //     None => Poll::Ready(None),
 //     // }
@@ -199,7 +235,7 @@ pub(crate) mod tests {
 
     // reader.read_block();
 
-    // let plaintext = DataBlockStreamDecryptor::new().decrypt();
+    // let plaintext = DataBlockStreamDecryptor::new().decryptor();
     //
     // assert_eq!(PLAINTEXT, plaintext);
   }
