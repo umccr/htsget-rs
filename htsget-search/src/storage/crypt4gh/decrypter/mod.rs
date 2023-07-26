@@ -22,6 +22,10 @@ use std::task::{Context, Poll};
 use tokio::io::AsyncRead;
 use tokio_util::codec::FramedRead;
 
+pub struct DecrypterState {
+
+}
+
 pin_project! {
     /// A decrypter for an entire AsyncRead Crypt4GH file.
     pub struct DecrypterStream<R> {
@@ -29,7 +33,8 @@ pin_project! {
         inner: FramedRead<R, Block>,
         keys: Vec<Keys>,
         sender_pubkey: Option<SenderPublicKey>,
-        session_keys: Vec<Vec<u8>>
+        session_keys: Vec<Vec<u8>>,
+        header_packets: Vec<Bytes>
     }
 }
 
@@ -44,6 +49,7 @@ where
       keys,
       sender_pubkey,
       session_keys: vec![],
+      header_packets: vec![],
     }
   }
 
@@ -101,7 +107,7 @@ where
     let this = self.project();
 
     if this.session_keys.is_empty() {
-      Poll::Ready(Some(Err(Crypt4GHError(NoSupportedEncryptionMethod))))
+      Poll::Ready(Some(Err(Crypt4GHError(NoSupportedEncryptionMethod.to_string()))))
     } else {
       Poll::Ready(Some(Ok(DataBlockDecrypter::new(
         data_block,
@@ -119,8 +125,22 @@ where
   type Item = Result<DataBlockDecrypter>;
 
   fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-    let this = self.as_mut().project();
-    let item = this.inner.poll_next(cx);
+    let mut item = self.as_mut().project().inner.poll_next(cx);
+
+    if let Poll::Ready(Some(Ok(DecodedBlock::HeaderInfo(_)))) = item {
+      item = self.as_mut().project().inner.poll_next(cx);
+
+      if let Poll::Ready(Some(Ok(DecodedBlock::HeaderInfo(_)))) = item {
+        return Poll::Ready(Some(Err(Crypt4GHError("invalid Crypt4GH file".to_string()))))
+      }
+    }
+
+    if let Poll::Ready(Some(Ok(DecodedBlock::HeaderPacket(header_packet)))) = item {
+      self.header_packets.push(header_packet);
+
+      return Poll::Pending;
+    }
+
 
     match ready!(item) {
       Some(Ok(buf)) => {

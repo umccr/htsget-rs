@@ -31,7 +31,7 @@ impl DataBlockDecrypter {
     // Todo allow limit to be passed here.
     let mut write_info = WriteInfo::new(0, None, &mut write_buf);
 
-    body_decrypt(read_buf, keys.as_slice(), &mut write_info, 0).map_err(Crypt4GHError)?;
+    body_decrypt(read_buf, keys.as_slice(), &mut write_info, 0).map_err(|err| Crypt4GHError(err.to_string()))?;
 
     Ok(PlainTextBytes(write_buf.into_inner().into()))
   }

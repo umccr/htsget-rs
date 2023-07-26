@@ -24,7 +24,7 @@ pub enum Error {
   #[error("maximum header size exceeded")]
   MaximumHeaderSize,
   #[error("crypt4gh error: `{0}`")]
-  Crypt4GHError(Crypt4GHError),
+  Crypt4GHError(String),
 }
 
 impl From<io::Error> for Error {
