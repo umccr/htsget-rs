@@ -12,16 +12,16 @@ use std::task::{Context, Poll};
 use tokio::task::JoinHandle;
 
 pin_project! {
-    pub struct DataBlockDecryptor {
+    pub struct DataBlockDecrypter {
         #[pin]
         handle: JoinHandle<Result<PlainTextBytes>>
     }
 }
 
-impl DataBlockDecryptor {
+impl DataBlockDecrypter {
   pub fn new(data_block: Bytes, keys: Vec<Vec<u8>>) -> Self {
     Self {
-      handle: tokio::task::spawn_blocking(move || DataBlockDecryptor::decrypt(data_block, keys)),
+      handle: tokio::task::spawn_blocking(move || DataBlockDecrypter::decrypt(data_block, keys)),
     }
   }
 
@@ -37,7 +37,7 @@ impl DataBlockDecryptor {
   }
 }
 
-impl Future for DataBlockDecryptor {
+impl Future for DataBlockDecrypter {
   type Output = Result<PlainTextBytes>;
 
   fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -51,10 +51,10 @@ mod tests {
   use crate::storage::crypt4gh::decoder::tests::{assert_first_data_block, get_first_data_block};
 
   #[tokio::test]
-  async fn data_block_decryptor() {
+  async fn data_block_decrypter() {
     let (header_packets, data_block) = get_first_data_block().await;
 
-    let data = DataBlockDecryptor::new(data_block, header_packets.data_enc_packets)
+    let data = DataBlockDecrypter::new(data_block, header_packets.data_enc_packets)
       .await
       .unwrap();
 

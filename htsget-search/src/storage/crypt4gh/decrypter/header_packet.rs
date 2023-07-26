@@ -4,47 +4,53 @@ use crate::storage::crypt4gh::SenderPublicKey;
 use bytes::Bytes;
 use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
 use crypt4gh::Keys;
+use futures::future::JoinAll;
 use futures::Stream;
+use futures_util::future::{join_all, select_all};
 use pin_project_lite::pin_project;
 use std::future::Future;
 use std::pin::Pin;
+use std::result;
 use std::task::{Context, Poll};
-use tokio::task::JoinHandle;
+use tokio::task::{spawn_blocking, JoinError, JoinHandle};
 
 pin_project! {
-    pub struct HeaderPacketDecryptor {
+    pub struct HeaderPacketsDecrypter {
         #[pin]
         handle: JoinHandle<Result<DecryptedHeaderPackets>>
     }
 }
 
-impl HeaderPacketDecryptor {
+impl HeaderPacketsDecrypter {
   pub fn new(
-    header_packet: Bytes,
+    header_packets: Vec<Bytes>,
     keys: Vec<Keys>,
     sender_pubkey: Option<SenderPublicKey>,
   ) -> Self {
     Self {
-      handle: tokio::task::spawn_blocking(move || {
-        HeaderPacketDecryptor::decrypt(header_packet, keys, sender_pubkey)
+      handle: spawn_blocking(|| {
+        HeaderPacketsDecrypter::decrypt(header_packets, keys, sender_pubkey)
       }),
     }
   }
 
   pub fn decrypt(
-    header_packet: Bytes,
+    header_packets: Vec<Bytes>,
     keys: Vec<Keys>,
     sender_pubkey: Option<SenderPublicKey>,
   ) -> Result<DecryptedHeaderPackets> {
     Ok(deconstruct_header_body(
-      vec![header_packet.to_vec()],
+      header_packets
+        .into_iter()
+        .map(|bytes| bytes.to_vec())
+        .collect(),
       keys.as_slice(),
       &sender_pubkey.map(|pubkey| pubkey.into_inner()),
     )?)
   }
 }
 
-impl Future for HeaderPacketDecryptor {
+impl Future for HeaderPacketsDecrypter {
   type Output = Result<DecryptedHeaderPackets>;
 
   fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -60,16 +66,14 @@ mod tests {
   };
 
   #[tokio::test]
-  async fn header_packet_decryptor() {
+  async fn header_packet_decrypter() {
     let (recipient_private_key, sender_public_key, header_packet, _) =
       get_first_header_packet().await;
 
-    let data = HeaderPacketDecryptor::new(
-      header_packet,
+    let data = HeaderPacketsDecrypter::new(
+      vec![header_packet],
       vec![recipient_private_key],
-      Some(SenderPublicKey {
-        bytes: sender_public_key,
-      }),
+      Some(SenderPublicKey::new(sender_public_key)),
     )
     .await
     .unwrap();

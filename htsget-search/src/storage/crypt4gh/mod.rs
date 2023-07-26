@@ -11,7 +11,7 @@ use tokio::io::AsyncBufRead;
 use tokio::io::AsyncRead;
 
 mod decoder;
-pub mod decryptor;
+pub mod decrypter;
 pub mod error;
 
 /// A wrapper around a vec of bytes that represent a sender public key.
@@ -57,7 +57,7 @@ impl PlainTextBytes {
 //         let mut chunk: [u8; 65535];
 //         encrypted_data.read_exact(&mut chunk).await.unwrap();
 
-//         crypt4gh::decryptor(keys, read_buffer, write_buffer, range_start, range_span, sender_pubkey)
+//         crypt4gh::decrypter(keys, read_buffer, write_buffer, range_start, range_span, sender_pubkey)
 
 //         panic!();
 //     }
@@ -105,7 +105,7 @@ impl PlainTextBytes {
 //     // // TODO: read the number of bytes we need, e.g. 64kb per block
 //     // // TODO: loop over the whole async read.
 //     // match ready!(this.inner.read_exact(cx)) {
-//     //     Some(Ok(buf)) => Poll::Ready(Ok(Cryptor::new(buf, this.keys, this.sender_pubkey).decryptor())),
+//     //     Some(Ok(buf)) => Poll::Ready(Ok(Cryptor::new(buf, this.keys, this.sender_pubkey).decrypter())),
 //     //     Some(Err(e)) => Poll::Ready(Err(e)),
 //     //     None => Poll::Ready(None),
 //     // }
@@ -235,7 +235,7 @@ pub(crate) mod tests {
 
     // reader.read_block();
 
-    // let plaintext = DataBlockStreamDecryptor::new().decryptor();
+    // let plaintext = DataBlockStreamDecryptor::new().decrypter();
     //
     // assert_eq!(PLAINTEXT, plaintext);
   }
