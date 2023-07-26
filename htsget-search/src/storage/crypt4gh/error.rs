@@ -35,6 +35,6 @@ impl From<io::Error> for Error {
 
 impl From<Crypt4GHError> for Error {
   fn from(error: Crypt4GHError) -> Self {
-    Self::Crypt4GHError(error)
+    Self::Crypt4GHError(error.to_string())
   }
 }

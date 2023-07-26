@@ -135,29 +135,29 @@ where
       }
     }
 
-    if let Poll::Ready(Some(Ok(DecodedBlock::HeaderPacket(header_packet)))) = item {
-      self.header_packets.push(header_packet);
+    // if let Poll::Ready(Some(Ok(DecodedBlock::HeaderPackets(header_packet)))) = item {
+    //   self.header_packets.push(header_packet);
+    //
+    //   return Poll::Pending;
+    // }
 
-      return Poll::Pending;
-    }
-
-
-    match ready!(item) {
-      Some(Ok(buf)) => {
-        match buf {
-          DecodedBlock::HeaderInfo(_) => {
-            // Nothing to do on header info.
-            // Need to ensure that the future is polled again.
-            cx.waker().wake_by_ref();
-            Poll::Pending
-          }
-          DecodedBlock::HeaderPacket(header_packet) => self.poll_header_packet(cx, header_packet),
-          DecodedBlock::DataBlock(data_block) => self.poll_data_block(data_block),
-        }
-      }
-      Some(Err(e)) => Poll::Ready(Some(Err(e))),
-      None => Poll::Ready(None),
-    }
+    todo!();
+    // match ready!(item) {
+    //   Some(Ok(buf)) => {
+    //     match buf {
+    //       DecodedBlock::HeaderInfo(_) => {
+    //         // Nothing to do on header info.
+    //         // Need to ensure that the future is polled again.
+    //         cx.waker().wake_by_ref();
+    //         Poll::Pending
+    //       }
+    //       DecodedBlock::HeaderPacket(header_packet) => self.poll_header_packet(cx, header_packet),
+    //       DecodedBlock::DataBlock(data_block) => self.poll_data_block(data_block),
+    //     }
+    //   }
+    //   Some(Err(e)) => Poll::Ready(Some(Err(e))),
+    //   None => Poll::Ready(None),
+    // }
   }
 }
 

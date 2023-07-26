@@ -67,11 +67,11 @@ mod tests {
 
   #[tokio::test]
   async fn header_packet_decrypter() {
-    let (recipient_private_key, sender_public_key, header_packet, _) =
+    let (recipient_private_key, sender_public_key, header_packets, _) =
       get_first_header_packet().await;
 
     let data = HeaderPacketsDecrypter::new(
-      vec![header_packet],
+      header_packets,
       vec![recipient_private_key],
       Some(SenderPublicKey::new(sender_public_key)),
     )

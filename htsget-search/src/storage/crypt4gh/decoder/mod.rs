@@ -30,9 +30,9 @@ pub enum DecodedBlock {
   /// The magic string, version string and header packet count.
   /// Corresponds to `deconstruct_header_info`.
   HeaderInfo(HeaderInfo),
-  /// A header packet, either a data encryption key packet or a data edit list packet.
+  /// Header packets, both data encryption key packets and a data edit list packets.
   /// Corresponds to `deconstruct_header_body`.
-  HeaderPacket(Bytes),
+  HeaderPackets(Vec<Bytes>),
   /// The encrypted data blocks
   /// Corresponds to `body_decrypt`.
   DataBlock(Bytes),
@@ -91,49 +91,47 @@ impl Block {
     src: &mut BytesMut,
     mut header_packets: u32,
   ) -> Result<Option<DecodedBlock>> {
-    // Get enough bytes to read the header packet length.
-    if src.len() < HEADER_PACKET_LENGTH_SIZE {
-      src.reserve(HEADER_PACKET_LENGTH_SIZE);
-      return Ok(None);
-    }
+    let mut header_packet_bytes = vec![];
+    for _ in 0..header_packets {
+      // Get enough bytes to read the header packet length.
+      if src.len() < HEADER_PACKET_LENGTH_SIZE {
+        src.reserve(HEADER_PACKET_LENGTH_SIZE);
+        return Ok(None);
+      }
 
-    // Read the header packet length.
-    let mut length: usize = u32::from_le_bytes(
-      src
-        .split_to(HEADER_PACKET_LENGTH_SIZE)
-        .freeze()
-        .as_ref()
+      // Read the header packet length.
+      let mut length: usize = u32::from_le_bytes(
+        src
+          .split_to(HEADER_PACKET_LENGTH_SIZE)
+          .freeze()
+          .as_ref()
+          .try_into()
+          .map_err(|_| SliceConversionError)?,
+      )
         .try_into()
-        .map_err(|_| SliceConversionError)?,
-    )
-    .try_into()
-    .map_err(|_| NumericConversionError)?;
+        .map_err(|_| NumericConversionError)?;
 
-    // We have already taken 4 bytes out of the length.
-    length -= HEADER_PACKET_LENGTH_SIZE;
+      // We have already taken 4 bytes out of the length.
+      length -= HEADER_PACKET_LENGTH_SIZE;
 
-    // Have a maximum header size to prevent any overflows.
-    if length > MAX_HEADER_SIZE {
-      return Err(MaximumHeaderSize);
+      // Have a maximum header size to prevent any overflows.
+      if length > MAX_HEADER_SIZE {
+        return Err(MaximumHeaderSize);
+      }
+
+      // Get enough bytes to read the entire header packet.
+      if src.len() < length {
+        src.reserve(length - src.len());
+        return Ok(None);
+      }
+
+      header_packet_bytes.push(src.split_to(length).freeze());
     }
 
-    // Get enough bytes to read the entire header packet.
-    if src.len() < length {
-      src.reserve(length - src.len());
-      return Ok(None);
-    }
+    self.next_block = BlockState::DataBlock;
 
-    // Keep processing header packets if there are any left,
-    // otherwise go to data blocks.
-    header_packets -= 1;
-    if header_packets > 0 {
-      self.next_block = BlockState::HeaderPackets(header_packets);
-    } else {
-      self.next_block = BlockState::DataBlock;
-    }
-
-    Ok(Some(DecodedBlock::HeaderPacket(
-      src.split_to(length).freeze(),
+    Ok(Some(DecodedBlock::HeaderPackets(
+      header_packet_bytes
     )))
   }
 
@@ -246,17 +244,17 @@ pub(crate) mod tests {
 
   /// Get the first header packet from the test file.
   pub(crate) async fn get_first_header_packet(
-  ) -> (Keys, Vec<u8>, Bytes, Skip<FramedRead<File, Block>>) {
+  ) -> (Keys, Vec<u8>, Vec<Bytes>, Skip<FramedRead<File, Block>>) {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = FramedRead::new(src, Block::default()).skip(1);
 
     // The second block should contain a header packet.
-    let header_packet = reader.next().await.unwrap().unwrap();
+    let header_packets = reader.next().await.unwrap().unwrap();
 
-    let header_packet = if let DecodedBlock::HeaderPacket(header_packet) = header_packet {
-      Some(header_packet)
+    let header_packet = if let DecodedBlock::HeaderPackets(header_packets) = header_packets {
+      Some(header_packets)
     } else {
       None
     }
@@ -272,9 +270,9 @@ pub(crate) mod tests {
 
   /// Get the first data block from the test file.
   pub(crate) async fn get_first_data_block() -> (DecryptedHeaderPackets, Bytes) {
-    let (recipient_private_key, sender_public_key, header_packet, mut reader) =
+    let (recipient_private_key, sender_public_key, header_packets, mut reader) =
       get_first_header_packet().await;
-    let header = get_header_packets(recipient_private_key, sender_public_key, header_packet);
+    let header = get_header_packets(recipient_private_key, sender_public_key, header_packets);
 
     // The third block should be a data block.
     let data_block = reader.next().await.unwrap().unwrap();
@@ -293,13 +291,13 @@ pub(crate) mod tests {
   pub(crate) fn get_header_packets(
     recipient_private_key: Keys,
     sender_public_key: Vec<u8>,
-    header_packet: Bytes,
+    header_packet: Vec<Bytes>,
   ) -> DecryptedHeaderPackets {
     // Assert the size of the header packet is correct.
     assert_eq!(header_packet.len(), 104);
 
     deconstruct_header_body(
-      vec![header_packet.to_vec()],
+      header_packet.into_iter().map(|header_packet| header_packet.to_vec()).collect(),
       &[recipient_private_key],
       &Some(sender_public_key),
     )
