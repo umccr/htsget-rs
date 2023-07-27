@@ -2,7 +2,7 @@ use crate::storage::crypt4gh::error::Error::{
   DecodingHeaderInfo, MaximumHeaderSize, NumericConversionError, SliceConversionError,
 };
 use crate::storage::crypt4gh::error::{Error, Result};
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use tokio_util::codec::Decoder;
 
@@ -89,7 +89,7 @@ impl Block {
   pub fn decode_header_packets(
     &mut self,
     src: &mut BytesMut,
-    mut header_packets: u32,
+    header_packets: u32,
   ) -> Result<Option<DecodedBlock>> {
     let mut header_packet_bytes = vec![];
     for _ in 0..header_packets {
@@ -177,7 +177,7 @@ impl Decoder for Block {
 pub(crate) mod tests {
   use super::*;
   use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
-  use crypt4gh::{body_decrypt, Keys, WriteInfo};
+  use crypt4gh::{body_decrypt, decrypt, Keys, WriteInfo};
   use futures_util::stream::Skip;
   use std::io::Cursor;
 
