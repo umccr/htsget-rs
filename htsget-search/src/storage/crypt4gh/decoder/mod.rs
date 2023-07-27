@@ -1,9 +1,11 @@
 use crate::storage::crypt4gh::error::Error::{
-  DecodingHeaderInfo, MaximumHeaderSize, NumericConversionError, SliceConversionError,
+  Crypt4GHError, DecodingHeaderInfo, MaximumHeaderSize, NumericConversionError,
+  SliceConversionError,
 };
 use crate::storage::crypt4gh::error::{Error, Result};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
+use std::io;
 use tokio_util::codec::Decoder;
 
 pub const ENCRYPTED_BLOCK_SIZE: usize = 65536;
@@ -47,6 +49,9 @@ enum BlockState {
   HeaderPackets(u32),
   /// Expecting a data block.
   DataBlock,
+  /// Expecting the end of the file. This is to account for the last data block potentially being
+  /// shorter.
+  Eof,
 }
 
 #[derive(Debug)]
@@ -108,8 +113,8 @@ impl Block {
           .try_into()
           .map_err(|_| SliceConversionError)?,
       )
-        .try_into()
-        .map_err(|_| NumericConversionError)?;
+      .try_into()
+      .map_err(|_| NumericConversionError)?;
 
       // We have already taken 4 bytes out of the length.
       length -= HEADER_PACKET_LENGTH_SIZE;
@@ -130,9 +135,7 @@ impl Block {
 
     self.next_block = BlockState::DataBlock;
 
-    Ok(Some(DecodedBlock::HeaderPackets(
-      header_packet_bytes
-    )))
+    Ok(Some(DecodedBlock::HeaderPackets(header_packet_bytes)))
   }
 
   /// Decodes data blocks, updates the state and returns a data block type.
@@ -169,6 +172,31 @@ impl Decoder for Block {
       BlockState::HeaderInfo => self.decode_header_info(src),
       BlockState::HeaderPackets(header_packets) => self.decode_header_packets(src, header_packets),
       BlockState::DataBlock => self.decode_data_block(src),
+      BlockState::Eof => Ok(None),
+    }
+  }
+
+  fn decode_eof(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>> {
+    match self.decode(buf)? {
+      Some(frame) => Ok(Some(frame)),
+      None => {
+        if buf.is_empty() {
+          Ok(None)
+        } else if let BlockState::DataBlock = self.next_block {
+          // The last data block can be smaller than 64KiB.
+          if buf.len() <= DATA_BLOCK_SIZE {
+            self.next_block = BlockState::Eof;
+
+            Ok(Some(DecodedBlock::DataBlock(buf.split().freeze())))
+          } else {
+            Err(Crypt4GHError(
+              "the last data block is too large".to_string(),
+            ))
+          }
+        } else {
+          Err(io::Error::new(io::ErrorKind::Other, "bytes remaining on stream").into())
+        }
+      }
     }
   }
 }
@@ -214,7 +242,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn decode_data_block() {
-    let (header, data_block) = get_first_data_block().await;
+    let (header, data_block) = get_data_block(0).await;
 
     let read_buf = Cursor::new(data_block.to_vec());
     let mut write_buf = Cursor::new(vec![]);
@@ -227,10 +255,45 @@ pub(crate) mod tests {
     assert_first_data_block(decrypted_bytes).await;
   }
 
+  #[tokio::test]
+  async fn decode_eof() {
+    let (header, data_block) = get_data_block(39).await;
+
+    let read_buf = Cursor::new(data_block.to_vec());
+    let mut write_buf = Cursor::new(vec![]);
+    let mut write_info = WriteInfo::new(0, None, &mut write_buf);
+
+    body_decrypt(read_buf, &header.data_enc_packets, &mut write_info, 0).unwrap();
+
+    let decrypted_bytes = write_buf.into_inner();
+
+    assert_last_data_block(decrypted_bytes).await;
+  }
+
   /// Assert that the first header packet is a data encryption key packet.
   pub(crate) fn assert_first_header_packet(header: DecryptedHeaderPackets) {
     assert_eq!(header.data_enc_packets.len(), 1);
     assert!(header.edit_list_packet.is_none());
+  }
+
+  /// Assert that the last data block is equal to the expected ending bytes of the original file.
+  pub(crate) async fn assert_last_data_block(decrypted_bytes: Vec<u8>) {
+    let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
+    let mut original_bytes = vec![];
+    original_file
+      .read_to_end(&mut original_bytes)
+      .await
+      .unwrap();
+
+    assert_eq!(
+      decrypted_bytes,
+      original_bytes
+        .into_iter()
+        .rev()
+        .take(40895)
+        .rev()
+        .collect::<Vec<u8>>()
+    );
   }
 
   /// Assert that the first data block is equal to the first 64KiB of the original file.
@@ -269,13 +332,12 @@ pub(crate) mod tests {
   }
 
   /// Get the first data block from the test file.
-  pub(crate) async fn get_first_data_block() -> (DecryptedHeaderPackets, Bytes) {
-    let (recipient_private_key, sender_public_key, header_packets, mut reader) =
+  pub(crate) async fn get_data_block(skip: usize) -> (DecryptedHeaderPackets, Bytes) {
+    let (recipient_private_key, sender_public_key, header_packets, reader) =
       get_first_header_packet().await;
     let header = get_header_packets(recipient_private_key, sender_public_key, header_packets);
 
-    // The third block should be a data block.
-    let data_block = reader.next().await.unwrap().unwrap();
+    let data_block = reader.skip(skip).next().await.unwrap().unwrap();
 
     let data_block = if let DecodedBlock::DataBlock(data_block) = data_block {
       Some(data_block)
@@ -291,13 +353,17 @@ pub(crate) mod tests {
   pub(crate) fn get_header_packets(
     recipient_private_key: Keys,
     sender_public_key: Vec<u8>,
-    header_packet: Vec<Bytes>,
+    header_packets: Vec<Bytes>,
   ) -> DecryptedHeaderPackets {
     // Assert the size of the header packet is correct.
-    assert_eq!(header_packet.len(), 104);
+    assert_eq!(header_packets.len(), 1);
+    assert_eq!(header_packets.first().unwrap().len(), 104);
 
     deconstruct_header_body(
-      header_packet.into_iter().map(|header_packet| header_packet.to_vec()).collect(),
+      header_packets
+        .into_iter()
+        .map(|header_packet| header_packet.to_vec())
+        .collect(),
       &[recipient_private_key],
       &Some(sender_public_key),
     )

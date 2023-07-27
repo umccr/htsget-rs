@@ -31,7 +31,8 @@ impl DataBlockDecrypter {
     // Todo allow limit to be passed here.
     let mut write_info = WriteInfo::new(0, None, &mut write_buf);
 
-    body_decrypt(read_buf, keys.as_slice(), &mut write_info, 0).map_err(|err| Crypt4GHError(err.to_string()))?;
+    body_decrypt(read_buf, keys.as_slice(), &mut write_info, 0)
+      .map_err(|err| Crypt4GHError(err.to_string()))?;
 
     Ok(PlainTextBytes(write_buf.into_inner().into()))
   }
@@ -48,11 +49,11 @@ impl Future for DataBlockDecrypter {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::storage::crypt4gh::decoder::tests::{assert_first_data_block, get_first_data_block};
+  use crate::storage::crypt4gh::decoder::tests::{assert_first_data_block, get_data_block};
 
   #[tokio::test]
   async fn data_block_decrypter() {
-    let (header_packets, data_block) = get_first_data_block().await;
+    let (header_packets, data_block) = get_data_block(0).await;
 
     let data = DataBlockDecrypter::new(data_block, header_packets.data_enc_packets)
       .await

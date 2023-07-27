@@ -60,7 +60,9 @@ where
     let this = self.project();
 
     if this.session_keys.is_empty() {
-      Poll::Ready(Some(Err(Crypt4GHError(NoSupportedEncryptionMethod.to_string()))))
+      Poll::Ready(Some(Err(Crypt4GHError(
+        NoSupportedEncryptionMethod.to_string(),
+      ))))
     } else {
       Poll::Ready(Some(Ok(DataBlockDecrypter::new(
         data_block,
@@ -78,11 +80,16 @@ where
   type Item = Result<DataBlockDecrypter>;
 
   fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-    if let Some(header_packet_decrypter) = self.as_mut().project().header_packet_future.as_pin_mut() {
+    if let Some(header_packet_decrypter) = self.as_mut().project().header_packet_future.as_pin_mut()
+    {
       match header_packet_decrypter.poll(cx) {
         Poll::Ready(Ok(header_packets)) => {
           self.as_mut().project().header_packet_future.set(None);
-          self.as_mut().project().session_keys.extend(header_packets.data_enc_packets);
+          self
+            .as_mut()
+            .project()
+            .session_keys
+            .extend(header_packets.data_enc_packets);
         }
         Poll::Ready(Err(err)) => {
           return Poll::Ready(Some(Err(err)));
@@ -96,26 +103,26 @@ where
     let item = self.as_mut().project().inner.poll_next(cx);
 
     match ready!(item) {
-      Some(Ok(buf)) => {
-        match buf {
-          DecodedBlock::HeaderInfo(_) => {
-            cx.waker().wake_by_ref();
-            Poll::Pending
-          }
-          DecodedBlock::HeaderPackets(header_packets) => {
-            let mut this = self.as_mut().project();
-            this.header_packet_future.set(Some(HeaderPacketsDecrypter::new(
+      Some(Ok(buf)) => match buf {
+        DecodedBlock::HeaderInfo(_) => {
+          cx.waker().wake_by_ref();
+          Poll::Pending
+        }
+        DecodedBlock::HeaderPackets(header_packets) => {
+          let mut this = self.as_mut().project();
+          this
+            .header_packet_future
+            .set(Some(HeaderPacketsDecrypter::new(
               header_packets,
               this.keys.clone(),
               this.sender_pubkey.clone(),
             )));
 
-            cx.waker().wake_by_ref();
-            Poll::Pending
-          },
-          DecodedBlock::DataBlock(data_block) => self.poll_data_block(data_block),
+          cx.waker().wake_by_ref();
+          Poll::Pending
         }
-      }
+        DecodedBlock::DataBlock(data_block) => self.poll_data_block(data_block),
+      },
       Some(Err(e)) => Poll::Ready(Some(Err(e))),
       None => Poll::Ready(None),
     }
@@ -124,13 +131,13 @@ where
 
 #[cfg(test)]
 mod tests {
-  use std::io::Cursor;
-  use crypt4gh::{decrypt, WriteInfo};
   use super::*;
   use crate::storage::crypt4gh::tests::get_keys;
+  use crypt4gh::{decrypt, WriteInfo};
   use futures_util::future::join_all;
   use futures_util::StreamExt;
   use htsget_test::http_tests::get_test_file;
+  use std::io::Cursor;
   use tokio::io::AsyncReadExt;
 
   #[tokio::test]
@@ -138,11 +145,9 @@ mod tests {
     let mut src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-
     let mut read_buf = vec![];
 
     src.read_to_end(&mut read_buf).await.unwrap();
-
 
     let mut write_buf = Cursor::new(vec![]);
     // Todo allow limit to be passed here.
@@ -154,7 +159,10 @@ mod tests {
       &mut write_buf,
       0,
       None,
-      &None).map_err(|err| Crypt4GHError(err.to_string())).unwrap();
+      &None,
+    )
+    .map_err(|err| Crypt4GHError(err.to_string()))
+    .unwrap();
 
     // let mut stream = DecrypterStream::new(
     //   src,
