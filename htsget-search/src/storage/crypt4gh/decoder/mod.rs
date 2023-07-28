@@ -3,7 +3,7 @@ use crate::storage::crypt4gh::error::Error::{
   SliceConversionError,
 };
 use crate::storage::crypt4gh::error::{Error, Result};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use std::io;
 use tokio_util::codec::Decoder;
@@ -205,7 +205,7 @@ impl Decoder for Block {
 pub(crate) mod tests {
   use super::*;
   use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
-  use crypt4gh::{body_decrypt, decrypt, Keys, WriteInfo};
+  use crypt4gh::{body_decrypt, Keys, WriteInfo};
   use futures_util::stream::Skip;
   use std::io::Cursor;
 

@@ -5,7 +5,7 @@ use crate::storage::crypt4gh::decoder::Block;
 use crate::storage::crypt4gh::decoder::DecodedBlock;
 use crate::storage::crypt4gh::decrypter::data_block::DataBlockDecrypter;
 use crate::storage::crypt4gh::decrypter::header_packet::HeaderPacketsDecrypter;
-use crate::storage::crypt4gh::error::Error::{Crypt4GHError, JoinHandleError};
+use crate::storage::crypt4gh::error::Error::Crypt4GHError;
 use crate::storage::crypt4gh::error::Result;
 use crate::storage::crypt4gh::SenderPublicKey;
 use bytes::Bytes;
@@ -15,8 +15,6 @@ use futures::ready;
 use futures::Stream;
 use pin_project_lite::pin_project;
 use std::future::Future;
-use std::io;
-use std::io::Write;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::AsyncRead;
@@ -133,60 +131,46 @@ where
 mod tests {
   use super::*;
   use crate::storage::crypt4gh::tests::get_keys;
-  use crypt4gh::{decrypt, WriteInfo};
+  use bytes::BytesMut;
   use futures_util::future::join_all;
   use futures_util::StreamExt;
   use htsget_test::http_tests::get_test_file;
-  use std::io::Cursor;
   use tokio::io::AsyncReadExt;
 
   #[tokio::test]
   async fn decrypter_stream() {
-    let mut src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut read_buf = vec![];
-
-    src.read_to_end(&mut read_buf).await.unwrap();
-
-    let mut write_buf = Cursor::new(vec![]);
     // Todo allow limit to be passed here.
-    let mut write_info = WriteInfo::new(0, None, &mut write_buf);
+    let mut stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
 
-    decrypt(
-      &vec![recipient_private_key],
-      &mut Cursor::new(read_buf),
-      &mut write_buf,
-      0,
-      None,
-      &None,
-    )
-    .map_err(|err| Crypt4GHError(err.to_string()))
-    .unwrap();
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
 
-    // let mut stream = DecrypterStream::new(
-    //   src,
-    //   vec![recipient_private_key],
-    //   Some(SenderPublicKey::new(sender_public_key)),
-    // );
-    //
-    // let mut futures = vec![];
-    // while let Some(block) = stream.next().await {
-    //   futures.push(block);
-    // }
-    //
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          acc.extend(bytes.unwrap().0);
+          acc
+        });
 
-    // This should also test the concurrency of the data block futures as they are joined asynchronously.
-    // let decrypted_bytes = join_all(futures).await.into_iter().fold(vec![], |mut acc, bytes| {
-    //   acc.push(bytes);
-    //   acc
-    // });
+    let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
+    let mut original_bytes = vec![];
+    original_file
+      .read_to_end(&mut original_bytes)
+      .await
+      .unwrap();
 
-    // let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
-    // let mut original_bytes = vec![];
-    // original_file.read_to_end(&mut original_bytes).await.unwrap();
-    //
-    // // Assert that the decrypted bytes are equal to the original file.
-    // assert_eq!(decrypted_bytes, original_bytes);
+    // Assert that the decrypted bytes are equal to the original file.
+    assert_eq!(decrypted_bytes, original_bytes);
   }
 }

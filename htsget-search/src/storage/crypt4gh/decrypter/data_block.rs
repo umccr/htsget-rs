@@ -3,7 +3,6 @@ use crate::storage::crypt4gh::error::Result;
 use crate::storage::crypt4gh::PlainTextBytes;
 use bytes::Bytes;
 use crypt4gh::{body_decrypt, WriteInfo};
-use futures::Stream;
 use pin_project_lite::pin_project;
 use std::future::Future;
 use std::io::Cursor;

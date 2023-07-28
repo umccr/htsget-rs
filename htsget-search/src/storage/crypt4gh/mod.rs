@@ -1,11 +1,7 @@
 use bytes::Bytes;
 use crypt4gh::Keys;
-use futures::ready;
 use futures::Stream;
-use pin_project_lite::pin_project;
 use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::{cmp, io};
 use tokio::io::AsyncBufRead;
 use tokio::io::AsyncRead;
