@@ -1,14 +1,16 @@
-use crate::storage::crypt4gh::error::Error::JoinHandleError;
-use crate::storage::crypt4gh::error::Result;
-use crate::storage::crypt4gh::SenderPublicKey;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use bytes::Bytes;
 use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
 use crypt4gh::Keys;
 use pin_project_lite::pin_project;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use tokio::task::{spawn_blocking, JoinHandle};
+
+use crate::storage::crypt4gh::error::Error::JoinHandleError;
+use crate::storage::crypt4gh::error::Result;
+use crate::storage::crypt4gh::SenderPublicKey;
 
 pin_project! {
     pub struct HeaderPacketsDecrypter {
@@ -56,10 +58,11 @@ impl Future for HeaderPacketsDecrypter {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use crate::storage::crypt4gh::decoder::tests::{
     assert_first_header_packet, get_first_header_packet,
   };
+
+  use super::*;
 
   #[tokio::test]
   async fn header_packet_decrypter() {

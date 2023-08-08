@@ -1,14 +1,16 @@
-use crate::storage::crypt4gh::error::Error::{Crypt4GHError, JoinHandleError};
-use crate::storage::crypt4gh::error::Result;
-use crate::storage::crypt4gh::PlainTextBytes;
-use bytes::Bytes;
-use crypt4gh::{body_decrypt, WriteInfo};
-use pin_project_lite::pin_project;
 use std::future::Future;
 use std::io::Cursor;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+use bytes::Bytes;
+use crypt4gh::{body_decrypt, WriteInfo};
+use pin_project_lite::pin_project;
 use tokio::task::JoinHandle;
+
+use crate::storage::crypt4gh::error::Error::{Crypt4GHError, JoinHandleError};
+use crate::storage::crypt4gh::error::Result;
+use crate::storage::crypt4gh::PlainTextBytes;
 
 pin_project! {
     pub struct DataBlockDecrypter {
@@ -47,8 +49,9 @@ impl Future for DataBlockDecrypter {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use crate::storage::crypt4gh::decoder::tests::{assert_first_data_block, get_data_block};
+
+  use super::*;
 
   #[tokio::test]
   async fn data_block_decrypter() {

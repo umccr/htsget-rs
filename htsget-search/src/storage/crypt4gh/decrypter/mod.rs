@@ -1,5 +1,15 @@
-pub mod data_block;
-pub mod header_packet;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+use bytes::Bytes;
+use crypt4gh::error::Crypt4GHError::NoSupportedEncryptionMethod;
+use crypt4gh::Keys;
+use futures::ready;
+use futures::Stream;
+use pin_project_lite::pin_project;
+use tokio::io::AsyncRead;
+use tokio_util::codec::FramedRead;
 
 use crate::storage::crypt4gh::decoder::Block;
 use crate::storage::crypt4gh::decoder::DecodedBlock;
@@ -8,17 +18,9 @@ use crate::storage::crypt4gh::decrypter::header_packet::HeaderPacketsDecrypter;
 use crate::storage::crypt4gh::error::Error::Crypt4GHError;
 use crate::storage::crypt4gh::error::Result;
 use crate::storage::crypt4gh::SenderPublicKey;
-use bytes::Bytes;
-use crypt4gh::error::Crypt4GHError::NoSupportedEncryptionMethod;
-use crypt4gh::Keys;
-use futures::ready;
-use futures::Stream;
-use pin_project_lite::pin_project;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use tokio::io::AsyncRead;
-use tokio_util::codec::FramedRead;
+
+pub mod data_block;
+pub mod header_packet;
 
 pin_project! {
     /// A decrypter for an entire AsyncRead Crypt4GH file.
@@ -129,13 +131,15 @@ where
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-  use crate::storage::crypt4gh::tests::get_keys;
   use bytes::BytesMut;
   use futures_util::future::join_all;
   use futures_util::StreamExt;
+
   use htsget_test::http_tests::get_test_file;
-  use tokio::io::AsyncReadExt;
+
+  use crate::storage::crypt4gh::tests::{get_keys, get_original_file};
+
+  use super::*;
 
   #[tokio::test]
   async fn decrypter_stream() {
@@ -163,14 +167,8 @@ mod tests {
           acc
         });
 
-    let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
-    let mut original_bytes = vec![];
-    original_file
-      .read_to_end(&mut original_bytes)
-      .await
-      .unwrap();
-
-    // Assert that the decrypted bytes are equal to the original file.
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
     assert_eq!(decrypted_bytes, original_bytes);
   }
 }

@@ -1,12 +1,14 @@
+use std::io;
+
+use bytes::{Bytes, BytesMut};
+use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
+use tokio_util::codec::Decoder;
+
 use crate::storage::crypt4gh::error::Error::{
   Crypt4GHError, DecodingHeaderInfo, MaximumHeaderSize, NumericConversionError,
   SliceConversionError,
 };
 use crate::storage::crypt4gh::error::{Error, Result};
-use bytes::{Bytes, BytesMut};
-use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
-use std::io;
-use tokio_util::codec::Decoder;
 
 pub const ENCRYPTED_BLOCK_SIZE: usize = 65536;
 pub const NONCE_SIZE: usize = 12; // ChaCha20 IETF Nonce size
@@ -203,18 +205,21 @@ impl Decoder for Block {
 
 #[cfg(test)]
 pub(crate) mod tests {
-  use super::*;
+  use std::io::Cursor;
+
   use crypt4gh::header::{deconstruct_header_body, DecryptedHeaderPackets};
   use crypt4gh::{body_decrypt, Keys, WriteInfo};
   use futures_util::stream::Skip;
-  use std::io::Cursor;
-
-  use crate::storage::crypt4gh::tests::get_keys;
   use futures_util::StreamExt;
-  use htsget_test::http_tests::get_test_file;
   use tokio::fs::File;
   use tokio::io::AsyncReadExt;
   use tokio_util::codec::FramedRead;
+
+  use htsget_test::http_tests::get_test_file;
+
+  use crate::storage::crypt4gh::tests::{get_keys, get_original_file};
+
+  use super::*;
 
   #[tokio::test]
   async fn decode_header_info() {
@@ -298,11 +303,9 @@ pub(crate) mod tests {
 
   /// Assert that the first data block is equal to the first 64KiB of the original file.
   pub(crate) async fn assert_first_data_block(decrypted_bytes: Vec<u8>) {
-    let mut original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
-    let mut original_bytes = [0u8; 65536];
-    original_file.read_exact(&mut original_bytes).await.unwrap();
+    let original_bytes = get_original_file().await;
 
-    assert_eq!(decrypted_bytes, original_bytes);
+    assert_eq!(decrypted_bytes, original_bytes[..65536]);
   }
 
   /// Get the first header packet from the test file.

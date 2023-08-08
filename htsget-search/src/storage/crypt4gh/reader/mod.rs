@@ -1,28 +1,27 @@
-pub mod builder;
-
-use super::decrypter::DecrypterStream;
-use super::PlainTextBytes;
-use super::SenderPublicKey;
-use bytes::BufMut;
-use crypt4gh::Keys;
-use futures::ready;
-use futures::stream::StreamExt;
-use futures::stream::TryBuffered;
-use futures::Stream;
-use futures_util::TryStreamExt;
-use pin_project_lite::pin_project;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};
+
+use futures::ready;
+use futures::stream::TryBuffered;
+use futures::Stream;
+use pin_project_lite::pin_project;
 use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
 
+use super::decrypter::DecrypterStream;
+use super::PlainTextBytes;
+
+pub mod builder;
+
 pin_project! {
-    pub struct Reader<R> where R: AsyncRead {
-        #[pin]
-        stream:TryBuffered<DecrypterStream<R>>,
-        worker_count: usize,
-        bytes: PlainTextBytes,
-        position: usize,
+    pub struct Reader<R>
+      where R: AsyncRead
+    {
+      #[pin]
+      stream: TryBuffered<DecrypterStream<R>>,
+      worker_count: usize,
+      bytes: PlainTextBytes,
+      position: usize,
     }
 }
 
@@ -56,9 +55,9 @@ where
   fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
     let this = self.project();
 
-    // If the position is at the end of the buffer, then all the data has been read and a new
+    // If the position is past the end of the buffer, then all the data has been read and a new
     // buffer should be initialised.
-    if *this.position >= this.bytes.0.len() {
+    if *this.position >= this.bytes.len() {
       match ready!(this.stream.poll_next(cx)) {
         Some(Ok(block)) => {
           // Once we have a new buffer, reinitialise the position and buffer.
@@ -71,12 +70,72 @@ where
     }
 
     // Return the unconsumed data from the buffer.
-    Poll::Ready(Ok(&this.bytes.0[*this.position..]))
+    Poll::Ready(Ok(&this.bytes[*this.position..]))
   }
 
   fn consume(self: Pin<&mut Self>, amt: usize) {
     let this = self.project();
     // Update the position until the consumed amount reaches the end of the buffer.
-    *this.position += cmp::min(*this.position + amt, this.bytes.0.len());
+    *this.position = cmp::min(*this.position + amt, this.bytes.len());
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use noodles::bam::AsyncReader;
+  use noodles::sam::Header;
+  use tokio::io::AsyncReadExt;
+
+  use htsget_test::http_tests::get_test_file;
+
+  use crate::storage::crypt4gh::reader::builder::Builder;
+  use crate::storage::crypt4gh::tests::{get_keys, get_original_file};
+  use crate::storage::crypt4gh::SenderPublicKey;
+
+  #[tokio::test]
+  async fn reader() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default().build(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    let mut decrypted_bytes = vec![];
+    reader.read_to_end(&mut decrypted_bytes).await.unwrap();
+
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn reader_with_noodles() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let reader = Builder::default().build(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+    let mut reader = AsyncReader::new(reader);
+
+    let original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
+    let mut original_reader = AsyncReader::new(original_file);
+
+    let header: Header = reader.read_header().await.unwrap().parse().unwrap();
+    reader.read_reference_sequences().await.unwrap();
+
+    let original_header: Header = original_reader
+      .read_header()
+      .await
+      .unwrap()
+      .parse()
+      .unwrap();
+    original_reader.read_reference_sequences().await.unwrap();
+
+    assert_eq!(header, original_header);
   }
 }

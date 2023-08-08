@@ -1,5 +1,6 @@
-use crypt4gh::error::Crypt4GHError;
 use std::{io, result};
+
+use crypt4gh::error::Crypt4GHError;
 use thiserror::Error;
 use tokio::task;
 

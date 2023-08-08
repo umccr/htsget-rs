@@ -1,15 +1,17 @@
-use super::Reader;
-use crate::storage::crypt4gh::decoder::DATA_BLOCK_SIZE;
-use crate::storage::crypt4gh::decrypter::DecrypterStream;
-use crate::storage::crypt4gh::{PlainTextBytes, SenderPublicKey};
+use std::thread;
+
 use bytes::Bytes;
 use crypt4gh::Keys;
 use futures_util::TryStreamExt;
-use std::thread;
 use tokio::io::AsyncRead;
 
+use crate::storage::crypt4gh::decrypter::DecrypterStream;
+use crate::storage::crypt4gh::{PlainTextBytes, SenderPublicKey};
+
+use super::Reader;
+
 /// An async Crypt4GH reader builder.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Builder {
   worker_count: Option<usize>,
 }
