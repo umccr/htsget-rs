@@ -82,6 +82,7 @@ where
 
 #[cfg(test)]
 mod tests {
+  use futures_util::TryStreamExt;
   use noodles::bam::AsyncReader;
   use noodles::sam::Header;
   use tokio::io::AsyncReadExt;
@@ -137,5 +138,19 @@ mod tests {
     original_reader.read_reference_sequences().await.unwrap();
 
     assert_eq!(header, original_header);
+
+    let mut stream = original_reader.records(&original_header);
+    let mut original_records = vec![];
+    while let Some(record) = stream.try_next().await.unwrap() {
+      original_records.push(record);
+    }
+
+    let mut stream = reader.records(&header);
+    let mut records = vec![];
+    while let Some(record) = stream.try_next().await.unwrap() {
+      records.push(record);
+    }
+
+    assert_eq!(records, original_records);
   }
 }
