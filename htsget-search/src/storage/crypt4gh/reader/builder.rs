@@ -1,9 +1,10 @@
 use super::Reader;
+use crate::storage::crypt4gh::decoder::DATA_BLOCK_SIZE;
 use crate::storage::crypt4gh::decrypter::DecrypterStream;
-use crate::storage::crypt4gh::SenderPublicKey;
+use crate::storage::crypt4gh::{PlainTextBytes, SenderPublicKey};
+use bytes::Bytes;
 use crypt4gh::Keys;
 use futures_util::TryStreamExt;
-use std::num::NonZeroUsize;
 use std::thread;
 use tokio::io::AsyncRead;
 
@@ -37,9 +38,11 @@ impl Builder {
     });
 
     Reader {
-      stream: Some(DecrypterStream::new(reader, keys, sender_pubkey).try_buffered(worker_count)),
+      stream: DecrypterStream::new(reader, keys, sender_pubkey).try_buffered(worker_count),
       position: 0,
       worker_count,
+      // Dummy value for bytes to begin with.
+      bytes: PlainTextBytes(Bytes::new()),
     }
   }
 }
