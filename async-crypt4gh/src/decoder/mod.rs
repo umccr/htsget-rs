@@ -4,11 +4,11 @@ use bytes::{Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use tokio_util::codec::Decoder;
 
-use crate::storage::crypt4gh::error::Error::{
+use crate::error::Error::{
   Crypt4GHError, DecodingHeaderInfo, MaximumHeaderSize, NumericConversionError,
   SliceConversionError,
 };
-use crate::storage::crypt4gh::error::{Error, Result};
+use crate::error::{Error, Result};
 
 pub const ENCRYPTED_BLOCK_SIZE: usize = 65536;
 pub const NONCE_SIZE: usize = 12; // ChaCha20 IETF Nonce size
@@ -217,7 +217,7 @@ pub(crate) mod tests {
 
   use htsget_test::http_tests::get_test_file;
 
-  use crate::storage::crypt4gh::tests::{get_keys, get_original_file};
+  use crate::tests::{get_keys, get_original_file};
 
   use super::*;
 

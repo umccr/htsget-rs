@@ -5,8 +5,8 @@ use crypt4gh::Keys;
 use futures_util::TryStreamExt;
 use tokio::io::AsyncRead;
 
-use crate::storage::crypt4gh::decrypter::DecrypterStream;
-use crate::storage::crypt4gh::{PlainTextBytes, SenderPublicKey};
+use crate::decrypter::DecrypterStream;
+use crate::{PlainTextBytes, SenderPublicKey};
 
 use super::Reader;
 

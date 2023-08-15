@@ -11,9 +11,9 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
+s3-storage = ["dep:aws-sdk-s3", "dep:aws-config", "dep:bytes", "htsget-config/s3-storage", "htsget-test/s3-storage"]
 url-storage = ["dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
-crypt4gh = ["dep:bytes"]
+crypt4gh = []
 default = []
 
 [dependencies]
@@ -52,10 +52,6 @@ htsget-test = { version = "0.4.2", path = "../htsget-test", features = ["cors-te
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"
-
-crypt4gh = "0.4" 
-pin-project-lite = "0.2"
-hex-literal = "0.4.1"
 
 [dev-dependencies]
 tempfile = "3.5"

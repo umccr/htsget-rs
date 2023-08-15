@@ -89,9 +89,9 @@ mod tests {
 
   use htsget_test::http_tests::get_test_file;
 
-  use crate::storage::crypt4gh::reader::builder::Builder;
-  use crate::storage::crypt4gh::tests::{get_keys, get_original_file};
-  use crate::storage::crypt4gh::SenderPublicKey;
+  use crate::reader::builder::Builder;
+  use crate::tests::{get_keys, get_original_file};
+  use crate::SenderPublicKey;
 
   #[tokio::test]
   async fn reader() {

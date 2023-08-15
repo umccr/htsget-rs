@@ -11,13 +11,13 @@ use pin_project_lite::pin_project;
 use tokio::io::AsyncRead;
 use tokio_util::codec::FramedRead;
 
-use crate::storage::crypt4gh::decoder::Block;
-use crate::storage::crypt4gh::decoder::DecodedBlock;
-use crate::storage::crypt4gh::decrypter::data_block::DataBlockDecrypter;
-use crate::storage::crypt4gh::decrypter::header_packet::HeaderPacketsDecrypter;
-use crate::storage::crypt4gh::error::Error::Crypt4GHError;
-use crate::storage::crypt4gh::error::Result;
-use crate::storage::crypt4gh::SenderPublicKey;
+use crate::decoder::Block;
+use crate::decoder::DecodedBlock;
+use crate::decrypter::data_block::DataBlockDecrypter;
+use crate::decrypter::header_packet::HeaderPacketsDecrypter;
+use crate::error::Error::Crypt4GHError;
+use crate::error::Result;
+use crate::SenderPublicKey;
 
 pub mod data_block;
 pub mod header_packet;
@@ -139,7 +139,7 @@ mod tests {
 
   use htsget_test::http_tests::get_test_file;
 
-  use crate::storage::crypt4gh::tests::{get_keys, get_original_file};
+  use crate::tests::{get_keys, get_original_file};
 
   use super::*;
 

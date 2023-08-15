@@ -22,8 +22,6 @@ use htsget_config::types::{Class, Scheme};
 
 use crate::{Headers, Url};
 
-#[cfg(feature = "crypt4gh")]
-pub mod crypt4gh;
 pub mod data_server;
 pub mod local;
 #[cfg(feature = "s3-storage")]

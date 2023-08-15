@@ -8,9 +8,9 @@ use crypt4gh::Keys;
 use pin_project_lite::pin_project;
 use tokio::task::{spawn_blocking, JoinHandle};
 
-use crate::storage::crypt4gh::error::Error::JoinHandleError;
-use crate::storage::crypt4gh::error::Result;
-use crate::storage::crypt4gh::SenderPublicKey;
+use crate::error::Error::JoinHandleError;
+use crate::error::Result;
+use crate::SenderPublicKey;
 
 pin_project! {
     pub struct HeaderPacketsDecrypter {
@@ -58,9 +58,7 @@ impl Future for HeaderPacketsDecrypter {
 
 #[cfg(test)]
 mod tests {
-  use crate::storage::crypt4gh::decoder::tests::{
-    assert_first_header_packet, get_first_header_packet,
-  };
+  use crate::decoder::tests::{assert_first_header_packet, get_first_header_packet};
 
   use super::*;
 

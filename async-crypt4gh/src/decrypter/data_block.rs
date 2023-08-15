@@ -8,9 +8,9 @@ use crypt4gh::{body_decrypt, body_decrypt_parts, WriteInfo};
 use pin_project_lite::pin_project;
 use tokio::task::JoinHandle;
 
-use crate::storage::crypt4gh::error::Error::{Crypt4GHError, JoinHandleError};
-use crate::storage::crypt4gh::error::Result;
-use crate::storage::crypt4gh::PlainTextBytes;
+use crate::error::Error::{Crypt4GHError, JoinHandleError};
+use crate::error::Result;
+use crate::PlainTextBytes;
 
 pin_project! {
     pub struct DataBlockDecrypter {
@@ -61,7 +61,7 @@ impl Future for DataBlockDecrypter {
 
 #[cfg(test)]
 mod tests {
-  use crate::storage::crypt4gh::decoder::tests::{assert_first_data_block, get_data_block};
+  use crate::decoder::tests::{assert_first_data_block, get_data_block};
 
   use super::*;
 
