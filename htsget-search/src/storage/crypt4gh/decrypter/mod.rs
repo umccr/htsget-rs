@@ -32,6 +32,7 @@ pin_project! {
         keys: Vec<Keys>,
         sender_pubkey: Option<SenderPublicKey>,
         session_keys: Vec<Vec<u8>>,
+        edit_list_packet: Option<Vec<u64>>,
     }
 }
 
@@ -47,6 +48,7 @@ where
       keys,
       sender_pubkey,
       session_keys: vec![],
+      edit_list_packet: None,
     }
   }
 
@@ -68,6 +70,7 @@ where
         data_block,
         // Todo make this so it doesn't use owned Keys and SenderPublicKey as it will be called asynchronously.
         this.session_keys.clone(),
+        this.edit_list_packet.clone(),
       ))))
     }
   }
@@ -84,12 +87,11 @@ where
     {
       match header_packet_decrypter.poll(cx) {
         Poll::Ready(Ok(header_packets)) => {
-          self.as_mut().project().header_packet_future.set(None);
-          self
-            .as_mut()
-            .project()
-            .session_keys
-            .extend(header_packets.data_enc_packets);
+          let mut this = self.as_mut().project();
+
+          this.header_packet_future.set(None);
+          this.session_keys.extend(header_packets.data_enc_packets);
+          *this.edit_list_packet = header_packets.edit_list_packet;
         }
         Poll::Ready(Err(err)) => {
           return Poll::Ready(Some(Err(err)));

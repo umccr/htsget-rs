@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use crypt4gh::{body_decrypt, WriteInfo};
+use crypt4gh::{body_decrypt, body_decrypt_parts, WriteInfo};
 use pin_project_lite::pin_project;
 use tokio::task::JoinHandle;
 
@@ -20,20 +20,32 @@ pin_project! {
 }
 
 impl DataBlockDecrypter {
-  pub fn new(data_block: Bytes, keys: Vec<Vec<u8>>) -> Self {
+  pub fn new(
+    data_block: Bytes,
+    session_keys: Vec<Vec<u8>>,
+    edit_list_packet: Option<Vec<u64>>,
+  ) -> Self {
     Self {
-      handle: tokio::task::spawn_blocking(move || DataBlockDecrypter::decrypt(data_block, keys)),
+      handle: tokio::task::spawn_blocking(move || {
+        DataBlockDecrypter::decrypt(data_block, session_keys, edit_list_packet)
+      }),
     }
   }
 
-  pub fn decrypt(data_block: Bytes, keys: Vec<Vec<u8>>) -> Result<PlainTextBytes> {
+  pub fn decrypt(
+    data_block: Bytes,
+    session_keys: Vec<Vec<u8>>,
+    edit_list_packet: Option<Vec<u64>>,
+  ) -> Result<PlainTextBytes> {
     let read_buf = Cursor::new(data_block.to_vec());
     let mut write_buf = Cursor::new(vec![]);
-    // Todo allow limit to be passed here.
     let mut write_info = WriteInfo::new(0, None, &mut write_buf);
 
-    body_decrypt(read_buf, keys.as_slice(), &mut write_info, 0)
-      .map_err(|err| Crypt4GHError(err.to_string()))?;
+    match edit_list_packet {
+      None => body_decrypt(read_buf, session_keys.as_slice(), &mut write_info, 0),
+      Some(edit_list) => body_decrypt_parts(read_buf, session_keys, write_info, edit_list),
+    }
+    .map_err(|err| Crypt4GHError(err.to_string()))?;
 
     Ok(PlainTextBytes(write_buf.into_inner().into()))
   }
@@ -57,9 +69,13 @@ mod tests {
   async fn data_block_decrypter() {
     let (header_packets, data_block) = get_data_block(0).await;
 
-    let data = DataBlockDecrypter::new(data_block, header_packets.data_enc_packets)
-      .await
-      .unwrap();
+    let data = DataBlockDecrypter::new(
+      data_block,
+      header_packets.data_enc_packets,
+      header_packets.edit_list_packet,
+    )
+    .await
+    .unwrap();
 
     assert_first_data_block(data.0.to_vec()).await;
   }

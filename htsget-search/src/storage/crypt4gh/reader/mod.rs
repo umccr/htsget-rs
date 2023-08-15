@@ -142,6 +142,7 @@ mod tests {
     let mut stream = original_reader.records(&original_header);
     let mut original_records = vec![];
     while let Some(record) = stream.try_next().await.unwrap() {
+      println!("{:?}", record);
       original_records.push(record);
     }
 
