@@ -48,7 +48,7 @@ where
     reader.read_header().await
   }
 
-  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
+  async fn read_index<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
     tabix::AsyncReader::new(inner).read_index().await
   }
 

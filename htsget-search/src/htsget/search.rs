@@ -173,7 +173,7 @@ where
   Self: Sync + Send,
 {
   async fn read_header(inner: ReaderType) -> io::Result<Header>;
-  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
+  async fn read_index<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -209,7 +209,7 @@ where
 
   /// Read the index from the key.
   #[instrument(level = "trace", skip(self))]
-  async fn read_index(&self, query: &Query) -> Result<Index> {
+  async fn get_index(&self, query: &Query) -> Result<Index> {
     trace!("reading index");
     let storage = self
       .get_storage()
@@ -218,7 +218,7 @@ where
         GetOptions::new_with_default_range(query.request().headers()),
       )
       .await?;
-    Self::read_index_inner(storage)
+    Self::read_index(storage)
       .await
       .map_err(|err| HtsGetError::io_error(format!("reading {} index: {}", self.get_format(), err)))
   }
@@ -239,7 +239,7 @@ where
         let byte_ranges = match query.reference_name().as_ref() {
           None => self.get_byte_ranges_for_all(&query).await?,
           Some(reference_name) => {
-            let index = self.read_index(&query).await?;
+            let index = self.get_index(&query).await?;
             let header = self.get_header(&query, &index).await?;
 
             let mut byte_ranges = self
@@ -273,7 +273,7 @@ where
           )
           .await?;
 
-        let index = self.read_index(&query).await?;
+        let index = self.get_index(&query).await?;
         let header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
 
         self

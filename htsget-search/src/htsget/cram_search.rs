@@ -143,7 +143,7 @@ where
     )
   }
 
-  async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {
+  async fn read_index<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {
     crai::AsyncReader::new(inner).read_index().await
   }
 
