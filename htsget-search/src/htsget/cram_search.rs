@@ -39,12 +39,10 @@ pub struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
-  for CramSearch<S>
+impl<S, ReaderType> SearchAll<S, ReaderType, PhantomData<Self>, Index, Header> for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   #[instrument(level = "trace", skip_all, ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
@@ -81,12 +79,10 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
-  for CramSearch<S>
+impl<S, ReaderType> SearchReads<S, ReaderType, PhantomData<Self>, Index, Header> for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   async fn get_reference_sequence_from_name<'a>(
     &self,
@@ -128,17 +124,14 @@ where
 
 /// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
-  for CramSearch<S>
+impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, Header> for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
-  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    AsyncReader::new(BufReader::new(inner))
-  }
+  async fn read_header(inner: ReaderType) -> io::Result<Header> {
+    let mut reader = AsyncReader::new(BufReader::new(inner));
 
-  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     reader.read_file_definition().await?;
 
     Ok(
@@ -178,7 +171,7 @@ where
 impl<S, ReaderType> CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   /// Create the cram search.
   pub fn new(storage: Arc<S>) -> Self {

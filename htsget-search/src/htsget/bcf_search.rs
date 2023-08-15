@@ -27,25 +27,22 @@ pub struct BcfSearch<S> {
 }
 
 #[async_trait]
-impl<S, ReaderType> BgzfSearch<S, ReaderType, AsyncReader<ReaderType>, Header> for BcfSearch<S>
+impl<S, ReaderType> BgzfSearch<S, ReaderType, Header> for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
 }
 
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
-  for BcfSearch<S>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, Header> for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
-  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    AsyncReader::new(inner)
-  }
+  async fn read_header(inner: ReaderType) -> io::Result<Header> {
+    let mut reader = AsyncReader::new(inner);
 
-  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     reader.read_file_format().await?;
 
     Ok(
@@ -108,7 +105,7 @@ where
 impl<S, ReaderType> BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   /// Create the bcf search.
   pub fn new(storage: Arc<S>) -> Self {

@@ -29,25 +29,22 @@ pub struct VcfSearch<S> {
 }
 
 #[async_trait]
-impl<S, ReaderType> BgzfSearch<S, ReaderType, AsyncReader<ReaderType>, Header> for VcfSearch<S>
+impl<S, ReaderType> BgzfSearch<S, ReaderType, Header> for VcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
 }
 
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
-  for VcfSearch<S>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, Header> for VcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
-  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    AsyncReader::new(bgzf::AsyncReader::new(inner))
-  }
+  async fn read_header(inner: ReaderType) -> io::Result<Header> {
+    let mut reader = AsyncReader::new(bgzf::AsyncReader::new(inner));
 
-  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     reader.read_header().await
   }
 
@@ -109,7 +106,7 @@ where
 impl<S, ReaderType> VcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   /// Create the vcf search.
   pub fn new(storage: Arc<S>) -> Self {

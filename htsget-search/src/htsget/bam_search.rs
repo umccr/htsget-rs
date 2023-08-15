@@ -35,10 +35,10 @@ pub struct BamSearch<S> {
 }
 
 #[async_trait]
-impl<S, ReaderType> BgzfSearch<S, ReaderType, AsyncReader<ReaderType>, Header> for BamSearch<S>
+impl<S, ReaderType> BgzfSearch<S, ReaderType, Header> for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   #[instrument(level = "trace", skip(self, index))]
   async fn get_byte_ranges_for_unmapped(
@@ -67,17 +67,14 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
-  for BamSearch<S>
+impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, Header> for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
-  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    AsyncReader::new(inner)
-  }
+  async fn read_header(inner: ReaderType) -> io::Result<Header> {
+    let mut reader = AsyncReader::new(inner);
 
-  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     let header = reader.read_header().await;
     reader.read_reference_sequences().await?;
 
@@ -138,12 +135,10 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchReads<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
-  for BamSearch<S>
+impl<S, ReaderType> SearchReads<S, ReaderType, ReferenceSequence, Index, Header> for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   async fn get_reference_sequence_from_name<'a>(
     &self,
@@ -176,7 +171,7 @@ where
 impl<S, ReaderType> BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   /// Create the bam search.
   pub fn new(storage: Arc<S>) -> Self {

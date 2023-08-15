@@ -59,10 +59,9 @@ pub(crate) async fn find_first<T>(
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
-/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait SearchAll<S, ReaderType, ReferenceSequence, Index, Header>
 where
   Index: Send + Sync,
 {
@@ -96,22 +95,20 @@ where
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
-/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait SearchReads<S, ReaderType, ReferenceSequence, Index, Header>:
+  Search<S, ReaderType, ReferenceSequence, Index, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-  Reader: Send,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
   Header: Send + Sync,
   Index: Send + Sync,
 {
   /// Get reference sequence from name.
-  async fn get_reference_sequence_from_name<'b>(
+  async fn get_reference_sequence_from_name<'a>(
     &self,
-    header: &'b Header,
+    header: &'a Header,
     name: &str,
   ) -> Option<usize>;
 
@@ -164,21 +161,18 @@ where
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
-/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait Search<S, ReaderType, ReferenceSequence, Index, Header>:
+  SearchAll<S, ReaderType, ReferenceSequence, Index, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
   Index: Send + Sync,
   Header: Send + Sync,
-  Reader: Send,
   Self: Sync + Send,
 {
-  fn init_reader(inner: ReaderType) -> Reader;
-  async fn read_header(reader: &mut Reader) -> io::Result<Header>;
+  async fn read_header(inner: ReaderType) -> io::Result<Header>;
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
@@ -342,9 +336,8 @@ where
       .get_storage()
       .get(query.format().fmt_file(query.id()), get_options)
       .await?;
-    let mut reader = Self::init_reader(reader_type);
 
-    Self::read_header(&mut reader).await.map_err(|err| {
+    Self::read_header(reader_type).await.map_err(|err| {
       HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
     })
   }
@@ -357,15 +350,13 @@ where
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
-/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait BgzfSearch<S, ReaderType, Reader, Header>:
-  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait BgzfSearch<S, ReaderType, Header>:
+  Search<S, ReaderType, ReferenceSequence, Index, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-  Reader: Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
   Header: Send + Sync,
 {
   #[instrument(level = "trace", skip_all)]
@@ -536,14 +527,12 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType, Reader, Header, T>
-  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
+impl<S, ReaderType, Header, T> SearchAll<S, ReaderType, ReferenceSequence, Index, Header> for T
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-  Reader: Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
   Header: Send + Sync,
-  T: BgzfSearch<S, ReaderType, Reader, Header> + Send + Sync,
+  T: BgzfSearch<S, ReaderType, Header> + Send + Sync,
 {
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {

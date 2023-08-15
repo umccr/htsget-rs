@@ -56,7 +56,7 @@ impl HtsGet for &[Resolver] {
 #[async_trait]
 impl<S, R> HtsGet for HtsGetFromStorage<S>
 where
-  R: AsyncRead + Send + Sync + Unpin,
+  R: AsyncRead + Send + Sync + Unpin + 'static,
   S: Storage<Streamable = R> + Sync + Send + 'static,
 {
   #[instrument(level = "debug", skip(self))]
