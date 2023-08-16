@@ -56,6 +56,7 @@ For htsget-rs to function, files need to be organised in the following way:
 * BGZF compressed files (BAM, CRAM, VCF) can optionally also have a [GZ index][gzi] to make byte ranges smaller.
     * GZI files must end with `.gzi`.
     * See [minimising byte ranges][minimising-byte-ranges] for more details on GZI.
+* Crypt4GH encrypted files must end with `.c4gh`.
 
 This is quite inflexible, and is likely to change in the future to allow arbitrary mappings of files and indices.
 
@@ -77,6 +78,7 @@ used to process requests.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `crypt4gh`: used to enable Crypt4GH functionality.
 
 [htsget]: src/htsget
 [storage]: src/storage

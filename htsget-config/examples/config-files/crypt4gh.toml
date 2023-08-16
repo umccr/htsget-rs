@@ -1,0 +1,13 @@
+# An example that treats files as Crypt4GH encrypted.
+# Run with `cargo run -p htsget-actix --features crypt4gh -- --config-file crypt4gh.toml`
+
+ticket_server_addr = "0.0.0.0:8080"
+data_server_addr = "0.0.0.0:8081"
+
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.object_type]
+# Treats this resolve as matching to files that are Crypt4GH encrypted.
+is_crypt4gh = false

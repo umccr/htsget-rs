@@ -206,6 +206,7 @@ pub(crate) mod tests {
           ".*",
           "$0",
           Default::default(),
+          Default::default(),
         )
         .unwrap()];
 

@@ -1,4 +1,5 @@
 pub mod allow_guard;
+pub mod object;
 
 use std::result;
 
@@ -9,6 +10,7 @@ use tracing::instrument;
 
 use crate::config::DataServerConfig;
 use crate::resolver::allow_guard::{AllowGuard, QueryAllowed, ReferenceNames};
+use crate::resolver::object::ObjectType;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
@@ -58,6 +60,7 @@ pub struct Resolver {
   substitution_string: String,
   storage: Storage,
   allow_guard: AllowGuard,
+  object_type: ObjectType,
 }
 
 /// A type which holds a resolved storage and an resolved id.
@@ -110,6 +113,7 @@ impl Default for Resolver {
       "(data)/(.*)",
       "$2",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .expect("expected valid storage")
   }
@@ -122,12 +126,14 @@ impl Resolver {
     regex: &str,
     replacement_string: &str,
     allow_guard: AllowGuard,
+    object_type: ObjectType,
   ) -> result::Result<Self, Error> {
     Ok(Self {
       regex: Regex::new(regex)?,
       substitution_string: replacement_string.to_string(),
       storage,
       allow_guard,
+      object_type,
     })
   }
 
@@ -193,6 +199,11 @@ impl Resolver {
   /// Get allow tags.
   pub fn allow_tags(&self) -> &Tags {
     self.allow_guard.allow_tags()
+  }
+
+  /// Get the object type config.
+  pub fn object_type(&self) -> &ObjectType {
+    &self.object_type
   }
 }
 
@@ -315,6 +326,7 @@ mod tests {
       "id",
       "$0-test",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
 
@@ -330,6 +342,7 @@ mod tests {
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
 
@@ -344,6 +357,7 @@ mod tests {
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
 
@@ -363,6 +377,7 @@ mod tests {
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
 
@@ -376,6 +391,7 @@ mod tests {
       "^(id)/(?P<key>.*)$",
       "$0",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
     let first_match = resolver.get_match(1, "id/key").unwrap();
@@ -385,8 +401,14 @@ mod tests {
 
   #[test]
   fn resolver_get_matches_no_captures() {
-    let resolver =
-      Resolver::new(Storage::default(), "^id/id$", "$0", AllowGuard::default()).unwrap();
+    let resolver = Resolver::new(
+      Storage::default(),
+      "^id/id$",
+      "$0",
+      AllowGuard::default(),
+      ObjectType::default(),
+    )
+    .unwrap();
     let first_match = resolver.get_match(1, "/id/key");
 
     assert_eq!(first_match, None);
@@ -394,8 +416,14 @@ mod tests {
 
   #[test]
   fn resolver_resolve_id() {
-    let resolver =
-      Resolver::new(Storage::default(), "id", "$0-test", AllowGuard::default()).unwrap();
+    let resolver = Resolver::new(
+      Storage::default(),
+      "id",
+      "$0-test",
+      AllowGuard::default(),
+      ObjectType::default(),
+    )
+    .unwrap();
     assert_eq!(
       resolver
         .resolve_id(&Query::new_with_default_request("id", Bam))
@@ -413,6 +441,7 @@ mod tests {
         "^(id-1)(.*)$",
         "$1-test-1",
         AllowGuard::default(),
+        ObjectType::default(),
       )
       .unwrap(),
       Resolver::new(
@@ -420,6 +449,7 @@ mod tests {
         "^(id-2)(.*)$",
         "$1-test-2",
         AllowGuard::default(),
+        ObjectType::default(),
       )
       .unwrap(),
     ];

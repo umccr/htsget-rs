@@ -238,7 +238,7 @@ Additionally, the resolver component has a feature, which allows resolving IDs b
 This is useful as allows the resolver to match an ID, if a particular set of query parameters are also present. For example, 
 a resolver can be set to only resolve IDs if the format is also BAM.
 
-This component can be configured by setting the `[resolver.allow_guard]` table with. The following options are available to restrict which queries are resolved by a resolver:
+This component can be configured by setting the `[resolver.allow_guard]` table. The following options are available to restrict which queries are resolved by a resolver:
 
 | Option                  | Description                                                                             | Type                                                                  | Default                             |
 |-------------------------|-----------------------------------------------------------------------------------------|-----------------------------------------------------------------------|-------------------------------------|
@@ -271,6 +271,26 @@ allow_interval_end = 1000
 ```
 
 In this example, the resolver will only match the query ID if the query is for `chr1` with positions between `100` and `1000`.
+
+#### Object type
+There is additional configuration that changes the way a resolve treat an object.
+
+This component can be configured by setting the `[resolver.object_type]` table:
+
+| Option        | Description                                                                                                                   | Type    | Default |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------|---------|---------|
+| `is_crypt4gh` | Does this resolve match objects that are Crypt4GH encrypted. This option must be set to true for Crypt4GH objects to be used. | Boolean | `false` | 
+
+For example to enable Crypt4GH for a resolver, build htsget-rs with the `crypt4gh` feature enabled, and set the following options under `[resolvers.object_type]`:
+
+```toml
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.object_type]
+is_crypt4gh = true
+```
 
 #### Config file location
 
@@ -441,6 +461,7 @@ regex, and changing it by using a substitution string.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `crypt4gh`: used to enable Crypt4GH functionality.
 
 ## License
 

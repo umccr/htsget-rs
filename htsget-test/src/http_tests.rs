@@ -110,12 +110,14 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Vec<Resolver> 
       "^1-(.*)$",
       "$1",
       Default::default(),
+      Default::default(),
     )
     .unwrap(),
     Resolver::new(
       Storage::Local { local_storage },
       "^2-(.*)$",
       "$1",
+      Default::default(),
       Default::default(),
     )
     .unwrap(),
