@@ -15,7 +15,7 @@ use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
 #[cfg(feature = "url-storage")]
-use crate::storage::url::UrlStorage;
+use crate::storage::url::UrlStorageClient;
 use crate::storage::{ResolvedId, Storage, TaggedStorageTypes};
 use crate::types::{Class, Fields, Format, Interval, Query, Response, Result, Tags};
 
@@ -37,7 +37,7 @@ pub trait ResolveResponse {
 
   /// Convert from `UrlStorage`.
   #[cfg(feature = "url-storage")]
-  async fn from_url(url_storage: &UrlStorage, query: &Query) -> Result<Response>;
+  async fn from_url(url_storage: &UrlStorageClient, query: &Query) -> Result<Response>;
 }
 
 /// A trait which uses storage to resolve requests into responses.
@@ -275,8 +275,8 @@ mod tests {
 
   #[cfg(feature = "url-storage")]
   use {
-    crate::storage::url::UrlStorage, crate::types::Scheme::Https, http::Uri as InnerUrl,
-    std::str::FromStr,
+    crate::storage::url, crate::storage::url::ValidatedUrl, crate::types::Scheme::Https,
+    http::Uri as InnerUrl, hyper::Client, hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
@@ -305,7 +305,7 @@ mod tests {
     }
 
     #[cfg(feature = "url-storage")]
-    async fn from_url(url_storage: &UrlStorage, _: &Query) -> Result<Response> {
+    async fn from_url(url_storage: &UrlStorageClient, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
         vec![Url::new(url_storage.url().to_string())],
@@ -367,11 +367,23 @@ mod tests {
   #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn resolver_resolve_url_request() {
-    let url_storage = UrlStorage::new(
-      InnerUrl::from_str("https://example.com/").unwrap(),
+    let client = Client::builder().build(
+      HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build(),
+    );
+    let url_storage = UrlStorageClient::new(
+      ValidatedUrl(url::Url {
+        inner: InnerUrl::from_str("https://example.com/").unwrap(),
+      }),
       Https,
       true,
+      client,
     );
+
     let resolver = Resolver::new(
       Storage::Url { url_storage },
       "(id)-1",
@@ -511,9 +523,6 @@ mod tests {
         allow_interval_end=1000 } }]",
       )],
       |config| {
-        let storage = Storage::S3 {
-          s3_storage: S3Storage::new("bucket".to_string(), None, false),
-        };
         let allow_guard = AllowGuard::new(
           ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),
           Fields::List(HashSet::from_iter(vec!["QNAME".to_string()])),
@@ -523,10 +532,13 @@ mod tests {
           Interval::new(Some(100), Some(1000)),
         );
         let resolver = config.resolvers().first().unwrap();
+        let expected_storage = S3Storage::new("bucket".to_string(), None, false);
 
         assert_eq!(resolver.regex().to_string(), "regex");
         assert_eq!(resolver.substitution_string(), "substitution_string");
-        assert_eq!(resolver.storage(), &storage);
+        assert!(
+          matches!(resolver.storage(), Storage::S3 { s3_storage } if s3_storage == &expected_storage)
+        );
         assert_eq!(resolver.allow_guard(), &allow_guard);
       },
     );

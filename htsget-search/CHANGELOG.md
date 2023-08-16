@@ -6,6 +6,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.5.3...htsget-search-v0.6.0) - 2023-07-11
+
+### Added
+- move hyper client construction to config and copy it to url storage
+- [**breaking**] implement client tls config
+- [**breaking**] add server config to certificate key pair
+- [**breaking**] add stronger types for certificate key pairs
+- introduce cert and key parsing into config
+
+### Other
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into fix/http1
+
+## [0.5.3](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.5.2...htsget-search-v0.5.3) - 2023-06-25
+
+### Fixed
+- *(search)* enable http/1.1 ALPN on UrlStorage client
+
+## [0.5.2](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.5.1...htsget-search-v0.5.2) - 2023-06-20
+
+### Other
+- bump deps
+
+## [0.5.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.5.0...htsget-search-v0.5.1) - 2023-06-19
+
+### Fixed
+- avoid overwriting forwarded headers in url when formatting response
+
+### Other
+- add tests for extending urls and headers
+- *(search)* allow http or https url storage client
+
 ## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.4.1...htsget-search-v0.5.0) - 2023-06-08
 
 ### Other

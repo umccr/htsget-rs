@@ -459,11 +459,13 @@ impl<'a> RangeUrlOptions<'a> {
 
   pub fn apply(self, url: Url) -> Url {
     let range: String = String::from(&BytesRange::from(self.range()));
+
     let url = if range.is_empty() {
       url
     } else {
-      url.with_headers(Headers::default().with_header("Range", range))
+      url.add_headers(Headers::default().with_header("Range", range))
     };
+
     url.set_class(self.range().class)
   }
 
@@ -951,6 +953,27 @@ mod tests {
   fn url_options_apply_no_bytes_range() {
     let result = RangeUrlOptions::new_with_default_range(&Default::default()).apply(Url::new(""));
     assert_eq!(result, Url::new(""));
+  }
+
+  #[test]
+  fn url_options_apply_with_headers() {
+    let result = RangeUrlOptions::new(
+      BytesPosition::new(Some(5), Some(11), Some(Class::Header)),
+      &Default::default(),
+    )
+    .apply(Url::new("").with_headers(Headers::default().with_header("header", "value")));
+    println!("{result:?}");
+
+    assert_eq!(
+      result,
+      Url::new("")
+        .with_headers(
+          Headers::new(HashMap::new())
+            .with_header("Range", "bytes=5-10")
+            .with_header("header", "value")
+        )
+        .with_class(Class::Header)
+    );
   }
 
   #[test]

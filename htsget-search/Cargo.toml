@@ -1,6 +1,6 @@
 [package]
 name = "htsget-search"
-version = "0.5.0"
+version = "0.6.0"
 rust-version = "1.65"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
@@ -35,7 +35,7 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.40", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.42", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
@@ -43,20 +43,19 @@ aws-sdk-s3 = { version = "0.28", optional = true }
 aws-config = { version = "0.55", optional = true }
 
 # Url storage
-hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"], optional = true }
+hyper-rustls = { version = "0.23", features = ["rustls-native-certs", "http2", "http1"], optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"
-htsget-config = { version = "0.6.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.4.2", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-config = { version = "0.7.0", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.5.0", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
-tempfile = "3.5"
+tempfile = "3.6"
 data-url = "0.3"
-mockito = "1.0"
 
 # S3 storage testing
 s3s = { version = "0.6" }

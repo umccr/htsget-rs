@@ -6,6 +6,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.6.2...htsget-config-v0.7.0) - 2023-07-11
+
+### Added
+- move hyper client construction to config and copy it to url storage
+- *(config)* [**breaking**] unflatten tls config making it common across all structs that use it
+- [**breaking**] implement client tls config
+- [**breaking**] add server config to certificate key pair
+- [**breaking**] add stronger types for certificate key pairs
+- introduce cert and key parsing into config
+
+### Fixed
+- add hyper-rustls for all features
+
+### Other
+- *(config)* update docs for combined TLS config
+- *(config)* add tls client config test
+- *(config)* fix tests with new server config structs
+- *(config)* use parsed certificates and keys directly in tests
+- update for http client config
+
+## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.6.1...htsget-config-v0.6.2) - 2023-06-20
+
+### Other
+- bump deps
+
+## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.6.0...htsget-config-v0.6.1) - 2023-06-19
+
+### Fixed
+- avoid overwriting forwarded headers in url when formatting response
+
+### Other
+- add tests for extending urls and headers
+- *(config)* make example url storage config runnable with default config
+
 ## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.5.0...htsget-config-v0.6.0) - 2023-06-08
 
 ### Other

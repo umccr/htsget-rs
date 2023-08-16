@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.4.4...htsget-test-v0.5.0) - 2023-07-11
+
+### Added
+- [**breaking**] implement client tls config
+- [**breaking**] add server config to certificate key pair
+- [**breaking**] add stronger types for certificate key pairs
+- introduce cert and key parsing into config
+
+## [0.4.4](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.4.3...htsget-test-v0.4.4) - 2023-06-20
+
+### Other
+- bump deps
+
+## [0.4.3](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.4.2...htsget-test-v0.4.3) - 2023-06-19
+
+### Other
+- updated the following local packages: htsget-config
+
 ## [0.4.2](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.4.1...htsget-test-v0.4.2) - 2023-06-08
 
 ### Other

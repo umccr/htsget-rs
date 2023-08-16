@@ -495,10 +495,17 @@ impl Headers {
     }
   }
 
+  /// Add to the headers.
+  pub fn extend(&mut self, headers: Headers) {
+    self.0.extend(headers.into_inner());
+  }
+
+  /// Get the inner HashMap.
   pub fn into_inner(self) -> HashMap<String, String> {
     self.0
   }
 
+  /// Get a reference to the inner HashMap.
   pub fn as_ref_inner(&self) -> &HashMap<String, String> {
     &self.0
   }
@@ -532,6 +539,7 @@ pub struct Url {
 }
 
 impl Url {
+  /// Create a new Url.
   pub fn new<S: Into<String>>(url: S) -> Self {
     Self {
       url: url.into(),
@@ -540,16 +548,31 @@ impl Url {
     }
   }
 
+  /// Add to the headers of the Url.
+  pub fn add_headers(mut self, headers: Headers) -> Self {
+    if !headers.is_empty() {
+      self
+        .headers
+        .get_or_insert_with(Headers::default)
+        .extend(headers);
+    }
+
+    self
+  }
+
+  /// Set the headers of the Url.
   pub fn with_headers(mut self, headers: Headers) -> Self {
     self.headers = Some(headers).filter(|h| !h.is_empty());
     self
   }
 
+  /// Set the class of the Url using an optional value.
   pub fn set_class(mut self, class: Option<Class>) -> Self {
     self.class = class;
     self
   }
 
+  /// Set the class of the Url.
   pub fn with_class(self, class: Class) -> Self {
     self.set_class(Some(class))
   }
@@ -820,6 +843,23 @@ mod tests {
   }
 
   #[test]
+  fn headers_extend() {
+    let mut headers = Headers::new(HashMap::new());
+    headers.insert("Range", "bytes=0-1023");
+
+    let mut extend_with = Headers::new(HashMap::new());
+    extend_with.insert("header", "value");
+
+    headers.extend(extend_with);
+
+    let result = headers.0.get("Range");
+    assert_eq!(result, Some(&"bytes=0-1023".to_string()));
+
+    let result = headers.0.get("header");
+    assert_eq!(result, Some(&"value".to_string()));
+  }
+
+  #[test]
   fn headers_multiple_values() {
     let headers = Headers::new(HashMap::new())
       .with_header("Range", "bytes=0-1023")
@@ -873,6 +913,25 @@ mod tests {
     let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
       .with_headers(Headers::new(HashMap::new()));
     assert_eq!(result.headers, None);
+  }
+
+  #[test]
+  fn url_add_headers() {
+    let mut headers = Headers::new(HashMap::new());
+    headers.insert("Range", "bytes=0-1023");
+
+    let mut extend_with = Headers::new(HashMap::new());
+    extend_with.insert("header", "value");
+
+    let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
+      .with_headers(headers)
+      .add_headers(extend_with);
+
+    let expected_headers = Headers::new(HashMap::new())
+      .with_header("Range", "bytes=0-1023")
+      .with_header("header", "value");
+
+    assert_eq!(result.headers, Some(expected_headers));
   }
 
   #[test]
