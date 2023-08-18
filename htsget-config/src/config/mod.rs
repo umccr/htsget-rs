@@ -15,13 +15,20 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Registry};
 
 use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
+#[cfg(feature = "crypt4gh")]
+use crate::config::crypt4gh::Crypt4GHConfig;
 use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
+#[cfg(feature = "crypt4gh")]
+use crate::error::Error::ConfigError;
 use crate::error::Error::{ArgParseError, IoError, TracingError};
 use crate::error::Result;
 use crate::resolver::Resolver;
 use crate::tls::TlsServerConfig;
 
 pub mod cors;
+
+#[cfg(feature = "crypt4gh")]
+pub mod crypt4gh;
 
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str = "To configure htsget-rs use a config file or environment variables. \
@@ -90,6 +97,9 @@ pub struct Config {
   #[serde(flatten)]
   service_info: ServiceInfo,
   resolvers: Vec<Resolver>,
+  #[cfg(feature = "crypt4gh")]
+  #[serde(skip_serializing)]
+  crypt4gh: Option<Crypt4GHConfig>,
 }
 
 /// Configuration for the htsget ticket server.
@@ -361,6 +371,8 @@ impl Default for Config {
       data_server: DataServerConfig::default(),
       service_info: ServiceInfo::default(),
       resolvers: vec![Resolver::default()],
+      #[cfg(feature = "crypt4gh")]
+      crypt4gh: None,
     }
   }
 }
@@ -373,6 +385,7 @@ impl Config {
     data_server: DataServerConfig,
     service_info: ServiceInfo,
     resolvers: Vec<Resolver>,
+    #[cfg(feature = "crypt4gh")] crypt4gh: Option<Crypt4GHConfig>,
   ) -> Self {
     Self {
       formatting_style: formatting,
@@ -380,6 +393,8 @@ impl Config {
       data_server,
       service_info,
       resolvers,
+      #[cfg(feature = "crypt4gh")]
+      crypt4gh,
     }
   }
 
@@ -422,7 +437,7 @@ impl Config {
       .extract()
       .map_err(|err| IoError(err.to_string()))?;
 
-    Ok(config.resolvers_from_data_server_config())
+    config.resolvers_from_data_server_config()
   }
 
   /// Setup tracing, using a global subscriber.
@@ -478,26 +493,41 @@ impl Config {
   }
 
   /// Set the local resolvers from the data server config.
-  pub fn resolvers_from_data_server_config(self) -> Self {
+  pub fn resolvers_from_data_server_config(self) -> Result<Self> {
     let Config {
       formatting_style: formatting,
       ticket_server,
       data_server,
       service_info,
       mut resolvers,
+      #[cfg(feature = "crypt4gh")]
+      crypt4gh,
     } = self;
 
     resolvers
       .iter_mut()
       .for_each(|resolver| resolver.resolvers_from_data_server_config(&data_server));
 
-    Self::new(
+    #[cfg(feature = "crypt4gh")]
+    if crypt4gh.is_none()
+      && resolvers
+        .iter()
+        .any(|resolver| resolver.object_type().is_crypt4gh())
+    {
+      return Err(ConfigError(
+        "resolvers have Crypt4GH object types but no crypt4gh key config is included".to_string(),
+      ));
+    }
+
+    Ok(Self::new(
       formatting,
       ticket_server,
       data_server,
       service_info,
       resolvers,
-    )
+      #[cfg(feature = "crypt4gh")]
+      crypt4gh,
+    ))
   }
 }
 

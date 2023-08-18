@@ -1804,8 +1804,10 @@ dependencies = [
 name = "htsget-config"
 version = "0.7.0"
 dependencies = [
+ "async-crypt4gh",
  "async-trait",
  "clap 4.3.21",
+ "crypt4gh",
  "figment",
  "http",
  "http-serde",

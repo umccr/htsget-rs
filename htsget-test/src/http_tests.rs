@@ -172,6 +172,8 @@ fn default_test_config_params(
     server_config,
     Default::default(),
     default_test_resolver(addr, scheme),
+    #[cfg(feature = "crypt4gh")]
+    None,
   )
 }
 
