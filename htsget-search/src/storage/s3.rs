@@ -12,10 +12,11 @@ use aws_sdk_s3::operation::get_object::builders::GetObjectFluentBuilder;
 use aws_sdk_s3::operation::get_object::GetObjectError;
 use aws_sdk_s3::operation::head_object::{HeadObjectError, HeadObjectOutput};
 use aws_sdk_s3::presigning::PresigningConfig;
-use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::primitives::{ByteStream, SdkBody};
 use aws_sdk_s3::types::StorageClass;
 use aws_sdk_s3::Client;
 use bytes::Bytes;
+use http::Response;
 use tokio_util::io::StreamReader;
 use tracing::debug;
 use tracing::instrument;
@@ -191,7 +192,7 @@ impl S3Storage {
     Ok(StreamReader::new(response))
   }
 
-  fn map_get_error<K>(key: K, error: SdkError<GetObjectError>) -> StorageError
+  fn map_get_error<K>(key: K, error: SdkError<GetObjectError, Response<SdkBody>>) -> StorageError
   where
     K: AsRef<str> + Send,
   {

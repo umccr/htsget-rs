@@ -22,6 +22,6 @@ futures-util = "0.3"
 thiserror = "1.0"
 
 [dev-dependencies]
-noodles = { version = "0.47", features = ["async", "bam", "sam"] }
+noodles = { version = "0.48", features = ["async", "bam", "sam"] }
 
 htsget-test = { version = "0.5.0", path = "../htsget-test", features = ["http-tests"], default-features = false }

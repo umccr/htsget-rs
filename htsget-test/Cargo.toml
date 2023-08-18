@@ -38,10 +38,10 @@ default = []
 # Server tests dependencies
 htsget-config = { version = "0.7.0", path = "../htsget-config", default-features = false, optional = true }
 
-noodles = { version = "0.42", optional = true, features = ["async", "bgzf", "vcf"] }
+noodles = { version = "0.48", optional = true, features = ["async", "bgzf", "vcf"] }
 
 reqwest = { version = "0.11", default-features = false, features = ["json", "blocking", "rustls-tls"], optional = true }
-tokio = { version = "1.28", features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1.29", features = ["rt-multi-thread"], optional = true }
 futures = { version = "0.3", optional = true }
 async-trait = { version = "0.1", optional = true }
 http = { version = "0.2", optional = true }
