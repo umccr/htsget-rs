@@ -1892,6 +1892,7 @@ dependencies = [
 name = "htsget-search"
 version = "0.6.0"
 dependencies = [
+ "async-crypt4gh",
  "async-trait",
  "aws-config",
  "aws-credential-types",

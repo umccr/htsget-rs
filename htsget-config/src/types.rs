@@ -31,13 +31,22 @@ pub enum Format {
 
 /// Todo allow these to be configurable.
 impl Format {
-  pub fn fmt_file(&self, id: &str) -> String {
-    match self {
+  pub fn fmt_file(&self, query: &Query) -> String {
+    let id = query.id();
+    let id = match self {
       Format::Bam => format!("{id}.bam"),
       Format::Cram => format!("{id}.cram"),
       Format::Vcf => format!("{id}.vcf.gz"),
       Format::Bcf => format!("{id}.bcf"),
+    };
+
+    #[cfg(feature = "crypt4gh")]
+    if query.is_crypt4gh() {
+      return format!("{id}.c4gh");
     }
+
+    #[allow(clippy::let_and_return)]
+    id
   }
 
   pub fn fmt_index(&self, id: &str) -> String {
@@ -276,6 +285,8 @@ pub struct Query {
   no_tags: NoTags,
   /// The raw HTTP request information.
   request: Request,
+  #[cfg(feature = "crypt4gh")]
+  is_crypt4gh: bool,
 }
 
 impl Query {
@@ -291,6 +302,8 @@ impl Query {
       tags: Tags::Tagged(TaggedTypeAll::All),
       no_tags: NoTags(None),
       request,
+      #[cfg(feature = "crypt4gh")]
+      is_crypt4gh: false,
     }
   }
 
@@ -395,6 +408,18 @@ impl Query {
 
   pub fn request(&self) -> &Request {
     &self.request
+  }
+
+  #[cfg(feature = "crypt4gh")]
+  /// Whether this query is for a Crypt4GH encrypted file.
+  pub fn is_crypt4gh(&self) -> bool {
+    self.is_crypt4gh
+  }
+
+  #[cfg(feature = "crypt4gh")]
+  /// Set the is Crypt4GH flag.
+  pub fn set_crypt4gh(&mut self, is_crypt4gh: bool) {
+    self.is_crypt4gh = is_crypt4gh;
   }
 }
 

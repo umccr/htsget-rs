@@ -219,6 +219,11 @@ impl StorageResolver for Resolver {
 
     query.set_id(resolved_id.into_inner());
 
+    #[cfg(feature = "crypt4gh")]
+    if self.object_type().is_crypt4gh() {
+      query.set_crypt4gh(true);
+    }
+
     if let Some(response) = self.storage().resolve_local_storage::<T>(query).await {
       return Some(response);
     }

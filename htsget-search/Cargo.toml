@@ -13,7 +13,7 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 s3-storage = ["dep:aws-sdk-s3", "dep:aws-config", "dep:bytes", "htsget-config/s3-storage", "htsget-test/s3-storage"]
 url-storage = ["dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
-crypt4gh = ["htsget-config/crypt4gh", "htsget-test/crypt4gh"]
+crypt4gh = ["dep:async-crypt4gh", "htsget-config/crypt4gh", "htsget-test/crypt4gh"]
 default = []
 
 [dependencies]
@@ -49,6 +49,8 @@ hyper-rustls = { version = "0.23", features = ["rustls-native-certs", "http2", "
 thiserror = "1.0"
 htsget-config = { version = "0.7.0", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.5.0", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+async-crypt4gh = { version = "0.1.0", path = "../async-crypt4gh", optional = true }
+
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"

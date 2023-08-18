@@ -8,6 +8,8 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::reader::builder::Builder;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
@@ -172,7 +174,7 @@ where
   Header: Send + Sync,
   Self: Sync + Send,
 {
-  async fn read_header(inner: ReaderType) -> io::Result<Header>;
+  async fn read_header<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Header>;
   async fn read_index<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
@@ -196,7 +198,7 @@ where
     let file_size = self
       .get_storage()
       .head(
-        query.format().fmt_file(query.id()),
+        query.format().fmt_file(query),
         HeadOptions::new(query.request().headers()),
       )
       .await?;
@@ -268,7 +270,7 @@ where
         self
           .get_storage()
           .head(
-            query.format().fmt_file(query.id()),
+            query.format().fmt_file(&query),
             HeadOptions::new(query.request().headers()),
           )
           .await?;
@@ -300,7 +302,7 @@ where
           storage_futures.push_back(tokio::spawn(async move {
             storage
               .range_url(
-                query_owned.format().fmt_file(query_owned.id()),
+                query_owned.format().fmt_file(&query_owned),
                 RangeUrlOptions::new(range, query_owned.request().headers()),
               )
               .await
@@ -334,8 +336,17 @@ where
 
     let reader_type = self
       .get_storage()
-      .get(query.format().fmt_file(query.id()), get_options)
+      .get(query.format().fmt_file(query), get_options)
       .await?;
+
+    #[cfg(feature = "crypt4gh")]
+    if query.is_crypt4gh() {
+      let reader = Builder::default().build(reader_type, vec![], None);
+
+      return Self::read_header(reader).await.map_err(|err| {
+        HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
+      });
+    }
 
     Self::read_header(reader_type).await.map_err(|err| {
       HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))

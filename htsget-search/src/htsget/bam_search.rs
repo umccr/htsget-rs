@@ -72,7 +72,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
-  async fn read_header(inner: ReaderType) -> io::Result<Header> {
+  async fn read_header<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Header> {
     let mut reader = AsyncReader::new(inner);
 
     let header = reader.read_header().await;
