@@ -1,9 +1,10 @@
 [package]
 name = "htsget-config"
-version = "0.1.0"
+version = "0.6.0"
+rust-version = "1.64"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
-description = "This crate is used to configure htsget-rs by using a config file or reading environment variables"
+description = "Used to configure htsget-rs by using a config file or reading environment variables."
 license = "MIT"
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
@@ -11,21 +12,26 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = []
-default = ["s3-storage"]
+url-storage = []
+default = []
 
 [dependencies]
-noodles = { version = "0.31", features = ["core"] }
+thiserror = "1.0"
+async-trait = "0.1"
+noodles = { version = "0.40", features = ["core"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_with = "2.1"
+serde_with = "3.0"
 serde_regex = "1.1"
-regex = "1.6"
+regex = "1.8"
 figment = { version = "0.10", features = ["env", "toml"] }
-clap = { version = "4.0", features = ["derive", "env"] }
+clap = { version = "4.3", features = ["derive", "env", "cargo"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
-toml = "0.5"
+tracing-subscriber = { version = "0.3", features = ["registry", "env-filter", "ansi", "json"] }
+toml = "0.7"
 http = "0.2"
 http-serde = "1.1"
 
 [dev-dependencies]
+serde_json = "1.0"
 figment = { version = "0.10", features = ["test"] }
+tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }

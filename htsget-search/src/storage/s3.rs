@@ -1,27 +1,30 @@
 //! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
+//!
+
 use std::fmt::Debug;
 use std::io;
 use std::io::ErrorKind::Other;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use aws_sdk_s3::client::fluent_builders;
-use aws_sdk_s3::model::StorageClass;
-use aws_sdk_s3::output::HeadObjectOutput;
-use aws_sdk_s3::presigning::config::PresigningConfig;
-use aws_sdk_s3::types::ByteStream;
+use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::operation::get_object::builders::GetObjectFluentBuilder;
+use aws_sdk_s3::operation::get_object::GetObjectError;
+use aws_sdk_s3::operation::head_object::{HeadObjectError, HeadObjectOutput};
+use aws_sdk_s3::presigning::PresigningConfig;
+use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::types::StorageClass;
 use aws_sdk_s3::Client;
 use bytes::Bytes;
-use fluent_builders::GetObject;
 use tokio_util::io::StreamReader;
 use tracing::debug;
 use tracing::instrument;
 
-use crate::htsget::Url;
-use crate::storage::aws::Retrieval::{Delayed, Immediate};
-use crate::storage::StorageError::AwsS3Error;
-use crate::storage::{BytesPosition, StorageError};
+use crate::storage::s3::Retrieval::{Delayed, Immediate};
+use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
+use crate::storage::{BytesPosition, HeadOptions, StorageError};
 use crate::storage::{BytesRange, Storage};
+use crate::Url;
 
 use super::{GetOptions, RangeUrlOptions, Result};
 
@@ -36,27 +39,41 @@ pub enum Retrieval {
 
 /// Implementation for the [Storage] trait utilising data from an S3 bucket.
 #[derive(Debug, Clone)]
-pub struct AwsS3Storage {
+pub struct S3Storage {
   client: Client,
   bucket: String,
 }
 
-impl AwsS3Storage {
+impl S3Storage {
   // Allow the user to set this?
   pub const PRESIGNED_REQUEST_EXPIRY: u64 = 1000;
 
   pub fn new(client: Client, bucket: String) -> Self {
-    AwsS3Storage { client, bucket }
+    S3Storage { client, bucket }
   }
 
-  pub async fn new_with_default_config(bucket: String) -> Self {
-    AwsS3Storage::new(Client::new(&aws_config::load_from_env().await), bucket)
+  pub async fn new_with_default_config(
+    bucket: String,
+    endpoint: Option<String>,
+    path_style: bool,
+  ) -> Self {
+    let sdk_config = aws_config::load_from_env().await;
+    let mut s3_config_builder = aws_sdk_s3::config::Builder::from(&sdk_config);
+    s3_config_builder.set_endpoint_url(endpoint); // For local S3 storage, i.e: Minio
+    s3_config_builder.set_force_path_style(Some(path_style));
+
+    let client = s3_config_builder.build();
+    let s3_client = Client::from_conf(client);
+
+    S3Storage::new(s3_client, bucket)
   }
 
+  /// Return an S3 pre-signed URL of the key. This function does not check that the key exists,
+  /// so this should be checked before calling it.
   pub async fn s3_presign_url<K: AsRef<str> + Send>(
     &self,
     key: K,
-    range: BytesPosition,
+    range: &BytesPosition,
   ) -> Result<String> {
     let response = self
       .client
@@ -71,7 +88,7 @@ impl AwsS3Storage {
             .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?,
         )
         .await
-        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| Self::map_get_error(key, err))?
         .uri()
         .to_string(),
     )
@@ -85,7 +102,14 @@ impl AwsS3Storage {
       .key(key.as_ref())
       .send()
       .await
-      .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))
+      .map_err(|err| {
+        let err = err.into_service_error();
+        if let HeadObjectError::NotFound(_) = err {
+          KeyNotFound(key.as_ref().to_string())
+        } else {
+          AwsS3Error(err.to_string(), key.as_ref().to_string())
+        }
+      })
   }
 
   /// Returns the retrieval type of the object stored with the key.
@@ -121,8 +145,8 @@ impl AwsS3Storage {
     Delayed(class)
   }
 
-  fn apply_range(builder: GetObject, range: BytesPosition) -> GetObject {
-    let range: String = String::from(&BytesRange::from(&range));
+  fn apply_range(builder: GetObjectFluentBuilder, range: &BytesPosition) -> GetObjectFluentBuilder {
+    let range: String = String::from(&BytesRange::from(range));
     if range.is_empty() {
       builder
     } else {
@@ -130,10 +154,11 @@ impl AwsS3Storage {
     }
   }
 
+  /// Get the key from S3 storage as a `ByteStream`.
   pub async fn get_content<K: AsRef<str> + Send>(
     &self,
     key: K,
-    options: GetOptions,
+    options: GetOptions<'_>,
   ) -> Result<ByteStream> {
     if let Delayed(class) = self.get_retrieval_type(key.as_ref()).await? {
       return Err(AwsS3Error(
@@ -147,12 +172,12 @@ impl AwsS3Storage {
       .get_object()
       .bucket(&self.bucket)
       .key(key.as_ref());
-    let response = Self::apply_range(response, options.range);
+    let response = Self::apply_range(response, options.range());
     Ok(
       response
         .send()
         .await
-        .map_err(|err| AwsS3Error(err.to_string(), key.as_ref().to_string()))?
+        .map_err(|err| Self::map_get_error(key, err))?
         .body,
     )
   }
@@ -160,15 +185,27 @@ impl AwsS3Storage {
   async fn create_stream_reader<K: AsRef<str> + Send>(
     &self,
     key: K,
-    options: GetOptions,
+    options: GetOptions<'_>,
   ) -> Result<StreamReader<ByteStream, Bytes>> {
     let response = self.get_content(key, options).await?;
     Ok(StreamReader::new(response))
   }
+
+  fn map_get_error<K>(key: K, error: SdkError<GetObjectError>) -> StorageError
+  where
+    K: AsRef<str> + Send,
+  {
+    let error = error.into_service_error();
+    if let GetObjectError::NoSuchKey(_) = error {
+      KeyNotFound(key.as_ref().to_string())
+    } else {
+      AwsS3Error(error.to_string(), key.as_ref().to_string())
+    }
+  }
 }
 
 #[async_trait]
-impl Storage for AwsS3Storage {
+impl Storage for S3Storage {
   type Streamable = StreamReader<ByteStream, Bytes>;
 
   /// Gets the actual s3 object as a buffered reader.
@@ -176,7 +213,7 @@ impl Storage for AwsS3Storage {
   async fn get<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
-    options: GetOptions,
+    options: GetOptions<'_>,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
@@ -184,15 +221,16 @@ impl Storage for AwsS3Storage {
     self.create_stream_reader(key, options).await
   }
 
-  /// Returns a S3-presigned htsget URL
+  /// Return an S3 pre-signed htsget URL. This function does not check that the key exists, so this
+  /// should be checked before calling it.
   #[instrument(level = "trace", skip(self))]
   async fn range_url<K: AsRef<str> + Send + Debug>(
     &self,
     key: K,
-    options: RangeUrlOptions,
+    options: RangeUrlOptions<'_>,
   ) -> Result<Url> {
     let key = key.as_ref();
-    let presigned_url = self.s3_presign_url(key, options.range.clone()).await?;
+    let presigned_url = self.s3_presign_url(key, options.range()).await?;
     let url = options.apply(Url::new(presigned_url));
 
     debug!(calling_from = ?self, key, ?url, "getting url with key {:?}", key);
@@ -201,7 +239,11 @@ impl Storage for AwsS3Storage {
 
   /// Returns the size of the S3 object in bytes.
   #[instrument(level = "trace", skip(self))]
-  async fn head<K: AsRef<str> + Send + Debug>(&self, key: K) -> Result<u64> {
+  async fn head<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    _options: HeadOptions<'_>,
+  ) -> Result<u64> {
     let key = key.as_ref();
 
     let head = self.s3_head(key).await?;
@@ -218,81 +260,87 @@ impl Storage for AwsS3Storage {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use std::future::Future;
-  use std::net::TcpListener;
   use std::path::Path;
+  use std::sync::Arc;
 
-  use aws_sdk_s3::{Client, Endpoint};
-  use aws_types::credentials::SharedCredentialsProvider;
-  use aws_types::region::Region;
-  use aws_types::{Credentials, SdkConfig};
-  use futures::future;
-  use hyper::service::make_service_fn;
-  use hyper::Server;
-  use s3_server::storages::fs::FileSystem;
-  use s3_server::{S3Service, SimpleAuth};
+  use aws_config::SdkConfig;
+  use aws_credential_types::provider::SharedCredentialsProvider;
+  use aws_sdk_s3::config::{Credentials, Region};
+  use aws_sdk_s3::Client;
+  use s3s::auth::SimpleAuth;
+  use s3s::service::S3ServiceBuilder;
+  use s3s_aws;
 
-  use crate::htsget::Headers;
-  use crate::storage::aws::AwsS3Storage;
   use crate::storage::local::tests::create_local_test_files;
-  use crate::storage::StorageError;
+  use crate::storage::s3::S3Storage;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
+  use crate::storage::{HeadOptions, StorageError};
+  use crate::Headers;
 
-  async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
+  pub(crate) async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
     F: FnOnce(Client) -> Fut,
     Fut: Future<Output = ()>,
   {
-    // Setup s3-server.
-    let fs = FileSystem::new(server_base_path).unwrap();
-    let mut auth = SimpleAuth::new();
-    auth.register(String::from("access_key"), String::from("secret_key"));
-    let mut service = S3Service::new(fs);
-    service.set_auth(auth);
+    const DOMAIN_NAME: &str = "localhost:8014";
+    const REGION: &str = "ap-southeast-2";
 
-    // Spawn hyper Server instance.
-    let service = service.into_shared();
-    let listener = TcpListener::bind(("localhost", 0)).unwrap();
-    let bound_addr = format!("http://localhost:{}", listener.local_addr().unwrap().port());
-    let make_service: _ =
-      make_service_fn(move |_| future::ready(Ok::<_, anyhow::Error>(service.clone())));
-    tokio::spawn(Server::from_tcp(listener).unwrap().serve(make_service));
+    let cred = Credentials::for_tests();
 
-    // Create S3Config.
-    let config = SdkConfig::builder()
-      .region(Region::new("ap-southeast-2"))
-      .credentials_provider(SharedCredentialsProvider::new(Credentials::from_keys(
-        "access_key",
-        "secret_key",
-        None,
-      )))
-      .build();
-    let ep = Endpoint::immutable(bound_addr).unwrap();
-    let s3_conf = aws_sdk_s3::config::Builder::from(&config)
-      .endpoint_resolver(ep)
+    let conn = {
+      let fs = s3s_fs::FileSystem::new(server_base_path).unwrap();
+
+      let auth = SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
+
+      let mut service = S3ServiceBuilder::new(fs);
+      service.set_auth(auth);
+      service.set_base_domain(DOMAIN_NAME);
+
+      s3s_aws::Connector::from(service.build().into_shared())
+    };
+
+    let sdk_config = SdkConfig::builder()
+      .credentials_provider(SharedCredentialsProvider::new(cred))
+      .http_connector(conn)
+      .region(Region::new(REGION))
+      .endpoint_url(format!("http://{DOMAIN_NAME}"))
       .build();
 
-    test(Client::from_conf(s3_conf));
+    test(Client::new(&sdk_config)).await;
+  }
+
+  pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
+  where
+    F: FnOnce(Arc<S3Storage>) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_s3_test_server(base_path, |client| async move {
+      test(Arc::new(S3Storage::new(client, folder_name))).await;
+    })
+    .await;
   }
 
   async fn with_aws_s3_storage<F, Fut>(test: F)
   where
-    F: FnOnce(AwsS3Storage) -> Fut,
+    F: FnOnce(Arc<S3Storage>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (folder_name, base_path) = create_local_test_files().await;
-    with_s3_test_server(base_path.path(), |client| async move {
-      test(AwsS3Storage::new(client, folder_name));
-    })
-    .await;
+    with_aws_s3_storage_fn(test, folder_name, base_path.path()).await;
   }
 
   #[tokio::test]
   async fn existing_key() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.get("key2", GetOptions::default()).await;
-      assert!(matches!(result, Ok(_)));
+      let result = storage
+        .get(
+          "key2",
+          GetOptions::new_with_default_range(&Default::default()),
+        )
+        .await;
+      assert!(result.is_ok());
     })
     .await;
   }
@@ -300,17 +348,11 @@ mod tests {
   #[tokio::test]
   async fn non_existing_key() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.get("non-existing-key", GetOptions::default()).await;
-      assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
-    })
-    .await;
-  }
-
-  #[tokio::test]
-  async fn url_of_non_existing_key() {
-    with_aws_s3_storage(|storage| async move {
       let result = storage
-        .range_url("non-existing-key", RangeUrlOptions::default())
+        .get(
+          "non-existing-key",
+          GetOptions::new_with_default_range(&Default::default()),
+        )
         .await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
     })
@@ -321,15 +363,16 @@ mod tests {
   async fn url_of_existing_key() {
     with_aws_s3_storage(|storage| async move {
       let result = storage
-        .range_url("key2", RangeUrlOptions::default())
+        .range_url(
+          "key2",
+          RangeUrlOptions::new_with_default_range(&Default::default()),
+        )
         .await
         .unwrap();
-      assert!(result
-        .url
-        .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
+      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
+        S3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
     })
     .await;
@@ -341,21 +384,22 @@ mod tests {
       let result = storage
         .range_url(
           "key2",
-          RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), Some(9), None)),
+          RangeUrlOptions::new(
+            BytesPosition::new(Some(7), Some(9), None),
+            &Default::default(),
+          ),
         )
         .await
         .unwrap();
-      assert!(result
-        .url
-        .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
+      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
+        S3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
       assert!(result.url.contains("range"));
       assert_eq!(
         result.headers,
-        Some(Headers::default().with_header("Range", "bytes=7-9"))
+        Some(Headers::default().with_header("Range", "bytes=7-8"))
       );
     })
     .await;
@@ -367,16 +411,14 @@ mod tests {
       let result = storage
         .range_url(
           "key2",
-          RangeUrlOptions::default().with_range(BytesPosition::new(Some(7), None, None)),
+          RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
         )
         .await
         .unwrap();
-      assert!(result
-        .url
-        .starts_with(&format!("http://localhost:8014/{}/{}", "folder", "key2")));
+      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
-        AwsS3Storage::PRESIGNED_REQUEST_EXPIRY
+        S3Storage::PRESIGNED_REQUEST_EXPIRY
       )));
       assert!(result.url.contains("range"));
       assert_eq!(
@@ -390,7 +432,9 @@ mod tests {
   #[tokio::test]
   async fn file_size() {
     with_aws_s3_storage(|storage| async move {
-      let result = storage.head("key2").await;
+      let result = storage
+        .head("key2", HeadOptions::new(&Default::default()))
+        .await;
       let expected: u64 = 6;
       assert!(matches!(result, Ok(size) if size == expected));
     })

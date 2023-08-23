@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use htsget_config::Query;
+use htsget_config::types::{Format, Query, Request};
 
-use crate::{QueryBuilder, Result};
+use crate::{match_format, Endpoint, QueryBuilder, Result};
 
 /// A struct to represent a POST request according to the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html). It implements
@@ -31,15 +31,16 @@ pub struct Region {
 impl PostRequest {
   /// Converts the `PostRequest` into one or more equivalent [Queries](Query)
   #[instrument(level = "trace", skip_all, ret)]
-  pub(crate) fn get_queries(self, id: impl Into<String>) -> Result<Vec<Query>> {
+  pub(crate) fn get_queries(self, request: Request, endpoint: &Endpoint) -> Result<Vec<Query>> {
+    let format = match_format(endpoint, self.format.clone())?;
+
     if let Some(ref regions) = self.regions {
-      let id = id.into();
       regions
         .iter()
         .map(|region| {
           Ok(
             self
-              .get_base_query_builder(id.clone())?
+              .get_base_query_builder(request.clone(), format)?
               .with_reference_name(Some(region.reference_name.clone()))
               .with_range_from_u32(region.start, region.end)?
               .build(),
@@ -47,12 +48,12 @@ impl PostRequest {
         })
         .collect::<Result<Vec<Query>>>()
     } else {
-      Ok(vec![self.get_base_query_builder(id)?.build()])
+      Ok(vec![self.get_base_query_builder(request, format)?.build()])
     }
   }
 
-  fn get_base_query_builder(&self, id: impl Into<String>) -> Result<QueryBuilder> {
-    QueryBuilder::new(Some(id.into()), self.format.clone())?
+  fn get_base_query_builder(&self, request: Request, format: Format) -> Result<QueryBuilder> {
+    QueryBuilder::new(request, format)
       .with_class(self.class.clone())?
       .with_fields_from_vec(self.fields.clone())
       .with_tags_from_vec(self.tags.clone(), self.notags.clone())
@@ -61,12 +62,14 @@ impl PostRequest {
 
 #[cfg(test)]
 mod tests {
-  use htsget_config::{Class, Format};
+  use htsget_config::types::{Class, Format};
 
   use super::*;
 
   #[test]
   fn post_request_without_regions() {
+    let request = Request::new_with_id("id".to_string());
+
     assert_eq!(
       PostRequest {
         format: Some("VCF".to_string()),
@@ -76,14 +79,16 @@ mod tests {
         notags: None,
         regions: None,
       }
-      .get_queries("id")
+      .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
-      vec![Query::new("id", Format::Vcf).with_class(Class::Header)]
+      vec![Query::new("id", Format::Vcf, request).with_class(Class::Header)]
     );
   }
 
   #[test]
   fn post_request_with_one_region() {
+    let request = Request::new_with_id("id".to_string());
+
     assert_eq!(
       PostRequest {
         format: Some("VCF".to_string()),
@@ -97,9 +102,9 @@ mod tests {
           end: Some(153),
         }]),
       }
-      .get_queries("id")
+      .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
-      vec![Query::new("id", Format::Vcf)
+      vec![Query::new("id", Format::Vcf, request)
         .with_class(Class::Header)
         .with_reference_name("20".to_string())
         .with_start(150)
@@ -109,6 +114,8 @@ mod tests {
 
   #[test]
   fn post_request_with_regions() {
+    let request = Request::new_with_id("id".to_string());
+
     assert_eq!(
       PostRequest {
         format: Some("VCF".to_string()),
@@ -129,15 +136,15 @@ mod tests {
           }
         ]),
       }
-      .get_queries("id")
+      .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
       vec![
-        Query::new("id", Format::Vcf)
+        Query::new("id", Format::Vcf, request.clone())
           .with_class(Class::Header)
           .with_reference_name("20".to_string())
           .with_start(150)
           .with_end(153),
-        Query::new("id", Format::Vcf)
+        Query::new("id", Format::Vcf, request)
           .with_class(Class::Header)
           .with_reference_name("11".to_string())
           .with_start(152)

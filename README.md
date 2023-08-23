@@ -5,15 +5,15 @@
 
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://github.com/umccr/htsget-rs/blob/main/LICENSE
-[actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/action.yml/badge.svg
+[actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/tests.yml/badge.svg
 [actions-url]: https://github.com/umccr/htsget-rs/actions?query=workflow%3Atests+branch%3Amain
 
 
 A **server** implementation of the [htsget protocol][htsget-protocol] for bioinformatics in Rust. It is:
 * **Fully-featured**: supports BAM and CRAM for reads, and VCF and BCF for variants, as well as other aspects of the protocol such as TLS, and CORS.
 * **Serverless**: supports local server instances using [Actix Web][actix-web], and serverless instances using [AWS Lambda Rust Runtime][aws-lambda-rust-runtime].
-* **Storage interchangeable**: supports local filesystem storage, and storage on AWS S3.
-* **Thoroughly tested and benchmarked**: tested using a purpose-built [test suite][htsget-test], and benchmarked using [criterion-rs].
+* **Storage interchangeable**: supports local filesystem storage as well as objects via [Minio][minio] and AWS S3.
+* **Thoroughly tested and benchmarked**: tested using a purpose-built [test suite][htsget-test] and benchmarked using [criterion-rs].
 
 To get started, see [Usage].
 
@@ -114,7 +114,7 @@ See the [htsget-search overview][htsget-search-overview] for more information on
 
 [storage-backend]: htsget-search/src/storage
 [local-storage]: htsget-search/src/storage/local.rs
-[s3-storage]: htsget-search/src/storage/aws.rs
+[s3-storage]: htsget-search/src/storage/s3.rs
 
 [data]: data
 [deploy]: deploy
@@ -138,3 +138,4 @@ This project is licensed under the [MIT license][license].
 [htsget-lambda]: htsget-lambda
 [license]: LICENSE
 [aws-lambda-rust-runtime]: https://github.com/awslabs/aws-lambda-rust-runtime
+[minio]: https://min.io/

@@ -5,21 +5,19 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
-use noodles::csi::index::reference_sequence::bin::Chunk;
+use noodles::bcf;
 use noodles::csi::index::ReferenceSequence;
-use noodles::csi::{BinningIndex, Index};
+use noodles::csi::Index;
 use noodles::vcf::Header;
 use noodles::{bgzf, csi};
-use noodles_bcf as bcf;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
-use crate::htsget::search::{find_first, BgzfSearch, BinningIndexExt, Search};
-use crate::{
-  htsget::{Format, Query, Result},
-  storage::{BytesPosition, Storage},
-};
+use crate::htsget::search::{find_first, BgzfSearch, Search};
+use crate::htsget::ParsedHeader;
+use crate::storage::{BytesPosition, Storage};
+use crate::{Format, Query, Result};
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -28,23 +26,8 @@ pub struct BcfSearch<S> {
   storage: Arc<S>,
 }
 
-impl BinningIndexExt for Index {
-  #[instrument(level = "trace", skip_all)]
-  fn get_all_chunks(&self) -> Vec<&Chunk> {
-    trace!("getting vec of chunks");
-    self
-      .reference_sequences()
-      .iter()
-      .flat_map(|ref_seq| ref_seq.bins())
-      .flat_map(|bin| bin.chunks())
-      .collect()
-  }
-}
-
 #[async_trait]
-impl<S, ReaderType>
-  BgzfSearch<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
-  for BcfSearch<S>
+impl<S, ReaderType> BgzfSearch<S, ReaderType, AsyncReader<ReaderType>, Header> for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
@@ -62,9 +45,16 @@ where
     AsyncReader::new(inner)
   }
 
-  async fn read_raw_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<String> {
+  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     reader.read_file_format().await?;
-    reader.read_header().await
+
+    Ok(
+      reader
+        .read_header()
+        .await?
+        .parse::<ParsedHeader<Header>>()?
+        .into_inner(),
+    )
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
@@ -130,24 +120,26 @@ where
 mod tests {
   use std::future::Future;
 
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::from_storage::tests::{
-    with_local_storage as with_local_storage_path,
-    with_local_storage_tmp as with_local_storage_tmp_path,
-  };
-  use crate::htsget::{Class, Headers, Response, Url};
-  use crate::storage::data_server::HttpTicketFormatter;
+  #[cfg(feature = "s3-storage")]
+  use crate::htsget::from_storage::tests::with_aws_storage_fn;
+  use crate::htsget::from_storage::tests::with_local_storage_fn;
   use crate::storage::local::LocalStorage;
+  use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
 
   use super::*;
+
+  const DATA_LOCATION: &str = "data/bcf";
+  const INDEX_FILE_LOCATION: &str = "vcf-spec-v4.3.bcf.csi";
 
   #[tokio::test]
   async fn search_all_variants() {
     with_local_storage(|storage| async move {
       let search = BcfSearch::new(storage.clone());
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Bcf);
+      let query = Query::new_with_default_request(filename, Format::Bcf);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -162,7 +154,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let search = BcfSearch::new(storage.clone());
       let filename = "vcf-spec-v4.3";
-      let query = Query::new(filename, Format::Bcf).with_reference_name("20");
+      let query = Query::new_with_default_request(filename, Format::Bcf).with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -192,7 +184,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let search = BcfSearch::new(storage.clone());
       let filename = "sample1-bcbio-cancer";
-      let query = Query::new(filename, Format::Bcf)
+      let query = Query::new_with_default_request(filename, Format::Bcf)
         .with_reference_name("chrM")
         .with_start(151);
       let response = search.search(query).await;
@@ -206,16 +198,135 @@ mod tests {
 
   #[tokio::test]
   async fn search_no_gzi() {
-    with_local_storage_tmp(|storage| async move {
-      test_reference_sequence_with_seq_range(storage).await
+    with_local_storage_fn(
+      |storage| async move { test_reference_sequence_with_seq_range(storage).await },
+      DATA_LOCATION,
+      &["sample1-bcbio-cancer.bcf", "sample1-bcbio-cancer.bcf.csi"],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_header() {
+    with_local_storage(|storage| async move {
+      let search = BcfSearch::new(storage.clone());
+      let filename = "vcf-spec-v4.3";
+      let query = Query::new_with_default_request(filename, Format::Bcf).with_class(Header);
+      let response = search.search(query).await;
+      println!("{response:#?}");
+
+      let expected_response = Ok(Response::new(
+        Format::Bcf,
+        vec![Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-949"))
+          .with_class(Header)],
+      ));
+      assert_eq!(response, expected_response)
     })
     .await
   }
 
-  async fn test_reference_sequence_with_seq_range(storage: Arc<LocalStorage<HttpTicketFormatter>>) {
+  #[tokio::test]
+  async fn search_non_existent_id_reference_name() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BcfSearch::new(storage.clone());
+        let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_all_reads() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BcfSearch::new(storage.clone());
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn search_non_existent_id_header() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BcfSearch::new(storage.clone());
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
+        let response = search.search(query).await;
+        assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_reference_name_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = BcfSearch::new(storage);
+        let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
+        let response = search.search(query).await;
+        assert!(response.is_err());
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_all_reads_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = BcfSearch::new(storage);
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
+        let response = search.search(query).await;
+        assert!(response.is_err());
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[tokio::test]
+  async fn search_non_existent_id_header_aws() {
+    with_aws_storage_fn(
+      |storage| async move {
+        let search = BcfSearch::new(storage);
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
+        let response = search.search(query).await;
+        assert!(response.is_err());
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  async fn test_reference_sequence_with_seq_range(storage: Arc<LocalStorage<ConfigLocalStorage>>) {
     let search = BcfSearch::new(storage.clone());
     let filename = "sample1-bcbio-cancer";
-    let query = Query::new(filename, Format::Bcf)
+    let query = Query::new_with_default_request(filename, Format::Bcf)
       .with_reference_name("chrM")
       .with_start(151)
       .with_end(153);
@@ -237,45 +348,12 @@ mod tests {
     )
   }
 
-  #[tokio::test]
-  async fn search_header() {
-    with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage.clone());
-      let filename = "vcf-spec-v4.3";
-      let query = Query::new(filename, Format::Bcf).with_class(Class::Header);
-      let response = search.search(query).await;
-      println!("{response:#?}");
-
-      let expected_response = Ok(Response::new(
-        Format::Bcf,
-        vec![Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-949"))
-          .with_class(Class::Header)],
-      ));
-      assert_eq!(response, expected_response)
-    })
-    .await
-  }
-
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
+    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
     Fut: Future<Output = ()>,
   {
-    with_local_storage_path(test, "data/bcf").await
-  }
-
-  async fn with_local_storage_tmp<F, Fut>(test: F)
-  where
-    F: FnOnce(Arc<LocalStorage<HttpTicketFormatter>>) -> Fut,
-    Fut: Future<Output = ()>,
-  {
-    with_local_storage_tmp_path(
-      test,
-      "data/bcf",
-      &["sample1-bcbio-cancer.bcf", "sample1-bcbio-cancer.bcf.csi"],
-    )
-    .await
+    with_local_storage_fn(test, "data/bcf", &[]).await
   }
 
   fn expected_url(name: &str) -> String {

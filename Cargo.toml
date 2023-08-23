@@ -1,4 +1,6 @@
 [workspace]
+resolver = "2"
+
 members = [
     "htsget-config",
     "htsget-actix",
@@ -6,5 +8,5 @@ members = [
     "htsget-lambda",
     "htsget-cloudflare",
     "htsget-search",
-    "htsget-test",
+    "htsget-test"
 ]

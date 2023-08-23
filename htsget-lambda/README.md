@@ -26,13 +26,15 @@ This crate is used for running a cloud-based instance of htsget-rs. It:
 ### For running htsget-rs as an application
 
 This crate can be deployed to AWS as a Lambda function, or interacted with locally using [cargo-lambda]. See [deploy] 
-for more details.
+for more details. Note, this crate does not use any configuration relating to the local data server. CORS configuration
+uses values from the ticket server config. See [htsget-config] for more information about configuration.
 
 See [htsget-search] for details on how to structure files.
 
 [cargo-lambda]: https://github.com/cargo-lambda/cargo-lambda
 [deploy]: ../deploy
 [htsget-search]: ../htsget-search
+[htsget-config]: ../htsget-config
 
 ### As a library
 
@@ -42,7 +44,8 @@ routing queries are exposed in the public API.
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
+* `url-storage`: used to enable `UrlStorage` functionality.
 
 ## License
 

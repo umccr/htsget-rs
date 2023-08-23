@@ -1,17 +1,21 @@
 use std::sync::Arc;
 
-use htsget_config::Format;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 use tracing::instrument;
 
+use htsget_config::types::Format;
 use htsget_search::htsget::HtsGet;
 
 use crate::ConfigServiceInfo;
-use crate::{Endpoint, READS_FORMATS, VARIANTS_FORMATS};
+use crate::Endpoint;
+
+const READS_FORMATS: [&str; 2] = ["BAM", "CRAM"];
+const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
 
 /// A struct representing the information that should be present in a service-info response.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ServiceInfo {
   pub id: String,
   pub name: String,
@@ -20,26 +24,22 @@ pub struct ServiceInfo {
   #[serde(rename = "type")]
   pub service_type: Type,
   pub htsget: Htsget,
-  // The next fields aren't in the HtsGet specification, but were added
-  // because they were present in the reference implementation and were deemed useful
-  #[serde(rename = "contactUrl")]
   pub contact_url: String,
-  #[serde(rename = "documentationUrl")]
   pub documentation_url: String,
-  #[serde(rename = "createdAt")]
   pub created_at: String,
-  #[serde(rename = "UpdatedAt")]
   pub updated_at: String,
   pub environment: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Organisation {
   pub name: String,
   pub url: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Type {
   pub group: String,
   pub artifact: String,
@@ -47,12 +47,11 @@ pub struct Type {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Htsget {
   pub datatype: String,
   pub formats: Vec<String>,
-  #[serde(rename = "fieldsParametersEffective")]
   pub fields_parameters_effective: bool,
-  #[serde(rename = "TagsParametersEffective")]
   pub tags_parameters_effective: bool,
 }
 

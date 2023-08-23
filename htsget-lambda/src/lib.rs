@@ -7,16 +7,14 @@ use std::sync::Arc;
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::tower::ServiceBuilder;
-use lambda_http::{http, service_fn, Body, Request, Response};
+use lambda_http::{http, service_fn, Body, Request, RequestPayloadExt, Response};
 use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
 
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
-#[cfg(feature = "s3-storage")]
-pub use htsget_config::regex_resolver::aws::S3Resolver;
-pub use htsget_config::regex_resolver::StorageType;
+pub use htsget_config::storage::Storage;
 use htsget_http::{Endpoint, PostRequest};
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::configure_cors;
@@ -124,6 +122,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           id,
           self.searcher.clone(),
           Self::extract_query(&request),
+          request.headers().clone(),
           endpoint,
         )
         .await
@@ -138,7 +137,17 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
             .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
             .body(Body::Empty)?,
         ),
-        Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
+        Some(query) => {
+          post(
+            id,
+            self.searcher.clone(),
+            Self::extract_query(&request),
+            query,
+            request.headers().clone(),
+            endpoint,
+          )
+          .await
+        }
       },
       _ => Ok(
         Response::builder()
@@ -197,15 +206,12 @@ where
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use std::future::Future;
   use std::path::Path;
   use std::str::FromStr;
   use std::sync::Arc;
 
   use async_trait::async_trait;
-  use htsget_config::regex_resolver::RegexResolver;
-  use htsget_config::Class;
   use lambda_http::http::header::HeaderName;
   use lambda_http::http::Uri;
   use lambda_http::tower::ServiceExt;
@@ -214,16 +220,17 @@ mod tests {
   use query_map::QueryMap;
   use tempfile::TempDir;
 
+  use htsget_config::resolver::Resolver;
+  use htsget_config::types::{Class, JsonResponse};
   use htsget_http::Endpoint;
   use htsget_search::storage::configure_cors;
-  use htsget_search::storage::data_server::HttpTicketFormatter;
+  use htsget_search::storage::data_server::BindDataServer;
   use htsget_test::http_tests::{config_with_tls, default_test_config, get_test_file};
   use htsget_test::http_tests::{Header, Response as TestResponse, TestRequest, TestServer};
-  use htsget_test::server_tests::{
-    expected_url_path, formatter_and_expected_path, formatter_from_config, test_response,
-    test_response_service_info,
-  };
+  use htsget_test::server_tests::{expected_url_path, test_response, test_response_service_info};
   use htsget_test::{cors_tests, server_tests};
+
+  use super::*;
 
   struct LambdaTestServer {
     config: Config,
@@ -284,6 +291,10 @@ mod tests {
 
   #[async_trait(?Send)]
   impl TestServer<LambdaTestRequest<Request>> for LambdaTestServer {
+    async fn get_expected_path(&self) -> String {
+      spawn_server(self.get_config()).await
+    }
+
     fn get_config(&self) -> &Config {
       &self.config
     }
@@ -292,12 +303,14 @@ mod tests {
       LambdaTestRequest(Request::default())
     }
 
-    async fn test_server(&self, request: LambdaTestRequest<Request>) -> TestResponse {
-      let (expected_path, _formatter) = formatter_and_expected_path(self.get_config()).await;
-
+    async fn test_server(
+      &self,
+      request: LambdaTestRequest<Request>,
+      expected_path: String,
+    ) -> TestResponse {
       let router = Router::new(
         Arc::new(self.config.clone().owned_resolvers()),
-        self.config.ticket_server().service_info(),
+        self.config.service_info(),
       );
 
       route_request_to_response(request.0, router, expected_path, &self.config).await
@@ -314,27 +327,30 @@ mod tests {
 
   #[tokio::test]
   async fn get_http_tickets() {
-    server_tests::test_get(&LambdaTestServer::default()).await;
+    server_tests::test_get::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn post_http_tickets() {
-    server_tests::test_post(&LambdaTestServer::default()).await;
+    server_tests::test_post::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn parameterized_get_http_tickets() {
-    server_tests::test_parameterized_get(&LambdaTestServer::default()).await;
+    server_tests::test_parameterized_get::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn parameterized_post_http_tickets() {
-    server_tests::test_parameterized_post(&LambdaTestServer::default()).await;
+    server_tests::test_parameterized_post::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn parameterized_post_class_header_http_tickets() {
-    server_tests::test_parameterized_post_class_header(&LambdaTestServer::default()).await;
+    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
+      &LambdaTestServer::default(),
+    )
+    .await;
   }
 
   #[tokio::test]
@@ -350,33 +366,41 @@ mod tests {
   #[tokio::test]
   async fn get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_get(&LambdaTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_get::<JsonResponse, _>(&LambdaTestServer::new_with_tls(base_path.path()))
+      .await;
   }
 
   #[tokio::test]
   async fn post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_post(&LambdaTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_post::<JsonResponse, _>(&LambdaTestServer::new_with_tls(base_path.path()))
+      .await;
   }
 
   #[tokio::test]
   async fn parameterized_get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_get(&LambdaTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_parameterized_get::<JsonResponse, _>(&LambdaTestServer::new_with_tls(
+      base_path.path(),
+    ))
+    .await;
   }
 
   #[tokio::test]
   async fn parameterized_post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post(&LambdaTestServer::new_with_tls(base_path.path())).await;
+    server_tests::test_parameterized_post::<JsonResponse, _>(&LambdaTestServer::new_with_tls(
+      base_path.path(),
+    ))
+    .await;
   }
 
   #[tokio::test]
   async fn parameterized_post_class_header_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post_class_header(&LambdaTestServer::new_with_tls(
-      base_path.path(),
-    ))
+    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
+      &LambdaTestServer::new_with_tls(base_path.path()),
+    )
     .await;
   }
 
@@ -485,7 +509,6 @@ mod tests {
         assert!(router.get_route(&Method::DELETE, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
@@ -499,7 +522,6 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
@@ -513,7 +535,6 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
@@ -527,7 +548,6 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
@@ -541,7 +561,6 @@ mod tests {
         assert!(router.get_route(&Method::GET, &uri).is_none());
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
@@ -566,7 +585,6 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
@@ -591,7 +609,6 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
@@ -613,7 +630,6 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
@@ -638,19 +654,18 @@ mod tests {
         );
       },
       &config,
-      formatter_from_config(&config),
     )
     .await;
   }
 
-  async fn with_router<'a, F, Fut>(test: F, config: &'a Config, _formatter: HttpTicketFormatter)
+  async fn with_router<'a, F, Fut>(test: F, config: &'a Config)
   where
-    F: FnOnce(Router<'a, Vec<RegexResolver>>) -> Fut,
+    F: FnOnce(Router<'a, Vec<Resolver>>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let router = Router::new(
       Arc::new(config.clone().owned_resolvers()),
-      config.ticket_server().service_info(),
+      config.service_info(),
     );
     test(router).await;
   }
@@ -660,8 +675,20 @@ mod tests {
     lambda_http::request::from_str(&event).expect("Failed to create lambda request.")
   }
 
+  async fn spawn_server(config: &Config) -> String {
+    let mut bind_data_server = BindDataServer::try_from(config.data_server().clone()).unwrap();
+    let server = bind_data_server.bind_data_server().await.unwrap();
+    let addr = server.local_addr();
+
+    let path = config.data_server().local_path().to_path_buf();
+    tokio::spawn(async move { server.serve(path).await.unwrap() });
+
+    expected_url_path(config, addr)
+  }
+
   async fn endpoint_from_file(file_path: &str, class: Class, config: &Config) {
-    let (expected_path, formatter) = formatter_and_expected_path(config).await;
+    let expected_path = spawn_server(config).await;
+
     with_router(
       |router| async move {
         let response = route_request_to_response(
@@ -671,17 +698,16 @@ mod tests {
           config,
         )
         .await;
-        test_response(response, class).await;
+        test_response::<JsonResponse>(response, class).await;
       },
       config,
-      formatter,
     )
     .await;
   }
 
   async fn test_service_info_from_file(file_path: &str, config: &Config) {
-    let formatter = formatter_from_config(config);
-    let expected_path = expected_url_path(&formatter);
+    let expected_path = expected_url_path(config, config.data_server().addr());
+
     with_router(
       |router| async {
         let response = route_request_to_response(
@@ -694,7 +720,6 @@ mod tests {
         test_response_service_info(&response);
       },
       config,
-      formatter,
     )
     .await;
   }
