@@ -33,8 +33,7 @@ pin_project! {
         sender_pubkey: Option<SenderPublicKey>,
         session_keys: Vec<Vec<u8>>,
         edit_list_packet: Option<Vec<u64>>,
-        header_length: Option<usize>,
-        position: usize,
+        header_length: Option<usize>
     }
 }
 
@@ -52,7 +51,6 @@ where
       session_keys: vec![],
       edit_list_packet: None,
       header_length: None,
-      position: 0,
     }
   }
 
@@ -80,14 +78,9 @@ where
   }
 
   /// Get the length of the header, including the magic string, version number, packet count
-  /// and the header packets.
+  /// and the header packets. This returns None before the header packet is polled.
   pub fn get_header_length(&self) -> Option<usize> {
     self.header_length
-  }
-
-  /// Get the position of the inner reader encrypted data.
-  pub fn position(&self) -> usize {
-    self.position
   }
 }
 
@@ -124,14 +117,10 @@ where
       Some(Ok(buf)) => match buf {
         DecodedBlock::HeaderInfo(_) => {
           cx.waker().wake_by_ref();
-
-          *this.position += HEADER_INFO_SIZE;
-
           Poll::Pending
         }
         DecodedBlock::HeaderPackets(header_packets) => {
           let header_packets_length: usize = header_packets.iter().map(|packet| packet.len()).sum();
-          *this.position += header_packets_length;
 
           *this.header_length = Some(header_packets_length + HEADER_INFO_SIZE);
 
@@ -146,11 +135,7 @@ where
           cx.waker().wake_by_ref();
           Poll::Pending
         }
-        DecodedBlock::DataBlock(data_block) => {
-          *this.position += data_block.len();
-
-          self.poll_data_block(data_block)
-        }
+        DecodedBlock::DataBlock(data_block) => self.poll_data_block(data_block),
       },
       Some(Err(e)) => Poll::Ready(Some(Err(e))),
       None => Poll::Ready(None),
@@ -198,5 +183,23 @@ mod tests {
     // Assert that the decrypted bytes are equal to the original file bytes.
     let original_bytes = get_original_file().await;
     assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn get_header_length() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    assert!(stream.get_header_length().is_none());
+
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    assert_eq!(stream.get_header_length(), Some(120));
   }
 }
