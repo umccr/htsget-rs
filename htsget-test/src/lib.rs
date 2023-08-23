@@ -1,4 +1,8 @@
-#[cfg(any(feature = "cors-tests", feature = "server-tests"))]
+#[cfg(any(
+  feature = "http-tests",
+  feature = "cors-tests",
+  feature = "server-tests"
+))]
 pub use htsget_config::{
   config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig},
   storage::Storage,
