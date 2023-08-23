@@ -41,10 +41,11 @@ impl Builder {
 
     Reader {
       stream: DecrypterStream::new(reader, keys, sender_pubkey).try_buffered(worker_count),
-      position: 0,
       worker_count,
       // Dummy value for bytes to begin with.
       bytes: PlainTextBytes(Bytes::new()),
+      current_position: 0,
+      block_position: None,
     }
   }
 }

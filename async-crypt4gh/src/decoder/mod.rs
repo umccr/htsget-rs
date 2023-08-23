@@ -179,6 +179,7 @@ impl Decoder for Block {
   }
 
   fn decode_eof(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>> {
+    // Need a custom implementation of decode_eof because the last data block can be shorter.
     match self.decode(buf)? {
       Some(frame) => Ok(Some(frame)),
       None => {

@@ -21,7 +21,8 @@ pin_project! {
       stream: TryBuffered<DecrypterStream<R>>,
       worker_count: usize,
       bytes: PlainTextBytes,
-      position: usize,
+      current_position: usize,
+      block_position: Option<usize>,
     }
 }
 
@@ -57,12 +58,15 @@ where
 
     // If the position is past the end of the buffer, then all the data has been read and a new
     // buffer should be initialised.
-    if *this.position >= this.bytes.len() {
+    if *this.current_position >= this.bytes.len() {
       match ready!(this.stream.poll_next(cx)) {
         Some(Ok(block)) => {
           // Once we have a new buffer, reinitialise the position and buffer.
           *this.bytes = block;
-          *this.position = 0;
+          *this.block_position =
+            Some(this.block_position.unwrap_or_default() + *this.current_position);
+
+          *this.current_position = 0;
         }
         Some(Err(e)) => return Poll::Ready(Err(e.into())),
         None => return Poll::Ready(Ok(&[])),
@@ -70,13 +74,13 @@ where
     }
 
     // Return the unconsumed data from the buffer.
-    Poll::Ready(Ok(&this.bytes[*this.position..]))
+    Poll::Ready(Ok(&this.bytes[*this.current_position..]))
   }
 
   fn consume(self: Pin<&mut Self>, amt: usize) {
     let this = self.project();
     // Update the position until the consumed amount reaches the end of the buffer.
-    *this.position = cmp::min(*this.position + amt, this.bytes.len());
+    *this.current_position = cmp::min(*this.current_position + amt, this.bytes.len());
   }
 }
 
