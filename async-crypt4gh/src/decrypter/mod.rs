@@ -33,7 +33,8 @@ pin_project! {
         sender_pubkey: Option<SenderPublicKey>,
         session_keys: Vec<Vec<u8>>,
         edit_list_packet: Option<Vec<u64>>,
-        header_length: Option<usize>
+        header_length: Option<usize>,
+        current_block_size: Option<usize>,
     }
 }
 
@@ -51,6 +52,7 @@ where
       session_keys: vec![],
       edit_list_packet: None,
       header_length: None,
+      current_block_size: None,
     }
   }
 
@@ -78,9 +80,16 @@ where
   }
 
   /// Get the length of the header, including the magic string, version number, packet count
-  /// and the header packets. This returns None before the header packet is polled.
-  pub fn get_header_length(&self) -> Option<usize> {
+  /// and the header packets. Returns `None` before the header packet is polled.
+  pub fn header_length(&self) -> Option<usize> {
     self.header_length
+  }
+
+  /// Get the size of the current data block represented by the encrypted block returned by calling
+  /// poll_next. This will equal `decoder::DATA_BLOCK_SIZE` except for the last block which may be
+  /// less than that. Returns `None` before the first data block is polled.
+  pub fn current_block_size(&self) -> Option<usize> {
+    self.current_block_size
   }
 }
 
@@ -135,7 +144,11 @@ where
           cx.waker().wake_by_ref();
           Poll::Pending
         }
-        DecodedBlock::DataBlock(data_block) => self.poll_data_block(data_block),
+        DecodedBlock::DataBlock(data_block) => {
+          *this.current_block_size = Some(data_block.len());
+
+          self.poll_data_block(data_block)
+        }
       },
       Some(Err(e)) => Poll::Ready(Some(Err(e))),
       None => Poll::Ready(None),
@@ -196,10 +209,47 @@ mod tests {
       Some(SenderPublicKey::new(sender_public_key)),
     );
 
-    assert!(stream.get_header_length().is_none());
+    assert!(stream.header_length().is_none());
 
     let _ = stream.next().await.unwrap().unwrap().await;
 
-    assert_eq!(stream.get_header_length(), Some(120));
+    assert_eq!(stream.header_length(), Some(120));
+  }
+
+  #[tokio::test]
+  async fn get_first_block_size() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    assert!(stream.current_block_size().is_none());
+
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    assert_eq!(stream.current_block_size(), Some(65564));
+  }
+
+  #[tokio::test]
+  async fn get_last_block_size() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    assert!(stream.current_block_size().is_none());
+
+    let mut stream = stream.skip(39);
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    assert_eq!(stream.get_ref().current_block_size(), Some(40923));
   }
 }
