@@ -2,6 +2,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};
 
+use crate::DecryptedDataBlock;
 use futures::ready;
 use futures::stream::TryBuffered;
 use futures::Stream;
@@ -9,7 +10,6 @@ use pin_project_lite::pin_project;
 use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
 
 use super::decrypter::DecrypterStream;
-use super::PlainTextBytes;
 
 pub mod builder;
 
@@ -20,10 +20,31 @@ pin_project! {
       #[pin]
       stream: TryBuffered<DecrypterStream<R>>,
       worker_count: usize,
-      bytes: PlainTextBytes,
-      current_position: usize,
-      block_position: Option<usize>,
+      current_block: DecryptedDataBlock,
+      // The current position in the decrypted buffer.
+      buf_position: usize,
+      // The encrypted position of the current data block minus the size of the header.
+      block_position: Option<usize>
     }
+}
+
+impl<R> Reader<R>
+where
+  R: AsyncRead,
+{
+  /// Gets the position of the data block which includes the current position of the underlying
+  /// reader. This function will return a value that always corresponds the beginning of a data
+  /// block or 0.
+  pub fn current_block_position(&self) -> usize {
+    self.block_position.unwrap_or_default()
+  }
+
+  /// Gets the position of the next data block from the current position of the underlying reader.
+  /// This function will return a value that always corresponds the beginning of a data block or
+  /// past the end of the file.
+  pub fn next_block_position(&self) -> usize {
+    self.block_position.unwrap_or_default() + self.current_block.encrypted_size()
+  }
 }
 
 impl<R> AsyncRead for Reader<R>
@@ -56,17 +77,26 @@ where
   fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
     let this = self.project();
 
+    // If this is the beginning of the stream, set the block position to the header length, if any.
+    if this.block_position.unwrap_or_default() == 0 {
+      *this.block_position = Some(
+        this.block_position.unwrap_or_default()
+          + this.stream.get_ref().header_length().unwrap_or_default(),
+      );
+    }
+
     // If the position is past the end of the buffer, then all the data has been read and a new
     // buffer should be initialised.
-    if *this.current_position >= this.bytes.len() {
+    if *this.buf_position >= this.current_block.len() {
       match ready!(this.stream.poll_next(cx)) {
         Some(Ok(block)) => {
-          // Once we have a new buffer, reinitialise the position and buffer.
-          *this.bytes = block;
+          // Update the block position with the previous block size.
           *this.block_position =
-            Some(this.block_position.unwrap_or_default() + *this.current_position);
+            Some(this.block_position.unwrap_or_default() + this.current_block.encrypted_size());
 
-          *this.current_position = 0;
+          // We have a new buffer, reinitialise the position and buffer.
+          *this.current_block = block;
+          *this.buf_position = 0;
         }
         Some(Err(e)) => return Poll::Ready(Err(e.into())),
         None => return Poll::Ready(Ok(&[])),
@@ -74,13 +104,13 @@ where
     }
 
     // Return the unconsumed data from the buffer.
-    Poll::Ready(Ok(&this.bytes[*this.current_position..]))
+    Poll::Ready(Ok(&this.current_block[*this.buf_position..]))
   }
 
   fn consume(self: Pin<&mut Self>, amt: usize) {
     let this = self.project();
-    // Update the position until the consumed amount reaches the end of the buffer.
-    *this.current_position = cmp::min(*this.current_position + amt, this.bytes.len());
+    // Update the buffer position until the consumed amount reaches the end of the buffer.
+    *this.buf_position = cmp::min(*this.buf_position + amt, this.current_block.len());
   }
 }
 

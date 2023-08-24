@@ -28,12 +28,63 @@ impl SenderPublicKey {
   }
 }
 
-/// A wrapper around a vec of bytes that represents plain text bytes.
-#[derive(Debug, Clone)]
-pub struct PlainTextBytes(Bytes);
+/// Represents the decrypted data block and its original encrypted size.
+#[derive(Debug, Default)]
+pub struct DecryptedDataBlock {
+  bytes: DecryptedBytes,
+  encrypted_size: usize,
+}
 
-impl PlainTextBytes {
-  /// Create new plain text bytes from bytes.
+impl DecryptedDataBlock {
+  /// Create a new decrypted data block.
+  pub fn new(bytes: DecryptedBytes, encrypted_size: usize) -> Self {
+    Self {
+      bytes,
+      encrypted_size,
+    }
+  }
+
+  /// Get the plain text bytes.
+  pub fn bytes(&self) -> &DecryptedBytes {
+    &self.bytes
+  }
+
+  /// Get the encrypted size.
+  pub fn encrypted_size(&self) -> usize {
+    self.encrypted_size
+  }
+
+  /// Get the inner bytes and size.
+  pub fn into_inner(self) -> (DecryptedBytes, usize) {
+    (self.bytes, self.encrypted_size)
+  }
+
+  /// Get the length of the decrypted bytes.
+  pub const fn len(&self) -> usize {
+    self.bytes.len()
+  }
+
+  /// Check if the decrypted bytes are empty
+  pub const fn is_empty(&self) -> bool {
+    self.bytes.is_empty()
+  }
+}
+
+impl Deref for DecryptedDataBlock {
+  type Target = [u8];
+
+  #[inline]
+  fn deref(&self) -> &[u8] {
+    self.bytes.deref()
+  }
+}
+
+/// A wrapper around a vec of bytes that represents decrypted data.
+#[derive(Debug, Default, Clone)]
+pub struct DecryptedBytes(Bytes);
+
+impl DecryptedBytes {
+  /// Create new decrypted bytes from bytes.
   pub fn new(bytes: Bytes) -> Self {
     Self(bytes)
   }
@@ -48,13 +99,13 @@ impl PlainTextBytes {
     self.0.len()
   }
 
-  /// Get the length of the inner bytes.
+  /// Check if the inner bytes are empty.
   pub const fn is_empty(&self) -> bool {
     self.0.is_empty()
   }
 }
 
-impl Deref for PlainTextBytes {
+impl Deref for DecryptedBytes {
   type Target = [u8];
 
   #[inline]

@@ -35,6 +35,7 @@ pin_project! {
         edit_list_packet: Option<Vec<u64>>,
         header_length: Option<usize>,
         current_block_size: Option<usize>,
+        previous_block_size: Option<usize>,
     }
 }
 
@@ -53,6 +54,7 @@ where
       edit_list_packet: None,
       header_length: None,
       current_block_size: None,
+      previous_block_size: None,
     }
   }
 
@@ -189,7 +191,8 @@ mod tests {
         .await
         .into_iter()
         .fold(BytesMut::new(), |mut acc, bytes| {
-          acc.extend(bytes.unwrap().0);
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
           acc
         });
 

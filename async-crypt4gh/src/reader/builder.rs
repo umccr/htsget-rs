@@ -1,12 +1,11 @@
 use std::thread;
 
-use bytes::Bytes;
 use crypt4gh::Keys;
 use futures_util::TryStreamExt;
 use tokio::io::AsyncRead;
 
 use crate::decrypter::DecrypterStream;
-use crate::{PlainTextBytes, SenderPublicKey};
+use crate::SenderPublicKey;
 
 use super::Reader;
 
@@ -43,8 +42,8 @@ impl Builder {
       stream: DecrypterStream::new(reader, keys, sender_pubkey).try_buffered(worker_count),
       worker_count,
       // Dummy value for bytes to begin with.
-      bytes: PlainTextBytes(Bytes::new()),
-      current_position: 0,
+      current_block: Default::default(),
+      buf_position: 0,
       block_position: None,
     }
   }

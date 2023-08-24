@@ -10,12 +10,12 @@ use tokio::task::JoinHandle;
 
 use crate::error::Error::{Crypt4GHError, JoinHandleError};
 use crate::error::Result;
-use crate::PlainTextBytes;
+use crate::{DecryptedBytes, DecryptedDataBlock};
 
 pin_project! {
     pub struct DataBlockDecrypter {
         #[pin]
-        handle: JoinHandle<Result<PlainTextBytes>>
+        handle: JoinHandle<Result<DecryptedDataBlock>>
     }
 }
 
@@ -36,7 +36,9 @@ impl DataBlockDecrypter {
     data_block: Bytes,
     session_keys: Vec<Vec<u8>>,
     edit_list_packet: Option<Vec<u64>>,
-  ) -> Result<PlainTextBytes> {
+  ) -> Result<DecryptedDataBlock> {
+    let size = data_block.len();
+
     let read_buf = Cursor::new(data_block.to_vec());
     let mut write_buf = Cursor::new(vec![]);
     let mut write_info = WriteInfo::new(0, None, &mut write_buf);
@@ -47,12 +49,15 @@ impl DataBlockDecrypter {
     }
     .map_err(|err| Crypt4GHError(err.to_string()))?;
 
-    Ok(PlainTextBytes(write_buf.into_inner().into()))
+    Ok(DecryptedDataBlock::new(
+      DecryptedBytes::new(write_buf.into_inner().into()),
+      size,
+    ))
   }
 }
 
 impl Future for DataBlockDecrypter {
-  type Output = Result<PlainTextBytes>;
+  type Output = Result<DecryptedDataBlock>;
 
   fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
     self.project().handle.poll(cx).map_err(JoinHandleError)?
@@ -77,6 +82,6 @@ mod tests {
     .await
     .unwrap();
 
-    assert_first_data_block(data.0.to_vec()).await;
+    assert_first_data_block(data.bytes.to_vec()).await;
   }
 }
