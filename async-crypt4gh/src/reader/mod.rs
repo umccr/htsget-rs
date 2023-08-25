@@ -2,6 +2,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};
 
+use crate::reader::builder::Builder;
 use crate::DecryptedDataBlock;
 use futures::ready;
 use futures::stream::TryBuffered;
@@ -19,7 +20,6 @@ pin_project! {
     {
       #[pin]
       stream: TryBuffered<DecrypterStream<R>>,
-      worker_count: usize,
       current_block: DecryptedDataBlock,
       // The current position in the decrypted buffer.
       buf_position: usize,
@@ -46,6 +46,35 @@ where
     self
       .block_position
       .map(|block_position| block_position + self.current_block.encrypted_size())
+  }
+
+  /// Get a reference to the inner reader.
+  pub fn get_ref(&self) -> &R {
+    self.stream.get_ref().get_ref()
+  }
+
+  /// Get a mutable reference to the inner reader.
+  pub fn get_mut(&mut self) -> &mut R {
+    self.stream.get_mut().get_mut()
+  }
+
+  /// Get a pinned mutable reference to the inner reader.
+  pub fn get_pin_mut(self: Pin<&mut Self>) -> Pin<&mut R> {
+    self.project().stream.get_pin_mut().get_pin_mut()
+  }
+
+  /// Get the inner reader.
+  pub fn into_inner(self) -> R {
+    self.stream.into_inner().into_inner()
+  }
+}
+
+impl<R> From<DecrypterStream<R>> for Reader<R>
+where
+  R: AsyncRead,
+{
+  fn from(stream: DecrypterStream<R>) -> Self {
+    Builder::default().build_with_stream(stream)
   }
 }
 
@@ -134,7 +163,7 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build(
+    let mut reader = Builder::default().build_with_reader(
       src,
       vec![recipient_private_key],
       Some(SenderPublicKey::new(sender_public_key)),
@@ -152,7 +181,7 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let reader = Builder::default().build(
+    let reader = Builder::default().build_with_reader(
       src,
       vec![recipient_private_key],
       Some(SenderPublicKey::new(sender_public_key)),
@@ -195,7 +224,7 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build(
+    let mut reader = Builder::default().build_with_reader(
       src,
       vec![recipient_private_key],
       Some(SenderPublicKey::new(sender_public_key)),
@@ -217,7 +246,7 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build(
+    let mut reader = Builder::default().build_with_reader(
       src,
       vec![recipient_private_key],
       Some(SenderPublicKey::new(sender_public_key)),
@@ -239,7 +268,7 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build(
+    let mut reader = Builder::default().build_with_reader(
       src,
       vec![recipient_private_key],
       Some(SenderPublicKey::new(sender_public_key)),
@@ -261,7 +290,7 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build(
+    let mut reader = Builder::default().build_with_reader(
       src,
       vec![recipient_private_key],
       Some(SenderPublicKey::new(sender_public_key)),

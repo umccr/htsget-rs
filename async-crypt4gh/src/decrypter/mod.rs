@@ -91,6 +91,26 @@ where
   pub fn current_block_size(&self) -> Option<usize> {
     self.current_block_size
   }
+
+  /// Get a reference to the inner reader.
+  pub fn get_ref(&self) -> &R {
+    self.inner.get_ref()
+  }
+
+  /// Get a mutable reference to the inner reader.
+  pub fn get_mut(&mut self) -> &mut R {
+    self.inner.get_mut()
+  }
+
+  /// Get a pinned mutable reference to the inner reader.
+  pub fn get_pin_mut(self: Pin<&mut Self>) -> Pin<&mut R> {
+    self.project().inner.get_pin_mut()
+  }
+
+  /// Get the inner reader.
+  pub fn into_inner(self) -> R {
+    self.inner.into_inner()
+  }
 }
 
 impl<R> Stream for DecrypterStream<R>

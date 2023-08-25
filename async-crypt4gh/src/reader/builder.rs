@@ -23,7 +23,7 @@ impl Builder {
   }
 
   /// Build the Crypt4GH reader.
-  pub fn build<R>(
+  pub fn build_with_reader<R>(
     self,
     reader: R,
     keys: Vec<Keys>,
@@ -32,19 +32,32 @@ impl Builder {
   where
     R: AsyncRead,
   {
-    let worker_count = self.worker_count.unwrap_or_else(|| {
-      thread::available_parallelism()
-        .map(|worker_count| worker_count.get())
-        .unwrap_or_else(|_| 1)
-    });
-
     Reader {
-      stream: DecrypterStream::new(reader, keys, sender_pubkey).try_buffered(worker_count),
-      worker_count,
+      stream: DecrypterStream::new(reader, keys, sender_pubkey).try_buffered(Self::worker_count()),
       // Dummy value for bytes to begin with.
       current_block: Default::default(),
       buf_position: 0,
       block_position: None,
     }
+  }
+
+  /// Build the Crypt4GH reader.
+  pub fn build_with_stream<R>(self, stream: DecrypterStream<R>) -> Reader<R>
+  where
+    R: AsyncRead,
+  {
+    Reader {
+      stream: stream.try_buffered(Self::worker_count()),
+      // Dummy value for bytes to begin with.
+      current_block: Default::default(),
+      buf_position: 0,
+      block_position: None,
+    }
+  }
+
+  fn worker_count() -> usize {
+    thread::available_parallelism()
+      .map(|worker_count| worker_count.get())
+      .unwrap_or_else(|_| 1)
   }
 }
