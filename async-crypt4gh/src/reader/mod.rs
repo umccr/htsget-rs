@@ -34,16 +34,18 @@ where
 {
   /// Gets the position of the data block which includes the current position of the underlying
   /// reader. This function will return a value that always corresponds the beginning of a data
-  /// block or 0.
-  pub fn current_block_position(&self) -> usize {
-    self.block_position.unwrap_or_default()
+  /// block or `None` if the reader has not read any bytes.
+  pub fn current_block_position(&self) -> Option<usize> {
+    self.block_position
   }
 
   /// Gets the position of the next data block from the current position of the underlying reader.
-  /// This function will return a value that always corresponds the beginning of a data block or
-  /// past the end of the file.
-  pub fn next_block_position(&self) -> usize {
-    self.block_position.unwrap_or_default() + self.current_block.encrypted_size()
+  /// This function will return a value that always corresponds the beginning of a data block, the
+  /// size of the file, or `None` if the reader has not read any bytes.
+  pub fn next_block_position(&self) -> Option<usize> {
+    self
+      .block_position
+      .map(|block_position| block_position + self.current_block.encrypted_size())
   }
 }
 
@@ -78,11 +80,11 @@ where
     let this = self.project();
 
     // If this is the beginning of the stream, set the block position to the header length, if any.
-    if this.block_position.unwrap_or_default() == 0 {
-      *this.block_position = Some(
-        this.block_position.unwrap_or_default()
-          + this.stream.get_ref().header_length().unwrap_or_default(),
-      );
+    if let (None, Some(header_length)) = (
+      this.block_position.as_ref(),
+      this.stream.get_ref().header_length(),
+    ) {
+      *this.block_position = Some(header_length);
     }
 
     // If the position is past the end of the buffer, then all the data has been read and a new
@@ -186,5 +188,93 @@ mod tests {
     }
 
     assert_eq!(records, original_records);
+  }
+
+  #[tokio::test]
+  async fn first_current_block_position() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default().build(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    // Before anything is read the current block should not be known.
+    assert_eq!(reader.current_block_position(), None);
+
+    // Read the first byte of the decrypted data.
+    let mut buf = [0u8; 1];
+    reader.read_exact(&mut buf).await.unwrap();
+
+    // Now the current position should be at the end of the header.
+    assert_eq!(reader.current_block_position(), Some(124));
+  }
+
+  #[tokio::test]
+  async fn first_next_block_position() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default().build(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    // Before anything is read the next block should not be known.
+    assert_eq!(reader.next_block_position(), None);
+
+    // Read the first byte of the decrypted data.
+    let mut buf = [0u8; 1];
+    reader.read_exact(&mut buf).await.unwrap();
+
+    // Now the next position should be at the second data block.
+    assert_eq!(reader.next_block_position(), Some(124 + 65564));
+  }
+
+  #[tokio::test]
+  async fn last_current_block_position() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default().build(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    // Before anything is read the current block should not be known.
+    assert_eq!(reader.current_block_position(), None);
+
+    // Read the whole file.
+    let mut decrypted_bytes = vec![];
+    reader.read_to_end(&mut decrypted_bytes).await.unwrap();
+
+    // Now the current position should be at the last data block.
+    assert_eq!(reader.current_block_position(), Some(2598043 - 40923));
+  }
+
+  #[tokio::test]
+  async fn last_next_block_position() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default().build(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    // Before anything is read the next block should not be known.
+    assert_eq!(reader.next_block_position(), None);
+
+    // Read the whole file.
+    let mut decrypted_bytes = vec![];
+    reader.read_to_end(&mut decrypted_bytes).await.unwrap();
+
+    // Now the next position should be the size of the file.
+    assert_eq!(reader.next_block_position(), Some(2598043));
   }
 }

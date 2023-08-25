@@ -35,7 +35,6 @@ pin_project! {
         edit_list_packet: Option<Vec<u64>>,
         header_length: Option<usize>,
         current_block_size: Option<usize>,
-        previous_block_size: Option<usize>,
     }
 }
 
@@ -54,7 +53,6 @@ where
       edit_list_packet: None,
       header_length: None,
       current_block_size: None,
-      previous_block_size: None,
     }
   }
 
@@ -131,9 +129,8 @@ where
           Poll::Pending
         }
         DecodedBlock::HeaderPackets(header_packets) => {
-          let header_packets_length: usize = header_packets.iter().map(|packet| packet.len()).sum();
-
-          *this.header_length = Some(header_packets_length + HEADER_INFO_SIZE);
+          let (header_packets, header_length) = header_packets.into_inner();
+          *this.header_length = Some(header_length + HEADER_INFO_SIZE);
 
           this
             .header_packet_future
@@ -216,11 +213,11 @@ mod tests {
 
     let _ = stream.next().await.unwrap().unwrap().await;
 
-    assert_eq!(stream.header_length(), Some(120));
+    assert_eq!(stream.header_length(), Some(124));
   }
 
   #[tokio::test]
-  async fn get_first_block_size() {
+  async fn first_block_size() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
@@ -238,7 +235,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn get_last_block_size() {
+  async fn last_block_size() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 

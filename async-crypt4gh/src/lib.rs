@@ -28,6 +28,39 @@ impl SenderPublicKey {
   }
 }
 
+/// Represents the encrypted header packet data, and the total size of all the header packets.
+/// The encrypted packets do not include the size of the packet at the beginning.
+#[derive(Debug, Default)]
+pub struct EncryptedHeaderPackets {
+  header_packets: Vec<Bytes>,
+  header_length: usize,
+}
+
+impl EncryptedHeaderPackets {
+  /// Create a new decrypted data block.
+  pub fn new(header_packets: Vec<Bytes>, size: usize) -> Self {
+    Self {
+      header_packets,
+      header_length: size,
+    }
+  }
+
+  /// Get the header packet bytes
+  pub fn header_packets(&self) -> &Vec<Bytes> {
+    &self.header_packets
+  }
+
+  /// Get the size of all the packets.
+  pub fn header_length(&self) -> usize {
+    self.header_length
+  }
+
+  /// Get the inner bytes and size.
+  pub fn into_inner(self) -> (Vec<Bytes>, usize) {
+    (self.header_packets, self.header_length)
+  }
+}
+
 /// Represents the decrypted data block and its original encrypted size.
 #[derive(Debug, Default)]
 pub struct DecryptedDataBlock {

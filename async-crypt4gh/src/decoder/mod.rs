@@ -1,5 +1,6 @@
 use std::io;
 
+use crate::EncryptedHeaderPackets;
 use bytes::{Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use tokio_util::codec::Decoder;
@@ -36,7 +37,7 @@ pub enum DecodedBlock {
   HeaderInfo(HeaderInfo),
   /// Header packets, both data encryption key packets and a data edit list packets.
   /// Corresponds to `deconstruct_header_body`.
-  HeaderPackets(Vec<Bytes>),
+  HeaderPackets(EncryptedHeaderPackets),
   /// The encrypted data blocks
   /// Corresponds to `body_decrypt`.
   DataBlock(Bytes),
@@ -137,7 +138,16 @@ impl Block {
 
     self.next_block = BlockState::DataBlock;
 
-    Ok(Some(DecodedBlock::HeaderPackets(header_packet_bytes)))
+    let header_length = header_packet_bytes
+      .iter()
+      .map(|packet| packet.len())
+      .sum::<usize>()
+      + usize::try_from(header_packets).map_err(|_| NumericConversionError)?
+        * HEADER_PACKET_LENGTH_SIZE;
+
+    Ok(Some(DecodedBlock::HeaderPackets(
+      EncryptedHeaderPackets::new(header_packet_bytes, header_length),
+    )))
   }
 
   /// Decodes data blocks, updates the state and returns a data block type.
@@ -320,12 +330,16 @@ pub(crate) mod tests {
     // The second block should contain a header packet.
     let header_packets = reader.next().await.unwrap().unwrap();
 
-    let header_packet = if let DecodedBlock::HeaderPackets(header_packets) = header_packets {
-      Some(header_packets)
-    } else {
-      None
-    }
-    .unwrap();
+    let (header_packet, header_length) =
+      if let DecodedBlock::HeaderPackets(header_packets) = header_packets {
+        Some(header_packets)
+      } else {
+        None
+      }
+      .unwrap()
+      .into_inner();
+
+    assert_eq!(header_length, 108);
 
     (
       recipient_private_key,
