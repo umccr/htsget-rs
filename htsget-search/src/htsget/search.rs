@@ -341,7 +341,7 @@ where
 
     #[cfg(feature = "crypt4gh")]
     if query.is_crypt4gh() {
-      let reader = Builder::default().build_with_reader(reader_type, vec![], None);
+      let reader = Builder::default().build_with_reader(reader_type, vec![]);
 
       return Self::read_header(reader).await.map_err(|err| {
         HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))

@@ -21,6 +21,7 @@ use crate::error::Error::Crypt4GHError;
 use crate::error::Result;
 use crate::SenderPublicKey;
 
+pub mod builder;
 pub mod data_block;
 pub mod header_packet;
 
@@ -45,6 +46,7 @@ pin_project! {
         header_length: Option<u64>,
         current_block_size: Option<usize>,
         seek_state: SeekState,
+        length_hint: Option<u64>,
     }
 }
 
@@ -52,21 +54,6 @@ impl<R> DecrypterStream<R>
 where
   R: AsyncRead,
 {
-  /// Create a new decrypter.
-  pub fn new(inner: R, keys: Vec<Keys>, sender_pubkey: Option<SenderPublicKey>) -> Self {
-    Self {
-      inner: FramedRead::new(inner, Default::default()),
-      header_packet_future: None,
-      keys,
-      sender_pubkey,
-      session_keys: vec![],
-      edit_list_packet: None,
-      header_length: None,
-      current_block_size: None,
-      seek_state: NotSeeking,
-    }
-  }
-
   /// Polls a data block. This function shouldn't execute until all the header packets have been
   /// processed.
   pub fn poll_data_block(
@@ -237,7 +224,9 @@ where
 ///
 /// No attempt is made to update the current_block_size so it will be set to whatever it was prior
 /// to calling seek. Seeking past the end of the stream is allowed but the behaviour is dependent
-/// on the underlying reader. Data block positions past the end of the stream may not be valid.
+/// on the underlying reader. Data block positions past the end of the stream may not be valid
+/// unless the length hint is set, in which case seeks past the end of the file will not exceed the
+/// length hint.
 impl<R> AsyncSeek for DecrypterStream<R>
 where
   R: AsyncRead + AsyncSeek + Unpin,
@@ -246,7 +235,7 @@ where
     match self.seek_state {
       SeekingToPosition | SeekingToDataBlock => Err(io::Error::new(
         io::ErrorKind::Other,
-        "cannot start_seek while another seek is in progress",
+        "cannot start seek while another seek is in progress",
       )),
       NotSeeking => {
         self.seek_state = SeekingToPosition;
@@ -303,7 +292,10 @@ where
       self.seek_state = NotSeeking;
       self.inner.read_buffer_mut().clear();
 
-      Poll::Ready(Ok(position))
+      match self.length_hint {
+        Some(length_hint) if position > length_hint => Poll::Ready(Ok(length_hint)),
+        _ => Poll::Ready(Ok(position)),
+      }
     } else {
       Poll::Ready(Ok(0))
     }
@@ -320,6 +312,7 @@ mod tests {
   use htsget_test::http_tests::get_test_file;
 
   use crate::decoder::tests::assert_last_data_block;
+  use crate::decrypter::builder::Builder;
   use crate::tests::{get_keys, get_original_file};
 
   use super::*;
@@ -329,11 +322,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
 
     let mut futures = vec![];
     while let Some(block) = stream.next().await {
@@ -360,11 +351,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
 
     assert!(stream.header_length().is_none());
 
@@ -378,11 +367,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
 
     assert!(stream.current_block_size().is_none());
 
@@ -396,11 +383,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
 
     assert!(stream.current_block_size().is_none());
 
@@ -415,11 +400,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
     let _ = stream.next().await.unwrap().unwrap().await;
 
     assert_eq!(stream.clamp_position(0), Some(124));
@@ -432,11 +415,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
     let _ = stream.next().await.unwrap().unwrap().await;
 
     assert_eq!(stream.clamp_position(80000), Some(124 + 65564));
@@ -447,11 +428,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
 
     let seek = stream.seek(SeekFrom::Start(200)).await.unwrap();
 
@@ -484,11 +463,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
 
     let seek = stream.seek(SeekFrom::Start(80000)).await.unwrap();
 
@@ -527,11 +504,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut stream = DecrypterStream::new(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
 
     let seek = stream.seek(SeekFrom::End(-1000)).await.unwrap();
 
@@ -541,5 +516,23 @@ mod tests {
 
     let block = stream.next().await.unwrap().unwrap().await.unwrap();
     assert_last_data_block(block.bytes.to_vec()).await;
+  }
+
+  #[tokio::test]
+  async fn seek_past_end() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_length_hint(2598043)
+      .build(src, vec![recipient_private_key]);
+
+    let seek = stream.seek(SeekFrom::End(80000)).await.unwrap();
+
+    assert_eq!(seek, 2598043);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+    assert!(stream.next().await.is_none());
   }
 }

@@ -26,7 +26,9 @@ pin_project! {
       // The current position in the decrypted buffer.
       buf_position: usize,
       // The encrypted position of the current data block minus the size of the header.
-      block_position: Option<usize>
+      block_position: Option<usize>,
+      // The length of the underlying reader, used for calculating block positions if present.
+      length_hint: Option<u64>
     }
 }
 
@@ -179,11 +181,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build_with_reader(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_reader(src, vec![recipient_private_key]);
 
     let mut decrypted_bytes = vec![];
     reader.read_to_end(&mut decrypted_bytes).await.unwrap();
@@ -197,11 +197,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let reader = Builder::default().build_with_reader(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_reader(src, vec![recipient_private_key]);
     let mut reader = AsyncReader::new(reader);
 
     let original_file = get_test_file("bam/htsnexus_test_NA12878.bam").await;
@@ -240,11 +238,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build_with_reader(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_reader(src, vec![recipient_private_key]);
 
     // Before anything is read the current block should not be known.
     assert_eq!(reader.current_block_position(), None);
@@ -262,11 +258,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build_with_reader(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_reader(src, vec![recipient_private_key]);
 
     // Before anything is read the next block should not be known.
     assert_eq!(reader.next_block_position(), None);
@@ -284,11 +278,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build_with_reader(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_reader(src, vec![recipient_private_key]);
 
     // Before anything is read the current block should not be known.
     assert_eq!(reader.current_block_position(), None);
@@ -306,11 +298,9 @@ mod tests {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
-    let mut reader = Builder::default().build_with_reader(
-      src,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
-    );
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_reader(src, vec![recipient_private_key]);
 
     // Before anything is read the next block should not be known.
     assert_eq!(reader.next_block_position(), None);
