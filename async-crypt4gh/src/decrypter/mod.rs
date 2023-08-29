@@ -12,16 +12,24 @@ use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncSeek};
 use tokio_util::codec::FramedRead;
 
+use crate::decoder::Block;
 use crate::decoder::DecodedBlock;
-use crate::decoder::{Block, HEADER_INFO_SIZE};
 use crate::decrypter::data_block::DataBlockDecrypter;
 use crate::decrypter::header_packet::HeaderPacketsDecrypter;
+use crate::decrypter::SeekState::{NotSeeking, SeekingToDataBlock, SeekingToPosition};
 use crate::error::Error::Crypt4GHError;
 use crate::error::Result;
 use crate::SenderPublicKey;
 
 pub mod data_block;
 pub mod header_packet;
+
+#[derive(Debug)]
+enum SeekState {
+  SeekingToPosition,
+  SeekingToDataBlock,
+  NotSeeking,
+}
 
 pin_project! {
     /// A decrypter for an entire AsyncRead Crypt4GH file.
@@ -34,8 +42,9 @@ pin_project! {
         sender_pubkey: Option<SenderPublicKey>,
         session_keys: Vec<Vec<u8>>,
         edit_list_packet: Option<Vec<u64>>,
-        header_length: Option<usize>,
-        current_block_size: Option<usize>
+        header_length: Option<u64>,
+        current_block_size: Option<usize>,
+        seek_state: SeekState,
     }
 }
 
@@ -54,6 +63,7 @@ where
       edit_list_packet: None,
       header_length: None,
       current_block_size: None,
+      seek_state: NotSeeking,
     }
   }
 
@@ -110,7 +120,7 @@ where
         DecodedBlock::HeaderPackets(header_packets) => {
           // Update the header length because we have access to the header packets.
           let (header_packets, header_length) = header_packets.into_inner();
-          *this.header_length = Some(header_length + HEADER_INFO_SIZE);
+          *this.header_length = Some(header_length + Block::header_info_size());
 
           // Add task for decrypting the header packets.
           this
@@ -138,7 +148,7 @@ where
 
   /// Get the length of the header, including the magic string, version number, packet count
   /// and the header packets. Returns `None` before the header packet is polled.
-  pub fn header_length(&self) -> Option<usize> {
+  pub fn header_length(&self) -> Option<u64> {
     self.header_length
   }
 
@@ -147,6 +157,19 @@ where
   /// less than that. Returns `None` before the first data block is polled.
   pub fn current_block_size(&self) -> Option<usize> {
     self.current_block_size
+  }
+
+  /// Clamps the byte position to the nearest data block if the header length is known.
+  pub fn clamp_position(&self, position: u64) -> Option<u64> {
+    self.header_length().map(|length| {
+      if position < length {
+        length
+      } else {
+        let remainder = (position - length) % Block::standard_data_block_size();
+
+        position - remainder
+      }
+    })
   }
 
   /// Get a reference to the inner reader.
@@ -187,6 +210,12 @@ where
 
     match ready!(item) {
       Some(Ok(buf)) => match buf {
+        DecodedBlock::HeaderInfo(_) | DecodedBlock::HeaderPackets(_) => {
+          // Session keys have already been read, so ignore the header info and header packets
+          // and poll again
+          cx.waker().wake_by_ref();
+          Poll::Pending
+        }
         DecodedBlock::DataBlock(data_block) => {
           // The new size of the data block is available, so update it.
           *this.current_block_size = Some(data_block.len());
@@ -194,8 +223,6 @@ where
           // Session keys have been obtained so process the data blocks.
           self.poll_data_block(data_block)
         }
-        // We should not have any other type of block after getting the session keys.
-        _ => Poll::Ready(Some(Err(Crypt4GHError("expected data block".to_string())))),
       },
       Some(Err(e)) => Poll::Ready(Some(Err(e))),
       None => Poll::Ready(None),
@@ -203,36 +230,83 @@ where
   }
 }
 
+/// See the documentation for the trait for all functionality. This implementation ensures that all
+/// seeks are aligned to the start of a data block preceding the requested seek position. Seek calls
+/// also process the header packets in order to obtain the session keys.
+///
+///
+/// No attempt is made to update the current_block_size so it will be set to whatever it was prior
+/// to calling seek. Seeking past the end of the stream is allowed but the behaviour is dependent
+/// on the underlying reader. Data block positions past the end of the stream may not be valid.
 impl<R> AsyncSeek for DecrypterStream<R>
 where
   R: AsyncRead + AsyncSeek + Unpin,
 {
-  fn start_seek(self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
-    // Defer to the inner start_seek implementation.
-    self.project().inner.get_pin_mut().start_seek(position)
+  fn start_seek(mut self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
+    match self.seek_state {
+      SeekingToPosition | SeekingToDataBlock => Err(io::Error::new(
+        io::ErrorKind::Other,
+        "cannot start_seek while another seek is in progress",
+      )),
+      NotSeeking => {
+        self.seek_state = SeekingToPosition;
+
+        self.project().inner.get_pin_mut().start_seek(position)
+      }
+    }
   }
 
   fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
-    // When seeking we first need to have the session keys.
+    // When seeking the session keys are required.
     if let Err(err) = ready!(self.as_mut().poll_session_keys(cx)) {
       return Poll::Ready(Err(err.into()));
     }
 
-    // Then we do the seek.
-    let position = match ready!(self
-      .as_mut()
-      .project()
-      .inner
-      .get_pin_mut()
-      .poll_complete(cx))
-    {
-      Ok(position) => position,
-      Err(err) => return Poll::Ready(Err(err)),
-    };
+    if let SeekingToPosition | SeekingToDataBlock = self.seek_state {
+      // Finish any remaining seeking.
+      let position = match ready!(self
+        .as_mut()
+        .project()
+        .inner
+        .get_pin_mut()
+        .poll_complete(cx))
+      {
+        Ok(position) => position,
+        Err(err) => {
+          self.seek_state = NotSeeking;
+          return Poll::Ready(Err(err));
+        }
+      };
 
-    self.inner.read_buffer_mut().clear();
+      // If seeking to a position, we might still need to seek again to align with a data block.
+      if let SeekingToPosition = self.seek_state {
+        let data_block_position = self.clamp_position(position).ok_or_else(|| {
+          io::Error::new(io::ErrorKind::Other, "could not find data block position")
+        })?;
 
-    Poll::Ready(Ok(position))
+        if position != data_block_position {
+          self.seek_state = SeekingToDataBlock;
+
+          // Start seeking to the data block if required.
+          self
+            .project()
+            .inner
+            .get_pin_mut()
+            .start_seek(SeekFrom::Start(data_block_position))?;
+
+          cx.waker().wake_by_ref();
+          return Poll::Pending;
+        }
+      }
+
+      // Otherwise, this position must be a data block position.
+      self.seek_state = NotSeeking;
+      self.inner.read_buffer_mut().clear();
+
+      Poll::Ready(Ok(position))
+    } else {
+      Poll::Ready(Ok(0))
+    }
   }
 }
 
@@ -241,9 +315,11 @@ mod tests {
   use bytes::BytesMut;
   use futures_util::future::join_all;
   use futures_util::StreamExt;
+  use tokio::io::AsyncSeekExt;
 
   use htsget_test::http_tests::get_test_file;
 
+  use crate::decoder::tests::assert_last_data_block;
   use crate::tests::{get_keys, get_original_file};
 
   use super::*;
@@ -332,5 +408,138 @@ mod tests {
     let _ = stream.next().await.unwrap().unwrap().await;
 
     assert_eq!(stream.get_ref().current_block_size(), Some(40923));
+  }
+
+  #[tokio::test]
+  async fn clamp_position_first_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    assert_eq!(stream.clamp_position(0), Some(124));
+    assert_eq!(stream.clamp_position(124), Some(124));
+    assert_eq!(stream.clamp_position(200), Some(124));
+  }
+
+  #[tokio::test]
+  async fn clamp_position_second_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    assert_eq!(stream.clamp_position(80000), Some(124 + 65564));
+  }
+
+  #[tokio::test]
+  async fn seek_first_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    let seek = stream.seek(SeekFrom::Start(200)).await.unwrap();
+
+    assert_eq!(seek, 124);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn seek_second_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    let seek = stream.seek(SeekFrom::Start(80000)).await.unwrap();
+
+    assert_eq!(seek, 124 + 65564);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let seek = stream.seek(SeekFrom::Current(-20000)).await.unwrap();
+
+    assert_eq!(seek, 124);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn seek_to_end() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = DecrypterStream::new(
+      src,
+      vec![recipient_private_key],
+      Some(SenderPublicKey::new(sender_public_key)),
+    );
+
+    let seek = stream.seek(SeekFrom::End(-1000)).await.unwrap();
+
+    assert_eq!(seek, 2598043 - 40923);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let block = stream.next().await.unwrap().unwrap().await.unwrap();
+    assert_last_data_block(block.bytes.to_vec()).await;
   }
 }

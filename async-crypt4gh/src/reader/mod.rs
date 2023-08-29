@@ -3,6 +3,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};
 
+use crate::error::Error::NumericConversionError;
 use crate::reader::builder::Builder;
 use crate::DecryptedDataBlock;
 use futures::ready;
@@ -114,7 +115,8 @@ where
       this.block_position.as_ref(),
       this.stream.get_ref().header_length(),
     ) {
-      *this.block_position = Some(header_length);
+      *this.block_position =
+        Some(usize::try_from(header_length).map_err(|_| NumericConversionError)?);
     }
 
     // If the position is past the end of the buffer, then all the data has been read and a new

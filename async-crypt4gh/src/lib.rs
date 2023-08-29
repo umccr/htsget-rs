@@ -33,12 +33,12 @@ impl SenderPublicKey {
 #[derive(Debug, Default)]
 pub struct EncryptedHeaderPackets {
   header_packets: Vec<Bytes>,
-  header_length: usize,
+  header_length: u64,
 }
 
 impl EncryptedHeaderPackets {
   /// Create a new decrypted data block.
-  pub fn new(header_packets: Vec<Bytes>, size: usize) -> Self {
+  pub fn new(header_packets: Vec<Bytes>, size: u64) -> Self {
     Self {
       header_packets,
       header_length: size,
@@ -51,12 +51,12 @@ impl EncryptedHeaderPackets {
   }
 
   /// Get the size of all the packets.
-  pub fn header_length(&self) -> usize {
+  pub fn header_length(&self) -> u64 {
     self.header_length
   }
 
   /// Get the inner bytes and size.
-  pub fn into_inner(self) -> (Vec<Bytes>, usize) {
+  pub fn into_inner(self) -> (Vec<Bytes>, u64) {
     (self.header_packets, self.header_length)
   }
 }

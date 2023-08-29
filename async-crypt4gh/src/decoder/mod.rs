@@ -15,7 +15,7 @@ pub const ENCRYPTED_BLOCK_SIZE: usize = 65536;
 pub const NONCE_SIZE: usize = 12; // ChaCha20 IETF Nonce size
 pub const MAC_SIZE: usize = 16;
 
-pub const DATA_BLOCK_SIZE: usize = NONCE_SIZE + ENCRYPTED_BLOCK_SIZE + MAC_SIZE;
+const DATA_BLOCK_SIZE: usize = NONCE_SIZE + ENCRYPTED_BLOCK_SIZE + MAC_SIZE;
 
 const MAGIC_STRING_SIZE: usize = 8;
 const VERSION_STRING_SIZE: usize = 4;
@@ -138,12 +138,15 @@ impl Block {
 
     self.next_block = BlockState::DataBlock;
 
-    let header_length = header_packet_bytes
-      .iter()
-      .map(|packet| packet.len())
-      .sum::<usize>()
-      + usize::try_from(header_packets).map_err(|_| NumericConversionError)?
-        * HEADER_PACKET_LENGTH_SIZE;
+    let header_length = u64::try_from(
+      header_packet_bytes
+        .iter()
+        .map(|packet| packet.len())
+        .sum::<usize>(),
+    )
+    .map_err(|_| NumericConversionError)?
+      + u64::try_from(header_packets).map_err(|_| NumericConversionError)?
+        * HEADER_PACKET_LENGTH_SIZE as u64;
 
     Ok(Some(DecodedBlock::HeaderPackets(
       EncryptedHeaderPackets::new(header_packet_bytes, header_length),
@@ -164,6 +167,16 @@ impl Block {
     Ok(Some(DecodedBlock::DataBlock(
       src.split_to(DATA_BLOCK_SIZE).freeze(),
     )))
+  }
+
+  /// Get the standard size of all non-ending data blocks.
+  pub const fn standard_data_block_size() -> u64 {
+    DATA_BLOCK_SIZE as u64
+  }
+
+  /// Get the size of the magic string, version and header packet count.
+  pub const fn header_info_size() -> u64 {
+    HEADER_INFO_SIZE as u64
   }
 }
 
