@@ -1,14 +1,16 @@
+use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};
 
+use crate::error::Result;
 use crate::reader::builder::Builder;
 use crate::DecryptedDataBlock;
 use futures::ready;
 use futures::stream::TryBuffered;
 use futures::Stream;
 use pin_project_lite::pin_project;
-use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
+use tokio::io::{AsyncBufRead, AsyncRead, AsyncSeek, ReadBuf};
 
 use super::decrypter::DecrypterStream;
 
@@ -142,6 +144,15 @@ where
     let this = self.project();
     // Update the buffer position until the consumed amount reaches the end of the buffer.
     *this.buf_position = cmp::min(*this.buf_position + amt, this.current_block.len());
+  }
+}
+
+impl<R> Reader<R>
+where
+  R: AsyncRead + AsyncSeek + Unpin,
+{
+  pub async fn seek(&mut self, position: SeekFrom) -> Result<u64> {
+    self.stream.get_mut().seek(position).await
   }
 }
 

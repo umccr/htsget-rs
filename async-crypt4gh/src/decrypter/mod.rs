@@ -1,14 +1,15 @@
 use std::future::Future;
+use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use crypt4gh::error::Crypt4GHError::NoSupportedEncryptionMethod;
 use crypt4gh::Keys;
 use futures::ready;
 use futures::Stream;
+use futures_util::StreamExt;
 use pin_project_lite::pin_project;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, AsyncSeek, AsyncSeekExt};
 use tokio_util::codec::FramedRead;
 
 use crate::decoder::DecodedBlock;
@@ -34,7 +35,7 @@ pin_project! {
         session_keys: Vec<Vec<u8>>,
         edit_list_packet: Option<Vec<u64>>,
         header_length: Option<usize>,
-        current_block_size: Option<usize>,
+        current_block_size: Option<usize>
     }
 }
 
@@ -67,7 +68,7 @@ where
 
     if this.session_keys.is_empty() {
       Poll::Ready(Some(Err(Crypt4GHError(
-        NoSupportedEncryptionMethod.to_string(),
+        "reached a data block without finding session keys".to_string(),
       ))))
     } else {
       Poll::Ready(Some(Ok(DataBlockDecrypter::new(
@@ -172,6 +173,27 @@ where
       Some(Err(e)) => Poll::Ready(Some(Err(e))),
       None => Poll::Ready(None),
     }
+  }
+}
+
+impl<R> DecrypterStream<R>
+where
+  R: AsyncRead + AsyncSeek + Unpin,
+{
+  pub async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+    // When seeking we first need to find the session keys.
+    if self.session_keys.is_empty() {
+      self.next().await.ok_or_else(|| {
+        Crypt4GHError("reached end of file without finding session keys".to_string())
+      })??;
+    }
+
+    // Then do the seek.
+    let pos = self.inner.get_mut().seek(pos).await?;
+
+    self.inner.read_buffer_mut().clear();
+
+    Ok(pos)
   }
 }
 
