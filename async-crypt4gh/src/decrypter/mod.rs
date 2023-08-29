@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::io;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -7,9 +8,8 @@ use bytes::Bytes;
 use crypt4gh::Keys;
 use futures::ready;
 use futures::Stream;
-use futures_util::StreamExt;
 use pin_project_lite::pin_project;
-use tokio::io::{AsyncRead, AsyncSeek, AsyncSeekExt};
+use tokio::io::{AsyncRead, AsyncSeek};
 use tokio_util::codec::FramedRead;
 
 use crate::decoder::DecodedBlock;
@@ -58,25 +58,81 @@ where
   }
 
   /// Polls a data block. This function shouldn't execute until all the header packets have been
-  /// processed. If there are no session keys, this function returns an error, otherwise it
-  /// decrypts the data blocks.
+  /// processed.
   pub fn poll_data_block(
     self: Pin<&mut Self>,
     data_block: Bytes,
   ) -> Poll<Option<Result<DataBlockDecrypter>>> {
     let this = self.project();
 
-    if this.session_keys.is_empty() {
-      Poll::Ready(Some(Err(Crypt4GHError(
-        "reached a data block without finding session keys".to_string(),
-      ))))
-    } else {
-      Poll::Ready(Some(Ok(DataBlockDecrypter::new(
-        data_block,
-        // Todo make this so it doesn't use owned Keys and SenderPublicKey as it will be called asynchronously.
-        this.session_keys.clone(),
-        this.edit_list_packet.clone(),
-      ))))
+    Poll::Ready(Some(Ok(DataBlockDecrypter::new(
+      data_block,
+      // Todo make this so it doesn't use owned Keys and SenderPublicKey as it will be called asynchronously.
+      this.session_keys.clone(),
+      this.edit_list_packet.clone(),
+    ))))
+  }
+
+  /// Poll the stream until the header packets and session keys are processed.
+  pub fn poll_session_keys(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    // Only execute this function if there are no session keys.
+    if !self.session_keys.is_empty() {
+      return Poll::Ready(Ok(()));
+    }
+
+    // Header packets are waiting to be decrypted.
+    if let Some(header_packet_decrypter) = self.as_mut().project().header_packet_future.as_pin_mut()
+    {
+      return match ready!(header_packet_decrypter.poll(cx)) {
+        Ok(header_packets) => {
+          let mut this = self.as_mut().project();
+
+          // Update the session keys and edit list packets.
+          this.header_packet_future.set(None);
+          this.session_keys.extend(header_packets.data_enc_packets);
+          *this.edit_list_packet = header_packets.edit_list_packet;
+
+          Poll::Ready(Ok(()))
+        }
+        Err(err) => Poll::Ready(Err(err)),
+      };
+    }
+
+    // No header packets yet, so more data needs to be decoded.
+    let mut this = self.as_mut().project();
+    match ready!(this.inner.poll_next(cx)) {
+      Some(Ok(buf)) => match buf {
+        DecodedBlock::HeaderInfo(_) => {
+          // Ignore the header info and poll again.
+          cx.waker().wake_by_ref();
+          Poll::Pending
+        }
+        DecodedBlock::HeaderPackets(header_packets) => {
+          // Update the header length because we have access to the header packets.
+          let (header_packets, header_length) = header_packets.into_inner();
+          *this.header_length = Some(header_length + HEADER_INFO_SIZE);
+
+          // Add task for decrypting the header packets.
+          this
+            .header_packet_future
+            .set(Some(HeaderPacketsDecrypter::new(
+              header_packets,
+              this.keys.clone(),
+              this.sender_pubkey.clone(),
+            )));
+
+          // Poll again.
+          cx.waker().wake_by_ref();
+          Poll::Pending
+        }
+        DecodedBlock::DataBlock(_) => Poll::Ready(Err(Crypt4GHError(
+          "data block reached without finding session keys".to_string(),
+        ))),
+      },
+      Some(Err(e)) => Poll::Ready(Err(e)),
+      None => Poll::Ready(Err(Crypt4GHError(
+        "end of stream reached without finding session keys".to_string(),
+      ))),
     }
   }
 
@@ -121,54 +177,25 @@ where
   type Item = Result<DataBlockDecrypter>;
 
   fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-    if let Some(header_packet_decrypter) = self.as_mut().project().header_packet_future.as_pin_mut()
-    {
-      match header_packet_decrypter.poll(cx) {
-        Poll::Ready(Ok(header_packets)) => {
-          let mut this = self.as_mut().project();
-
-          this.header_packet_future.set(None);
-          this.session_keys.extend(header_packets.data_enc_packets);
-          *this.edit_list_packet = header_packets.edit_list_packet;
-        }
-        Poll::Ready(Err(err)) => {
-          return Poll::Ready(Some(Err(err)));
-        }
-        Poll::Pending => {
-          return Poll::Pending;
-        }
-      }
+    // When polling, we first need to process enough data to get the session keys.
+    if let Err(err) = ready!(self.as_mut().poll_session_keys(cx)) {
+      return Poll::Ready(Some(Err(err)));
     }
 
-    let item = self.as_mut().project().inner.poll_next(cx);
-    let mut this = self.as_mut().project();
+    let this = self.as_mut().project();
+    let item = this.inner.poll_next(cx);
 
     match ready!(item) {
       Some(Ok(buf)) => match buf {
-        DecodedBlock::HeaderInfo(_) => {
-          cx.waker().wake_by_ref();
-          Poll::Pending
-        }
-        DecodedBlock::HeaderPackets(header_packets) => {
-          let (header_packets, header_length) = header_packets.into_inner();
-          *this.header_length = Some(header_length + HEADER_INFO_SIZE);
-
-          this
-            .header_packet_future
-            .set(Some(HeaderPacketsDecrypter::new(
-              header_packets,
-              this.keys.clone(),
-              this.sender_pubkey.clone(),
-            )));
-
-          cx.waker().wake_by_ref();
-          Poll::Pending
-        }
         DecodedBlock::DataBlock(data_block) => {
+          // The new size of the data block is available, so update it.
           *this.current_block_size = Some(data_block.len());
 
+          // Session keys have been obtained so process the data blocks.
           self.poll_data_block(data_block)
         }
+        // We should not have any other type of block after getting the session keys.
+        _ => Poll::Ready(Some(Err(Crypt4GHError("expected data block".to_string())))),
       },
       Some(Err(e)) => Poll::Ready(Some(Err(e))),
       None => Poll::Ready(None),
@@ -176,24 +203,36 @@ where
   }
 }
 
-impl<R> DecrypterStream<R>
+impl<R> AsyncSeek for DecrypterStream<R>
 where
   R: AsyncRead + AsyncSeek + Unpin,
 {
-  pub async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-    // When seeking we first need to find the session keys.
-    if self.session_keys.is_empty() {
-      self.next().await.ok_or_else(|| {
-        Crypt4GHError("reached end of file without finding session keys".to_string())
-      })??;
+  fn start_seek(self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
+    // Defer to the inner start_seek implementation.
+    self.project().inner.get_pin_mut().start_seek(position)
+  }
+
+  fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
+    // When seeking we first need to have the session keys.
+    if let Err(err) = ready!(self.as_mut().poll_session_keys(cx)) {
+      return Poll::Ready(Err(err.into()));
     }
 
-    // Then do the seek.
-    let pos = self.inner.get_mut().seek(pos).await?;
+    // Then we do the seek.
+    let position = match ready!(self
+      .as_mut()
+      .project()
+      .inner
+      .get_pin_mut()
+      .poll_complete(cx))
+    {
+      Ok(position) => position,
+      Err(err) => return Poll::Ready(Err(err)),
+    };
 
     self.inner.read_buffer_mut().clear();
 
-    Ok(pos)
+    Poll::Ready(Ok(position))
   }
 }
 

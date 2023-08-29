@@ -3,7 +3,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};
 
-use crate::error::Result;
 use crate::reader::builder::Builder;
 use crate::DecryptedDataBlock;
 use futures::ready;
@@ -147,12 +146,16 @@ where
   }
 }
 
-impl<R> Reader<R>
+impl<R> AsyncSeek for Reader<R>
 where
   R: AsyncRead + AsyncSeek + Unpin,
 {
-  pub async fn seek(&mut self, position: SeekFrom) -> Result<u64> {
-    self.stream.get_mut().seek(position).await
+  fn start_seek(self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
+    self.project().stream.get_pin_mut().start_seek(position)
+  }
+
+  fn poll_complete(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
+    self.project().stream.get_pin_mut().poll_complete(cx)
   }
 }
 
