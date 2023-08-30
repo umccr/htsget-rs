@@ -9,7 +9,7 @@ use crypt4gh::Keys;
 use futures::ready;
 use futures::Stream;
 use pin_project_lite::pin_project;
-use tokio::io::{AsyncRead, AsyncSeek};
+use tokio::io::{AsyncRead, AsyncSeek, AsyncSeekExt};
 use tokio_util::codec::FramedRead;
 
 use crate::decoder::Block;
@@ -46,7 +46,7 @@ pin_project! {
         header_length: Option<u64>,
         current_block_size: Option<usize>,
         seek_state: SeekState,
-        length_hint: Option<u64>,
+        stream_length: Option<u64>,
     }
 }
 
@@ -132,31 +132,12 @@ where
       ))),
     }
   }
+}
 
-  /// Get the length of the header, including the magic string, version number, packet count
-  /// and the header packets. Returns `None` before the header packet is polled.
-  pub fn header_length(&self) -> Option<u64> {
-    self.header_length
-  }
-
-  /// Get the size of the current data block represented by the encrypted block returned by calling
-  /// poll_next. This will equal `decoder::DATA_BLOCK_SIZE` except for the last block which may be
-  /// less than that. Returns `None` before the first data block is polled.
-  pub fn current_block_size(&self) -> Option<usize> {
-    self.current_block_size
-  }
-
-  /// Clamps the byte position to the nearest data block if the header length is known.
-  pub fn clamp_position(&self, position: u64) -> Option<u64> {
-    self.header_length().map(|length| {
-      if position < length {
-        length
-      } else {
-        let remainder = (position - length) % Block::standard_data_block_size();
-
-        position - remainder
-      }
-    })
+impl<R> DecrypterStream<R> {
+  /// An override for setting the stream length.
+  pub async fn set_stream_length(&mut self, length: u64) {
+    self.stream_length = Some(length);
   }
 
   /// Get a reference to the inner reader.
@@ -177,6 +158,64 @@ where
   /// Get the inner reader.
   pub fn into_inner(self) -> R {
     self.inner.into_inner()
+  }
+
+  /// Get the length of the header, including the magic string, version number, packet count
+  /// and the header packets. Returns `None` before the header packet is polled.
+  pub fn header_length(&self) -> Option<u64> {
+    self.header_length
+  }
+
+  /// Get the size of the current data block represented by the encrypted block returned by calling
+  /// poll_next. This will equal `decoder::DATA_BLOCK_SIZE` except for the last block which may be
+  /// less than that. Returns `None` before the first data block is polled.
+  pub fn current_block_size(&self) -> Option<usize> {
+    self.current_block_size
+  }
+
+  /// Clamps the byte position to the nearest data block if the header length is known. This
+  /// function takes into account the stream length if it is present.
+  pub fn clamp_position(&self, position: u64) -> Option<u64> {
+    self.header_length().map(|length| {
+      if position < length {
+        length
+      } else {
+        match self.stream_length {
+          Some(end_length) if position > end_length => end_length,
+          _ => {
+            let remainder = (position - length) % Block::standard_data_block_size();
+
+            position - remainder
+          }
+        }
+      }
+    })
+  }
+}
+
+impl<R> DecrypterStream<R>
+where
+  R: AsyncRead + AsyncSeek + Unpin,
+{
+  /// Recompute the stream length. Having a stream length means that data block positions past the
+  /// end of the stream will be valid and will equal the the length of the stream. By default this
+  /// struct contains no stream length when it is initialized.
+  ///
+  /// This can take up to 3 seek calls. If the size of the underlying buffer changes, this function
+  /// should be called again, otherwise data block positions may not be valid.
+  pub async fn recompute_stream_length(&mut self) -> Result<u64> {
+    let inner = self.inner.get_mut();
+
+    let position = inner.seek(SeekFrom::Current(0)).await?;
+    let length = inner.seek(SeekFrom::End(0)).await?;
+
+    if position != length {
+      inner.seek(SeekFrom::Start(position)).await?;
+    }
+
+    self.stream_length = Some(length);
+
+    Ok(length)
   }
 }
 
@@ -223,10 +262,10 @@ where
 ///
 ///
 /// No attempt is made to update the current_block_size so it will be set to whatever it was prior
-/// to calling seek. Seeking past the end of the stream is allowed but the behaviour is dependent
-/// on the underlying reader. Data block positions past the end of the stream may not be valid
-/// unless the length hint is set, in which case seeks past the end of the file will not exceed the
-/// length hint.
+/// to calling seek. Seeking past the end of the stream is allowed. If recompute_stream_length has
+/// been called before, data block positions will resolve to the stream length when seeking past the
+/// end of the stream. Other, the behaviour is dependent on the underlying reader and data block
+/// positions past the end of the stream may not be valid.
 impl<R> AsyncSeek for DecrypterStream<R>
 where
   R: AsyncRead + AsyncSeek + Unpin,
@@ -292,10 +331,7 @@ where
       self.seek_state = NotSeeking;
       self.inner.read_buffer_mut().clear();
 
-      match self.length_hint {
-        Some(length_hint) if position > length_hint => Poll::Ready(Ok(length_hint)),
-        _ => Poll::Ready(Ok(position)),
-      }
+      Poll::Ready(Ok(position))
     } else {
       Poll::Ready(Ok(0))
     }
@@ -525,8 +561,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .with_length_hint(2598043)
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     let seek = stream.seek(SeekFrom::End(80000)).await.unwrap();
 

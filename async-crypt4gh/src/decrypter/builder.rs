@@ -1,32 +1,21 @@
 use crate::decrypter::DecrypterStream;
 use crate::decrypter::SeekState::NotSeeking;
+use crate::error::Result;
 use crate::SenderPublicKey;
 use crypt4gh::Keys;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, AsyncSeek};
 use tokio_util::codec::FramedRead;
 
 /// An decrypter reader builder.
 #[derive(Debug, Default)]
 pub struct Builder {
-  length_hint: Option<u64>,
   sender_pubkey: Option<SenderPublicKey>,
 }
 
 impl Builder {
-  /// Sets the length hint.
-  pub fn with_length_hint(self, length_hint: u64) -> Self {
-    self.set_length_hint(Some(length_hint))
-  }
-
   /// Sets the sender public key
   pub fn with_sender_pubkey(self, sender_pubkey: SenderPublicKey) -> Self {
     self.set_sender_pubkey(Some(sender_pubkey))
-  }
-
-  /// Sets the length hint.
-  pub fn set_length_hint(mut self, length_hint: Option<u64>) -> Self {
-    self.length_hint = length_hint;
-    self
   }
 
   /// Sets the sender public key
@@ -50,7 +39,29 @@ impl Builder {
       header_length: None,
       current_block_size: None,
       seek_state: NotSeeking,
-      length_hint: self.length_hint,
+      stream_length: None,
     }
+  }
+
+  /// Build the decrypter and compute the stream length for seek operations. This function will
+  /// ensure that recompute_stream_length is called at least once on the decrypter stream.
+  ///
+  /// This means that data block positions past the end of the stream will be valid and will equal
+  /// the the length of the stream. Use the build function if this behaviour is not desired. Seeking
+  /// past the end of the stream without a stream length is allowed but the behaviour is dependent
+  /// on the underlying reader and data block positions may not be valid.
+  pub async fn build_with_stream_length<R>(
+    self,
+    inner: R,
+    keys: Vec<Keys>,
+  ) -> Result<DecrypterStream<R>>
+  where
+    R: AsyncRead + AsyncSeek + Unpin,
+  {
+    let mut stream = self.build(inner, keys);
+
+    stream.recompute_stream_length().await?;
+
+    Ok(stream)
   }
 }

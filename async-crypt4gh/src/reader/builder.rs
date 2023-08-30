@@ -2,10 +2,11 @@ use std::thread;
 
 use crypt4gh::Keys;
 use futures_util::TryStreamExt;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::decrypter::builder::Builder as DecrypterBuilder;
 use crate::decrypter::DecrypterStream;
+use crate::error::Result;
 use crate::SenderPublicKey;
 
 use super::Reader;
@@ -14,7 +15,6 @@ use super::Reader;
 #[derive(Debug, Default)]
 pub struct Builder {
   worker_count: Option<usize>,
-  length_hint: Option<u64>,
   sender_pubkey: Option<SenderPublicKey>,
 }
 
@@ -22,11 +22,6 @@ impl Builder {
   /// Sets a worker count.
   pub fn with_worker_count(self, worker_count: usize) -> Self {
     self.set_worker_count(Some(worker_count))
-  }
-
-  /// Sets the length hint.
-  pub fn with_length_hint(self, length_hint: u64) -> Self {
-    self.set_length_hint(Some(length_hint))
   }
 
   /// Sets the sender public key
@@ -40,12 +35,6 @@ impl Builder {
     self
   }
 
-  /// Sets the length hint.
-  pub fn set_length_hint(mut self, length_hint: Option<u64>) -> Self {
-    self.length_hint = length_hint;
-    self
-  }
-
   /// Sets the sender public key
   pub fn set_sender_pubkey(mut self, sender_pubkey: Option<SenderPublicKey>) -> Self {
     self.sender_pubkey = sender_pubkey;
@@ -53,7 +42,7 @@ impl Builder {
   }
 
   /// Build the Crypt4GH reader.
-  pub fn build_with_reader<R>(self, reader: R, keys: Vec<Keys>) -> Reader<R>
+  pub fn build_with_reader<R>(self, inner: R, keys: Vec<Keys>) -> Reader<R>
   where
     R: AsyncRead,
   {
@@ -62,15 +51,26 @@ impl Builder {
     Reader {
       stream: DecrypterBuilder::default()
         .set_sender_pubkey(self.sender_pubkey)
-        .set_length_hint(self.length_hint)
-        .build(reader, keys)
+        .build(inner, keys)
         .try_buffered(worker_counter),
       // Dummy value for bytes to begin with.
       current_block: Default::default(),
       buf_position: 0,
       block_position: None,
-      length_hint: self.length_hint,
+      length: None,
     }
+  }
+
+  /// Build the reader and compute the stream length for seek operations.
+  pub async fn build_with_stream_length<R>(self, inner: R, keys: Vec<Keys>) -> Result<Reader<R>>
+  where
+    R: AsyncRead + AsyncSeek + Unpin,
+  {
+    let mut reader = self.build_with_reader(inner, keys);
+
+    reader.stream.get_mut().recompute_stream_length().await?;
+
+    Ok(reader)
   }
 
   /// Build the Crypt4GH reader with a decryper stream.
@@ -84,7 +84,7 @@ impl Builder {
       current_block: Default::default(),
       buf_position: 0,
       block_position: None,
-      length_hint: self.length_hint,
+      length: None,
     }
   }
 

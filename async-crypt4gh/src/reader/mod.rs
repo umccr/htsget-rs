@@ -28,7 +28,7 @@ pin_project! {
       // The encrypted position of the current data block minus the size of the header.
       block_position: Option<usize>,
       // The length of the underlying reader, used for calculating block positions if present.
-      length_hint: Option<u64>
+      length: Option<u64>
     }
 }
 
