@@ -36,7 +36,11 @@ impl From<io::Error> for Error {
 
 impl From<Error> for io::Error {
   fn from(error: Error) -> Self {
-    Self::new(io::ErrorKind::Other, error)
+    if let Error::IOError(error) = error {
+      error
+    } else {
+      Self::new(io::ErrorKind::Other, error)
+    }
   }
 }
 

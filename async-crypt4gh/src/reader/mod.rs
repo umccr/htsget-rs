@@ -1,8 +1,10 @@
+use async_trait::async_trait;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};
 
+use crate::advance::Advance;
 use crate::error::Error::NumericConversionError;
 use crate::reader::builder::Builder;
 use crate::DecryptedDataBlock;
@@ -28,7 +30,7 @@ pin_project! {
       // The encrypted position of the current data block minus the size of the header.
       block_position: Option<usize>,
       // The length of the underlying reader, used for calculating block positions if present.
-      length: Option<u64>
+      stream_length: Option<u64>
     }
 }
 
@@ -160,6 +162,24 @@ where
 
   fn poll_complete(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
     self.project().stream.get_pin_mut().poll_complete(cx)
+  }
+}
+
+#[async_trait]
+impl<R> Advance for Reader<R>
+where
+  R: AsyncRead + Send,
+{
+  async fn advance(&mut self, position: u64) -> io::Result<u64> {
+    let position = self.stream.get_mut().advance(position).await?;
+
+    self.block_position = Some(usize::try_from(position).map_err(|_| NumericConversionError)?);
+
+    Ok(position)
+  }
+
+  fn stream_length(&self) -> Option<u64> {
+    self.stream.get_ref().stream_length()
   }
 }
 

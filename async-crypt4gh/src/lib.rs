@@ -5,6 +5,7 @@ use bytes::Bytes;
 pub use reader::builder::Builder as Crypt4GHReaderBuilder;
 pub use reader::Reader as Crypt4GHReader;
 
+pub mod advance;
 pub mod decoder;
 pub mod decrypter;
 pub mod error;

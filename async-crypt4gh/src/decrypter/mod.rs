@@ -1,9 +1,11 @@
+use async_trait::async_trait;
 use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use crate::advance::Advance;
 use bytes::Bytes;
 use crypt4gh::Keys;
 use futures::ready;
@@ -335,6 +337,26 @@ where
     } else {
       Poll::Ready(Ok(0))
     }
+  }
+}
+
+#[async_trait]
+impl<R> Advance for DecrypterStream<R>
+where
+  R: AsyncRead + Send,
+{
+  async fn advance(&mut self, position: u64) -> io::Result<u64> {
+    let data_block_position = self
+      .clamp_position(position)
+      .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "could not find data block position"))?;
+
+    self.inner.read_buffer_mut().clear();
+
+    Ok(data_block_position)
+  }
+
+  fn stream_length(&self) -> Option<u64> {
+    self.stream_length
   }
 }
 
