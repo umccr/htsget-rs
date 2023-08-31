@@ -353,9 +353,6 @@ where
       .clamp_position(position)
       .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "could not find data block position"))?;
 
-    // Clear the buffer so that the next read is from the correct position.
-    self.inner.read_buffer_mut().clear();
-
     Ok(data_block_position)
   }
 
@@ -596,5 +593,147 @@ mod tests {
     assert_eq!(stream.header_length(), Some(124));
     assert_eq!(stream.current_block_size(), None);
     assert!(stream.next().await.is_none());
+  }
+
+  #[tokio::test]
+  async fn advance_first_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
+
+    let advance = stream.advance(200).await.unwrap();
+
+    assert_eq!(advance, 124);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn advance_second_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
+
+    let advance = stream.advance(80000).await.unwrap();
+
+    assert_eq!(advance, 124 + 65564);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn advance_to_end() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
+
+    let advance = stream.advance(2598042).await.unwrap();
+
+    assert_eq!(advance, 2598043 - 40923);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn advance_past_end() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let advance = stream.advance(2598044).await.unwrap();
+
+    assert_eq!(advance, 2598043);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
   }
 }

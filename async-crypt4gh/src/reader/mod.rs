@@ -11,6 +11,7 @@ use pin_project_lite::pin_project;
 use tokio::io::{AsyncBufRead, AsyncRead, AsyncSeek, ReadBuf};
 
 use crate::advance::Advance;
+use crate::decoder::Block;
 use crate::error::Error::NumericConversionError;
 use crate::reader::builder::Builder;
 use crate::DecryptedDataBlock;
@@ -29,7 +30,7 @@ pin_project! {
       // The current position in the decrypted buffer.
       buf_position: usize,
       // The encrypted position of the current data block minus the size of the header.
-      block_position: Option<usize>
+      block_position: Option<u64>
     }
 }
 
@@ -40,17 +41,20 @@ where
   /// Gets the position of the data block which includes the current position of the underlying
   /// reader. This function will return a value that always corresponds the beginning of a data
   /// block or `None` if the reader has not read any bytes.
-  pub fn current_block_position(&self) -> Option<usize> {
+  pub fn current_block_position(&self) -> Option<u64> {
     self.block_position
   }
 
   /// Gets the position of the next data block from the current position of the underlying reader.
   /// This function will return a value that always corresponds the beginning of a data block, the
   /// size of the file, or `None` if the reader has not read any bytes.
-  pub fn next_block_position(&self) -> Option<usize> {
-    self
-      .block_position
-      .map(|block_position| block_position + self.current_block.encrypted_size())
+  pub fn next_block_position(&self) -> Option<u64> {
+    self.block_position.and_then(|block_position| {
+      self
+        .stream
+        .get_ref()
+        .clamp_position(block_position + Block::standard_data_block_size())
+    })
   }
 
   /// Get a reference to the inner reader.
@@ -114,12 +118,11 @@ where
     let this = self.project();
 
     // If this is the beginning of the stream, set the block position to the header length, if any.
-    if let (None, Some(header_length)) = (
+    if let (None, length @ Some(_)) = (
       this.block_position.as_ref(),
       this.stream.get_ref().header_length(),
     ) {
-      *this.block_position =
-        Some(usize::try_from(header_length).map_err(|_| NumericConversionError)?);
+      *this.block_position = length;
     }
 
     // If the position is past the end of the buffer, then all the data has been read and a new
@@ -128,8 +131,11 @@ where
       match ready!(this.stream.poll_next(cx)) {
         Some(Ok(block)) => {
           // Update the block position with the previous block size.
-          *this.block_position =
-            Some(this.block_position.unwrap_or_default() + this.current_block.encrypted_size());
+          *this.block_position = Some(
+            this.block_position.unwrap_or_default()
+              + u64::try_from(this.current_block.encrypted_size())
+                .map_err(|_| NumericConversionError)?,
+          );
 
           // We have a new buffer, reinitialise the position and buffer.
           *this.current_block = block;
@@ -172,7 +178,7 @@ where
   async fn advance(&mut self, position: u64) -> io::Result<u64> {
     let position = self.stream.get_mut().advance(position).await?;
 
-    self.block_position = Some(usize::try_from(position).map_err(|_| NumericConversionError)?);
+    self.block_position = Some(position);
 
     Ok(position)
   }
@@ -191,6 +197,7 @@ mod tests {
 
   use htsget_test::http_tests::get_test_file;
 
+  use crate::advance::Advance;
   use crate::reader::builder::Builder;
   use crate::tests::{get_keys, get_original_file};
   use crate::SenderPublicKey;
@@ -319,7 +326,9 @@ mod tests {
 
     let mut reader = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build_with_reader(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     // Before anything is read the next block should not be known.
     assert_eq!(reader.next_block_position(), None);
@@ -329,6 +338,70 @@ mod tests {
     reader.read_to_end(&mut decrypted_bytes).await.unwrap();
 
     // Now the next position should be the size of the file.
+    assert_eq!(reader.next_block_position(), Some(2598043));
+  }
+
+  #[tokio::test]
+  async fn advance_first_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_reader(src, vec![recipient_private_key]);
+
+    // Before anything is read the block positions should not be known.
+    assert_eq!(reader.current_block_position(), None);
+    assert_eq!(reader.next_block_position(), None);
+
+    reader.advance(200).await.unwrap();
+
+    // Now the positions should be at the first data block.
+    assert_eq!(reader.current_block_position(), Some(124));
+    assert_eq!(reader.next_block_position(), Some(124 + 65564));
+  }
+
+  #[tokio::test]
+  async fn advance_to_end() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    // Before anything is read the block positions should not be known.
+    assert_eq!(reader.current_block_position(), None);
+    assert_eq!(reader.next_block_position(), None);
+
+    reader.advance(2598042).await.unwrap();
+
+    // Now the positions should be at the first data block.
+    assert_eq!(reader.current_block_position(), Some(2598043 - 40923));
+    assert_eq!(reader.next_block_position(), Some(2598043));
+  }
+
+  #[tokio::test]
+  async fn advance_past_end() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    // Before anything is read the block positions should not be known.
+    assert_eq!(reader.current_block_position(), None);
+    assert_eq!(reader.next_block_position(), None);
+
+    reader.advance(2598044).await.unwrap();
+
+    // Now the positions should be at the first data block.
+    assert_eq!(reader.current_block_position(), Some(2598043));
     assert_eq!(reader.next_block_position(), Some(2598043));
   }
 }
