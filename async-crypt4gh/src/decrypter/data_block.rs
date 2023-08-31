@@ -13,6 +13,7 @@ use crate::error::Result;
 use crate::{DecryptedBytes, DecryptedDataBlock};
 
 pin_project! {
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct DataBlockDecrypter {
         #[pin]
         handle: JoinHandle<Result<DecryptedDataBlock>>

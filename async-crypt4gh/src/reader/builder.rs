@@ -57,7 +57,6 @@ impl Builder {
       current_block: Default::default(),
       buf_position: 0,
       block_position: None,
-      stream_length: None,
     }
   }
 
@@ -84,7 +83,6 @@ impl Builder {
       current_block: Default::default(),
       buf_position: 0,
       block_position: None,
-      stream_length: None,
     }
   }
 

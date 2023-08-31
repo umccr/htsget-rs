@@ -1,18 +1,19 @@
-use async_trait::async_trait;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};
 
-use crate::advance::Advance;
-use crate::error::Error::NumericConversionError;
-use crate::reader::builder::Builder;
-use crate::DecryptedDataBlock;
+use async_trait::async_trait;
 use futures::ready;
 use futures::stream::TryBuffered;
 use futures::Stream;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncBufRead, AsyncRead, AsyncSeek, ReadBuf};
+
+use crate::advance::Advance;
+use crate::error::Error::NumericConversionError;
+use crate::reader::builder::Builder;
+use crate::DecryptedDataBlock;
 
 use super::decrypter::DecrypterStream;
 
@@ -28,9 +29,7 @@ pin_project! {
       // The current position in the decrypted buffer.
       buf_position: usize,
       // The encrypted position of the current data block minus the size of the header.
-      block_position: Option<usize>,
-      // The length of the underlying reader, used for calculating block positions if present.
-      stream_length: Option<u64>
+      block_position: Option<usize>
     }
 }
 
@@ -154,7 +153,7 @@ where
 
 impl<R> AsyncSeek for Reader<R>
 where
-  R: AsyncRead + AsyncSeek + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send,
 {
   fn start_seek(self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
     self.project().stream.get_pin_mut().start_seek(position)
@@ -168,7 +167,7 @@ where
 #[async_trait]
 impl<R> Advance for Reader<R>
 where
-  R: AsyncRead + Send,
+  R: AsyncRead + Send + Unpin,
 {
   async fn advance(&mut self, position: u64) -> io::Result<u64> {
     let position = self.stream.get_mut().advance(position).await?;

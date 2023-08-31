@@ -1,11 +1,10 @@
-use async_trait::async_trait;
 use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use crate::advance::Advance;
+use async_trait::async_trait;
 use bytes::Bytes;
 use crypt4gh::Keys;
 use futures::ready;
@@ -14,10 +13,12 @@ use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncSeekExt};
 use tokio_util::codec::FramedRead;
 
+use crate::advance::Advance;
 use crate::decoder::Block;
 use crate::decoder::DecodedBlock;
 use crate::decrypter::data_block::DataBlockDecrypter;
-use crate::decrypter::header_packet::HeaderPacketsDecrypter;
+use crate::decrypter::header::packets::HeaderPacketsDecrypter;
+use crate::decrypter::header::SessionKeysFuture;
 use crate::decrypter::SeekState::{NotSeeking, SeekingToDataBlock, SeekingToPosition};
 use crate::error::Error::Crypt4GHError;
 use crate::error::Result;
@@ -25,7 +26,7 @@ use crate::SenderPublicKey;
 
 pub mod builder;
 pub mod data_block;
-pub mod header_packet;
+pub mod header;
 
 #[derive(Debug)]
 enum SeekState {
@@ -133,6 +134,14 @@ where
         "end of stream reached without finding session keys".to_string(),
       ))),
     }
+  }
+
+  /// Convenience for calling [`poll_session_keys`] on [`Unpin`] types.
+  pub fn poll_session_keys_unpin(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>
+  where
+    Self: Unpin,
+  {
+    Pin::new(self).poll_session_keys(cx)
   }
 }
 
@@ -258,16 +267,6 @@ where
   }
 }
 
-/// See the documentation for the trait for all functionality. This implementation ensures that all
-/// seeks are aligned to the start of a data block preceding the requested seek position. Seek calls
-/// also process the header packets in order to obtain the session keys.
-///
-///
-/// No attempt is made to update the current_block_size so it will be set to whatever it was prior
-/// to calling seek. Seeking past the end of the stream is allowed. If recompute_stream_length has
-/// been called before, data block positions will resolve to the stream length when seeking past the
-/// end of the stream. Other, the behaviour is dependent on the underlying reader and data block
-/// positions past the end of the stream may not be valid.
 impl<R> AsyncSeek for DecrypterStream<R>
 where
   R: AsyncRead + AsyncSeek + Unpin,
@@ -343,13 +342,18 @@ where
 #[async_trait]
 impl<R> Advance for DecrypterStream<R>
 where
-  R: AsyncRead + Send,
+  R: AsyncRead + Send + Unpin,
 {
   async fn advance(&mut self, position: u64) -> io::Result<u64> {
+    // Make sure that session keys are polled.
+    SessionKeysFuture::new(self).await?;
+
+    // Get the next position.
     let data_block_position = self
       .clamp_position(position)
       .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "could not find data block position"))?;
 
+    // Clear the buffer so that the next read is from the correct position.
     self.inner.read_buffer_mut().clear();
 
     Ok(data_block_position)
@@ -365,7 +369,6 @@ mod tests {
   use bytes::BytesMut;
   use futures_util::future::join_all;
   use futures_util::StreamExt;
-  use tokio::io::AsyncSeekExt;
 
   use htsget_test::http_tests::get_test_file;
 

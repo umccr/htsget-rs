@@ -13,6 +13,7 @@ use crate::error::Result;
 use crate::SenderPublicKey;
 
 pin_project! {
+    #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub struct HeaderPacketsDecrypter {
         #[pin]
         handle: JoinHandle<Result<DecryptedHeaderPackets>>
