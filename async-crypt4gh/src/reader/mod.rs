@@ -157,16 +157,12 @@ where
   }
 }
 
-impl<R> AsyncSeek for Reader<R>
+impl<R> Reader<R>
 where
   R: AsyncRead + AsyncSeek + Unpin + Send,
 {
-  fn start_seek(self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
-    self.project().stream.get_pin_mut().start_seek(position)
-  }
-
-  fn poll_complete(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
-    self.project().stream.get_pin_mut().poll_complete(cx)
+  pub async fn seek_encrypted(&mut self, position: SeekFrom) -> io::Result<u64> {
+    self.stream.get_mut().seek_encrypted(position).await
   }
 }
 

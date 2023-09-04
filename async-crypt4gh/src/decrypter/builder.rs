@@ -1,5 +1,4 @@
 use crate::decrypter::DecrypterStream;
-use crate::decrypter::SeekState::NotSeeking;
 use crate::error::Result;
 use crate::SenderPublicKey;
 use crypt4gh::Keys;
@@ -38,7 +37,6 @@ impl Builder {
       edit_list_packet: None,
       header_length: None,
       current_block_size: None,
-      seek_state: NotSeeking,
       stream_length: None,
     }
   }

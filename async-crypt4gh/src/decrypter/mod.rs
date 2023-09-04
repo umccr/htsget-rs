@@ -19,7 +19,6 @@ use crate::decoder::DecodedBlock;
 use crate::decrypter::data_block::DataBlockDecrypter;
 use crate::decrypter::header::packets::HeaderPacketsDecrypter;
 use crate::decrypter::header::SessionKeysFuture;
-use crate::decrypter::SeekState::{NotSeeking, SeekingToDataBlock, SeekingToPosition};
 use crate::error::Error::Crypt4GHError;
 use crate::error::Result;
 use crate::SenderPublicKey;
@@ -27,13 +26,6 @@ use crate::SenderPublicKey;
 pub mod builder;
 pub mod data_block;
 pub mod header;
-
-#[derive(Debug)]
-enum SeekState {
-  SeekingToPosition,
-  SeekingToDataBlock,
-  NotSeeking,
-}
 
 pin_project! {
     /// A decrypter for an entire AsyncRead Crypt4GH file.
@@ -48,7 +40,6 @@ pin_project! {
         edit_list_packet: Option<Vec<u64>>,
         header_length: Option<u64>,
         current_block_size: Option<usize>,
-        seek_state: SeekState,
         stream_length: Option<u64>,
     }
 }
@@ -267,75 +258,25 @@ where
   }
 }
 
-impl<R> AsyncSeek for DecrypterStream<R>
+impl<R> DecrypterStream<R>
 where
-  R: AsyncRead + AsyncSeek + Unpin,
+  R: AsyncRead + AsyncSeek + Unpin + Send,
 {
-  fn start_seek(mut self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
-    match self.seek_state {
-      SeekingToPosition | SeekingToDataBlock => Err(io::Error::new(
-        io::ErrorKind::Other,
-        "cannot start seek while another seek is in progress",
-      )),
-      NotSeeking => {
-        self.seek_state = SeekingToPosition;
+  pub async fn seek_encrypted(&mut self, position: SeekFrom) -> io::Result<u64> {
+    // Make sure that session keys are polled.
+    SessionKeysFuture::new(self).await?;
 
-        self.project().inner.get_pin_mut().start_seek(position)
-      }
-    }
-  }
+    // First poll to the position specified.
+    let seek = self.inner.get_mut().seek(position).await?;
 
-  fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
-    // When seeking the session keys are required.
-    if let Err(err) = ready!(self.as_mut().poll_session_keys(cx)) {
-      return Poll::Ready(Err(err.into()));
-    }
+    // Then advance to the correct data block position.
+    let advance = self.advance(seek).await?;
 
-    if let SeekingToPosition | SeekingToDataBlock = self.seek_state {
-      // Finish any remaining seeking.
-      let position = match ready!(self
-        .as_mut()
-        .project()
-        .inner
-        .get_pin_mut()
-        .poll_complete(cx))
-      {
-        Ok(position) => position,
-        Err(err) => {
-          self.seek_state = NotSeeking;
-          return Poll::Ready(Err(err));
-        }
-      };
+    // Then seek to the correct position.
+    let seek = self.inner.get_mut().seek(SeekFrom::Start(advance)).await?;
+    self.inner.read_buffer_mut().clear();
 
-      // If seeking to a position, we might still need to seek again to align with a data block.
-      if let SeekingToPosition = self.seek_state {
-        let data_block_position = self.clamp_position(position).ok_or_else(|| {
-          io::Error::new(io::ErrorKind::Other, "could not find data block position")
-        })?;
-
-        if position != data_block_position {
-          self.seek_state = SeekingToDataBlock;
-
-          // Start seeking to the data block if required.
-          self
-            .project()
-            .inner
-            .get_pin_mut()
-            .start_seek(SeekFrom::Start(data_block_position))?;
-
-          cx.waker().wake_by_ref();
-          return Poll::Pending;
-        }
-      }
-
-      // Otherwise, this position must be a data block position.
-      self.seek_state = NotSeeking;
-      self.inner.read_buffer_mut().clear();
-
-      Poll::Ready(Ok(position))
-    } else {
-      Poll::Ready(Ok(0))
-    }
+    Ok(seek)
   }
 }
 
@@ -490,7 +431,7 @@ mod tests {
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
       .build(src, vec![recipient_private_key]);
 
-    let seek = stream.seek(SeekFrom::Start(200)).await.unwrap();
+    let seek = stream.seek_encrypted(SeekFrom::Start(200)).await.unwrap();
 
     assert_eq!(seek, 124);
     assert_eq!(stream.header_length(), Some(124));
@@ -525,13 +466,16 @@ mod tests {
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
       .build(src, vec![recipient_private_key]);
 
-    let seek = stream.seek(SeekFrom::Start(80000)).await.unwrap();
+    let seek = stream.seek_encrypted(SeekFrom::Start(80000)).await.unwrap();
 
     assert_eq!(seek, 124 + 65564);
     assert_eq!(stream.header_length(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
-    let seek = stream.seek(SeekFrom::Current(-20000)).await.unwrap();
+    let seek = stream
+      .seek_encrypted(SeekFrom::Current(-20000))
+      .await
+      .unwrap();
 
     assert_eq!(seek, 124);
     assert_eq!(stream.header_length(), Some(124));
@@ -566,7 +510,7 @@ mod tests {
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
       .build(src, vec![recipient_private_key]);
 
-    let seek = stream.seek(SeekFrom::End(-1000)).await.unwrap();
+    let seek = stream.seek_encrypted(SeekFrom::End(-1000)).await.unwrap();
 
     assert_eq!(seek, 2598043 - 40923);
     assert_eq!(stream.header_length(), Some(124));
@@ -587,7 +531,7 @@ mod tests {
       .await
       .unwrap();
 
-    let seek = stream.seek(SeekFrom::End(80000)).await.unwrap();
+    let seek = stream.seek_encrypted(SeekFrom::End(80000)).await.unwrap();
 
     assert_eq!(seek, 2598043);
     assert_eq!(stream.header_length(), Some(124));
