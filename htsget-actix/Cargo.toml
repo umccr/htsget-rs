@@ -16,7 +16,7 @@ url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget
 default = []
 
 [dependencies]
-actix-web = { version = "4", features = ["rustls"] }
+actix-web = { version = "4", features = ["rustls-0_21"] }
 actix-cors = "0.6"
 http = "0.2"
 rustls-pemfile = "1.0"
