@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.5.0...htsget-test-v0.5.1) - 2023-09-05
+
+### Other
+- bump up deploy packages, also solves CVE-2023-35165 and CVE-2022-25883
+
 ## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.4.4...htsget-test-v0.5.0) - 2023-07-11
 
 ### Added
