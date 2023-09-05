@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::result;
 use std::str::FromStr;
 
 pub use error::{HtsGetError, Result};
@@ -6,7 +6,8 @@ pub use htsget_config::config::{
   Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, TicketServerConfig,
 };
 pub use htsget_config::storage::Storage;
-use htsget_config::types::{Query, Response};
+use htsget_config::types::Format::{Bam, Bcf, Cram, Vcf};
+use htsget_config::types::{Format, Query, Request, Response};
 pub use http_core::{get, post};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
@@ -20,11 +21,6 @@ mod post_request;
 mod query_builder;
 mod service_info;
 
-const READS_DEFAULT_FORMAT: &str = "BAM";
-const VARIANTS_DEFAULT_FORMAT: &str = "VCF";
-const READS_FORMATS: [&str; 2] = ["BAM", "CRAM"];
-const VARIANTS_FORMATS: [&str; 2] = ["VCF", "BCF"];
-
 /// A enum to distinguish between the two endpoint defined in the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
 #[derive(Debug, PartialEq, Eq)]
@@ -36,7 +32,7 @@ pub enum Endpoint {
 impl FromStr for Endpoint {
   type Err = ();
 
-  fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+  fn from_str(s: &str) -> result::Result<Self, Self::Err> {
     match s {
       "reads" => Ok(Self::Reads),
       "variants" => Ok(Self::Variants),
@@ -45,57 +41,33 @@ impl FromStr for Endpoint {
   }
 }
 
-pub(crate) fn match_endpoints_get_request(
-  endpoint: &Endpoint,
-  query_information: &mut HashMap<String, String>,
-) -> Result<()> {
-  match (endpoint, query_information.get(&"format".to_string())) {
-    (Endpoint::Reads, None) => {
-      query_information.insert("format".to_string(), READS_DEFAULT_FORMAT.to_string());
-    }
-    (Endpoint::Variants, None) => {
-      query_information.insert("format".to_string(), VARIANTS_DEFAULT_FORMAT.to_string());
-    }
-    (Endpoint::Reads, Some(s)) if READS_FORMATS.contains(&s.as_str()) => (),
-    (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
-    (_, Some(format)) => {
-      return Err(HtsGetError::UnsupportedFormat(format!(
-        "{format} isn't a supported format for this endpoint"
-      )))
-    }
+/// Get the format from the string
+pub fn match_format(endpoint: &Endpoint, format: Option<impl Into<String>>) -> Result<Format> {
+  let format = format.map(Into::into).map(|format| format.to_lowercase());
+
+  match (endpoint, format) {
+    (Endpoint::Reads, None) => Ok(Bam),
+    (Endpoint::Variants, None) => Ok(Vcf),
+    (Endpoint::Reads, Some(s)) if s == "bam" => Ok(Bam),
+    (Endpoint::Reads, Some(s)) if s == "cram" => Ok(Cram),
+    (Endpoint::Variants, Some(s)) if s == "vcf" => Ok(Vcf),
+    (Endpoint::Variants, Some(s)) if s == "bcf" => Ok(Bcf),
+    (_, Some(format)) => Err(HtsGetError::UnsupportedFormat(format!(
+      "{format} isn't a supported format for this endpoint"
+    ))),
   }
-  Ok(())
 }
 
-pub(crate) fn match_endpoints_post_request(
-  endpoint: &Endpoint,
-  request: &mut PostRequest,
-) -> Result<()> {
-  match (endpoint, &request.format) {
-    (Endpoint::Reads, None) => request.format = Some(READS_DEFAULT_FORMAT.to_string()),
-    (Endpoint::Variants, None) => request.format = Some(VARIANTS_DEFAULT_FORMAT.to_string()),
-    (Endpoint::Reads, Some(s)) if READS_FORMATS.contains(&s.as_str()) => (),
-    (Endpoint::Variants, Some(s)) if VARIANTS_FORMATS.contains(&s.as_str()) => (),
-    (_, Some(format)) => {
-      return Err(HtsGetError::UnsupportedFormat(format!(
-        "{format} isn't a supported format for this endpoint"
-      )))
-    }
-  }
-  Ok(())
-}
+fn convert_to_query(request: Request, format: Format) -> Result<Query> {
+  let query = request.query().clone();
 
-fn convert_to_query(query_information: &HashMap<String, String>) -> Result<Query> {
   Ok(
-    QueryBuilder::new(query_information.get("id"), query_information.get("format"))?
-      .with_class(query_information.get("class"))?
-      .with_reference_name(query_information.get("referenceName"))
-      .with_range(query_information.get("start"), query_information.get("end"))?
-      .with_fields(query_information.get("fields"))
-      .with_tags(
-        query_information.get("tags"),
-        query_information.get("notags"),
-      )?
+    QueryBuilder::new(request, format)
+      .with_class(query.get("class"))?
+      .with_reference_name(query.get("referenceName"))
+      .with_range(query.get("start"), query.get("end"))?
+      .with_fields(query.get("fields"))
+      .with_tags(query.get("tags"), query.get("notags"))?
       .build(),
   )
 }
@@ -109,38 +81,75 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 
 #[cfg(test)]
 mod tests {
+  use std::collections::HashMap;
   use std::path::PathBuf;
   use std::sync::Arc;
 
   use http::uri::Authority;
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
-  use htsget_config::types::{Format, Headers, JsonResponse, Scheme, Url};
+  use htsget_config::types::{Headers, JsonResponse, Request, Scheme, Url};
   use htsget_search::htsget::from_storage::HtsGetFromStorage;
   use htsget_search::htsget::HtsGet;
-
   use htsget_search::storage::local::LocalStorage;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   use super::*;
 
+  #[test]
+  fn match_with_invalid_format() {
+    assert!(matches!(
+      match_format(&Endpoint::Reads, Some("Invalid".to_string())).unwrap_err(),
+      HtsGetError::UnsupportedFormat(_)
+    ));
+  }
+
+  #[test]
+  fn match_with_invalid_endpoint() {
+    assert!(matches!(
+      match_format(&Endpoint::Variants, Some("bam".to_string())).unwrap_err(),
+      HtsGetError::UnsupportedFormat(_)
+    ));
+  }
+
+  #[test]
+  fn match_with_valid_format() {
+    assert!(matches!(
+      match_format(&Endpoint::Reads, Some("bam".to_string())).unwrap(),
+      Bam,
+    ));
+  }
+
   #[tokio::test]
   async fn get_request() {
-    let mut request = HashMap::new();
-    request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+    let request = HashMap::new();
+
+    let mut expected_response_headers = Headers::default();
+    expected_response_headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+
+    let request = Request::new(
+      "bam/htsnexus_test_NA12878".to_string(),
+      request,
+      Default::default(),
+    );
+
     assert_eq!(
       get(get_searcher(), request, Endpoint::Reads).await,
-      Ok(example_bam_json_response(headers))
+      Ok(expected_bam_json_response(expected_response_headers))
     );
   }
 
   #[tokio::test]
   async fn get_reads_request_with_variants_format() {
     let mut request = HashMap::new();
-    request.insert("id".to_string(), "bam/htsnexus_test_NA12878".to_string());
     request.insert("format".to_string(), "VCF".to_string());
+
+    let request = Request::new(
+      "bam/htsnexus_test_NA12878".to_string(),
+      request,
+      Default::default(),
+    );
+
     assert!(matches!(
       get(get_searcher(), request, Endpoint::Reads).await,
       Err(HtsGetError::UnsupportedFormat(_))
@@ -150,21 +159,29 @@ mod tests {
   #[tokio::test]
   async fn get_request_with_range() {
     let mut request = HashMap::new();
-    request.insert("id".to_string(), "vcf/sample1-bcbio-cancer".to_string());
     request.insert("referenceName".to_string(), "chrM".to_string());
     request.insert("start".to_string(), "149".to_string());
     request.insert("end".to_string(), "200".to_string());
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+
+    let mut expected_response_headers = Headers::default();
+    expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+
+    let request = Request::new(
+      "vcf/sample1-bcbio-cancer".to_string(),
+      request,
+      Default::default(),
+    );
+
     assert_eq!(
       get(get_searcher(), request, Endpoint::Variants).await,
-      Ok(example_vcf_json_response(headers))
+      Ok(expected_vcf_json_response(expected_response_headers))
     );
   }
 
   #[tokio::test]
   async fn post_request() {
-    let request = PostRequest {
+    let request = Request::new_with_id("bam/htsnexus_test_NA12878".to_string());
+    let body = PostRequest {
       format: None,
       class: None,
       fields: None,
@@ -172,23 +189,20 @@ mod tests {
       notags: None,
       regions: None,
     };
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+
+    let mut expected_response_headers = Headers::default();
+    expected_response_headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+
     assert_eq!(
-      post(
-        get_searcher(),
-        request,
-        "bam/htsnexus_test_NA12878",
-        Endpoint::Reads
-      )
-      .await,
-      Ok(example_bam_json_response(headers))
+      post(get_searcher(), body, request, Endpoint::Reads).await,
+      Ok(expected_bam_json_response(expected_response_headers))
     );
   }
 
   #[tokio::test]
   async fn post_variants_request_with_reads_format() {
-    let request = PostRequest {
+    let request = Request::new_with_id("bam/htsnexus_test_NA12878".to_string());
+    let body = PostRequest {
       format: Some("BAM".to_string()),
       class: None,
       fields: None,
@@ -196,21 +210,17 @@ mod tests {
       notags: None,
       regions: None,
     };
+
     assert!(matches!(
-      post(
-        get_searcher(),
-        request,
-        "bam/htsnexus_test_NA12878",
-        Endpoint::Variants
-      )
-      .await,
+      post(get_searcher(), body, request, Endpoint::Variants).await,
       Err(HtsGetError::UnsupportedFormat(_))
     ));
   }
 
   #[tokio::test]
   async fn post_request_with_range() {
-    let request = PostRequest {
+    let request = Request::new_with_id("vcf/sample1-bcbio-cancer".to_string());
+    let body = PostRequest {
       format: Some("VCF".to_string()),
       class: None,
       fields: None,
@@ -222,37 +232,33 @@ mod tests {
         end: Some(200),
       }]),
     };
-    let mut headers = HashMap::new();
-    headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+
+    let mut expected_response_headers = Headers::default();
+    expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+
     assert_eq!(
-      post(
-        get_searcher(),
-        request,
-        "vcf/sample1-bcbio-cancer",
-        Endpoint::Variants
-      )
-      .await,
-      Ok(example_vcf_json_response(headers))
+      post(get_searcher(), body, request, Endpoint::Variants).await,
+      Ok(expected_vcf_json_response(expected_response_headers))
     );
   }
 
-  fn example_vcf_json_response(headers: HashMap<String, String>) -> JsonResponse {
+  fn expected_vcf_json_response(headers: Headers) -> JsonResponse {
     JsonResponse::from(Response::new(
-      Format::Vcf,
+      Vcf,
       vec![
         Url::new("http://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
-          .with_headers(Headers::new(headers)),
+          .with_headers(headers),
         Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
   }
 
-  fn example_bam_json_response(headers: HashMap<String, String>) -> JsonResponse {
+  fn expected_bam_json_response(headers: Headers) -> JsonResponse {
     JsonResponse::from(Response::new(
-      Format::Bam,
+      Bam,
       vec![
         Url::new("http://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
-          .with_headers(Headers::new(headers)),
+          .with_headers(headers),
         Url::new(expected_bgzf_eof_data_url()),
       ],
     ))

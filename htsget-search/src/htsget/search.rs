@@ -6,17 +6,15 @@
 //!
 
 use std::collections::HashSet;
-use std::fmt::Display;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::gzi;
-use noodles::csi::binning_index::ReferenceSequenceExt;
 use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::BinningIndex;
+use noodles::csi::index::ReferenceSequence;
+use noodles::csi::Index;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
@@ -24,7 +22,7 @@ use tokio::task::JoinHandle;
 use tracing::{instrument, trace, trace_span, Instrument};
 
 use crate::htsget::ConcurrencyError;
-use crate::storage::{BytesPosition, RangeUrlOptions, Storage};
+use crate::storage::{BytesPosition, HeadOptions, RangeUrlOptions, Storage};
 use crate::storage::{DataBlock, GetOptions};
 use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
 
@@ -107,8 +105,7 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
-  Header: FromStr + Send + Sync,
-  <Header as FromStr>::Err: Display,
+  Header: Send + Sync,
   Index: Send + Sync,
 {
   /// Get reference sequence from name.
@@ -176,13 +173,12 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
-  Header: FromStr + Send + Sync,
-  <Header as FromStr>::Err: Display,
+  Header: Send + Sync,
   Reader: Send,
   Self: Sync + Send,
 {
   fn init_reader(inner: ReaderType) -> Reader;
-  async fn read_raw_header(reader: &mut Reader) -> io::Result<String>;
+  async fn read_header(reader: &mut Reader) -> io::Result<Header>;
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
@@ -205,7 +201,10 @@ where
   async fn position_at_eof(&self, query: &Query) -> Result<u64> {
     let file_size = self
       .get_storage()
-      .head(query.format().fmt_file(query.id()))
+      .head(
+        query.format().fmt_file(query.id()),
+        HeadOptions::new(query.request().headers()),
+      )
       .await?;
     Ok(
       file_size
@@ -220,7 +219,10 @@ where
     trace!("reading index");
     let storage = self
       .get_storage()
-      .get(query.format().fmt_index(query.id()), GetOptions::default())
+      .get(
+        query.format().fmt_index(query.id()),
+        GetOptions::new_with_default_range(query.request().headers()),
+      )
       .await?;
     Self::read_index_inner(storage)
       .await
@@ -271,7 +273,10 @@ where
         // Check to see if the key exists.
         self
           .get_storage()
-          .head(query.format().fmt_file(query.id()))
+          .head(
+            query.format().fmt_file(query.id()),
+            HeadOptions::new(query.request().headers()),
+          )
           .await?;
 
         let index = self.read_index(&query).await?;
@@ -302,7 +307,7 @@ where
             storage
               .range_url(
                 query_owned.format().fmt_file(query_owned.id()),
-                RangeUrlOptions::from(range),
+                RangeUrlOptions::new(range, query_owned.request().headers()),
               )
               .await
           }));
@@ -328,23 +333,20 @@ where
   #[instrument(level = "trace", skip(self, index))]
   async fn get_header(&self, query: &Query, index: &Index) -> Result<Header> {
     trace!("getting header");
-    let get_options =
-      GetOptions::default().with_range(self.get_byte_ranges_for_header(index).await?);
+    let get_options = GetOptions::new(
+      self.get_byte_ranges_for_header(index).await?,
+      query.request().headers(),
+    );
+
     let reader_type = self
       .get_storage()
       .get(query.format().fmt_file(query.id()), get_options)
       .await?;
     let mut reader = Self::init_reader(reader_type);
 
-    Self::read_raw_header(&mut reader)
-      .await
-      .map_err(|err| {
-        HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
-      })?
-      .parse::<Header>()
-      .map_err(|err| {
-        HtsGetError::parse_error(format!("parsing `{}` header: {}", self.get_format(), err))
-      })
+    Self::read_header(&mut reader).await.map_err(|err| {
+      HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
+    })
   }
 }
 
@@ -358,16 +360,13 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+pub trait BgzfSearch<S, ReaderType, Reader, Header>:
   Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
-  ReferenceSequence: ReferenceSequenceExt,
-  Index: BinningIndex + BinningIndexExt + Send + Sync,
-  Header: FromStr + Send + Sync,
-  <Header as FromStr>::Err: Display,
+  Header: Send + Sync,
 {
   #[instrument(level = "trace", skip_all)]
   fn index_positions(index: &Index) -> Vec<u64> {
@@ -378,10 +377,13 @@ where
     // See https://github.com/samtools/htslib/issues/1482
     positions.extend(
       index
-        .get_all_chunks()
+        .reference_sequences()
         .iter()
+        .flat_map(|ref_seq| ref_seq.bins())
+        .flat_map(|(_, bin)| bin.chunks())
         .flat_map(|chunk| [chunk.start().compressed(), chunk.end().compressed()]),
     );
+
     positions.extend(
       index
         .reference_sequences()
@@ -429,7 +431,10 @@ where
 
     let gzi_data = self
       .get_storage()
-      .get(query.format().fmt_gzi(query.id())?, GetOptions::default())
+      .get(
+        query.format().fmt_gzi(query.id())?,
+        GetOptions::new_with_default_range(query.request().headers()),
+      )
       .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {
@@ -531,17 +536,14 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType, ReferenceSequence, Index, Reader, Header, T>
+impl<S, ReaderType, Reader, Header, T>
   SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
-  Header: FromStr + Send + Sync,
-  <Header as FromStr>::Err: Display,
-  ReferenceSequence: ReferenceSequenceExt + Sync,
-  Index: BinningIndex + BinningIndexExt + Send + Sync,
-  T: BgzfSearch<S, ReaderType, ReferenceSequence, Index, Reader, Header> + Send + Sync,
+  Header: Send + Sync,
+  T: BgzfSearch<S, ReaderType, Reader, Header> + Send + Sync,
 {
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
@@ -570,10 +572,4 @@ where
   fn get_eof_data_block(&self) -> Option<DataBlock> {
     Some(DataBlock::Data(Vec::from(BGZF_EOF), Some(Body)))
   }
-}
-
-/// Extension trait for binning indicies.
-pub trait BinningIndexExt {
-  /// Get all chunks associated with this index from the reference sequences.
-  fn get_all_chunks(&self) -> Vec<&Chunk>;
 }

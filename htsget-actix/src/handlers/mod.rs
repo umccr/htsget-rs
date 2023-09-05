@@ -1,6 +1,10 @@
-use actix_web::{http::StatusCode, Either, Responder};
+use std::collections::HashMap;
 
-use htsget_config::types::JsonResponse;
+use actix_web::web::{Path, Query};
+use actix_web::{http::StatusCode, Either, HttpRequest, Responder};
+use http::HeaderMap as HttpHeaderMap;
+
+use htsget_config::types::{JsonResponse, Request};
 use htsget_http::Result;
 use pretty_json::PrettyJson;
 
@@ -14,6 +18,20 @@ pub mod service_info;
 
 mod pretty_json;
 
+struct HeaderMap(HttpHeaderMap);
+
+impl HeaderMap {
+  fn into_inner(self) -> HttpHeaderMap {
+    self.0
+  }
+}
+
+impl From<&HttpRequest> for HeaderMap {
+  fn from(http_request: &HttpRequest) -> Self {
+    HeaderMap(HttpHeaderMap::from_iter(http_request.headers().clone()))
+  }
+}
+
 /// Handles a response, converting errors to json and using the proper HTTP status code
 fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, impl Responder> {
   match response {
@@ -23,4 +41,18 @@ fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, imp
     }
     Ok(json) => Either::Right(PrettyJson(json).customize().with_status(StatusCode::OK)),
   }
+}
+
+fn extract_request(
+  request: Query<HashMap<String, String>>,
+  path: Path<String>,
+  http_request: HttpRequest,
+) -> Request {
+  let query = request.into_inner();
+
+  Request::new(
+    path.into_inner(),
+    query,
+    HeaderMap::from(&http_request).into_inner(),
+  )
 }

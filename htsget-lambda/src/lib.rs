@@ -8,7 +8,7 @@ use std::sync::Arc;
 use lambda_http::ext::RequestExt;
 use lambda_http::http::{Method, StatusCode, Uri};
 use lambda_http::tower::ServiceBuilder;
-use lambda_http::{http, service_fn, Body, Request, Response};
+use lambda_http::{http, service_fn, Body, Request, RequestPayloadExt, Response};
 use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
@@ -167,6 +167,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
           id,
           self.searcher.clone(),
           Self::extract_query(&request),
+          request.headers().clone(),
           endpoint,
         )
         .await
@@ -181,7 +182,17 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
             .status(StatusCode::UNSUPPORTED_MEDIA_TYPE)
             .body(Body::Empty)?,
         ),
-        Some(query) => post(id, self.searcher.clone(), query, endpoint).await,
+        Some(query) => {
+          post(
+            id,
+            self.searcher.clone(),
+            Self::extract_query(&request),
+            query,
+            request.headers().clone(),
+            endpoint,
+          )
+          .await
+        }
       },
     }
   }
@@ -355,7 +366,7 @@ mod tests {
     ) -> TestResponse {
       let router = Router::new(
         Arc::new(self.config.clone().owned_resolvers()),
-        self.config.ticket_server().service_info(),
+        self.config.service_info(),
       );
 
       route_request_to_response(request.0, router, expected_path, &self.config).await
@@ -686,7 +697,7 @@ mod tests {
   {
     let router = Router::new(
       Arc::new(config.clone().owned_resolvers()),
-      config.ticket_server().service_info(),
+      config.service_info(),
     );
     test(router).await;
   }

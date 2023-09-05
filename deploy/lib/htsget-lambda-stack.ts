@@ -85,6 +85,7 @@ export class HtsgetLambdaStack extends Stack {
         RUST_LOG:
           "info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace",
       },
+      features: ["s3-storage"],
       buildEnvironment: {
         RUSTFLAGS: "-C target-cpu=neoverse-n1",
         CARGO_PROFILE_RELEASE_LTO: "true",

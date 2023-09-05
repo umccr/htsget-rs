@@ -1,0 +1,28 @@
+# An example for a server which uses url storage with data located at "http://localhost:3000".
+# Run with
+# `cargo run -p htsget-actix --features url-storage -- --config htsget-config/examples/config-files/url_storage.toml`
+# in the project directory.
+
+ticket_server_addr = "127.0.0.1:8082"
+ticket_server_cors_allow_origins = "All"
+
+ticket_server_cert = "cert.pem"
+ticket_server_key = "key.pem"
+
+data_server_enabled = false
+
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.storage]
+url = "http://127.0.0.1:8081"
+response_scheme = "https"
+forward_headers = true
+
+# Set client authentication
+#tls.key = "key.pem"
+#tls.cert = "cert.pem"
+
+# Set root certificates
+#tls.root_store = "cert.pem"

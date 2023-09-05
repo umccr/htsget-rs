@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::thread::sleep;
-use std::{convert::TryInto, fs, time::Duration};
+use std::{fs, time::Duration};
 
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};

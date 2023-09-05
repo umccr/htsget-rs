@@ -29,7 +29,12 @@ impl<'a> Parser<'a> {
         Parser::String(string) => Toml::string(string),
         Parser::Path(path) => Toml::file(path),
       })
-      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX))
+      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX).map(|k| match k {
+        k if k.as_str().to_lowercase().contains("tls_") => {
+          k.as_str().to_lowercase().replace("tls_", "tls.").into()
+        }
+        k => k.into(),
+      }))
       .merge(Env::raw())
       .extract()
       .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;

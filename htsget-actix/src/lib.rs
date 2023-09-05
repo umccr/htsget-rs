@@ -20,9 +20,6 @@ pub mod handlers;
 
 pub type HtsGetStorage<T> = HtsGetFromStorage<LocalStorage<T>>;
 
-/// The maximum amount of time a CORS request can be cached for.
-pub const CORS_MAX_AGE: usize = 86400;
-
 /// Represents the actix app state.
 pub struct AppState<H: HtsGet> {
   pub htsget: Arc<H>,
@@ -113,22 +110,30 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
 pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
   config: TicketServerConfig,
+  service_info: ServiceInfo,
 ) -> std::io::Result<Server> {
   let addr = config.addr();
 
+  let config_copy = config.clone();
   let server = HttpServer::new(Box::new(move || {
     App::new()
       .configure(|service_config: &mut web::ServiceConfig| {
-        configure_server(
-          service_config,
-          htsget.clone(),
-          config.service_info().clone(),
-        );
+        configure_server(service_config, htsget.clone(), service_info.clone());
       })
-      .wrap(configure_cors(config.cors().clone()))
+      .wrap(configure_cors(config_copy.cors().clone()))
       .wrap(TracingLogger::default())
-  }))
-  .bind(addr)?;
+  }));
+
+  let server = match config.into_tls() {
+    None => {
+      info!("using non-TLS ticket server");
+      server.bind(addr)?
+    }
+    Some(tls) => {
+      info!("using TLS ticket server");
+      server.bind_rustls(addr, tls.into_inner())?
+    }
+  };
 
   info!(addresses = ?server.addrs(), "htsget query server addresses bound");
   Ok(server.run())
@@ -249,14 +254,13 @@ mod tests {
       &self,
       request: test::TestRequest,
     ) -> ServiceResponse<EitherBody<BoxBody>> {
-      println!("{:#?}", self.config);
       let app = test::init_service(
         App::new()
           .configure(|service_config: &mut web::ServiceConfig| {
             configure_server(
               service_config,
               self.config.clone().owned_resolvers(),
-              self.config.ticket_server().service_info().clone(),
+              self.config.service_info().clone(),
             );
           })
           .wrap(configure_cors(self.config.ticket_server().cors().clone())),

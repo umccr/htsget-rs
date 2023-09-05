@@ -33,11 +33,11 @@ Future work may split these two modules into separate crates.
 The two modules are architectured to remove commonalities between file formats and to allow implementing additional features with ease.
 The `storage` module is the location of storage backends. This module acts as the 'data server', as 
 described by the htsget protocol, and implementing an additional backend requires implementing the `Storage` trait. This trait is used 
-by `htsget` to fetch the underlying file and query the data. For example, similar to `AwsS3Storage`, a Cloudflare R2 storage
+by `htsget` to fetch the underlying file and query the data. For example, similar to `S3Storage`, a Cloudflare R2 storage
 could be added. 
 
 Note that the storage backend is responsible for allowing the user to fetch the URL tickets returned by the
-ticket server. In the case of `LocalStorage`, this entails a separate `data_server` that can serve files using HTTP. `AwsS3Storage`
+ticket server. In the case of `LocalStorage`, this entails a separate `data_server` that can serve files using HTTP. `S3Storage`
 simply returns presigned S3 URLs.
 
 ## Usage
@@ -75,7 +75,8 @@ used to process requests.
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `AwsS3Storage` functionality.
+* `s3-storage`: used to enable `S3Storage` functionality.
+* `url-storage`: used to enable `UrlStorage` functionality.
 
 [htsget]: src/htsget
 [storage]: src/storage

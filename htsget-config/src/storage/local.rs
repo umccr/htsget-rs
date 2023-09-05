@@ -3,12 +3,11 @@ use std::str::FromStr;
 use http::uri::Authority;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{
-  default_localstorage_addr, default_path, default_serve_at, DataServerConfig, KeyPairScheme,
-};
+use crate::config::{default_localstorage_addr, default_path, default_serve_at, DataServerConfig};
+use crate::tls::KeyPairScheme;
 use crate::types::Scheme;
 
-fn default_authority() -> Authority {
+pub(crate) fn default_authority() -> Authority {
   Authority::from_static(default_localstorage_addr())
 }
 
@@ -21,14 +20,12 @@ fn default_path_prefix() -> String {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(default)]
 pub struct LocalStorage {
-  #[serde(default)]
   scheme: Scheme,
-  #[serde(with = "http_serde::authority", default = "default_authority")]
+  #[serde(with = "http_serde::authority")]
   authority: Authority,
-  #[serde(default = "default_local_path")]
   local_path: String,
-  #[serde(default = "default_path_prefix")]
   path_prefix: String,
 }
 
@@ -66,6 +63,17 @@ impl LocalStorage {
   /// Get the path prefix.
   pub fn path_prefix(&self) -> &str {
     &self.path_prefix
+  }
+}
+
+impl Default for LocalStorage {
+  fn default() -> Self {
+    Self {
+      scheme: Scheme::Http,
+      authority: default_authority(),
+      local_path: default_local_path(),
+      path_prefix: default_path_prefix(),
+    }
   }
 }
 

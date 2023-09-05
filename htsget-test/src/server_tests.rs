@@ -2,23 +2,23 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use crate::util::expected_bgzf_eof_data_url;
 use base64::engine::general_purpose;
 use base64::Engine;
 use futures::future::join_all;
 use futures::TryStreamExt;
-use htsget_config::types::Format;
 use http::header::HeaderName;
 use http::{HeaderMap, HeaderValue, Method};
-use noodles_bgzf as bgzf;
-use noodles_vcf as vcf;
+use noodles::bgzf;
+use noodles::vcf;
 use reqwest::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
 use htsget_config::types::Class;
+use htsget_config::types::Format;
 
 use crate::http_tests::{Header, Response, TestRequest, TestServer};
+use crate::util::expected_bgzf_eof_data_url;
 use crate::Config;
 
 /// Test response with with class.
@@ -26,7 +26,10 @@ pub async fn test_response<R>(response: Response, class: Class)
 where
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
-  println!("response: {response:?}");
+  println!(
+    "response body: {}",
+    String::from_utf8_lossy(response.body.as_slice())
+  );
   assert!(response.is_success());
   let body = response.deserialize_body::<R>().unwrap();
 
@@ -93,7 +96,7 @@ where
   .unwrap();
 
   let mut reader = vcf::AsyncReader::new(bgzf::AsyncReader::new(merged_response.as_slice()));
-  let header = reader.read_header().await.unwrap().parse().unwrap();
+  let header = reader.read_header().await.unwrap();
   println!("{header}");
 
   let mut records = reader.records(&header);
@@ -296,7 +299,7 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 /// An example VCF search response.
 pub fn expected_response(class: Class, url_path: String) -> Value {
   let url = format!("{url_path}/data/vcf/sample1-bcbio-cancer.vcf.gz");
-  let headers = vec!["Range", "bytes=0-3465"];
+  let headers = ["Range", "bytes=0-3465"];
 
   let urls = match class {
     Class::Header => json!([{
@@ -320,6 +323,6 @@ pub fn expected_response(class: Class, url_path: String) -> Value {
     "htsget": {
       "format": Format::Vcf,
       "urls": urls
-      }
+    }
   })
 }
