@@ -299,7 +299,7 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 /// An example VCF search response.
 pub fn expected_response(class: Class, url_path: String) -> Value {
   let url = format!("{url_path}/data/vcf/sample1-bcbio-cancer.vcf.gz");
-  let headers = vec!["Range", "bytes=0-3465"];
+  let headers = ["Range", "bytes=0-3465"];
 
   let urls = match class {
     Class::Header => json!([{
