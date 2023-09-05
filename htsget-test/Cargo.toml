@@ -16,6 +16,7 @@ http-tests = [
     "dep:http",
     "dep:serde_json",
     "dep:serde",
+    "dep:htsget-config",
 ]
 cors-tests = ["http-tests", "dep:htsget-config"]
 server-tests = [
