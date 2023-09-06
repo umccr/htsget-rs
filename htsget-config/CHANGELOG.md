@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.7.0...htsget-config-v0.7.1) - 2023-09-06
+
+### Other
+- *(deps)* properly update noodles and aws dependencies
+- *(deps)* update msrv and attempt using htsget-test as a dev dependency
+- bump deps including rustls 0.21
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into feat/htsget-elsa
+
 ## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.6.2...htsget-config-v0.7.0) - 2023-07-11
 
 ### Added
