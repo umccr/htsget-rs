@@ -16,10 +16,8 @@ s3-storage = [
     "dep:aws-sdk-s3",
     "dep:aws-config",
     "htsget-config/s3-storage",
-    "htsget-test/s3-storage",
-    "htsget-test/aws-mocks"
 ]
-url-storage = ["dep:bytes", "dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
+url-storage = ["dep:bytes", "dep:hyper-rustls", "hyper/client", "htsget-config/url-storage"]
 default = []
 
 [dependencies]
@@ -54,12 +52,13 @@ hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "
 # Error control, tracing, config
 thiserror = "1.0"
 htsget-config = { version = "0.7.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.5.1", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"
 
 [dev-dependencies]
+htsget-test = { path = "../htsget-test", features = ["cors-tests", "url-storage", "s3-storage", "aws-mocks"], default-features = false }
+
 tempfile = "3.6"
 data-url = "0.3"
 

@@ -9,3 +9,7 @@ members = [
     "htsget-search",
     "htsget-test"
 ]
+
+[workspace.package]
+license = "MIT"
+edition = "2021"
