@@ -11,8 +11,8 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-actix/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http/s3-storage"]
-url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget-http/url-storage"]
+s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http/s3-storage", "htsget-test/s3-storage"]
+url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget-http/url-storage", "htsget-test/url-storage"]
 default = []
 
 [dependencies]
@@ -26,6 +26,7 @@ futures-util = { version = "0.3" }
 htsget-http = { version = "0.4.7", path = "../htsget-http", default-features = false }
 htsget-search = { version = "0.6.1", path = "../htsget-search", default-features = false }
 htsget-config = { version = "0.7.0", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.5.1", path = "../htsget-test", features = ["server-tests", "cors-tests"], default-features = false }
 futures = { version = "0.3" }
 tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 
@@ -33,8 +34,6 @@ tracing-actix-web = "0.7"
 tracing = "0.1"
 
 [dev-dependencies]
-htsget-test = { path = "../htsget-test", features = ["server-tests", "cors-tests", "url-storage", "s3-storage"], default-features = false }
-
 async-trait = "0.1"
 
 criterion = { version = "0.5", features = ["async_tokio"] }
