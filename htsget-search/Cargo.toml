@@ -11,8 +11,21 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["dep:bytes", "dep:aws-sdk-s3", "dep:aws-config", "htsget-config/s3-storage", "htsget-test/s3-storage"]
-url-storage = ["dep:bytes", "dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
+s3-storage = [
+    "dep:bytes",
+    "dep:aws-sdk-s3",
+    "dep:aws-config",
+    "htsget-config/s3-storage",
+    "htsget-test/s3-storage",
+    "htsget-test/aws-mocks"
+]
+url-storage = [
+    "dep:bytes",
+    "dep:hyper-rustls",
+    "hyper/client",
+    "htsget-config/url-storage",
+    "htsget-test/url-storage"
+]
 default = []
 
 [dependencies]
@@ -26,7 +39,7 @@ rustls-pemfile = "1.0"
 tower = { version = "0.4", features = ["make"] }
 
 # Async
-tokio-rustls = "0.23"
+tokio-rustls = "0.24"
 tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
@@ -34,15 +47,15 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.42", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.50", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
-aws-sdk-s3 = { version = "0.28", optional = true }
-aws-config = { version = "0.55", optional = true }
+aws-sdk-s3 = { version = "0.30", optional = true }
+aws-config = { version = "0.56", optional = true }
 
 # Url storage
-hyper-rustls = { version = "0.23", features = ["rustls-native-certs", "http2", "http1"], optional = true }
+hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"], optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"
@@ -55,12 +68,6 @@ serde = "1.0"
 [dev-dependencies]
 tempfile = "3.6"
 data-url = "0.3"
-
-# S3 storage testing
-s3s = { version = "0.6" }
-s3s-fs = { version = "0.6" }
-s3s-aws = { version = "0.6" }
-aws-credential-types = { version = "0.55", features = ["test-util"] }
 
 # Axum server
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }

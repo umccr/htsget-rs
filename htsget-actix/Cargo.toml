@@ -1,7 +1,7 @@
 [package]
 name = "htsget-actix"
 version = "0.5.2"
-rust-version = "1.65"
+rust-version = "1.70"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -16,7 +16,7 @@ url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget
 default = []
 
 [dependencies]
-actix-web = { version = "4", features = ["rustls"] }
+actix-web = { version = "4", features = ["rustls-0_21"] }
 actix-cors = "0.6"
 http = "0.2"
 rustls-pemfile = "1.0"
