@@ -18,15 +18,17 @@ import * as TOML from "@iarna/toml";
  * Configuration for HtsgetLambdaStack.
  */
 export type Config = {
-  environment: string;
-  htsgetConfig: { [key: string]: any };
-  allowCredentials?: boolean;
+  environment: string;                          // Dev, prod, public
+  htsgetConfig: { [key: string]: any };         // Server config
+  allowCredentials?: boolean;                   // CORS
   allowHeaders?: string[];
   allowMethods?: apigwv2.CorsHttpMethod[];
   allowOrigins?: string[];
   exposeHeaders?: string[];
   maxAge?: Duration;
-  parameterStoreConfig: ParameterStoreConfig;
+  parameterStoreConfig: ParameterStoreConfig;   // AWS SSM Parameterstore config
+  authRequired?: boolean;                       // Public instance without authz/n
+  rateLimits?: boolean;                         // Reasonable defaults or configurable ratelimit settings?
 };
 
 /**
@@ -100,7 +102,10 @@ export class HtsgetLambdaStack extends Stack {
       id + "HtsgetIntegration",
       htsgetLambda
     );
-    const authorizer = new HttpJwtAuthorizer(
+
+    var authorizer = undefined;
+    if (config.authRequired) {
+      authorizer = new HttpJwtAuthorizer(
       id + "HtsgetAuthorizer",
       `https://cognito-idp.${this.region}.amazonaws.com/${parameterStoreConfig.cogUserPoolId}`,
       {
@@ -108,6 +113,7 @@ export class HtsgetLambdaStack extends Stack {
         jwtAudience: parameterStoreConfig.jwtAud,
       }
     );
+  };
 
     const domainName = new apigwv2.DomainName(this, id + "HtsgetDomainName", {
       certificate: Certificate.fromCertificateArn(
@@ -139,7 +145,7 @@ export class HtsgetLambdaStack extends Stack {
     const httpApi = new apigwv2.HttpApi(this, id + "ApiGw", {
       // Use explicit routes GET, POST with {proxy+} path
       // defaultIntegration: httpIntegration,
-      defaultAuthorizer: authorizer,
+      defaultAuthorizer: config.authRequired ? authorizer : undefined,
       defaultDomainMapping: {
         domainName: domainName,
       },
@@ -280,6 +286,8 @@ export class HtsgetLambdaStack extends Stack {
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
       parameterStoreConfig: this.getParameterStoreConfig(config),
+      // authRequired:
+      // rateLimits:
     };
   }
 }
