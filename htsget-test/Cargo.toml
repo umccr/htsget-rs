@@ -47,7 +47,7 @@ default = []
 # Server tests dependencies
 htsget-config = { version = "0.7.0", path = "../htsget-config", default-features = false, optional = true }
 
-noodles = { version = "0.48", optional = true, features = ["async", "bgzf", "vcf"] }
+noodles = { version = "0.50", optional = true, features = ["async", "bgzf", "vcf"] }
 
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
@@ -60,7 +60,7 @@ serde = { version = "1", optional = true }
 base64 = { version = "0.21", optional = true }
 
 tempfile = { version = "3.3", optional = true }
-aws-sdk-s3 = { version = "0.29", features = ["test-util"], optional = true }
+aws-sdk-s3 = { version = "0.30", features = ["test-util"], optional = true }
 aws-config = { version = "0.56", optional = true }
 aws-credential-types = { version = "0.56", features = ["test-util"], optional = true }
 s3s = { version = "0.7", optional = true }

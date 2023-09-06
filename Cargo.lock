@@ -510,38 +510,6 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-s3"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e30370b61599168d38190ad272bb91842cd81870a6ca035c05dd5726d22832c"
-dependencies = [
- "aws-credential-types",
- "aws-http",
- "aws-runtime",
- "aws-sigv4",
- "aws-smithy-async",
- "aws-smithy-checksums",
- "aws-smithy-client",
- "aws-smithy-eventstream",
- "aws-smithy-http",
- "aws-smithy-json",
- "aws-smithy-runtime",
- "aws-smithy-runtime-api",
- "aws-smithy-types",
- "aws-smithy-xml",
- "aws-types",
- "bytes",
- "http",
- "http-body",
- "once_cell",
- "percent-encoding",
- "regex",
- "tokio-stream",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "aws-sdk-s3"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a531d010f9f556bf65eb3bcd8d24f1937600ab6940fede4d454cd9b1f031fb34"
@@ -1804,7 +1772,7 @@ version = "0.6.1"
 dependencies = [
  "async-trait",
  "aws-config",
- "aws-sdk-s3 0.29.0",
+ "aws-sdk-s3",
  "axum",
  "base64",
  "bytes",
@@ -1839,7 +1807,7 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-credential-types",
- "aws-sdk-s3 0.29.0",
+ "aws-sdk-s3",
  "base64",
  "futures",
  "htsget-config",
@@ -2354,9 +2322,9 @@ dependencies = [
 
 [[package]]
 name = "noodles"
-version = "0.48.0"
+version = "0.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad23d2c7a94531137fd031b152a6184c0dabddc08344e1217117f22ac2ae91f4"
+checksum = "86c1d34ec18d6b3d7699fae207ba766a5b969764d2cad072dc769cb6eca06b36"
 dependencies = [
  "noodles-bam",
  "noodles-bcf",
@@ -2373,9 +2341,9 @@ dependencies = [
 
 [[package]]
 name = "noodles-bam"
-version = "0.42.0"
+version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4229da5e33e3701382ff5ead792350588ff381a3fe354305f0bf24b7970a3d8d"
+checksum = "7a2f966b53ae5bfec1e31cab74f8dcabcd95438d1132d08db3c15e3eb81c6c79"
 dependencies = [
  "bit-vec",
  "byteorder",
@@ -2390,9 +2358,9 @@ dependencies = [
 
 [[package]]
 name = "noodles-bcf"
-version = "0.33.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "566258cfd042114cfa17c6c68f434de2eba63e826dc9e2f422400b4148b53524"
+checksum = "8cdce18a4a293a3080fa81fc92967fee00e8eb9ad6dfcab21f085f5228006603"
 dependencies = [
  "byteorder",
  "futures",
@@ -2406,9 +2374,9 @@ dependencies = [
 
 [[package]]
 name = "noodles-bgzf"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "674b3bedaa6a0ee2f2b581428ba472e5873c3f07ae581a478f388a026494561b"
+checksum = "8f4c43ff0879c542c1d8fd570c03e368f629587721d10267f2619e36afc9c9b0"
 dependencies = [
  "byteorder",
  "bytes",
@@ -2428,9 +2396,9 @@ checksum = "94fbe3192fe33acacabaedd387657f39b0fc606f1996d546db0dfe14703b843a"
 
 [[package]]
 name = "noodles-cram"
-version = "0.39.0"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43c2e59833486ec03bcfabf6039c5f67e3108de3b34db403ea7f3a190cb5851d"
+checksum = "ef57b37c8b20341c41a6a8e43ed1f58b04f5fcbe2ab59e3eef71afc7510fb801"
 dependencies = [
  "async-compression",
  "bitflags 2.4.0",
@@ -2451,9 +2419,9 @@ dependencies = [
 
 [[package]]
 name = "noodles-csi"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cfc861de7505bfee33662ec69eba023d60eafebf176f08027084c0fa7e69a66"
+checksum = "1b2bb780250c88bc9ea69b56c1aa9df75decc6b79035f3f5ab10c0cd84d24fc6"
 dependencies = [
  "bit-vec",
  "byteorder",
@@ -2465,9 +2433,9 @@ dependencies = [
 
 [[package]]
 name = "noodles-fasta"
-version = "0.28.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abe86b983aa434fbcff4b5eb53769622ad28b75435b883b084c8c4cc1e3e71f0"
+checksum = "1012431f881aad1912f9650a8d33e7f7493c6202bc2e889949ec1bc26a55f26d"
 dependencies = [
  "bytes",
  "memchr",
@@ -2489,9 +2457,9 @@ dependencies = [
 
 [[package]]
 name = "noodles-sam"
-version = "0.39.0"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2b9dc807c2594ff007a66131ef227d418c5861560a6e6f4c8d8b5180d398ee3"
+checksum = "25168f31309cb35103ea5216e30beb1dfbff5f173889c0a056b8f3d7c32e5105"
 dependencies = [
  "bitflags 2.4.0",
  "futures",
@@ -2506,9 +2474,9 @@ dependencies = [
 
 [[package]]
 name = "noodles-tabix"
-version = "0.27.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37ceacb4f8795a3eb9574c328ce312aff90ab9681e4fd748a0494b578f920ff5"
+checksum = "056e394ddb4c64bcc9806551a69833294062159600aa8ecf7167a922512bda4f"
 dependencies = [
  "bit-vec",
  "byteorder",
@@ -2520,9 +2488,9 @@ dependencies = [
 
 [[package]]
 name = "noodles-vcf"
-version = "0.36.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ca29f2f26dfacd55aecd79851381237d7bcc3376f8b7b0676bfcb895d941beb"
+checksum = "e9306e749f9d094f4cf0cb6275d106a8a5da90f97700bcc4e0e86480a074d25d"
 dependencies = [
  "futures",
  "indexmap 2.0.0",
@@ -3182,7 +3150,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18046f2e61c6fab85ae669fb1df6681b2df7774c439368d536d05f486b682c9a"
 dependencies = [
  "async-trait",
- "aws-sdk-s3 0.30.0",
+ "aws-sdk-s3",
  "aws-smithy-http",
  "aws-smithy-runtime-api",
  "aws-smithy-types",
