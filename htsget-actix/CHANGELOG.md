@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.5.2...htsget-actix-v0.5.3) - 2023-09-06
+
+### Other
+- revert htsget-test change to a dev dependency
+- add pre-commit hook
+- *(deps)* update msrv and attempt using htsget-test as a dev dependency
+- bump deps including rustls 0.21
+
 ## [0.5.2](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.5.1...htsget-actix-v0.5.2) - 2023-09-05
 
 ### Other
