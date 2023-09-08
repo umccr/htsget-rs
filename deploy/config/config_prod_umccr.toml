@@ -12,6 +12,7 @@ ticket_server_cors_max_age = 300
 data_server_enabled = false
 
 name = "umccr-htsget-rs"
+domain = "prod.umccr.org"
 version = "0.1"
 organization_name = "UMCCR"
 organization_url = "https://umccr.org/"

@@ -6,7 +6,6 @@ import { Architecture } from "aws-cdk-lib/aws-lambda";
 import * as apigwv2 from "@aws-cdk/aws-apigatewayv2-alpha";
 import { STACK_NAME } from "../bin/htsget-lambda";
 import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
-import { StringParameter } from "aws-cdk-lib/aws-ssm";
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
@@ -26,21 +25,14 @@ export type Config = {
   allowOrigins?: string[];
   exposeHeaders?: string[];
   maxAge?: Duration;
-  parameterStoreConfig: ParameterStoreConfig;   // AWS SSM Parameterstore config
   authRequired?: boolean;                       // Public instance without authz/n
   rateLimits?: boolean;                         // Reasonable defaults or configurable ratelimit settings?
-};
-
-/**
- * Configuration values obtained from AWS System Manager Parameter Store.
- */
-export type ParameterStoreConfig = {
-  arnCert: string;
-  hostedZoneId: string;
-  hostedZoneName: string;
-  htsgetDomain: string;
-  cogUserPoolId: string;
-  jwtAud: string[];
+  //arnCert: string;                            // TODO: Needs to be fetched from the recently created certificate
+  //hostedZoneId: string;                       // TODO: Ditto above
+  //hostedZoneName: string;                     // TODO: Ditto above
+  //cogUserPoolId: string;                      // TODO: Ditto above
+  //jwtAud: string[];                           // TODO: Ditto above
+  //htsgetDomain: string;                       // TODO: Fetched from the TOML file
 };
 
 /**
@@ -74,6 +66,14 @@ export class HtsgetLambdaStack extends Stack {
     // Don't build htsget packages other than htsget-lambda.
     Settings.BUILD_INDIVIDUALLY = true;
 
+    // // TODO: Generate ACM certificates
+    // const SSLCertificate = acm.Certificate(self, "htsget-rs https certificate",
+    //   domain_name = <DERIVED FROM TOML CONFIG>,
+    //   certificate_name="htsget-rs",
+    //   validation=acm.Certificate
+      
+    // )
+
     const config = this.getConfig();
     let htsgetLambda = new RustFunction(this, id + "Function", {
       // Build htsget-lambda only.
@@ -97,7 +97,6 @@ export class HtsgetLambdaStack extends Stack {
       role: lambdaRole,
     });
 
-    const parameterStoreConfig = config.parameterStoreConfig;
     const httpIntegration = new HttpLambdaIntegration(
       id + "HtsgetIntegration",
       htsgetLambda
@@ -107,10 +106,10 @@ export class HtsgetLambdaStack extends Stack {
     if (config.authRequired) {
       authorizer = new HttpJwtAuthorizer(
       id + "HtsgetAuthorizer",
-      `https://cognito-idp.${this.region}.amazonaws.com/${parameterStoreConfig.cogUserPoolId}`,
+      `https://cognito-idp.${this.region}.amazonaws.com/${cogUserPoolId}`,
       {
         identitySource: ["$request.header.Authorization"],
-        jwtAudience: parameterStoreConfig.jwtAud,
+        jwtAudience: ["foobar"] // TODO: Fetch from newly created resource by this stack (instead of SSM)
       }
     );
   };
@@ -119,16 +118,16 @@ export class HtsgetLambdaStack extends Stack {
       certificate: Certificate.fromCertificateArn(
         this,
         id + "HtsgetDomainCert",
-        parameterStoreConfig.arnCert
+        arnCert
       ),
-      domainName: parameterStoreConfig.htsgetDomain,
+      domainName: htsgetDomain,
     });
     const hostedZone = HostedZone.fromHostedZoneAttributes(
       this,
       id + "HtsgetHostedZone",
       {
-        hostedZoneId: parameterStoreConfig.hostedZoneId,
-        zoneName: parameterStoreConfig.hostedZoneName,
+        hostedZoneId: hostedZoneId,
+        zoneName: hostedZoneName,
       }
     );
     new ARecord(this, id + "HtsgetARecord", {
@@ -164,38 +163,6 @@ export class HtsgetLambdaStack extends Stack {
       methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
       integration: httpIntegration,
     });
-  }
-
-  /**
-   * Get config values from the Parameter Store.
-   */
-  getParameterStoreConfig(config: any): ParameterStoreConfig {
-    const parameterStoreNames = config.parameter_store_names;
-    return {
-      arnCert: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.arn_cert
-      ),
-      jwtAud: parameterStoreNames.jwt_aud.map((jwtAud: string) =>
-        StringParameter.valueFromLookup(this, jwtAud)
-      ),
-      cogUserPoolId: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.cog_user_pool_id
-      ),
-      htsgetDomain: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.htsget_domain
-      ),
-      hostedZoneId: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.hosted_zone_id
-      ),
-      hostedZoneName: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.hosted_zone_name
-      ),
-    };
   }
 
   /**
@@ -285,7 +252,6 @@ export class HtsgetLambdaStack extends Stack {
         configToml.ticket_server_cors_max_age !== undefined
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
-      parameterStoreConfig: this.getParameterStoreConfig(config),
       // authRequired:
       // rateLimits:
     };
