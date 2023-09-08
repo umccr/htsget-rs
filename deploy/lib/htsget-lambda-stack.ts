@@ -9,9 +9,10 @@ import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-al
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
-import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
+import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
 import * as fs from "fs";
 import * as TOML from "@iarna/toml";
+import { CognitoUserPoolsAuthorizer } from "aws-cdk-lib/aws-apigateway";
 
 /**
  * Configuration for HtsgetLambdaStack.
@@ -66,14 +67,7 @@ export class HtsgetLambdaStack extends Stack {
     // Don't build htsget packages other than htsget-lambda.
     Settings.BUILD_INDIVIDUALLY = true;
 
-    // // TODO: Generate ACM certificates
-    // const SSLCertificate = acm.Certificate(self, "htsget-rs https certificate",
-    //   domain_name = <DERIVED FROM TOML CONFIG>,
-    //   certificate_name="htsget-rs",
-    //   validation=acm.Certificate
-      
-    // )
-
+    // Read config from cdk.json and TOML file(s).
     const config = this.getConfig();
     let htsgetLambda = new RustFunction(this, id + "Function", {
       // Build htsget-lambda only.
@@ -102,34 +96,61 @@ export class HtsgetLambdaStack extends Stack {
       htsgetLambda
     );
 
+    var cognito = undefined;
+    // TODO: (fuzzy?) search from terms on TOML or fetch from newly created cognito user pool
+    if (this.findCognitoUserPoolId() === undefined) {
+      Error("Cognito user pool requested by {toml.cognito_name} not found");
+      cognito = new CognitoUserPoolsAuthorizer(
+        this,
+        id + "HtsgetAuthorizer",
+        {
+          cognitoUserPools: [],
+        }
+      );
+    } else {
+      // TODO: Creating a new one
+    }
+
     var authorizer = undefined;
     if (config.authRequired) {
       authorizer = new HttpJwtAuthorizer(
       id + "HtsgetAuthorizer",
       `https://cognito-idp.${this.region}.amazonaws.com/${cogUserPoolId}`,
+        {
+          identitySource: ["$request.header.Authorization"],
+          jwtAudience: ["foobar"] // TODO: Fetch from newly created resource by this stack (instead of SSM)
+        }
+      )
+    }
+
+    const certificateArn = new Certificate(
+      this,
+      id + "HtsgetCertificate",
       {
-        identitySource: ["$request.header.Authorization"],
-        jwtAudience: ["foobar"] // TODO: Fetch from newly created resource by this stack (instead of SSM)
+        domainName: config.htsgetConfig.domainName,
+        validation: CertificateValidation.fromDns(config.htsgetConfig.domainName),
       }
-    );
-  };
+    ).certificateArn;
 
     const domainName = new apigwv2.DomainName(this, id + "HtsgetDomainName", {
       certificate: Certificate.fromCertificateArn(
         this,
         id + "HtsgetDomainCert",
-        arnCert
+        certificateArn
       ),
-      domainName: htsgetDomain,
+      domainName: config.htsgetConfig.domainName,
     });
+
+    // TODO: Use the hosted zone from the certificate
     const hostedZone = HostedZone.fromHostedZoneAttributes(
       this,
       id + "HtsgetHostedZone",
       {
-        hostedZoneId: hostedZoneId,
-        zoneName: hostedZoneName,
+        hostedZoneId: config.htsgetConfig.hostedZoneId,
+        zoneName: config.htsgetConfig.hostedZoneName,
       }
     );
+
     new ARecord(this, id + "HtsgetARecord", {
       zone: hostedZone,
       recordName: "htsget",
@@ -195,6 +216,14 @@ export class HtsgetLambdaStack extends Stack {
     return undefined;
   }
 
+  /**
+   *  
+   */
+
+  static findCognitoUserPoolId(): string {
+    undefined;
+  }
+  
   /**
    * Convert a string CORS allowMethod option to CorsHttpMethod.
    */
