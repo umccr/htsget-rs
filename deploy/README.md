@@ -15,53 +15,19 @@ corresponding to the deployed environment. The config file used for deployment c
 
 These config files configure [htsget-lambda]. See [htsget-config] for a list of available configuration options.
 
-There is additional config that modifies the AWS infrastructure surrounding [htsget-lambda]. This config is sourced
-from [AWS System Manager Parameter Store][aws-ssm]. Parameters are fetched using [`StringParemeter.valueFromLookup`][cdk-lookup-value]
-which takes a parameter name. The properties in [`cdk.json`][cdk-json] `parameter_store_names` hold these parameter names,
-which correspond to the following values:
-
-| Property storing SSM parameter name | Description of SSM parameter                           |
-| ----------------------------------- | ------------------------------------------------------ |
-| `arn_cert`                          | The ARN for the ACM certificate of the htsget domain.  |
-| `jwt_aud`                           | The JWT [audience][jwt-audience] for the token.        |
-| `cog_user_pool_id`                  | The Cognito user pool id which controls authorization. |
-| `htsget_domain`                     | The domain name for the htsget server.                 |
-| `hosted_zone_id`                    | The Route 53 hosted zone id for the htsget server.     |
-| `hosted_zone_name`                  | The Route 53 hosted zone name for the htsget server.   |
-
-Modify these properties to change which parameter the values come from. SSM parameters can also be cached locally using
-the [CDK runtime context][cdk-context].
-
-[htsget-rs]: https://github.com/umccr/htsget-rs
-[htsget-lambda]: ../htsget-lambda
-[htsget-config]: ../htsget-config
-[config]: config
-[aws-cdk]: https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html
-[cdk-context]: https://docs.aws.amazon.com/cdk/v2/guide/context.html
-[cdk-lookup-value]: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ssm.StringParameter.html#static-valuewbrfromwbrlookupscope-parametername
-[cdk-json]: cdk.json
-[aws-ssm]: https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html
-[aws-api-gateway]: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html
-[aws-cognito]: https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-identity-pools.html
-[jwt-authorizer]: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-jwt-authorizer.html
-[jwt-audience]: https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/apis-apiid-authorizers-authorizerid.html#apis-apiid-authorizers-authorizerid-model-jwtconfiguration
-[route-53]: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html
-[rust-function]: https://www.npmjs.com/package/rust.aws-cdk-lambda
-
 ## Deploying
 
 ### Prerequisites
 
-- [aws-cli] should be installed and authenticated in the shell.
-- Node.js and [npm] should be installed.
-- [Rust][rust] should be installed.
+1. [aws-cli] should be installed and authenticated in the shell.
+1. Node.js and [npm] should be installed.
+1. [Rust][rust] should be installed.
+1. [Zig][zig] should be installed
 
 After installing the basic dependencies, complete the following steps:
 
 1. Add the arm cross-compilation target to rust.
-2. Install [Zig][zig] using one of the methods show in [getting started][zig-getting-started], or by running the commands below and following the prompts. Zig is used by cargo-lambda for cross-compilation.
-3. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
-4. Install packages from this directory and compile [htsget-lambda]. This should place artifacts compiled for arm64 under the `target/lambda` directory which can be deployed to AWS.
+1. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
 
 Below is a summary of commands to run in this directory:
 
@@ -69,23 +35,9 @@ Below is a summary of commands to run in this directory:
 rustup target add aarch64-unknown-linux-gnu
 cargo install cargo-lambda
 npm install
-
-cd ..
-cargo lambda build --release --arm64 --bin htsget-lambda --features s3-storage
-cd deploy
 ```
 
-[aws-cdk]: https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html
-[aws-cli]: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-[npm]: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
-[rust]: https://www.rust-lang.org/tools/install
-[zig]: https://ziglang.org/
-[zig-getting-started]: https://ziglang.org/learn/getting-started/
-
 ### Deploy to AWS
-
-CDK will run many of the commands above again. However, it is recommended to run them once before trying the commands below,
-to ensure that prerequisites are met.
 
 CDK should be bootstrapped once, if this hasn't been done before.
 
@@ -93,8 +45,7 @@ CDK should be bootstrapped once, if this hasn't been done before.
 npx cdk bootstrap
 ```
 
-In order to deploy, check that the
-stack synthesizes correctly and then deploy.
+In order to deploy, check that the stack synthesizes correctly and then deploy.
 
 ```sh
 npx cdk synth
@@ -162,3 +113,24 @@ Examples of different Lambda events are located in the [`data/events`][data-even
 [htsget-lambda]: ../htsget-lambda
 [cargo-lambda]: https://github.com/cargo-lambda/cargo-lambda
 [data-events]: ../data/events
+[htsget-rs]: https://github.com/umccr/htsget-rs
+[htsget-lambda]: ../htsget-lambda
+[htsget-config]: ../htsget-config
+[config]: config
+[aws-cdk]: https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html
+[cdk-context]: https://docs.aws.amazon.com/cdk/v2/guide/context.html
+[cdk-lookup-value]: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ssm.StringParameter.html#static-valuewbrfromwbrlookupscope-parametername
+[cdk-json]: cdk.json
+[aws-ssm]: https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html
+[aws-api-gateway]: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html
+[aws-cognito]: https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-identity-pools.html
+[jwt-authorizer]: https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-jwt-authorizer.html
+[jwt-audience]: https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/apis-apiid-authorizers-authorizerid.html#apis-apiid-authorizers-authorizerid-model-jwtconfiguration
+[route-53]: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html
+[rust-function]: https://www.npmjs.com/package/rust.aws-cdk-lambda
+[aws-cdk]: https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html
+[aws-cli]: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+[npm]: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
+[rust]: https://www.rust-lang.org/tools/install
+[zig]: https://ziglang.org/
+[zig-getting-started]: https://ziglang.org/learn/getting-started/
