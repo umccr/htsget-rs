@@ -24,36 +24,7 @@
     "@aws-cdk/aws-ec2:uniqueImdsv2TemplateName": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/aws-iam:minimizePolicies": true,
-    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"],
-    "dev": {
-      "config": "config/config_dev_umccr.toml",
-      "parameter_store_names": {
-        "arn_cert": "/htsget/acm/apse2_arn",
-        "jwt_aud": [
-          "/data_portal/client/cog_app_client_id_local",
-          "/data_portal/client/cog_app_client_id_stage",
-          "/data_portal/client/data2/cog_app_client_id_stage"
-        ],
-        "cog_user_pool_id": "/data_portal/client/cog_user_pool_id",
-        "htsget_domain": "/htsget/domain",
-        "hosted_zone_id": "hosted_zone_id",
-        "hosted_zone_name": "hosted_zone_name"
-      }
-    },
-    "prod": {
-      "config": "config/config_prod_umccr.toml",
-      "parameter_store_names": {
-        "arn_cert": "/htsget/acm/apse2_arn",
-        "jwt_aud": [
-          "/data_portal/client/cog_app_client_id_local",
-          "/data_portal/client/cog_app_client_id_stage",
-          "/data_portal/client/data2/cog_app_client_id_stage"
-        ],
-        "cog_user_pool_id": "/data_portal/client/cog_user_pool_id",
-        "htsget_domain": "/htsget/domain",
-        "hosted_zone_id": "hosted_zone_id",
-        "hosted_zone_name": "hosted_zone_name"
-      }
+    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"]
     }
   }
 }
