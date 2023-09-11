@@ -26,12 +26,15 @@ These config files configure [htsget-lambda]. See [htsget-config] for a list of 
 
 After installing the basic dependencies, complete the following steps:
 
+1. Define CDK\_DEFAULT\_* env variables (if not defined already). You must be authenticated with your AWS cloud to run this step.
 1. Add the arm cross-compilation target to rust.
 1. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
 
 Below is a summary of commands to run in this directory:
 
 ```sh
+export CDK_DEFAULT_ACCOUNT=`aws sts get-caller-identity --query Account --output text`
+export CDK_DEFAULT_REGION=`aws configure get region`
 rustup target add aarch64-unknown-linux-gnu
 cargo install cargo-lambda
 npm install

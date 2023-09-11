@@ -250,9 +250,14 @@ export class HtsgetLambdaStack extends Stack {
    * Get the environment from config.toml
    */
   getConfig(): Config {
-    let env: string = this.node.tryGetContext("env");
+    let env = this.node.tryGetContext("env");
 
-    const config = this.node.tryGetContext(env);
+    if (env === undefined) {
+      env = {
+        account: process.env.CDK_DEFAULT_ACCOUNT,
+        region: process.env.CDK_DEFAULT_REGION,
+      }
+    }
     // TODO: Remove hardcoding, parametrize this better for the different environments
     const configToml = TOML.parse(fs.readFileSync("config/public_umccr.toml").toString());
     //console.log(configToml);
