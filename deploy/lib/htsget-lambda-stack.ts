@@ -12,7 +12,8 @@ import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
 import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
 import * as fs from "fs";
 import * as TOML from "@iarna/toml";
-import { CognitoUserPoolsAuthorizer } from "aws-cdk-lib/aws-apigateway";
+import { CognitoUserPoolsAuthorizer, DomainName } from "aws-cdk-lib/aws-apigateway";
+import { aws_cognito } from "aws-cdk-lib";
 
 /**
  * Configuration for HtsgetLambdaStack.
@@ -29,9 +30,9 @@ export type Config = {
   authRequired?: boolean;                       // Public instance without authz/n
   rateLimits?: boolean;                         // Reasonable defaults or configurable ratelimit settings?
   //arnCert: string;                            // TODO: Needs to be fetched from the recently created certificate
-  //hostedZoneId: string;                       // TODO: Ditto above
-  //hostedZoneName: string;                     // TODO: Ditto above
-  //cogUserPoolId: string;                      // TODO: Ditto above
+  //hostedZoneId?: string;                       // TODO: Ditto above
+  hostedZoneName?: string;                     // TODO: Ditto above
+  cogUserPoolId?: string;                       // Supply one if already existing
   //jwtAud: string[];                           // TODO: Ditto above
   //htsgetDomain: string;                       // TODO: Fetched from the TOML file
 };
@@ -40,8 +41,13 @@ export type Config = {
  * Stack used to deploy htsget-lambda.
  */
 export class HtsgetLambdaStack extends Stack {
+  // Read config from cdk.json and TOML file(s).
+  config = this.getConfig();
+
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+
+    const config = this.config;
 
     Tags.of(this).add("Stack", STACK_NAME);
 
@@ -67,8 +73,7 @@ export class HtsgetLambdaStack extends Stack {
     // Don't build htsget packages other than htsget-lambda.
     Settings.BUILD_INDIVIDUALLY = true;
 
-    // Read config from cdk.json and TOML file(s).
-    const config = this.getConfig();
+
     let htsgetLambda = new RustFunction(this, id + "Function", {
       // Build htsget-lambda only.
       package: "htsget-lambda",
@@ -96,26 +101,22 @@ export class HtsgetLambdaStack extends Stack {
       htsgetLambda
     );
 
+    // Use a predefined Cognito user pool or create a new one.
     var cognito = undefined;
-    // TODO: (fuzzy?) search from terms on TOML or fetch from newly created cognito user pool
-    if (this.findCognitoUserPoolId() === undefined) {
+    if (!config.authRequired || config.cogUserPoolId) {
       Error("Cognito user pool requested by {toml.cognito_name} not found");
-      cognito = new CognitoUserPoolsAuthorizer(
-        this,
-        id + "HtsgetAuthorizer",
-        {
-          cognitoUserPools: [],
-        }
-      );
+      cognito = config.cogUserPoolId;
     } else {
+
       // TODO: Creating a new one
     }
 
+    // Use a predefined authorizer or create a new one.
     var authorizer = undefined;
     if (config.authRequired) {
       authorizer = new HttpJwtAuthorizer(
       id + "HtsgetAuthorizer",
-      `https://cognito-idp.${this.region}.amazonaws.com/${cogUserPoolId}`,
+      `https://cognito-idp.${this.region}.amazonaws.com/${config.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
           jwtAudience: ["foobar"] // TODO: Fetch from newly created resource by this stack (instead of SSM)
@@ -123,19 +124,32 @@ export class HtsgetLambdaStack extends Stack {
       )
     }
 
+    const hostedZoneObj = HostedZone.fromHostedZoneAttributes(
+      this,
+      id + "HtsgetHostedZone",
+      {
+        hostedZoneId: config.htsgetConfig.hostedZoneId,
+        zoneName: config.htsgetConfig.hostedZoneName,
+      }
+    );
+
+    // Create a certificate for the domain name.
     const certificateArn = new Certificate(
       this,
       id + "HtsgetCertificate",
       {
-        domainName: config.htsgetConfig.domainName,
-        validation: CertificateValidation.fromDns(config.htsgetConfig.domainName),
+        domainName: "config.htsgetConfig.domain",
+        validation: CertificateValidation.fromDns(hostedZoneObj),
+        certificateName: "config.htsgetConfig.domain",
       }
     ).certificateArn;
 
+    // Create a domain name for the API Gateway.
     const domainName = new apigwv2.DomainName(this, id + "HtsgetDomainName", {
       certificate: Certificate.fromCertificateArn(
         this,
         id + "HtsgetDomainCert",
+        //domainName: config.htsgetConfig.domainName,
         certificateArn
       ),
       domainName: config.htsgetConfig.domainName,
@@ -215,14 +229,6 @@ export class HtsgetLambdaStack extends Stack {
 
     return undefined;
   }
-
-  /**
-   *  
-   */
-
-  static findCognitoUserPoolId(): string {
-    undefined;
-  }
   
   /**
    * Convert a string CORS allowMethod option to CorsHttpMethod.
@@ -241,19 +247,15 @@ export class HtsgetLambdaStack extends Stack {
   }
 
   /**
-   * Get the environment configuration from cdk.json. Pass `--context "env=dev"` or `--context "env=prod"` to
-   * control the environment.
+   * Get the environment from config.toml
    */
   getConfig(): Config {
     let env: string = this.node.tryGetContext("env");
-    if (!env) {
-      console.log("No environment supplied, using `dev` environment config");
-      env = "dev";
-    }
 
     const config = this.node.tryGetContext(env);
-    const configToml = TOML.parse(fs.readFileSync(config.config).toString());
-
+    // TODO: Remove hardcoding, parametrize this better for the different environments
+    const configToml = TOML.parse(fs.readFileSync("config/public_umccr.toml").toString());
+    console.log(configToml);
     return {
       environment: env,
       htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
