@@ -124,12 +124,11 @@ export class HtsgetLambdaStack extends Stack {
       )
     }
 
-    const hostedZoneObj = HostedZone.fromHostedZoneAttributes(
+    const hostedZoneObj = HostedZone.fromLookup(
       this,
       id + "HtsgetHostedZone",
       {
-        hostedZoneId: config.htsgetConfig.hostedZoneId,
-        zoneName: config.htsgetConfig.hostedZoneName,
+        domainName: config.htsgetConfig.HTSGET_DOMAIN,
       }
     );
 
@@ -138,12 +137,13 @@ export class HtsgetLambdaStack extends Stack {
       this,
       id + "HtsgetCertificate",
       {
-        domainName: "config.htsgetConfig.domain",
+        domainName: config.htsgetConfig.HTSGET_DOMAIN,
         validation: CertificateValidation.fromDns(hostedZoneObj),
-        certificateName: "config.htsgetConfig.domain",
+        certificateName: config.htsgetConfig.HTSGET_DOMAIN,
       }
     ).certificateArn;
 
+    console.log(config.htsgetConfig);
     // Create a domain name for the API Gateway.
     const domainName = new apigwv2.DomainName(this, id + "HtsgetDomainName", {
       certificate: Certificate.fromCertificateArn(
@@ -152,7 +152,7 @@ export class HtsgetLambdaStack extends Stack {
         //domainName: config.htsgetConfig.domainName,
         certificateArn
       ),
-      domainName: config.htsgetConfig.domainName,
+      domainName: config.htsgetConfig.HTSGET_DOMAIN,
     });
 
     // TODO: Use the hosted zone from the certificate
@@ -255,7 +255,7 @@ export class HtsgetLambdaStack extends Stack {
     const config = this.node.tryGetContext(env);
     // TODO: Remove hardcoding, parametrize this better for the different environments
     const configToml = TOML.parse(fs.readFileSync("config/public_umccr.toml").toString());
-    console.log(configToml);
+    //console.log(configToml);
     return {
       environment: env,
       htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
