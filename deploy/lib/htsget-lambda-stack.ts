@@ -124,35 +124,32 @@ export class HtsgetLambdaStack extends Stack {
       )
     }
 
-    const hostedZoneObj = HostedZone.fromLookup(
-      this,
-      id + "HtsgetHostedZone",
-      {
-        domainName: config.htsgetConfig.HTSGET_DOMAIN,
-      }
-    );
+    // Created a hosted zone for the domain name.
+    const hostedZoneObj = new HostedZone(this, id + "HtsgetHostedZone", {
+      zoneName: "TODO",
+    });
 
     // Create a certificate for the domain name.
     const certificateArn = new Certificate(
       this,
       id + "HtsgetCertificate",
       {
-        domainName: config.htsgetConfig.HTSGET_DOMAIN,
-        validation: CertificateValidation.fromDns(hostedZoneObj),
-        certificateName: config.htsgetConfig.HTSGET_DOMAIN,
+        domainName: "TODO",
+        //validation: CertificateValidation.fromDns(hostedZoneObj),
+        certificateName: "TODO",
       }
     ).certificateArn;
 
     console.log(config.htsgetConfig);
+
     // Create a domain name for the API Gateway.
-    const domainName = new apigwv2.DomainName(this, id + "HtsgetDomainName", {
+    const domainName = new DomainName(this, id + "HtsgetDomainName", {
+      domainName: config.htsgetConfig.HTSGET_DOMAIN,
       certificate: Certificate.fromCertificateArn(
         this,
-        id + "HtsgetDomainCert",
-        //domainName: config.htsgetConfig.domainName,
+        id + "HtsgetCertificateInDomainName",
         certificateArn
       ),
-      domainName: config.htsgetConfig.HTSGET_DOMAIN,
     });
 
     // TODO: Use the hosted zone from the certificate
@@ -165,13 +162,13 @@ export class HtsgetLambdaStack extends Stack {
       }
     );
 
-    new ARecord(this, id + "HtsgetARecord", {
+    const arecord = new ARecord(this, id + "HtsgetARecord", {
       zone: hostedZone,
       recordName: "htsget",
       target: RecordTarget.fromAlias(
         new ApiGatewayv2DomainProperties(
-          domainName.regionalDomainName,
-          domainName.regionalHostedZoneId
+          domainName.domainName,
+          domainName.domainNameAliasDomainName,
         )
       ),
     });
@@ -180,9 +177,8 @@ export class HtsgetLambdaStack extends Stack {
       // Use explicit routes GET, POST with {proxy+} path
       // defaultIntegration: httpIntegration,
       defaultAuthorizer: config.authRequired ? authorizer : undefined,
-      defaultDomainMapping: {
-        domainName: domainName,
-      },
+      // defaultDomainMapping: {
+      // },
       corsPreflight: {
         allowCredentials: config.allowCredentials,
         allowHeaders: config.allowHeaders,
