@@ -124,11 +124,6 @@ export class HtsgetLambdaStack extends Stack {
       )
     }
 
-    // Created a hosted zone for the domain name.
-    const hostedZoneObj = new HostedZone(this, id + "HtsgetHostedZone", {
-      zoneName: "TODO",
-    });
-
     // Create a certificate for the domain name.
     const certificateArn = new Certificate(
       this,
@@ -152,7 +147,7 @@ export class HtsgetLambdaStack extends Stack {
       ),
     });
 
-    // TODO: Use the hosted zone from the certificate
+    // Use the hosted zone from the certificate
     const hostedZone = HostedZone.fromHostedZoneAttributes(
       this,
       id + "HtsgetHostedZone",
@@ -162,9 +157,11 @@ export class HtsgetLambdaStack extends Stack {
       }
     );
 
-    const arecord = new ARecord(this, id + "HtsgetARecord", {
+    const arecord = new ARecord(
+      this,
+      id + "HtsgetARecord", {
       zone: hostedZone,
-      recordName: "htsget",
+      recordName: "htsget.dev.umccr.org.",
       target: RecordTarget.fromAlias(
         new ApiGatewayv2DomainProperties(
           domainName.domainName,
