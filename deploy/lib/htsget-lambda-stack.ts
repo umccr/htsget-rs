@@ -1,19 +1,20 @@
+import { STACK_NAME } from "../bin/htsget-lambda";
+import * as TOML from "@iarna/toml";
+import { readFileSync } from "fs";
+
 import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import * as iam from "aws-cdk-lib/aws-iam";
 import { RustFunction, Settings } from "rust.aws-cdk-lambda";
+
+import { UserPool } from "aws-cdk-lib/aws-cognito";
+import { Role, ServicePrincipal, PolicyStatement, ManagedPolicy } from "aws-cdk-lib/aws-iam";
 import { Architecture } from "aws-cdk-lib/aws-lambda";
-import * as apigwv2 from "@aws-cdk/aws-apigatewayv2-alpha";
-import { STACK_NAME } from "../bin/htsget-lambda";
+import { CorsHttpMethod, DomainName, HttpMethod, HttpApi } from "@aws-cdk/aws-apigatewayv2";
 import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
-import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
-import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
-import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
-import * as fs from "fs";
-import * as TOML from "@iarna/toml";
-import { CognitoUserPoolsAuthorizer, DomainName } from "aws-cdk-lib/aws-apigateway";
-import { aws_cognito } from "aws-cdk-lib";
+// import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
+// import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
+import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
 
 /**
  * Configuration for HtsgetLambdaStack.
@@ -23,7 +24,7 @@ export type Config = {
   htsgetConfig: { [key: string]: any };         // Server config
   allowCredentials?: boolean;                   // CORS
   allowHeaders?: string[];
-  allowMethods?: apigwv2.CorsHttpMethod[];
+  allowMethods?: CorsHttpMethod[];
   allowOrigins?: string[];
   exposeHeaders?: string[];
   maxAge?: Duration;
@@ -51,18 +52,18 @@ export class HtsgetLambdaStack extends Stack {
 
     Tags.of(this).add("Stack", STACK_NAME);
 
-    const lambdaRole = new iam.Role(this, id + "Role", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    const lambdaRole = new Role(this, id + "Role", {
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
       description: "Lambda execution role for " + id,
     });
 
-    const s3BucketPolicy = new iam.PolicyStatement({
+    const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
       resources: ["arn:aws:s3:::*"],
     });
 
     lambdaRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName(
+      ManagedPolicy.fromAwsManagedPolicyName(
         "service-role/AWSLambdaBasicExecutionRole"
       )
     );
@@ -107,8 +108,7 @@ export class HtsgetLambdaStack extends Stack {
       Error("Cognito user pool requested by {toml.cognito_name} not found");
       cognito = config.cogUserPoolId;
     } else {
-
-      // TODO: Creating a new one
+      cognito = this.createNewCognito();
     }
 
     // Use a predefined authorizer or create a new one.
@@ -119,7 +119,7 @@ export class HtsgetLambdaStack extends Stack {
       `https://cognito-idp.${this.region}.amazonaws.com/${config.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
-          jwtAudience: ["foobar"] // TODO: Fetch from newly created resource by this stack (instead of SSM)
+          jwtAudience: ["audience"], // TODO
         }
       )
     }
@@ -137,45 +137,45 @@ export class HtsgetLambdaStack extends Stack {
 
     console.log(config.htsgetConfig);
 
-    // Create a domain name for the API Gateway.
-    const domainName = new DomainName(this, id + "HtsgetDomainName", {
-      domainName: config.htsgetConfig.HTSGET_DOMAIN,
-      certificate: Certificate.fromCertificateArn(
-        this,
-        id + "HtsgetCertificateInDomainName",
-        certificateArn
-      ),
-    });
+    // // Create a domain name for the API Gateway.
+    // const domainName = new DomainName(
+    //   this, 
+    //   id + "HtsgetDomainName", {
+    //   domainName: config.htsgetConfig.HTSGET_DOMAIN,
+    //   certificate: Certificate.fromCertificateArn(
+    //     this,
+    //     id + "HtsgetCertificateInDomainName",
+    //     certificateArn
+    //   ),
+    // });
 
-    // Use the hosted zone from the certificate
-    const hostedZone = HostedZone.fromHostedZoneAttributes(
-      this,
-      id + "HtsgetHostedZone",
-      {
-        hostedZoneId: config.htsgetConfig.hostedZoneId,
-        zoneName: config.htsgetConfig.hostedZoneName,
-      }
-    );
+    // // Use the hosted zone from the certificate
+    // const hostedZone = HostedZone.fromHostedZoneAttributes(
+    //   this,
+    //   id + "HtsgetHostedZone",
+    //   {
+    //     hostedZoneId: config.htsgetConfig.hostedZoneId,
+    //     zoneName: config.htsgetConfig.hostedZoneName,
+    //   }
+    // );
 
-    const arecord = new ARecord(
-      this,
-      id + "HtsgetARecord", {
-      zone: hostedZone,
-      recordName: "htsget.dev.umccr.org.",
-      target: RecordTarget.fromAlias(
-        new ApiGatewayv2DomainProperties(
-          domainName.domainName,
-          domainName.domainNameAliasDomainName,
-        )
-      ),
-    });
+    // const arecord = new ARecord(
+    //   this,
+    //   id + "HtsgetARecord", {
+    //   zone: hostedZone,
+    //   recordName: "htsget.dev.umccr.org.",
+    //   target: RecordTarget.fromAlias(
+    //     new ApiGatewayv2DomainProperties(
+    //       domainName.domainName,
+    //       domainName.domainNameAliasDomainName,
+    //     )
+    //   ),
+    // });
 
-    const httpApi = new apigwv2.HttpApi(this, id + "ApiGw", {
+    const httpApi = new HttpApi(this, id + "ApiGw", {
       // Use explicit routes GET, POST with {proxy+} path
       // defaultIntegration: httpIntegration,
       defaultAuthorizer: config.authRequired ? authorizer : undefined,
-      // defaultDomainMapping: {
-      // },
       corsPreflight: {
         allowCredentials: config.allowCredentials,
         allowHeaders: config.allowHeaders,
@@ -188,7 +188,7 @@ export class HtsgetLambdaStack extends Stack {
 
     httpApi.addRoutes({
       path: "/{proxy+}",
-      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      methods: [HttpMethod.GET, HttpMethod.POST],
       integration: httpIntegration,
     });
   }
@@ -228,17 +228,36 @@ export class HtsgetLambdaStack extends Stack {
    */
   static corsAllowMethodToHttpMethod(
     corsAllowMethod?: string[]
-  ): apigwv2.CorsHttpMethod[] | undefined {
+  ): CorsHttpMethod[] | undefined {
     if (corsAllowMethod?.length === 1 && corsAllowMethod.includes("*")) {
-      return [apigwv2.CorsHttpMethod.ANY];
+      return [CorsHttpMethod.ANY];
     } else {
       return corsAllowMethod?.map(
         (element) =>
-          apigwv2.CorsHttpMethod[element as keyof typeof apigwv2.CorsHttpMethod]
+          CorsHttpMethod[element as keyof typeof CorsHttpMethod]
       );
     }
   }
 
+  /**
+   * Bespoke Cognito infrastructure
+   */
+  createNewCognito() {
+      // Cognito User Pool with Email Sign-in Type.
+      const userPool = new UserPool(this, 'userPool', {
+        userPoolName: 'HtsgetRsUserPool',
+      })
+  
+      // Authorizer for the Hello World API that uses the
+      // Cognito User pool to Authorize users.
+      // const authorizer = new CfnAuthorizer(this, 'cfnAuth', {
+      //   restApiId: helloWorldLambdaRestApi.restApiId,
+      //   name: 'HelloWorldAPIAuthorizer',
+      //   type: 'COGNITO_USER_POOLS',
+      //   identitySource: 'method.request.header.Authorization',
+      //   providerArns: [userPool.userPoolArn],
+      // })
+  }
   /**
    * Get the environment from config.toml
    */
@@ -252,7 +271,7 @@ export class HtsgetLambdaStack extends Stack {
       }
     }
     // TODO: Remove hardcoding, parametrize this better for the different environments
-    const configToml = TOML.parse(fs.readFileSync("config/public_umccr.toml").toString());
+    const configToml = TOML.parse(readFileSync("config/public_umccr.toml").toString());
     //console.log(configToml);
     return {
       environment: env,
