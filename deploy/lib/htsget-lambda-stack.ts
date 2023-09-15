@@ -9,7 +9,7 @@ import { RustFunction, Settings } from "rust.aws-cdk-lambda";
 import { UserPool } from "aws-cdk-lib/aws-cognito";
 import { Role, ServicePrincipal, PolicyStatement, ManagedPolicy } from "aws-cdk-lib/aws-iam";
 import { Architecture } from "aws-cdk-lib/aws-lambda";
-import { CorsHttpMethod, DomainName, HttpMethod, HttpApi } from "@aws-cdk/aws-apigatewayv2";
+import { CorsHttpMethod, HttpMethod, HttpApi } from "@aws-cdk/aws-apigatewayv2-alpha";
 import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 // import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
