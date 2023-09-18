@@ -21,5 +21,5 @@ documentation_url = "https://github.com/umccr/htsget-rs"
 environment = "public"
 
 [[resolvers]]
-regex = '^(org.umccr.demo.sbeacon-data)/CINECA_UK1/Test.1000G.phase3.joint.lifted.vcf.gz$'
+regex = '^(org.umccr.demo.sbeacon-data)/CINECA_UK1/(?P<key>.*)$'
 substitution_string = '$key'

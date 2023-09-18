@@ -59,7 +59,9 @@ export class HtsgetLambdaStack extends Stack {
 
     const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
-      resources: ["arn:aws:s3:::*"],
+      // TODO: Narrow down this policy to some specified bucket(s) in config.
+      //resources: ["arn:aws:s3:::*"],
+      resources: ["arn:aws:s3:::org.umccr.demo.sbeacon-data/*"],
     });
 
     lambdaRole.addManagedPolicy(
@@ -129,9 +131,9 @@ export class HtsgetLambdaStack extends Stack {
       this,
       id + "HtsgetCertificate",
       {
-        domainName: "TODO",
+        domainName: "htsget.demo.umccr.org",
         //validation: CertificateValidation.fromDns(hostedZoneObj),
-        certificateName: "TODO",
+        certificateName: "htsget.demo.umccr.org",
       }
     ).certificateArn;
 
