@@ -14,7 +14,7 @@ import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-al
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 // import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
 // import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
-import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
+import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
 
 /**
  * Configuration for HtsgetLambdaStack.
@@ -61,7 +61,8 @@ export class HtsgetLambdaStack extends Stack {
       actions: ["s3:List*", "s3:Get*"],
       // TODO: Narrow down this policy to some specified bucket(s) in config.
       //resources: ["arn:aws:s3:::*"],
-      resources: ["arn:aws:s3:::org.umccr.demo.sbeacon-data/*"],
+      resources: ["arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
+                  "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*"],
     });
 
     lambdaRole.addManagedPolicy(
@@ -132,7 +133,7 @@ export class HtsgetLambdaStack extends Stack {
       id + "HtsgetCertificate",
       {
         domainName: "htsget.demo.umccr.org",
-        //validation: CertificateValidation.fromDns(hostedZoneObj),
+        validation: CertificateValidation.fromDns(hostedZoneObj),
         certificateName: "htsget.demo.umccr.org",
       }
     ).certificateArn;

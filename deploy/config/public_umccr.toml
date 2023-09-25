@@ -22,4 +22,8 @@ environment = "public"
 
 [[resolvers]]
 regex = '^(org.umccr.demo.sbeacon-data)/CINECA_UK1/(?P<key>.*)$'
+substitution_string = 'CINECA_UK1/$key'
+
+[[resolvers]]
+regex = '^(org.umccr.demo.htsget-rs-data)/data/bam|cram|vcf|bcf|crypt4gh/(?P<key>.*)$'
 substitution_string = '$key'
