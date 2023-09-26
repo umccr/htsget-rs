@@ -5,7 +5,7 @@
 //! where the names of the types indicate their purpose.
 //!
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -369,9 +369,9 @@ where
   Header: Send + Sync,
 {
   #[instrument(level = "trace", skip_all)]
-  fn index_positions(index: &Index) -> Vec<u64> {
+  fn index_positions(index: &Index) -> BTreeSet<u64> {
     trace!("getting possible index positions");
-    let mut positions = HashSet::new();
+    let mut positions = BTreeSet::new();
 
     // Its probably most robust to search through all chunks in all reference sequences.
     // See https://github.com/samtools/htslib/issues/1482
@@ -397,9 +397,8 @@ where
         }),
     );
 
-    positions.remove(&0);
-    let mut positions: Vec<u64> = positions.into_iter().collect();
-    positions.sort_unstable();
+    positions.pop_first();
+
     positions
   }
 
