@@ -1,10 +1,6 @@
 ticket_server_cors_allow_headers = "All"
 ticket_server_cors_allow_origins = [
-# TODO: Add domains from UoM public demo acct
-#    "https://data.umccr.org",
-#    "https://data.prod.umccr.org",
-#    "https://portal.prod.umccr.org",
-#    "https://portal.umccr.org"
+    "https://htsget.demo.umccr.org",
 ]
 ticket_server_cors_allow_methods = "All"
 ticket_server_cors_allow_credentials = true
