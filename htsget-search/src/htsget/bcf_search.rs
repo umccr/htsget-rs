@@ -126,6 +126,7 @@ mod tests {
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
+  use crate::htsget::search::SearchAll;
   use crate::storage::local::LocalStorage;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
 
@@ -266,6 +267,25 @@ mod tests {
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn get_header_end_offset() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BcfSearch::new(storage.clone());
+        let query =
+          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
+
+        let index = search.read_index(&query).await.unwrap();
+        let response = search.get_header_end_offset(&index).await;
+
+        assert_eq!(response, Ok(950));
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],

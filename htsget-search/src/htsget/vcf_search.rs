@@ -127,6 +127,7 @@ pub(crate) mod tests {
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
+  use crate::htsget::search::SearchAll;
   use crate::storage::local::LocalStorage;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
 
@@ -234,7 +235,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage.clone());
-        let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Vcf);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -250,7 +251,7 @@ pub(crate) mod tests {
       |storage| async move {
         let search = VcfSearch::new(storage.clone());
         let query =
-          Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_reference_name("chrM");
+          Query::new_with_default_request("spec-v4.3", Format::Vcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -265,10 +266,27 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage.clone());
-        let query =
-          Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_class(Header);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+      },
+      VCF_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn get_header_end_offset() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = VcfSearch::new(storage.clone());
+        let query = Query::new_with_default_request("spec-v4.3", Format::Vcf).with_class(Header);
+
+        let index = search.read_index(&query).await.unwrap();
+        let response = search.get_header_end_offset(&index).await;
+
+        assert_eq!(response, Ok(823));
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],

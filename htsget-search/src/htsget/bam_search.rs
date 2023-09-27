@@ -453,6 +453,25 @@ pub(crate) mod tests {
     .await
   }
 
+  #[tokio::test]
+  async fn get_header_end_offset() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage.clone());
+        let query =
+          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+
+        let index = search.read_index(&query).await.unwrap();
+        let response = search.get_header_end_offset(&index).await;
+
+        assert_eq!(response, Ok(256721));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
   #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn search_non_existent_id_reference_name_aws() {
