@@ -6,6 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bcf;
+use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::vcf::Header;
@@ -32,6 +33,13 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
+  async fn read_bytes(_header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader.read_lazy_record(&mut Default::default()).await.ok()
+  }
+
+  fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
+    reader.virtual_position()
+  }
 }
 
 #[async_trait]
@@ -285,7 +293,7 @@ mod tests {
         let index = search.read_index(&query).await.unwrap();
         let response = search.get_header_end_offset(&index).await;
 
-        assert_eq!(response, Ok(950));
+        assert_eq!(response, Ok(65536));
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],

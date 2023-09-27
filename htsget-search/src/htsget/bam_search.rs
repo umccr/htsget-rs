@@ -64,6 +64,17 @@ where
       .with_end(self.position_at_eof(query).await?)
       .with_class(Body)])
   }
+
+  async fn read_bytes(header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader
+      .read_record(header, &mut Default::default())
+      .await
+      .ok()
+  }
+
+  fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
+    reader.virtual_position()
+  }
 }
 
 #[async_trait]
@@ -236,7 +247,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-256720"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
             .with_class(Header),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596770"))
@@ -262,7 +273,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-256720"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
             .with_class(Header),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165"))
@@ -290,12 +301,18 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-647345")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-647345"))
+            .with_class(Body),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
-          Url::new(expected_bgzf_eof_data_url()),
+            .with_headers(Headers::default().with_header("Range", "bytes=824361-842100"))
+            .with_class(Body),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=977196-996014"))
+            .with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -317,8 +334,12 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-996014")),
-          Url::new(expected_bgzf_eof_data_url()),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-996014"))
+            .with_class(Body),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response)
@@ -374,8 +395,12 @@ pub(crate) mod tests {
           Format::Bam,
           vec![
             Url::new(expected_url())
-              .with_headers(Headers::default().with_header("Range", "bytes=0-1065951")),
-            Url::new(expected_bgzf_eof_data_url()),
+              .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+              .with_class(Header),
+            Url::new(expected_url())
+              .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951"))
+              .with_class(Body),
+            Url::new(expected_bgzf_eof_data_url()).with_class(Body),
           ],
         ));
         assert_eq!(response, expected_response)
@@ -398,7 +423,7 @@ pub(crate) mod tests {
       let expected_response = Ok(Response::new(
         Format::Bam,
         vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-256720"))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
           .with_class(Header)],
       ));
       assert_eq!(response, expected_response)
@@ -464,7 +489,7 @@ pub(crate) mod tests {
         let index = search.read_index(&query).await.unwrap();
         let response = search.get_header_end_offset(&index).await;
 
-        assert_eq!(response, Ok(256721));
+        assert_eq!(response, Ok(70204));
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
