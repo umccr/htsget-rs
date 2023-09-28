@@ -603,13 +603,10 @@ where
       current_block_index.compressed()
     } else {
       loop {
-        let bytes_read = Self::read_bytes(header, reader).await;
+        let bytes_read = Self::read_bytes(header, reader).await.unwrap_or_default();
         let actual_block_index = self.virtual_position(reader).compressed();
 
-        if bytes_read == Some(0)
-          || bytes_read.is_none()
-          || actual_block_index > current_block_index.compressed()
-        {
+        if bytes_read == 0 || actual_block_index > current_block_index.compressed() {
           break actual_block_index;
         }
       }
