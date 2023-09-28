@@ -587,6 +587,8 @@ where
           ))
         })?;
 
+    // The header can only extend past the first index position by the maximum BGZF block size
+    // because otherwise the first index position wouldn't be representing the first reference.
     Ok(first_index_position + MAX_BGZF_ISIZE)
   }
 
