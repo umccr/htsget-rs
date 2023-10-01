@@ -315,7 +315,7 @@ where
     for block in DataBlock::update_classes(byte_ranges) {
       match block {
         DataBlock::Range(range) => {
-          println!("range: {:#?}", range);
+          trace!(range = ?range, "range");
           let storage = self.get_storage();
           let query_owned = query.clone();
 
