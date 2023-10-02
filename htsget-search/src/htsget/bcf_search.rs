@@ -126,9 +126,9 @@ mod tests {
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
+  use crate::htsget::vcf_search::VcfSearch;
   use crate::storage::local::LocalStorage;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-  use crate::htsget::vcf_search::VcfSearch;
 
   use super::*;
 
@@ -285,7 +285,7 @@ mod tests {
 
       assert!(matches!(response, Err(NotFound(_))));
     })
-      .await;
+    .await;
   }
 
   #[cfg(feature = "s3-storage")]

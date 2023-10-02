@@ -265,8 +265,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage.clone());
-        let query =
-          Query::new_with_default_request("spec-v4.3", Format::Vcf).with_class(Header);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -287,7 +286,7 @@ pub(crate) mod tests {
 
       assert!(matches!(response, Err(NotFound(_))));
     })
-      .await;
+    .await;
   }
 
   #[cfg(feature = "s3-storage")]
@@ -329,8 +328,7 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = VcfSearch::new(storage);
-        let query =
-          Query::new_with_default_request("spec-v4.3", Format::Vcf).with_class(Header);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
       },
