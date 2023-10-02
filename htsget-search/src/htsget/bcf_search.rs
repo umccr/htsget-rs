@@ -283,6 +283,20 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn search_header_with_non_existent_reference_name() {
+    with_local_storage(|storage| async move {
+      let search = BcfSearch::new(storage.clone());
+      let query =
+        Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chr1");
+      let response = search.search(query).await;
+      println!("{response:#?}");
+
+      assert!(matches!(response, Err(NotFound(_))));
+    })
+    .await;
+  }
+
+  #[tokio::test]
   async fn get_header_end_offset() {
     with_local_storage_fn(
       |storage| async move {

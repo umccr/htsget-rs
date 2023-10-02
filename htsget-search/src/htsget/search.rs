@@ -433,13 +433,6 @@ where
         .query(ref_seq_id, query.interval().into_one_based()?)
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {err}")))?;
 
-      if chunks.is_empty() {
-        return Err(HtsGetError::NotFound(
-          "could not find byte ranges for reference sequence".to_string(),
-        ));
-      }
-
-      trace!(id = ?query.id(), ref_seq_id = ?ref_seq_id, "sorting chunks");
       chunks.sort_unstable_by_key(|a| a.end().compressed());
 
       Ok(chunks)
