@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.2...htsget-search-v0.6.3) - 2023-10-02
+
+### Fixed
+- *(search)* use bcf test for bcf search
+- *(search)* return empty response when reference name is in header but not in index instead of error
+
+### Other
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into fix/error-no-index-pos
+- *(search)* formatting
+
 ## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.1...htsget-search-v0.6.2) - 2023-09-06
 
 ### Other
