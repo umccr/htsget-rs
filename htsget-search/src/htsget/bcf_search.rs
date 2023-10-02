@@ -128,6 +128,7 @@ mod tests {
   use crate::htsget::from_storage::tests::with_local_storage_fn;
   use crate::storage::local::LocalStorage;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+  use crate::htsget::vcf_search::VcfSearch;
 
   use super::*;
 
@@ -271,6 +272,20 @@ mod tests {
       &[INDEX_FILE_LOCATION],
     )
     .await
+  }
+
+  #[tokio::test]
+  async fn search_header_with_non_existent_reference_name() {
+    with_local_storage(|storage| async move {
+      let search = VcfSearch::new(storage.clone());
+      let query =
+        Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_reference_name("chr1");
+      let response = search.search(query).await;
+      println!("{response:#?}");
+
+      assert!(matches!(response, Err(NotFound(_))));
+    })
+      .await;
   }
 
   #[cfg(feature = "s3-storage")]
