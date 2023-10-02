@@ -135,7 +135,6 @@ mod tests {
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
   use crate::htsget::search::SearchAll;
-  use crate::htsget::vcf_search::VcfSearch;
   use crate::storage::local::LocalStorage;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
 
@@ -286,9 +285,9 @@ mod tests {
   #[tokio::test]
   async fn search_header_with_non_existent_reference_name() {
     with_local_storage(|storage| async move {
-      let search = VcfSearch::new(storage.clone());
+      let search = BcfSearch::new(storage.clone());
       let query =
-        Query::new_with_default_request("vcf-spec-v4.3", Format::Vcf).with_reference_name("chr1");
+        Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chr1");
       let response = search.search(query).await;
       println!("{response:#?}");
 
