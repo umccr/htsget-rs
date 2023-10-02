@@ -6,6 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf;
+use noodles::bgzf::VirtualPosition;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::tabix;
@@ -34,6 +35,16 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
+  async fn read_bytes(header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader
+      .read_record(header, &mut Default::default())
+      .await
+      .ok()
+  }
+
+  fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
+    reader.virtual_position()
+  }
 }
 
 #[async_trait]
@@ -127,6 +138,7 @@ pub(crate) mod tests {
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
   use crate::htsget::from_storage::tests::with_local_storage_fn;
+  use crate::htsget::search::SearchAll;
   use crate::storage::local::LocalStorage;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
 
@@ -287,6 +299,24 @@ pub(crate) mod tests {
       assert!(matches!(response, Err(NotFound(_))));
     })
     .await;
+  }
+
+  #[tokio::test]
+  async fn get_header_end_offset() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = VcfSearch::new(storage.clone());
+        let query = Query::new_with_default_request("spec-v4.3", Format::Vcf).with_class(Header);
+
+        let index = search.read_index(&query).await.unwrap();
+        let response = search.get_header_end_offset(&index).await;
+
+        assert_eq!(response, Ok(65536));
+      },
+      VCF_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
   }
 
   #[cfg(feature = "s3-storage")]
