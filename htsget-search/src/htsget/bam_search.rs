@@ -64,6 +64,17 @@ where
       .with_end(self.position_at_eof(query).await?)
       .with_class(Body)])
   }
+
+  async fn read_bytes(header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader
+      .read_record(header, &mut Default::default())
+      .await
+      .ok()
+  }
+
+  fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
+    reader.virtual_position()
+  }
 }
 
 #[async_trait]
@@ -460,6 +471,25 @@ pub(crate) mod tests {
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn get_header_end_offset() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage.clone());
+        let query =
+          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+
+        let index = search.read_index(&query).await.unwrap();
+        let response = search.get_header_end_offset(&index).await;
+
+        assert_eq!(response, Ok(70204));
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],

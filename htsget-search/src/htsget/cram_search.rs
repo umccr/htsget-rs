@@ -16,6 +16,7 @@ use tokio::io::{AsyncRead, BufReader};
 use tokio::{io, select};
 use tracing::{instrument, trace};
 
+use htsget_config::types::Class::Header as HtsGetHeader;
 use htsget_config::types::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
@@ -66,6 +67,20 @@ where
           self.get_format()
         ))
       })
+  }
+
+  async fn get_byte_ranges_for_header(
+    &self,
+    index: &Index,
+    _header: &Header,
+    _reader: &mut AsyncReader<ReaderType>,
+    _query: &Query,
+  ) -> Result<BytesPosition> {
+    Ok(
+      BytesPosition::default()
+        .with_end(self.get_header_end_offset(index).await?)
+        .with_class(HtsGetHeader),
+    )
   }
 
   fn get_eof_marker(&self) -> &[u8] {
