@@ -12,14 +12,14 @@ import { Architecture } from "aws-cdk-lib/aws-lambda";
 import { CorsHttpMethod, HttpMethod, HttpApi } from "@aws-cdk/aws-apigatewayv2-alpha";
 import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
-// import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
-// import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
 import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
+import { HostedZone } from "aws-cdk-lib/aws-route53";
 
 /**
  * Configuration for HtsgetLambdaStack.
  */
 export type Config = {
+  domain: string;                               // TODO: Ditto above
   environment: string;                          // Dev, prod, public
   htsgetConfig: { [key: string]: any };         // Server config
   allowCredentials?: boolean;                   // CORS
@@ -30,12 +30,7 @@ export type Config = {
   maxAge?: Duration;
   authRequired?: boolean;                       // Public instance without authz/n
   rateLimits?: boolean;                         // Reasonable defaults or configurable ratelimit settings?
-  //arnCert: string;                            // TODO: Needs to be fetched from the recently created certificate
-  //hostedZoneId?: string;                       // TODO: Ditto above
-  hostedZoneName?: string;                     // TODO: Ditto above
   cogUserPoolId?: string;                       // Supply one if already existing
-  //jwtAud: string[];                           // TODO: Ditto above
-  //htsgetDomain: string;                       // TODO: Fetched from the TOML file
 };
 
 /**
@@ -59,10 +54,7 @@ export class HtsgetLambdaStack extends Stack {
 
     const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
-      // TODO: Narrow down this policy to some specified bucket(s) in config.
-      //resources: ["arn:aws:s3:::*"],
-      resources: ["arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
-                  "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*"],
+      resources: this.configResolversToARNBuckets(config.htsgetConfig),
     });
 
     lambdaRole.addManagedPolicy(
@@ -127,53 +119,25 @@ export class HtsgetLambdaStack extends Stack {
       )
     }
 
+    // Create a hosted zone for this service.
+    // TODO: Make sure it's not created already, fail gracefully if so.
+    const hostedZoneObj = new HostedZone(this, id + "HtsgetHostedZone", {
+      zoneName: config.domain,
+    });
+
     // Create a certificate for the domain name.
     const certificateArn = new Certificate(
       this,
       id + "HtsgetCertificate",
       {
-        domainName: "htsget.demo.umccr.org",
+        // TODO: Add this in config
+        domainName: config.domain,
         validation: CertificateValidation.fromDns(hostedZoneObj),
-        certificateName: "htsget.demo.umccr.org",
+        certificateName: config.domain,
       }
     ).certificateArn;
 
     console.log(config.htsgetConfig);
-
-    // // Create a domain name for the API Gateway.
-    // const domainName = new DomainName(
-    //   this, 
-    //   id + "HtsgetDomainName", {
-    //   domainName: config.htsgetConfig.HTSGET_DOMAIN,
-    //   certificate: Certificate.fromCertificateArn(
-    //     this,
-    //     id + "HtsgetCertificateInDomainName",
-    //     certificateArn
-    //   ),
-    // });
-
-    // // Use the hosted zone from the certificate
-    // const hostedZone = HostedZone.fromHostedZoneAttributes(
-    //   this,
-    //   id + "HtsgetHostedZone",
-    //   {
-    //     hostedZoneId: config.htsgetConfig.hostedZoneId,
-    //     zoneName: config.htsgetConfig.hostedZoneName,
-    //   }
-    // );
-
-    // const arecord = new ARecord(
-    //   this,
-    //   id + "HtsgetARecord", {
-    //   zone: hostedZone,
-    //   recordName: "htsget.dev.umccr.org.",
-    //   target: RecordTarget.fromAlias(
-    //     new ApiGatewayv2DomainProperties(
-    //       domainName.domainName,
-    //       domainName.domainNameAliasDomainName,
-    //     )
-    //   ),
-    // });
 
     const httpApi = new HttpApi(this, id + "ApiGw", {
       // Use explicit routes GET, POST with {proxy+} path
@@ -203,6 +167,29 @@ export class HtsgetLambdaStack extends Stack {
     const out: { [key: string]: string } = {};
     for (const key in config) {
       out[`HTSGET_${key.toUpperCase()}`] = TOML.stringify.value(config[key]);
+    }
+    return out;
+  }
+
+  /**
+   * Collect resource names from config.
+   * @param config TOML config file
+   * @returns A list of buckets (storage backend identifiers or names)
+   */
+
+  configResolversToARNBuckets(config: any): string[] {
+    // Example return value:
+    //  [ "arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
+    //    "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*" ]
+
+    // TODO: Make sure it visits all resolvers from a TOML file
+    var out: string[] = [];
+    const s3_arn_fmt = `arn:aws:s3:::{}/*`;
+    for (const key in config) {
+      if (key.includes("resolvers")) {
+        // TODO: Extract the "regex" substring from the key
+        out.push(s3_arn_fmt.replace("{}", config[key].resolvers));
+      }
     }
     return out;
   }
@@ -295,16 +282,16 @@ export class HtsgetLambdaStack extends Stack {
         configToml,
         "ticket_server_cors_allow_origins"
       ),
+      domain: configToml.domain.toString(),
       exposeHeaders: HtsgetLambdaStack.convertCors(
         configToml,
         "ticket_server_cors_expose_headers"
       ),
+      authRequired: configToml.auth_required as boolean,
       maxAge:
         configToml.ticket_server_cors_max_age !== undefined
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
-      // authRequired:
-      // rateLimits:
     };
   }
 }

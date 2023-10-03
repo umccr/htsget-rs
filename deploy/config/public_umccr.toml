@@ -1,14 +1,9 @@
-ticket_server_cors_allow_headers = "All"
-ticket_server_cors_allow_origins = [
-    "https://htsget.demo.umccr.org",
-]
-ticket_server_cors_allow_methods = "All"
-ticket_server_cors_allow_credentials = true
-ticket_server_cors_max_age = 300
+auth_required = false
 
 data_server_enabled = false
 
 name = "umccr-htsget-rs"
+domain = "htsget.demo.umccr.org"
 version = "0.1"
 organization_name = "UMCCR"
 organization_url = "https://umccr.org/"
@@ -20,6 +15,7 @@ environment = "public"
 regex = '^(org.umccr.demo.sbeacon-data)/CINECA_UK1/(?P<key>.*)$'
 substitution_string = 'CINECA_UK1/$key'
 
+# TODO: Tweak the substitution string
 [[resolvers]]
-regex = '^(org.umccr.demo.htsget-rs-data)/bam|cram|vcf|bcf|crypt4gh/(?P<key>.*)$'
-substitution_string = '$key'
+regex = '^(org.umccr.demo.htsget-rs-data)/bam|cram|vcf|bcf|crypt4gh|mixed/(?P<key>.*)$'
+substitution_string = '(bam|cram|vcf|bcf|crypt4gh|mixed)/$key'
