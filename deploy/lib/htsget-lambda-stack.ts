@@ -14,6 +14,7 @@ import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-al
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
 import { HostedZone } from "aws-cdk-lib/aws-route53";
+import { Hash } from "crypto";
 
 /**
  * Configuration for HtsgetLambdaStack.
@@ -21,7 +22,7 @@ import { HostedZone } from "aws-cdk-lib/aws-route53";
 export type Config = {
   domain: string;                               // TODO: Ditto above
   environment: string;                          // Dev, prod, public
-  htsgetConfig: { [key: string]: any };         // Server config
+  htsgetConfig: { [key: string]: string };         // Server config
   allowCredentials?: boolean;                   // CORS
   allowHeaders?: string[];
   allowMethods?: CorsHttpMethod[];
@@ -52,6 +53,7 @@ export class HtsgetLambdaStack extends Stack {
       description: "Lambda execution role for " + id,
     });
 
+    //console.log(this.configResolversToARNBuckets(config.htsgetConfig));
     const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
       resources: this.configResolversToARNBuckets(config.htsgetConfig),
@@ -137,7 +139,7 @@ export class HtsgetLambdaStack extends Stack {
       }
     ).certificateArn;
 
-    console.log(config.htsgetConfig);
+    //console.log(config.htsgetConfig);
 
     const httpApi = new HttpApi(this, id + "ApiGw", {
       // Use explicit routes GET, POST with {proxy+} path
@@ -177,20 +179,26 @@ export class HtsgetLambdaStack extends Stack {
    * @returns A list of buckets (storage backend identifiers or names)
    */
 
-  configResolversToARNBuckets(config: any): string[] {
+  configResolversToARNBuckets(config: { [ key: string ]: string }): Array<string> {
     // Example return value:
     //  [ "arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
     //    "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*" ]
 
-    // TODO: Make sure it visits all resolvers from a TOML file
-    var out: string[] = [];
-    const s3_arn_fmt = `arn:aws:s3:::{}/*`;
-    for (const key in config) {
-      if (key.includes("resolvers")) {
-        // TODO: Extract the "regex" substring from the key
-        out.push(s3_arn_fmt.replace("{}", config[key].resolvers));
+    // Parse the JSON string into a JavaScript object
+    const resolvers_strings = JSON.stringify(config);
+    const resolvers_json = JSON.parse(resolvers_strings);
+
+    // Build a bucket => keys dictionary, for now we'll just need the bucket part for the policies
+    var bucket_keys: { [key: string]: string } = {};
+    var out: Array<string> = [];
+
+    for (const resolver of resolvers_json) {
+      if (resolver.regex.startsWith("^(")) {
+        resolver.regex = resolver.regex.substring(2).split(")/");
+        out.push("arn::aws::s3::"+resolver.regex[0]+"/*");
       }
     }
+
     return out;
   }
 
