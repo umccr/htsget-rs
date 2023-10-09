@@ -185,20 +185,21 @@ export class HtsgetLambdaStack extends Stack {
     //    "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*" ]
 
     // Parse the JSON string into a JavaScript object
-    const resolvers_strings = JSON.stringify(config);
-    const resolvers_json = JSON.parse(resolvers_strings);
+    const resolvers = config["HTSGET_RESOLVERS"];
 
     // Build a bucket => keys dictionary, for now we'll just need the bucket part for the policies
-    var bucket_keys: { [key: string]: string } = {};
     var out: Array<string> = [];
 
-    for (const resolver of resolvers_json) {
-      if (resolver.regex.startsWith("^(")) {
-        resolver.regex = resolver.regex.substring(2).split(")/");
-        out.push("arn::aws::s3::"+resolver.regex[0]+"/*");
+    const regexPattern = /regex\s*=\s*"\^\((.*)\)\//g;    
+    const matches = resolvers.match(regexPattern);
+
+    if (matches) {
+      for (const match of matches) {
+        out.push(match.replace(regexPattern, "arn:aws:s3:::$1/*"));
       }
     }
 
+    console.error(out);
     return out;
   }
 
