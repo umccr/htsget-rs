@@ -14,15 +14,25 @@ import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-al
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
 import { HostedZone } from "aws-cdk-lib/aws-route53";
-import { Hash } from "crypto";
+
+// TODO:
+//
+// * Include CORS snippet in S3 buckets' permissions for the public case, iterate through all buckets to enable CORS.
+// * Add a custom domain name for the API gateway, deal with certificates and API gateway Route53 mapping (no CNAME/A's there).
+// * Make sure CORS is disabled/removed for the unauthorized case.
+// * Revisit Cognito config for the auth'd case.
+// * Tweak resolvers regex and substitutions strings, since bam|cram|mixed... does not work currently.
+// * Deploy new changes from upstream htsget-rs.
+// * Consider CDK Pipelines migration so that commits to the GitHub's `master` repo branch trigger a new deployment.
+
 
 /**
  * Configuration for HtsgetLambdaStack.
  */
 export type Config = {
-  domain: string;                               // TODO: Ditto above
-  environment: string;                          // Dev, prod, public
-  htsgetConfig: { [key: string]: string };         // Server config
+  domain: string;
+  environment: string;                          // dev, prod, public
+  htsgetConfig: { [key: string]: string };      // Htsget server config
   allowCredentials?: boolean;                   // CORS
   allowHeaders?: string[];
   allowMethods?: CorsHttpMethod[];
@@ -30,7 +40,6 @@ export type Config = {
   exposeHeaders?: string[];
   maxAge?: Duration;
   authRequired?: boolean;                       // Public instance without authz/n
-  rateLimits?: boolean;                         // Reasonable defaults or configurable ratelimit settings?
   cogUserPoolId?: string;                       // Supply one if already existing
 };
 
@@ -53,7 +62,6 @@ export class HtsgetLambdaStack extends Stack {
       description: "Lambda execution role for " + id,
     });
 
-    //console.log(this.configResolversToARNBuckets(config.htsgetConfig));
     const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
       resources: this.configResolversToARNBuckets(config.htsgetConfig),
@@ -116,13 +124,12 @@ export class HtsgetLambdaStack extends Stack {
       `https://cognito-idp.${this.region}.amazonaws.com/${config.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
-          jwtAudience: ["audience"], // TODO
+          jwtAudience: ["audience"],
         }
       )
     }
 
     // Create a hosted zone for this service.
-    // TODO: Make sure it's not created already, fail gracefully if so.
     const hostedZoneObj = new HostedZone(this, id + "HtsgetHostedZone", {
       zoneName: config.domain,
     });
@@ -132,14 +139,11 @@ export class HtsgetLambdaStack extends Stack {
       this,
       id + "HtsgetCertificate",
       {
-        // TODO: Add this in config
         domainName: config.domain,
         validation: CertificateValidation.fromDns(hostedZoneObj),
         certificateName: config.domain,
       }
     ).certificateArn;
-
-    //console.log(config.htsgetConfig);
 
     const httpApi = new HttpApi(this, id + "ApiGw", {
       // Use explicit routes GET, POST with {proxy+} path
@@ -178,7 +182,6 @@ export class HtsgetLambdaStack extends Stack {
    * @param config TOML config file
    * @returns A list of buckets (storage backend identifiers or names)
    */
-
   configResolversToARNBuckets(config: { [ key: string ]: string }): Array<string> {
     // Example return value:
     //  [ "arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
@@ -199,8 +202,6 @@ export class HtsgetLambdaStack extends Stack {
       }
     }
 
-    // console.error(config["HTSGET_RESOLVERS"]);
-    // console.error(out);
     return out;
   }
 
@@ -270,9 +271,12 @@ export class HtsgetLambdaStack extends Stack {
         region: process.env.CDK_DEFAULT_REGION,
       }
     }
-    // TODO: Remove hardcoding, parametrize this better for the different environments
+    // TODO: Remove hardcoding, parametrize this better for the different environments via:
+    // cdk deploy --parameters environment = dev|prod|public
+    //
+    // https://docs.aws.amazon.com/cdk/v2/guide/parameters.html
     const configToml = TOML.parse(readFileSync("config/public_umccr.toml").toString());
-    //console.log(configToml);
+
     return {
       environment: env,
       htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
