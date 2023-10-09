@@ -190,7 +190,7 @@ export class HtsgetLambdaStack extends Stack {
     // Build a bucket => keys dictionary, for now we'll just need the bucket part for the policies
     var out: Array<string> = [];
 
-    const regexPattern = /regex\s*=\s*"\^\((.*)\)\//g;    
+    const regexPattern = /regex\s*=\s*"\^\(([^/]+)\)\//gm; 
     const matches = resolvers.match(regexPattern);
 
     if (matches) {
@@ -199,7 +199,8 @@ export class HtsgetLambdaStack extends Stack {
       }
     }
 
-    console.error(out);
+    // console.error(config["HTSGET_RESOLVERS"]);
+    // console.error(out);
     return out;
   }
 
