@@ -296,7 +296,7 @@ Further TLS examples are available under [`examples/config-files`][examples-conf
 [examples-config-files]: examples/config-files
 
 #### Object type
-There is additional configuration that changes the way a resolve treat an object.
+There is additional configuration that changes the way a resolver treats an object.
 
 This component can be configured by setting the `[resolver.object_type]` table:
 
