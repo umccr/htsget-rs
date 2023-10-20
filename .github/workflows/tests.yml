@@ -3,7 +3,7 @@ name: tests
 on:
   push:
     branches:
-      - main
+      - docker 
   pull_request:
 
 jobs:
@@ -14,6 +14,8 @@ jobs:
         rust: [stable]
         os: [ubuntu-latest]
     steps:
+      - name: Cache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Check out
         uses: actions/checkout@v3
       - name: Install Rust
@@ -23,11 +25,6 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
       - run: rustup override set ${{ steps.toolchain.outputs.name }}
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: build-cache
-          save-if: false
       - name: Cargo fmt
         uses: actions-rs/cargo@v1
         with:
