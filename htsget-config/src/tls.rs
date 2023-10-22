@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use rustls::{Certificate, ClientConfig, PrivateKey, RootCertStore, ServerConfig};
+use rustls::{Certificate, ClientConfig, RootCertStore, ServerConfig};
 use rustls_native_certs::load_native_certs;
 use rustls_pemfile::read_one;
 use serde::{Deserialize, Serialize};
@@ -86,15 +86,49 @@ pub struct CertificateKeyPair {
   key: PrivateKey,
 }
 
+/// Wrapper around a private key.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(try_from = "PathBuf", into = "Vec<u8>")]
+pub(crate) struct PrivateKey(rustls::PrivateKey);
+
+impl PrivateKey {
+  /// Get the inner value.
+  pub fn into_inner(self) -> rustls::PrivateKey {
+    self.0
+  }
+
+  /// Get the reference of the inner type.
+  pub fn as_ref(&self) -> &rustls::PrivateKey {
+    &self.0
+  }
+}
+
+impl TryFrom<PathBuf> for PrivateKey {
+  type Error = Error;
+
+  fn try_from(path: PathBuf) -> Result<Self> {
+    Ok(PrivateKey(load_key(path)?))
+  }
+}
+
+impl From<PrivateKey> for Vec<u8> {
+  fn from(key: PrivateKey) -> Self {
+    key.into_inner().0
+  }
+}
+
 impl CertificateKeyPair {
   /// Create a new CertificateKeyPair.
-  pub fn new(certs: Vec<Certificate>, key: PrivateKey) -> Self {
-    Self { certs, key }
+  pub fn new(certs: Vec<Certificate>, key: rustls::PrivateKey) -> Self {
+    Self {
+      certs,
+      key: PrivateKey(key),
+    }
   }
 
   /// Get the owned certificate and private key.
-  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey) {
-    (self.certs, self.key)
+  pub fn into_inner(self) -> (Vec<Certificate>, rustls::PrivateKey) {
+    (self.certs, self.key.into_inner())
   }
 }
 
@@ -183,7 +217,7 @@ impl KeyPairScheme for Option<&TlsServerConfig> {
 }
 
 /// Load a private key from a file. Supports RSA, PKCS8, and Sec1 encoded keys.
-pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
+pub fn load_key<P: AsRef<Path>>(key: P) -> Result<rustls::PrivateKey> {
   let mut key_reader = BufReader::new(
     File::open(key).map_err(|err| IoError(format!("failed to open key file: {}", err)))?,
   );
@@ -192,9 +226,9 @@ pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
     match read_one(&mut key_reader)
       .map_err(|err| ParseError(format!("failed to parse private key: {}", err)))?
     {
-      Some(rustls_pemfile::Item::RSAKey(key)) => return Ok(PrivateKey(key)),
-      Some(rustls_pemfile::Item::PKCS8Key(key)) => return Ok(PrivateKey(key)),
-      Some(rustls_pemfile::Item::ECKey(key)) => return Ok(PrivateKey(key)),
+      Some(rustls_pemfile::Item::RSAKey(key)) => return Ok(rustls::PrivateKey(key)),
+      Some(rustls_pemfile::Item::PKCS8Key(key)) => return Ok(rustls::PrivateKey(key)),
+      Some(rustls_pemfile::Item::ECKey(key)) => return Ok(rustls::PrivateKey(key)),
       None => break,
       _ => {}
     }
@@ -362,7 +396,7 @@ pub(crate) mod tests {
 
   pub(crate) fn with_test_certificates<F>(test: F)
   where
-    F: FnOnce(&Path, PrivateKey, Certificate),
+    F: FnOnce(&Path, rustls::PrivateKey, Certificate),
   {
     let tmp_dir = TempDir::new().unwrap();
 
@@ -377,7 +411,7 @@ pub(crate) mod tests {
     write(key_path, &key).unwrap();
     write(cert_path, &cert).unwrap();
 
-    let key = PrivateKey(
+    let key = rustls::PrivateKey(
       pkcs8_private_keys(&mut Cursor::new(key))
         .unwrap()
         .into_iter()
