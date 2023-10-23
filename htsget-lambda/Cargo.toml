@@ -1,6 +1,6 @@
 [package]
 name = "htsget-lambda"
-version = "0.4.10"
+version = "0.4.11"
 rust-version = "1.70"
 authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"

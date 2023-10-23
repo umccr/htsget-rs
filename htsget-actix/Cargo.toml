@@ -1,6 +1,6 @@
 [package]
 name = "htsget-actix"
-version = "0.5.4"
+version = "0.5.5"
 rust-version = "1.70"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
