@@ -350,7 +350,7 @@ mod tests {
     assert_eq!(reader.current_block_position(), None);
     assert_eq!(reader.next_block_position(), None);
 
-    reader.advance(200).await.unwrap();
+    reader.advance(0).await.unwrap();
 
     // Now the positions should be at the first data block.
     assert_eq!(reader.current_block_position(), Some(124));

@@ -431,7 +431,7 @@ mod tests {
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
       .build(src, vec![recipient_private_key]);
 
-    let seek = stream.seek_encrypted(SeekFrom::Start(200)).await.unwrap();
+    let seek = stream.seek_encrypted(SeekFrom::Start(0)).await.unwrap();
 
     assert_eq!(seek, 124);
     assert_eq!(stream.header_length(), Some(124));
@@ -566,7 +566,7 @@ mod tests {
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
       .build(src, vec![recipient_private_key]);
 
-    let advance = stream.advance(200).await.unwrap();
+    let advance = stream.advance(0).await.unwrap();
 
     assert_eq!(advance, 124);
     assert_eq!(stream.header_length(), Some(124));
