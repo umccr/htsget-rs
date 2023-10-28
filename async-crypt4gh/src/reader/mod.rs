@@ -400,4 +400,25 @@ mod tests {
     assert_eq!(reader.current_block_position(), Some(2598043));
     assert_eq!(reader.next_block_position(), Some(2598043));
   }
+
+  #[tokio::test]
+  async fn advance_past_end_stream_length_override() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_stream_length(2598043)
+      .build_with_reader(src, vec![recipient_private_key]);
+
+    // Before anything is read the block positions should not be known.
+    assert_eq!(reader.current_block_position(), None);
+    assert_eq!(reader.next_block_position(), None);
+
+    reader.advance(2598044).await.unwrap();
+
+    // Now the positions should be at the first data block.
+    assert_eq!(reader.current_block_position(), Some(2598043));
+    assert_eq!(reader.next_block_position(), Some(2598043));
+  }
 }
