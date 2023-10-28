@@ -14,6 +14,9 @@ use crate::error::{Error, Result};
 use crate::types::Scheme;
 use crate::types::Scheme::{Http, Https};
 
+#[cfg(feature = "crypt4gh")]
+pub mod crypt4gh;
+
 /// A trait to determine which scheme a key pair option has.
 pub trait KeyPairScheme {
   /// Get the scheme.
@@ -89,7 +92,7 @@ pub struct CertificateKeyPair {
 /// Wrapper around a private key.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(try_from = "PathBuf", into = "Vec<u8>")]
-pub(crate) struct PrivateKey(rustls::PrivateKey);
+pub struct PrivateKey(rustls::PrivateKey);
 
 impl PrivateKey {
   /// Get the inner value.

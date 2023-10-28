@@ -1,11 +1,10 @@
 //! Config related to how htsget-rs treats files and objects. Used as part of a `Resolver`.
 //!
 
-#[cfg(feature = "crypt4gh")]
-pub mod crypt4gh;
-
-use crate::resolver::object::crypt4gh::Crypt4GHObject;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "crypt4gh")]
+use crate::tls::crypt4gh::Crypt4GH;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(untagged, deny_unknown_fields)]
@@ -15,8 +14,8 @@ pub enum ObjectType {
   Regular,
   #[cfg(feature = "crypt4gh")]
   Crypt4GH {
-    #[serde(flatten)]
-    crypt4gh: Crypt4GHObject,
+    #[serde(flatten, skip_serializing)]
+    crypt4gh: Crypt4GH,
   },
 }
 
