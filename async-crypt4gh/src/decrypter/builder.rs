@@ -9,6 +9,7 @@ use tokio_util::codec::FramedRead;
 #[derive(Debug, Default)]
 pub struct Builder {
   sender_pubkey: Option<SenderPublicKey>,
+  stream_length: Option<u64>,
 }
 
 impl Builder {
@@ -20,6 +21,17 @@ impl Builder {
   /// Sets the sender public key
   pub fn set_sender_pubkey(mut self, sender_pubkey: Option<SenderPublicKey>) -> Self {
     self.sender_pubkey = sender_pubkey;
+    self
+  }
+
+  /// Sets the stream length.
+  pub fn with_stream_length(self, stream_length: u64) -> Self {
+    self.set_stream_length(Some(stream_length))
+  }
+
+  /// Sets the stream length.
+  pub fn set_stream_length(mut self, stream_length: Option<u64>) -> Self {
+    self.stream_length = stream_length;
     self
   }
 
@@ -37,7 +49,7 @@ impl Builder {
       edit_list_packet: None,
       header_length: None,
       current_block_size: None,
-      stream_length: None,
+      stream_length: self.stream_length,
     }
   }
 
@@ -56,9 +68,12 @@ impl Builder {
   where
     R: AsyncRead + AsyncSeek + Unpin,
   {
+    let stream_length = self.stream_length;
     let mut stream = self.build(inner, keys);
 
-    stream.recompute_stream_length().await?;
+    if stream_length.is_none() {
+      stream.recompute_stream_length().await?;
+    }
 
     Ok(stream)
   }

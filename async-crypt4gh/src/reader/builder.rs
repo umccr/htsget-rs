@@ -16,6 +16,7 @@ use super::Reader;
 pub struct Builder {
   worker_count: Option<usize>,
   sender_pubkey: Option<SenderPublicKey>,
+  stream_length: Option<u64>,
 }
 
 impl Builder {
@@ -41,6 +42,17 @@ impl Builder {
     self
   }
 
+  /// Sets the stream length.
+  pub fn with_stream_length(self, stream_length: u64) -> Self {
+    self.set_stream_length(Some(stream_length))
+  }
+
+  /// Sets the stream length.
+  pub fn set_stream_length(mut self, stream_length: Option<u64>) -> Self {
+    self.stream_length = stream_length;
+    self
+  }
+
   /// Build the Crypt4GH reader.
   pub fn build_with_reader<R>(self, inner: R, keys: Vec<Keys>) -> Reader<R>
   where
@@ -51,6 +63,7 @@ impl Builder {
     Reader {
       stream: DecrypterBuilder::default()
         .set_sender_pubkey(self.sender_pubkey)
+        .set_stream_length(self.stream_length)
         .build(inner, keys)
         .try_buffered(worker_counter),
       // Dummy value for bytes to begin with.
@@ -65,9 +78,12 @@ impl Builder {
   where
     R: AsyncRead + AsyncSeek + Unpin,
   {
+    let stream_length = self.stream_length;
     let mut reader = self.build_with_reader(inner, keys);
 
-    reader.stream.get_mut().recompute_stream_length().await?;
+    if stream_length.is_none() {
+      reader.stream.get_mut().recompute_stream_length().await?;
+    }
 
     Ok(reader)
   }
