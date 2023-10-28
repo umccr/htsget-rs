@@ -233,7 +233,7 @@ mod tests {
     let mut original_reader = AsyncReader::new(original_file);
 
     let header: Header = reader.read_header().await.unwrap().parse().unwrap();
-    reader.read_reference_sequences().await.unwrap();
+    let reference_sequences = reader.read_reference_sequences().await.unwrap();
 
     let original_header: Header = original_reader
       .read_header()
@@ -241,9 +241,10 @@ mod tests {
       .unwrap()
       .parse()
       .unwrap();
-    original_reader.read_reference_sequences().await.unwrap();
+    let original_reference_sequences = original_reader.read_reference_sequences().await.unwrap();
 
     assert_eq!(header, original_header);
+    assert_eq!(reference_sequences, original_reference_sequences);
 
     let mut stream = original_reader.records(&original_header);
     let mut original_records = vec![];
