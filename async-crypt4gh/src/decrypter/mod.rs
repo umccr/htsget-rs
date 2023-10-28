@@ -303,23 +303,18 @@ where
     Ok(seek)
   }
 
-  // /// Seek to a position in the unencrypted stream.
-  // pub async fn seek_unencrypted(&mut self, position: SeekFrom) -> io::Result<u64> {
-  //   // Make sure that session keys are polled.
-  //   SessionKeysFuture::new(self).await?;
-  //
-  //   // First poll to the position specified.
-  //   let seek = self.inner.get_mut().seek(position).await?;
-  //
-  //   // Then advance to the correct data block position.
-  //   let advance = self.advance(seek).await?;
-  //
-  //   // Then seek to the correct position.
-  //   let seek = self.inner.get_mut().seek(SeekFrom::Start(advance)).await?;
-  //   self.inner.read_buffer_mut().clear();
-  //
-  //   Ok(seek)
-  // }
+  /// Seek to a position in the unencrypted stream.
+  pub async fn seek_unencrypted(&mut self, position: u64) -> io::Result<u64> {
+    // Make sure that session keys are polled.
+    SessionKeysFuture::new(self).await?;
+
+    // Convert to an encrypted position and seek
+    let position = self.to_encrypted(position)
+      .ok_or_else(|| Crypt4GHError("Unable to convert to encrypted position.".to_string()))?;
+
+    // Then do the seek.
+    self.seek_encrypted(SeekFrom::Start(position)).await
+  }
 }
 
 #[async_trait]
