@@ -161,6 +161,7 @@ impl<R> Reader<R>
 where
   R: AsyncRead + AsyncSeek + Unpin + Send,
 {
+  /// Seek to a position in the encrypted stream.
   pub async fn seek_encrypted(&mut self, position: SeekFrom) -> io::Result<u64> {
     let position = self.stream.get_mut().seek_encrypted(position).await?;
 
@@ -191,7 +192,7 @@ where
 #[cfg(test)]
 mod tests {
   use std::io::SeekFrom;
-  use futures_util::{AsyncSeekExt, TryStreamExt};
+  use futures_util::TryStreamExt;
   use noodles::bam::AsyncReader;
   use noodles::sam::Header;
   use tokio::io::AsyncReadExt;

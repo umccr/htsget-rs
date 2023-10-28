@@ -178,6 +178,21 @@ impl Block {
   pub const fn header_info_size() -> u64 {
     HEADER_INFO_SIZE as u64
   }
+
+  /// Get the encrypted block size, without nonce and mac bytes.
+  pub const fn encrypted_block_size() -> u64 {
+    ENCRYPTED_BLOCK_SIZE as u64
+  }
+
+  /// Get the size of the nonce.
+  pub const fn nonce_size() -> u64 {
+    NONCE_SIZE as u64
+  }
+
+  /// Get the size of the mac.
+  pub const fn mac_size() -> u64 {
+    MAC_SIZE as u64
+  }
 }
 
 impl Default for Block {

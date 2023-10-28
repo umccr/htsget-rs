@@ -183,13 +183,36 @@ impl<R> DecrypterStream<R> {
         length
       } else {
         match self.stream_length {
-          Some(end_length) if position > end_length => end_length,
+          Some(end_length) if position >= end_length => end_length,
           _ => {
             let remainder = (position - length) % Block::standard_data_block_size();
 
             position - remainder
           }
         }
+      }
+    })
+  }
+
+  /// Convert an unencrypted position to an encrypted position if the header length is known.
+  pub fn to_encrypted(&self, position: u64) -> Option<u64> {
+    self.header_length().map(|length| {
+      let number_data_blocks = position / Block::encrypted_block_size();
+      // Additional bytes include the full data block size.
+      let mut additional_bytes = number_data_blocks * (Block::nonce_size() + Block::mac_size());
+
+      // If there is left over data, then there are more nonce bytes.
+      let remainder = position % Block::encrypted_block_size();
+      if remainder != 0 {
+        additional_bytes += Block::nonce_size();
+      }
+
+      // Then add the extra bytes to the current position.
+      let encrypted_position = length + position + additional_bytes;
+
+      match self.stream_length {
+        Some(end_length) if encrypted_position + Block::mac_size() >= end_length => end_length,
+        _ => encrypted_position
       }
     })
   }
@@ -262,6 +285,7 @@ impl<R> DecrypterStream<R>
 where
   R: AsyncRead + AsyncSeek + Unpin + Send,
 {
+  /// Seek to a position in the encrypted stream.
   pub async fn seek_encrypted(&mut self, position: SeekFrom) -> io::Result<u64> {
     // Make sure that session keys are polled.
     SessionKeysFuture::new(self).await?;
@@ -278,6 +302,24 @@ where
 
     Ok(seek)
   }
+
+  // /// Seek to a position in the unencrypted stream.
+  // pub async fn seek_unencrypted(&mut self, position: SeekFrom) -> io::Result<u64> {
+  //   // Make sure that session keys are polled.
+  //   SessionKeysFuture::new(self).await?;
+  //
+  //   // First poll to the position specified.
+  //   let seek = self.inner.get_mut().seek(position).await?;
+  //
+  //   // Then advance to the correct data block position.
+  //   let advance = self.advance(seek).await?;
+  //
+  //   // Then seek to the correct position.
+  //   let seek = self.inner.get_mut().seek(SeekFrom::Start(advance)).await?;
+  //   self.inner.read_buffer_mut().clear();
+  //
+  //   Ok(seek)
+  // }
 }
 
 #[async_trait]
@@ -420,6 +462,72 @@ mod tests {
     let _ = stream.next().await.unwrap().unwrap().await;
 
     assert_eq!(stream.clamp_position(80000), Some(124 + 65564));
+  }
+
+  #[tokio::test]
+  async fn clamp_position_past_end() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    assert_eq!(stream.clamp_position(2598044), Some(2598043));
+  }
+
+  #[tokio::test]
+  async fn convert_position_first_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    let pos = stream.to_encrypted(0);
+    assert_eq!(pos, Some(124));
+    assert_eq!(stream.clamp_position(pos.unwrap()), Some(124));
+
+    let pos = stream.to_encrypted(200);
+    assert_eq!(pos, Some(124 + 12 + 200));
+    assert_eq!(stream.clamp_position(pos.unwrap()), Some(124));
+  }
+
+  #[tokio::test]
+  async fn convert_position_second_data_block() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build(src, vec![recipient_private_key]);
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    let pos = stream.to_encrypted(80000);
+    assert_eq!(pos, Some(124 + 65564 + 12 + (80000 - 65536)));
+    assert_eq!(stream.clamp_position(pos.unwrap()), Some(124 + 65564));
+  }
+
+  #[tokio::test]
+  async fn convert_position_past_end() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+    let _ = stream.next().await.unwrap().unwrap().await;
+
+    let pos = stream.to_encrypted(2596800);
+    assert_eq!(pos, Some(2598043));
+    assert_eq!(stream.clamp_position(pos.unwrap()), Some(2598043));
   }
 
   #[tokio::test]
