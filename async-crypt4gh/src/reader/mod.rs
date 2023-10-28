@@ -169,6 +169,15 @@ where
 
     Ok(position)
   }
+
+  /// Seek to a position in the unencrypted stream.
+  pub async fn seek_unencrypted(&mut self, position: u64) -> io::Result<u64> {
+    let position = self.stream.get_mut().seek_unencrypted(position).await?;
+
+    self.block_position = Some(position);
+
+    Ok(position)
+  }
 }
 
 #[async_trait]
@@ -176,8 +185,16 @@ impl<R> Advance for Reader<R>
 where
   R: AsyncRead + Send + Unpin,
 {
-  async fn advance(&mut self, position: u64) -> io::Result<u64> {
-    let position = self.stream.get_mut().advance(position).await?;
+  async fn advance_encrypted(&mut self, position: u64) -> io::Result<u64> {
+    let position = self.stream.get_mut().advance_encrypted(position).await?;
+
+    self.block_position = Some(position);
+
+    Ok(position)
+  }
+
+  async fn advance_unencrypted(&mut self, position: u64) -> io::Result<u64> {
+    let position = self.stream.get_mut().advance_unencrypted(position).await?;
 
     self.block_position = Some(position);
 
@@ -442,7 +459,7 @@ mod tests {
     assert_eq!(reader.current_block_position(), None);
     assert_eq!(reader.next_block_position(), None);
 
-    reader.advance(0).await.unwrap();
+    reader.advance_encrypted(0).await.unwrap();
 
     // Now the positions should be at the first data block.
     assert_eq!(reader.current_block_position(), Some(124));
@@ -464,7 +481,7 @@ mod tests {
     assert_eq!(reader.current_block_position(), None);
     assert_eq!(reader.next_block_position(), None);
 
-    reader.advance(2598042).await.unwrap();
+    reader.advance_encrypted(2598042).await.unwrap();
 
     // Now the positions should be at the first data block.
     assert_eq!(reader.current_block_position(), Some(2598043 - 40923));
@@ -486,7 +503,7 @@ mod tests {
     assert_eq!(reader.current_block_position(), None);
     assert_eq!(reader.next_block_position(), None);
 
-    reader.advance(2598044).await.unwrap();
+    reader.advance_encrypted(2598044).await.unwrap();
 
     // Now the positions should be at the first data block.
     assert_eq!(reader.current_block_position(), Some(2598043));
@@ -507,7 +524,7 @@ mod tests {
     assert_eq!(reader.current_block_position(), None);
     assert_eq!(reader.next_block_position(), None);
 
-    reader.advance(2598044).await.unwrap();
+    reader.advance_encrypted(2598044).await.unwrap();
 
     // Now the positions should be at the first data block.
     assert_eq!(reader.current_block_position(), Some(2598043));

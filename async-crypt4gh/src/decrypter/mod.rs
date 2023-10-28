@@ -294,7 +294,7 @@ where
     let seek = self.inner.get_mut().seek(position).await?;
 
     // Then advance to the correct data block position.
-    let advance = self.advance(seek).await?;
+    let advance = self.advance_encrypted(seek).await?;
 
     // Then seek to the correct position.
     let seek = self.inner.get_mut().seek(SeekFrom::Start(advance)).await?;
@@ -322,7 +322,7 @@ impl<R> Advance for DecrypterStream<R>
 where
   R: AsyncRead + Send + Unpin,
 {
-  async fn advance(&mut self, position: u64) -> io::Result<u64> {
+  async fn advance_encrypted(&mut self, position: u64) -> io::Result<u64> {
     // Make sure that session keys are polled.
     SessionKeysFuture::new(self).await?;
 
@@ -332,6 +332,18 @@ where
       .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "could not find data block position"))?;
 
     Ok(data_block_position)
+  }
+
+  async fn advance_unencrypted(&mut self, position: u64) -> io::Result<u64> {
+    // Make sure that session keys are polled.
+    SessionKeysFuture::new(self).await?;
+
+    // Convert to an encrypted position and seek
+    let position = self.to_encrypted(position)
+      .ok_or_else(|| Crypt4GHError("Unable to convert to encrypted position.".to_string()))?;
+
+    // Then do the advance.
+    self.advance_encrypted(position).await
   }
 
   fn stream_length(&self) -> Option<u64> {
@@ -669,7 +681,7 @@ mod tests {
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
       .build(src, vec![recipient_private_key]);
 
-    let advance = stream.advance(0).await.unwrap();
+    let advance = stream.advance_encrypted(0).await.unwrap();
 
     assert_eq!(advance, 124);
     assert_eq!(stream.header_length(), Some(124));
@@ -704,7 +716,7 @@ mod tests {
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
       .build(src, vec![recipient_private_key]);
 
-    let advance = stream.advance(80000).await.unwrap();
+    let advance = stream.advance_encrypted(80000).await.unwrap();
 
     assert_eq!(advance, 124 + 65564);
     assert_eq!(stream.header_length(), Some(124));
@@ -739,7 +751,7 @@ mod tests {
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
       .build(src, vec![recipient_private_key]);
 
-    let advance = stream.advance(2598042).await.unwrap();
+    let advance = stream.advance_encrypted(2598042).await.unwrap();
 
     assert_eq!(advance, 2598043 - 40923);
     assert_eq!(stream.header_length(), Some(124));
@@ -776,7 +788,7 @@ mod tests {
       .await
       .unwrap();
 
-    let advance = stream.advance(2598044).await.unwrap();
+    let advance = stream.advance_encrypted(2598044).await.unwrap();
 
     assert_eq!(advance, 2598043);
     assert_eq!(stream.header_length(), Some(124));
@@ -812,7 +824,7 @@ mod tests {
       .with_stream_length(2598043)
       .build(src, vec![recipient_private_key]);
 
-    let advance = stream.advance(2598044).await.unwrap();
+    let advance = stream.advance_encrypted(2598044).await.unwrap();
 
     assert_eq!(advance, 2598043);
     assert_eq!(stream.header_length(), Some(124));
