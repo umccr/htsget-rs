@@ -211,8 +211,8 @@ impl<R> DecrypterStream<R> {
       let encrypted_position = length + position + additional_bytes;
 
       match self.stream_length {
-        Some(end_length) if encrypted_position + Block::mac_size() >= end_length => end_length,
-        _ => encrypted_position
+        Some(end_length) if encrypted_position + Block::mac_size() > end_length => end_length,
+        _ => encrypted_position,
       }
     })
   }
@@ -309,7 +309,8 @@ where
     SessionKeysFuture::new(self).await?;
 
     // Convert to an encrypted position and seek
-    let position = self.to_encrypted(position)
+    let position = self
+      .to_encrypted(position)
       .ok_or_else(|| Crypt4GHError("Unable to convert to encrypted position.".to_string()))?;
 
     // Then do the seek.
@@ -339,7 +340,8 @@ where
     SessionKeysFuture::new(self).await?;
 
     // Convert to an encrypted position and seek
-    let position = self.to_encrypted(position)
+    let position = self
+      .to_encrypted(position)
       .ok_or_else(|| Crypt4GHError("Unable to convert to encrypted position.".to_string()))?;
 
     // Then do the advance.
@@ -372,7 +374,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     let mut futures = vec![];
     while let Some(block) = stream.next().await {
@@ -401,7 +405,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     assert!(stream.header_length().is_none());
 
@@ -417,7 +423,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     assert!(stream.current_block_size().is_none());
 
@@ -433,7 +441,9 @@ mod tests {
 
     let stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     assert!(stream.current_block_size().is_none());
 
@@ -450,7 +460,10 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
     let _ = stream.next().await.unwrap().unwrap().await;
 
     assert_eq!(stream.clamp_position(0), Some(124));
@@ -465,7 +478,10 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
     let _ = stream.next().await.unwrap().unwrap().await;
 
     assert_eq!(stream.clamp_position(80000), Some(124 + 65564));
@@ -493,7 +509,10 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
     let _ = stream.next().await.unwrap().unwrap().await;
 
     let pos = stream.to_encrypted(0);
@@ -512,7 +531,10 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
     let _ = stream.next().await.unwrap().unwrap().await;
 
     let pos = stream.to_encrypted(80000);
@@ -544,7 +566,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     let seek = stream.seek_encrypted(SeekFrom::Start(0)).await.unwrap();
 
@@ -579,7 +603,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     let seek = stream.seek_encrypted(SeekFrom::Start(80000)).await.unwrap();
 
@@ -623,7 +649,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     let seek = stream.seek_encrypted(SeekFrom::End(-1000)).await.unwrap();
 
@@ -679,7 +707,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     let advance = stream.advance_encrypted(0).await.unwrap();
 
@@ -714,7 +744,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     let advance = stream.advance_encrypted(80000).await.unwrap();
 
@@ -749,7 +781,9 @@ mod tests {
 
     let mut stream = Builder::default()
       .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
-      .build(src, vec![recipient_private_key]);
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
 
     let advance = stream.advance_encrypted(2598042).await.unwrap();
 
@@ -825,6 +859,328 @@ mod tests {
       .build(src, vec![recipient_private_key]);
 
     let advance = stream.advance_encrypted(2598044).await.unwrap();
+
+    assert_eq!(advance, 2598043);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn seek_first_data_block_unencrypted() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let seek = stream.seek_unencrypted(0).await.unwrap();
+
+    assert_eq!(seek, 124);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn seek_second_data_block_unencrypted() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let seek = stream.seek_unencrypted(65537).await.unwrap();
+
+    assert_eq!(seek, 124 + 65564);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let seek = stream.seek_unencrypted(65535).await.unwrap();
+
+    assert_eq!(seek, 124);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn seek_to_end_unencrypted() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let seek = stream.seek_unencrypted(2596799).await.unwrap();
+
+    assert_eq!(seek, 2598043 - 40923);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let block = stream.next().await.unwrap().unwrap().await.unwrap();
+    assert_last_data_block(block.bytes.to_vec()).await;
+  }
+
+  #[tokio::test]
+  async fn seek_past_end_unencrypted() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let seek = stream.seek_unencrypted(2596800).await.unwrap();
+
+    assert_eq!(seek, 2598043);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+    assert!(stream.next().await.is_none());
+  }
+
+  #[tokio::test]
+  async fn seek_past_end_stream_unencrypted_length_override() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_stream_length(2598043)
+      .build(src, vec![recipient_private_key]);
+
+    let seek = stream.seek_unencrypted(2596800).await.unwrap();
+
+    assert_eq!(seek, 2598043);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+    assert!(stream.next().await.is_none());
+  }
+
+  #[tokio::test]
+  async fn advance_first_data_block_unencrypted() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let advance = stream.advance_unencrypted(0).await.unwrap();
+
+    assert_eq!(advance, 124);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn advance_second_data_block_unencrypted() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let advance = stream.advance_unencrypted(65537).await.unwrap();
+
+    assert_eq!(advance, 124 + 65564);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn advance_to_end_unencrypted() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let advance = stream.advance_unencrypted(2596799).await.unwrap();
+
+    assert_eq!(advance, 2598043 - 40923);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn advance_past_end_unencrypted() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(src, vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let advance = stream.advance_unencrypted(2596800).await.unwrap();
+
+    assert_eq!(advance, 2598043);
+    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.current_block_size(), None);
+
+    let mut futures = vec![];
+    while let Some(block) = stream.next().await {
+      futures.push(block.unwrap());
+    }
+
+    let decrypted_bytes =
+      join_all(futures)
+        .await
+        .into_iter()
+        .fold(BytesMut::new(), |mut acc, bytes| {
+          let (bytes, _) = bytes.unwrap().into_inner();
+          acc.extend(bytes.0);
+          acc
+        });
+
+    // Assert that the decrypted bytes are equal to the original file bytes.
+    let original_bytes = get_original_file().await;
+    assert_eq!(decrypted_bytes, original_bytes);
+  }
+
+  #[tokio::test]
+  async fn advance_past_end_unencrypted_stream_length_override() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_stream_length(2598043)
+      .build(src, vec![recipient_private_key]);
+
+    let advance = stream.advance_unencrypted(2596800).await.unwrap();
 
     assert_eq!(advance, 2598043);
     assert_eq!(stream.header_length(), Some(124));
