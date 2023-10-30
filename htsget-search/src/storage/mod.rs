@@ -272,7 +272,7 @@ impl Display for BytesRange {
     let end = self
       .end
       .map(|end| end.to_string())
-      .unwrap_or_else(|| "".to_string());
+      .unwrap_or_default();
     write!(f, "bytes={start}-{end}")
   }
 }
