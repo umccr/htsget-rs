@@ -3,7 +3,7 @@ name: tests
 on:
   push:
     branches:
-      - docker 
+      - main
   pull_request:
 
 jobs:
