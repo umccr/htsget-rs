@@ -9,11 +9,18 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     strategy:
       matrix:
         rust: [stable]
         os: [ubuntu-latest]
     steps:
+      - name: Cache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Check out
         uses: actions/checkout@v3
       - name: Install Rust
@@ -23,11 +30,6 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
       - run: rustup override set ${{ steps.toolchain.outputs.name }}
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: build-cache
-          save-if: false
       - name: Cargo fmt
         uses: actions-rs/cargo@v1
         with:
