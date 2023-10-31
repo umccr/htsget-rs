@@ -271,7 +271,9 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        url = "https://example.com/"
+        endpoint_head = "https://example.com/"
+        endpoint_header = "https://example.com/"
+        endpoint_index = "https://example.com/"
         response_scheme = "Http"
         forward_headers = false
         tls.key = "{}"

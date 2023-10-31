@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.9](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.8...htsget-http-v0.4.9) - 2023-10-02
+
+### Other
+- updated the following local packages: htsget-search
+
+## [0.4.8](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.7...htsget-http-v0.4.8) - 2023-09-06
+
+### Other
+- revert htsget-test change to a dev dependency
+- add pre-commit hook
+- *(deps)* update msrv and attempt using htsget-test as a dev dependency
+
+## [0.4.7](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.6...htsget-http-v0.4.7) - 2023-09-05
+
+### Other
+- updated the following local packages: htsget-test
+
 ## [0.4.6](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.5...htsget-http-v0.4.6) - 2023-07-11
 
 ### Other

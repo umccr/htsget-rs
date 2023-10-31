@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  test:
+  benchmark:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -42,7 +42,7 @@ jobs:
         uses: brainstorm/github-action-benchmark@cargo-criterion-v3
         with:
           name: Search benchmark
-          tool: 'cargo-criterion'
+          tool: "cargo-criterion"
           output-file-path: search-benchmarks-output.json
           native-benchmark-data-dir-path: target/criterion
           fail-on-alert: false

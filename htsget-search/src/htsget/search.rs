@@ -5,15 +5,15 @@
 //! where the names of the types indicate their purpose.
 //!
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
-#[cfg(feature = "crypt4gh")]
-use async_crypt4gh::reader::builder::Builder;
+// #[cfg(feature = "crypt4gh")]
+// use async_crypt4gh::reader::builder::Builder;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
-use noodles::bgzf::gzi;
+use noodles::bgzf::{gzi, VirtualPosition};
 use noodles::csi::index::reference_sequence::bin::Chunk;
 use noodles::csi::index::ReferenceSequence;
 use noodles::csi::Index;
@@ -22,6 +22,8 @@ use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{instrument, trace, trace_span, Instrument};
+
+use htsget_config::types::Class::Header;
 
 use crate::htsget::ConcurrencyError;
 use crate::storage::{BytesPosition, HeadOptions, RangeUrlOptions, Storage};
@@ -33,6 +35,8 @@ pub(crate) static BGZF_EOF: &[u8] = &[
   0x1f, 0x8b, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x06, 0x00, 0x42, 0x43, 0x02, 0x00,
   0x1b, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+
+pub(crate) const MAX_BGZF_ISIZE: u64 = 1 << 16;
 
 /// Helper function to find the first non-none value from a set of futures.
 pub(crate) async fn find_first<T>(
@@ -61,9 +65,10 @@ pub(crate) async fn find_first<T>(
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
+/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait SearchAll<S, ReaderType, ReferenceSequence, Index, Header>
+pub trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -74,15 +79,13 @@ where
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
 
   /// Returns the header bytes range.
-  #[instrument(level = "trace", skip_all)]
-  async fn get_byte_ranges_for_header(&self, index: &Index) -> Result<BytesPosition> {
-    trace!("getting byte ranges for header");
-    Ok(
-      BytesPosition::default()
-        .with_end(self.get_header_end_offset(index).await?)
-        .with_class(Class::Header),
-    )
-  }
+  async fn get_byte_ranges_for_header(
+    &self,
+    index: &Index,
+    header: &Header,
+    reader: &mut Reader,
+    query: &Query,
+  ) -> Result<BytesPosition>;
 
   /// Get the eof marker for this format.
   fn get_eof_marker(&self) -> &[u8];
@@ -97,20 +100,22 @@ where
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
+/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait SearchReads<S, ReaderType, ReferenceSequence, Index, Header>:
-  Search<S, ReaderType, ReferenceSequence, Index, Header>
+pub trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
+  Reader: Send,
   Header: Send + Sync,
   Index: Send + Sync,
 {
   /// Get reference sequence from name.
-  async fn get_reference_sequence_from_name<'a>(
+  async fn get_reference_sequence_from_name<'b>(
     &self,
-    header: &'a Header,
+    header: &'b Header,
     name: &str,
   ) -> Option<usize>;
 
@@ -163,19 +168,22 @@ where
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
+/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait Search<S, ReaderType, ReferenceSequence, Index, Header>:
-  SearchAll<S, ReaderType, ReferenceSequence, Index, Header>
+pub trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
+  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
   Header: Send + Sync,
+  Reader: Send,
   Self: Sync + Send,
 {
-  async fn read_header<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Header>;
-  async fn read_index<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
+  fn init_reader(inner: ReaderType) -> Reader;
+  async fn read_header(reader: &mut Reader) -> io::Result<Header>;
+  async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -211,7 +219,7 @@ where
 
   /// Read the index from the key.
   #[instrument(level = "trace", skip(self))]
-  async fn get_index(&self, query: &Query) -> Result<Index> {
+  async fn read_index(&self, query: &Query) -> Result<Index> {
     trace!("reading index");
     let storage = self
       .get_storage()
@@ -220,7 +228,7 @@ where
         GetOptions::new_with_default_range(query.request().headers()),
       )
       .await?;
-    Self::read_index(storage)
+    Self::read_index_inner(storage)
       .await
       .map_err(|err| HtsGetError::io_error(format!("reading {} index: {}", self.get_format(), err)))
   }
@@ -241,8 +249,10 @@ where
         let byte_ranges = match query.reference_name().as_ref() {
           None => self.get_byte_ranges_for_all(&query).await?,
           Some(reference_name) => {
-            let index = self.get_index(&query).await?;
-            let header = self.get_header(&query, &index).await?;
+            let index = self.read_index(&query).await?;
+
+            let header_end = self.get_header_end_offset(&index).await?;
+            let (header, mut reader) = self.get_header(&query, header_end).await?;
 
             let mut byte_ranges = self
               .get_byte_ranges_for_reference_name(
@@ -252,7 +262,12 @@ where
                 &query,
               )
               .await?;
-            byte_ranges.push(self.get_byte_ranges_for_header(&index).await?);
+
+            byte_ranges.push(
+              self
+                .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
+                .await?,
+            );
 
             byte_ranges
           }
@@ -275,8 +290,14 @@ where
           )
           .await?;
 
-        let index = self.get_index(&query).await?;
-        let header_byte_ranges = self.get_byte_ranges_for_header(&index).await?;
+        let index = self.read_index(&query).await?;
+
+        let header_end = self.get_header_end_offset(&index).await?;
+        let (header, mut reader) = self.get_header(&query, header_end).await?;
+
+        let header_byte_ranges = self
+          .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
+          .await?;
 
         self
           .build_response(
@@ -296,6 +317,7 @@ where
     for block in DataBlock::update_classes(byte_ranges) {
       match block {
         DataBlock::Range(range) => {
+          trace!(range = ?range, "range");
           let storage = self.get_storage();
           let query_owned = query.clone();
 
@@ -326,11 +348,11 @@ where
   }
 
   /// Get the header from the file specified by the id and format.
-  #[instrument(level = "trace", skip(self, index))]
-  async fn get_header(&self, query: &Query, index: &Index) -> Result<Header> {
+  #[instrument(level = "trace", skip(self))]
+  async fn get_header(&self, query: &Query, offset: u64) -> Result<(Header, Reader)> {
     trace!("getting header");
     let get_options = GetOptions::new(
-      self.get_byte_ranges_for_header(index).await?,
+      BytesPosition::default().with_end(offset),
       query.request().headers(),
     );
 
@@ -339,20 +361,25 @@ where
       .get(query.format().fmt_file(query), get_options)
       .await?;
 
-    #[cfg(feature = "crypt4gh")]
-    if query.is_crypt4gh() {
-      let reader = Builder::default()
-        .with_stream_length(self.position_at_eof(query).await?)
-        .build_with_reader(reader_type, vec![]);
+    // todo: crypt4gh
+    // #[cfg(feature = "crypt4gh")]
+    // if query.is_crypt4gh() {
+    //   let reader = Builder::default()
+    //     .with_stream_length(self.position_at_eof(query).await?)
+    //     .build_with_reader(reader_type, vec![]);
+    //
+    //   return Self::read_header(reader).await.map_err(|err| {
+    //     HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
+    //   });
+    // }
 
-      return Self::read_header(reader).await.map_err(|err| {
+    let mut reader = Self::init_reader(reader_type);
+    Ok((
+      Self::read_header(&mut reader).await.map_err(|err| {
         HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
-      });
-    }
-
-    Self::read_header(reader_type).await.map_err(|err| {
-      HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
-    })
+      })?,
+      reader,
+    ))
   }
 }
 
@@ -363,19 +390,21 @@ where
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
+/// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait BgzfSearch<S, ReaderType, Header>:
-  Search<S, ReaderType, ReferenceSequence, Index, Header>
+pub trait BgzfSearch<S, ReaderType, Reader, Header>:
+  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
+  Reader: Send + Sync,
   Header: Send + Sync,
 {
   #[instrument(level = "trace", skip_all)]
-  fn index_positions(index: &Index) -> Vec<u64> {
+  fn index_positions(index: &Index) -> BTreeSet<u64> {
     trace!("getting possible index positions");
-    let mut positions = HashSet::new();
+    let mut positions = BTreeSet::new();
 
     // Its probably most robust to search through all chunks in all reference sequences.
     // See https://github.com/samtools/htslib/issues/1482
@@ -401,9 +430,6 @@ where
         }),
     );
 
-    positions.remove(&0);
-    let mut positions: Vec<u64> = positions.into_iter().collect();
-    positions.sort_unstable();
     positions
   }
 
@@ -421,13 +447,6 @@ where
         .query(ref_seq_id, query.interval().into_one_based()?)
         .map_err(|err| HtsGetError::InvalidRange(format!("querying range: {err}")))?;
 
-      if chunks.is_empty() {
-        return Err(HtsGetError::NotFound(
-          "could not find byte ranges for reference sequence".to_string(),
-        ));
-      }
-
-      trace!(id = ?query.id(), ref_seq_id = ?ref_seq_id, "sorting chunks");
       chunks.sort_unstable_by_key(|a| a.end().compressed());
 
       Ok(chunks)
@@ -537,15 +556,23 @@ where
   ) -> Result<Vec<BytesPosition>> {
     Ok(Vec::new())
   }
+
+  /// Get the virtual position of the underlying reader.
+  async fn read_bytes(header: &Header, reader: &mut Reader) -> Option<usize>;
+
+  /// Get the virtual position of the underlying reader.
+  fn virtual_position(&self, reader: &Reader) -> VirtualPosition;
 }
 
 #[async_trait]
-impl<S, ReaderType, Header, T> SearchAll<S, ReaderType, ReferenceSequence, Index, Header> for T
+impl<S, ReaderType, Reader, Header, T>
+  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
+  ReaderType: AsyncRead + Unpin + Send + Sync,
+  Reader: Send + Sync,
   Header: Send + Sync,
-  T: BgzfSearch<S, ReaderType, Header> + Send + Sync,
+  T: BgzfSearch<S, ReaderType, Reader, Header> + Send + Sync,
 {
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
@@ -556,15 +583,67 @@ where
 
   #[instrument(level = "trace", skip_all, ret)]
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
-    Self::index_positions(index)
-      .into_iter()
-      .next()
-      .ok_or_else(|| {
-        HtsGetError::io_error(format!(
-          "finding header offset in `{}` index",
-          self.get_format()
-        ))
-      })
+    let first_index_position =
+      Self::index_positions(index)
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+          HtsGetError::io_error(format!(
+            "finding header offset in `{}` index",
+            self.get_format()
+          ))
+        })?;
+
+    // The header can only extend past the first index position by the maximum BGZF block size
+    // because otherwise the first index position wouldn't be representing the first reference.
+    Ok(first_index_position + MAX_BGZF_ISIZE)
+  }
+
+  async fn get_byte_ranges_for_header(
+    &self,
+    index: &Index,
+    header: &Header,
+    reader: &mut Reader,
+    query: &Query,
+  ) -> Result<BytesPosition> {
+    let current_block_index = self.virtual_position(reader);
+
+    let mut next_block_index = if current_block_index.uncompressed() == 0 {
+      current_block_index.compressed()
+    } else {
+      loop {
+        let bytes_read = Self::read_bytes(header, reader).await.unwrap_or_default();
+        let actual_block_index = self.virtual_position(reader).compressed();
+
+        if bytes_read == 0 || actual_block_index > current_block_index.compressed() {
+          break actual_block_index;
+        }
+      }
+    };
+
+    next_block_index = if next_block_index == 0 {
+      // if for some reason that fails, get the second position from the index.
+      let mut positions = Self::index_positions(index);
+
+      positions.pop_first();
+
+      let position = positions.into_iter().next().unwrap_or_default();
+
+      if position == 0 {
+        self.position_at_eof(query).await?
+      } else {
+        position
+      }
+    } else {
+      next_block_index
+    };
+
+    Ok(
+      BytesPosition::default()
+        .with_start(0)
+        .with_end(next_block_index)
+        .with_class(Header),
+    )
   }
 
   fn get_eof_marker(&self) -> &[u8] {

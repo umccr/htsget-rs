@@ -31,14 +31,18 @@ pub enum Format {
 
 /// Todo allow these to be configurable.
 impl Format {
+  pub fn file_ending(&self) -> &str {
+    match self {
+      Format::Bam => ".bam",
+      Format::Cram => ".cram",
+      Format::Vcf => ".vcf.gz",
+      Format::Bcf => ".bcf",
+    }
+  }
+
   pub fn fmt_file(&self, query: &Query) -> String {
     let id = query.id();
-    let id = match self {
-      Format::Bam => format!("{id}.bam"),
-      Format::Cram => format!("{id}.cram"),
-      Format::Vcf => format!("{id}.vcf.gz"),
-      Format::Bcf => format!("{id}.bcf"),
-    };
+    let id = format!("{id}{}", self.file_ending());
 
     #[cfg(feature = "crypt4gh")]
     if query.is_crypt4gh() {
@@ -49,25 +53,33 @@ impl Format {
     id
   }
 
-  pub fn fmt_index(&self, id: &str) -> String {
+  pub fn index_file_ending(&self) -> &str {
     match self {
-      Format::Bam => format!("{id}.bam.bai"),
-      Format::Cram => format!("{id}.cram.crai"),
-      Format::Vcf => format!("{id}.vcf.gz.tbi"),
-      Format::Bcf => format!("{id}.bcf.csi"),
+      Format::Bam => ".bam.bai",
+      Format::Cram => ".cram.crai",
+      Format::Vcf => ".vcf.gz.tbi",
+      Format::Bcf => ".bcf.csi",
     }
   }
 
-  pub fn fmt_gzi(&self, id: &str) -> io::Result<String> {
+  pub fn fmt_index(&self, id: &str) -> String {
+    format!("{id}{}", self.index_file_ending())
+  }
+
+  pub fn gzi_index_file_ending(&self) -> io::Result<&str> {
     match self {
-      Format::Bam => Ok(format!("{id}.bam.gzi")),
+      Format::Bam => Ok(".bam.gzi"),
       Format::Cram => Err(io::Error::new(
         Other,
         "CRAM does not support GZI".to_string(),
       )),
-      Format::Vcf => Ok(format!("{id}.vcf.gz.gzi")),
-      Format::Bcf => Ok(format!("{id}.bcf.gzi")),
+      Format::Vcf => Ok(".vcf.gz.gzi"),
+      Format::Bcf => Ok(".bcf.gzi"),
     }
+  }
+
+  pub fn fmt_gzi(&self, id: &str) -> io::Result<String> {
+    Ok(format!("{id}{}", self.gzi_index_file_ending()?))
   }
 }
 

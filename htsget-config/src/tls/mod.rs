@@ -321,7 +321,7 @@ pub fn tls_client_config(
   let config = if let Some(key_pair) = key_pair {
     let (certs, key) = key_pair.into_inner();
     config
-      .with_single_cert(certs, key)
+      .with_client_auth_cert(certs, key)
       .map_err(|err| ParseError(format!("single cert: {}", err)))?
   } else {
     config.with_no_client_auth()

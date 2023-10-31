@@ -16,6 +16,7 @@ use tokio::io::{AsyncRead, BufReader};
 use tokio::{io, select};
 use tracing::{instrument, trace};
 
+use htsget_config::types::Class::Header as HtsGetHeader;
 use htsget_config::types::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
@@ -39,7 +40,9 @@ pub struct CramSearch<S> {
 }
 
 #[async_trait]
-impl<S, ReaderType> SearchAll<S, ReaderType, PhantomData<Self>, Index, Header> for CramSearch<S>
+impl<S, ReaderType>
+  SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
@@ -66,6 +69,20 @@ where
       })
   }
 
+  async fn get_byte_ranges_for_header(
+    &self,
+    index: &Index,
+    _header: &Header,
+    _reader: &mut AsyncReader<ReaderType>,
+    _query: &Query,
+  ) -> Result<BytesPosition> {
+    Ok(
+      BytesPosition::default()
+        .with_end(self.get_header_end_offset(index).await?)
+        .with_class(HtsGetHeader),
+    )
+  }
+
   fn get_eof_marker(&self) -> &[u8] {
     CRAM_EOF
   }
@@ -79,7 +96,9 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType> SearchReads<S, ReaderType, PhantomData<Self>, Index, Header> for CramSearch<S>
+impl<S, ReaderType>
+  SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
@@ -124,14 +143,17 @@ where
 
 /// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, Header> for CramSearch<S>
+impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
+  for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
-  async fn read_header<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Header> {
-    let mut reader = AsyncReader::new(BufReader::new(inner));
+  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+    AsyncReader::new(BufReader::new(inner))
+  }
 
+  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
     reader.read_file_definition().await?;
 
     Ok(
@@ -143,7 +165,7 @@ where
     )
   }
 
-  async fn read_index<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {
+  async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {
     crai::AsyncReader::new(inner).read_index().await
   }
 

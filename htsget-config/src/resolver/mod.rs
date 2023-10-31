@@ -513,6 +513,25 @@ mod tests {
   }
 
   #[test]
+  fn config_resolvers_guard_file() {
+    test_config_from_file(
+      r#"
+      [[resolvers]]
+      regex = "regex"
+
+      [resolvers.allow_guard]
+      allow_formats = ["BAM"]
+      "#,
+      |config| {
+        assert_eq!(
+          config.resolvers().first().unwrap().allow_formats(),
+          &vec![Bam]
+        );
+      },
+    );
+  }
+
+  #[test]
   fn config_resolvers_env() {
     test_config_from_env(vec![("HTSGET_RESOLVERS", "[{regex=regex}]")], |config| {
       assert_eq!(

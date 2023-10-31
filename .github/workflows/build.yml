@@ -7,13 +7,20 @@ on:
   pull_request:
 
 jobs:
-  test:
+  build:
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     strategy:
       matrix:
         rust: [stable]
         os: [ubuntu-latest]
     steps:
+      - name: Cache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Check out
         uses: actions/checkout@v3
       - name: Install Rust
@@ -22,11 +29,6 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - run: rustup override set ${{ steps.toolchain.outputs.name }}
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: build-cache
-          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build all features
         uses: actions-rs/cargo@v1
         with:
@@ -47,3 +49,15 @@ jobs:
         with:
           command: build
           args: --all-targets --features url-storage
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Test Docker build
+        id: docker_build
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: false
+          tags: |
+            ghcr.io/umccr/htsget-rs:dev-latest
+            ghcr.io/umccr/htsget-rs:dev-${{ github.run_number }}

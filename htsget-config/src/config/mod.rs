@@ -1,33 +1,33 @@
 use std::fmt::Debug;
+use std::io;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
-use figment::providers::{Env, Format, Serialized, Toml};
-use figment::Figment;
 use http::header::HeaderName;
 use http::Method;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
+use tracing::instrument;
 use tracing::subscriber::set_global_default;
 use tracing_subscriber::fmt::{format, layer};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Registry};
 
 use crate::config::cors::{AllowType, CorsConfig, HeaderValue, TaggedAllowTypes};
+use crate::config::parser::from_path;
 use crate::config::FormattingStyle::{Compact, Full, Json, Pretty};
-use crate::error::Error::{ArgParseError, IoError, TracingError};
+use crate::error::Error::{ArgParseError, TracingError};
 use crate::error::Result;
 use crate::resolver::Resolver;
 use crate::tls::TlsServerConfig;
 
 pub mod cors;
+pub mod parser;
 
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str = "To configure htsget-rs use a config file or environment variables. \
 See the documentation of the htsget-config crate for more information.";
-
-const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
 
 pub(crate) fn default_localstorage_addr() -> &'static str {
   "127.0.0.1:8081"
@@ -410,19 +410,11 @@ impl Config {
   }
 
   /// Read a config struct from a TOML file.
-  pub fn from_path(path: &Path) -> Result<Self> {
-    let config: Config = Figment::from(Serialized::defaults(Config::default()))
-      .merge(Toml::file(path))
-      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX).map(|k| match k {
-        k if k.as_str().to_lowercase().contains("tls_") => {
-          k.as_str().to_lowercase().replace("tls_", "tls.").into()
-        }
-        k => k.into(),
-      }))
-      .extract()
-      .map_err(|err| IoError(err.to_string()))?;
+  #[instrument]
+  pub fn from_path(path: &Path) -> io::Result<Self> {
+    let config: Self = from_path(path)?;
 
-    config.resolvers_from_data_server_config()
+    Ok(config.resolvers_from_data_server_config()?)
   }
 
   /// Setup tracing, using a global subscriber.
@@ -505,6 +497,7 @@ impl Config {
 pub(crate) mod tests {
   use std::fmt::Display;
 
+  use crate::config::parser::from_str;
   use figment::Jail;
   use http::uri::Authority;
 
@@ -518,18 +511,34 @@ pub(crate) mod tests {
   where
     K: AsRef<str>,
     V: Display,
-    F: FnOnce(Config),
+    F: Fn(Config),
   {
     Jail::expect_with(|jail| {
+      let file = "test.toml";
+
       if let Some(contents) = contents {
-        jail.create_file("test.toml", contents)?;
+        jail.create_file(file, contents)?;
       }
 
       for (key, value) in env_variables {
         jail.set_env(key, value);
       }
 
-      test_fn(Config::from_path(Path::new("test.toml")).map_err(|err| err.to_string())?);
+      let path = Path::new(file);
+      test_fn(Config::from_path(path).map_err(|err| err.to_string())?);
+
+      test_fn(
+        from_path::<Config>(path)
+          .map_err(|err| err.to_string())?
+          .resolvers_from_data_server_config()
+          .unwrap(),
+      );
+      test_fn(
+        from_str::<Config>(contents.unwrap_or(""))
+          .map_err(|err| err.to_string())?
+          .resolvers_from_data_server_config()
+          .unwrap(),
+      );
 
       Ok(())
     });
@@ -539,14 +548,14 @@ pub(crate) mod tests {
   where
     K: AsRef<str>,
     V: Display,
-    F: FnOnce(Config),
+    F: Fn(Config),
   {
     test_config(None, env_variables, test_fn);
   }
 
   pub(crate) fn test_config_from_file<F>(contents: &str, test_fn: F)
   where
-    F: FnOnce(Config),
+    F: Fn(Config),
   {
     test_config(Some(contents), Vec::<(&str, &str)>::new(), test_fn);
   }
