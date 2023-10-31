@@ -99,9 +99,10 @@ impl PrivateKey {
   pub fn into_inner(self) -> rustls::PrivateKey {
     self.0
   }
+}
 
-  /// Get the reference of the inner type.
-  pub fn as_ref(&self) -> &rustls::PrivateKey {
+impl AsRef<rustls::PrivateKey> for PrivateKey {
+  fn as_ref(&self) -> &rustls::PrivateKey {
     &self.0
   }
 }

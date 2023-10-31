@@ -10,6 +10,7 @@ pub mod decoder;
 pub mod decrypter;
 pub mod error;
 pub mod reader;
+pub mod util;
 
 /// A wrapper around a vec of bytes that represent a sender public key.
 #[derive(Debug, Clone)]
