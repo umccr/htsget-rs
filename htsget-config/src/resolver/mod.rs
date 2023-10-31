@@ -313,7 +313,7 @@ mod tests {
     async fn from_url(url_storage: &UrlStorageClient, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
-        vec![Url::new(url_storage.url().to_string())],
+        vec![Url::new(url_storage.endpoint_header().to_string())],
       ))
     }
   }
@@ -384,9 +384,16 @@ mod tests {
       ValidatedUrl(url::Url {
         inner: InnerUrl::from_str("https://example.com/").unwrap(),
       }),
+      ValidatedUrl(url::Url {
+        inner: InnerUrl::from_str("https://example.com/").unwrap(),
+      }),
+      ValidatedUrl(url::Url {
+        inner: InnerUrl::from_str("https://example.com/").unwrap(),
+      }),
       Https,
       true,
       client,
+      None,
     );
 
     let resolver = Resolver::new(

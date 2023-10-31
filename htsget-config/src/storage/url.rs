@@ -25,7 +25,11 @@ with_prefix!(client_auth_prefix "client_");
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct UrlStorage {
-  url: ValidatedUrl,
+  endpoint_head: ValidatedUrl,
+  endpoint_index: ValidatedUrl,
+  endpoint_header: ValidatedUrl,
+  #[cfg(feature = "crypt4gh")]
+  endpoint_crypt4gh_header: Option<ValidatedUrl>,
   response_scheme: Scheme,
   forward_headers: bool,
   #[serde(skip_serializing)]
@@ -35,7 +39,11 @@ pub struct UrlStorage {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(from = "UrlStorage")]
 pub struct UrlStorageClient {
-  url: ValidatedUrl,
+  endpoint_head: ValidatedUrl,
+  endpoint_index: ValidatedUrl,
+  endpoint_header: ValidatedUrl,
+  #[cfg(feature = "crypt4gh")]
+  endpoint_crypt4gh_header: Option<ValidatedUrl>,
   response_scheme: Scheme,
   forward_headers: bool,
   client: Client<HttpsConnector<HttpConnector>>,
@@ -53,10 +61,14 @@ impl From<UrlStorage> for UrlStorageClient {
     );
 
     Self::new(
-      storage.url,
+      storage.endpoint_head,
+      storage.endpoint_index,
+      storage.endpoint_header,
       storage.response_scheme,
       storage.forward_headers,
       client,
+      #[cfg(feature = "crypt4gh")]
+      storage.endpoint_crypt4gh_header,
     )
   }
 }
@@ -64,22 +76,39 @@ impl From<UrlStorage> for UrlStorageClient {
 impl UrlStorageClient {
   /// Create a new url storage client.
   pub fn new(
-    url: ValidatedUrl,
+    endpoint_head: ValidatedUrl,
+    endpoint_index: ValidatedUrl,
+    endpoint_header: ValidatedUrl,
     response_scheme: Scheme,
     forward_headers: bool,
     client: Client<HttpsConnector<HttpConnector>>,
+    #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<ValidatedUrl>,
   ) -> Self {
     Self {
-      url,
+      endpoint_head,
+      endpoint_index,
+      endpoint_header,
+      #[cfg(feature = "crypt4gh")]
+      endpoint_crypt4gh_header,
       response_scheme,
       forward_headers,
       client,
     }
   }
 
-  /// Get the url called when resolving the query.
-  pub fn url(&self) -> &InnerUrl {
-    &self.url.0.inner
+  /// Get the url for the index called when resolving the query.
+  pub fn endpoint_index(&self) -> &InnerUrl {
+    &self.endpoint_index.0.inner
+  }
+
+  /// Get the url for head called when resolving the query.
+  pub fn endpoint_head(&self) -> &InnerUrl {
+    &self.endpoint_head.0.inner
+  }
+
+  /// Get the url for underlying header called when resolving the query.
+  pub fn endpoint_header(&self) -> &InnerUrl {
+    &self.endpoint_header.0.inner
   }
 
   /// Get the response scheme used for data blocks.
@@ -92,6 +121,14 @@ impl UrlStorageClient {
     self.forward_headers
   }
 
+  /// Get the crypt4gh header url.
+  #[cfg(feature = "crypt4gh")]
+  pub fn endpoint_crypt4gh_header(&self) -> Option<&InnerUrl> {
+    self
+      .endpoint_crypt4gh_header
+      .as_ref()
+      .map(|url| &url.0.inner)
+  }
   pub fn client_cloned(&self) -> Client<HttpsConnector<HttpConnector>> {
     self.client.clone()
   }
@@ -131,16 +168,30 @@ impl TryFrom<Url> for ValidatedUrl {
 impl UrlStorage {
   /// Create a new url storage.
   pub fn new(
-    url: InnerUrl,
+    endpoint_head: InnerUrl,
+    endpoint_header: InnerUrl,
+    endpoint_index: InnerUrl,
     response_scheme: Scheme,
     forward_headers: bool,
     tls: TlsClientConfig,
+    #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<InnerUrl>,
   ) -> Self {
     Self {
-      url: ValidatedUrl(Url { inner: url }),
+      endpoint_head: ValidatedUrl(Url {
+        inner: endpoint_head,
+      }),
+      endpoint_index: ValidatedUrl(Url {
+        inner: endpoint_index,
+      }),
+      endpoint_header: ValidatedUrl(Url {
+        inner: endpoint_header,
+      }),
       response_scheme,
       forward_headers,
       tls,
+      #[cfg(feature = "crypt4gh")]
+      endpoint_crypt4gh_header: endpoint_crypt4gh_header
+        .map(|url| ValidatedUrl(Url { inner: url })),
     }
   }
 
@@ -149,9 +200,28 @@ impl UrlStorage {
     self.response_scheme
   }
 
-  /// Get the url called when resolving the query.
-  pub fn url(&self) -> &InnerUrl {
-    &self.url.0.inner
+  /// Get the endpoint header called when resolving the query.
+  pub fn endpoint_header(&self) -> &InnerUrl {
+    &self.endpoint_header.0.inner
+  }
+
+  /// Get the endpoint for the index called when resolving the query.
+  pub fn endpoint_index(&self) -> &InnerUrl {
+    &self.endpoint_index.0.inner
+  }
+
+  /// Get the endpoint for the head called when resolving the query.
+  pub fn endpoint_head(&self) -> &InnerUrl {
+    &self.endpoint_head.0.inner
+  }
+
+  /// Get the endpoint crypt4gh header called when resolving the query.
+  #[cfg(feature = "crypt4gh")]
+  pub fn endpoint_crypt4gh_header(&self) -> Option<&InnerUrl> {
+    self
+      .endpoint_crypt4gh_header
+      .as_ref()
+      .map(|header| &header.0.inner)
   }
 
   /// Whether headers received in a query request should be
@@ -169,10 +239,14 @@ impl UrlStorage {
 impl Default for UrlStorage {
   fn default() -> Self {
     Self {
-      url: default_url(),
+      endpoint_header: default_url(),
+      endpoint_index: default_url(),
+      endpoint_head: default_url(),
       response_scheme: Scheme::Https,
       forward_headers: true,
       tls: TlsClientConfig::default(),
+      #[cfg(feature = "crypt4gh")]
+      endpoint_crypt4gh_header: None,
     }
   }
 }
@@ -212,7 +286,7 @@ mod tests {
           println!("{:?}", config.resolvers().first().unwrap().storage());
           assert!(matches!(
               config.resolvers().first().unwrap().storage(),
-              Storage::Url { url_storage } if *url_storage.url() == "https://example.com/"
+              Storage::Url { url_storage } if *url_storage.endpoint_header() == "https://example.com/"
                 && url_storage.response_scheme() == Scheme::Http
                 && !url_storage.forward_headers()
           ));
