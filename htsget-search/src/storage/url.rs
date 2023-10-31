@@ -13,7 +13,7 @@ use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
 use htsget_config::error;
-use htsget_config::types::Scheme;
+use htsget_config::types::{KeyType, Scheme};
 
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
@@ -23,29 +23,47 @@ use crate::Url as HtsGetUrl;
 #[derive(Debug, Clone)]
 pub struct UrlStorage {
   client: Client<HttpsConnector<HttpConnector>>,
-  url: Uri,
+  endpoint_head: Uri,
+  endpoint_header: Uri,
+  endpoint_index: Uri,
   response_scheme: Scheme,
   forward_headers: bool,
+  #[cfg(feature = "crypt4gh")]
+  endpoint_crypt4gh_header: Option<Uri>,
 }
 
 impl UrlStorage {
   /// Construct a new UrlStorage.
   pub fn new(
     client: Client<HttpsConnector<HttpConnector>>,
-    url: Uri,
+    endpoint_head: Uri,
+    endpoint_header: Uri,
+    endpoint_index: Uri,
     response_scheme: Scheme,
     forward_headers: bool,
+    #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<Uri>,
   ) -> Self {
     Self {
       client,
-      url,
+      endpoint_head,
+      endpoint_header,
+      endpoint_index,
       response_scheme,
       forward_headers,
+      #[cfg(feature = "crypt4gh")]
+      endpoint_crypt4gh_header,
     }
   }
 
   /// Construct a new UrlStorage with a default client.
-  pub fn new_with_default_client(url: Uri, response_scheme: Scheme, forward_headers: bool) -> Self {
+  pub fn new_with_default_client(
+    endpoint_head: Uri,
+    endpoint_header: Uri,
+    endpoint_index: Uri,
+    response_scheme: Scheme,
+    forward_headers: bool,
+    #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<Uri>,
+  ) -> Self {
     Self {
       client: Client::builder().build(
         HttpsConnectorBuilder::new()
@@ -55,15 +73,19 @@ impl UrlStorage {
           .enable_http2()
           .build(),
       ),
-      url,
+      endpoint_head,
+      endpoint_header,
+      endpoint_index,
       response_scheme,
       forward_headers,
+      #[cfg(feature = "crypt4gh")]
+      endpoint_crypt4gh_header,
     }
   }
 
   /// Get a url from the key.
-  pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<Uri> {
-    format!("{}{}", self.url, key.as_ref())
+  pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K, endpoint: &Uri) -> Result<Uri> {
+    format!("{}{}", endpoint, key.as_ref())
       .parse::<Uri>()
       .map_err(|err| UrlParseError(err.to_string()))
   }
@@ -74,9 +96,10 @@ impl UrlStorage {
     key: K,
     headers: &HeaderMap,
     method: Method,
+    url: &Uri,
   ) -> Result<Response<Body>> {
     let key = key.as_ref();
-    let url = self.get_url_from_key(key)?;
+    let url = self.get_url_from_key(key, url)?;
 
     let request = Request::builder().method(method).uri(&url);
 
@@ -108,8 +131,9 @@ impl UrlStorage {
     &self,
     key: K,
     options: RangeUrlOptions<'_>,
+    endpoint: &Uri,
   ) -> Result<HtsGetUrl> {
-    let mut url = self.get_url_from_key(key)?.into_parts();
+    let mut url = self.get_url_from_key(key, endpoint)?.into_parts();
 
     url.scheme = Some(
       self
@@ -145,16 +169,31 @@ impl UrlStorage {
     key: K,
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
-    self.send_request(key, headers, Method::HEAD).await
+    self
+      .send_request(key, headers, Method::HEAD, &self.endpoint_head)
+      .await
   }
 
   /// Get the key.
-  pub async fn get_key<K: AsRef<str> + Send>(
+  pub async fn get_header<K: AsRef<str> + Send>(
     &self,
     key: K,
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
-    self.send_request(key, headers, Method::GET).await
+    self
+      .send_request(key, headers, Method::GET, &self.endpoint_header)
+      .await
+  }
+
+  /// Get the key.
+  pub async fn get_index<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    headers: &HeaderMap,
+  ) -> Result<Response<Body>> {
+    self
+      .send_request(key, headers, Method::GET, &self.endpoint_index)
+      .await
   }
 }
 
@@ -171,9 +210,18 @@ impl Storage for UrlStorage {
     let key = key.as_ref().to_string();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
-    let response = self
-      .get_key(key.to_string(), options.request_headers())
-      .await?;
+    let response = match KeyType::from_ending(&key) {
+      KeyType::File => {
+        self
+          .get_header(key.to_string(), options.request_headers())
+          .await?
+      }
+      KeyType::Index => {
+        self
+          .get_index(key.to_string(), options.request_headers())
+          .await?
+      }
+    };
 
     Ok(StreamReader::new(response.into_body().map_err(|err| {
       ResponseError(format!("reading body from response: {}", err))
@@ -189,7 +237,7 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
-    self.format_url(key, options)
+    self.format_url(key, options, &self.endpoint_header)
   }
 
   #[instrument(level = "trace", skip(self))]
@@ -246,12 +294,21 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
       Scheme::Https,
       true,
+      #[cfg(feature = "crypt4gh")]
+      None,
     );
 
     assert_eq!(
-      storage.get_url_from_key("assets/key1").unwrap(),
+      storage
+        .get_url_from_key(
+          "assets/key1",
+          &Uri::from_str("https://example.com").unwrap()
+        )
+        .unwrap(),
       Uri::from_str("https://example.com/assets/key1").unwrap()
     );
   }
@@ -262,8 +319,12 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
+        #[cfg(feature = "crypt4gh")]
+        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -272,7 +333,12 @@ mod tests {
       let response = String::from_utf8(
         to_bytes(
           storage
-            .send_request("assets/key1", headers, Method::GET)
+            .send_request(
+              "assets/key1",
+              headers,
+              Method::GET,
+              &Uri::from_str("https://example.com").unwrap(),
+            )
             .await
             .unwrap()
             .into_body(),
@@ -293,8 +359,12 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
+        #[cfg(feature = "crypt4gh")]
+        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -303,7 +373,7 @@ mod tests {
       let response = String::from_utf8(
         to_bytes(
           storage
-            .get_key("assets/key1", headers)
+            .get_header("assets/key1", headers)
             .await
             .unwrap()
             .into_body(),
@@ -324,15 +394,19 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
+        #[cfg(feature = "crypt4gh")]
+        None,
       );
 
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
 
       let response: u64 = storage
-        .get_key("assets/key1", headers)
+        .get_header("assets/key1", headers)
         .await
         .unwrap()
         .headers()
@@ -353,8 +427,12 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
+        #[cfg(feature = "crypt4gh")]
+        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -377,8 +455,12 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Http,
         true,
+        #[cfg(feature = "crypt4gh")]
+        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -399,8 +481,12 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
+        #[cfg(feature = "crypt4gh")]
+        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -417,15 +503,25 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
       Scheme::Https,
       true,
+      #[cfg(feature = "crypt4gh")]
+      None,
     );
 
     let mut headers = HeaderMap::default();
     let options = test_range_options(&mut headers);
 
     assert_eq!(
-      storage.format_url("assets/key1", options).unwrap(),
+      storage
+        .format_url(
+          "assets/key1",
+          options,
+          &Uri::from_str("https://example.com").unwrap()
+        )
+        .unwrap(),
       HtsGetUrl::new("https://example.com/assets/key1")
         .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
     );
@@ -436,15 +532,25 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
       Scheme::Http,
       true,
+      #[cfg(feature = "crypt4gh")]
+      None,
     );
 
     let mut headers = HeaderMap::default();
     let options = test_range_options(&mut headers);
 
     assert_eq!(
-      storage.format_url("assets/key1", options).unwrap(),
+      storage
+        .format_url(
+          "assets/key1",
+          options,
+          &Uri::from_str("https://example.com").unwrap()
+        )
+        .unwrap(),
       HtsGetUrl::new("http://example.com/assets/key1")
         .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
     );
@@ -455,15 +561,25 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
       Scheme::Https,
       false,
+      #[cfg(feature = "crypt4gh")]
+      None,
     );
 
     let mut headers = HeaderMap::default();
     let options = test_range_options(&mut headers);
 
     assert_eq!(
-      storage.format_url("assets/key1", options).unwrap(),
+      storage
+        .format_url(
+          "assets/key1",
+          options,
+          &Uri::from_str("https://example.com").unwrap()
+        )
+        .unwrap(),
       HtsGetUrl::new("https://example.com/assets/key1")
     );
   }

@@ -29,6 +29,28 @@ pub enum Format {
   Bcf,
 }
 
+/// The type of key of the file.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KeyType {
+  File,
+  Index,
+}
+
+impl KeyType {
+  /// Get the key type from an ending.
+  pub fn from_ending<K: AsRef<str>>(key: K) -> KeyType {
+    if key.as_ref().ends_with(Format::Bam.index_file_ending())
+      || key.as_ref().ends_with(Format::Vcf.index_file_ending())
+      || key.as_ref().ends_with(Format::Cram.index_file_ending())
+      || key.as_ref().ends_with(Format::Vcf.index_file_ending())
+    {
+      Self::Index
+    } else {
+      Self::File
+    }
+  }
+}
+
 /// Todo allow these to be configurable.
 impl Format {
   pub fn file_ending(&self) -> &str {
