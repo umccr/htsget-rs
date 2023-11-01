@@ -26,6 +26,7 @@ with_prefix!(client_auth_prefix "client_");
 #[serde(default)]
 pub struct UrlStorage {
   url: ValidatedUrl,
+  response_url: ValidatedUrl,
   response_scheme: Scheme,
   forward_headers: bool,
   #[serde(skip_serializing)]
@@ -36,6 +37,7 @@ pub struct UrlStorage {
 #[serde(from = "UrlStorage")]
 pub struct UrlStorageClient {
   url: ValidatedUrl,
+  response_url: ValidatedUrl,
   response_scheme: Scheme,
   forward_headers: bool,
   client: Client<HttpsConnector<HttpConnector>>,
@@ -54,6 +56,7 @@ impl From<UrlStorage> for UrlStorageClient {
 
     Self::new(
       storage.url,
+      storage.response_url,
       storage.response_scheme,
       storage.forward_headers,
       client,
@@ -65,12 +68,14 @@ impl UrlStorageClient {
   /// Create a new url storage client.
   pub fn new(
     url: ValidatedUrl,
+    response_url: ValidatedUrl,
     response_scheme: Scheme,
     forward_headers: bool,
     client: Client<HttpsConnector<HttpConnector>>,
   ) -> Self {
     Self {
       url,
+      response_url,
       response_scheme,
       forward_headers,
       client,
@@ -80,6 +85,11 @@ impl UrlStorageClient {
   /// Get the url called when resolving the query.
   pub fn url(&self) -> &InnerUrl {
     &self.url.0.inner
+  }
+
+  /// Get the response url to return to the client
+  pub fn response_url(&self) -> &InnerUrl {
+    &self.response_url.0.inner
   }
 
   /// Get the response scheme used for data blocks.
@@ -132,12 +142,16 @@ impl UrlStorage {
   /// Create a new url storage.
   pub fn new(
     url: InnerUrl,
+    response_url: InnerUrl,
     response_scheme: Scheme,
     forward_headers: bool,
     tls: TlsClientConfig,
   ) -> Self {
     Self {
       url: ValidatedUrl(Url { inner: url }),
+      response_url: ValidatedUrl(Url {
+        inner: response_url,
+      }),
       response_scheme,
       forward_headers,
       tls,
@@ -151,6 +165,11 @@ impl UrlStorage {
 
   /// Get the url called when resolving the query.
   pub fn url(&self) -> &InnerUrl {
+    &self.url.0.inner
+  }
+
+  /// Get the response url which is returned to the client.
+  pub fn response_url(&self) -> &InnerUrl {
     &self.url.0.inner
   }
 
@@ -170,6 +189,7 @@ impl Default for UrlStorage {
   fn default() -> Self {
     Self {
       url: default_url(),
+      response_url: default_url(),
       response_scheme: Scheme::Https,
       forward_headers: true,
       tls: TlsClientConfig::default(),
@@ -198,6 +218,7 @@ mod tests {
 
         [resolvers.storage]
         url = "https://example.com/"
+        response_url = "https://example.com/"
         response_scheme = "Http"
         forward_headers = false
         tls.key = "{}"

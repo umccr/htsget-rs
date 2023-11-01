@@ -24,6 +24,7 @@ use crate::Url as HtsGetUrl;
 pub struct UrlStorage {
   client: Client<HttpsConnector<HttpConnector>>,
   url: Uri,
+  response_url: Uri,
   response_scheme: Scheme,
   forward_headers: bool,
 }
@@ -33,19 +34,26 @@ impl UrlStorage {
   pub fn new(
     client: Client<HttpsConnector<HttpConnector>>,
     url: Uri,
+    response_url: Uri,
     response_scheme: Scheme,
     forward_headers: bool,
   ) -> Self {
     Self {
       client,
       url,
+      response_url,
       response_scheme,
       forward_headers,
     }
   }
 
   /// Construct a new UrlStorage with a default client.
-  pub fn new_with_default_client(url: Uri, response_scheme: Scheme, forward_headers: bool) -> Self {
+  pub fn new_with_default_client(
+    url: Uri,
+    response_url: Uri,
+    response_scheme: Scheme,
+    forward_headers: bool,
+  ) -> Self {
     Self {
       client: Client::builder().build(
         HttpsConnectorBuilder::new()
@@ -56,6 +64,7 @@ impl UrlStorage {
           .build(),
       ),
       url,
+      response_url,
       response_scheme,
       forward_headers,
     }
@@ -64,6 +73,13 @@ impl UrlStorage {
   /// Get a url from the key.
   pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<Uri> {
     format!("{}{}", self.url, key.as_ref())
+      .parse::<Uri>()
+      .map_err(|err| UrlParseError(err.to_string()))
+  }
+
+  /// Get a url from the key.
+  pub fn get_response_url_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<Uri> {
+    format!("{}{}", self.response_url, key.as_ref())
       .parse::<Uri>()
       .map_err(|err| UrlParseError(err.to_string()))
   }
@@ -109,7 +125,7 @@ impl UrlStorage {
     key: K,
     options: RangeUrlOptions<'_>,
   ) -> Result<HtsGetUrl> {
-    let mut url = self.get_url_from_key(key)?.into_parts();
+    let mut url = self.get_response_url_from_key(key)?.into_parts();
 
     url.scheme = Some(
       self
@@ -246,6 +262,7 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://localhost:8080").unwrap(),
       Scheme::Https,
       true,
     );
@@ -256,11 +273,28 @@ mod tests {
     );
   }
 
+  #[test]
+  fn get_response_url_from_key() {
+    let storage = UrlStorage::new(
+      test_client(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://localhost:8080").unwrap(),
+      Scheme::Https,
+      true,
+    );
+
+    assert_eq!(
+      storage.get_response_url_from_key("assets/key1").unwrap(),
+      Uri::from_str("https://localhost:8080/assets/key1").unwrap()
+    );
+  }
+
   #[tokio::test]
   async fn send_request() {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         test_client(),
+        Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
@@ -293,6 +327,7 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -324,6 +359,7 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -353,6 +389,7 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -377,6 +414,7 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Http,
         true,
       );
@@ -399,6 +437,7 @@ mod tests {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
         Scheme::Https,
         true,
       );
@@ -417,6 +456,7 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://localhost:8080").unwrap(),
       Scheme::Https,
       true,
     );
@@ -426,7 +466,7 @@ mod tests {
 
     assert_eq!(
       storage.format_url("assets/key1", options).unwrap(),
-      HtsGetUrl::new("https://example.com/assets/key1")
+      HtsGetUrl::new("https://localhost:8080/assets/key1")
         .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
     );
   }
@@ -435,6 +475,7 @@ mod tests {
   fn format_url_different_response_scheme() {
     let storage = UrlStorage::new(
       test_client(),
+      Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
       Scheme::Http,
       true,
@@ -455,6 +496,7 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://localhost:8081").unwrap(),
       Scheme::Https,
       false,
     );
@@ -464,7 +506,7 @@ mod tests {
 
     assert_eq!(
       storage.format_url("assets/key1", options).unwrap(),
-      HtsGetUrl::new("https://example.com/assets/key1")
+      HtsGetUrl::new("https://localhost:8081/assets/key1")
     );
   }
 

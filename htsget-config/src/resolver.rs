@@ -545,6 +545,9 @@ mod tests {
       ValidatedUrl(url::Url {
         inner: InnerUrl::from_str("https://example.com/").unwrap(),
       }),
+      ValidatedUrl(url::Url {
+        inner: InnerUrl::from_str("https://example.com/").unwrap(),
+      }),
       Https,
       true,
       client,
