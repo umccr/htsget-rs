@@ -337,7 +337,7 @@ mod tests {
               "assets/key1",
               headers,
               Method::GET,
-              &Uri::from_str("https://example.com").unwrap(),
+              &Uri::from_str(&url).unwrap(),
             )
             .await
             .unwrap()

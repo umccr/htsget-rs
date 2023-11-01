@@ -18,7 +18,6 @@ use htsget_config::types::Class;
 use htsget_config::types::Format;
 
 use crate::http_tests::{Header, Response, TestRequest, TestServer};
-use crate::util::expected_bgzf_eof_data_url;
 use crate::Config;
 
 /// Test response with with class.
@@ -299,23 +298,20 @@ pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
 /// An example VCF search response.
 pub fn expected_response(class: Class, url_path: String) -> Value {
   let url = format!("{url_path}/data/vcf/sample1-bcbio-cancer.vcf.gz");
-  let headers = ["Range", "bytes=0-3465"];
 
   let urls = match class {
     Class::Header => json!([{
       "url": url,
       "headers": {
-        headers[0]: headers[1]
+        "Range": "bytes=0-3465"
       },
       "class": "header"
     }]),
     Class::Body => json!([{
       "url": url,
       "headers": {
-        headers[0]: headers[1]
+        "Range": "bytes=0-3493"
       },
-    }, {
-      "url": expected_bgzf_eof_data_url()
     }]),
   };
 

@@ -272,7 +272,7 @@ mod tests {
 
         [resolvers.storage]
         endpoint_head = "https://example.com/"
-        endpoint_header = "https://example.com/"
+        endpoint_file = "https://example.com/"
         endpoint_index = "https://example.com/"
         response_scheme = "Http"
         forward_headers = false

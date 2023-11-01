@@ -133,7 +133,6 @@ pub(crate) mod tests {
   use std::future::Future;
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
-  use htsget_test::util::expected_bgzf_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
@@ -173,11 +172,8 @@ pub(crate) mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![
-          Url::new(expected_url(filename))
-            .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
-          Url::new(expected_bgzf_eof_data_url()),
-        ],
+        vec![Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-850"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -385,11 +381,8 @@ pub(crate) mod tests {
   fn expected_vcf_response(filename: &str) -> Response {
     Response::new(
       Format::Vcf,
-      vec![
-        Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3465")),
-        Url::new(expected_bgzf_eof_data_url()),
-      ],
+      vec![Url::new(expected_url(filename))
+        .with_headers(Headers::default().with_header("Range", "bytes=0-3493"))],
     )
   }
 

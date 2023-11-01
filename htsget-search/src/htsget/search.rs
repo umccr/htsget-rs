@@ -92,6 +92,28 @@ where
 
   /// Get the eof data block for this format.
   fn get_eof_data_block(&self) -> Option<DataBlock>;
+
+  /// Get the eof bytes positions converting from a data block.
+  fn get_eof_byte_positions(&self, file_size: u64) -> Option<Result<BytesPosition>> {
+    if let Some(DataBlock::Data(data, class)) = self.get_eof_data_block() {
+      let data_len =
+        u64::try_from(data.len()).map_err(|err| HtsGetError::InvalidInput(err.to_string()));
+
+      return match data_len {
+        Ok(data_len) => {
+          let bytes_position = BytesPosition::default()
+            .with_start(file_size - data_len)
+            .with_end(file_size);
+          let bytes_position = bytes_position.set_class(class);
+
+          Some(Ok(bytes_position))
+        }
+        Err(err) => Some(Err(err)),
+      };
+    }
+
+    None
+  }
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -217,6 +239,20 @@ where
     )
   }
 
+  /// Get the file size.
+  #[instrument(level = "trace", skip(self), ret)]
+  async fn file_size(&self, query: &Query) -> Result<u64> {
+    Ok(
+      self
+        .get_storage()
+        .head(
+          query.format().fmt_file(query),
+          HeadOptions::new(query.request().headers()),
+        )
+        .await?,
+    )
+  }
+
   /// Read the index from the key.
   #[instrument(level = "trace", skip(self))]
   async fn read_index(&self, query: &Query) -> Result<Index> {
@@ -246,7 +282,7 @@ where
           )));
         }
 
-        let byte_ranges = match query.reference_name().as_ref() {
+        let mut byte_ranges = match query.reference_name().as_ref() {
           None => self.get_byte_ranges_for_all(&query).await?,
           Some(reference_name) => {
             let index = self.read_index(&query).await?;
@@ -273,10 +309,10 @@ where
           }
         };
 
-        let mut blocks = DataBlock::from_bytes_positions(byte_ranges);
-        if let Some(eof) = self.get_eof_data_block() {
-          blocks.push(eof);
+        if let Some(eof) = self.get_eof_byte_positions(self.file_size(&query).await?) {
+          byte_ranges.push(eof?);
         }
+        let blocks = DataBlock::from_bytes_positions(byte_ranges);
 
         self.build_response(&query, blocks).await
       }

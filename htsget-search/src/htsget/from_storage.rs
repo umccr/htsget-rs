@@ -138,7 +138,6 @@ pub(crate) mod tests {
 
   use htsget_config::storage;
   use htsget_config::types::Scheme::Http;
-  use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
     expected_url as bam_expected_url, with_local_storage as with_bam_local_storage,
@@ -162,11 +161,8 @@ pub(crate) mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![
-          Url::new(bam_expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
-          Url::new(expected_bgzf_eof_data_url()),
-        ],
+        vec![Url::new(bam_expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
       ));
       assert_eq!(response, expected_response)
     })
@@ -231,11 +227,8 @@ pub(crate) mod tests {
   fn expected_vcf_response(filename: &str) -> Result<Response> {
     Ok(Response::new(
       Format::Vcf,
-      vec![
-        Url::new(vcf_expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
-        Url::new(expected_bgzf_eof_data_url()),
-      ],
+      vec![Url::new(vcf_expected_url(filename))
+        .with_headers(Headers::default().with_header("Range", "bytes=0-850"))],
     ))
   }
 
