@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.3...htsget-search-v0.6.4) - 2023-10-30
+
+### Other
+- Cargo fmt, brrrr
+- Fix clippy to newest 1.73 rust release and use secrets.GITHUB_TOKEN for the release workflow
+
 ## [0.6.3](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.2...htsget-search-v0.6.3) - 2023-10-02
 
 ### Fixed
