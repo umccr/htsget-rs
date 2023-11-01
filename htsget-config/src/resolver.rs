@@ -395,11 +395,11 @@ impl StorageResolver for Resolver {
 
     #[cfg(feature = "s3-storage")]
     {
-      let first_match = self.get_match(1, &_matched_id)?;
+      let first_match = self.get_match(1, &_matched_id);
 
       if let Some(response) = self
         .storage()
-        .resolve_s3_storage::<T>(first_match.to_string(), query)
+        .resolve_s3_storage::<T>(first_match, query)
         .await
       {
         return Some(response);
