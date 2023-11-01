@@ -5,7 +5,7 @@ use bytes::Bytes;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
 use http::header::CONTENT_LENGTH;
-use http::{uri, HeaderMap, Method, Request, Response, Uri};
+use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
@@ -13,7 +13,6 @@ use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
 use htsget_config::error;
-use htsget_config::types::Scheme;
 
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
@@ -25,7 +24,6 @@ pub struct UrlStorage {
   client: Client<HttpsConnector<HttpConnector>>,
   url: Uri,
   response_url: Uri,
-  response_scheme: Scheme,
   forward_headers: bool,
 }
 
@@ -35,25 +33,18 @@ impl UrlStorage {
     client: Client<HttpsConnector<HttpConnector>>,
     url: Uri,
     response_url: Uri,
-    response_scheme: Scheme,
     forward_headers: bool,
   ) -> Self {
     Self {
       client,
       url,
       response_url,
-      response_scheme,
       forward_headers,
     }
   }
 
   /// Construct a new UrlStorage with a default client.
-  pub fn new_with_default_client(
-    url: Uri,
-    response_url: Uri,
-    response_scheme: Scheme,
-    forward_headers: bool,
-  ) -> Self {
+  pub fn new_with_default_client(url: Uri, response_url: Uri, forward_headers: bool) -> Self {
     Self {
       client: Client::builder().build(
         HttpsConnectorBuilder::new()
@@ -65,7 +56,6 @@ impl UrlStorage {
       ),
       url,
       response_url,
-      response_scheme,
       forward_headers,
     }
   }
@@ -125,20 +115,7 @@ impl UrlStorage {
     key: K,
     options: RangeUrlOptions<'_>,
   ) -> Result<HtsGetUrl> {
-    let mut url = self.get_response_url_from_key(key)?.into_parts();
-
-    url.scheme = Some(
-      self
-        .response_scheme
-        .to_string()
-        .parse::<uri::Scheme>()
-        .map_err(|err| {
-          InternalError(format!(
-            "failed to set scheme when formatting response url: {}",
-            err
-          ))
-        })?,
-    );
+    let url = self.get_response_url_from_key(key)?.into_parts();
     let url = Uri::from_parts(url)
       .map_err(|err| InternalError(format!("failed to convert to uri from parts: {}", err)))?;
 
@@ -263,7 +240,6 @@ mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
-      Scheme::Https,
       true,
     );
 
@@ -279,7 +255,6 @@ mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
-      Scheme::Https,
       true,
     );
 
@@ -296,7 +271,6 @@ mod tests {
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
         true,
       );
 
@@ -328,7 +302,6 @@ mod tests {
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
         true,
       );
 
@@ -360,7 +333,6 @@ mod tests {
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
         true,
       );
 
@@ -390,7 +362,6 @@ mod tests {
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
         true,
       );
 
@@ -415,7 +386,6 @@ mod tests {
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Http,
         true,
       );
 
@@ -438,7 +408,6 @@ mod tests {
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
         true,
       );
 
@@ -457,7 +426,6 @@ mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
-      Scheme::Https,
       true,
     );
 
@@ -476,8 +444,7 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
-      Scheme::Http,
+      Uri::from_str("http://example.com").unwrap(),
       true,
     );
 
@@ -497,7 +464,6 @@ mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8081").unwrap(),
-      Scheme::Https,
       false,
     );
 

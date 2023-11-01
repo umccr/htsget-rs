@@ -11,7 +11,6 @@ use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
 use crate::tls::TlsClientConfig;
-use crate::types::Scheme;
 
 fn default_url() -> ValidatedUrl {
   ValidatedUrl(Url {
@@ -27,7 +26,6 @@ with_prefix!(client_auth_prefix "client_");
 pub struct UrlStorage {
   url: ValidatedUrl,
   response_url: ValidatedUrl,
-  response_scheme: Scheme,
   forward_headers: bool,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
@@ -38,7 +36,6 @@ pub struct UrlStorage {
 pub struct UrlStorageClient {
   url: ValidatedUrl,
   response_url: ValidatedUrl,
-  response_scheme: Scheme,
   forward_headers: bool,
   client: Client<HttpsConnector<HttpConnector>>,
 }
@@ -57,7 +54,6 @@ impl From<UrlStorage> for UrlStorageClient {
     Self::new(
       storage.url,
       storage.response_url,
-      storage.response_scheme,
       storage.forward_headers,
       client,
     )
@@ -69,14 +65,12 @@ impl UrlStorageClient {
   pub fn new(
     url: ValidatedUrl,
     response_url: ValidatedUrl,
-    response_scheme: Scheme,
     forward_headers: bool,
     client: Client<HttpsConnector<HttpConnector>>,
   ) -> Self {
     Self {
       url,
       response_url,
-      response_scheme,
       forward_headers,
       client,
     }
@@ -90,11 +84,6 @@ impl UrlStorageClient {
   /// Get the response url to return to the client
   pub fn response_url(&self) -> &InnerUrl {
     &self.response_url.0.inner
-  }
-
-  /// Get the response scheme used for data blocks.
-  pub fn response_scheme(&self) -> Scheme {
-    self.response_scheme
   }
 
   /// Whether to forward headers in the url tickets.
@@ -143,7 +132,6 @@ impl UrlStorage {
   pub fn new(
     url: InnerUrl,
     response_url: InnerUrl,
-    response_scheme: Scheme,
     forward_headers: bool,
     tls: TlsClientConfig,
   ) -> Self {
@@ -152,15 +140,9 @@ impl UrlStorage {
       response_url: ValidatedUrl(Url {
         inner: response_url,
       }),
-      response_scheme,
       forward_headers,
       tls,
     }
-  }
-
-  /// Get the response scheme used for data blocks.
-  pub fn response_scheme(&self) -> Scheme {
-    self.response_scheme
   }
 
   /// Get the url called when resolving the query.
@@ -190,7 +172,6 @@ impl Default for UrlStorage {
     Self {
       url: default_url(),
       response_url: default_url(),
-      response_scheme: Scheme::Https,
       forward_headers: true,
       tls: TlsClientConfig::default(),
     }
@@ -201,8 +182,8 @@ impl Default for UrlStorage {
 mod tests {
   use crate::config::tests::test_config_from_file;
   use crate::storage::Storage;
+
   use crate::tls::tests::with_test_certificates;
-  use crate::types::Scheme;
 
   #[test]
   fn config_storage_url_file() {
@@ -219,7 +200,6 @@ mod tests {
         [resolvers.storage]
         url = "https://example.com/"
         response_url = "https://example.com/"
-        response_scheme = "Http"
         forward_headers = false
         tls.key = "{}"
         tls.cert = "{}"
@@ -234,7 +214,6 @@ mod tests {
           assert!(matches!(
               config.resolvers().first().unwrap().storage(),
               Storage::Url { url_storage } if *url_storage.url() == "https://example.com/"
-                && url_storage.response_scheme() == Scheme::Http
                 && !url_storage.forward_headers()
           ));
         },
