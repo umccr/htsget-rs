@@ -18,8 +18,8 @@ use aws_sdk_s3::Client;
 use bytes::Bytes;
 use http::Response;
 use tokio_util::io::StreamReader;
-use tracing::debug;
 use tracing::instrument;
+use tracing::{debug, warn};
 
 use crate::storage::s3::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
@@ -60,6 +60,7 @@ impl S3Storage {
   ) -> Self {
     let sdk_config = aws_config::load_from_env().await;
     let mut s3_config_builder = aws_sdk_s3::config::Builder::from(&sdk_config);
+    warn!("endpoint: {:?}", endpoint);
     s3_config_builder.set_endpoint_url(endpoint); // For local S3 storage, i.e: Minio
     s3_config_builder.set_force_path_style(Some(path_style));
 
@@ -105,6 +106,7 @@ impl S3Storage {
       .await
       .map_err(|err| {
         let err = err.into_service_error();
+        warn!("S3 error: {:?}", err);
         if let HeadObjectError::NotFound(_) = err {
           KeyNotFound(key.as_ref().to_string())
         } else {
@@ -196,6 +198,7 @@ impl S3Storage {
   where
     K: AsRef<str> + Send,
   {
+    warn!("S3 error: {:?}", error);
     let error = error.into_service_error();
     if let GetObjectError::NoSuchKey(_) = error {
       KeyNotFound(key.as_ref().to_string())
