@@ -24,7 +24,7 @@ use crate::Url as HtsGetUrl;
 pub struct UrlStorage {
   client: Client<HttpsConnector<HttpConnector>>,
   endpoint_head: Uri,
-  endpoint_header: Uri,
+  endpoint_file: Uri,
   endpoint_index: Uri,
   response_scheme: Scheme,
   forward_headers: bool,
@@ -46,7 +46,7 @@ impl UrlStorage {
     Self {
       client,
       endpoint_head,
-      endpoint_header,
+      endpoint_file: endpoint_header,
       endpoint_index,
       response_scheme,
       forward_headers,
@@ -74,7 +74,7 @@ impl UrlStorage {
           .build(),
       ),
       endpoint_head,
-      endpoint_header,
+      endpoint_file: endpoint_header,
       endpoint_index,
       response_scheme,
       forward_headers,
@@ -181,7 +181,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::GET, &self.endpoint_header)
+      .send_request(key, headers, Method::GET, &self.endpoint_file)
       .await
   }
 
@@ -237,7 +237,7 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
-    self.format_url(key, options, &self.endpoint_header)
+    self.format_url(key, options, &self.endpoint_file)
   }
 
   #[instrument(level = "trace", skip(self))]

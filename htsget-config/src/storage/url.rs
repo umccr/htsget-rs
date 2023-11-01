@@ -27,7 +27,7 @@ with_prefix!(client_auth_prefix "client_");
 pub struct UrlStorage {
   endpoint_head: ValidatedUrl,
   endpoint_index: ValidatedUrl,
-  endpoint_header: ValidatedUrl,
+  endpoint_file: ValidatedUrl,
   #[cfg(feature = "crypt4gh")]
   endpoint_crypt4gh_header: Option<ValidatedUrl>,
   response_scheme: Scheme,
@@ -41,7 +41,7 @@ pub struct UrlStorage {
 pub struct UrlStorageClient {
   endpoint_head: ValidatedUrl,
   endpoint_index: ValidatedUrl,
-  endpoint_header: ValidatedUrl,
+  endpoint_file: ValidatedUrl,
   #[cfg(feature = "crypt4gh")]
   endpoint_crypt4gh_header: Option<ValidatedUrl>,
   response_scheme: Scheme,
@@ -63,7 +63,7 @@ impl From<UrlStorage> for UrlStorageClient {
     Self::new(
       storage.endpoint_head,
       storage.endpoint_index,
-      storage.endpoint_header,
+      storage.endpoint_file,
       storage.response_scheme,
       storage.forward_headers,
       client,
@@ -87,7 +87,7 @@ impl UrlStorageClient {
     Self {
       endpoint_head,
       endpoint_index,
-      endpoint_header,
+      endpoint_file: endpoint_header,
       #[cfg(feature = "crypt4gh")]
       endpoint_crypt4gh_header,
       response_scheme,
@@ -106,9 +106,9 @@ impl UrlStorageClient {
     &self.endpoint_head.0.inner
   }
 
-  /// Get the url for underlying header called when resolving the query.
-  pub fn endpoint_header(&self) -> &InnerUrl {
-    &self.endpoint_header.0.inner
+  /// Get the url for underlying file called when resolving the query.
+  pub fn endpoint_file(&self) -> &InnerUrl {
+    &self.endpoint_file.0.inner
   }
 
   /// Get the response scheme used for data blocks.
@@ -183,7 +183,7 @@ impl UrlStorage {
       endpoint_index: ValidatedUrl(Url {
         inner: endpoint_index,
       }),
-      endpoint_header: ValidatedUrl(Url {
+      endpoint_file: ValidatedUrl(Url {
         inner: endpoint_header,
       }),
       response_scheme,
@@ -200,9 +200,9 @@ impl UrlStorage {
     self.response_scheme
   }
 
-  /// Get the endpoint header called when resolving the query.
-  pub fn endpoint_header(&self) -> &InnerUrl {
-    &self.endpoint_header.0.inner
+  /// Get the endpoint file called when resolving the query.
+  pub fn endpoint_file(&self) -> &InnerUrl {
+    &self.endpoint_file.0.inner
   }
 
   /// Get the endpoint for the index called when resolving the query.
@@ -239,7 +239,7 @@ impl UrlStorage {
 impl Default for UrlStorage {
   fn default() -> Self {
     Self {
-      endpoint_header: default_url(),
+      endpoint_file: default_url(),
       endpoint_index: default_url(),
       endpoint_head: default_url(),
       response_scheme: Scheme::Https,
@@ -288,7 +288,7 @@ mod tests {
           println!("{:?}", config.resolvers().first().unwrap().storage());
           assert!(matches!(
               config.resolvers().first().unwrap().storage(),
-              Storage::Url { url_storage } if *url_storage.endpoint_header() == "https://example.com/"
+              Storage::Url { url_storage } if *url_storage.endpoint_file() == "https://example.com/"
                 && url_storage.response_scheme() == Scheme::Http
                 && !url_storage.forward_headers()
           ));

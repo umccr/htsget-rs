@@ -313,7 +313,7 @@ mod tests {
     async fn from_url(url_storage: &UrlStorageClient, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
-        vec![Url::new(url_storage.endpoint_header().to_string())],
+        vec![Url::new(url_storage.endpoint_file().to_string())],
       ))
     }
   }
