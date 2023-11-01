@@ -530,7 +530,7 @@ mod tests {
         .format_url(
           "assets/key1",
           options,
-          &Uri::from_str("https://example.com").unwrap()
+          &Uri::from_str("https://localhost:8080").unwrap()
         )
         .unwrap(),
       HtsGetUrl::new("https://localhost:8080/assets/key1")
@@ -559,7 +559,7 @@ mod tests {
         .format_url(
           "assets/key1",
           options,
-          &Uri::from_str("https://example.com").unwrap()
+          &Uri::from_str("http://example.com").unwrap()
         )
         .unwrap(),
       HtsGetUrl::new("http://example.com/assets/key1")
@@ -567,14 +567,14 @@ mod tests {
     );
   }
 
-  #[test]
-  fn format_url_no_headers() {
+  #[tokio::test]
+  async fn format_url_no_headers() {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8081").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
       false,
       #[cfg(feature = "crypt4gh")]
       None,
@@ -585,11 +585,11 @@ mod tests {
 
     assert_eq!(
       storage
-        .format_url(
+        .range_url(
           "assets/key1",
           options,
-          &Uri::from_str("https://example.com").unwrap()
         )
+        .await
         .unwrap(),
       HtsGetUrl::new("https://localhost:8081/assets/key1")
     );
