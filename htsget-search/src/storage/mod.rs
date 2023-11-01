@@ -7,6 +7,8 @@ use std::io::ErrorKind;
 use std::net::AddrParseError;
 use std::time::Duration;
 
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::util::{current_data_block, next_data_block};
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -70,6 +72,16 @@ pub trait Storage {
       general_purpose::STANDARD.encode(data)
     ))
     .set_class(class)
+  }
+
+  /// Optionally update byte positions before they are passed to the other functions.
+  #[instrument(level = "trace", ret, skip(self))]
+  async fn update_byte_positions<K: AsRef<str> + Send + Debug>(
+    &self,
+    _key: K,
+    positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<BytesPosition>> {
+    Ok(positions_options.merge_all().into_inner())
   }
 }
 
@@ -207,12 +219,9 @@ pub enum DataBlock {
 }
 
 impl DataBlock {
-  /// Convert a vec of bytes positions to a vec of data blocks. Merges bytes positions.
+  /// Convert a vec of bytes positions to a vec of data blocks.
   pub fn from_bytes_positions(positions: Vec<BytesPosition>) -> Vec<Self> {
-    BytesPosition::merge_all(positions)
-      .into_iter()
-      .map(DataBlock::Range)
-      .collect()
+    positions.into_iter().map(DataBlock::Range).collect()
   }
 
   /// Update the classes of all blocks so that they all contain a class, or None. Does not merge
@@ -390,6 +399,19 @@ impl BytesPosition {
       optimized_ranges
     }
   }
+
+  /// Convert the range to crypt4gh byte range.
+  #[cfg(feature = "crypt4gh")]
+  pub fn convert_to_crypt4gh_ranges(mut self, crypt4gh_header_length: u64, file_size: u64) -> Self {
+    self.start = self
+      .start
+      .map(|start| current_data_block(start, crypt4gh_header_length, file_size));
+    self.start = self
+      .end
+      .map(|end| next_data_block(end, crypt4gh_header_length, file_size));
+
+    self
+  }
 }
 
 #[derive(Debug)]
@@ -428,6 +450,59 @@ impl<'a> GetOptions<'a> {
   /// Get the request headers.
   pub fn request_headers(&self) -> &'a HeaderMap {
     self.request_headers
+  }
+}
+
+#[derive(Debug)]
+pub struct BytesPositionOptions<'a> {
+  positions: Vec<BytesPosition>,
+  file_size: u64,
+  headers: &'a HeaderMap,
+}
+
+impl<'a> BytesPositionOptions<'a> {
+  pub fn new(positions: Vec<BytesPosition>, file_size: u64, headers: &'a HeaderMap) -> Self {
+    Self {
+      positions,
+      file_size,
+      headers,
+    }
+  }
+
+  /// Get the response headers.
+  pub fn headers(&self) -> &'a HeaderMap {
+    self.headers
+  }
+
+  pub fn positions(&self) -> &Vec<BytesPosition> {
+    &self.positions
+  }
+
+  pub fn file_size(&self) -> u64 {
+    self.file_size
+  }
+
+  /// Get the inner value.
+  pub fn into_inner(self) -> Vec<BytesPosition> {
+    self.positions
+  }
+
+  /// Merge all bytes positions
+  pub fn merge_all(mut self) -> Self {
+    self.positions = BytesPosition::merge_all(self.positions);
+    self
+  }
+
+  /// Convert the ranges to crypt4gh byte ranges.
+  #[cfg(feature = "crypt4gh")]
+  pub fn convert_to_crypt4gh_ranges(mut self, header_length: u64, file_size: u64) -> Self {
+    self.positions = self
+      .positions
+      .into_iter()
+      .map(|pos| pos.convert_to_crypt4gh_ranges(header_length, file_size))
+      .collect();
+
+    self
   }
 }
 
@@ -881,10 +956,10 @@ mod tests {
 
   #[test]
   fn data_block_from_bytes_positions() {
-    let blocks = DataBlock::from_bytes_positions(vec![
+    let blocks = DataBlock::from_bytes_positions(BytesPosition::merge_all(vec![
       BytesPosition::new(None, Some(1), None),
       BytesPosition::new(Some(1), Some(2), None),
-    ]);
+    ]));
     assert_eq!(
       blocks,
       vec![DataBlock::Range(BytesPosition::new(None, Some(2), None))]

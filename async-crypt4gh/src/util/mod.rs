@@ -7,7 +7,7 @@ fn to_encrypted_file(pos: u64, header_len: u64) -> u64 {
 
 /// Convert an unencrypted position to an encrypted position as shown in
 /// https://samtools.github.io/hts-specs/crypt4gh.pdf chapter 4.1.
-pub fn to_encrypted(pos: u64, header_len: u64, file_size: u64) -> u64 {
+pub fn current_data_block(pos: u64, header_len: u64, file_size: u64) -> u64 {
   min(file_size, to_encrypted_file(pos, header_len))
 }
 
@@ -21,13 +21,13 @@ pub fn next_data_block(pos: u64, header_len: u64, file_size: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-  use crate::util::{next_data_block, to_encrypted};
+  use crate::util::{current_data_block, next_data_block};
 
   #[test]
   fn test_to_encrypted() {
     let pos = 80000;
     let expected = 120 + 65536 + 12 + 16;
-    let result = to_encrypted(pos, 120, 100000);
+    let result = current_data_block(pos, 120, 100000);
     assert_eq!(result, expected);
   }
 
@@ -35,7 +35,7 @@ mod tests {
   fn test_to_encrypted_file_size() {
     let pos = 110000;
     let expected = 60000;
-    let result = to_encrypted(pos, 120, 60000);
+    let result = current_data_block(pos, 120, 60000);
     assert_eq!(result, expected);
   }
 
@@ -43,7 +43,7 @@ mod tests {
   fn test_to_encrypted_pos_greater_than_file_size() {
     let pos = 110000;
     let expected = 120 + 65536 + 12 + 16;
-    let result = to_encrypted(pos, 120, 100000);
+    let result = current_data_block(pos, 120, 100000);
     assert_eq!(result, expected);
   }
 

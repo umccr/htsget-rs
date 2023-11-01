@@ -159,10 +159,8 @@ pub(crate) mod tests {
 
   /// Returns the private keys of the recipient and the senders public key from the context of decryption.
   pub(crate) async fn get_keys() -> (Keys, Vec<u8>) {
-    let recipient_private_key = get_private_key(get_test_path("crypt4gh/keys/bob.sec"),
-      Ok("".to_string())
-    )
-    .unwrap();
+    let recipient_private_key =
+      get_private_key(get_test_path("crypt4gh/keys/bob.sec"), Ok("".to_string())).unwrap();
     let sender_public_key = get_public_key(get_test_path("crypt4gh/keys/alice.pub")).unwrap();
 
     (

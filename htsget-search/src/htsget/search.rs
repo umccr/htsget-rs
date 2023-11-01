@@ -26,7 +26,7 @@ use tracing::{instrument, trace, trace_span, Instrument};
 use htsget_config::types::Class::Header;
 
 use crate::htsget::ConcurrencyError;
-use crate::storage::{BytesPosition, HeadOptions, RangeUrlOptions, Storage};
+use crate::storage::{BytesPosition, BytesPositionOptions, HeadOptions, RangeUrlOptions, Storage};
 use crate::storage::{DataBlock, GetOptions};
 use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
 
@@ -309,10 +309,19 @@ where
           }
         };
 
-        if let Some(eof) = self.get_eof_byte_positions(self.file_size(&query).await?) {
+        let file_size = self.file_size(&query).await?;
+        if let Some(eof) = self.get_eof_byte_positions(file_size) {
           byte_ranges.push(eof?);
         }
-        let blocks = DataBlock::from_bytes_positions(byte_ranges);
+
+        let positions = self
+          .get_storage()
+          .update_byte_positions(
+            query.format().fmt_file(&query),
+            BytesPositionOptions::new(byte_ranges, file_size, query.request().headers()),
+          )
+          .await?;
+        let blocks = DataBlock::from_bytes_positions(positions);
 
         self.build_response(&query, blocks).await
       }
@@ -335,11 +344,21 @@ where
           .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
           .await?;
 
-        self
-          .build_response(
-            &query,
-            DataBlock::from_bytes_positions(vec![header_byte_ranges]),
+        let file_size = self.file_size(&query).await?;
+        let positions = self
+          .get_storage()
+          .update_byte_positions(
+            query.format().fmt_file(&query),
+            BytesPositionOptions::new(
+              vec![header_byte_ranges],
+              file_size,
+              query.request().headers(),
+            ),
           )
+          .await?;
+
+        self
+          .build_response(&query, DataBlock::from_bytes_positions(positions))
           .await
       }
     }

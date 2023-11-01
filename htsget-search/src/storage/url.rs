@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::num::ParseIntError;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -7,7 +8,7 @@ use futures_util::TryStreamExt;
 use http::header::CONTENT_LENGTH;
 use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
-use hyper::{Body, Client, Error};
+use hyper::{body, Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
@@ -16,7 +17,10 @@ use htsget_config::error;
 use htsget_config::types::KeyType;
 
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
-use crate::storage::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
+use crate::storage::{
+  BytesPosition, BytesPositionOptions, GetOptions, HeadOptions, RangeUrlOptions, Result, Storage,
+  StorageError,
+};
 use crate::Url as HtsGetUrl;
 
 /// A storage struct which derives data from HTTP URLs.
@@ -127,12 +131,13 @@ impl UrlStorage {
   }
 
   /// Construct and send a request
-  pub fn format_url<K: AsRef<str> + Send>(
+  pub async fn format_url<K: AsRef<str> + Send>(
     &self,
     key: K,
     options: RangeUrlOptions<'_>,
     endpoint: &Uri,
   ) -> Result<HtsGetUrl> {
+    let key = key.as_ref();
     let url = self.get_url_from_key(key, endpoint)?.into_parts();
     let url = Uri::from_parts(url)
       .map_err(|err| InternalError(format!("failed to convert to uri from parts: {}", err)))?;
@@ -224,7 +229,7 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
-    self.format_url(key, options, &self.response_url)
+    self.format_url(key, options, &self.response_url).await
   }
 
   #[instrument(level = "trace", skip(self))]
@@ -250,6 +255,41 @@ impl Storage for UrlStorage {
 
     debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
     Ok(len)
+  }
+
+  #[instrument(level = "trace", skip(self))]
+  async fn update_byte_positions<K: AsRef<str> + Send + Debug>(
+    &self,
+    key: K,
+    positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<BytesPosition>> {
+    let mut positions_options = positions_options;
+    #[cfg(feature = "crypt4gh")]
+    if let Some(endpoint_crypt4gh_header) = &self.endpoint_crypt4gh_header {
+      let response = body::to_bytes(
+        self
+          .send_request(
+            key,
+            positions_options.headers(),
+            Method::GET,
+            endpoint_crypt4gh_header,
+          )
+          .await?
+          .into_body(),
+      )
+      .await
+      .map_err(|err| ResponseError(err.to_string()))?;
+
+      let header_length: u64 = String::from_utf8(response.to_vec())
+        .map_err(|err| ResponseError(err.to_string()))?
+        .parse()
+        .map_err(|err: ParseIntError| ResponseError(err.to_string()))?;
+
+      let file_size = positions_options.file_size();
+      positions_options = positions_options.convert_to_crypt4gh_ranges(header_length, file_size);
+    }
+
+    Ok(positions_options.merge_all().into_inner())
   }
 }
 
@@ -509,8 +549,8 @@ mod tests {
     .await;
   }
 
-  #[test]
-  fn format_url() {
+  #[tokio::test]
+  async fn format_url() {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
@@ -532,14 +572,15 @@ mod tests {
           options,
           &Uri::from_str("https://localhost:8080").unwrap()
         )
+        .await
         .unwrap(),
       HtsGetUrl::new("https://localhost:8080/assets/key1")
         .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
     );
   }
 
-  #[test]
-  fn format_url_different_response_scheme() {
+  #[tokio::test]
+  async fn format_url_different_response_scheme() {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
@@ -561,6 +602,7 @@ mod tests {
           options,
           &Uri::from_str("http://example.com").unwrap()
         )
+        .await
         .unwrap(),
       HtsGetUrl::new("http://example.com/assets/key1")
         .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
@@ -584,13 +626,7 @@ mod tests {
     let options = test_range_options(&mut headers);
 
     assert_eq!(
-      storage
-        .range_url(
-          "assets/key1",
-          options,
-        )
-        .await
-        .unwrap(),
+      storage.range_url("assets/key1", options,).await.unwrap(),
       HtsGetUrl::new("https://localhost:8081/assets/key1")
     );
   }
