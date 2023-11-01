@@ -395,6 +395,7 @@ mod tests {
       }),
       true,
       client,
+      #[cfg(feature = "crypt4gh")]
       None,
     );
 

@@ -19,7 +19,7 @@ s3-storage = [
     "htsget-test/aws-mocks"
 ]
 url-storage = [
-    "dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage"]
+    "dep:hyper-rustls", "hyper/client", "htsget-config/url-storage", "htsget-test/url-storage", "dep:bytes"]
 crypt4gh = ["dep:async-crypt4gh", "htsget-config/crypt4gh", "htsget-test/crypt4gh"]
 default = []
 

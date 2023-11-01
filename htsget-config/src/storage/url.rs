@@ -222,7 +222,7 @@ impl UrlStorage {
 
   /// Get the response url which is returned to the client.
   pub fn response_url(&self) -> &InnerUrl {
-    &self.url.0.inner
+    &self.response_url.0.inner
   }
 
   /// Whether headers received in a query request should be

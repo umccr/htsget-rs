@@ -13,7 +13,7 @@ use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
 use htsget_config::error;
-use htsget_config::types::{KeyType, Scheme};
+use htsget_config::types::KeyType;
 
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
@@ -310,11 +310,16 @@ mod tests {
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
       #[cfg(feature = "crypt4gh")]
-        None,
+      None,
     );
 
     assert_eq!(
-      storage.get_response_from_key("assets/key1", "https://localhost:8080").unwrap(),
+      storage
+        .get_url_from_key(
+          "assets/key1",
+          &Uri::from_str("https://localhost:8080").unwrap()
+        )
+        .unwrap(),
       Uri::from_str("https://localhost:8080/assets/key1").unwrap()
     );
   }
