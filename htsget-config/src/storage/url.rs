@@ -11,7 +11,6 @@ use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
 use crate::tls::TlsClientConfig;
-use crate::types::Scheme;
 
 fn default_url() -> ValidatedUrl {
   ValidatedUrl(Url {
@@ -30,7 +29,7 @@ pub struct UrlStorage {
   endpoint_file: ValidatedUrl,
   #[cfg(feature = "crypt4gh")]
   endpoint_crypt4gh_header: Option<ValidatedUrl>,
-  response_scheme: Scheme,
+  response_url: ValidatedUrl,
   forward_headers: bool,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
@@ -44,7 +43,7 @@ pub struct UrlStorageClient {
   endpoint_file: ValidatedUrl,
   #[cfg(feature = "crypt4gh")]
   endpoint_crypt4gh_header: Option<ValidatedUrl>,
-  response_scheme: Scheme,
+  response_url: ValidatedUrl,
   forward_headers: bool,
   client: Client<HttpsConnector<HttpConnector>>,
 }
@@ -64,7 +63,7 @@ impl From<UrlStorage> for UrlStorageClient {
       storage.endpoint_head,
       storage.endpoint_index,
       storage.endpoint_file,
-      storage.response_scheme,
+      storage.response_url,
       storage.forward_headers,
       client,
       #[cfg(feature = "crypt4gh")]
@@ -79,7 +78,7 @@ impl UrlStorageClient {
     endpoint_head: ValidatedUrl,
     endpoint_index: ValidatedUrl,
     endpoint_header: ValidatedUrl,
-    response_scheme: Scheme,
+    response_url: ValidatedUrl,
     forward_headers: bool,
     client: Client<HttpsConnector<HttpConnector>>,
     #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<ValidatedUrl>,
@@ -90,7 +89,7 @@ impl UrlStorageClient {
       endpoint_file: endpoint_header,
       #[cfg(feature = "crypt4gh")]
       endpoint_crypt4gh_header,
-      response_scheme,
+      response_url,
       forward_headers,
       client,
     }
@@ -111,9 +110,9 @@ impl UrlStorageClient {
     &self.endpoint_file.0.inner
   }
 
-  /// Get the response scheme used for data blocks.
-  pub fn response_scheme(&self) -> Scheme {
-    self.response_scheme
+  /// Get the response url to return to the client
+  pub fn response_url(&self) -> &InnerUrl {
+    &self.response_url.0.inner
   }
 
   /// Whether to forward headers in the url tickets.
@@ -171,7 +170,7 @@ impl UrlStorage {
     endpoint_head: InnerUrl,
     endpoint_header: InnerUrl,
     endpoint_index: InnerUrl,
-    response_scheme: Scheme,
+    response_url: InnerUrl,
     forward_headers: bool,
     tls: TlsClientConfig,
     #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<InnerUrl>,
@@ -186,18 +185,15 @@ impl UrlStorage {
       endpoint_file: ValidatedUrl(Url {
         inner: endpoint_header,
       }),
-      response_scheme,
+      response_url: ValidatedUrl(Url {
+        inner: response_url,
+      }),
       forward_headers,
       tls,
       #[cfg(feature = "crypt4gh")]
       endpoint_crypt4gh_header: endpoint_crypt4gh_header
         .map(|url| ValidatedUrl(Url { inner: url })),
     }
-  }
-
-  /// Get the response scheme used for data blocks.
-  pub fn response_scheme(&self) -> Scheme {
-    self.response_scheme
   }
 
   /// Get the endpoint file called when resolving the query.
@@ -224,6 +220,11 @@ impl UrlStorage {
       .map(|header| &header.0.inner)
   }
 
+  /// Get the response url which is returned to the client.
+  pub fn response_url(&self) -> &InnerUrl {
+    &self.url.0.inner
+  }
+
   /// Whether headers received in a query request should be
   /// included in the returned data block tickets.
   pub fn forward_headers(&self) -> bool {
@@ -242,7 +243,7 @@ impl Default for UrlStorage {
       endpoint_file: default_url(),
       endpoint_index: default_url(),
       endpoint_head: default_url(),
-      response_scheme: Scheme::Https,
+      response_url: default_url(),
       forward_headers: true,
       tls: TlsClientConfig::default(),
       #[cfg(feature = "crypt4gh")]
@@ -255,8 +256,8 @@ impl Default for UrlStorage {
 mod tests {
   use crate::config::tests::test_config_from_file;
   use crate::storage::Storage;
+
   use crate::tls::tests::with_test_certificates;
-  use crate::types::Scheme;
 
   #[test]
   fn config_storage_url_file() {
@@ -274,7 +275,7 @@ mod tests {
         endpoint_head = "https://example.com/"
         endpoint_file = "https://example.com/"
         endpoint_index = "https://example.com/"
-        response_scheme = "Http"
+        response_url = "https://example.com/"
         forward_headers = false
         tls.key = "{}"
         tls.cert = "{}"
@@ -289,7 +290,6 @@ mod tests {
           assert!(matches!(
               config.resolvers().first().unwrap().storage(),
               Storage::Url { url_storage } if *url_storage.endpoint_file() == "https://example.com/"
-                && url_storage.response_scheme() == Scheme::Http
                 && !url_storage.forward_headers()
           ));
         },

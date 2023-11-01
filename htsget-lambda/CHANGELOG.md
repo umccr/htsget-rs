@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.12](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.11...htsget-lambda-v0.4.12) - 2023-10-30
+
+### Other
+- updated the following local packages: htsget-search
+
 ## [0.4.11](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.10...htsget-lambda-v0.4.11) - 2023-10-23
 
 ### Other

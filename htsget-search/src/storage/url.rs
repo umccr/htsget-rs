@@ -5,7 +5,7 @@ use bytes::Bytes;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
 use http::header::CONTENT_LENGTH;
-use http::{uri, HeaderMap, Method, Request, Response, Uri};
+use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
@@ -26,7 +26,7 @@ pub struct UrlStorage {
   endpoint_head: Uri,
   endpoint_file: Uri,
   endpoint_index: Uri,
-  response_scheme: Scheme,
+  response_url: Uri,
   forward_headers: bool,
   #[cfg(feature = "crypt4gh")]
   endpoint_crypt4gh_header: Option<Uri>,
@@ -39,7 +39,7 @@ impl UrlStorage {
     endpoint_head: Uri,
     endpoint_header: Uri,
     endpoint_index: Uri,
-    response_scheme: Scheme,
+    response_url: Uri,
     forward_headers: bool,
     #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<Uri>,
   ) -> Self {
@@ -48,7 +48,7 @@ impl UrlStorage {
       endpoint_head,
       endpoint_file: endpoint_header,
       endpoint_index,
-      response_scheme,
+      response_url,
       forward_headers,
       #[cfg(feature = "crypt4gh")]
       endpoint_crypt4gh_header,
@@ -60,7 +60,7 @@ impl UrlStorage {
     endpoint_head: Uri,
     endpoint_header: Uri,
     endpoint_index: Uri,
-    response_scheme: Scheme,
+    response_url: Uri,
     forward_headers: bool,
     #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<Uri>,
   ) -> Self {
@@ -76,7 +76,7 @@ impl UrlStorage {
       endpoint_head,
       endpoint_file: endpoint_header,
       endpoint_index,
-      response_scheme,
+      response_url,
       forward_headers,
       #[cfg(feature = "crypt4gh")]
       endpoint_crypt4gh_header,
@@ -133,20 +133,7 @@ impl UrlStorage {
     options: RangeUrlOptions<'_>,
     endpoint: &Uri,
   ) -> Result<HtsGetUrl> {
-    let mut url = self.get_url_from_key(key, endpoint)?.into_parts();
-
-    url.scheme = Some(
-      self
-        .response_scheme
-        .to_string()
-        .parse::<uri::Scheme>()
-        .map_err(|err| {
-          InternalError(format!(
-            "failed to set scheme when formatting response url: {}",
-            err
-          ))
-        })?,
-    );
+    let url = self.get_url_from_key(key, endpoint)?.into_parts();
     let url = Uri::from_parts(url)
       .map_err(|err| InternalError(format!("failed to convert to uri from parts: {}", err)))?;
 
@@ -237,7 +224,7 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
-    self.format_url(key, options, &self.endpoint_file)
+    self.format_url(key, options, &self.response_url)
   }
 
   #[instrument(level = "trace", skip(self))]
@@ -296,7 +283,7 @@ mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
-      Scheme::Https,
+      Uri::from_str("https://localhost:8080").unwrap(),
       true,
       #[cfg(feature = "crypt4gh")]
       None,
@@ -313,6 +300,25 @@ mod tests {
     );
   }
 
+  #[test]
+  fn get_response_url_from_key() {
+    let storage = UrlStorage::new(
+      test_client(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://localhost:8080").unwrap(),
+      true,
+      #[cfg(feature = "crypt4gh")]
+        None,
+    );
+
+    assert_eq!(
+      storage.get_response_from_key("assets/key1", "https://localhost:8080").unwrap(),
+      Uri::from_str("https://localhost:8080/assets/key1").unwrap()
+    );
+  }
+
   #[tokio::test]
   async fn send_request() {
     with_url_test_server(|url| async move {
@@ -321,7 +327,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
+        Uri::from_str(&url).unwrap(),
         true,
         #[cfg(feature = "crypt4gh")]
         None,
@@ -361,7 +367,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
+        Uri::from_str(&url).unwrap(),
         true,
         #[cfg(feature = "crypt4gh")]
         None,
@@ -396,7 +402,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
+        Uri::from_str(&url).unwrap(),
         true,
         #[cfg(feature = "crypt4gh")]
         None,
@@ -429,7 +435,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
+        Uri::from_str(&url).unwrap(),
         true,
         #[cfg(feature = "crypt4gh")]
         None,
@@ -457,7 +463,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Http,
+        Uri::from_str(&url).unwrap(),
         true,
         #[cfg(feature = "crypt4gh")]
         None,
@@ -483,7 +489,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        Scheme::Https,
+        Uri::from_str(&url).unwrap(),
         true,
         #[cfg(feature = "crypt4gh")]
         None,
@@ -505,7 +511,7 @@ mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
-      Scheme::Https,
+      Uri::from_str("https://localhost:8080").unwrap(),
       true,
       #[cfg(feature = "crypt4gh")]
       None,
@@ -522,7 +528,7 @@ mod tests {
           &Uri::from_str("https://example.com").unwrap()
         )
         .unwrap(),
-      HtsGetUrl::new("https://example.com/assets/key1")
+      HtsGetUrl::new("https://localhost:8080/assets/key1")
         .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
     );
   }
@@ -534,7 +540,7 @@ mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
-      Scheme::Http,
+      Uri::from_str("http://example.com").unwrap(),
       true,
       #[cfg(feature = "crypt4gh")]
       None,
@@ -561,9 +567,9 @@ mod tests {
     let storage = UrlStorage::new(
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://localhost:8081").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://example.com").unwrap(),
-      Scheme::Https,
       false,
       #[cfg(feature = "crypt4gh")]
       None,
@@ -580,7 +586,7 @@ mod tests {
           &Uri::from_str("https://example.com").unwrap()
         )
         .unwrap(),
-      HtsGetUrl::new("https://example.com/assets/key1")
+      HtsGetUrl::new("https://localhost:8081/assets/key1")
     );
   }
 

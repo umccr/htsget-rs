@@ -230,11 +230,11 @@ impl StorageResolver for Resolver {
 
     #[cfg(feature = "s3-storage")]
     {
-      let first_match = self.get_match(1, &_matched_id)?;
+      let first_match = self.get_match(1, &_matched_id);
 
       if let Some(response) = self
         .storage()
-        .resolve_s3_storage::<T>(first_match.to_string(), query)
+        .resolve_s3_storage::<T>(first_match, query)
         .await
       {
         return Some(response);
@@ -280,8 +280,8 @@ mod tests {
 
   #[cfg(feature = "url-storage")]
   use {
-    crate::storage::url, crate::storage::url::ValidatedUrl, crate::types::Scheme::Https,
-    http::Uri as InnerUrl, hyper::Client, hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
+    crate::storage::url, crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
+    hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
@@ -390,7 +390,9 @@ mod tests {
       ValidatedUrl(url::Url {
         inner: InnerUrl::from_str("https://example.com/").unwrap(),
       }),
-      Https,
+      ValidatedUrl(url::Url {
+        inner: InnerUrl::from_str("https://example.com/").unwrap(),
+      }),
       true,
       client,
       None,

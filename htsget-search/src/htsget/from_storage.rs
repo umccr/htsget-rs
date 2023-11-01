@@ -104,7 +104,7 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
       url_storage_config.endpoint_head().clone(),
       url_storage_config.endpoint_file().clone(),
       url_storage_config.endpoint_index().clone(),
-      url_storage_config.response_scheme(),
+      url_storage_config.response_url().clone(),
       url_storage_config.forward_headers(),
       #[cfg(feature = "crypt4gh")]
       url_storage_config.endpoint_crypt4gh_header().cloned(),

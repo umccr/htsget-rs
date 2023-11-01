@@ -7,7 +7,7 @@ use std::io::ErrorKind::Other;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::error::{DisplayErrorContext, SdkError};
 use aws_sdk_s3::operation::get_object::builders::GetObjectFluentBuilder;
 use aws_sdk_s3::operation::get_object::GetObjectError;
 use aws_sdk_s3::operation::head_object::{HeadObjectError, HeadObjectOutput};
@@ -18,8 +18,8 @@ use aws_sdk_s3::Client;
 use bytes::Bytes;
 use http::Response;
 use tokio_util::io::StreamReader;
-use tracing::debug;
 use tracing::instrument;
+use tracing::{debug, warn};
 
 use crate::storage::s3::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
@@ -104,6 +104,8 @@ impl S3Storage {
       .send()
       .await
       .map_err(|err| {
+        warn!("S3 error: {}", DisplayErrorContext(&err));
+
         let err = err.into_service_error();
         if let HeadObjectError::NotFound(_) = err {
           KeyNotFound(key.as_ref().to_string())
@@ -196,6 +198,8 @@ impl S3Storage {
   where
     K: AsRef<str> + Send,
   {
+    warn!("S3 error: {}", DisplayErrorContext(&error));
+
     let error = error.into_service_error();
     if let GetObjectError::NoSuchKey(_) = error {
       KeyNotFound(key.as_ref().to_string())
