@@ -5,6 +5,28 @@ fn to_encrypted_file(pos: u64, header_len: u64) -> u64 {
   header_len + (pos / Block::encrypted_block_size()) * Block::standard_data_block_size()
 }
 
+/// Convert an unencrypted file position to an encrypted position if the header length is known.
+pub fn to_encrypted(position: u64, header_length: u64) -> u64 {
+  let number_data_blocks = position / Block::encrypted_block_size();
+  // Additional bytes include the full data block size.
+  let mut additional_bytes = number_data_blocks * (Block::nonce_size() + Block::mac_size());
+
+  // If there is left over data, then there are more nonce bytes.
+  let remainder = position % Block::encrypted_block_size();
+  if remainder != 0 {
+    additional_bytes += Block::nonce_size();
+  }
+
+  // Then add the extra bytes to the current position.
+  header_length + position + additional_bytes
+}
+
+
+/// Convert an unencrypted file size to an encrypted file size if the header length is known.
+pub fn to_encrypted_file_size(file_size: u64, header_length: u64) -> u64 {
+  to_encrypted_file(file_size, header_length) + Block::mac_size()
+}
+
 /// Convert an unencrypted position to an encrypted position as shown in
 /// https://samtools.github.io/hts-specs/crypt4gh.pdf chapter 4.1.
 pub fn current_data_block(pos: u64, header_len: u64, file_size: u64) -> u64 {
