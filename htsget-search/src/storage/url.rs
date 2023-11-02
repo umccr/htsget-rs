@@ -41,7 +41,7 @@ impl UrlStorage {
   pub fn new(
     client: Client<HttpsConnector<HttpConnector>>,
     endpoint_head: Uri,
-    endpoint_header: Uri,
+    endpoint_file: Uri,
     endpoint_index: Uri,
     response_url: Uri,
     forward_headers: bool,
@@ -50,7 +50,7 @@ impl UrlStorage {
     Self {
       client,
       endpoint_head,
-      endpoint_file: endpoint_header,
+      endpoint_file,
       endpoint_index,
       response_url,
       forward_headers,
@@ -89,7 +89,13 @@ impl UrlStorage {
 
   /// Get a url from the key.
   pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K, endpoint: &Uri) -> Result<Uri> {
-    format!("{}{}", endpoint, key.as_ref())
+    let uri = if endpoint.to_string().ends_with("/") {
+      format!("{}{}", endpoint, key.as_ref())
+    } else {
+      format!("{}/{}", endpoint, key.as_ref())
+    };
+
+    uri
       .parse::<Uri>()
       .map_err(|err| UrlParseError(err.to_string()))
   }
@@ -296,21 +302,31 @@ impl Storage for UrlStorage {
 #[cfg(test)]
 mod tests {
   use std::future::Future;
+  use std::io::Cursor;
   use std::net::TcpListener;
   use std::path::Path;
   use std::result;
   use std::str::FromStr;
 
   use axum::middleware::Next;
-  use axum::response::Response;
+  use axum::response::{IntoResponse, Response};
   use axum::{middleware, Router};
+  use axum::body::StreamBody;
+  use axum::routing::{get, head};
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use hyper::body::to_bytes;
+  use noodles::{bam, sam};
+  use crate::Response as HtsgetResponse;
+  use tokio::fs::File;
   use tokio::io::AsyncReadExt;
+  use tokio_util::io::ReaderStream;
   use tower_http::services::ServeDir;
 
-  use htsget_config::types::Headers;
+  use htsget_config::types::{Format, Headers, Query, Url};
+  use htsget_config::types::Class::{Body, Header};
+  use crate::htsget::from_storage::HtsGetFromStorage;
+  use crate::htsget::HtsGet;
 
   use crate::storage::local::tests::create_local_test_files;
 
@@ -631,6 +647,56 @@ mod tests {
     );
   }
 
+  #[tokio::test]
+  async fn test_endpoints_with_real_file() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        test_client(),
+        Uri::from_str(&format!("{}/endpoint_head", url)).unwrap(),
+        Uri::from_str(&format!("{}/endpoint_file", url)).unwrap(),
+        Uri::from_str(&format!("{}/endpoint_index", url)).unwrap(),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        #[cfg(feature = "crypt4gh")]
+          Some(Uri::from_str(&format!("{}/endpoint_crypt4gh_header", url)).unwrap()),
+      );
+
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(5015000)
+        .with_end(5050000);
+      let searcher = HtsGetFromStorage::new(storage);
+      let response = searcher.search(query.clone()).await;
+
+      let expected_response = Ok(HtsgetResponse::new(
+        Format::Bam,
+        vec![
+          Url::new("http://example.com/htsnexus_test_NA12878.bam")
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
+          Url::new("http://example.com/htsnexus_test_NA12878.bam")
+            .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951"))
+            .with_class(Body),
+          Url::new("http://example.com/htsnexus_test_NA12878.bam")
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+            .with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response);
+
+      // let mut headers = HeaderMap::default();
+      // let options = test_range_options(&mut headers);
+      //
+      // assert_eq!(
+      //   storage.range_url("assets/key1", options).await.unwrap(),
+      //   HtsGetUrl::new(format!("{}/assets/key1", url))
+      //     .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+      // );
+    })
+      .await;
+  }
+
+
   fn test_client() -> Client<HttpsConnector<HttpConnector>> {
     Client::builder().build(
       HttpsConnectorBuilder::new()
@@ -671,9 +737,48 @@ mod tests {
     F: FnOnce(String) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let router = Router::new()
+    let mut router = Router::new()
+      .route("/endpoint_file/:id", get(|| async {
+        let mut bytes = vec![];
+        File::open("data/bam/htsnexus_test_NA12878.bam").await.unwrap().read_to_end(&mut bytes).await.unwrap();
+
+        let bytes = bytes[..4668].to_vec();
+
+        let stream = ReaderStream::new(Cursor::new(bytes));
+        let body = StreamBody::new(stream);
+
+        (StatusCode::OK, body).into_response()
+      }))
+      .route("/endpoint_index/:id", get(|| async {
+        let mut bytes = vec![];
+        File::open("data/bam/htsnexus_test_NA12878.bam.bai").await.unwrap().read_to_end(&mut bytes).await.unwrap();
+
+        let stream = ReaderStream::new(Cursor::new(bytes));
+        let body = StreamBody::new(stream);
+
+        (StatusCode::OK, body).into_response()
+      }))
+      .route("/endpoint_head/:id", head(|| async {
+        let mut headers = HeaderMap::new();
+        headers.insert("Content-Length", HeaderValue::from_static("2596799"));
+
+        (StatusCode::OK, headers).into_response()
+      }))
       .nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()))
       .route_layer(middleware::from_fn(test_auth));
+
+    #[cfg(feature = "crypt4gh")]
+    {
+      router = router.route("/endpoint_crypt4gh_header/:id", head(|| async {
+        let length: u64 = 124;
+        let bytes = length.to_le_bytes().to_vec();
+
+        let stream = ReaderStream::new(Cursor::new(bytes));
+        let body = StreamBody::new(stream);
+
+        (StatusCode::OK, body).into_response()
+      }));
+    }
 
     // TODO fix this in htsget-test to bind and return tcp listener.
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
