@@ -8,7 +8,7 @@ use std::net::AddrParseError;
 use std::time::Duration;
 
 #[cfg(feature = "crypt4gh")]
-use async_crypt4gh::util::{current_data_block, next_data_block};
+use async_crypt4gh::util::{unencrypted_to_data_block, unencrypted_to_next_data_block};
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -405,10 +405,10 @@ impl BytesPosition {
   pub fn convert_to_crypt4gh_ranges(mut self, crypt4gh_header_length: u64, file_size: u64) -> Self {
     self.start = self
       .start
-      .map(|start| current_data_block(start, crypt4gh_header_length, file_size));
-    self.start = self
+      .map(|start| unencrypted_to_data_block(start, crypt4gh_header_length, file_size));
+    self.end = self
       .end
-      .map(|end| next_data_block(end, crypt4gh_header_length, file_size));
+      .map(|end| unencrypted_to_next_data_block(end, crypt4gh_header_length, file_size));
 
     self
   }
@@ -501,6 +501,13 @@ impl<'a> BytesPositionOptions<'a> {
       .into_iter()
       .map(|pos| pos.convert_to_crypt4gh_ranges(header_length, file_size))
       .collect();
+
+    // Always add the crypt4gh header too.
+    self.positions.push(
+      BytesPosition::default()
+        .with_start(0)
+        .with_end(header_length),
+    );
 
     self
   }

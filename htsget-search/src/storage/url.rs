@@ -120,6 +120,8 @@ impl UrlStorage {
       .body(Body::empty())
       .map_err(|err| UrlParseError(err.to_string()))?;
 
+    debug!("Calling with request: {:#?}", &request);
+
     let response = self
       .client
       .request(request)
@@ -287,8 +289,12 @@ impl Storage for UrlStorage {
       .await
       .map_err(|err| ResponseError(err.to_string()))?;
 
-      let header_length = u64::from_le_bytes(response.as_ref().try_into()
-        .map_err(|err: TryFromSliceError| ResponseError(err.to_string()))?);
+      let header_length = u64::from_le_bytes(
+        response
+          .as_ref()
+          .try_into()
+          .map_err(|err: TryFromSliceError| ResponseError(err.to_string()))?,
+      );
 
       let file_size = positions_options.file_size();
       positions_options = positions_options.convert_to_crypt4gh_ranges(header_length, file_size);
@@ -705,6 +711,61 @@ mod tests {
     .await;
   }
 
+  #[tokio::test]
+  async fn test_endpoints_with_real_file_encrypted() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        test_client(),
+        Uri::from_str(&format!("{}/endpoint_head", url)).unwrap(),
+        Uri::from_str(&format!("{}/endpoint_file", url)).unwrap(),
+        Uri::from_str(&format!("{}/endpoint_index", url)).unwrap(),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        #[cfg(feature = "crypt4gh")]
+        Some(Uri::from_str(&format!("{}/endpoint_crypt4gh_header", url)).unwrap()),
+      );
+
+      let mut header_map = HeaderMap::default();
+      test_headers(&mut header_map);
+      let request =
+        HtsgetRequest::new_with_id("htsnexus_test_NA12878".to_string()).with_headers(header_map);
+      let query = Query::new("htsnexus_test_NA12878", Format::Bam, request)
+        .with_reference_name("11")
+        .with_start(5015000)
+        .with_end(5050000);
+
+      let searcher = HtsGetFromStorage::new(storage);
+      let response = searcher.search(query.clone()).await.unwrap();
+
+      let expected_response = HtsgetResponse::new(
+        Format::Bam,
+        vec![
+          Url::new("http://example.com/htsnexus_test_NA12878.bam").with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header("Range", format!("bytes=0-{}", 124 + 65564 - 1)),
+          ),
+          Url::new("http://example.com/htsnexus_test_NA12878.bam").with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header(
+                "Range",
+                format!("bytes={}-{}", 124 + 196692, 124 + 1114588 - 1),
+              ),
+          ),
+          Url::new("http://example.com/htsnexus_test_NA12878.bam").with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header("Range", format!("bytes={}-{}", 124 + 2556996, 2598043 - 1)),
+          ),
+        ],
+      );
+
+      assert_eq!(response, expected_response);
+    })
+    .await;
+  }
+
   fn test_client() -> Client<HttpsConnector<HttpConnector>> {
     Client::builder().build(
       HttpsConnectorBuilder::new()
@@ -758,7 +819,7 @@ mod tests {
             .await
             .unwrap();
 
-          // let bytes = bytes[..4668].to_vec();
+          let bytes = bytes[..4668].to_vec();
 
           let stream = ReaderStream::new(Cursor::new(bytes));
           let body = StreamBody::new(stream);
@@ -808,7 +869,7 @@ mod tests {
     {
       router = router.route(
         "/endpoint_crypt4gh_header/:id",
-        head(|| async {
+        get(|| async {
           let length: u64 = 124;
           let bytes = length.to_le_bytes().to_vec();
 

@@ -21,7 +21,6 @@ pub fn to_encrypted(position: u64, header_length: u64) -> u64 {
   header_length + position + additional_bytes
 }
 
-
 /// Convert an unencrypted file size to an encrypted file size if the header length is known.
 pub fn to_encrypted_file_size(file_size: u64, header_length: u64) -> u64 {
   to_encrypted(file_size, header_length) + Block::mac_size()
@@ -30,7 +29,10 @@ pub fn to_encrypted_file_size(file_size: u64, header_length: u64) -> u64 {
 /// Convert an unencrypted position to an encrypted position as shown in
 /// https://samtools.github.io/hts-specs/crypt4gh.pdf chapter 4.1.
 pub fn unencrypted_to_data_block(pos: u64, header_len: u64, file_size: u64) -> u64 {
-  min(to_encrypted_file_size(file_size, header_len), to_current_data_block(pos, header_len))
+  min(
+    to_encrypted_file_size(file_size, header_len),
+    to_current_data_block(pos, header_len),
+  )
 }
 
 /// Get the next data block position from the unencrypted position.

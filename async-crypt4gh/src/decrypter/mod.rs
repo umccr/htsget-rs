@@ -21,7 +21,7 @@ use crate::decrypter::header::packets::HeaderPacketsDecrypter;
 use crate::decrypter::header::SessionKeysFuture;
 use crate::error::Error::Crypt4GHError;
 use crate::error::Result;
-use crate::{SenderPublicKey, util};
+use crate::{util, SenderPublicKey};
 
 pub mod builder;
 pub mod data_block;
@@ -197,7 +197,7 @@ impl<R> DecrypterStream<R> {
   /// Convert an unencrypted position to an encrypted position if the header length is known.
   pub fn to_encrypted(&self, position: u64) -> Option<u64> {
     self.header_length().map(|length| {
-      let encrypted_position = util::to_encrypted(length, position);
+      let encrypted_position = util::to_encrypted(position, length);
 
       match self.stream_length {
         Some(end_length) if encrypted_position + Block::mac_size() > end_length => end_length,
