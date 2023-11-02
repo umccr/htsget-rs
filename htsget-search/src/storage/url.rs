@@ -1,5 +1,5 @@
+use std::array::TryFromSliceError;
 use std::fmt::Debug;
-use std::num::ParseIntError;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -287,10 +287,8 @@ impl Storage for UrlStorage {
       .await
       .map_err(|err| ResponseError(err.to_string()))?;
 
-      let header_length: u64 = String::from_utf8(response.to_vec())
-        .map_err(|err| ResponseError(err.to_string()))?
-        .parse()
-        .map_err(|err: ParseIntError| ResponseError(err.to_string()))?;
+      let header_length = u64::from_le_bytes(response.as_ref().try_into()
+        .map_err(|err: TryFromSliceError| ResponseError(err.to_string()))?);
 
       let file_size = positions_options.file_size();
       positions_options = positions_options.convert_to_crypt4gh_ranges(header_length, file_size);
