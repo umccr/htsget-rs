@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.7](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.5.6...htsget-actix-v0.5.7) - 2023-11-02
+
+### Other
+- updated the following local packages: htsget-config, htsget-search
+
 ## [0.5.6](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.5.5...htsget-actix-v0.5.6) - 2023-10-30
 
 ### Other

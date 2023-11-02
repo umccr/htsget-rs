@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.7.1...htsget-config-v0.8.0) - 2023-11-02
+
+### Added
+- *(search)* remove response scheme because response url can specify it
+- *(config)* add response url to config
+
+### Fixed
+- *(s3)* properly handle first capture group bucket and add warnings for s3 errors
+
 ## [0.7.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.7.0...htsget-config-v0.7.1) - 2023-09-06
 
 ### Other
