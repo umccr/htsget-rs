@@ -17,3 +17,6 @@ pub mod http_tests;
 #[cfg(feature = "server-tests")]
 pub mod server_tests;
 pub mod util;
+
+#[cfg(feature = "crypt4gh")]
+pub mod crypt4gh;

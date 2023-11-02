@@ -331,6 +331,7 @@ mod tests {
   use htsget_config::types::Request as HtsgetRequest;
   use htsget_config::types::{Format, Headers, Query, Url};
   use htsget_test::http_tests::default_dir;
+  use htsget_test::http_tests::test_bam_file_byte_ranges;
 
   use crate::htsget::from_storage::HtsGetFromStorage;
   use crate::htsget::HtsGet;
@@ -707,6 +708,12 @@ mod tests {
         ],
       ));
       assert_eq!(response, expected_response);
+
+      test_bam_file_byte_ranges(
+        response.unwrap(),
+        default_dir().join("data/bam/htsnexus_test_NA12878.bam"),
+      )
+      .await
     })
     .await;
   }
@@ -762,6 +769,12 @@ mod tests {
       );
 
       assert_eq!(response, expected_response);
+
+      test_bam_file_byte_ranges(
+        response,
+        default_dir().join("data/crypt4gh/htsnexus_test_NA12878.bam.c4gh"),
+      )
+      .await
     })
     .await;
   }

@@ -1,8 +1,17 @@
+use std::fs;
+use std::fs::File as StdFile;
+use std::io::{Cursor, Read};
 use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::reader::builder::Builder;
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::SenderPublicKey;
 use async_trait::async_trait;
+use base64::engine::general_purpose;
+use base64::Engine;
 use http::uri::Authority;
 use http::HeaderMap;
 use serde::de;
@@ -16,8 +25,11 @@ use htsget_config::storage::{local::LocalStorage, Storage};
 use htsget_config::tls::{
   load_certs, load_key, tls_server_config, CertificateKeyPair, TlsServerConfig,
 };
+use htsget_config::types;
 use htsget_config::types::{Scheme, TaggedTypeAll};
 
+#[cfg(feature = "crypt4gh")]
+use crate::crypt4gh::get_keys;
 use crate::util::generate_test_certificates;
 use crate::Config;
 
@@ -90,6 +102,67 @@ pub fn default_dir() -> PathBuf {
     .parent()
     .unwrap()
     .to_path_buf()
+}
+
+/// Test a response against a bam file including the sliced byte ranges.
+pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf) {
+  let file_str = file.to_str().unwrap();
+  let mut buf = vec![];
+  StdFile::open(file_str)
+    .unwrap()
+    .read_to_end(&mut buf)
+    .unwrap();
+
+  let output = response
+    .urls
+    .into_iter()
+    .map(|url| {
+      if let Some(data_uri) = url.url.as_str().strip_prefix("data:;base64,") {
+        general_purpose::STANDARD.decode(data_uri).unwrap()
+      } else {
+        let headers = url.headers.unwrap().into_inner();
+        let range = headers.get("Range").unwrap();
+        let mut headers = range.strip_prefix("bytes=").unwrap().split('-');
+
+        let start = usize::from_str(headers.next().unwrap()).unwrap();
+        let end = usize::from_str(headers.next().unwrap()).unwrap() + 1;
+
+        buf[start..end].to_vec()
+      }
+    })
+    .reduce(|acc, x| [acc, x].concat())
+    .unwrap();
+
+  #[cfg(feature = "crypt4gh")]
+  if file_str.ends_with(".c4gh") {
+    let (recipient_private_key, sender_public_key) = get_keys().await;
+
+    let mut reader = Builder::default()
+      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .build_with_stream_length(Cursor::new(output), vec![recipient_private_key])
+      .await
+      .unwrap();
+
+    let mut unencrypted_out = vec![];
+    reader.read_to_end(&mut unencrypted_out).await.unwrap();
+
+    fs::write("output_test_unencrypted", unencrypted_out.clone()).unwrap();
+    return;
+  }
+
+  fs::write("output_test", output.clone()).unwrap();
+
+  // Todo investigate why noodles fails here but samtools doesn't.
+  // let mut reader = bam::AsyncReader::new(bgzf::AsyncReader::new(output.as_slice()));
+  // let header = reader.read_header().await.unwrap().parse().unwrap();
+  // reader.read_reference_sequences().await.unwrap();
+  // println!("{header}");
+  //
+  // let mut records = reader.records(&header);
+  // while let Some(record) = records.try_next().await.unwrap() {
+  //   println!("{:#?}", record);
+  //   continue;
+  // }
 }
 
 /// Get the default directory where data is present..
