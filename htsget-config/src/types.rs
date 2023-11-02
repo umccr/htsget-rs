@@ -43,6 +43,9 @@ impl KeyType {
       || key.as_ref().ends_with(Format::Vcf.index_file_ending())
       || key.as_ref().ends_with(Format::Cram.index_file_ending())
       || key.as_ref().ends_with(Format::Vcf.index_file_ending())
+      || key.as_ref().ends_with(".bam.gzi")
+      || key.as_ref().ends_with(".vcf.gz.gzi")
+      || key.as_ref().ends_with(".bcf.gzi")
     {
       Self::Index
     } else {
@@ -89,6 +92,18 @@ impl Format {
   }
 
   pub fn gzi_index_file_ending(&self) -> io::Result<&str> {
+    match self {
+      Format::Bam => Ok(".bam.gzi"),
+      Format::Cram => Err(io::Error::new(
+        Other,
+        "CRAM does not support GZI".to_string(),
+      )),
+      Format::Vcf => Ok(".vcf.gz.gzi"),
+      Format::Bcf => Ok(".bcf.gzi"),
+    }
+  }
+
+  pub fn gzi_endings(&self) -> io::Result<&str> {
     match self {
       Format::Bam => Ok(".bam.gzi"),
       Format::Cram => Err(io::Error::new(
@@ -285,6 +300,12 @@ impl Request {
   /// Create a new request with default query and headers.
   pub fn new_with_id(id: String) -> Self {
     Self::new(id, Default::default(), Default::default())
+  }
+
+  /// Set the request headers.
+  pub fn with_headers(mut self, headers: HeaderMap) -> Self {
+    self.headers = headers;
+    self
   }
 
   /// Get the id.
