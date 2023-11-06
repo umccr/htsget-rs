@@ -65,11 +65,10 @@ pub async fn portal<H: HtsGet + Send + Sync + 'static>(
   info!(request = ?request, "portal auth endpoint GET request");
 
   handle_response(
-    get(
-      app_state.get_ref().htsget.clone(),
-      request,
-      Endpoint::Variants,
+    get(app_state.get_ref().htsget.clone(),
+    request,
+    None
     )
-    .await,
+  .await,
   )
 }

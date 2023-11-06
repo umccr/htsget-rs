@@ -54,8 +54,7 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
     .service(
       web::scope("/portal")
         .route("/", web::get().to(get::portal::<H>)),
-    )
-    ;
+    );
 }
 
 /// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
