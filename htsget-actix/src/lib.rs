@@ -50,7 +50,12 @@ pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
         .route("/service-info", web::post().to(variants_service_info::<H>))
         .route("/{id:.+}", web::get().to(get::variants::<H>))
         .route("/{id:.+}", web::post().to(post::variants::<H>)),
-    );
+    )
+    .service(
+      web::scope("/portal")
+        .route("/", web::get().to(get::portal::<H>)),
+    )
+    ;
 }
 
 /// Configure cors, settings allowed methods, max age, allowed origins, and if credentials

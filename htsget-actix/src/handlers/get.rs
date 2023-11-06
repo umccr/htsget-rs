@@ -51,3 +51,25 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
     .await,
   )
 }
+
+/// GET request auth portal endpoint
+#[instrument(skip(app_state))]
+pub async fn portal<H: HtsGet + Send + Sync + 'static>(
+  request: Query<HashMap<String, String>>,
+  path: Path<String>,
+  http_request: HttpRequest,
+  app_state: Data<AppState<H>>,
+) -> impl Responder {
+  let request = extract_request(request, path, http_request);
+
+  info!(request = ?request, "portal auth endpoint GET request");
+
+  handle_response(
+    get(
+      app_state.get_ref().htsget.clone(),
+      request,
+      Endpoint::Variants,
+    )
+    .await,
+  )
+}
