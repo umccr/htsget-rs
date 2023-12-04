@@ -1,4 +1,3 @@
-use std::array::TryFromSliceError;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -8,12 +7,13 @@ use futures_util::TryStreamExt;
 use http::header::CONTENT_LENGTH;
 use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
-use hyper::{body, Body, Client, Error};
+use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
 use htsget_config::error;
+use htsget_config::storage::url::endpoints::Endpoints;
 use htsget_config::types::KeyType;
 
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
@@ -27,46 +27,32 @@ use crate::Url as HtsGetUrl;
 #[derive(Debug, Clone)]
 pub struct UrlStorage {
   client: Client<HttpsConnector<HttpConnector>>,
-  endpoint_head: Uri,
-  endpoint_file: Uri,
-  endpoint_index: Uri,
+  endpoints: Endpoints,
   response_url: Uri,
   forward_headers: bool,
-  #[cfg(feature = "crypt4gh")]
-  endpoint_crypt4gh_header: Option<Uri>,
 }
 
 impl UrlStorage {
   /// Construct a new UrlStorage.
   pub fn new(
     client: Client<HttpsConnector<HttpConnector>>,
-    endpoint_head: Uri,
-    endpoint_file: Uri,
-    endpoint_index: Uri,
+    endpoints: Endpoints,
     response_url: Uri,
     forward_headers: bool,
-    #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<Uri>,
   ) -> Self {
     Self {
       client,
-      endpoint_head,
-      endpoint_file,
-      endpoint_index,
+      endpoints,
       response_url,
       forward_headers,
-      #[cfg(feature = "crypt4gh")]
-      endpoint_crypt4gh_header,
     }
   }
 
   /// Construct a new UrlStorage with a default client.
   pub fn new_with_default_client(
-    endpoint_head: Uri,
-    endpoint_header: Uri,
-    endpoint_index: Uri,
+    endpoints: Endpoints,
     response_url: Uri,
     forward_headers: bool,
-    #[cfg(feature = "crypt4gh")] endpoint_crypt4gh_header: Option<Uri>,
   ) -> Self {
     Self {
       client: Client::builder().build(
@@ -77,13 +63,9 @@ impl UrlStorage {
           .enable_http2()
           .build(),
       ),
-      endpoint_head,
-      endpoint_file: endpoint_header,
-      endpoint_index,
+      endpoints,
       response_url,
       forward_headers,
-      #[cfg(feature = "crypt4gh")]
-      endpoint_crypt4gh_header,
     }
   }
 
@@ -171,7 +153,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::HEAD, &self.endpoint_head)
+      .send_request(key, headers, Method::HEAD, self.endpoints.head())
       .await
   }
 
@@ -182,7 +164,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::GET, &self.endpoint_file)
+      .send_request(key, headers, Method::GET, self.endpoints.file())
       .await
   }
 
@@ -193,7 +175,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::GET, &self.endpoint_index)
+      .send_request(key, headers, Method::GET, self.endpoints.index())
       .await
   }
 }
@@ -269,35 +251,36 @@ impl Storage for UrlStorage {
   #[instrument(level = "trace", skip(self))]
   async fn update_byte_positions<K: AsRef<str> + Send + Debug>(
     &self,
-    key: K,
+    _key: K,
     positions_options: BytesPositionOptions<'_>,
   ) -> Result<Vec<BytesPosition>> {
-    let mut positions_options = positions_options;
+    // let mut positions_options = positions_options;
     #[cfg(feature = "crypt4gh")]
-    if let Some(endpoint_crypt4gh_header) = &self.endpoint_crypt4gh_header {
-      let response = body::to_bytes(
-        self
-          .send_request(
-            key,
-            positions_options.headers(),
-            Method::GET,
-            endpoint_crypt4gh_header,
-          )
-          .await?
-          .into_body(),
-      )
-      .await
-      .map_err(|err| ResponseError(err.to_string()))?;
-
-      let header_length = u64::from_le_bytes(
-        response
-          .as_ref()
-          .try_into()
-          .map_err(|err: TryFromSliceError| ResponseError(err.to_string()))?,
-      );
-
-      let file_size = positions_options.file_size();
-      positions_options = positions_options.convert_to_crypt4gh_ranges(header_length, file_size);
+    if let Some(_endpoint_crypt4gh_header) = self.endpoints.public_key() {
+      // todo revise with public key endpoint.
+      // let response = body::to_bytes(
+      //   self
+      //     .send_request(
+      //       key,
+      //       positions_options.headers(),
+      //       Method::GET,
+      //       endpoint_crypt4gh_header,
+      //     )
+      //     .await?
+      //     .into_body(),
+      // )
+      // .await
+      // .map_err(|err| ResponseError(err.to_string()))?;
+      //
+      // let header_length = u64::from_le_bytes(
+      //   response
+      //     .as_ref()
+      //     .try_into()
+      //     .map_err(|err: TryFromSliceError| ResponseError(err.to_string()))?,
+      // );
+      //
+      // let file_size = positions_options.file_size();
+      // positions_options = positions_options.convert_to_crypt4gh_ranges(header_length, file_size);
     }
 
     Ok(positions_options.merge_all().into_inner())
@@ -344,13 +327,9 @@ mod tests {
   fn get_url_from_key() {
     let storage = UrlStorage::new(
       test_client(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
+      endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
-      #[cfg(feature = "crypt4gh")]
-      None,
     );
 
     assert_eq!(
@@ -368,13 +347,9 @@ mod tests {
   fn get_response_url_from_key() {
     let storage = UrlStorage::new(
       test_client(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
+      endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
-      #[cfg(feature = "crypt4gh")]
-      None,
     );
 
     assert_eq!(
@@ -393,13 +368,9 @@ mod tests {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
+        endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
-        #[cfg(feature = "crypt4gh")]
-        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -433,13 +404,9 @@ mod tests {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
+        endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
-        #[cfg(feature = "crypt4gh")]
-        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -468,13 +435,9 @@ mod tests {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
+        endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
-        #[cfg(feature = "crypt4gh")]
-        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -501,13 +464,9 @@ mod tests {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
+        endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
-        #[cfg(feature = "crypt4gh")]
-        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -529,13 +488,9 @@ mod tests {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
+        endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
-        #[cfg(feature = "crypt4gh")]
-        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -555,13 +510,9 @@ mod tests {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
+        endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
-        #[cfg(feature = "crypt4gh")]
-        None,
       );
 
       let mut headers = HeaderMap::default();
@@ -577,13 +528,9 @@ mod tests {
   async fn format_url() {
     let storage = UrlStorage::new(
       test_client(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
+      endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
-      #[cfg(feature = "crypt4gh")]
-      None,
     );
 
     let mut headers = HeaderMap::default();
@@ -607,13 +554,9 @@ mod tests {
   async fn format_url_different_response_scheme() {
     let storage = UrlStorage::new(
       test_client(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
+      endpoints_test(),
       Uri::from_str("http://example.com").unwrap(),
       true,
-      #[cfg(feature = "crypt4gh")]
-      None,
     );
 
     let mut headers = HeaderMap::default();
@@ -637,13 +580,9 @@ mod tests {
   async fn format_url_no_headers() {
     let storage = UrlStorage::new(
       test_client(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
-      Uri::from_str("https://example.com").unwrap(),
+      endpoints_test(),
       Uri::from_str("https://localhost:8081").unwrap(),
       false,
-      #[cfg(feature = "crypt4gh")]
-      None,
     );
 
     let mut headers = HeaderMap::default();
@@ -660,13 +599,9 @@ mod tests {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
         test_client(),
-        Uri::from_str(&format!("{}/endpoint_head", url)).unwrap(),
-        Uri::from_str(&format!("{}/endpoint_file", url)).unwrap(),
-        Uri::from_str(&format!("{}/endpoint_index", url)).unwrap(),
+        endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
-        #[cfg(feature = "crypt4gh")]
-        None,
       );
 
       let mut header_map = HeaderMap::default();
@@ -718,18 +653,20 @@ mod tests {
     .await;
   }
 
+  #[cfg(feature = "crypt4gh")]
   #[tokio::test]
   async fn test_endpoints_with_real_file_encrypted() {
     with_url_test_server(|url| async move {
+      let endpoints = endpoints_from_url_with_path(&url).with_public_key(
+        Uri::from_str(&format!("{}/endpoint_crypt4gh_header", url))
+          .unwrap()
+          .into(),
+      );
       let storage = UrlStorage::new(
         test_client(),
-        Uri::from_str(&format!("{}/endpoint_head", url)).unwrap(),
-        Uri::from_str(&format!("{}/endpoint_file", url)).unwrap(),
-        Uri::from_str(&format!("{}/endpoint_index", url)).unwrap(),
+        endpoints,
         Uri::from_str("http://example.com").unwrap(),
         true,
-        #[cfg(feature = "crypt4gh")]
-        Some(Uri::from_str(&format!("{}/endpoint_crypt4gh_header", url)).unwrap()),
       );
 
       let mut header_map = HeaderMap::default();
@@ -920,5 +857,35 @@ mod tests {
     let options = RangeUrlOptions::new_with_default_range(headers);
 
     options
+  }
+
+  fn endpoints_test() -> Endpoints {
+    Endpoints::new(
+      Uri::from_str("https://example.com").unwrap().into(),
+      Uri::from_str("https://example.com").unwrap().into(),
+      Uri::from_str("https://example.com").unwrap().into(),
+    )
+  }
+
+  fn endpoints_from_url(url: &str) -> Endpoints {
+    Endpoints::new(
+      Uri::from_str(url).unwrap().into(),
+      Uri::from_str(url).unwrap().into(),
+      Uri::from_str(url).unwrap().into(),
+    )
+  }
+
+  fn endpoints_from_url_with_path(url: &str) -> Endpoints {
+    Endpoints::new(
+      Uri::from_str(&format!("{}/endpoint_head", url))
+        .unwrap()
+        .into(),
+      Uri::from_str(&format!("{}/endpoint_index", url))
+        .unwrap()
+        .into(),
+      Uri::from_str(&format!("{}/endpoint_file", url))
+        .unwrap()
+        .into(),
+    )
   }
 }

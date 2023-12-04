@@ -1,4 +1,3 @@
-use std::fs;
 use std::fs::File as StdFile;
 use std::io::{Cursor, Read};
 use std::net::{SocketAddr, TcpListener};
@@ -145,12 +144,7 @@ pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf)
 
     let mut unencrypted_out = vec![];
     reader.read_to_end(&mut unencrypted_out).await.unwrap();
-
-    fs::write("output_test_unencrypted", unencrypted_out.clone()).unwrap();
-    return;
   }
-
-  fs::write("output_test", output.clone()).unwrap();
 
   // Todo investigate why noodles fails here but samtools doesn't.
   // let mut reader = bam::AsyncReader::new(bgzf::AsyncReader::new(output.as_slice()));

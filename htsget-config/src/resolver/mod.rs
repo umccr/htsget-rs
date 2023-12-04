@@ -285,6 +285,7 @@ mod tests {
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
+  use crate::storage::url::endpoints::Endpoints;
   use crate::types::Format::Bam;
   use crate::types::Scheme::Http;
   use crate::types::Url;
@@ -313,7 +314,7 @@ mod tests {
     async fn from_url(url_storage: &UrlStorageClient, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
-        vec![Url::new(url_storage.endpoint_file().to_string())],
+        vec![Url::new(url_storage.endpoints().file().to_string())],
       ))
     }
   }
@@ -381,22 +382,22 @@ mod tests {
         .build(),
     );
     let url_storage = UrlStorageClient::new(
-      ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
-      }),
-      ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
-      }),
-      ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
-      }),
+      Endpoints::new(
+        ValidatedUrl(url::Url {
+          inner: InnerUrl::from_str("https://example.com/").unwrap(),
+        }),
+        ValidatedUrl(url::Url {
+          inner: InnerUrl::from_str("https://example.com/").unwrap(),
+        }),
+        ValidatedUrl(url::Url {
+          inner: InnerUrl::from_str("https://example.com/").unwrap(),
+        }),
+      ),
       ValidatedUrl(url::Url {
         inner: InnerUrl::from_str("https://example.com/").unwrap(),
       }),
       true,
       client,
-      #[cfg(feature = "crypt4gh")]
-      None,
     );
 
     let resolver = Resolver::new(

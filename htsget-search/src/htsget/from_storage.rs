@@ -101,13 +101,9 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
   async fn from_url(url_storage_config: &UrlStorageConfig, query: &Query) -> Result<Response> {
     let searcher = HtsGetFromStorage::new(UrlStorage::new(
       url_storage_config.client_cloned(),
-      url_storage_config.endpoint_head().clone(),
-      url_storage_config.endpoint_file().clone(),
-      url_storage_config.endpoint_index().clone(),
+      url_storage_config.endpoints().clone(),
       url_storage_config.response_url().clone(),
       url_storage_config.forward_headers(),
-      #[cfg(feature = "crypt4gh")]
-      url_storage_config.endpoint_crypt4gh_header().cloned(),
     ));
     searcher.search(query.clone()).await
   }
