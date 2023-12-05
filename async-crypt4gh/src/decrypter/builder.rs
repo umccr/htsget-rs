@@ -1,6 +1,6 @@
 use crate::decrypter::DecrypterStream;
 use crate::error::Result;
-use crate::SenderPublicKey;
+use crate::PublicKey;
 use crypt4gh::Keys;
 use tokio::io::{AsyncRead, AsyncSeek};
 use tokio_util::codec::FramedRead;
@@ -8,18 +8,18 @@ use tokio_util::codec::FramedRead;
 /// An decrypter reader builder.
 #[derive(Debug, Default)]
 pub struct Builder {
-  sender_pubkey: Option<SenderPublicKey>,
+  sender_pubkey: Option<PublicKey>,
   stream_length: Option<u64>,
 }
 
 impl Builder {
   /// Sets the sender public key
-  pub fn with_sender_pubkey(self, sender_pubkey: SenderPublicKey) -> Self {
+  pub fn with_sender_pubkey(self, sender_pubkey: PublicKey) -> Self {
     self.set_sender_pubkey(Some(sender_pubkey))
   }
 
   /// Sets the sender public key
-  pub fn set_sender_pubkey(mut self, sender_pubkey: Option<SenderPublicKey>) -> Self {
+  pub fn set_sender_pubkey(mut self, sender_pubkey: Option<PublicKey>) -> Self {
     self.sender_pubkey = sender_pubkey;
     self
   }

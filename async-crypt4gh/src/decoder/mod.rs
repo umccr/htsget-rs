@@ -193,6 +193,11 @@ impl Block {
   pub const fn mac_size() -> u64 {
     MAC_SIZE as u64
   }
+
+  /// Get the maximum possible header size.
+  pub const fn max_header_size() -> u64 {
+    MAX_HEADER_SIZE as u64
+  }
 }
 
 impl Default for Block {

@@ -10,7 +10,7 @@ use tokio::task::{spawn_blocking, JoinHandle};
 
 use crate::error::Error::JoinHandleError;
 use crate::error::Result;
-use crate::SenderPublicKey;
+use crate::PublicKey;
 
 pin_project! {
     #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -22,9 +22,9 @@ pin_project! {
 
 impl HeaderPacketsDecrypter {
   pub fn new(
-    header_packets: Vec<Bytes>,
-    keys: Vec<Keys>,
-    sender_pubkey: Option<SenderPublicKey>,
+      header_packets: Vec<Bytes>,
+      keys: Vec<Keys>,
+      sender_pubkey: Option<PublicKey>,
   ) -> Self {
     Self {
       handle: spawn_blocking(|| {
@@ -34,9 +34,9 @@ impl HeaderPacketsDecrypter {
   }
 
   pub fn decrypt(
-    header_packets: Vec<Bytes>,
-    keys: Vec<Keys>,
-    sender_pubkey: Option<SenderPublicKey>,
+      header_packets: Vec<Bytes>,
+      keys: Vec<Keys>,
+      sender_pubkey: Option<PublicKey>,
   ) -> Result<DecryptedHeaderPackets> {
     Ok(deconstruct_header_body(
       header_packets
@@ -69,9 +69,9 @@ mod tests {
       get_first_header_packet().await;
 
     let data = HeaderPacketsDecrypter::new(
-      header_packets,
-      vec![recipient_private_key],
-      Some(SenderPublicKey::new(sender_public_key)),
+        header_packets,
+        vec![recipient_private_key],
+        Some(PublicKey::new(sender_public_key)),
     )
     .await
     .unwrap();

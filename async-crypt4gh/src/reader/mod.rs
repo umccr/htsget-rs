@@ -219,7 +219,7 @@ mod tests {
   use crate::advance::Advance;
   use crate::reader::builder::Builder;
   use crate::tests::{get_keys, get_original_file};
-  use crate::SenderPublicKey;
+  use crate::PublicKey;
 
   #[tokio::test]
   async fn reader() {
@@ -227,7 +227,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -245,7 +245,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -290,7 +290,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -312,7 +312,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -334,7 +334,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -356,7 +356,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -378,7 +378,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -400,7 +400,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -425,7 +425,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -450,7 +450,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .with_stream_length(2598043)
       .build_with_reader(src, vec![recipient_private_key]);
 
@@ -474,7 +474,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -496,7 +496,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -518,7 +518,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -540,7 +540,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .with_stream_length(2598043)
       .build_with_reader(src, vec![recipient_private_key]);
 
@@ -561,7 +561,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -583,7 +583,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -605,7 +605,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -627,7 +627,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .with_stream_length(2598043)
       .build_with_reader(src, vec![recipient_private_key]);
 
@@ -648,7 +648,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -670,7 +670,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -692,7 +692,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(src, vec![recipient_private_key])
       .await
       .unwrap();
@@ -714,7 +714,7 @@ mod tests {
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .with_stream_length(2598043)
       .build_with_reader(src, vec![recipient_private_key]);
 

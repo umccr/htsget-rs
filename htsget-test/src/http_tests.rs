@@ -7,7 +7,7 @@ use std::str::FromStr;
 #[cfg(feature = "crypt4gh")]
 use async_crypt4gh::reader::builder::Builder;
 #[cfg(feature = "crypt4gh")]
-use async_crypt4gh::SenderPublicKey;
+use async_crypt4gh::PublicKey;
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -137,7 +137,7 @@ pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf)
     let (recipient_private_key, sender_public_key) = get_keys().await;
 
     let mut reader = Builder::default()
-      .with_sender_pubkey(SenderPublicKey::new(sender_public_key))
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
       .build_with_stream_length(Cursor::new(output), vec![recipient_private_key])
       .await
       .unwrap();

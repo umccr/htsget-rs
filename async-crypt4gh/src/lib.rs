@@ -12,13 +12,13 @@ pub mod error;
 pub mod reader;
 pub mod util;
 
-/// A wrapper around a vec of bytes that represent a sender public key.
+/// A wrapper around a vec of bytes that represent a public key.
 #[derive(Debug, Clone)]
-pub struct SenderPublicKey {
+pub struct PublicKey {
   bytes: Vec<u8>,
 }
 
-impl SenderPublicKey {
+impl PublicKey {
   /// Create a new sender public key from bytes.
   pub fn new(bytes: Vec<u8>) -> Self {
     Self { bytes }

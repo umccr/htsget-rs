@@ -12,6 +12,9 @@ use crate::tls::crypt4gh::Crypt4GH;
 pub enum ObjectType {
   #[default]
   Regular,
+  // Only valid for url storage.
+  #[cfg(feature = "crypt4gh")]
+  Crypt4GHGenerate,
   #[cfg(feature = "crypt4gh")]
   Crypt4GH {
     #[serde(flatten, skip_serializing)]
