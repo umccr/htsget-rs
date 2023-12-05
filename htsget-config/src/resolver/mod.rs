@@ -11,7 +11,7 @@ use tracing::instrument;
 
 use crate::config::DataServerConfig;
 use crate::resolver::allow_guard::{AllowGuard, QueryAllowed, ReferenceNames};
-use crate::resolver::object::ObjectType;
+use crate::resolver::object::{ObjectType, TaggedObjectTypes};
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
@@ -147,7 +147,7 @@ impl Resolver {
     }
 
     // `Crypt4GHGenerate` is only supported for `UrlStorage`.
-    if let ObjectType::Crypt4GHGenerate = self.object_type() {
+    if let ObjectType::Tagged(TaggedObjectTypes::GenerateKeys) = self.object_type() {
       if let Storage::Url { url_storage } = self.storage() {
         if url_storage.endpoints().public_key().is_none() {
           return Err(error::Error::ParseError(
