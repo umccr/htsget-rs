@@ -12,6 +12,7 @@ use tracing::instrument;
 
 use crate::error::Error;
 use crate::error::Error::ParseError;
+use crate::resolver::object::ObjectType;
 
 pub type Result<T> = result::Result<T, HtsGetError>;
 
@@ -70,7 +71,7 @@ impl Format {
     let id = format!("{id}{}", self.file_ending());
 
     #[cfg(feature = "crypt4gh")]
-    if query.is_crypt4gh() {
+    if query.object_type().is_crypt4gh() {
       return format!("{id}.c4gh");
     }
 
@@ -340,13 +341,17 @@ pub struct Query {
   no_tags: NoTags,
   /// The raw HTTP request information.
   request: Request,
-  #[cfg(feature = "crypt4gh")]
-  is_crypt4gh: bool,
+  object_type: ObjectType,
 }
 
 impl Query {
   /// Create a new query.
-  pub fn new(id: impl Into<String>, format: Format, request: Request) -> Self {
+  pub fn new(
+    id: impl Into<String>,
+    format: Format,
+    request: Request,
+    object_type: ObjectType,
+  ) -> Self {
     Self {
       id: id.into(),
       format,
@@ -357,15 +362,19 @@ impl Query {
       tags: Tags::Tagged(TaggedTypeAll::All),
       no_tags: NoTags(None),
       request,
-      #[cfg(feature = "crypt4gh")]
-      is_crypt4gh: false,
+      object_type,
     }
   }
 
   /// Create a new query with a default request.
-  pub fn new_with_default_request(id: impl Into<String>, format: Format) -> Self {
+  pub fn new_with_defaults(id: impl Into<String>, format: Format) -> Self {
     let id = id.into();
-    Self::new(id.clone(), format, Request::new_with_id(id))
+    Self::new(
+      id.clone(),
+      format,
+      Request::new_with_id(id),
+      Default::default(),
+    )
   }
 
   /// Set the id.
@@ -465,16 +474,20 @@ impl Query {
     &self.request
   }
 
-  #[cfg(feature = "crypt4gh")]
-  /// Whether this query is for a Crypt4GH encrypted file.
-  pub fn is_crypt4gh(&self) -> bool {
-    self.is_crypt4gh
+  /// Get the object type of this query.
+  pub fn object_type(&self) -> &ObjectType {
+    &self.object_type
   }
 
-  #[cfg(feature = "crypt4gh")]
-  /// Set the is Crypt4GH flag.
-  pub fn set_crypt4gh(&mut self, is_crypt4gh: bool) {
-    self.is_crypt4gh = is_crypt4gh;
+  /// Set the object type.
+  pub fn with_object_type(mut self, object_type: ObjectType) -> Self {
+    self.set_object_type(object_type);
+    self
+  }
+
+  /// Set the object type.
+  pub fn set_object_type(&mut self, object_type: ObjectType) {
+    self.object_type = object_type;
   }
 }
 
@@ -809,44 +822,43 @@ mod tests {
 
   #[test]
   fn query_new() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam);
+    let result = Query::new_with_defaults("NA12878", Format::Bam);
     assert_eq!(result.id(), "NA12878");
   }
 
   #[test]
   fn query_with_format() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam);
+    let result = Query::new_with_defaults("NA12878", Format::Bam);
     assert_eq!(result.format(), Format::Bam);
   }
 
   #[test]
   fn query_with_class() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam).with_class(Class::Header);
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_class(Class::Header);
     assert_eq!(result.class(), Class::Header);
   }
 
   #[test]
   fn query_with_reference_name() {
-    let result =
-      Query::new_with_default_request("NA12878", Format::Bam).with_reference_name("chr1");
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_reference_name("chr1");
     assert_eq!(result.reference_name(), Some("chr1"));
   }
 
   #[test]
   fn query_with_start() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam).with_start(0);
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_start(0);
     assert_eq!(result.interval().start(), Some(0));
   }
 
   #[test]
   fn query_with_end() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam).with_end(0);
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_end(0);
     assert_eq!(result.interval().end(), Some(0));
   }
 
   #[test]
   fn query_with_fields() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam).with_fields(Fields::List(
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_fields(Fields::List(
       HashSet::from_iter(vec!["QNAME".to_string(), "FLAG".to_string()]),
     ));
     assert_eq!(
@@ -860,15 +872,14 @@ mod tests {
 
   #[test]
   fn query_with_tags() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam)
-      .with_tags(Tags::Tagged(TaggedTypeAll::All));
+    let result =
+      Query::new_with_defaults("NA12878", Format::Bam).with_tags(Tags::Tagged(TaggedTypeAll::All));
     assert_eq!(result.tags(), &Tags::Tagged(TaggedTypeAll::All));
   }
 
   #[test]
   fn query_with_no_tags() {
-    let result =
-      Query::new_with_default_request("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
       result.no_tags(),
       &NoTags(Some(HashSet::from_iter(vec![

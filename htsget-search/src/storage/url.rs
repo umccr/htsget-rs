@@ -302,6 +302,7 @@ mod tests {
   use axum::response::{IntoResponse, Response};
   use axum::routing::{get, head};
   use axum::{middleware, Router};
+  use htsget_config::resolver::object::{ObjectType, TaggedObjectTypes};
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use hyper::body::to_bytes;
@@ -608,10 +609,15 @@ mod tests {
       test_headers(&mut header_map);
       let request =
         HtsgetRequest::new_with_id("htsnexus_test_NA12878".to_string()).with_headers(header_map);
-      let query = Query::new("htsnexus_test_NA12878", Format::Bam, request)
-        .with_reference_name("11")
-        .with_start(5015000)
-        .with_end(5050000);
+      let query = Query::new(
+        "htsnexus_test_NA12878",
+        Format::Bam,
+        request,
+        Default::default(),
+      )
+      .with_reference_name("11")
+      .with_start(5015000)
+      .with_end(5050000);
 
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await;
@@ -673,10 +679,15 @@ mod tests {
       test_headers(&mut header_map);
       let request =
         HtsgetRequest::new_with_id("htsnexus_test_NA12878".to_string()).with_headers(header_map);
-      let query = Query::new("htsnexus_test_NA12878", Format::Bam, request)
-        .with_reference_name("11")
-        .with_start(5015000)
-        .with_end(5050000);
+      let query = Query::new(
+        "htsnexus_test_NA12878",
+        Format::Bam,
+        request,
+        ObjectType::Tagged(TaggedObjectTypes::GenerateKeys),
+      )
+      .with_reference_name("11")
+      .with_start(5015000)
+      .with_end(5050000);
 
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await.unwrap();

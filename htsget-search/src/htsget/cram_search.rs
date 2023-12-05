@@ -308,7 +308,7 @@ mod tests {
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -326,8 +326,8 @@ mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("*");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("*");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -351,8 +351,8 @@ mod tests {
   async fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("20");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -379,7 +379,7 @@ mod tests {
   async fn search_reference_name_with_seq_range_no_overlap() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
         .with_end(5050000);
@@ -404,7 +404,7 @@ mod tests {
   async fn search_reference_name_with_seq_range_overlap() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
         .with_end(5100000);
@@ -421,7 +421,7 @@ mod tests {
   async fn search_reference_name_with_no_end_position() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000);
       let response = search.search(query).await;
@@ -450,7 +450,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
       let query =
-        Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -470,7 +470,7 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = CramSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -485,8 +485,8 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = CramSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-          .with_reference_name("20");
+        let query =
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -502,7 +502,7 @@ mod tests {
       |storage| async move {
         let search = CramSearch::new(storage.clone());
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -518,7 +518,7 @@ mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = CramSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(response.is_err());
       },
@@ -534,8 +534,8 @@ mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = CramSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-          .with_reference_name("20");
+        let query =
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
       },
@@ -552,7 +552,7 @@ mod tests {
       |storage| async move {
         let search = CramSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
       },

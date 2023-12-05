@@ -14,7 +14,7 @@ pub enum TaggedObjectTypes {
   GenerateKeys,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(untagged, deny_unknown_fields)]
 #[non_exhaustive]
 pub enum ObjectType {

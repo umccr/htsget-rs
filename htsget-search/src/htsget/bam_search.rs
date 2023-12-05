@@ -216,7 +216,7 @@ pub(crate) mod tests {
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -234,8 +234,8 @@ pub(crate) mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("*");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("*");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -259,8 +259,8 @@ pub(crate) mod tests {
   async fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("20");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -287,7 +287,7 @@ pub(crate) mod tests {
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000)
         .with_end(5050000);
@@ -323,7 +323,7 @@ pub(crate) mod tests {
   async fn search_reference_name_no_end_position() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000);
       let response = search.search(query).await;
@@ -352,7 +352,7 @@ pub(crate) mod tests {
   async fn search_many_response_urls() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(4999976)
         .with_end(5003981);
@@ -386,7 +386,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("11")
           .with_start(5015000)
           .with_end(5050000);
@@ -419,8 +419,7 @@ pub(crate) mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query =
-        Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -439,8 +438,8 @@ pub(crate) mod tests {
   async fn search_header_with_no_mapped_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("22");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("22");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -464,8 +463,8 @@ pub(crate) mod tests {
   async fn search_header_with_non_existent_reference_name() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("25");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("25");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -479,7 +478,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -494,8 +493,8 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-          .with_reference_name("20");
+        let query =
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -511,7 +510,7 @@ pub(crate) mod tests {
       |storage| async move {
         let search = BamSearch::new(storage.clone());
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
       },
@@ -527,7 +526,7 @@ pub(crate) mod tests {
       |storage| async move {
         let search = BamSearch::new(storage.clone());
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
 
         let index = search.read_index(&query).await.unwrap();
         let response = search.get_header_end_offset(&index).await;
@@ -546,7 +545,7 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(response.is_err());
       },
@@ -562,8 +561,8 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-          .with_reference_name("20");
+        let query =
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
       },
@@ -580,7 +579,7 @@ pub(crate) mod tests {
       |storage| async move {
         let search = BamSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
       },

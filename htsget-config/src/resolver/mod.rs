@@ -242,11 +242,7 @@ impl StorageResolver for Resolver {
     let _matched_id = query.id().to_string();
 
     query.set_id(resolved_id.into_inner());
-
-    #[cfg(feature = "crypt4gh")]
-    if self.object_type().is_crypt4gh() {
-      query.set_crypt4gh(true);
-    }
+    query.set_object_type(self.object_type().clone());
 
     if let Some(response) = self.storage().resolve_local_storage::<T>(query).await {
       return Some(response);
@@ -478,7 +474,7 @@ mod tests {
     .unwrap();
     assert_eq!(
       resolver
-        .resolve_id(&Query::new_with_default_request("id", Bam))
+        .resolve_id(&Query::new_with_defaults("id", Bam))
         .unwrap()
         .into_inner(),
       "id-test"
@@ -509,7 +505,7 @@ mod tests {
     assert_eq!(
       resolver
         .as_slice()
-        .resolve_id(&Query::new_with_default_request("id-1", Bam))
+        .resolve_id(&Query::new_with_defaults("id-1", Bam))
         .unwrap()
         .into_inner(),
       "id-1-test-1"
@@ -517,7 +513,7 @@ mod tests {
     assert_eq!(
       resolver
         .as_slice()
-        .resolve_id(&Query::new_with_default_request("id-2", Bam))
+        .resolve_id(&Query::new_with_defaults("id-2", Bam))
         .unwrap()
         .into_inner(),
       "id-2-test-2"
@@ -606,7 +602,7 @@ mod tests {
   async fn expected_resolved_request(resolver: Resolver, expected_id: &str) {
     assert_eq!(
       resolver
-        .resolve_request::<TestResolveResponse>(&mut Query::new_with_default_request("id-1", Bam))
+        .resolve_request::<TestResolveResponse>(&mut Query::new_with_defaults("id-1", Bam))
         .await
         .unwrap()
         .unwrap(),

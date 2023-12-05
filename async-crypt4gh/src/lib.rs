@@ -13,7 +13,7 @@ pub mod reader;
 pub mod util;
 
 /// A wrapper around a vec of bytes that represent a public key.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicKey {
   bytes: Vec<u8>,
 }

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use tracing::warn;
 
 /// Config for Crypt4GH keys.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(try_from = "Crypt4GHPath")]
 pub struct Crypt4GH {
   private_key: Vec<u8>,
