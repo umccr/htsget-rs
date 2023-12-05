@@ -64,6 +64,17 @@ where
       .with_end(self.position_at_eof(query).await?)
       .with_class(Body)])
   }
+
+  async fn read_bytes(header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader
+      .read_record(header, &mut Default::default())
+      .await
+      .ok()
+  }
+
+  fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
+    reader.virtual_position()
+  }
 }
 
 #[async_trait]
@@ -421,6 +432,43 @@ pub(crate) mod tests {
   }
 
   #[tokio::test]
+  async fn search_header_with_no_mapped_reads() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("22");
+      let response = search.search(query).await;
+      println!("{response:#?}");
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
+          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn search_header_with_non_existent_reference_name() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("25");
+      let response = search.search(query).await;
+      println!("{response:#?}");
+
+      assert!(matches!(response, Err(NotFound(_))));
+    })
+    .await;
+  }
+
+  #[tokio::test]
   async fn search_non_existent_id_reference_name() {
     with_local_storage_fn(
       |storage| async move {
@@ -460,6 +508,25 @@ pub(crate) mod tests {
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+      },
+      DATA_LOCATION,
+      &[INDEX_FILE_LOCATION],
+    )
+    .await
+  }
+
+  #[tokio::test]
+  async fn get_header_end_offset() {
+    with_local_storage_fn(
+      |storage| async move {
+        let search = BamSearch::new(storage.clone());
+        let query =
+          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+
+        let index = search.read_index(&query).await.unwrap();
+        let response = search.get_header_end_offset(&index).await;
+
+        assert_eq!(response, Ok(70204));
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],

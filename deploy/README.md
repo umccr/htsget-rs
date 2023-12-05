@@ -113,6 +113,27 @@ cargo lambda invoke htsget-lambda --data-file data/events/event_get.json
 
 Examples of different Lambda events are located in the [`data/events`][data-events] directory.
 
+## Docker
+
+There are multiple options to use docker containers with htsget-rs:
+
+### Local
+
+```
+$ docker build . -f deploy/Dockerfile -t htsget-rs-actix
+$ docker run htsget-rs-actix
+% docker run htsget-rs-actix
+2023-10-25T01:01:38.412471Z  INFO bind_addr{addr=127.0.0.1:8081 cors=CorsConfig { allow_credentials: false, allow_origins: List([HeaderValue("http://localhost:8080")]), allow_headers: Tagged(All), allow_methods: Tagged(All), max_age: 86400, expose_headers: List([]) }}: htsget_search::storage::data_server: data server address bound to address=127.0.0.1:8081
+2023-10-25T01:01:38.412710Z  INFO run_server: htsget_actix: using non-TLS ticket server
+2023-10-25T01:01:38.412805Z  INFO run_server: htsget_actix: htsget query server addresses bound addresses=[127.0.0.1:8080]
+2023-10-25T01:01:38.412837Z  INFO run_server: actix_server::builder: starting 8 workers
+2023-10-25T01:01:38.412892Z  INFO actix_server::server: Actix runtime found; starting in Actix runtime
+```
+
+### Local with MinIO (S3) backend
+
+TBD
+
 [htsget-lambda]: ../htsget-lambda
 [cargo-lambda]: https://github.com/cargo-lambda/cargo-lambda
 [data-events]: ../data/events

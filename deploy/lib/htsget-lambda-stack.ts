@@ -104,7 +104,7 @@ export class HtsgetLambdaStack extends Stack {
 
     const httpIntegration = new HttpLambdaIntegration(
       id + "HtsgetIntegration",
-      htsgetLambda
+      htsgetLambda,
     );
 
     // Use a predefined Cognito user pool or create a new one.
@@ -284,22 +284,22 @@ export class HtsgetLambdaStack extends Stack {
         configToml.ticket_server_cors_allow_credentials as boolean,
       allowHeaders: HtsgetLambdaStack.convertCors(
         configToml,
-        "ticket_server_cors_allow_headers"
+        "ticket_server_cors_allow_headers",
       ),
       allowMethods: HtsgetLambdaStack.corsAllowMethodToHttpMethod(
         HtsgetLambdaStack.convertCors(
           configToml,
-          "ticket_server_cors_allow_methods"
-        )
+          "ticket_server_cors_allow_methods",
+        ),
       ),
       allowOrigins: HtsgetLambdaStack.convertCors(
         configToml,
-        "ticket_server_cors_allow_origins"
+        "ticket_server_cors_allow_origins",
       ),
       domain: configToml.domain.toString(),
       exposeHeaders: HtsgetLambdaStack.convertCors(
         configToml,
-        "ticket_server_cors_expose_headers"
+        "ticket_server_cors_expose_headers",
       ),
       authRequired: configToml.auth_required as boolean,
       maxAge:

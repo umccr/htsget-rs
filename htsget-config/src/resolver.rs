@@ -167,6 +167,42 @@ impl AllowGuard {
   pub fn allow_tags(&self) -> &Tags {
     &self.allow_tags
   }
+
+  /// Set the allow reference names.
+  pub fn with_allow_reference_names(mut self, allow_reference_names: ReferenceNames) -> Self {
+    self.allow_reference_names = allow_reference_names;
+    self
+  }
+
+  /// Set the allow fields.
+  pub fn with_allow_fields(mut self, allow_fields: Fields) -> Self {
+    self.allow_fields = allow_fields;
+    self
+  }
+
+  /// Set the allow tags.
+  pub fn with_allow_tags(mut self, allow_tags: Tags) -> Self {
+    self.allow_tags = allow_tags;
+    self
+  }
+
+  /// Set the allow formats.
+  pub fn with_allow_formats(mut self, allow_formats: Vec<Format>) -> Self {
+    self.allow_formats = allow_formats;
+    self
+  }
+
+  /// Set the allow classes.
+  pub fn with_allow_classes(mut self, allow_classes: Vec<Class>) -> Self {
+    self.allow_classes = allow_classes;
+    self
+  }
+
+  /// Set the allow interval.
+  pub fn with_allow_interval(mut self, allow_interval: Interval) -> Self {
+    self.allow_interval = allow_interval;
+    self
+  }
 }
 
 impl Default for AllowGuard {
@@ -359,11 +395,11 @@ impl StorageResolver for Resolver {
 
     #[cfg(feature = "s3-storage")]
     {
-      let first_match = self.get_match(1, &_matched_id)?;
+      let first_match = self.get_match(1, &_matched_id);
 
       if let Some(response) = self
         .storage()
-        .resolve_s3_storage::<T>(first_match.to_string(), query)
+        .resolve_s3_storage::<T>(first_match, query)
         .await
       {
         return Some(response);
@@ -409,8 +445,8 @@ mod tests {
 
   #[cfg(feature = "url-storage")]
   use {
-    crate::storage::url, crate::storage::url::ValidatedUrl, crate::types::Scheme::Https,
-    http::Uri as InnerUrl, hyper::Client, hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
+    crate::storage::url, crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
+    hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
@@ -509,7 +545,9 @@ mod tests {
       ValidatedUrl(url::Url {
         inner: InnerUrl::from_str("https://example.com/").unwrap(),
       }),
-      Https,
+      ValidatedUrl(url::Url {
+        inner: InnerUrl::from_str("https://example.com/").unwrap(),
+      }),
       true,
       client,
     );

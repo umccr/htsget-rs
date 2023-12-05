@@ -6,6 +6,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.4...htsget-search-v0.6.5) - 2023-11-02
+
+### Added
+- *(search)* remove response scheme because response url can specify it
+- *(search)* add response url option to url storage
+
+### Fixed
+- *(s3)* properly handle first capture group bucket and add warnings for s3 errors
+
+### Other
+- Merge pull request [#216](https://github.com/umccr/htsget-rs/pull/216) from umccr/feat/response_url
+
+## [0.6.4](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.3...htsget-search-v0.6.4) - 2023-10-30
+
+### Other
+- Cargo fmt, brrrr
+- Fix clippy to newest 1.73 rust release and use secrets.GITHUB_TOKEN for the release workflow
+
+## [0.6.3](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.2...htsget-search-v0.6.3) - 2023-10-02
+
+### Fixed
+- *(search)* use bcf test for bcf search
+- *(search)* return empty response when reference name is in header but not in index instead of error
+
+### Other
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into fix/error-no-index-pos
+- *(search)* formatting
+
+## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.1...htsget-search-v0.6.2) - 2023-09-06
+
+### Other
+- *(deps)* fix htsget-test feature flags in htsget-search
+- *(deps)* properly update noodles and aws dependencies
+- revert htsget-test change to a dev dependency
+- *(deps)* update msrv and attempt using htsget-test as a dev dependency
+- bump deps including rustls 0.21
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into feat/htsget-elsa
+
+## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.0...htsget-search-v0.6.1) - 2023-09-05
+
+### Other
+- updated the following local packages: htsget-test
+
 ## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.5.3...htsget-search-v0.6.0) - 2023-07-11
 
 ### Added

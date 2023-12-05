@@ -6,6 +6,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.13](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.12...htsget-lambda-v0.4.13) - 2023-11-02
+
+### Other
+- updated the following local packages: htsget-config, htsget-search
+
+## [0.4.12](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.11...htsget-lambda-v0.4.12) - 2023-10-30
+
+### Other
+- updated the following local packages: htsget-search
+
+## [0.4.11](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.10...htsget-lambda-v0.4.11) - 2023-10-23
+
+### Other
+- update dependencies
+
+## [0.4.10](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.9...htsget-lambda-v0.4.10) - 2023-10-02
+
+### Other
+- update dependencies
+
+## [0.4.9](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.8...htsget-lambda-v0.4.9) - 2023-09-06
+
+### Other
+- revert htsget-test change to a dev dependency
+- *(deps)* update msrv and attempt using htsget-test as a dev dependency
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into feat/htsget-elsa
+
+## [0.4.8](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.7...htsget-lambda-v0.4.8) - 2023-09-05
+
+### Other
+- update dependencies
+
 ## [0.4.7](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.6...htsget-lambda-v0.4.7) - 2023-08-23
 
 ### Other

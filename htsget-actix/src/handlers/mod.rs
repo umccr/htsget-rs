@@ -28,9 +28,7 @@ impl HeaderMap {
 
 impl From<&HttpRequest> for HeaderMap {
   fn from(http_request: &HttpRequest) -> Self {
-    HeaderMap(HttpHeaderMap::from_iter(
-      http_request.headers().clone().into_iter(),
-    ))
+    HeaderMap(HttpHeaderMap::from_iter(http_request.headers().clone()))
   }
 }
 

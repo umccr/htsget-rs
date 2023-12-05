@@ -7,18 +7,19 @@ use std::io::ErrorKind::Other;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::error::{DisplayErrorContext, SdkError};
 use aws_sdk_s3::operation::get_object::builders::GetObjectFluentBuilder;
 use aws_sdk_s3::operation::get_object::GetObjectError;
 use aws_sdk_s3::operation::head_object::{HeadObjectError, HeadObjectOutput};
 use aws_sdk_s3::presigning::PresigningConfig;
-use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::primitives::{ByteStream, SdkBody};
 use aws_sdk_s3::types::StorageClass;
 use aws_sdk_s3::Client;
 use bytes::Bytes;
+use http::Response;
 use tokio_util::io::StreamReader;
-use tracing::debug;
 use tracing::instrument;
+use tracing::{debug, warn};
 
 use crate::storage::s3::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
@@ -103,6 +104,8 @@ impl S3Storage {
       .send()
       .await
       .map_err(|err| {
+        warn!("S3 error: {}", DisplayErrorContext(&err));
+
         let err = err.into_service_error();
         if let HeadObjectError::NotFound(_) = err {
           KeyNotFound(key.as_ref().to_string())
@@ -191,10 +194,12 @@ impl S3Storage {
     Ok(StreamReader::new(response))
   }
 
-  fn map_get_error<K>(key: K, error: SdkError<GetObjectError>) -> StorageError
+  fn map_get_error<K>(key: K, error: SdkError<GetObjectError, Response<SdkBody>>) -> StorageError
   where
     K: AsRef<str> + Send,
   {
+    warn!("S3 error: {}", DisplayErrorContext(&error));
+
     let error = error.into_service_error();
     if let GetObjectError::NoSuchKey(_) = error {
       KeyNotFound(key.as_ref().to_string())
@@ -265,51 +270,13 @@ pub(crate) mod tests {
   use std::path::Path;
   use std::sync::Arc;
 
-  use aws_config::SdkConfig;
-  use aws_credential_types::provider::SharedCredentialsProvider;
-  use aws_sdk_s3::config::{Credentials, Region};
-  use aws_sdk_s3::Client;
-  use s3s::auth::SimpleAuth;
-  use s3s::service::S3ServiceBuilder;
-  use s3s_aws;
+  use htsget_test::aws_mocks::with_s3_test_server;
 
   use crate::storage::local::tests::create_local_test_files;
   use crate::storage::s3::S3Storage;
   use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
   use crate::storage::{HeadOptions, StorageError};
   use crate::Headers;
-
-  pub(crate) async fn with_s3_test_server<F, Fut>(server_base_path: &Path, test: F)
-  where
-    F: FnOnce(Client) -> Fut,
-    Fut: Future<Output = ()>,
-  {
-    const DOMAIN_NAME: &str = "localhost:8014";
-    const REGION: &str = "ap-southeast-2";
-
-    let cred = Credentials::for_tests();
-
-    let conn = {
-      let fs = s3s_fs::FileSystem::new(server_base_path).unwrap();
-
-      let auth = SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
-
-      let mut service = S3ServiceBuilder::new(fs);
-      service.set_auth(auth);
-      service.set_base_domain(DOMAIN_NAME);
-
-      s3s_aws::Connector::from(service.build().into_shared())
-    };
-
-    let sdk_config = SdkConfig::builder()
-      .credentials_provider(SharedCredentialsProvider::new(cred))
-      .http_connector(conn)
-      .region(Region::new(REGION))
-      .endpoint_url(format!("http://{DOMAIN_NAME}"))
-      .build();
-
-    test(Client::new(&sdk_config)).await;
-  }
 
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
   where

@@ -102,7 +102,7 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
     let searcher = HtsGetFromStorage::new(UrlStorage::new(
       url_storage_config.client_cloned(),
       url_storage_config.url().clone(),
-      url_storage_config.response_scheme(),
+      url_storage_config.response_url().clone(),
       url_storage_config.forward_headers(),
     ));
     searcher.search(query.clone()).await

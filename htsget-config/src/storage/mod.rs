@@ -92,11 +92,13 @@ impl Storage {
   #[cfg(feature = "s3-storage")]
   pub async fn resolve_s3_storage<T: ResolveResponse>(
     &self,
-    bucket: String,
+    first_match: Option<&str>,
     query: &Query,
   ) -> Option<Result<Response>> {
     match self {
       Storage::Tagged(TaggedStorageTypes::S3) => {
+        let bucket = first_match?.to_string();
+
         let s3_storage = S3Storage::new(bucket, None, false);
         Some(T::from_s3(&s3_storage, query).await)
       }
