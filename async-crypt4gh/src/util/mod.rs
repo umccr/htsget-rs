@@ -1,4 +1,6 @@
 use crate::decoder::Block;
+use crate::PublicKey;
+use rustls::PrivateKey;
 use std::cmp::min;
 
 fn to_current_data_block(pos: u64, header_len: u64) -> u64 {
@@ -41,6 +43,11 @@ pub fn unencrypted_to_next_data_block(pos: u64, header_len: u64, file_size: u64)
     to_encrypted_file_size(file_size, header_len),
     to_current_data_block(pos, header_len) + Block::standard_data_block_size(),
   )
+}
+
+/// Generate a private and public key pair.
+pub fn generate_key_pair() -> (PrivateKey, PublicKey) {
+  todo!()
 }
 
 #[cfg(test)]

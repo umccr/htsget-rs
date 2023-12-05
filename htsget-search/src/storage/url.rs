@@ -1,6 +1,10 @@
 use std::fmt::Debug;
 
+use async_crypt4gh::util::generate_key_pair;
+use async_crypt4gh::PublicKey;
 use async_trait::async_trait;
+use base64::engine::general_purpose;
+use base64::Engine;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
@@ -22,6 +26,8 @@ use crate::storage::{
   StorageError,
 };
 use crate::Url as HtsGetUrl;
+
+const PUBLIC_KEY_QUERY: &str = "public_key";
 
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
@@ -69,13 +75,27 @@ impl UrlStorage {
     }
   }
 
+  /// Construct the Crypt4GH query.
+  #[cfg(feature = "crypt4gh")]
+  fn crypt4gh_query(public_key: PublicKey) -> String {
+    format!(
+      "?{PUBLIC_KEY_QUERY}={}",
+      general_purpose::STANDARD.encode(public_key.into_inner())
+    )
+  }
+
   /// Get a url from the key.
-  pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K, endpoint: &Uri) -> Result<Uri> {
+  pub fn get_url_from_key<K: AsRef<str> + Send>(
+    &self,
+    key: K,
+    endpoint: &Uri,
+    query: &str,
+  ) -> Result<Uri> {
     // Todo: proper url parsing here, probably with the `url` crate.
     let uri = if endpoint.to_string().ends_with('/') {
-      format!("{}{}", endpoint, key.as_ref())
+      format!("{}{}{}", endpoint, key.as_ref(), query)
     } else {
-      format!("{}/{}", endpoint, key.as_ref())
+      format!("{}/{}{}", endpoint, key.as_ref(), query)
     };
 
     uri
@@ -90,9 +110,10 @@ impl UrlStorage {
     headers: &HeaderMap,
     method: Method,
     url: &Uri,
+    query: &str,
   ) -> Result<Response<Body>> {
     let key = key.as_ref();
-    let url = self.get_url_from_key(key, url)?;
+    let url = self.get_url_from_key(key, url, query)?;
 
     let request = Request::builder().method(method).uri(&url);
 
@@ -129,7 +150,7 @@ impl UrlStorage {
     endpoint: &Uri,
   ) -> Result<HtsGetUrl> {
     let key = key.as_ref();
-    let url = self.get_url_from_key(key, endpoint)?.into_parts();
+    let url = self.get_url_from_key(key, endpoint, "")?.into_parts();
     let url = Uri::from_parts(url)
       .map_err(|err| InternalError(format!("failed to convert to uri from parts: {}", err)))?;
 
@@ -153,7 +174,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::HEAD, self.endpoints.head())
+      .send_request(key, headers, Method::HEAD, self.endpoints.head(), "")
       .await
   }
 
@@ -162,9 +183,10 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
+    query: String,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::GET, self.endpoints.file())
+      .send_request(key, headers, Method::GET, self.endpoints.file(), &query)
       .await
   }
 
@@ -175,7 +197,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::GET, self.endpoints.index())
+      .send_request(key, headers, Method::GET, self.endpoints.index(), "")
       .await
   }
 }
@@ -195,8 +217,16 @@ impl Storage for UrlStorage {
 
     let response = match KeyType::from_ending(&key) {
       KeyType::File => {
+        let mut query = "".to_string();
+        #[cfg(feature = "crypt4gh")]
+        if options.object_type.is_crypt4gh() {
+          let public_key = generate_key_pair().1;
+          query = Self::crypt4gh_query(public_key);
+          // Todo wrap crypt4gh reader here.
+        }
+
         self
-          .get_header(key.to_string(), options.request_headers())
+          .get_header(key.to_string(), options.request_headers(), query)
           .await?
       }
       KeyType::Index => {
@@ -337,7 +367,8 @@ mod tests {
       storage
         .get_url_from_key(
           "assets/key1",
-          &Uri::from_str("https://example.com").unwrap()
+          &Uri::from_str("https://example.com").unwrap(),
+          ""
         )
         .unwrap(),
       Uri::from_str("https://example.com/assets/key1").unwrap()
@@ -357,7 +388,8 @@ mod tests {
       storage
         .get_url_from_key(
           "assets/key1",
-          &Uri::from_str("https://localhost:8080").unwrap()
+          &Uri::from_str("https://localhost:8080").unwrap(),
+          ""
         )
         .unwrap(),
       Uri::from_str("https://localhost:8080/assets/key1").unwrap()
@@ -385,6 +417,7 @@ mod tests {
               headers,
               Method::GET,
               &Uri::from_str(&url).unwrap(),
+              "",
             )
             .await
             .unwrap()
@@ -416,7 +449,7 @@ mod tests {
       let response = String::from_utf8(
         to_bytes(
           storage
-            .get_header("assets/key1", headers)
+            .get_header("assets/key1", headers, "".to_string())
             .await
             .unwrap()
             .into_body(),
@@ -445,7 +478,7 @@ mod tests {
       let headers = test_headers(&mut headers);
 
       let response: u64 = storage
-        .get_header("assets/key1", headers)
+        .get_header("assets/key1", headers, "".to_string())
         .await
         .unwrap()
         .headers()

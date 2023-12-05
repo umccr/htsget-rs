@@ -403,6 +403,7 @@ dependencies = [
  "htsget-test",
  "noodles 0.48.0",
  "pin-project-lite",
+ "rustls",
  "thiserror",
  "tokio",
  "tokio-util",
