@@ -8,8 +8,6 @@ pub struct Endpoints {
   head: ValidatedUrl,
   index: ValidatedUrl,
   file: ValidatedUrl,
-  #[cfg(feature = "crypt4gh")]
-  public_key: Option<ValidatedUrl>,
 }
 
 impl Default for Endpoints {
@@ -18,8 +16,6 @@ impl Default for Endpoints {
       head: default_url(),
       index: default_url(),
       file: default_url(),
-      #[cfg(feature = "crypt4gh")]
-      public_key: None,
     }
   }
 }
@@ -27,13 +23,7 @@ impl Default for Endpoints {
 impl Endpoints {
   /// Construct a new endpoints config.
   pub fn new(head: ValidatedUrl, index: ValidatedUrl, file: ValidatedUrl) -> Self {
-    Self {
-      head,
-      index,
-      file,
-      #[cfg(feature = "crypt4gh")]
-      public_key: None,
-    }
+    Self { head, index, file }
   }
 
   /// Get the head endpoint.
@@ -49,18 +39,5 @@ impl Endpoints {
   /// Get the file endpoint.
   pub fn file(&self) -> &Uri {
     &self.file.0.inner
-  }
-
-  /// Set the endpoint public key.
-  #[cfg(feature = "crypt4gh")]
-  pub fn with_public_key(mut self, endpoint_public_key: ValidatedUrl) -> Self {
-    self.public_key = Some(endpoint_public_key);
-    self
-  }
-
-  /// Get the public key endpoint.
-  #[cfg(feature = "crypt4gh")]
-  pub fn public_key(&self) -> Option<&Uri> {
-    self.public_key.as_ref().map(|url| &url.0.inner)
   }
 }

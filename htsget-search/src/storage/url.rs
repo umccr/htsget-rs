@@ -255,33 +255,33 @@ impl Storage for UrlStorage {
     positions_options: BytesPositionOptions<'_>,
   ) -> Result<Vec<BytesPosition>> {
     // let mut positions_options = positions_options;
-    #[cfg(feature = "crypt4gh")]
-    if let Some(_endpoint_crypt4gh_header) = self.endpoints.public_key() {
-      // todo revise with public key endpoint.
-      // let response = body::to_bytes(
-      //   self
-      //     .send_request(
-      //       key,
-      //       positions_options.headers(),
-      //       Method::GET,
-      //       endpoint_crypt4gh_header,
-      //     )
-      //     .await?
-      //     .into_body(),
-      // )
-      // .await
-      // .map_err(|err| ResponseError(err.to_string()))?;
-      //
-      // let header_length = u64::from_le_bytes(
-      //   response
-      //     .as_ref()
-      //     .try_into()
-      //     .map_err(|err: TryFromSliceError| ResponseError(err.to_string()))?,
-      // );
-      //
-      // let file_size = positions_options.file_size();
-      // positions_options = positions_options.convert_to_crypt4gh_ranges(header_length, file_size);
-    }
+    //#[cfg(feature = "crypt4gh")]
+    //if let Some(_endpoint_crypt4gh_header) = self.endpoints.public_key() {
+    // todo revise with public key endpoint.
+    // let response = body::to_bytes(
+    //   self
+    //     .send_request(
+    //       key,
+    //       positions_options.headers(),
+    //       Method::GET,
+    //       endpoint_crypt4gh_header,
+    //     )
+    //     .await?
+    //     .into_body(),
+    // )
+    // .await
+    // .map_err(|err| ResponseError(err.to_string()))?;
+    //
+    // let header_length = u64::from_le_bytes(
+    //   response
+    //     .as_ref()
+    //     .try_into()
+    //     .map_err(|err: TryFromSliceError| ResponseError(err.to_string()))?,
+    // );
+    //
+    // let file_size = positions_options.file_size();
+    // positions_options = positions_options.convert_to_crypt4gh_ranges(header_length, file_size);
+    //}
 
     Ok(positions_options.merge_all().into_inner())
   }
@@ -663,14 +663,9 @@ mod tests {
   #[tokio::test]
   async fn test_endpoints_with_real_file_encrypted() {
     with_url_test_server(|url| async move {
-      let endpoints = endpoints_from_url_with_path(&url).with_public_key(
-        Uri::from_str(&format!("{}/endpoint_crypt4gh_header", url))
-          .unwrap()
-          .into(),
-      );
       let storage = UrlStorage::new(
         test_client(),
-        endpoints,
+        endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
       );

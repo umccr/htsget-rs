@@ -149,13 +149,7 @@ impl Resolver {
     #[cfg(feature = "crypt4gh")]
     // `Crypt4GHGenerate` is only supported for `UrlStorage`.
     if let ObjectType::Tagged(TaggedObjectTypes::GenerateKeys) = self.object_type() {
-      if let Storage::Url { url_storage } = self.storage() {
-        if url_storage.endpoints().public_key().is_none() {
-          return Err(error::Error::ParseError(
-            "the public key endpoint must be set if generating Crypt4GH keys".to_string(),
-          ));
-        }
-      } else {
+      if !matches!(self.storage(), Storage::Url { .. }) {
         return Err(error::Error::ParseError(
           "generating Crypt4GH keys is not supported if not using `UrlStorage`".to_string(),
         ));
