@@ -146,6 +146,7 @@ impl Resolver {
       }
     }
 
+    #[cfg(feature = "crypt4gh")]
     // `Crypt4GHGenerate` is only supported for `UrlStorage`.
     if let ObjectType::Tagged(TaggedObjectTypes::GenerateKeys) = self.object_type() {
       if let Storage::Url { url_storage } = self.storage() {
@@ -160,6 +161,11 @@ impl Resolver {
         ));
       }
     };
+
+    #[cfg(feature = "crypt4gh")]
+    if let ObjectType::Crypt4GH { .. } = self.object_type() {
+      unimplemented!("reading Crypt4GH files using private keys directly is not yet implemented")
+    }
 
     Ok(self)
   }
