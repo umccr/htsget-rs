@@ -261,7 +261,7 @@ where
       .get_storage()
       .get(
         query.format().fmt_index(query.id()),
-        GetOptions::new_with_default_range(query.request().headers()),
+        GetOptions::new_with_default_range(query.request().headers(), query.object_type()),
       )
       .await?;
     Self::read_index_inner(storage)
@@ -318,7 +318,12 @@ where
           .get_storage()
           .update_byte_positions(
             query.format().fmt_file(&query),
-            BytesPositionOptions::new(byte_ranges, file_size, query.request().headers()),
+            BytesPositionOptions::new(
+              byte_ranges,
+              file_size,
+              query.request().headers(),
+              query.object_type(),
+            ),
           )
           .await?;
         let blocks = DataBlock::from_bytes_positions(positions);
@@ -353,6 +358,7 @@ where
               vec![header_byte_ranges],
               file_size,
               query.request().headers(),
+              query.object_type(),
             ),
           )
           .await?;
@@ -409,6 +415,7 @@ where
     let get_options = GetOptions::new(
       BytesPosition::default().with_end(offset),
       query.request().headers(),
+      query.object_type(),
     );
 
     let reader_type = self
@@ -511,7 +518,7 @@ where
       .get_storage()
       .get(
         query.format().fmt_gzi(query.id())?,
-        GetOptions::new_with_default_range(query.request().headers()),
+        GetOptions::new_with_default_range(query.request().headers(), query.object_type()),
       )
       .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
@@ -649,6 +656,7 @@ where
           ))
         })?;
 
+    // Todo consider the header length if it includes the crypt4gh header.
     // The header can only extend past the first index position by the maximum BGZF block size
     // because otherwise the first index position wouldn't be representing the first reference.
     Ok(first_index_position + MAX_BGZF_ISIZE)

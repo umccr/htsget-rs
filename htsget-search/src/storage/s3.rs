@@ -304,7 +304,7 @@ pub(crate) mod tests {
       let result = storage
         .get(
           "key2",
-          GetOptions::new_with_default_range(&Default::default()),
+          GetOptions::new_with_default_range(&Default::default(), &Default::default()),
         )
         .await;
       assert!(result.is_ok());
@@ -318,7 +318,7 @@ pub(crate) mod tests {
       let result = storage
         .get(
           "non-existing-key",
-          GetOptions::new_with_default_range(&Default::default()),
+          GetOptions::new_with_default_range(&Default::default(), &Default::default()),
         )
         .await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));

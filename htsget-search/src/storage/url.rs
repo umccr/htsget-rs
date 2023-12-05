@@ -472,7 +472,8 @@ mod tests {
 
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
-      let options = GetOptions::new_with_default_range(headers);
+      let object_type = Default::default();
+      let options = GetOptions::new_with_default_range(headers, &object_type);
 
       let mut reader = storage.get("assets/key1", options).await.unwrap();
 

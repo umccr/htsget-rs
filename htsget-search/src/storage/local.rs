@@ -174,7 +174,7 @@ pub(crate) mod tests {
       let result = Storage::get(
         &storage,
         "folder",
-        GetOptions::new_with_default_range(&Default::default()),
+        GetOptions::new_with_default_range(&Default::default(), &Default::default()),
       )
       .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
@@ -188,7 +188,7 @@ pub(crate) mod tests {
       let result = Storage::get(
         &storage,
         "folder/../../passwords",
-        GetOptions::new_with_default_range(&Default::default()),
+        GetOptions::new_with_default_range(&Default::default(), &Default::default()),
       )
       .await;
       assert!(
@@ -204,7 +204,7 @@ pub(crate) mod tests {
       let result = Storage::get(
         &storage,
         "folder/../key1",
-        GetOptions::new_with_default_range(&Default::default()),
+        GetOptions::new_with_default_range(&Default::default(), &Default::default()),
       )
       .await;
       assert!(result.is_ok());

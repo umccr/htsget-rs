@@ -19,6 +19,7 @@ use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, Expos
 use tracing::instrument;
 
 use htsget_config::config::cors::CorsConfig;
+use htsget_config::resolver::object::ObjectType;
 use htsget_config::storage::local::LocalStorage;
 use htsget_config::types::{Class, Scheme};
 
@@ -418,18 +419,27 @@ impl BytesPosition {
 pub struct GetOptions<'a> {
   range: BytesPosition,
   request_headers: &'a HeaderMap,
+  object_type: &'a ObjectType,
 }
 
 impl<'a> GetOptions<'a> {
-  pub fn new(range: BytesPosition, request_headers: &'a HeaderMap) -> Self {
+  pub fn new(
+    range: BytesPosition,
+    request_headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
     Self {
       range,
       request_headers,
+      object_type,
     }
   }
 
-  pub fn new_with_default_range(request_headers: &'a HeaderMap) -> Self {
-    Self::new(Default::default(), request_headers)
+  pub fn new_with_default_range(
+    request_headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
+    Self::new(Default::default(), request_headers, object_type)
   }
 
   pub fn with_max_length(mut self, max_length: u64) -> Self {
@@ -458,14 +468,21 @@ pub struct BytesPositionOptions<'a> {
   positions: Vec<BytesPosition>,
   file_size: u64,
   headers: &'a HeaderMap,
+  object_type: &'a ObjectType,
 }
 
 impl<'a> BytesPositionOptions<'a> {
-  pub fn new(positions: Vec<BytesPosition>, file_size: u64, headers: &'a HeaderMap) -> Self {
+  pub fn new(
+    positions: Vec<BytesPosition>,
+    file_size: u64,
+    headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
     Self {
       positions,
       file_size,
       headers,
+      object_type,
     }
   }
 
@@ -983,7 +1000,10 @@ mod tests {
   #[test]
   fn get_options_with_max_length() {
     let request_headers = Default::default();
-    let result = GetOptions::new_with_default_range(&request_headers).with_max_length(1);
+    let object_type = Default::default();
+
+    let result =
+      GetOptions::new_with_default_range(&request_headers, &object_type).with_max_length(1);
     assert_eq!(
       result.range(),
       &BytesPosition::default().with_start(0).with_end(1)
@@ -993,7 +1013,9 @@ mod tests {
   #[test]
   fn get_options_with_range() {
     let request_headers = Default::default();
-    let result = GetOptions::new_with_default_range(&request_headers)
+    let object_type = Default::default();
+
+    let result = GetOptions::new_with_default_range(&request_headers, &object_type)
       .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
     assert_eq!(
       result.range(),
