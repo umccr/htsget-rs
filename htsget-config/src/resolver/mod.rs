@@ -3,6 +3,7 @@ pub mod object;
 
 use std::result;
 
+use crate::error;
 use async_trait::async_trait;
 use regex::{Error, Regex};
 use serde::{Deserialize, Serialize};
@@ -137,13 +138,30 @@ impl Resolver {
     })
   }
 
-  /// Set the local resolvers from the data server config.
-  pub fn resolvers_from_data_server_config(&mut self, config: &DataServerConfig) {
+  /// Validate resolvers and set the local resolvers from the data server config.
+  pub fn validate(mut self, config: &DataServerConfig) -> error::Result<Self> {
     if let Storage::Tagged(TaggedStorageTypes::Local) = self.storage() {
       if let Some(local_storage) = config.into() {
         self.storage = Storage::Local { local_storage };
       }
     }
+
+    // `Crypt4GHGenerate` is only supported for `UrlStorage`.
+    if let ObjectType::Crypt4GHGenerate = self.object_type() {
+      if let Storage::Url { url_storage } = self.storage() {
+        if url_storage.endpoints().public_key().is_none() {
+          return Err(error::Error::ParseError(
+            "the public key endpoint must be set if generating Crypt4GH keys".to_string(),
+          ));
+        }
+      } else {
+        return Err(error::Error::ParseError(
+          "generating Crypt4GH keys is not supported if not using `UrlStorage`".to_string(),
+        ));
+      }
+    };
+
+    Ok(self)
   }
 
   /// Get the match associated with the capture group at index `i` using the `regex_match`.

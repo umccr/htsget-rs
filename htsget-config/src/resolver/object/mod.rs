@@ -25,6 +25,9 @@ pub enum ObjectType {
 impl ObjectType {
   #[cfg(feature = "crypt4gh")]
   pub fn is_crypt4gh(&self) -> bool {
-    matches!(self, ObjectType::Crypt4GH { .. })
+    matches!(
+      self,
+      ObjectType::Crypt4GH { .. } | ObjectType::Crypt4GHGenerate
+    )
   }
 }

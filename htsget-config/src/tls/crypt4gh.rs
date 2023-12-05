@@ -20,7 +20,11 @@ pub struct Crypt4GH {
 
 impl Crypt4GH {
   /// Create a new Crypt4GH config.
-  pub fn new(private_key: Vec<u8>, public_key: PublicKey, sender_public_key: Option<PublicKey>) -> Self {
+  pub fn new(
+    private_key: Vec<u8>,
+    public_key: PublicKey,
+    sender_public_key: Option<PublicKey>,
+  ) -> Self {
     Self {
       private_key,
       public_key,
@@ -72,16 +76,20 @@ impl TryFrom<Crypt4GHPath> for Crypt4GH {
     };
 
     let parse_public_key = |key: Option<PathBuf>| {
-      Ok(key
+      Ok(
+        key
           .map(|key| {
-            get_public_key(&key)
-                .map_err(|err| ParseError(format!("loading public key: {}", err)))
+            get_public_key(&key).map_err(|err| ParseError(format!("loading public key: {}", err)))
           })
           .transpose()?
-          .map(PublicKey::new))
+          .map(PublicKey::new),
+      )
     };
 
-    Ok(Self::new(private_key, parse_public_key(Some(crypt4gh_path.public_key))?.expect("expected valid public key"),
-    parse_public_key(crypt4gh_path.sender_public_key)?))
+    Ok(Self::new(
+      private_key,
+      parse_public_key(Some(crypt4gh_path.public_key))?.expect("expected valid public key"),
+      parse_public_key(crypt4gh_path.sender_public_key)?,
+    ))
   }
 }

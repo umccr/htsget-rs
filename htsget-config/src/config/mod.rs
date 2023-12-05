@@ -414,7 +414,7 @@ impl Config {
   pub fn from_path(path: &Path) -> io::Result<Self> {
     let config: Self = from_path(path)?;
 
-    Ok(config.resolvers_from_data_server_config()?)
+    Ok(config.validate()?)
   }
 
   /// Setup tracing, using a global subscriber.
@@ -469,22 +469,23 @@ impl Config {
     self.resolvers
   }
 
-  /// Set the local resolvers from the data server config.
-  pub fn resolvers_from_data_server_config(self) -> Result<Self> {
+  /// Validate any settings before constructing config.
+  pub fn validate(self) -> Result<Self> {
     let Config {
-      formatting_style: formatting,
+      formatting_style,
       ticket_server,
       data_server,
       service_info,
-      mut resolvers,
+      resolvers,
     } = self;
 
-    resolvers
-      .iter_mut()
-      .for_each(|resolver| resolver.resolvers_from_data_server_config(&data_server));
+    let resolvers = resolvers
+      .into_iter()
+      .map(|resolver| resolver.validate(&data_server))
+      .collect::<Result<Vec<Resolver>>>()?;
 
     Ok(Self::new(
-      formatting,
+      formatting_style,
       ticket_server,
       data_server,
       service_info,
@@ -530,13 +531,13 @@ pub(crate) mod tests {
       test_fn(
         from_path::<Config>(path)
           .map_err(|err| err.to_string())?
-          .resolvers_from_data_server_config()
+          .validate()
           .unwrap(),
       );
       test_fn(
         from_str::<Config>(contents.unwrap_or(""))
           .map_err(|err| err.to_string())?
-          .resolvers_from_data_server_config()
+          .validate()
           .unwrap(),
       );
 
