@@ -1,0 +1,20 @@
+version: '3.1'
+
+services:
+  htsget-rs:
+    container_name: htsget-rs
+    image: ghcr.io/umccr/htsget-rs:dev-latest
+    ports:
+       - "127.0.0.1:8080-8081:8080-8081"
+  localstack:
+    container_name: localstack-main-htsget
+    image: localstack/localstack:3.0.1
+    ports:
+      - "127.0.0.1:4566:4566"            # LocalStack Gateway
+      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+    environment:
+      - DEBUG=${DEBUG-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
