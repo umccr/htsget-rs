@@ -121,7 +121,6 @@ where
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
     let mut reader = bai::AsyncReader::new(BufReader::new(inner));
-    reader.read_header().await?;
     reader.read_index().await
   }
 

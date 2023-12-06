@@ -67,7 +67,7 @@ where
   }
 
   fn get_ref(reader: &mut AsyncReader<ReaderType>) -> &ReaderType {
-    todo!()
+    reader.get_ref().get_ref()
   }
 
   #[instrument(level = "trace", skip(self, index, query))]

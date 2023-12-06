@@ -24,6 +24,6 @@ async-trait = "0.1"
 rustls = "0.21"
 
 [dev-dependencies]
-noodles = { version = "0.48", features = ["async", "bam", "sam"] }
+noodles = { version = "0.59", features = ["async", "bam", "sam"] }
 
 htsget-test = { version = "0.5.0", path = "../htsget-test", features = ["http-tests"], default-features = false }
