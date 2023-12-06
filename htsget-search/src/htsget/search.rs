@@ -207,6 +207,8 @@ where
   async fn read_header(reader: &mut Reader) -> io::Result<Header>;
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
+  fn get_ref(reader: &mut Reader) -> &ReaderType;
+
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -271,6 +273,11 @@ where
 
   /// Search based on the query.
   async fn search(&self, query: Query) -> Result<Response> {
+    let index = self.read_index(&query).await?;
+
+    let header_end = self.get_header_end_offset(&index).await?;
+    let (header, mut reader) = self.get_header(&query, header_end).await?;
+
     match query.class() {
       Body => {
         let format = self.get_format();
@@ -285,11 +292,6 @@ where
         let mut byte_ranges = match query.reference_name().as_ref() {
           None => self.get_byte_ranges_for_all(&query).await?,
           Some(reference_name) => {
-            let index = self.read_index(&query).await?;
-
-            let header_end = self.get_header_end_offset(&index).await?;
-            let (header, mut reader) = self.get_header(&query, header_end).await?;
-
             let mut byte_ranges = self
               .get_byte_ranges_for_reference_name(
                 reference_name.to_string(),
@@ -314,10 +316,10 @@ where
           byte_ranges.push(eof?);
         }
 
-        let positions = self
+        let blocks = self
           .get_storage()
           .update_byte_positions(
-            query.format().fmt_file(&query),
+            Self::get_ref(&mut reader),
             BytesPositionOptions::new(
               byte_ranges,
               file_size,
@@ -326,7 +328,6 @@ where
             ),
           )
           .await?;
-        let blocks = DataBlock::from_bytes_positions(positions);
 
         self.build_response(&query, blocks).await
       }
@@ -340,20 +341,15 @@ where
           )
           .await?;
 
-        let index = self.read_index(&query).await?;
-
-        let header_end = self.get_header_end_offset(&index).await?;
-        let (header, mut reader) = self.get_header(&query, header_end).await?;
-
         let header_byte_ranges = self
           .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
           .await?;
 
         let file_size = self.file_size(&query).await?;
-        let positions = self
+        let blocks = self
           .get_storage()
           .update_byte_positions(
-            query.format().fmt_file(&query),
+            Self::get_ref(&mut reader),
             BytesPositionOptions::new(
               vec![header_byte_ranges],
               file_size,
@@ -363,9 +359,7 @@ where
           )
           .await?;
 
-        self
-          .build_response(&query, DataBlock::from_bytes_positions(positions))
-          .await
+        self.build_response(&query, blocks).await
       }
     }
   }

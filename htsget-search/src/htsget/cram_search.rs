@@ -169,6 +169,10 @@ where
     crai::AsyncReader::new(inner).read_index().await
   }
 
+  fn get_ref(reader: &mut AsyncReader<ReaderType>) -> &ReaderType {
+    todo!();
+  }
+
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,

@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use async_crypt4gh::edit_lists::{add_edit_lists, UnencryptedRange};
 use async_crypt4gh::util::generate_key_pair;
 use async_crypt4gh::PublicKey;
 use async_trait::async_trait;
@@ -13,16 +14,17 @@ use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use tokio_rustls::rustls::PrivateKey;
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
 use htsget_config::error;
 use htsget_config::storage::url::endpoints::Endpoints;
-use htsget_config::types::KeyType;
+use htsget_config::types::{Class, KeyType};
 
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{
-  BytesPosition, BytesPositionOptions, GetOptions, HeadOptions, RangeUrlOptions, Result, Storage,
+  BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, Result, Storage,
   StorageError,
 };
 use crate::Url as HtsGetUrl;
@@ -279,41 +281,54 @@ impl Storage for UrlStorage {
   }
 
   #[instrument(level = "trace", skip(self))]
-  async fn update_byte_positions<K: AsRef<str> + Send + Debug>(
+  async fn update_byte_positions(
     &self,
-    _key: K,
-    positions_options: BytesPositionOptions<'_>,
-  ) -> Result<Vec<BytesPosition>> {
-    // let mut positions_options = positions_options;
-    //#[cfg(feature = "crypt4gh")]
-    //if let Some(_endpoint_crypt4gh_header) = self.endpoints.public_key() {
-    // todo revise with public key endpoint.
-    // let response = body::to_bytes(
-    //   self
-    //     .send_request(
-    //       key,
-    //       positions_options.headers(),
-    //       Method::GET,
-    //       endpoint_crypt4gh_header,
-    //     )
-    //     .await?
-    //     .into_body(),
-    // )
-    // .await
-    // .map_err(|err| ResponseError(err.to_string()))?;
-    //
-    // let header_length = u64::from_le_bytes(
-    //   response
-    //     .as_ref()
-    //     .try_into()
-    //     .map_err(|err: TryFromSliceError| ResponseError(err.to_string()))?,
-    // );
-    //
-    // let file_size = positions_options.file_size();
-    // positions_options = positions_options.convert_to_crypt4gh_ranges(header_length, file_size);
-    //}
+    reader: &Self::Streamable,
+    mut positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<DataBlock>> {
+    #[cfg(feature = "crypt4gh")]
+    if positions_options.object_type.is_crypt4gh() {
+      // todo
+      //let header_bytes = reader.header_bytes();
+      //let private_key = reader.private_key();
+      //let public_key = reader.public_key();
+      let private_key = PrivateKey(Vec::new());
+      let public_key = PublicKey::new(Vec::new());
+      let header_bytes = Vec::new();
 
-    Ok(positions_options.merge_all().into_inner())
+      let file_size = positions_options.file_size();
+      let header_size = header_bytes.len() as u64;
+
+      let reencrypted_header = add_edit_lists(
+        header_bytes,
+        positions_options
+          .positions
+          .iter()
+          .map(|position| {
+            UnencryptedRange::new(
+              position.start.unwrap_or_default(),
+              position.end.unwrap_or(file_size),
+            )
+          })
+          .collect(),
+        private_key,
+        public_key,
+      )
+      .ok_or_else(|| UrlParseError("header already contains an edit list".to_string()))?;
+
+      // Note original header byte length.
+      positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
+
+      let mut blocks = vec![DataBlock::Data(reencrypted_header, Some(Class::Header))];
+      blocks.extend(DataBlock::from_bytes_positions(
+        positions_options.merge_all().into_inner(),
+      ));
+      return Ok(blocks);
+    }
+
+    Ok(DataBlock::from_bytes_positions(
+      positions_options.merge_all().into_inner(),
+    ))
   }
 }
 

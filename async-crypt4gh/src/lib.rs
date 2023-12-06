@@ -8,6 +8,7 @@ pub use reader::Reader as Crypt4GHReader;
 pub mod advance;
 pub mod decoder;
 pub mod decrypter;
+pub mod edit_lists;
 pub mod error;
 pub mod reader;
 pub mod util;

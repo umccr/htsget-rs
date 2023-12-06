@@ -69,6 +69,10 @@ where
     csi::AsyncReader::new(inner).read_index().await
   }
 
+  fn get_ref(reader: &mut AsyncReader<ReaderType>) -> &ReaderType {
+    reader.get_ref().get_ref()
+  }
+
   #[instrument(level = "trace", skip(self, index, header, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,

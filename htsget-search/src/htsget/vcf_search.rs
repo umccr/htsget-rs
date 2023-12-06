@@ -66,6 +66,10 @@ where
     tabix::AsyncReader::new(inner).read_index().await
   }
 
+  fn get_ref(reader: &mut AsyncReader<ReaderType>) -> &ReaderType {
+    todo!()
+  }
+
   #[instrument(level = "trace", skip(self, index, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,

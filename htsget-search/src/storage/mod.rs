@@ -76,13 +76,15 @@ pub trait Storage {
   }
 
   /// Optionally update byte positions before they are passed to the other functions.
-  #[instrument(level = "trace", ret, skip(self))]
-  async fn update_byte_positions<K: AsRef<str> + Send + Debug>(
+  #[instrument(level = "trace", ret, skip(self, _reader))]
+  async fn update_byte_positions(
     &self,
-    _key: K,
+    _reader: &Self::Streamable,
     positions_options: BytesPositionOptions<'_>,
-  ) -> Result<Vec<BytesPosition>> {
-    Ok(positions_options.merge_all().into_inner())
+  ) -> Result<Vec<DataBlock>> {
+    Ok(DataBlock::from_bytes_positions(
+      positions_options.merge_all().into_inner(),
+    ))
   }
 }
 
@@ -510,7 +512,7 @@ impl<'a> BytesPositionOptions<'a> {
     self
   }
 
-  /// Convert the ranges to crypt4gh byte ranges.
+  /// Convert the ranges to crypt4gh byte ranges. Does not include the crypt4gh header.
   #[cfg(feature = "crypt4gh")]
   pub fn convert_to_crypt4gh_ranges(mut self, header_length: u64, file_size: u64) -> Self {
     self.positions = self
@@ -518,13 +520,6 @@ impl<'a> BytesPositionOptions<'a> {
       .into_iter()
       .map(|pos| pos.convert_to_crypt4gh_ranges(header_length, file_size))
       .collect();
-
-    // Always add the crypt4gh header too.
-    self.positions.push(
-      BytesPosition::default()
-        .with_start(0)
-        .with_end(header_length),
-    );
 
     self
   }
