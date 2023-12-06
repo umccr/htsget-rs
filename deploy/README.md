@@ -130,9 +130,18 @@ $ docker run htsget-rs-actix
 2023-10-25T01:01:38.412892Z  INFO actix_server::server: Actix runtime found; starting in Actix runtime
 ```
 
+### Local with LocalStack (local AWS)
+
+```
+$ cd deploy
+$ docker compose up --wait -d
+$ npx cdklocal bootstrap
+$ npx cdklocal deploy
+```
+
 ### Local with MinIO (S3) backend
 
-TBD
+TBD, fetch instructions from [NBIS Sweden usecase, test and document them here properly](https://github.com/NBISweden/htsget-rs/tree/docker-testing/deploy).
 
 [htsget-lambda]: ../htsget-lambda
 [cargo-lambda]: https://github.com/cargo-lambda/cargo-lambda
