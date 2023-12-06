@@ -4,3 +4,5 @@ target
 .idea
 deploy/.build
 request-benchmarks.json
+volume
+cdk.context.json
