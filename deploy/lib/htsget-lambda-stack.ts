@@ -1,8 +1,9 @@
 import { STACK_NAME } from "../bin/htsget-lambda";
 import * as TOML from "@iarna/toml";
+import * as glob from 'glob';
 import { readFileSync } from "fs";
 
-import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
+import { Duration, Stack, StackProps, Tags, CfnParameter } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { RustFunction, Settings } from "rust.aws-cdk-lambda";
 
@@ -43,19 +44,30 @@ export type Config = {
   cogUserPoolId?: string;                       // Supply one if already existing
 };
 
+
+
+
 /**
  * Stack used to deploy htsget-lambda.
  */
 export class HtsgetLambdaStack extends Stack {
-  // Read config from cdk.json and TOML file(s).
-  config = this.getConfig();
-
+  
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const config = this.config;
+    const profile = new CfnParameter(this, 'profile', {
+      type: 'String',
+      description: "The name of the environment/mode that htsget-rs is deployed on AWS, some profiles are: {public|dev|prod}",
+      default: 'public',
+    });
+
+    console.log(profile.valueAsString);
+    // Read config from cdk.json and TOML file(s).
+    const config = this.getConfig(profile.toString());
 
     Tags.of(this).add("Stack", STACK_NAME);
+
+   // Environment desired (to be passed to i.e: `cdk deploy --parameter env={public|dev|prod}`
 
     const lambdaRole = new Role(this, id + "Role", {
       assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
@@ -166,10 +178,16 @@ export class HtsgetLambdaStack extends Stack {
     });
   }
 
+  envParamToConfigToml(env: string): string {
+    const fname = glob.sync(`config/${env}.toml`);
+    console.log(fname);
+    return fname[0];
+  }
+
   /**
    * Convert JSON config to htsget-rs env representation.
    */
-  static configToEnv(config: any): { [key: string]: string } {
+  configToEnv(config: any): { [key: string]: string } {
     const out: { [key: string]: string } = {};
     for (const key in config) {
       out[`HTSGET_${key.toUpperCase()}`] = TOML.stringify.value(config[key]);
@@ -262,7 +280,7 @@ export class HtsgetLambdaStack extends Stack {
   /**
    * Get the environment from config.toml
    */
-  getConfig(): Config {
+  getConfig(profile: string): Config {
     let env = this.node.tryGetContext("env");
 
     if (env === undefined) {
@@ -275,7 +293,10 @@ export class HtsgetLambdaStack extends Stack {
     // cdk deploy --parameters environment = dev|prod|public
     //
     // https://docs.aws.amazon.com/cdk/v2/guide/parameters.html
-    const configToml = TOML.parse(readFileSync("config/public_umccr.toml").toString());
+
+    console.log(profile);
+    const tomlFile = this.envParamToConfigToml(profile);
+    const configToml = TOML.parse(readFileSync(`config/${tomlFile}`).toString());
 
     return {
       environment: env,
@@ -307,5 +328,8 @@ export class HtsgetLambdaStack extends Stack {
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
     };
+  }
+  static configToEnv(configToml: TOML.JsonMap): { [key: string]: string; } {
+    throw new Error("Method not implemented.");
   }
 }
