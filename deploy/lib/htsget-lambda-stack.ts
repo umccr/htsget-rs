@@ -55,15 +55,8 @@ export class HtsgetLambdaStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const profile = new CfnParameter(this, 'profile', {
-      type: 'String',
-      description: "The name of the environment/mode that htsget-rs is deployed on AWS, some profiles are: {public|dev|prod}",
-      default: 'public',
-    });
-
-    console.log(profile.valueAsString);
     // Read config from cdk.json and TOML file(s).
-    const config = this.getConfig(profile.toString());
+    const config = this.getConfig();
 
     Tags.of(this).add("Stack", STACK_NAME);
 
@@ -187,7 +180,7 @@ export class HtsgetLambdaStack extends Stack {
   /**
    * Convert JSON config to htsget-rs env representation.
    */
-  configToEnv(config: any): { [key: string]: string } {
+  static configToEnv(config: any): { [key: string]: string } {
     const out: { [key: string]: string } = {};
     for (const key in config) {
       out[`HTSGET_${key.toUpperCase()}`] = TOML.stringify.value(config[key]);
@@ -280,8 +273,9 @@ export class HtsgetLambdaStack extends Stack {
   /**
    * Get the environment from config.toml
    */
-  getConfig(profile: string): Config {
+  getConfig(): Config {
     let env = this.node.tryGetContext("env");
+    let confFile = this.node.tryGetContext("htsget_rs_config");
 
     if (env === undefined) {
       env = {
@@ -289,14 +283,8 @@ export class HtsgetLambdaStack extends Stack {
         region: process.env.CDK_DEFAULT_REGION,
       }
     }
-    // TODO: Remove hardcoding, parametrize this better for the different environments via:
-    // cdk deploy --parameters environment = dev|prod|public
-    //
-    // https://docs.aws.amazon.com/cdk/v2/guide/parameters.html
 
-    console.log(profile);
-    const tomlFile = this.envParamToConfigToml(profile);
-    const configToml = TOML.parse(readFileSync(`config/${tomlFile}`).toString());
+    const configToml = TOML.parse(readFileSync(confFile).toString());
 
     return {
       environment: env,
@@ -328,8 +316,5 @@ export class HtsgetLambdaStack extends Stack {
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
     };
-  }
-  static configToEnv(configToml: TOML.JsonMap): { [key: string]: string; } {
-    throw new Error("Method not implemented.");
   }
 }

@@ -9,9 +9,16 @@ the htsget-rs server with [AWS Route 53][route-53].
 
 ## Configuration
 
-To configure the deployment change the config files in the [`config`][config] directory. There are two configuration files
-corresponding to the deployed environment. The config file used for deployment can be controlled by passing `--context "env=dev"` or
-`--context "env=prod"` to cdk. When no context parameter is supplied, the default context is `dev`.
+To configure the deployment change the config files in the [`config`][config] directory. Make sure to point to that config file on `cdk.json` before running `cdk deploy`, i.e:
+
+```json
+$ cat deploy/cdk.json
+(...)
+  },
+  "context": {
+    "htsget_rs_config": "config/public_umccr.toml",
+(...)
+```
 
 These config files configure [htsget-lambda]. See [htsget-config] for a list of available configuration options.
 
@@ -29,6 +36,7 @@ After installing the basic dependencies, complete the following steps:
 1. Define CDK\_DEFAULT\_* env variables (if not defined already). You must be authenticated with your AWS cloud to run this step.
 1. Add the arm cross-compilation target to rust.
 1. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
+1. Define which configuration to use for htsget-rs on `cdk.json` as stated in aforementioned configuration section. 
 
 Below is a summary of commands to run in this directory:
 
