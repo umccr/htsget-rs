@@ -37,7 +37,7 @@ impl ObjectType {
       #[cfg(feature = "url-storage")]
       ObjectType::Tagged(TaggedObjectTypes::GenerateKeys) => true,
       ObjectType::Crypt4GH { .. } => true,
-      _ => false
+      _ => false,
     }
   }
 }

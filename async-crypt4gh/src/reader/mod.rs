@@ -18,6 +18,8 @@ use crate::DecryptedDataBlock;
 
 use super::decrypter::DecrypterStream;
 
+use crate::error::Result;
+
 pub mod builder;
 
 pin_project! {
@@ -75,6 +77,24 @@ where
   /// Get the inner reader.
   pub fn into_inner(self) -> R {
     self.stream.into_inner().into_inner()
+  }
+
+  /// Get the session keys. Empty before the header is polled.
+  pub fn session_keys(&self) -> &[Vec<u8>] {
+    self.stream.get_ref().session_keys()
+  }
+
+  /// Get the edit list packet. Empty before the header is polled.
+  pub fn edit_list_packet(&self) -> Option<&[u64]> {
+    self.stream.get_ref().edit_list_packet()
+  }
+
+  /// Poll the reader until the header has been read.
+  pub async fn read_header(&mut self) -> Result<()>
+  where
+    R: Unpin,
+  {
+    self.stream.get_mut().read_header().await
   }
 }
 

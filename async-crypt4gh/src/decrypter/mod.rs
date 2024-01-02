@@ -134,6 +134,14 @@ where
   {
     Pin::new(self).poll_session_keys(cx)
   }
+
+  /// Poll the stream until the header has been read.
+  pub async fn read_header(&mut self) -> Result<()>
+  where
+    R: Unpin,
+  {
+    SessionKeysFuture::new(self).await
+  }
 }
 
 impl<R> DecrypterStream<R> {
@@ -204,6 +212,16 @@ impl<R> DecrypterStream<R> {
         _ => encrypted_position,
       }
     })
+  }
+
+  /// Get the session keys. Empty before the header is polled.
+  pub fn session_keys(&self) -> &[Vec<u8>] {
+    &self.session_keys
+  }
+
+  /// Get the edit list packet. Empty before the header is polled.
+  pub fn edit_list_packet(&self) -> Option<&[u64]> {
+    self.edit_list_packet.as_deref()
   }
 }
 
@@ -277,7 +295,7 @@ where
   /// Seek to a position in the encrypted stream.
   pub async fn seek_encrypted(&mut self, position: SeekFrom) -> io::Result<u64> {
     // Make sure that session keys are polled.
-    SessionKeysFuture::new(self).await?;
+    self.read_header().await?;
 
     // First poll to the position specified.
     let seek = self.inner.get_mut().seek(position).await?;
@@ -295,7 +313,7 @@ where
   /// Seek to a position in the unencrypted stream.
   pub async fn seek_unencrypted(&mut self, position: u64) -> io::Result<u64> {
     // Make sure that session keys are polled.
-    SessionKeysFuture::new(self).await?;
+    self.read_header().await?;
 
     // Convert to an encrypted position and seek
     let position = self
@@ -314,7 +332,7 @@ where
 {
   async fn advance_encrypted(&mut self, position: u64) -> io::Result<u64> {
     // Make sure that session keys are polled.
-    SessionKeysFuture::new(self).await?;
+    self.read_header().await?;
 
     // Get the next position.
     let data_block_position = self
@@ -326,7 +344,7 @@ where
 
   async fn advance_unencrypted(&mut self, position: u64) -> io::Result<u64> {
     // Make sure that session keys are polled.
-    SessionKeysFuture::new(self).await?;
+    self.read_header().await?;
 
     // Convert to an encrypted position and seek
     let position = self

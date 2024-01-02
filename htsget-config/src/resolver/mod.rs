@@ -296,9 +296,9 @@ mod tests {
 
   #[cfg(feature = "url-storage")]
   use {
-    crate::storage::url, crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
+    crate::storage::url, crate::storage::url::endpoints::Endpoints,
+    crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
     hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
-    crate::storage::url::endpoints::Endpoints
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
