@@ -56,7 +56,7 @@ noodles = { version = "0.60", features = ["async", "core", "bgzf", "bam", "bcf",
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
-aws-sdk-s3 = { version = "0.30", optional = true }
+aws-sdk-s3 = { version = "0.34", optional = true }
 aws-config = { version = "0.56", optional = true }
 
 # Url storage

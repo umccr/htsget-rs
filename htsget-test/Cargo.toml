@@ -65,15 +65,15 @@ serde = { version = "1", optional = true }
 base64 = { version = "0.21", optional = true }
 
 tempfile = { version = "3.3", optional = true }
-aws-sdk-s3 = { version = "0.30", features = ["test-util"], optional = true }
+aws-sdk-s3 = { version = "0.34", features = ["test-util"], optional = true }
 aws-config = { version = "0.56", optional = true }
 aws-credential-types = { version = "0.56", features = ["test-util"], optional = true }
-s3s = { version = "0.7", optional = true }
-s3s-fs = { version = "0.7", optional = true }
-s3s-aws = { version = "0.7", optional = true }
+s3s = { version = "0.8", optional = true }
+s3s-fs = { version = "0.8", optional = true }
+s3s-aws = { version = "0.8", optional = true }
 
 crypt4gh = { version = "0.4", git = "https://github.com/umccr/crypt4gh-rust", branch = "fix_rust_crypto_et_al", optional = true }
 async-crypt4gh = { version = "0.1.0", path = "../async-crypt4gh", optional = true }
 
 # Default dependencies
-rcgen = "0.11"
+rcgen = "0.12"
