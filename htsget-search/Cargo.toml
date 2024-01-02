@@ -1,6 +1,6 @@
 [package]
 name = "htsget-search"
-version = "0.6.5"
+version = "0.6.6"
 rust-version = "1.65"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
@@ -59,8 +59,8 @@ hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "
 
 # Error control, tracing, config
 thiserror = "1.0"
-htsget-config = { version = "0.8.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.5.3", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-config = { version = "0.8.1", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.5.4", path = "../htsget-test", features = ["cors-tests"], default-features = false }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"
