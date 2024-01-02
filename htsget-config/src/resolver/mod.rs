@@ -11,7 +11,9 @@ use tracing::instrument;
 
 use crate::config::DataServerConfig;
 use crate::resolver::allow_guard::{AllowGuard, QueryAllowed, ReferenceNames};
-use crate::resolver::object::{ObjectType, TaggedObjectTypes};
+use crate::resolver::object::ObjectType;
+#[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
+use crate::resolver::object::TaggedObjectTypes;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
@@ -146,7 +148,7 @@ impl Resolver {
       }
     }
 
-    #[cfg(feature = "crypt4gh")]
+    #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
     // `Crypt4GHGenerate` is only supported for `UrlStorage`.
     if let ObjectType::Tagged(TaggedObjectTypes::GenerateKeys) = self.object_type() {
       if !matches!(self.storage(), Storage::Url { .. }) {
@@ -296,10 +298,10 @@ mod tests {
   use {
     crate::storage::url, crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
     hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
+    crate::storage::url::endpoints::Endpoints
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
-  use crate::storage::url::endpoints::Endpoints;
   use crate::types::Format::Bam;
   use crate::types::Scheme::Http;
   use crate::types::Url;
