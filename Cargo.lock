@@ -1679,7 +1679,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-actix"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -1704,7 +1704,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-config"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "async-trait",
  "clap",
@@ -1733,7 +1733,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-http"
-version = "0.4.11"
+version = "0.4.12"
 dependencies = [
  "futures",
  "htsget-config",
@@ -1748,7 +1748,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-lambda"
-version = "0.4.13"
+version = "0.4.14"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1772,7 +1772,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-search"
-version = "0.6.5"
+version = "0.6.6"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -1806,7 +1806,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-test"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "async-trait",
  "aws-config",

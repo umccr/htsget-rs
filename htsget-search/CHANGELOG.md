@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.6](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.5...htsget-search-v0.6.6) - 2024-01-02
+
+### Other
+- *(deps)* further minor dependency changes
+- *(deps)* update noodles to 0.60, new clippy warnings
+
 ## [0.6.5](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.6.4...htsget-search-v0.6.5) - 2023-11-02
 
 ### Added
