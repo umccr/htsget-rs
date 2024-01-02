@@ -18,7 +18,7 @@ default = []
 [dependencies]
 thiserror = "1.0"
 async-trait = "0.1"
-noodles = { version = "0.50", features = ["core"] }
+noodles = { version = "0.60", features = ["core"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "3.0"
 serde_regex = "1.1"
@@ -27,7 +27,7 @@ figment = { version = "0.10", features = ["env", "toml"] }
 clap = { version = "4.3", features = ["derive", "env", "cargo"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter", "ansi", "json"] }
-toml = "0.7"
+toml = "0.8"
 http = "0.2"
 http-serde = "1.1"
 rustls-pemfile = "1.0"
@@ -42,4 +42,4 @@ serde_json = "1.0"
 figment = { version = "0.10", features = ["test"] }
 tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 tempfile = "3.6"
-rcgen = "0.11"
+rcgen = "0.12"

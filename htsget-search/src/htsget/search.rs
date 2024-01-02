@@ -12,9 +12,11 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf::{gzi, VirtualPosition};
-use noodles::csi::index::reference_sequence::bin::Chunk;
-use noodles::csi::index::ReferenceSequence;
-use noodles::csi::Index;
+use noodles::csi::binning_index::index::reference_sequence::bin::Chunk;
+use noodles::csi::binning_index::index::Index;
+use noodles::csi::binning_index::index::{reference_sequence, ReferenceSequence};
+use noodles::csi::binning_index::ReferenceSequence as ReferenceSequenceExt;
+use noodles::csi::BinningIndex;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
@@ -373,22 +375,24 @@ where
 /// BAM, BCF, and VCF.
 ///
 /// [S] is the storage type.
+/// [I] the index type used for the `ReferenceSequence`.
 /// [ReaderType] is the inner type used for [Reader].
 /// [ReferenceSequence] is the reference sequence type of the format's index.
 /// [Index] is the format's index type.
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait BgzfSearch<S, ReaderType, Reader, Header>:
-  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait BgzfSearch<S, I, ReaderType, Reader, Header>:
+  Search<S, ReaderType, ReferenceSequence<I>, Index<I>, Reader, Header>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  I: reference_sequence::Index + Send + Sync,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
   Header: Send + Sync,
 {
   #[instrument(level = "trace", skip_all)]
-  fn index_positions(index: &Index) -> BTreeSet<u64> {
+  fn index_positions(index: &Index<I>) -> BTreeSet<u64> {
     trace!("getting possible index positions");
     let mut positions = BTreeSet::new();
 
@@ -425,7 +429,7 @@ where
     &self,
     query: &Query,
     ref_seq_id: usize,
-    index: &Index,
+    index: &Index<I>,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
       trace!(id = ?query.id(), ref_seq_id = ?ref_seq_id, "querying chunks");
@@ -538,7 +542,7 @@ where
   async fn get_byte_ranges_for_unmapped(
     &self,
     _query: &Query,
-    _index: &Index,
+    _index: &Index<I>,
   ) -> Result<Vec<BytesPosition>> {
     Ok(Vec::new())
   }
@@ -551,14 +555,15 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType, Reader, Header, T>
-  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header> for T
+impl<S, I, ReaderType, Reader, Header, T>
+  SearchAll<S, ReaderType, ReferenceSequence<I>, Index<I>, Reader, Header> for T
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
+  I: reference_sequence::Index + Send + Sync,
   ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
   Header: Send + Sync,
-  T: BgzfSearch<S, ReaderType, Reader, Header> + Send + Sync,
+  T: BgzfSearch<S, I, ReaderType, Reader, Header> + Send + Sync,
 {
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
@@ -568,7 +573,7 @@ where
   }
 
   #[instrument(level = "trace", skip_all, ret)]
-  async fn get_header_end_offset(&self, index: &Index) -> Result<u64> {
+  async fn get_header_end_offset(&self, index: &Index<I>) -> Result<u64> {
     let first_index_position =
       Self::index_positions(index)
         .into_iter()
@@ -587,7 +592,7 @@ where
 
   async fn get_byte_ranges_for_header(
     &self,
-    index: &Index,
+    index: &Index<I>,
     header: &Header,
     reader: &mut Reader,
     query: &Query,
