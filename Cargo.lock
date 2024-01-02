@@ -514,9 +514,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-s3"
-version = "0.30.0"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a531d010f9f556bf65eb3bcd8d24f1937600ab6940fede4d454cd9b1f031fb34"
+checksum = "42f7a233b27af6e70094eafd43d9ee11da6e78eb2c1a31e5a7de737b782c627d"
 dependencies = [
  "aws-credential-types",
  "aws-http",
@@ -1457,7 +1457,7 @@ dependencies = [
  "pear",
  "serde",
  "tempfile",
- "toml 0.8.8",
+ "toml",
  "uncased",
  "version_check",
 ]
@@ -1726,7 +1726,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "toml 0.7.8",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2835,9 +2835,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eff6510e86862b57b210fd8cbe8ed3f0d7d600b9c2863cd4549a2e033c66e956"
+checksum = "1004a344b30a54e2ee58d66a71b32d2db2feb0a31f9a2d302bf0536f15de2a33"
 dependencies = [
  "memchr",
  "serde",
@@ -2904,12 +2904,12 @@ dependencies = [
 
 [[package]]
 name = "rcgen"
-version = "0.11.3"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52c4f3084aa3bc7dfbba4eff4fab2a54db4324965d8872ab933565e6fbd83bc6"
+checksum = "5d918c80c5a4c7560db726763020bd16db179e4d5b828078842274a443addb5d"
 dependencies = [
  "pem",
- "ring 0.16.20",
+ "ring 0.17.7",
  "time",
  "yasna",
 ]
@@ -3130,9 +3130,9 @@ checksum = "f98d2aa92eebf49b69786be48e4477826b256916e84a57ff2a4f21923b48eb4c"
 
 [[package]]
 name = "s3s"
-version = "0.7.1"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "851a1551bb5ceb2361674eea469d252c0857891aed6e874cf2d630176d768d73"
+checksum = "17419b26b83f810a49eb1087213e889da16b446f9cf5149aaad777c0b1e5f56f"
 dependencies = [
  "arrayvec",
  "async-trait",
@@ -3170,9 +3170,9 @@ dependencies = [
 
 [[package]]
 name = "s3s-aws"
-version = "0.7.1"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18046f2e61c6fab85ae669fb1df6681b2df7774c439368d536d05f486b682c9a"
+checksum = "355d5e4fc3dad032b0c719057b3632713caee110b4ea231f4d37b44287eee8ea"
 dependencies = [
  "async-trait",
  "aws-sdk-s3",
@@ -3191,9 +3191,9 @@ dependencies = [
 
 [[package]]
 name = "s3s-fs"
-version = "0.7.1"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3982bf28303865b28944a75d209d573b4121c7d100a13735ff9a549028c4d0dd"
+checksum = "cfed24ce7b786e2d8979f0468e7745482cc1f5114ed75dd214c71e5c5620d87e"
 dependencies = [
  "async-trait",
  "base64-simd",
@@ -3703,18 +3703,6 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.7.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd79e69d3b627db300ff956027cc6c3798cef26d22526befdfcd12feeb6d2257"
-dependencies = [
- "serde",
- "serde_spanned",
- "toml_datetime",
- "toml_edit 0.19.15",
-]
-
-[[package]]
-name = "toml"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1a195ec8c9da26928f773888e0742ca3ca1040c6cd859c919c9f59c1954ab35"
@@ -3722,7 +3710,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "toml_edit 0.21.0",
+ "toml_edit",
 ]
 
 [[package]]
@@ -3732,19 +3720,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3550f4e9685620ac18a50ed434eb3aec30db8ba93b0287467bca5826ea25baf1"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.19.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
-dependencies = [
- "indexmap 2.1.0",
- "serde",
- "serde_spanned",
- "toml_datetime",
- "winnow",
 ]
 
 [[package]]
