@@ -708,7 +708,7 @@ mod tests {
   }
 
   async fn spawn_server(config: &Config) -> String {
-    let mut bind_data_server = BindDataServer::try_from(config.data_server().clone()).unwrap();
+    let mut bind_data_server = BindDataServer::from(config.data_server().clone());
     let server = bind_data_server.bind_data_server().await.unwrap();
     let addr = server.local_addr();
 

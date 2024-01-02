@@ -145,8 +145,7 @@ impl Block {
         .sum::<usize>(),
     )
     .map_err(|_| NumericConversionError)?
-      + u64::try_from(header_packets).map_err(|_| NumericConversionError)?
-        * HEADER_PACKET_LENGTH_SIZE as u64;
+      + u64::from(header_packets) * HEADER_PACKET_LENGTH_SIZE as u64;
 
     Ok(Some(DecodedBlock::HeaderPackets(
       EncryptedHeaderPackets::new(header_packet_bytes, header_length),

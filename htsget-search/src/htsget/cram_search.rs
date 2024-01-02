@@ -170,7 +170,7 @@ where
   }
 
   fn get_ref(reader: &mut AsyncReader<ReaderType>) -> &ReaderType {
-    todo!();
+    reader.get_ref().get_ref()
   }
 
   async fn get_byte_ranges_for_reference_name(

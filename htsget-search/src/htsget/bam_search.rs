@@ -7,10 +7,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use noodles::bam;
 use noodles::bam::bai;
+use noodles::bam::bai::Index;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::index::ReferenceSequence;
-use noodles::csi::Index;
+use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
+use noodles::csi::binning_index::index::ReferenceSequence;
+use noodles::csi::BinningIndex;
 use noodles::sam::header::record::value::map::read_group::platform::ParseError;
 use noodles::sam::header::record::value::map::read_group::Platform;
 use noodles::sam::Header;
@@ -35,7 +37,8 @@ pub struct BamSearch<S> {
 }
 
 #[async_trait]
-impl<S, ReaderType> BgzfSearch<S, ReaderType, AsyncReader<ReaderType>, Header> for BamSearch<S>
+impl<S, ReaderType> BgzfSearch<S, LinearIndex, ReaderType, AsyncReader<ReaderType>, Header>
+  for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
@@ -47,7 +50,7 @@ where
     index: &Index,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for unmapped reads");
-    let last_interval = index.first_record_in_last_linear_bin_start_position();
+    let last_interval = index.last_first_record_start_position();
     let start = match last_interval {
       Some(start) => start,
       None => {
@@ -78,7 +81,8 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  Search<S, ReaderType, ReferenceSequence<LinearIndex>, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
@@ -153,7 +157,7 @@ where
 
 #[async_trait]
 impl<S, ReaderType>
-  SearchReads<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+  SearchReads<S, ReaderType, ReferenceSequence<LinearIndex>, Index, AsyncReader<ReaderType>, Header>
   for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
