@@ -16,7 +16,7 @@ use crate::advance::Advance;
 use crate::decoder::Block;
 use crate::error::Error::NumericConversionError;
 use crate::reader::builder::Builder;
-use crate::DecryptedDataBlock;
+use crate::{DecryptedDataBlock, EncryptedHeaderPacketBytes};
 
 use super::decrypter::DecrypterStream;
 
@@ -102,7 +102,7 @@ where
   }
 
   /// Get the original encrypted header packets, not including the header info.
-  pub fn encrypted_header_packets(&self) -> Option<&Vec<Bytes>> {
+  pub fn encrypted_header_packets(&self) -> Option<&Vec<EncryptedHeaderPacketBytes>> {
     self.stream.get_ref().encrypted_header_packets()
   }
 

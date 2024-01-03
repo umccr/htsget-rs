@@ -22,6 +22,7 @@ use crate::decrypter::header::packets::HeaderPacketsDecrypter;
 use crate::decrypter::header::SessionKeysFuture;
 use crate::error::Error::Crypt4GHError;
 use crate::error::Result;
+use crate::EncryptedHeaderPacketBytes;
 use crate::{util, PublicKey};
 
 pub mod builder;
@@ -37,7 +38,7 @@ pin_project! {
         header_packet_future: Option<HeaderPacketsDecrypter>,
         keys: Vec<Keys>,
         sender_pubkey: Option<PublicKey>,
-        encrypted_header_packets: Option<Vec<Bytes>>,
+        encrypted_header_packets: Option<Vec<EncryptedHeaderPacketBytes>>,
         header_info: Option<HeaderInfo>,
         session_keys: Vec<Vec<u8>>,
         edit_list_packet: Option<Vec<u64>>,
@@ -112,7 +113,10 @@ where
           this
             .header_packet_future
             .set(Some(HeaderPacketsDecrypter::new(
-              header_packets,
+              header_packets
+                .into_iter()
+                .map(|packet| packet.into_header_bytes())
+                .collect(),
               this.keys.clone(),
               this.sender_pubkey.clone(),
             )));
@@ -235,7 +239,7 @@ impl<R> DecrypterStream<R> {
   }
 
   /// Get the original encrypted header packets, not including the header info.
-  pub fn encrypted_header_packets(&self) -> Option<&Vec<Bytes>> {
+  pub fn encrypted_header_packets(&self) -> Option<&Vec<EncryptedHeaderPacketBytes>> {
     self.encrypted_header_packets.as_ref()
   }
 }

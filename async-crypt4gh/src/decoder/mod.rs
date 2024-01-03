@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::EncryptedHeaderPackets;
+use crate::{EncryptedHeaderPacketBytes, EncryptedHeaderPackets};
 use bytes::{Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use tokio_util::codec::Decoder;
@@ -108,10 +108,9 @@ impl Block {
       }
 
       // Read the header packet length.
+      let length_bytes = src.split_to(HEADER_PACKET_LENGTH_SIZE).freeze();
       let mut length: usize = u32::from_le_bytes(
-        src
-          .split_to(HEADER_PACKET_LENGTH_SIZE)
-          .freeze()
+        length_bytes
           .as_ref()
           .try_into()
           .map_err(|_| SliceConversionError)?,
@@ -133,7 +132,10 @@ impl Block {
         return Ok(None);
       }
 
-      header_packet_bytes.push(src.split_to(length).freeze());
+      header_packet_bytes.push(EncryptedHeaderPacketBytes::new(
+        length_bytes,
+        src.split_to(length).freeze(),
+      ));
     }
 
     self.next_block = BlockState::DataBlock;
@@ -141,11 +143,10 @@ impl Block {
     let header_length = u64::try_from(
       header_packet_bytes
         .iter()
-        .map(|packet| packet.len())
+        .map(|packet| packet.packet_length().len() + packet.header().len())
         .sum::<usize>(),
     )
-    .map_err(|_| NumericConversionError)?
-      + u64::from(header_packets) * HEADER_PACKET_LENGTH_SIZE as u64;
+    .map_err(|_| NumericConversionError)?;
 
     Ok(Some(DecodedBlock::HeaderPackets(
       EncryptedHeaderPackets::new(header_packet_bytes, header_length),
@@ -376,7 +377,10 @@ pub(crate) mod tests {
     (
       recipient_private_key,
       sender_public_key,
-      header_packet,
+      header_packet
+        .into_iter()
+        .map(|packet| packet.into_header_bytes())
+        .collect(),
       reader,
     )
   }

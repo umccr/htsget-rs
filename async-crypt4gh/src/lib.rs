@@ -31,17 +31,53 @@ impl PublicKey {
   }
 }
 
+/// Represents an encrypted header packet with the packet length, and the remaining header.
+#[derive(Clone, Debug, Default)]
+pub struct EncryptedHeaderPacketBytes {
+  packet_length: Bytes,
+  header: Bytes,
+}
+
+impl EncryptedHeaderPacketBytes {
+  /// Create header packet bytes.
+  pub fn new(packet_length: Bytes, header: Bytes) -> Self {
+    Self {
+      packet_length,
+      header,
+    }
+  }
+
+  /// Get packet length bytes.
+  pub fn packet_length(&self) -> &Bytes {
+    &self.packet_length
+  }
+
+  /// Get header bytes.
+  pub fn header(&self) -> &Bytes {
+    &self.header
+  }
+
+  /// Get the owned packet length and header bytes.
+  pub fn into_inner(self) -> (Bytes, Bytes) {
+    (self.packet_length, self.header)
+  }
+
+  /// Get the header bytes only.
+  pub fn into_header_bytes(self) -> Bytes {
+    self.header
+  }
+}
+
 /// Represents the encrypted header packet data, and the total size of all the header packets.
-/// The encrypted packets do not include the size of the packet at the beginning.
 #[derive(Debug, Default)]
 pub struct EncryptedHeaderPackets {
-  header_packets: Vec<Bytes>,
+  header_packets: Vec<EncryptedHeaderPacketBytes>,
   header_length: u64,
 }
 
 impl EncryptedHeaderPackets {
   /// Create a new decrypted data block.
-  pub fn new(header_packets: Vec<Bytes>, size: u64) -> Self {
+  pub fn new(header_packets: Vec<EncryptedHeaderPacketBytes>, size: u64) -> Self {
     Self {
       header_packets,
       header_length: size,
@@ -49,7 +85,7 @@ impl EncryptedHeaderPackets {
   }
 
   /// Get the header packet bytes
-  pub fn header_packets(&self) -> &Vec<Bytes> {
+  pub fn header_packets(&self) -> &Vec<EncryptedHeaderPacketBytes> {
     &self.header_packets
   }
 
@@ -59,7 +95,7 @@ impl EncryptedHeaderPackets {
   }
 
   /// Get the inner bytes and size.
-  pub fn into_inner(self) -> (Vec<Bytes>, u64) {
+  pub fn into_inner(self) -> (Vec<EncryptedHeaderPacketBytes>, u64) {
     (self.header_packets, self.header_length)
   }
 }
