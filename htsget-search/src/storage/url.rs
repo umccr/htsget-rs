@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use async_crypt4gh::edit_lists::{add_edit_lists, UnencryptedRange};
+use async_crypt4gh::edit_lists::{append_edit_list, UnencryptedPosition};
 use async_crypt4gh::util::generate_key_pair;
 use async_crypt4gh::PublicKey;
 use async_trait::async_trait;
@@ -299,13 +299,13 @@ impl Storage for UrlStorage {
       let file_size = positions_options.file_size();
       let header_size = header_bytes.len() as u64;
 
-      let reencrypted_header = add_edit_lists(
+      let reencrypted_header = append_edit_list(
         header_bytes,
         positions_options
           .positions
           .iter()
           .map(|position| {
-            UnencryptedRange::new(
+            UnencryptedPosition::new(
               position.start.unwrap_or_default(),
               position.end.unwrap_or(file_size),
             )
@@ -313,8 +313,10 @@ impl Storage for UrlStorage {
           .collect(),
         private_key,
         public_key,
+        file_size,
       )
-      .ok_or_else(|| UrlParseError("header already contains an edit list".to_string()))?;
+      .await
+      .map_err(|err| UrlParseError(err.to_string()))?;
 
       // Note original header byte length.
       positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
