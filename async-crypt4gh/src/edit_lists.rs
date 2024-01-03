@@ -1,6 +1,6 @@
 use crate::decoder::HEADER_INFO_SIZE;
 use crate::error::{Error, Result};
-use crate::util::{unencrypted_to_data_block, unencrypted_to_next_data_block};
+use crate::util::{unencrypted_clamp, unencrypted_clamp_next};
 use crate::PublicKey;
 use crypt4gh::header::{deconstruct_header_info, encrypt, make_packet_data_edit_list};
 use crypt4gh::Keys;
@@ -78,10 +78,10 @@ pub fn create_edit_list(
     (Vec::with_capacity(ranges_size), 0),
     |(mut edit_list, previous_discard), range| {
       // Note, edit lists do not relate to the length of the crypt4gh header, only to the 65536 byte
-      // boundaries of the data packets, so the boundaries can be treated like they have a 0 byte
+      // boundaries of the encrypted blocks, so the boundaries can be treated like they have a 0 byte
       // size header.
-      let start_boundary = unencrypted_to_data_block(range.start, 0, stream_length);
-      let end_boundary = unencrypted_to_next_data_block(range.end, 0, stream_length);
+      let start_boundary = unencrypted_clamp(range.start, stream_length);
+      let end_boundary = unencrypted_clamp_next(range.end, stream_length);
 
       let discard = range.start - start_boundary + previous_discard;
       let keep = range.end - range.start;
@@ -91,4 +91,27 @@ pub fn create_edit_list(
     },
   );
   edit_list
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_create_edit_list() {
+    let edit_list = create_edit_list(test_positions(), 5485112);
+    assert_eq!(edit_list, expected_edit_list());
+  }
+
+  fn test_positions() -> Vec<UnencryptedPosition> {
+    vec![
+      UnencryptedPosition::new(0, 7853),
+      UnencryptedPosition::new(145110, 453039),
+      UnencryptedPosition::new(5485074, 5485112),
+    ]
+  }
+
+  fn expected_edit_list() -> Vec<u64> {
+    vec![0, 7853, 71721, 307929, 51299, 38]
+  }
 }

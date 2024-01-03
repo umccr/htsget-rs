@@ -45,6 +45,28 @@ pub fn unencrypted_to_next_data_block(pos: u64, header_len: u64, file_size: u64)
   )
 }
 
+fn unencrypted_clamped_position(pos: u64, file_size: u64) -> u64 {
+  let data_block_positions = unencrypted_to_data_block(pos, 0, file_size);
+  let data_block_count = data_block_positions / Block::standard_data_block_size();
+
+  data_block_positions - ((Block::nonce_size() + Block::mac_size()) * data_block_count)
+}
+
+/// Convert an unencrypted position to the additional bytes prior to the position that must be
+/// included when encrypting data blocks.
+pub fn unencrypted_clamp(pos: u64, file_size: u64) -> u64 {
+  min(file_size, unencrypted_clamped_position(pos, file_size))
+}
+
+/// Convert an unencrypted position to the additional bytes after to the position that must be
+/// included when encrypting data blocks.
+pub fn unencrypted_clamp_next(pos: u64, file_size: u64) -> u64 {
+  min(
+    file_size,
+    unencrypted_clamped_position(pos, file_size) + Block::encrypted_block_size(),
+  )
+}
+
 /// Generate a private and public key pair.
 pub fn generate_key_pair() -> (PrivateKey, PublicKey) {
   todo!()
@@ -52,7 +74,8 @@ pub fn generate_key_pair() -> (PrivateKey, PublicKey) {
 
 #[cfg(test)]
 mod tests {
-  use crate::util::{unencrypted_to_data_block, unencrypted_to_next_data_block};
+  use super::*;
+  use crate::util::{unencrypted_clamp, unencrypted_to_data_block, unencrypted_to_next_data_block};
 
   #[test]
   fn test_to_encrypted() {
@@ -91,6 +114,42 @@ mod tests {
     let pos = 110000;
     let expected = 100176;
     let result = unencrypted_to_next_data_block(pos, 120, 100000);
+    assert_eq!(result, expected);
+  }
+
+  #[test]
+  fn test_unencrypted_clamp() {
+    let pos = 0;
+    let expected = 0;
+    let result = unencrypted_clamp(pos, 5485112);
+    assert_eq!(result, expected);
+
+    let pos = 145110;
+    let expected = 131072;
+    let result = unencrypted_clamp(pos, 5485112);
+    assert_eq!(result, expected);
+
+    let pos = 5485074;
+    let expected = 5439488;
+    let result = unencrypted_clamp(pos, 5485112);
+    assert_eq!(result, expected);
+  }
+
+  #[test]
+  fn test_unencrypted_clamp_next() {
+    let pos = 7853;
+    let expected = 65536;
+    let result = unencrypted_clamp_next(pos, 5485112);
+    assert_eq!(result, expected);
+
+    let pos = 453039;
+    let expected = 458752;
+    let result = unencrypted_clamp_next(pos, 5485112);
+    assert_eq!(result, expected);
+
+    let pos = 5485112;
+    let expected = 5485112;
+    let result = unencrypted_clamp_next(pos, 5485112);
     assert_eq!(result, expected);
   }
 }
