@@ -6,6 +6,7 @@ use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use crypt4gh::header::HeaderInfo;
 use crypt4gh::Keys;
 use futures::ready;
 use futures::Stream;
@@ -36,6 +37,8 @@ pin_project! {
         header_packet_future: Option<HeaderPacketsDecrypter>,
         keys: Vec<Keys>,
         sender_pubkey: Option<PublicKey>,
+        encrypted_header_packets: Option<Vec<Bytes>>,
+        header_info: Option<HeaderInfo>,
         session_keys: Vec<Vec<u8>>,
         edit_list_packet: Option<Vec<u64>>,
         header_length: Option<u64>,
@@ -93,14 +96,16 @@ where
     let mut this = self.as_mut().project();
     match ready!(this.inner.poll_next(cx)) {
       Some(Ok(buf)) => match buf {
-        DecodedBlock::HeaderInfo(_) => {
-          // Ignore the header info and poll again.
+        DecodedBlock::HeaderInfo(header_info) => {
+          // Store the header info but otherwise ignore it and poll again.
+          *this.header_info = Some(header_info);
           cx.waker().wake_by_ref();
           Poll::Pending
         }
         DecodedBlock::HeaderPackets(header_packets) => {
           // Update the header length because we have access to the header packets.
           let (header_packets, header_length) = header_packets.into_inner();
+          *this.encrypted_header_packets = Some(header_packets.clone());
           *this.header_length = Some(header_length + Block::header_info_size());
 
           // Add task for decrypting the header packets.
@@ -172,7 +177,7 @@ impl<R> DecrypterStream<R> {
 
   /// Get the length of the header, including the magic string, version number, packet count
   /// and the header packets. Returns `None` before the header packet is polled.
-  pub fn header_length(&self) -> Option<u64> {
+  pub fn header_size(&self) -> Option<u64> {
     self.header_length
   }
 
@@ -186,7 +191,7 @@ impl<R> DecrypterStream<R> {
   /// Clamps the byte position to the nearest data block if the header length is known. This
   /// function takes into account the stream length if it is present.
   pub fn clamp_position(&self, position: u64) -> Option<u64> {
-    self.header_length().map(|length| {
+    self.header_size().map(|length| {
       if position < length {
         length
       } else {
@@ -204,7 +209,7 @@ impl<R> DecrypterStream<R> {
 
   /// Convert an unencrypted position to an encrypted position if the header length is known.
   pub fn to_encrypted(&self, position: u64) -> Option<u64> {
-    self.header_length().map(|length| {
+    self.header_size().map(|length| {
       let encrypted_position = util::to_encrypted(position, length);
 
       match self.stream_length {
@@ -222,6 +227,16 @@ impl<R> DecrypterStream<R> {
   /// Get the edit list packet. Empty before the header is polled.
   pub fn edit_list_packet(&self) -> Option<&[u64]> {
     self.edit_list_packet.as_deref()
+  }
+
+  /// Get the header info.
+  pub fn header_info(&self) -> Option<&HeaderInfo> {
+    self.header_info.as_ref()
+  }
+
+  /// Get the original encrypted header packets, not including the header info.
+  pub fn encrypted_header_packets(&self) -> Option<&Vec<Bytes>> {
+    self.encrypted_header_packets.as_ref()
   }
 }
 
@@ -416,11 +431,11 @@ mod tests {
       .await
       .unwrap();
 
-    assert!(stream.header_length().is_none());
+    assert!(stream.header_size().is_none());
 
     let _ = stream.next().await.unwrap().unwrap().await;
 
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
   }
 
   #[tokio::test]
@@ -580,7 +595,7 @@ mod tests {
     let seek = stream.seek_encrypted(SeekFrom::Start(0)).await.unwrap();
 
     assert_eq!(seek, 124);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -617,7 +632,7 @@ mod tests {
     let seek = stream.seek_encrypted(SeekFrom::Start(80000)).await.unwrap();
 
     assert_eq!(seek, 124 + 65564);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let seek = stream
@@ -626,7 +641,7 @@ mod tests {
       .unwrap();
 
     assert_eq!(seek, 124);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -663,7 +678,7 @@ mod tests {
     let seek = stream.seek_encrypted(SeekFrom::End(-1000)).await.unwrap();
 
     assert_eq!(seek, 2598043 - 40923);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let block = stream.next().await.unwrap().unwrap().await.unwrap();
@@ -684,7 +699,7 @@ mod tests {
     let seek = stream.seek_encrypted(SeekFrom::End(80000)).await.unwrap();
 
     assert_eq!(seek, 2598043);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
     assert!(stream.next().await.is_none());
   }
@@ -702,7 +717,7 @@ mod tests {
     let seek = stream.seek_encrypted(SeekFrom::End(80000)).await.unwrap();
 
     assert_eq!(seek, 2598043);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
     assert!(stream.next().await.is_none());
   }
@@ -721,7 +736,7 @@ mod tests {
     let advance = stream.advance_encrypted(0).await.unwrap();
 
     assert_eq!(advance, 124);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -758,7 +773,7 @@ mod tests {
     let advance = stream.advance_encrypted(80000).await.unwrap();
 
     assert_eq!(advance, 124 + 65564);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -795,7 +810,7 @@ mod tests {
     let advance = stream.advance_encrypted(2598042).await.unwrap();
 
     assert_eq!(advance, 2598043 - 40923);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -832,7 +847,7 @@ mod tests {
     let advance = stream.advance_encrypted(2598044).await.unwrap();
 
     assert_eq!(advance, 2598043);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -868,7 +883,7 @@ mod tests {
     let advance = stream.advance_encrypted(2598044).await.unwrap();
 
     assert_eq!(advance, 2598043);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -905,7 +920,7 @@ mod tests {
     let seek = stream.seek_unencrypted(0).await.unwrap();
 
     assert_eq!(seek, 124);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -942,13 +957,13 @@ mod tests {
     let seek = stream.seek_unencrypted(65537).await.unwrap();
 
     assert_eq!(seek, 124 + 65564);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let seek = stream.seek_unencrypted(65535).await.unwrap();
 
     assert_eq!(seek, 124);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -985,7 +1000,7 @@ mod tests {
     let seek = stream.seek_unencrypted(2596799).await.unwrap();
 
     assert_eq!(seek, 2598043 - 40923);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let block = stream.next().await.unwrap().unwrap().await.unwrap();
@@ -1006,7 +1021,7 @@ mod tests {
     let seek = stream.seek_unencrypted(2596800).await.unwrap();
 
     assert_eq!(seek, 2598043);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
     assert!(stream.next().await.is_none());
   }
@@ -1024,7 +1039,7 @@ mod tests {
     let seek = stream.seek_unencrypted(2596800).await.unwrap();
 
     assert_eq!(seek, 2598043);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
     assert!(stream.next().await.is_none());
   }
@@ -1043,7 +1058,7 @@ mod tests {
     let advance = stream.advance_unencrypted(0).await.unwrap();
 
     assert_eq!(advance, 124);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -1080,7 +1095,7 @@ mod tests {
     let advance = stream.advance_unencrypted(65537).await.unwrap();
 
     assert_eq!(advance, 124 + 65564);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -1117,7 +1132,7 @@ mod tests {
     let advance = stream.advance_unencrypted(2596799).await.unwrap();
 
     assert_eq!(advance, 2598043 - 40923);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -1154,7 +1169,7 @@ mod tests {
     let advance = stream.advance_unencrypted(2596800).await.unwrap();
 
     assert_eq!(advance, 2598043);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];
@@ -1190,7 +1205,7 @@ mod tests {
     let advance = stream.advance_unencrypted(2596800).await.unwrap();
 
     assert_eq!(advance, 2598043);
-    assert_eq!(stream.header_length(), Some(124));
+    assert_eq!(stream.header_size(), Some(124));
     assert_eq!(stream.current_block_size(), None);
 
     let mut futures = vec![];

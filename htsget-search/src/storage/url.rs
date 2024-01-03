@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use async_crypt4gh::edit_lists::{append_edit_list, UnencryptedPosition};
+use async_crypt4gh::edit_lists::{add_edit_list, UnencryptedPosition};
 use async_crypt4gh::util::generate_key_pair;
 use async_crypt4gh::PublicKey;
 use async_trait::async_trait;
@@ -292,40 +292,40 @@ impl Storage for UrlStorage {
       //let header_bytes = reader.header_bytes();
       //let private_key = reader.private_key();
       //let public_key = reader.public_key();
-      let private_key = PrivateKey(Vec::new());
-      let public_key = PublicKey::new(Vec::new());
-      let header_bytes = Vec::new();
-
-      let file_size = positions_options.file_size();
-      let header_size = header_bytes.len() as u64;
-
-      let reencrypted_header = append_edit_list(
-        header_bytes,
-        positions_options
-          .positions
-          .iter()
-          .map(|position| {
-            UnencryptedPosition::new(
-              position.start.unwrap_or_default(),
-              position.end.unwrap_or(file_size),
-            )
-          })
-          .collect(),
-        private_key,
-        public_key,
-        file_size,
-      )
-      .await
-      .map_err(|err| UrlParseError(err.to_string()))?;
-
-      // Note original header byte length.
-      positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
-
-      let mut blocks = vec![DataBlock::Data(reencrypted_header, Some(Class::Header))];
-      blocks.extend(DataBlock::from_bytes_positions(
-        positions_options.merge_all().into_inner(),
-      ));
-      return Ok(blocks);
+      // let private_key = PrivateKey(Vec::new());
+      // let public_key = PublicKey::new(Vec::new());
+      // let header_bytes = Vec::new();
+      //
+      // let file_size = positions_options.file_size();
+      // let header_size = header_bytes.len() as u64;
+      //
+      // let reencrypted_header = add_edit_list(
+      //   header_bytes,
+      //   positions_options
+      //     .positions
+      //     .iter()
+      //     .map(|position| {
+      //       UnencryptedPosition::new(
+      //         position.start.unwrap_or_default(),
+      //         position.end.unwrap_or(file_size),
+      //       )
+      //     })
+      //     .collect(),
+      //   private_key,
+      //   public_key,
+      //   file_size,
+      // )
+      // .await
+      // .map_err(|err| UrlParseError(err.to_string()))?;
+      //
+      // // Note original header byte length.
+      // positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
+      //
+      // let mut blocks = vec![DataBlock::Data(reencrypted_header, Some(Class::Header))];
+      // blocks.extend(DataBlock::from_bytes_positions(
+      //   positions_options.merge_all().into_inner(),
+      // ));
+      // return Ok(blocks);
     }
 
     Ok(DataBlock::from_bytes_positions(

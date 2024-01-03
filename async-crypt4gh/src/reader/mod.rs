@@ -4,6 +4,8 @@ use std::task::{Context, Poll};
 use std::{cmp, io};
 
 use async_trait::async_trait;
+use bytes::Bytes;
+use crypt4gh::header::HeaderInfo;
 use futures::ready;
 use futures::stream::TryBuffered;
 use futures::Stream;
@@ -89,6 +91,21 @@ where
     self.stream.get_ref().edit_list_packet()
   }
 
+  /// Get the header info.
+  pub fn header_info(&self) -> Option<&HeaderInfo> {
+    self.stream.get_ref().header_info()
+  }
+
+  /// Get the header size
+  pub fn header_size(&self) -> Option<u64> {
+    self.stream.get_ref().header_size()
+  }
+
+  /// Get the original encrypted header packets, not including the header info.
+  pub fn encrypted_header_packets(&self) -> Option<&Vec<Bytes>> {
+    self.stream.get_ref().encrypted_header_packets()
+  }
+
   /// Poll the reader until the header has been read.
   pub async fn read_header(&mut self) -> Result<()>
   where
@@ -140,7 +157,7 @@ where
     // If this is the beginning of the stream, set the block position to the header length, if any.
     if let (None, length @ Some(_)) = (
       this.block_position.as_ref(),
-      this.stream.get_ref().header_length(),
+      this.stream.get_ref().header_size(),
     ) {
       *this.block_position = length;
     }
