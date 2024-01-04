@@ -255,13 +255,13 @@ mod tests {
 
   use crate::advance::Advance;
   use crate::reader::builder::Builder;
-  use crate::tests::{get_keys, get_original_file};
+  use crate::tests::{get_decryption_keys, get_original_file};
   use crate::PublicKey;
 
   #[tokio::test]
   async fn reader() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -279,7 +279,7 @@ mod tests {
   #[tokio::test]
   async fn reader_with_noodles() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -324,7 +324,7 @@ mod tests {
   #[tokio::test]
   async fn first_current_block_position() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -346,7 +346,7 @@ mod tests {
   #[tokio::test]
   async fn first_next_block_position() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -368,7 +368,7 @@ mod tests {
   #[tokio::test]
   async fn last_current_block_position() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -390,7 +390,7 @@ mod tests {
   #[tokio::test]
   async fn last_next_block_position() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -412,7 +412,7 @@ mod tests {
   #[tokio::test]
   async fn seek_first_data_block() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -434,7 +434,7 @@ mod tests {
   #[tokio::test]
   async fn seek_to_end() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -459,7 +459,7 @@ mod tests {
   #[tokio::test]
   async fn seek_past_end() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -484,7 +484,7 @@ mod tests {
   #[tokio::test]
   async fn seek_past_end_stream_length_override() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -508,7 +508,7 @@ mod tests {
   #[tokio::test]
   async fn advance_first_data_block() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -530,7 +530,7 @@ mod tests {
   #[tokio::test]
   async fn advance_to_end() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -552,7 +552,7 @@ mod tests {
   #[tokio::test]
   async fn advance_past_end() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -574,7 +574,7 @@ mod tests {
   #[tokio::test]
   async fn advance_past_end_stream_length_override() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -595,7 +595,7 @@ mod tests {
   #[tokio::test]
   async fn seek_first_data_block_unencrypted() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -617,7 +617,7 @@ mod tests {
   #[tokio::test]
   async fn seek_to_end_unencrypted() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -639,7 +639,7 @@ mod tests {
   #[tokio::test]
   async fn seek_past_end_unencrypted() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -661,7 +661,7 @@ mod tests {
   #[tokio::test]
   async fn seek_past_end_unencrypted_stream_length_override() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -682,7 +682,7 @@ mod tests {
   #[tokio::test]
   async fn advance_first_data_block_unencrypted() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -704,7 +704,7 @@ mod tests {
   #[tokio::test]
   async fn advance_to_end_unencrypted() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -726,7 +726,7 @@ mod tests {
   #[tokio::test]
   async fn advance_past_end_unencrypted() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))
@@ -748,7 +748,7 @@ mod tests {
   #[tokio::test]
   async fn advance_past_end_unencrypted_stream_length_override() {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))

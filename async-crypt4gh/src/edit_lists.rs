@@ -1,4 +1,3 @@
-use crate::decoder::HEADER_INFO_SIZE;
 use crate::error::{Error, Result};
 use crate::reader::Reader;
 use crate::util::{unencrypted_clamp, unencrypted_clamp_next};
@@ -32,30 +31,35 @@ impl UnencryptedPosition {
 
 /// Add edit lists to the header packet.
 pub async fn add_edit_list<R: AsyncRead + Unpin>(
-  reader: Reader<R>,
+  reader: &mut Reader<R>,
   unencrypted_positions: Vec<UnencryptedPosition>,
   private_key: PrivateKey,
   recipient_public_key: PublicKey,
   stream_length: u64,
-) -> Result<Vec<u8>> {
+) -> Result<Option<Vec<u8>>> {
   if reader.edit_list_packet().is_some() {
     return Err(Error::Crypt4GHError("edit lists already exist".to_string()));
   }
 
   // Todo, header info should have copy or clone on it.
-  let header_info = reader
-    .header_info()
-    .ok_or_else(|| Error::Crypt4GHError("expected valid header info".to_string()))?;
-  let mut header_info = HeaderInfo {
-    magic_number: header_info.magic_number,
-    version: header_info.version,
-    packets_count: header_info.packets_count,
-  };
-
-  let header_size = reader
-    .header_size()
-    .ok_or_else(|| Error::Crypt4GHError("expected valid header size".to_string()))?
-    as usize;
+  let (mut header_info, encrypted_header_packets) =
+    if let (Some(header_info), Some(encrypted_header_packets)) =
+      (reader.header_info(), reader.encrypted_header_packets())
+    {
+      (
+        HeaderInfo {
+          magic_number: header_info.magic_number,
+          version: header_info.version,
+          packets_count: header_info.packets_count,
+        },
+        encrypted_header_packets
+          .iter()
+          .flat_map(|packet| [packet.packet_length().to_vec(), packet.header.to_vec()].concat())
+          .collect::<Vec<u8>>(),
+      )
+    } else {
+      return Ok(None);
+    };
 
   // Todo rewrite this from the context of an encryption stream like the decrypter.
   header_info.packets_count += 1;
@@ -74,22 +78,20 @@ pub async fn add_edit_list<R: AsyncRead + Unpin>(
     .into_iter()
     .last()
     .ok_or_else(|| Error::Crypt4GHError("could not encrypt header packet".to_string()))?;
+  let edit_list_bytes = [
+    ((edit_list_bytes.len() + 4) as u32).to_le_bytes().to_vec(),
+    edit_list_bytes,
+  ]
+  .concat();
 
-  let src: Vec<u8> = reader
-    .encrypted_header_packets()
-    .ok_or_else(|| Error::Crypt4GHError("expected valid header size".to_string()))?
-    .iter()
-    .flat_map(|packet| packet.to_vec())
-    .collect();
-  let mut header = [
+  let header = [
     header_info_bytes.as_slice(),
-    &src[HEADER_INFO_SIZE..header_size],
+    encrypted_header_packets.as_slice(),
     edit_list_bytes.as_slice(),
   ]
   .concat();
-  header.extend(&src[HEADER_INFO_SIZE..]);
 
-  Ok(header)
+  Ok(Some(header))
 }
 
 /// Create the edit lists from the unencrypted byte positions.
@@ -121,25 +123,47 @@ pub fn create_edit_list(
 mod tests {
   use super::*;
   use crate::reader::builder::Builder;
-  use crate::tests::{get_keys, get_original_file};
+  use crate::tests::{get_decryption_keys, get_encryption_keys};
   use htsget_test::http_tests::get_test_file;
 
   #[tokio::test]
   async fn test_append_edit_list() {
-    // let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    // let (recipient_private_key, sender_public_key) = get_keys().await;
-    //
-    // let mut reader = Builder::default()
-    //     .with_sender_pubkey(PublicKey::new(sender_public_key))
-    //     .build_with_stream_length(src, vec![recipient_private_key])
-    //     .await
-    //     .unwrap();
-    //
-    // let mut decrypted_bytes = vec![];
-    // reader.read_to_end(&mut decrypted_bytes).await.unwrap();
-    //
-    // let original_bytes = get_original_file().await;
-    // assert_eq!(decrypted_bytes, original_bytes);
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (private_key_decrypt, public_key_decrypt) = get_decryption_keys().await;
+    let (private_key_encrypt, public_key_encrypt) = get_encryption_keys().await;
+
+    let mut reader = Builder::default()
+      .with_sender_pubkey(PublicKey::new(public_key_decrypt.clone()))
+      .with_stream_length(5485112)
+      .build_with_reader(src, vec![private_key_decrypt.clone()]);
+    reader.read_header().await.unwrap();
+
+    let expected_data_packets = reader.session_keys().to_vec();
+
+    let header = add_edit_list(
+      &mut reader,
+      test_positions(),
+      PrivateKey(private_key_encrypt.clone().privkey),
+      PublicKey {
+        bytes: public_key_encrypt.clone(),
+      },
+      5485112,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    let mut reader = Builder::default()
+      .with_sender_pubkey(PublicKey::new(public_key_decrypt))
+      .with_stream_length(5485112)
+      .build_with_reader(header.as_slice(), vec![private_key_decrypt]);
+    reader.read_header().await.unwrap();
+
+    let data_packets = reader.session_keys();
+    assert_eq!(data_packets, expected_data_packets);
+
+    let edit_lists = reader.edit_list_packet().unwrap();
+    assert_eq!(edit_lists, expected_edit_list());
   }
 
   #[test]

@@ -288,19 +288,18 @@ impl Storage for UrlStorage {
   ) -> Result<Vec<DataBlock>> {
     #[cfg(feature = "crypt4gh")]
     if positions_options.object_type.is_crypt4gh() {
-      // todo
-      //let header_bytes = reader.header_bytes();
-      //let private_key = reader.private_key();
-      //let public_key = reader.public_key();
+      // let header_bytes = reader.header_bytes();
+      // let private_key = reader.private_key();
+      // let public_key = reader.public_key();
       // let private_key = PrivateKey(Vec::new());
       // let public_key = PublicKey::new(Vec::new());
       // let header_bytes = Vec::new();
-      //
+
       // let file_size = positions_options.file_size();
       // let header_size = header_bytes.len() as u64;
       //
       // let reencrypted_header = add_edit_list(
-      //   header_bytes,
+      //   reader,
       //   positions_options
       //     .positions
       //     .iter()

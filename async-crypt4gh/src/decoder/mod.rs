@@ -261,7 +261,7 @@ pub(crate) mod tests {
 
   use htsget_test::http_tests::get_test_file;
 
-  use crate::tests::{get_keys, get_original_file};
+  use crate::tests::{get_decryption_keys, get_original_file};
 
   use super::*;
 
@@ -356,7 +356,7 @@ pub(crate) mod tests {
   pub(crate) async fn get_first_header_packet(
   ) -> (Keys, Vec<u8>, Vec<Bytes>, Skip<FramedRead<File, Block>>) {
     let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = FramedRead::new(src, Block::default()).skip(1);
 
