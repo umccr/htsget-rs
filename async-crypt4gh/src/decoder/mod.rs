@@ -259,9 +259,10 @@ pub(crate) mod tests {
   use tokio::io::AsyncReadExt;
   use tokio_util::codec::FramedRead;
 
+  use htsget_test::crypt4gh::get_decryption_keys;
   use htsget_test::http_tests::get_test_file;
 
-  use crate::tests::{get_decryption_keys, get_original_file};
+  use crate::tests::get_original_file;
 
   use super::*;
 

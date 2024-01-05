@@ -390,7 +390,8 @@ mod tests {
 
   use crate::decoder::tests::assert_last_data_block;
   use crate::decrypter::builder::Builder;
-  use crate::tests::{get_decryption_keys, get_original_file};
+  use crate::tests::get_original_file;
+  use htsget_test::crypt4gh::get_decryption_keys;
 
   use super::*;
 

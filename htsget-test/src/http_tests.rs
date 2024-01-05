@@ -28,7 +28,7 @@ use htsget_config::types;
 use htsget_config::types::{Scheme, TaggedTypeAll};
 
 #[cfg(feature = "crypt4gh")]
-use crate::crypt4gh::get_keys;
+use crate::crypt4gh::get_decryption_keys;
 use crate::util::generate_test_certificates;
 use crate::Config;
 
@@ -134,7 +134,7 @@ pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf)
 
   #[cfg(feature = "crypt4gh")]
   if file_str.ends_with(".c4gh") {
-    let (recipient_private_key, sender_public_key) = get_keys().await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
 
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(sender_public_key))

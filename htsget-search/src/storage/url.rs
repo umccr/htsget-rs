@@ -34,7 +34,7 @@ use crate::storage::{
 };
 use crate::Url as HtsGetUrl;
 
-const PUBLIC_KEY_QUERY: &str = "public_key";
+const PUBLIC_KEY_NAME: &str = "publicKey";
 
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
@@ -86,7 +86,7 @@ impl UrlStorage {
   #[cfg(feature = "crypt4gh")]
   fn crypt4gh_query(public_key: &PublicKey) -> String {
     format!(
-      "?{PUBLIC_KEY_QUERY}={}",
+      "?{PUBLIC_KEY_NAME}={}",
       general_purpose::STANDARD.encode(public_key.get_ref())
     )
   }
@@ -373,6 +373,13 @@ impl Storage for UrlStorage {
         .build_with_reader(reader, vec![crypt4gh_keys]);
       let header_size = reader.header_size().ok_or_else(header_read_error)?;
 
+      let recipient_public_key = positions_options
+        .headers
+        .get(PUBLIC_KEY_NAME)
+        .ok_or_else(|| StorageError::InvalidInput("no public key found in header".to_string()))?
+        .as_bytes()
+        .to_vec();
+
       // Calculate edit lists
       let reencrypted_header = add_edit_list(
         &reader,
@@ -387,8 +394,7 @@ impl Storage for UrlStorage {
           })
           .collect(),
         keys.private_key().clone(),
-        // todo get recipient key from headers.
-        keys.public_key().clone(),
+        PublicKey::new(recipient_public_key),
         file_size,
       )
       .await
@@ -439,6 +445,7 @@ mod tests {
   use htsget_config::types::Class::{Body, Header};
   use htsget_config::types::Request as HtsgetRequest;
   use htsget_config::types::{Format, Headers, Query, Url};
+  use htsget_test::crypt4gh::get_encryption_keys;
   use htsget_test::http_tests::default_dir;
   use htsget_test::http_tests::test_bam_file_byte_ranges;
 
@@ -799,8 +806,14 @@ mod tests {
         true,
       );
 
+      let (_, public_key) = get_encryption_keys().await;
       let mut header_map = HeaderMap::default();
       test_headers(&mut header_map);
+      header_map.append(
+        HeaderName::from_str("publicKey").unwrap(),
+        HeaderValue::from_bytes(&public_key).unwrap(),
+      );
+
       let request =
         HtsgetRequest::new_with_id("htsnexus_test_NA12878".to_string()).with_headers(header_map);
       let query = Query::new(

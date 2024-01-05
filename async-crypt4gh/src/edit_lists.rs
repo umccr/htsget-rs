@@ -123,10 +123,10 @@ pub fn create_edit_list(
 
 #[cfg(test)]
 mod tests {
+  use htsget_test::crypt4gh::{get_decryption_keys, get_encryption_keys};
   use htsget_test::http_tests::get_test_file;
 
   use crate::reader::builder::Builder;
-  use crate::tests::{get_decryption_keys, get_encryption_keys};
 
   use super::*;
 

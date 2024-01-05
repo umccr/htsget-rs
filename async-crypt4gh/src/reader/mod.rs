@@ -254,8 +254,9 @@ mod tests {
 
   use crate::advance::Advance;
   use crate::reader::builder::Builder;
-  use crate::tests::{get_decryption_keys, get_original_file};
+  use crate::tests::get_original_file;
   use crate::PublicKey;
+  use htsget_test::crypt4gh::get_decryption_keys;
 
   #[tokio::test]
   async fn reader() {
