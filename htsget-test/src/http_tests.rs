@@ -4,10 +4,6 @@ use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-#[cfg(feature = "crypt4gh")]
-use async_crypt4gh::reader::builder::Builder;
-#[cfg(feature = "crypt4gh")]
-use async_crypt4gh::PublicKey;
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -17,6 +13,10 @@ use serde::de;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::reader::builder::Builder;
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::PublicKey;
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::resolver::Resolver;

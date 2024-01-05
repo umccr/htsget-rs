@@ -1,7 +1,7 @@
-use crate::decoder::Block;
-use crate::PublicKey;
-use rustls::PrivateKey;
 use std::cmp::min;
+
+use crate::decoder::Block;
+use crate::KeyPair;
 
 fn to_current_data_block(pos: u64, header_len: u64) -> u64 {
   header_len + (pos / Block::encrypted_block_size()) * Block::standard_data_block_size()
@@ -68,14 +68,15 @@ pub fn unencrypted_clamp_next(pos: u64, file_size: u64) -> u64 {
 }
 
 /// Generate a private and public key pair.
-pub fn generate_key_pair() -> (PrivateKey, PublicKey) {
+pub fn generate_key_pair() -> KeyPair {
   todo!()
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use crate::util::{unencrypted_clamp, unencrypted_to_data_block, unencrypted_to_next_data_block};
+
+  use super::*;
 
   #[test]
   fn test_to_encrypted() {

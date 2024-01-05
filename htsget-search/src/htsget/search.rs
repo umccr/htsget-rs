@@ -209,7 +209,7 @@ where
   async fn read_header(reader: &mut Reader) -> io::Result<Header>;
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
-  fn get_ref(reader: &mut Reader) -> &ReaderType;
+  fn into_inner(reader: Reader) -> ReaderType;
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
@@ -321,7 +321,7 @@ where
         let blocks = self
           .get_storage()
           .update_byte_positions(
-            Self::get_ref(&mut reader),
+            Self::into_inner(reader),
             BytesPositionOptions::new(
               byte_ranges,
               file_size,
@@ -351,7 +351,7 @@ where
         let blocks = self
           .get_storage()
           .update_byte_positions(
-            Self::get_ref(&mut reader),
+            Self::into_inner(reader),
             BytesPositionOptions::new(
               vec![header_byte_ranges],
               file_size,

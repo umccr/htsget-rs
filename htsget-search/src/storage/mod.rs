@@ -7,8 +7,6 @@ use std::io::ErrorKind;
 use std::net::AddrParseError;
 use std::time::Duration;
 
-#[cfg(feature = "crypt4gh")]
-use async_crypt4gh::util::{unencrypted_to_data_block, unencrypted_to_next_data_block};
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -18,6 +16,8 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::util::{unencrypted_to_data_block, unencrypted_to_next_data_block};
 use htsget_config::config::cors::CorsConfig;
 use htsget_config::resolver::object::ObjectType;
 use htsget_config::storage::local::LocalStorage;
@@ -79,7 +79,7 @@ pub trait Storage {
   #[instrument(level = "trace", ret, skip(self, _reader))]
   async fn update_byte_positions(
     &self,
-    _reader: &Self::Streamable,
+    _reader: Self::Streamable,
     positions_options: BytesPositionOptions<'_>,
   ) -> Result<Vec<DataBlock>> {
     Ok(DataBlock::from_bytes_positions(

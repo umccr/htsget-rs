@@ -62,8 +62,8 @@ export class HtsgetLambdaStack extends Stack {
 
     lambdaRole.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName(
-        "service-role/AWSLambdaBasicExecutionRole",
-      ),
+        "service-role/AWSLambdaBasicExecutionRole"
+      )
     );
     lambdaRole.addToPolicy(s3BucketPolicy);
 
@@ -98,7 +98,7 @@ export class HtsgetLambdaStack extends Stack {
     const parameterStoreConfig = config.parameterStoreConfig;
     const httpIntegration = new HttpLambdaIntegration(
       id + "HtsgetIntegration",
-      htsgetLambda,
+      htsgetLambda
     );
     const authorizer = new HttpJwtAuthorizer(
       id + "HtsgetAuthorizer",
@@ -106,14 +106,14 @@ export class HtsgetLambdaStack extends Stack {
       {
         identitySource: ["$request.header.Authorization"],
         jwtAudience: parameterStoreConfig.jwtAud,
-      },
+      }
     );
 
     const domainName = new apigwv2.DomainName(this, id + "HtsgetDomainName", {
       certificate: Certificate.fromCertificateArn(
         this,
         id + "HtsgetDomainCert",
-        parameterStoreConfig.arnCert,
+        parameterStoreConfig.arnCert
       ),
       domainName: parameterStoreConfig.htsgetDomain,
     });
@@ -123,7 +123,7 @@ export class HtsgetLambdaStack extends Stack {
       {
         hostedZoneId: parameterStoreConfig.hostedZoneId,
         zoneName: parameterStoreConfig.hostedZoneName,
-      },
+      }
     );
     new ARecord(this, id + "HtsgetARecord", {
       zone: hostedZone,
@@ -131,8 +131,8 @@ export class HtsgetLambdaStack extends Stack {
       target: RecordTarget.fromAlias(
         new ApiGatewayv2DomainProperties(
           domainName.regionalDomainName,
-          domainName.regionalHostedZoneId,
-        ),
+          domainName.regionalHostedZoneId
+        )
       ),
     });
 
@@ -168,26 +168,26 @@ export class HtsgetLambdaStack extends Stack {
     return {
       arnCert: StringParameter.valueFromLookup(
         this,
-        parameterStoreNames.arn_cert,
+        parameterStoreNames.arn_cert
       ),
       jwtAud: parameterStoreNames.jwt_aud.map((jwtAud: string) =>
-        StringParameter.valueFromLookup(this, jwtAud),
+        StringParameter.valueFromLookup(this, jwtAud)
       ),
       cogUserPoolId: StringParameter.valueFromLookup(
         this,
-        parameterStoreNames.cog_user_pool_id,
+        parameterStoreNames.cog_user_pool_id
       ),
       htsgetDomain: StringParameter.valueFromLookup(
         this,
-        parameterStoreNames.htsget_domain,
+        parameterStoreNames.htsget_domain
       ),
       hostedZoneId: StringParameter.valueFromLookup(
         this,
-        parameterStoreNames.hosted_zone_id,
+        parameterStoreNames.hosted_zone_id
       ),
       hostedZoneName: StringParameter.valueFromLookup(
         this,
-        parameterStoreNames.hosted_zone_name,
+        parameterStoreNames.hosted_zone_name
       ),
     };
   }
@@ -226,16 +226,14 @@ export class HtsgetLambdaStack extends Stack {
    * Convert a string CORS allowMethod option to CorsHttpMethod.
    */
   static corsAllowMethodToHttpMethod(
-    corsAllowMethod?: string[],
+    corsAllowMethod?: string[]
   ): apigwv2.CorsHttpMethod[] | undefined {
     if (corsAllowMethod?.length === 1 && corsAllowMethod.includes("*")) {
       return [apigwv2.CorsHttpMethod.ANY];
     } else {
       return corsAllowMethod?.map(
         (element) =>
-          apigwv2.CorsHttpMethod[
-            element as keyof typeof apigwv2.CorsHttpMethod
-          ],
+          apigwv2.CorsHttpMethod[element as keyof typeof apigwv2.CorsHttpMethod]
       );
     }
   }
@@ -261,21 +259,21 @@ export class HtsgetLambdaStack extends Stack {
         configToml.ticket_server_cors_allow_credentials as boolean,
       allowHeaders: HtsgetLambdaStack.convertCors(
         configToml,
-        "ticket_server_cors_allow_headers",
+        "ticket_server_cors_allow_headers"
       ),
       allowMethods: HtsgetLambdaStack.corsAllowMethodToHttpMethod(
         HtsgetLambdaStack.convertCors(
           configToml,
-          "ticket_server_cors_allow_methods",
-        ),
+          "ticket_server_cors_allow_methods"
+        )
       ),
       allowOrigins: HtsgetLambdaStack.convertCors(
         configToml,
-        "ticket_server_cors_allow_origins",
+        "ticket_server_cors_allow_origins"
       ),
       exposeHeaders: HtsgetLambdaStack.convertCors(
         configToml,
-        "ticket_server_cors_expose_headers",
+        "ticket_server_cors_expose_headers"
       ),
       maxAge:
         configToml.ticket_server_cors_max_age !== undefined

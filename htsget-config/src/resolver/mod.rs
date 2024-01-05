@@ -1,15 +1,12 @@
-pub mod allow_guard;
-pub mod object;
-
 use std::result;
 
-use crate::error;
 use async_trait::async_trait;
 use regex::{Error, Regex};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use crate::config::DataServerConfig;
+use crate::error;
 use crate::resolver::allow_guard::{AllowGuard, QueryAllowed, ReferenceNames};
 use crate::resolver::object::ObjectType;
 #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
@@ -21,6 +18,9 @@ use crate::storage::s3::S3Storage;
 use crate::storage::url::UrlStorageClient;
 use crate::storage::{ResolvedId, Storage, TaggedStorageTypes};
 use crate::types::{Class, Fields, Format, Interval, Query, Response, Result, Tags};
+
+pub mod allow_guard;
+pub mod object;
 
 /// A trait which matches the query id, replacing the match in the substitution text.
 pub trait IdResolver {
@@ -294,6 +294,8 @@ impl StorageResolver for &[Resolver] {
 mod tests {
   use http::uri::Authority;
 
+  #[cfg(feature = "s3-storage")]
+  use {crate::storage::s3::S3Storage, std::collections::HashSet};
   #[cfg(feature = "url-storage")]
   use {
     crate::storage::url, crate::storage::url::endpoints::Endpoints,
@@ -305,8 +307,6 @@ mod tests {
   use crate::types::Format::Bam;
   use crate::types::Scheme::Http;
   use crate::types::Url;
-  #[cfg(feature = "s3-storage")]
-  use {crate::storage::s3::S3Storage, std::collections::HashSet};
 
   use super::*;
 

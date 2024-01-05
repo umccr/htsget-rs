@@ -4,7 +4,6 @@ use std::task::{Context, Poll};
 use std::{cmp, io};
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use crypt4gh::header::HeaderInfo;
 use futures::ready;
 use futures::stream::TryBuffered;
@@ -15,12 +14,11 @@ use tokio::io::{AsyncBufRead, AsyncRead, AsyncSeek, ReadBuf};
 use crate::advance::Advance;
 use crate::decoder::Block;
 use crate::error::Error::NumericConversionError;
+use crate::error::Result;
 use crate::reader::builder::Builder;
 use crate::{DecryptedDataBlock, EncryptedHeaderPacketBytes};
 
 use super::decrypter::DecrypterStream;
-
-use crate::error::Result;
 
 pub mod builder;
 
@@ -245,10 +243,11 @@ where
 
 #[cfg(test)]
 mod tests {
+  use std::io::SeekFrom;
+
   use futures_util::TryStreamExt;
   use noodles::bam::AsyncReader;
   use noodles::sam::Header;
-  use std::io::SeekFrom;
   use tokio::io::AsyncReadExt;
 
   use htsget_test::http_tests::get_test_file;

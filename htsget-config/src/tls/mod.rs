@@ -1,8 +1,8 @@
-use hyper_rustls::ConfigBuilderExt;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
+use hyper_rustls::ConfigBuilderExt;
 use rustls::{Certificate, ClientConfig, RootCertStore, ServerConfig};
 use rustls_native_certs::load_native_certs;
 use rustls_pemfile::read_one;

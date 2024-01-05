@@ -1,6 +1,5 @@
 use std::io;
 
-use crate::{EncryptedHeaderPacketBytes, EncryptedHeaderPackets};
 use bytes::{Bytes, BytesMut};
 use crypt4gh::header::{deconstruct_header_info, HeaderInfo};
 use tokio_util::codec::Decoder;
@@ -10,6 +9,7 @@ use crate::error::Error::{
   SliceConversionError,
 };
 use crate::error::{Error, Result};
+use crate::{EncryptedHeaderPacketBytes, EncryptedHeaderPackets};
 
 pub const ENCRYPTED_BLOCK_SIZE: usize = 65536;
 pub const NONCE_SIZE: usize = 12; // ChaCha20 IETF Nonce size

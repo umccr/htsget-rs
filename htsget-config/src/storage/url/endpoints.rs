@@ -1,6 +1,7 @@
-use crate::storage::url::{default_url, ValidatedUrl};
 use http::Uri;
 use serde::{Deserialize, Serialize};
+
+use crate::storage::url::{default_url, ValidatedUrl};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]

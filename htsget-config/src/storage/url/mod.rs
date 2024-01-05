@@ -191,7 +191,6 @@ impl Default for UrlStorage {
 mod tests {
   use crate::config::tests::test_config_from_file;
   use crate::storage::Storage;
-
   use crate::tls::tests::with_test_certificates;
 
   #[test]

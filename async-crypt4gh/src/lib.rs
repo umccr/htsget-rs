@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use bytes::Bytes;
+use rustls::PrivateKey;
 
 pub use reader::builder::Builder as Crypt4GHReaderBuilder;
 pub use reader::Reader as Crypt4GHReader;
@@ -19,6 +20,38 @@ pub struct PublicKey {
   bytes: Vec<u8>,
 }
 
+/// A key pair containing a public and private key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyPair {
+  private_key: PrivateKey,
+  public_key: PublicKey,
+}
+
+impl KeyPair {
+  /// Create a new key pair.
+  pub fn new(private_key: PrivateKey, public_key: PublicKey) -> Self {
+    Self {
+      private_key,
+      public_key,
+    }
+  }
+
+  /// Get the inner keys.
+  pub fn into_inner(self) -> (PrivateKey, PublicKey) {
+    (self.private_key, self.public_key)
+  }
+
+  /// Get private key.
+  pub fn private_key(&self) -> &PrivateKey {
+    &self.private_key
+  }
+
+  /// Get private key
+  pub fn public_key(&self) -> &PublicKey {
+    &self.public_key
+  }
+}
+
 impl PublicKey {
   /// Create a new sender public key from bytes.
   pub fn new(bytes: Vec<u8>) -> Self {
@@ -28,6 +61,11 @@ impl PublicKey {
   /// Get the inner bytes.
   pub fn into_inner(self) -> Vec<u8> {
     self.bytes
+  }
+
+  /// Get the inner bytes as a reference.
+  pub fn get_ref(&self) -> &[u8] {
+    self.bytes.as_slice()
   }
 }
 

@@ -498,10 +498,10 @@ impl Config {
 pub(crate) mod tests {
   use std::fmt::Display;
 
-  use crate::config::parser::from_str;
   use figment::Jail;
   use http::uri::Authority;
 
+  use crate::config::parser::from_str;
   use crate::storage::Storage;
   use crate::tls::tests::with_test_certificates;
   use crate::types::Scheme::Http;

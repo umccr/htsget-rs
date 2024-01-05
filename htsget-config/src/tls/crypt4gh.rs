@@ -1,13 +1,16 @@
 //! Config related to Crypt4GH keys.
 
+use std::path::PathBuf;
+
+use crypt4gh::keys::{get_private_key, get_public_key};
+use serde::Deserialize;
+use tracing::warn;
+
+use async_crypt4gh::PublicKey;
+
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::tls::PrivateKey;
-use async_crypt4gh::PublicKey;
-use crypt4gh::keys::{get_private_key, get_public_key};
-use serde::Deserialize;
-use std::path::PathBuf;
-use tracing::warn;
 
 /// Config for Crypt4GH keys.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]

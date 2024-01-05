@@ -1,12 +1,14 @@
+use std::collections::HashSet;
+
+use crypt4gh::header::{encrypt, make_packet_data_edit_list, HeaderInfo};
+use crypt4gh::Keys;
+use rustls::PrivateKey;
+use tokio::io::AsyncRead;
+
 use crate::error::{Error, Result};
 use crate::reader::Reader;
 use crate::util::{unencrypted_clamp, unencrypted_clamp_next};
 use crate::PublicKey;
-use crypt4gh::header::{encrypt, make_packet_data_edit_list, HeaderInfo};
-use crypt4gh::Keys;
-use rustls::PrivateKey;
-use std::collections::HashSet;
-use tokio::io::AsyncRead;
 
 /// Unencrypted byte range positions. Contains inclusive start values and exclusive end values.
 #[derive(Debug, Clone)]
@@ -31,7 +33,7 @@ impl UnencryptedPosition {
 
 /// Add edit lists to the header packet.
 pub async fn add_edit_list<R: AsyncRead + Unpin>(
-  reader: &mut Reader<R>,
+  reader: &Reader<R>,
   unencrypted_positions: Vec<UnencryptedPosition>,
   private_key: PrivateKey,
   recipient_public_key: PublicKey,
@@ -121,10 +123,12 @@ pub fn create_edit_list(
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use htsget_test::http_tests::get_test_file;
+
   use crate::reader::builder::Builder;
   use crate::tests::{get_decryption_keys, get_encryption_keys};
-  use htsget_test::http_tests::get_test_file;
+
+  use super::*;
 
   #[tokio::test]
   async fn test_append_edit_list() {
@@ -141,7 +145,7 @@ mod tests {
     let expected_data_packets = reader.session_keys().to_vec();
 
     let header = add_edit_list(
-      &mut reader,
+      &reader,
       test_positions(),
       PrivateKey(private_key_encrypt.clone().privkey),
       PublicKey {

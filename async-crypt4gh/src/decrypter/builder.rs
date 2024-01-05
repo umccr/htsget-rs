@@ -1,9 +1,10 @@
-use crate::decrypter::DecrypterStream;
-use crate::error::Result;
-use crate::PublicKey;
 use crypt4gh::Keys;
 use tokio::io::{AsyncRead, AsyncSeek};
 use tokio_util::codec::FramedRead;
+
+use crate::decrypter::DecrypterStream;
+use crate::error::Result;
+use crate::PublicKey;
 
 /// An decrypter reader builder.
 #[derive(Debug, Default)]

@@ -1,6 +1,7 @@
-use crate::http_tests::get_test_path;
 use crypt4gh::keys::{get_private_key, get_public_key};
 use crypt4gh::Keys;
+
+use crate::http_tests::get_test_path;
 
 /// Get the crypt4gh keys.
 pub async fn get_keys() -> (Keys, Vec<u8>) {

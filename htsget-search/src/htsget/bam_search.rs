@@ -128,8 +128,8 @@ where
     reader.read_index().await
   }
 
-  fn get_ref(reader: &mut AsyncReader<ReaderType>) -> &ReaderType {
-    reader.get_ref().get_ref()
+  fn into_inner(reader: AsyncReader<ReaderType>) -> ReaderType {
+    reader.into_inner().into_inner()
   }
 
   #[instrument(level = "trace", skip(self, index, header, query))]

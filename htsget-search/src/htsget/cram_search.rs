@@ -169,8 +169,8 @@ where
     crai::AsyncReader::new(inner).read_index().await
   }
 
-  fn get_ref(reader: &mut AsyncReader<ReaderType>) -> &ReaderType {
-    reader.get_ref().get_ref()
+  fn into_inner(reader: AsyncReader<ReaderType>) -> ReaderType {
+    reader.into_inner().into_inner()
   }
 
   async fn get_byte_ranges_for_reference_name(
