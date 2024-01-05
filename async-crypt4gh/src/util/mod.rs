@@ -1,7 +1,12 @@
+use crypt4gh::keys::generate_keys;
+use rustls::PrivateKey;
 use std::cmp::min;
+use std::fs::read;
+use tempfile::TempDir;
 
 use crate::decoder::Block;
-use crate::KeyPair;
+use crate::error::{Error, Result};
+use crate::{KeyPair, PublicKey};
 
 fn to_current_data_block(pos: u64, header_len: u64) -> u64 {
   header_len + (pos / Block::encrypted_block_size()) * Block::standard_data_block_size()
@@ -68,8 +73,27 @@ pub fn unencrypted_clamp_next(pos: u64, file_size: u64) -> u64 {
 }
 
 /// Generate a private and public key pair.
-pub fn generate_key_pair() -> KeyPair {
-  todo!()
+pub fn generate_key_pair() -> Result<KeyPair> {
+  // Todo avoid writing this to a file first.
+  let temp_dir = TempDir::new().map_err(|err| Error::Crypt4GHError(err.to_string()))?;
+
+  let private_key = temp_dir.path().join("private_key");
+  let public_key = temp_dir.path().join("public_key");
+  generate_keys(
+    private_key.clone(),
+    public_key.clone(),
+    Ok("".to_string()),
+    None,
+  )
+  .map_err(|err| Error::Crypt4GHError(err.to_string()))?;
+
+  let private_key = read(private_key)?;
+  let public_key = read(public_key)?;
+
+  Ok(KeyPair::new(
+    PrivateKey(private_key),
+    PublicKey::new(public_key),
+  ))
 }
 
 #[cfg(test)]

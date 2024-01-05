@@ -281,7 +281,7 @@ impl Storage for UrlStorage {
       KeyType::File => {
         #[cfg(feature = "crypt4gh")]
         if options.object_type.is_crypt4gh() {
-          let key_pair = generate_key_pair();
+          let key_pair = generate_key_pair().map_err(|err| UrlParseError(err.to_string()))?;
           let query = Self::crypt4gh_query(key_pair.public_key());
 
           return Ok(

@@ -407,6 +407,7 @@ dependencies = [
  "pin-project-lite",
  "rand_chacha",
  "rustls",
+ "tempfile",
  "thiserror",
  "tokio",
  "tokio-util",
