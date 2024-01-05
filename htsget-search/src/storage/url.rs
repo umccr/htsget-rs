@@ -91,6 +91,21 @@ impl UrlStorage {
     )
   }
 
+  /// Decode a public key using base64.
+  #[cfg(feature = "crypt4gh")]
+  fn decode_public_key(headers: &HeaderMap) -> Result<Vec<u8>> {
+    general_purpose::STANDARD
+      .decode(
+        headers
+          .get(PUBLIC_KEY_NAME)
+          .ok_or_else(|| StorageError::InvalidInput("no public key found in header".to_string()))?
+          .as_bytes(),
+      )
+      .map_err(|err| {
+        StorageError::InvalidInput(format!("failed to decode public key: {}", err.to_string()))
+      })
+  }
+
   /// Get a url from the key.
   pub fn get_url_from_key<K: AsRef<str> + Send>(
     &self,
@@ -373,12 +388,7 @@ impl Storage for UrlStorage {
         .build_with_reader(reader, vec![crypt4gh_keys]);
       let header_size = reader.header_size().ok_or_else(header_read_error)?;
 
-      let recipient_public_key = positions_options
-        .headers
-        .get(PUBLIC_KEY_NAME)
-        .ok_or_else(|| StorageError::InvalidInput("no public key found in header".to_string()))?
-        .as_bytes()
-        .to_vec();
+      let recipient_public_key = Self::decode_public_key(positions_options.headers)?;
 
       // Calculate edit lists
       let reencrypted_header = add_edit_list(
@@ -811,7 +821,7 @@ mod tests {
       test_headers(&mut header_map);
       header_map.append(
         HeaderName::from_str("publicKey").unwrap(),
-        HeaderValue::from_bytes(&public_key).unwrap(),
+        HeaderValue::from_str(&general_purpose::STANDARD.encode(public_key)).unwrap(),
       );
 
       let request =
