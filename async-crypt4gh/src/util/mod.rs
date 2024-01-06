@@ -1,4 +1,4 @@
-use crypt4gh::keys::generate_keys;
+use crypt4gh::keys::{generate_keys, get_private_key, get_public_key};
 use rustls::PrivateKey;
 use std::cmp::min;
 use std::fs::read;
@@ -87,8 +87,8 @@ pub fn generate_key_pair() -> Result<KeyPair> {
   )
   .map_err(|err| Error::Crypt4GHError(err.to_string()))?;
 
-  let private_key = read(private_key)?;
-  let public_key = read(public_key)?;
+  let private_key = get_private_key(private_key, Ok("".to_string()))?;
+  let public_key = get_public_key(public_key)?;
 
   Ok(KeyPair::new(
     PrivateKey(private_key),
