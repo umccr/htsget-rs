@@ -10,6 +10,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
+use http::header::IntoHeaderName;
 use http::{uri, HeaderMap, HeaderValue};
 use thiserror::Error;
 use tokio::io::AsyncRead;
@@ -462,6 +463,12 @@ impl<'a> GetOptions<'a> {
   /// Get the request headers.
   pub fn request_headers(&self) -> &'a HeaderMap {
     self.request_headers
+  }
+
+  /// Append a header key and value.
+  pub fn append<K: IntoHeaderName>(mut self, key: K, value: HeaderValue) -> Self {
+    self.request_headers.append(key, value);
+    self
   }
 }
 

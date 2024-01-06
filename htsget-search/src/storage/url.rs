@@ -9,13 +9,13 @@ use bytes::Bytes;
 use crypt4gh::Keys;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
-use http::header::CONTENT_LENGTH;
+use http::header::{InvalidHeaderValue, CONTENT_LENGTH};
 use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use pin_project::pin_project;
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 use tokio_rustls::rustls::PrivateKey;
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
@@ -86,11 +86,8 @@ impl UrlStorage {
 
   /// Construct the Crypt4GH query.
   #[cfg(feature = "crypt4gh")]
-  fn crypt4gh_query(public_key: &PublicKey) -> String {
-    format!(
-      "?{PUBLIC_KEY_NAME}={}",
-      general_purpose::STANDARD.encode(public_key.get_ref())
-    )
+  fn encode_key(public_key: &PublicKey) -> String {
+    general_purpose::STANDARD.encode(public_key.get_ref())
   }
 
   /// Decode a public key using base64.
@@ -111,13 +108,12 @@ impl UrlStorage {
     &self,
     key: K,
     endpoint: &Uri,
-    query: &str,
   ) -> Result<Uri> {
     // Todo: proper url parsing here, probably with the `url` crate.
     let uri = if endpoint.to_string().ends_with('/') {
-      format!("{}{}{}", endpoint, key.as_ref(), query)
+      format!("{}{}", endpoint, key.as_ref())
     } else {
-      format!("{}/{}{}", endpoint, key.as_ref(), query)
+      format!("{}/{}", endpoint, key.as_ref())
     };
 
     uri
@@ -132,10 +128,9 @@ impl UrlStorage {
     headers: &HeaderMap,
     method: Method,
     url: &Uri,
-    query: &str,
   ) -> Result<Response<Body>> {
     let key = key.as_ref();
-    let url = self.get_url_from_key(key, url, query)?;
+    let url = self.get_url_from_key(key, url)?;
 
     let request = Request::builder().method(method).uri(&url);
 
@@ -172,7 +167,7 @@ impl UrlStorage {
     endpoint: &Uri,
   ) -> Result<HtsGetUrl> {
     let key = key.as_ref();
-    let url = self.get_url_from_key(key, endpoint, "")?.into_parts();
+    let url = self.get_url_from_key(key, endpoint)?.into_parts();
     let url = Uri::from_parts(url)
       .map_err(|err| InternalError(format!("failed to convert to uri from parts: {}", err)))?;
 
@@ -196,7 +191,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::HEAD, self.endpoints.head(), "")
+      .send_request(key, headers, Method::HEAD, self.endpoints.head())
       .await
   }
 
@@ -205,10 +200,9 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
-    query: String,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::GET, self.endpoints.file(), &query)
+      .send_request(key, headers, Method::GET, self.endpoints.file())
       .await
   }
 
@@ -219,7 +213,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::GET, self.endpoints.index(), "")
+      .send_request(key, headers, Method::GET, self.endpoints.index())
       .await
   }
 }
@@ -229,7 +223,7 @@ pub type UrlStreamReader = StreamReader<MapErr<Body, fn(Error) -> StorageError>,
 
 /// An enum representing the variants of a stream reader. Note, cannot use tokio_util::Either
 /// directly because this needs to be gated behind a feature flag.
-/// Todo, rework this to look nicer and better separate feature flags.
+/// Todo, make this less ugly, better separate feature flags.
 #[pin_project(project = ProjectUrlStream)]
 pub enum UrlStreamEither {
   A(#[pin] UrlStreamReader),
@@ -277,10 +271,16 @@ impl Storage for UrlStorage {
         #[cfg(feature = "crypt4gh")]
         if options.object_type.is_crypt4gh() {
           let key_pair = generate_key_pair().map_err(|err| UrlParseError(err.to_string()))?;
-          let query = Self::crypt4gh_query(key_pair.public_key());
+
+          let headers = options.append(
+            "publicKey",
+            Self::encode_key(key_pair.public_key())
+              .try_into()
+              .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
+          );
 
           let response = self
-            .get_header(key.to_string(), options.request_headers(), query)
+            .get_header(key.to_string(), headers.request_headers())
             .await?;
 
           let crypt4gh_keys = Keys {
@@ -300,7 +300,7 @@ impl Storage for UrlStorage {
 
         Ok(
           self
-            .get_header(key.to_string(), options.request_headers(), "".to_string())
+            .get_header(key.to_string(), options.request_headers())
             .await?
             .into(),
         )
@@ -412,6 +412,7 @@ impl Storage for UrlStorage {
 
 #[cfg(test)]
 mod tests {
+  use std::collections::{HashMap, HashSet};
   use std::future::Future;
   use std::io::Cursor;
   use std::net::TcpListener;
@@ -420,11 +421,12 @@ mod tests {
   use std::str::FromStr;
 
   use axum::body::StreamBody;
-  use axum::extract::Path as AxumPath;
+  use axum::extract::{Path as AxumPath, Query as AxumQuery};
   use axum::middleware::Next;
   use axum::response::{IntoResponse, Response};
   use axum::routing::{get, head};
   use axum::{middleware, Router};
+  use crypt4gh::{encrypt, WriteInfo};
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use hyper::body::to_bytes;
@@ -461,8 +463,7 @@ mod tests {
       storage
         .get_url_from_key(
           "assets/key1",
-          &Uri::from_str("https://example.com").unwrap(),
-          ""
+          &Uri::from_str("https://example.com").unwrap()
         )
         .unwrap(),
       Uri::from_str("https://example.com/assets/key1").unwrap()
@@ -482,8 +483,7 @@ mod tests {
       storage
         .get_url_from_key(
           "assets/key1",
-          &Uri::from_str("https://localhost:8080").unwrap(),
-          ""
+          &Uri::from_str("https://localhost:8080").unwrap()
         )
         .unwrap(),
       Uri::from_str("https://localhost:8080/assets/key1").unwrap()
@@ -510,8 +510,7 @@ mod tests {
               "assets/key1",
               headers,
               Method::GET,
-              &Uri::from_str(&url).unwrap(),
-              "",
+              &Uri::from_str(&url).unwrap()
             )
             .await
             .unwrap()
@@ -543,7 +542,7 @@ mod tests {
       let response = String::from_utf8(
         to_bytes(
           storage
-            .get_header("assets/key1", headers, "".to_string())
+            .get_header("assets/key1", headers)
             .await
             .unwrap()
             .into_body(),
@@ -572,7 +571,7 @@ mod tests {
       let headers = test_headers(&mut headers);
 
       let response: u64 = storage
-        .get_header("assets/key1", headers, "".to_string())
+        .get_header("assets/key1", headers)
         .await
         .unwrap()
         .headers()
@@ -896,26 +895,70 @@ mod tests {
     F: FnOnce(String) -> Fut,
     Fut: Future<Output = ()>,
   {
-    let mut router = Router::new()
+    let router = Router::new()
       .route(
         "/endpoint_file/:id",
-        get(|| async {
-          let mut bytes = vec![];
-          let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
-          File::open(path)
-            .await
-            .unwrap()
-            .read_to_end(&mut bytes)
-            .await
-            .unwrap();
+        get(
+          |headers: HeaderMap| async move {
+            #[cfg(feature = "crypt4gh")]
+            if headers.contains_key("publicKey") {
+              let mut bytes = vec![];
+              let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
+              File::open(path)
+                .await
+                .unwrap()
+                .read_to_end(&mut bytes)
+                .await
+                .unwrap();
 
-          let bytes = bytes[..4668].to_vec();
+              // Note, extra bytes can be padded out, or simply return one data block that is smaller
+              // than the standard block size with just the header bytes like here.
+              let bytes = bytes[..4668].to_vec();
 
-          let stream = ReaderStream::new(Cursor::new(bytes));
-          let body = StreamBody::new(stream);
+              let encryption_keys = generate_key_pair().unwrap();
+              let keys = Keys {
+                method: 0,
+                privkey: encryption_keys.private_key().clone().0,
+                recipient_pubkey: general_purpose::STANDARD
+                  .decode(headers.get("publicKey").unwrap())
+                  .unwrap(),
+              };
 
-          (StatusCode::OK, body).into_response()
-        }),
+              let mut read_buf = Cursor::new(bytes);
+              let mut write_buf = Cursor::new(vec![]);
+
+              encrypt(
+                &HashSet::from_iter(vec![keys]),
+                &mut read_buf,
+                &mut write_buf,
+                0,
+                None,
+              )
+              .unwrap();
+
+              let stream = ReaderStream::new(Cursor::new(write_buf.into_inner()));
+              let body = StreamBody::new(stream);
+
+              return (StatusCode::OK, body).into_response();
+            }
+
+            let mut bytes = vec![];
+            let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
+            File::open(path)
+              .await
+              .unwrap()
+              .read_to_end(&mut bytes)
+              .await
+              .unwrap();
+
+            let bytes = bytes[..4668].to_vec();
+
+            let stream = ReaderStream::new(Cursor::new(bytes));
+            let body = StreamBody::new(stream);
+
+            (StatusCode::OK, body).into_response()
+          },
+        ),
       )
       .route(
         "/endpoint_index/:id",
@@ -954,22 +997,6 @@ mod tests {
       )
       .nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()))
       .route_layer(middleware::from_fn(test_auth));
-
-    #[cfg(feature = "crypt4gh")]
-    {
-      router = router.route(
-        "/endpoint_crypt4gh_header/:id",
-        get(|| async {
-          let length: u64 = 124;
-          let bytes = length.to_le_bytes().to_vec();
-
-          let stream = ReaderStream::new(Cursor::new(bytes));
-          let body = StreamBody::new(stream);
-
-          (StatusCode::OK, body).into_response()
-        }),
-      );
-    }
 
     // TODO fix this in htsget-test to bind and return tcp listener.
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
