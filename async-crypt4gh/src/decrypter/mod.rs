@@ -243,6 +243,11 @@ impl<R> DecrypterStream<R> {
   pub fn encrypted_header_packets(&self) -> Option<&Vec<EncryptedHeaderPacketBytes>> {
     self.encrypted_header_packets.as_ref()
   }
+
+  /// Get the stream's keys.
+  pub fn keys(&self) -> &[Keys] {
+    self.keys.as_slice()
+  }
 }
 
 impl<R> DecrypterStream<R>

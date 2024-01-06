@@ -5,6 +5,7 @@ use std::{cmp, io};
 
 use async_trait::async_trait;
 use crypt4gh::header::HeaderInfo;
+use crypt4gh::Keys;
 use futures::ready;
 use futures::stream::TryBuffered;
 use futures::Stream;
@@ -110,6 +111,11 @@ where
     R: Unpin,
   {
     self.stream.get_mut().read_header().await
+  }
+
+  /// Get the reader's keys.
+  pub fn keys(&self) -> &[Keys] {
+    self.stream.get_ref().keys()
   }
 }
 

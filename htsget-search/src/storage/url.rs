@@ -16,13 +16,15 @@ use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, ReadBuf};
+use tokio_rustls::rustls::PrivateKey;
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
 use async_crypt4gh::edit_lists::{add_edit_list, UnencryptedPosition};
 use async_crypt4gh::reader::builder::Builder;
+use async_crypt4gh::reader::Reader;
 use async_crypt4gh::util::generate_key_pair;
-use async_crypt4gh::{KeyPair, PublicKey};
+use async_crypt4gh::PublicKey;
 use htsget_config::error;
 use htsget_config::storage::url::endpoints::Endpoints;
 use htsget_config::types::{Class, KeyType};
@@ -101,9 +103,7 @@ impl UrlStorage {
           .ok_or_else(|| StorageError::InvalidInput("no public key found in header".to_string()))?
           .as_bytes(),
       )
-      .map_err(|err| {
-        StorageError::InvalidInput(format!("failed to decode public key: {}", err.to_string()))
-      })
+      .map_err(|err| StorageError::InvalidInput(format!("failed to decode public key: {}", err)))
   }
 
   /// Get a url from the key.
@@ -227,61 +227,41 @@ impl UrlStorage {
 /// Type representing the `StreamReader` for `UrlStorage`.
 pub type UrlStreamReader = StreamReader<MapErr<Body, fn(Error) -> StorageError>, Bytes>;
 
-/// The streamable for UrlStorage, which can contain generated public and private keys.
-#[pin_project]
-#[derive(Debug)]
-pub struct UrlStreamable {
-  #[pin]
-  streamable: UrlStreamReader,
+/// An enum representing the variants of a stream reader. Note, cannot use tokio_util::Either
+/// directly because this needs to be gated behind a feature flag.
+/// Todo, rework this to look nicer and better separate feature flags.
+#[pin_project(project = ProjectUrlStream)]
+pub enum UrlStreamEither {
+  A(#[pin] UrlStreamReader),
   #[cfg(feature = "crypt4gh")]
-  keys: Option<KeyPair>,
+  B(#[pin] Reader<UrlStreamReader>),
 }
 
-impl UrlStreamable {
-  pub fn new(streamable: UrlStreamReader) -> Self {
-    Self {
-      streamable,
-      keys: None,
-    }
-  }
-
-  pub fn into_streamable(self) -> UrlStreamReader {
-    self.streamable
-  }
-
-  #[cfg(feature = "crypt4gh")]
-  pub fn with_keys(mut self, key_pair: KeyPair) -> Self {
-    self.keys = Some(key_pair);
-    self
-  }
-
-  #[cfg(feature = "crypt4gh")]
-  pub fn keys(&self) -> Option<&KeyPair> {
-    self.keys.as_ref()
-  }
-}
-
-impl From<Response<Body>> for UrlStreamable {
-  fn from(response: Response<Body>) -> Self {
-    Self::new(StreamReader::new(response.into_body().map_err(|err| {
-      ResponseError(format!("reading body from response: {}", err))
-    })))
-  }
-}
-
-impl AsyncRead for UrlStreamable {
+impl AsyncRead for UrlStreamEither {
   fn poll_read(
     self: Pin<&mut Self>,
     cx: &mut Context<'_>,
     buf: &mut ReadBuf<'_>,
   ) -> Poll<std::io::Result<()>> {
-    self.project().streamable.poll_read(cx, buf)
+    match self.project() {
+      ProjectUrlStream::A(a) => a.poll_read(cx, buf),
+      #[cfg(feature = "crypt4gh")]
+      ProjectUrlStream::B(b) => b.poll_read(cx, buf),
+    }
+  }
+}
+
+impl From<Response<Body>> for UrlStreamEither {
+  fn from(response: Response<Body>) -> Self {
+    Self::A(StreamReader::new(response.into_body().map_err(|err| {
+      ResponseError(format!("reading body from response: {}", err))
+    })))
   }
 }
 
 #[async_trait]
 impl Storage for UrlStorage {
-  type Streamable = UrlStreamable;
+  type Streamable = UrlStreamEither;
 
   #[instrument(level = "trace", skip(self))]
   async fn get<K: AsRef<str> + Send + Debug>(
@@ -299,14 +279,23 @@ impl Storage for UrlStorage {
           let key_pair = generate_key_pair().map_err(|err| UrlParseError(err.to_string()))?;
           let query = Self::crypt4gh_query(key_pair.public_key());
 
-          return Ok(
-            UrlStreamable::from(
-              self
-                .get_header(key.to_string(), options.request_headers(), query)
-                .await?,
-            )
-            .with_keys(key_pair),
+          let response = self
+            .get_header(key.to_string(), options.request_headers(), query)
+            .await?;
+
+          let crypt4gh_keys = Keys {
+            method: 0,
+            privkey: key_pair.private_key().clone().0,
+            recipient_pubkey: key_pair.public_key().clone().into_inner(),
+          };
+          let stream_reader: UrlStreamReader = StreamReader::new(
+            response
+              .into_body()
+              .map_err(|err| ResponseError(format!("reading body from response: {}", err))),
           );
+          let reader = Builder::default().build_with_reader(stream_reader, vec![crypt4gh_keys]);
+
+          return Ok(UrlStreamEither::B(reader));
         }
 
         Ok(
@@ -362,69 +351,62 @@ impl Storage for UrlStorage {
     Ok(len)
   }
 
-  #[instrument(level = "trace", skip(self))]
+  #[instrument(level = "trace", skip(self, reader))]
   async fn update_byte_positions(
     &self,
     reader: Self::Streamable,
     mut positions_options: BytesPositionOptions<'_>,
   ) -> Result<Vec<DataBlock>> {
-    #[cfg(feature = "crypt4gh")]
-    if positions_options.object_type.is_crypt4gh() {
-      let keys = reader
-        .keys()
-        .ok_or_else(|| UrlParseError("no keys present for crypt4gh object type".to_string()))?
-        .clone();
+    match reader {
+      #[cfg(feature = "crypt4gh")]
+      UrlStreamEither::B(reader) if positions_options.object_type.is_crypt4gh() => {
+        let keys = reader
+          .keys()
+          .first()
+          .ok_or_else(|| UrlParseError("missing crypt4gh keys from reader".to_string()))?;
+        let file_size = positions_options.file_size();
 
-      let file_size = positions_options.file_size();
-      let crypt4gh_keys = Keys {
-        method: 0,
-        privkey: keys.private_key().clone().0,
-        recipient_pubkey: keys.public_key().clone().into_inner(),
-      };
+        let header_read_error = || UrlParseError("crypt4gh header has not been read".to_string());
+        let header_size = reader.header_size().ok_or_else(header_read_error)?;
 
-      let header_read_error = || UrlParseError("crypt4gh header has not been read".to_string());
-      let reader = Builder::default()
-        .with_stream_length(file_size)
-        .build_with_reader(reader, vec![crypt4gh_keys]);
-      let header_size = reader.header_size().ok_or_else(header_read_error)?;
+        let recipient_public_key = Self::decode_public_key(positions_options.headers)?;
 
-      let recipient_public_key = Self::decode_public_key(positions_options.headers)?;
+        // Calculate edit lists
+        let reencrypted_header = add_edit_list(
+          &reader,
+          positions_options
+            .positions
+            .iter()
+            .map(|position| {
+              UnencryptedPosition::new(
+                position.start.unwrap_or_default(),
+                position.end.unwrap_or(file_size),
+              )
+            })
+            .collect(),
+          PrivateKey(keys.privkey.clone()),
+          PublicKey::new(recipient_public_key),
+          file_size,
+        )
+        .await
+        .map_err(|err| UrlParseError(err.to_string()))?
+        .ok_or_else(header_read_error)?;
 
-      // Calculate edit lists
-      let reencrypted_header = add_edit_list(
-        &reader,
-        positions_options
-          .positions
-          .iter()
-          .map(|position| {
-            UnencryptedPosition::new(
-              position.start.unwrap_or_default(),
-              position.end.unwrap_or(file_size),
-            )
-          })
-          .collect(),
-        keys.private_key().clone(),
-        PublicKey::new(recipient_public_key),
-        file_size,
-      )
-      .await
-      .map_err(|err| UrlParseError(err.to_string()))?
-      .ok_or_else(header_read_error)?;
+        // Note original header byte length.
+        positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
 
-      // Note original header byte length.
-      positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
+        // Append header with edit lists attached.
+        let mut blocks = vec![DataBlock::Data(reencrypted_header, Some(Class::Header))];
+        blocks.extend(DataBlock::from_bytes_positions(
+          positions_options.merge_all().into_inner(),
+        ));
 
-      // Append header with edit lists attached.
-      let mut blocks = vec![DataBlock::Data(reencrypted_header, Some(Class::Header))];
-      blocks.extend(DataBlock::from_bytes_positions(
+        Ok(blocks)
+      }
+      _ => Ok(DataBlock::from_bytes_positions(
         positions_options.merge_all().into_inner(),
-      ));
-      return Ok(blocks);
+      )),
     }
-
-    Ok(DataBlock::from_bytes_positions(
-      positions_options.merge_all().into_inner(),
-    ))
   }
 }
 
