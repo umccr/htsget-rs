@@ -31,6 +31,47 @@ impl UnencryptedPosition {
   }
 }
 
+/// Bytes representing a header packet with an edit list.
+#[derive(Debug, Clone)]
+pub struct EditedHeader {
+  header_info: Vec<u8>,
+  original_header: Vec<u8>,
+  edit_list_packet: Vec<u8>,
+}
+
+impl EditedHeader {
+  pub fn new(header_info: Vec<u8>, original_header: Vec<u8>, edit_list_packet: Vec<u8>) -> Self {
+    Self {
+      header_info,
+      original_header,
+      edit_list_packet,
+    }
+  }
+
+  pub fn into_inner(self) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    (
+      self.header_info,
+      self.original_header,
+      self.edit_list_packet,
+    )
+  }
+
+  pub fn as_slice(&self) -> Vec<u8> {
+    [
+      self.header_info.as_slice(),
+      self.original_header.as_slice(),
+      self.edit_list_packet.as_slice(),
+    ]
+    .concat()
+  }
+}
+
+impl From<(Vec<u8>, Vec<u8>, Vec<u8>)> for EditedHeader {
+  fn from((header_info, original_header, edit_list_packet): (Vec<u8>, Vec<u8>, Vec<u8>)) -> Self {
+    Self::new(header_info, original_header, edit_list_packet)
+  }
+}
+
 /// Add edit lists to the header packet.
 pub async fn add_edit_list<R: AsyncRead + Unpin>(
   reader: &Reader<R>,
@@ -38,7 +79,7 @@ pub async fn add_edit_list<R: AsyncRead + Unpin>(
   private_key: PrivateKey,
   recipient_public_key: PublicKey,
   stream_length: u64,
-) -> Result<Option<Vec<u8>>> {
+) -> Result<Option<EditedHeader>> {
   if reader.edit_list_packet().is_some() {
     return Err(Error::Crypt4GHError("edit lists already exist".to_string()));
   }
@@ -86,14 +127,9 @@ pub async fn add_edit_list<R: AsyncRead + Unpin>(
   ]
   .concat();
 
-  let header = [
-    header_info_bytes.as_slice(),
-    encrypted_header_packets.as_slice(),
-    edit_list_bytes.as_slice(),
-  ]
-  .concat();
-
-  Ok(Some(header))
+  Ok(Some(
+    (header_info_bytes, encrypted_header_packets, edit_list_bytes).into(),
+  ))
 }
 
 /// Create the edit lists from the unencrypted byte positions.
@@ -157,10 +193,11 @@ mod tests {
     .unwrap()
     .unwrap();
 
+    let header_slice = header.as_slice();
     let mut reader = Builder::default()
       .with_sender_pubkey(PublicKey::new(public_key_decrypt))
       .with_stream_length(5485112)
-      .build_with_reader(header.as_slice(), vec![private_key_decrypt]);
+      .build_with_reader(header_slice.as_slice(), vec![private_key_decrypt]);
     reader.read_header().await.unwrap();
 
     let data_packets = reader.session_keys();

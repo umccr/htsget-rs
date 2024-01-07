@@ -1,7 +1,6 @@
 use crypt4gh::keys::{generate_keys, get_private_key, get_public_key};
 use rustls::PrivateKey;
 use std::cmp::min;
-use std::fs::read;
 use tempfile::TempDir;
 
 use crate::decoder::Block;

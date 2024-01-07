@@ -15,7 +15,7 @@ use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use pin_project::pin_project;
-use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
+use tokio::io::{AsyncRead, ReadBuf};
 use tokio_rustls::rustls::PrivateKey;
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
@@ -31,8 +31,8 @@ use htsget_config::types::{Class, KeyType};
 
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{
-  BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, Result, Storage,
-  StorageError,
+  BytesPosition, BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, Result,
+  Storage, StorageError,
 };
 use crate::Url as HtsGetUrl;
 
@@ -104,11 +104,7 @@ impl UrlStorage {
   }
 
   /// Get a url from the key.
-  pub fn get_url_from_key<K: AsRef<str> + Send>(
-    &self,
-    key: K,
-    endpoint: &Uri,
-  ) -> Result<Uri> {
+  pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K, endpoint: &Uri) -> Result<Uri> {
     // Todo: proper url parsing here, probably with the `url` crate.
     let uri = if endpoint.to_string().ends_with('/') {
       format!("{}{}", endpoint, key.as_ref())
@@ -272,16 +268,15 @@ impl Storage for UrlStorage {
         if options.object_type.is_crypt4gh() {
           let key_pair = generate_key_pair().map_err(|err| UrlParseError(err.to_string()))?;
 
-          let headers = options.append(
+          let mut headers = options.request_headers().clone();
+          headers.append(
             "publicKey",
             Self::encode_key(key_pair.public_key())
               .try_into()
               .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
           );
 
-          let response = self
-            .get_header(key.to_string(), headers.request_headers())
-            .await?;
+          let response = self.get_header(key.to_string(), &headers).await?;
 
           let crypt4gh_keys = Keys {
             method: 0,
@@ -372,7 +367,7 @@ impl Storage for UrlStorage {
         let recipient_public_key = Self::decode_public_key(positions_options.headers)?;
 
         // Calculate edit lists
-        let reencrypted_header = add_edit_list(
+        let (header_info, _, edit_list_packet) = add_edit_list(
           &reader,
           positions_options
             .positions
@@ -390,13 +385,23 @@ impl Storage for UrlStorage {
         )
         .await
         .map_err(|err| UrlParseError(err.to_string()))?
-        .ok_or_else(header_read_error)?;
+        .ok_or_else(header_read_error)?
+        .into_inner();
 
         // Note original header byte length.
         positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
 
         // Append header with edit lists attached.
-        let mut blocks = vec![DataBlock::Data(reencrypted_header, Some(Class::Header))];
+        let header_info_size = header_info.len() as u64;
+        let mut blocks = vec![
+          DataBlock::Data(header_info, Some(Class::Header)),
+          DataBlock::Range(
+            BytesPosition::default()
+              .with_start(header_info_size)
+              .with_end(header_size),
+          ),
+          DataBlock::Data(edit_list_packet, Some(Class::Header)),
+        ];
         blocks.extend(DataBlock::from_bytes_positions(
           positions_options.merge_all().into_inner(),
         ));
@@ -412,7 +417,7 @@ impl Storage for UrlStorage {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::{HashMap, HashSet};
+  use std::collections::HashSet;
   use std::future::Future;
   use std::io::Cursor;
   use std::net::TcpListener;
@@ -421,12 +426,12 @@ mod tests {
   use std::str::FromStr;
 
   use axum::body::StreamBody;
-  use axum::extract::{Path as AxumPath, Query as AxumQuery};
+  use axum::extract::Path as AxumPath;
   use axum::middleware::Next;
   use axum::response::{IntoResponse, Response};
   use axum::routing::{get, head};
   use axum::{middleware, Router};
-  use crypt4gh::{encrypt, WriteInfo};
+  use crypt4gh::encrypt;
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use hyper::body::to_bytes;
@@ -510,7 +515,7 @@ mod tests {
               "assets/key1",
               headers,
               Method::GET,
-              &Uri::from_str(&url).unwrap()
+              &Uri::from_str(&url).unwrap(),
             )
             .await
             .unwrap()
@@ -898,50 +903,9 @@ mod tests {
     let router = Router::new()
       .route(
         "/endpoint_file/:id",
-        get(
-          |headers: HeaderMap| async move {
-            #[cfg(feature = "crypt4gh")]
-            if headers.contains_key("publicKey") {
-              let mut bytes = vec![];
-              let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
-              File::open(path)
-                .await
-                .unwrap()
-                .read_to_end(&mut bytes)
-                .await
-                .unwrap();
-
-              // Note, extra bytes can be padded out, or simply return one data block that is smaller
-              // than the standard block size with just the header bytes like here.
-              let bytes = bytes[..4668].to_vec();
-
-              let encryption_keys = generate_key_pair().unwrap();
-              let keys = Keys {
-                method: 0,
-                privkey: encryption_keys.private_key().clone().0,
-                recipient_pubkey: general_purpose::STANDARD
-                  .decode(headers.get("publicKey").unwrap())
-                  .unwrap(),
-              };
-
-              let mut read_buf = Cursor::new(bytes);
-              let mut write_buf = Cursor::new(vec![]);
-
-              encrypt(
-                &HashSet::from_iter(vec![keys]),
-                &mut read_buf,
-                &mut write_buf,
-                0,
-                None,
-              )
-              .unwrap();
-
-              let stream = ReaderStream::new(Cursor::new(write_buf.into_inner()));
-              let body = StreamBody::new(stream);
-
-              return (StatusCode::OK, body).into_response();
-            }
-
+        get(|headers: HeaderMap| async move {
+          #[cfg(feature = "crypt4gh")]
+          if headers.contains_key("publicKey") {
             let mut bytes = vec![];
             let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
             File::open(path)
@@ -951,14 +915,53 @@ mod tests {
               .await
               .unwrap();
 
+            // Note, extra bytes can be padded out, or simply return one data block that is smaller
+            // than the standard block size with just the header bytes like here.
             let bytes = bytes[..4668].to_vec();
 
-            let stream = ReaderStream::new(Cursor::new(bytes));
+            let encryption_keys = generate_key_pair().unwrap();
+            let keys = Keys {
+              method: 0,
+              privkey: encryption_keys.private_key().clone().0,
+              recipient_pubkey: general_purpose::STANDARD
+                .decode(headers.get("publicKey").unwrap())
+                .unwrap(),
+            };
+
+            let mut read_buf = Cursor::new(bytes);
+            let mut write_buf = Cursor::new(vec![]);
+
+            encrypt(
+              &HashSet::from_iter(vec![keys]),
+              &mut read_buf,
+              &mut write_buf,
+              0,
+              None,
+            )
+            .unwrap();
+
+            let stream = ReaderStream::new(Cursor::new(write_buf.into_inner()));
             let body = StreamBody::new(stream);
 
-            (StatusCode::OK, body).into_response()
-          },
-        ),
+            return (StatusCode::OK, body).into_response();
+          }
+
+          let mut bytes = vec![];
+          let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
+          File::open(path)
+            .await
+            .unwrap()
+            .read_to_end(&mut bytes)
+            .await
+            .unwrap();
+
+          let bytes = bytes[..4668].to_vec();
+
+          let stream = ReaderStream::new(Cursor::new(bytes));
+          let body = StreamBody::new(stream);
+
+          (StatusCode::OK, body).into_response()
+        }),
       )
       .route(
         "/endpoint_index/:id",
