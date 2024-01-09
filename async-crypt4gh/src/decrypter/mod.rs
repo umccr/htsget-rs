@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
@@ -52,19 +53,67 @@ impl<R> DecrypterStream<R>
 where
   R: AsyncRead,
 {
+  /// Partitions the edit list packet so that it applies to the current data block, returning a new
+  /// edit list that correctly discards and keeps the specified bytes this particular data block.
+  pub fn partition_edit_list(mut self: Pin<&mut Self>, data_block: &Bytes) -> Option<Vec<u64>> {
+    let this = self.as_mut().project();
+
+    if let Some(edit_list) = this.edit_list_packet {
+      let mut new_edit_list = vec![];
+      let mut bytes_consumed = 0;
+
+      edit_list.retain_mut(|value| {
+        // Get the encrypted block size.
+        let data_block_len = data_block.len() as u64 - Block::nonce_size() - Block::mac_size();
+
+
+        // Can only consume as many bytes as there are in the data block.
+        if min(bytes_consumed + *value, data_block_len) == data_block_len {
+          if bytes_consumed != data_block_len {
+            // If the whole data block hasn't been consumed yet, an edit still needs to be added,
+            // only if this block won't be consumed in one go.
+            let last_edit = data_block_len - bytes_consumed;
+            if bytes_consumed != 0 {
+              new_edit_list.push(last_edit);
+            }
+
+            // And remove this edit from the next value.
+            *value -= last_edit;
+            // Now the whole data block has been consumed.
+            bytes_consumed = data_block_len;
+          }
+
+          // Keep all values from now.
+          true
+        } else {
+          // Otherwise, consume the value and remove it from the edit list packet.
+          bytes_consumed += *value;
+          new_edit_list.push(*value);
+          false
+        }
+      });
+
+      (!new_edit_list.is_empty()).then_some(new_edit_list)
+    } else {
+      // If there is no edit list to begin with, we just keep the whole block.
+      None
+    }
+  }
+
   /// Polls a data block. This function shouldn't execute until all the header packets have been
   /// processed.
   pub fn poll_data_block(
-    self: Pin<&mut Self>,
+    mut self: Pin<&mut Self>,
     data_block: Bytes,
   ) -> Poll<Option<Result<DataBlockDecrypter>>> {
-    let this = self.project();
+    let edit_list = self.as_mut().partition_edit_list(&data_block);
 
+    let this = self.project();
     Poll::Ready(Some(Ok(DataBlockDecrypter::new(
       data_block,
       // Todo make this so it doesn't use owned Keys and SenderPublicKey as it will be called asynchronously.
       this.session_keys.clone(),
-      this.edit_list_packet.clone(),
+      edit_list,
     ))))
   }
 
