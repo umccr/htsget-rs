@@ -1,3 +1,6 @@
+#[cfg(feature = "crypt4gh")]
+pub mod encrypt;
+
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -14,21 +17,24 @@ use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use mockall_double::double;
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, ReadBuf};
 use tokio_rustls::rustls::PrivateKey;
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
-use async_crypt4gh::edit_lists::{add_edit_list, UnencryptedPosition};
+use async_crypt4gh::edit_lists::UnencryptedPosition;
 use async_crypt4gh::reader::builder::Builder;
 use async_crypt4gh::reader::Reader;
-use async_crypt4gh::util::generate_key_pair;
 use async_crypt4gh::PublicKey;
 use htsget_config::error;
 use htsget_config::storage::url::endpoints::Endpoints;
 use htsget_config::types::{Class, KeyType};
 
+#[cfg(feature = "crypt4gh")]
+#[double]
+use crate::storage::url::encrypt::Encrypt;
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{
   BytesPosition, BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, Result,
@@ -36,7 +42,8 @@ use crate::storage::{
 };
 use crate::Url as HtsGetUrl;
 
-const PUBLIC_KEY_NAME: &str = "publicKey";
+const CLIENT_PUBLIC_KEY_NAME: &str = "public-key";
+const SERVER_PUBLIC_KEY_NAME: &str = "server-public-key";
 
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
@@ -45,6 +52,8 @@ pub struct UrlStorage {
   endpoints: Endpoints,
   response_url: Uri,
   forward_headers: bool,
+  #[cfg(feature = "crypt4gh")]
+  encrypt: Encrypt,
 }
 
 impl UrlStorage {
@@ -60,7 +69,16 @@ impl UrlStorage {
       endpoints,
       response_url,
       forward_headers,
+      #[cfg(feature = "crypt4gh")]
+      encrypt: Default::default(),
     }
+  }
+
+  #[cfg(feature = "crypt4gh")]
+  /// Add the key generator.
+  pub fn with_key_gen(mut self, key_gen: Encrypt) -> Self {
+    self.encrypt = key_gen;
+    self
   }
 
   /// Construct a new UrlStorage with a default client.
@@ -81,6 +99,7 @@ impl UrlStorage {
       endpoints,
       response_url,
       forward_headers,
+      encrypt: Default::default(),
     }
   }
 
@@ -92,11 +111,11 @@ impl UrlStorage {
 
   /// Decode a public key using base64.
   #[cfg(feature = "crypt4gh")]
-  fn decode_public_key(headers: &HeaderMap) -> Result<Vec<u8>> {
+  fn decode_public_key(headers: &HeaderMap, name: &str) -> Result<Vec<u8>> {
     general_purpose::STANDARD
       .decode(
         headers
-          .get(PUBLIC_KEY_NAME)
+          .get(name)
           .ok_or_else(|| StorageError::InvalidInput("no public key found in header".to_string()))?
           .as_bytes(),
       )
@@ -266,11 +285,14 @@ impl Storage for UrlStorage {
       KeyType::File => {
         #[cfg(feature = "crypt4gh")]
         if options.object_type.is_crypt4gh() {
-          let key_pair = generate_key_pair().map_err(|err| UrlParseError(err.to_string()))?;
+          let key_pair = self
+            .encrypt
+            .generate_key_pair()
+            .map_err(|err| UrlParseError(err.to_string()))?;
 
           let mut headers = options.request_headers().clone();
           headers.append(
-            "publicKey",
+            SERVER_PUBLIC_KEY_NAME,
             Self::encode_key(key_pair.public_key())
               .try_into()
               .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
@@ -364,10 +386,11 @@ impl Storage for UrlStorage {
         let header_read_error = || UrlParseError("crypt4gh header has not been read".to_string());
         let header_size = reader.header_size().ok_or_else(header_read_error)?;
 
-        let recipient_public_key = Self::decode_public_key(positions_options.headers)?;
+        let recipient_public_key =
+          Self::decode_public_key(positions_options.headers, CLIENT_PUBLIC_KEY_NAME)?;
 
         // Calculate edit lists
-        let (header_info, _, edit_list_packet) = add_edit_list(
+        let (header_info, edit_list_packet) = self.encrypt.edit_list(
           &reader,
           positions_options
             .positions
@@ -382,11 +405,7 @@ impl Storage for UrlStorage {
           PrivateKey(keys.privkey.clone()),
           PublicKey::new(recipient_public_key),
           file_size,
-        )
-        .await
-        .map_err(|err| UrlParseError(err.to_string()))?
-        .ok_or_else(header_read_error)?
-        .into_inner();
+        )?;
 
         // Note original header byte length.
         positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
@@ -425,6 +444,7 @@ mod tests {
   use std::result;
   use std::str::FromStr;
 
+  use async_crypt4gh::KeyPair;
   use axum::body::StreamBody;
   use axum::extract::Path as AxumPath;
   use axum::middleware::Next;
@@ -445,8 +465,8 @@ mod tests {
   use htsget_config::types::Request as HtsgetRequest;
   use htsget_config::types::{Format, Headers, Query, Url};
   use htsget_test::crypt4gh::get_encryption_keys;
-  use htsget_test::http_tests::default_dir;
   use htsget_test::http_tests::test_bam_file_byte_ranges;
+  use htsget_test::http_tests::{default_dir, test_bam_crypt4gh_byte_ranges};
 
   use crate::htsget::from_storage::HtsGetFromStorage;
   use crate::htsget::HtsGet;
@@ -754,39 +774,14 @@ mod tests {
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await;
 
-      let expected_response = Ok(HtsgetResponse::new(
-        Format::Bam,
-        vec![
-          Url::new("http://example.com/htsnexus_test_NA12878.bam")
-            .with_headers(
-              Headers::default()
-                .with_header("authorization", "secret")
-                .with_header("Range", "bytes=0-4667"),
-            )
-            .with_class(Header),
-          Url::new("http://example.com/htsnexus_test_NA12878.bam")
-            .with_headers(
-              Headers::default()
-                .with_header("authorization", "secret")
-                .with_header("Range", "bytes=256721-1065951"),
-            )
-            .with_class(Body),
-          Url::new("http://example.com/htsnexus_test_NA12878.bam")
-            .with_headers(
-              Headers::default()
-                .with_header("authorization", "secret")
-                .with_header("Range", "bytes=2596771-2596798"),
-            )
-            .with_class(Body),
-        ],
-      ));
+      let expected_response = Ok(expected_bam_response());
       assert_eq!(response, expected_response);
 
       test_bam_file_byte_ranges(
         response.unwrap(),
         default_dir().join("data/bam/htsnexus_test_NA12878.bam"),
       )
-      .await
+      .await;
     })
     .await;
   }
@@ -802,12 +797,47 @@ mod tests {
         true,
       );
 
+      let mut key_gen = Encrypt::default();
+      key_gen.expect_generate_key_pair().times(1).returning(|| {
+        Ok(KeyPair::new(
+          PrivateKey(vec![
+            145, 148, 86, 234, 50, 209, 174, 255, 20, 91, 41, 223, 50, 92, 196, 34, 145, 65, 241,
+            23, 65, 114, 131, 245, 198, 240, 235, 225, 132, 239, 127, 182,
+          ]),
+          PublicKey::new(vec![
+            203, 39, 139, 53, 239, 144, 49, 235, 193, 102, 10, 2, 200, 190, 53, 244, 16, 238, 91,
+            70, 243, 56, 16, 64, 115, 64, 87, 118, 126, 117, 37, 81,
+          ]),
+        ))
+      });
+      key_gen
+        .expect_edit_list()
+        .times(1)
+        .returning(|_, _, _, _, _| {
+          Ok((
+            vec![99, 114, 121, 112, 116, 52, 103, 104, 1, 0, 0, 0, 2, 0, 0, 0],
+            vec![
+              156, 0, 0, 0, 0, 0, 0, 0, 203, 39, 139, 53, 239, 144, 49, 235, 193, 102, 10, 2, 200,
+              190, 53, 244, 16, 238, 91, 70, 243, 56, 16, 64, 115, 64, 87, 118, 126, 117, 37, 81,
+              163, 212, 190, 255, 144, 27, 178, 165, 248, 127, 104, 250, 218, 10, 53, 128, 71, 226,
+              101, 87, 22, 111, 138, 145, 136, 37, 244, 61, 45, 75, 61, 219, 187, 3, 150, 152, 139,
+              42, 145, 64, 210, 84, 175, 206, 192, 12, 78, 73, 78, 55, 187, 184, 232, 88, 83, 209,
+              244, 244, 229, 20, 50, 66, 175, 177, 224, 206, 167, 104, 122, 106, 74, 244, 77, 33,
+              84, 125, 116, 31, 56, 79, 20, 121, 73, 156, 165, 215, 104, 29, 95, 216, 197, 62, 82,
+              193, 231, 2, 189, 10, 63, 202, 22, 174, 107, 92, 230, 201, 63, 104, 198, 20, 36, 236,
+              227, 13, 211, 167,
+            ],
+          ))
+        });
+      let storage = storage.with_key_gen(key_gen);
+
       let (_, public_key) = get_encryption_keys().await;
       let mut header_map = HeaderMap::default();
+      let public_key = general_purpose::STANDARD.encode(public_key);
       test_headers(&mut header_map);
       header_map.append(
-        HeaderName::from_str("publicKey").unwrap(),
-        HeaderValue::from_str(&general_purpose::STANDARD.encode(public_key)).unwrap(),
+        HeaderName::from_str(CLIENT_PUBLIC_KEY_NAME).unwrap(),
+        HeaderValue::from_str(&public_key).unwrap(),
       );
 
       let request =
@@ -828,22 +858,40 @@ mod tests {
       let expected_response = HtsgetResponse::new(
         Format::Bam,
         vec![
-          Url::new("http://example.com/htsnexus_test_NA12878.bam").with_headers(
+          // header info
+          Url::new("data:;base64,Y3J5cHQ0Z2gBAAAAAgAAAA=="),
+          // original header
+          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
             Headers::default()
               .with_header("authorization", "secret")
-              .with_header("Range", format!("bytes=0-{}", 124 + 65564 - 1)),
+              .with_header(CLIENT_PUBLIC_KEY_NAME, &public_key)
+              .with_header("Range", format!("bytes={}-{}", 16, 123)),
           ),
-          Url::new("http://example.com/htsnexus_test_NA12878.bam").with_headers(
+          // edit list packet
+          Url::new(
+            "data:;base64,nAAAAAAAAADLJ4s175Ax68FmCgLIvjX0EO5bRvM4EEBzQFd2fnUlUaPUvv+QG7Kl+H9o+\
+            toKNYBH4mVXFm+KkYgl9D0tSz3buwOWmIsqkUDSVK/OwAxOSU43u7joWFPR9PTlFDJCr7HgzqdoempK9E0hVH10\
+            HzhPFHlJnKXXaB1f2MU+UsHnAr0KP8oWrmtc5sk/aMYUJOzjDdOn",
+          ),
+          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
             Headers::default()
               .with_header("authorization", "secret")
+              .with_header(CLIENT_PUBLIC_KEY_NAME, &public_key)
+              .with_header("Range", format!("bytes={}-{}", 124, 124 + 65564 - 1)),
+          ),
+          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header(CLIENT_PUBLIC_KEY_NAME, &public_key)
               .with_header(
                 "Range",
                 format!("bytes={}-{}", 124 + 196692, 124 + 1114588 - 1),
               ),
           ),
-          Url::new("http://example.com/htsnexus_test_NA12878.bam").with_headers(
+          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
             Headers::default()
               .with_header("authorization", "secret")
+              .with_header(CLIENT_PUBLIC_KEY_NAME, &public_key)
               .with_header("Range", format!("bytes={}-{}", 124 + 2556996, 2598043 - 1)),
           ),
         ],
@@ -851,13 +899,50 @@ mod tests {
 
       assert_eq!(response, expected_response);
 
-      test_bam_file_byte_ranges(
+      let (bytes, _) = test_bam_file_byte_ranges(
         response,
         default_dir().join("data/crypt4gh/htsnexus_test_NA12878.bam.c4gh"),
       )
-      .await
+      .await;
+
+      let (expected_bytes, _) = test_bam_file_byte_ranges(
+        expected_bam_response(),
+        default_dir().join("data/bam/htsnexus_test_NA12878.bam"),
+      )
+      .await;
+
+      test_bam_crypt4gh_byte_ranges(bytes, expected_bytes).await;
     })
     .await;
+  }
+
+  fn expected_bam_response() -> HtsgetResponse {
+    HtsgetResponse::new(
+      Format::Bam,
+      vec![
+        Url::new("http://example.com/htsnexus_test_NA12878.bam")
+          .with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header("Range", "bytes=0-4667"),
+          )
+          .with_class(Header),
+        Url::new("http://example.com/htsnexus_test_NA12878.bam")
+          .with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header("Range", "bytes=256721-1065951"),
+          )
+          .with_class(Body),
+        Url::new("http://example.com/htsnexus_test_NA12878.bam")
+          .with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header("Range", "bytes=2596771-2596798"),
+          )
+          .with_class(Body),
+      ],
+    )
   }
 
   fn test_client() -> Client<HttpsConnector<HttpConnector>> {
@@ -905,7 +990,7 @@ mod tests {
         "/endpoint_file/:id",
         get(|headers: HeaderMap| async move {
           #[cfg(feature = "crypt4gh")]
-          if headers.contains_key("publicKey") {
+          if headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
             let mut bytes = vec![];
             let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
             File::open(path)
@@ -919,12 +1004,22 @@ mod tests {
             // than the standard block size with just the header bytes like here.
             let bytes = bytes[..4668].to_vec();
 
-            let encryption_keys = generate_key_pair().unwrap();
+            let encryption_keys = KeyPair::new(
+              PrivateKey(vec![
+                161, 61, 174, 214, 146, 101, 139, 42, 247, 73, 68, 96, 8, 198, 29, 26, 68, 113,
+                200, 182, 20, 217, 151, 89, 211, 14, 110, 80, 111, 138, 255, 194,
+              ]),
+              PublicKey::new(vec![
+                249, 209, 232, 54, 131, 32, 40, 191, 15, 205, 151, 70, 90, 37, 149, 101, 55, 138,
+                22, 59, 176, 0, 59, 7, 167, 10, 194, 129, 55, 147, 141, 101,
+              ]),
+            );
+
             let keys = Keys {
               method: 0,
               privkey: encryption_keys.private_key().clone().0,
               recipient_pubkey: general_purpose::STANDARD
-                .decode(headers.get("publicKey").unwrap())
+                .decode(headers.get(SERVER_PUBLIC_KEY_NAME).unwrap())
                 .unwrap(),
             };
 

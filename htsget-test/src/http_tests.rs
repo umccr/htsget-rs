@@ -104,7 +104,7 @@ pub fn default_dir() -> PathBuf {
 }
 
 /// Test a response against a bam file including the sliced byte ranges.
-pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf) {
+pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf) -> (Vec<u8>, Vec<u8>) {
   let file_str = file.to_str().unwrap();
   let mut buf = vec![];
   StdFile::open(file_str)
@@ -112,6 +112,7 @@ pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf)
     .read_to_end(&mut buf)
     .unwrap();
 
+  let mut public_key = vec![];
   let output = response
     .urls
     .into_iter()
@@ -121,30 +122,20 @@ pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf)
       } else {
         let headers = url.headers.unwrap().into_inner();
         let range = headers.get("Range").unwrap();
-        let mut headers = range.strip_prefix("bytes=").unwrap().split('-');
+        let mut range = range.strip_prefix("bytes=").unwrap().split('-');
 
-        let start = usize::from_str(headers.next().unwrap()).unwrap();
-        let end = usize::from_str(headers.next().unwrap()).unwrap() + 1;
+        let start = usize::from_str(range.next().unwrap()).unwrap();
+        let end = usize::from_str(range.next().unwrap()).unwrap() + 1;
+
+        if let Some(header_public_key) = headers.get("public-key") {
+          public_key = general_purpose::STANDARD.decode(header_public_key).unwrap();
+        }
 
         buf[start..end].to_vec()
       }
     })
     .reduce(|acc, x| [acc, x].concat())
     .unwrap();
-
-  #[cfg(feature = "crypt4gh")]
-  if file_str.ends_with(".c4gh") {
-    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
-
-    let mut reader = Builder::default()
-      .with_sender_pubkey(PublicKey::new(sender_public_key))
-      .build_with_stream_length(Cursor::new(output), vec![recipient_private_key])
-      .await
-      .unwrap();
-
-    let mut unencrypted_out = vec![];
-    reader.read_to_end(&mut unencrypted_out).await.unwrap();
-  }
 
   // Todo investigate why noodles fails here but samtools doesn't.
   // let mut reader = bam::AsyncReader::new(bgzf::AsyncReader::new(output.as_slice()));
@@ -157,6 +148,23 @@ pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf)
   //   println!("{:#?}", record);
   //   continue;
   // }
+
+  (output, public_key)
+}
+
+#[cfg(feature = "crypt4gh")]
+pub async fn test_bam_crypt4gh_byte_ranges(output_bytes: Vec<u8>, expected_bytes: Vec<u8>) {
+  let (recipient_private_key, _) = get_decryption_keys().await;
+
+  let mut reader = Builder::default()
+    .build_with_stream_length(Cursor::new(output_bytes), vec![recipient_private_key])
+    .await
+    .unwrap();
+
+  let mut unencrypted_out = vec![];
+  reader.read_to_end(&mut unencrypted_out).await.unwrap();
+
+  assert_eq!(unencrypted_out, expected_bytes);
 }
 
 /// Get the default directory where data is present..

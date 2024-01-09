@@ -591,7 +591,7 @@ impl<'a> HeadOptions<'a> {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
 
   use http::uri::Authority;
 
@@ -1040,7 +1040,7 @@ mod tests {
     assert_eq!(
       result,
       Url::new("")
-        .with_headers(Headers::new(HashMap::new()).with_header("Range", "bytes=5-10"))
+        .with_headers(Headers::new(BTreeMap::new()).with_header("Range", "bytes=5-10"))
         .with_class(Class::Header)
     );
   }
@@ -1064,7 +1064,7 @@ mod tests {
       result,
       Url::new("")
         .with_headers(
-          Headers::new(HashMap::new())
+          Headers::new(BTreeMap::new())
             .with_header("Range", "bytes=5-10")
             .with_header("header", "value")
         )

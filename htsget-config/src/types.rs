@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::io::ErrorKind::Other;
 use std::{fmt, io, result};
@@ -559,10 +559,10 @@ impl From<io::Error> for HtsGetError {
 
 /// The headers that need to be supplied when requesting data from a url.
 #[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Headers(HashMap<String, String>);
+pub struct Headers(BTreeMap<String, String>);
 
 impl Headers {
-  pub fn new(headers: HashMap<String, String>) -> Self {
+  pub fn new(headers: BTreeMap<String, String>) -> Self {
     Self(headers)
   }
 
@@ -593,13 +593,13 @@ impl Headers {
     self.0.extend(headers.into_inner());
   }
 
-  /// Get the inner HashMap.
-  pub fn into_inner(self) -> HashMap<String, String> {
+  /// Get the inner BTreeMap.
+  pub fn into_inner(self) -> BTreeMap<String, String> {
     self.0
   }
 
-  /// Get a reference to the inner HashMap.
-  pub fn as_ref_inner(&self) -> &HashMap<String, String> {
+  /// Get a reference to the inner BTreeMap.
+  pub fn as_ref_inner(&self) -> &BTreeMap<String, String> {
     &self.0
   }
 }
@@ -704,7 +704,7 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::{HashMap, HashSet};
+  use std::collections::{BTreeMap, HashSet};
   use std::str::FromStr;
 
   use http::{HeaderMap, HeaderName, HeaderValue};
@@ -915,19 +915,19 @@ mod tests {
 
   #[test]
   fn headers_with_header() {
-    let header = Headers::new(HashMap::new()).with_header("Range", "bytes=0-1023");
+    let header = Headers::new(BTreeMap::new()).with_header("Range", "bytes=0-1023");
     let result = header.0.get("Range");
     assert_eq!(result, Some(&"bytes=0-1023".to_string()));
   }
 
   #[test]
   fn headers_is_empty() {
-    assert!(Headers::new(HashMap::new()).is_empty());
+    assert!(Headers::new(BTreeMap::new()).is_empty());
   }
 
   #[test]
   fn headers_insert() {
-    let mut header = Headers::new(HashMap::new());
+    let mut header = Headers::new(BTreeMap::new());
     header.insert("Range", "bytes=0-1023");
     let result = header.0.get("Range");
     assert_eq!(result, Some(&"bytes=0-1023".to_string()));
@@ -935,10 +935,10 @@ mod tests {
 
   #[test]
   fn headers_extend() {
-    let mut headers = Headers::new(HashMap::new());
+    let mut headers = Headers::new(BTreeMap::new());
     headers.insert("Range", "bytes=0-1023");
 
-    let mut extend_with = Headers::new(HashMap::new());
+    let mut extend_with = Headers::new(BTreeMap::new());
     extend_with.insert("header", "value");
 
     headers.extend(extend_with);
@@ -952,7 +952,7 @@ mod tests {
 
   #[test]
   fn headers_multiple_values() {
-    let headers = Headers::new(HashMap::new())
+    let headers = Headers::new(BTreeMap::new())
       .with_header("Range", "bytes=0-1023")
       .with_header("Range", "bytes=1024-2047");
     let result = headers.0.get("Range");
@@ -986,7 +986,7 @@ mod tests {
 
   #[test]
   fn serialize_headers() {
-    let headers = Headers::new(HashMap::new())
+    let headers = Headers::new(BTreeMap::new())
       .with_header("Range", "bytes=0-1023")
       .with_header("Range", "bytes=1024-2047");
 
@@ -1002,23 +1002,23 @@ mod tests {
   #[test]
   fn url_with_headers() {
     let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
-      .with_headers(Headers::new(HashMap::new()));
+      .with_headers(Headers::new(BTreeMap::new()));
     assert_eq!(result.headers, None);
   }
 
   #[test]
   fn url_add_headers() {
-    let mut headers = Headers::new(HashMap::new());
+    let mut headers = Headers::new(BTreeMap::new());
     headers.insert("Range", "bytes=0-1023");
 
-    let mut extend_with = Headers::new(HashMap::new());
+    let mut extend_with = Headers::new(BTreeMap::new());
     extend_with.insert("header", "value");
 
     let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
       .with_headers(headers)
       .add_headers(extend_with);
 
-    let expected_headers = Headers::new(HashMap::new())
+    let expected_headers = Headers::new(BTreeMap::new())
       .with_header("Range", "bytes=0-1023")
       .with_header("header", "value");
 

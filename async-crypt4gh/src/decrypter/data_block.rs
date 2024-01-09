@@ -40,6 +40,7 @@ impl DataBlockDecrypter {
   ) -> Result<DecryptedDataBlock> {
     let size = data_block.len();
 
+    println!("decrypting data block with size: {}", size);
     let read_buf = Cursor::new(data_block.to_vec());
     let mut write_buf = Cursor::new(vec![]);
     let mut write_info = WriteInfo::new(0, None, &mut write_buf);

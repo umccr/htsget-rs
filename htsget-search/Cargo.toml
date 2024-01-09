@@ -23,6 +23,8 @@ url-storage = [
     "dep:bytes",
     "dep:hyper-rustls",
     "dep:crypt4gh",
+    "dep:mockall",
+    "dep:mockall_double",
     "dep:pin-project",
     "hyper/client",
     "htsget-config/url-storage",
@@ -65,6 +67,8 @@ aws-config = { version = "0.56", optional = true }
 hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"], optional = true }
 crypt4gh = { version = "0.4", git = "https://github.com/umccr/crypt4gh-rust", branch = "fix_rust_crypto_et_al", optional = true }
 pin-project = { version = "1.1", optional = true }
+mockall = { version = "0.9", optional = true }
+mockall_double = { version = "0.3", optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"

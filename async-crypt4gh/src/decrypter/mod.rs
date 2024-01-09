@@ -87,6 +87,8 @@ where
           this.session_keys.extend(header_packets.data_enc_packets);
           *this.edit_list_packet = header_packets.edit_list_packet;
 
+          println!("when decrypting: {:#?}", *this.edit_list_packet);
+
           Poll::Ready(Ok(()))
         }
         Err(err) => Poll::Ready(Err(err)),
