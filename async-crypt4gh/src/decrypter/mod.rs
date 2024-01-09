@@ -42,7 +42,7 @@ pin_project! {
         encrypted_header_packets: Option<Vec<EncryptedHeaderPacketBytes>>,
         header_info: Option<HeaderInfo>,
         session_keys: Vec<Vec<u8>>,
-        edit_list_packet: Option<Vec<u64>>,
+        edit_list_packet: Option<Vec<(bool, u64)>>,
         header_length: Option<u64>,
         current_block_size: Option<usize>,
         stream_length: Option<u64>,
@@ -55,6 +55,7 @@ where
 {
   /// Partitions the edit list packet so that it applies to the current data block, returning a new
   /// edit list that correctly discards and keeps the specified bytes this particular data block.
+  /// Todo, this should possibly go into the decoder, where bytes can be skipped directly.
   pub fn partition_edit_list(mut self: Pin<&mut Self>, data_block: &Bytes) -> Option<Vec<u64>> {
     let this = self.as_mut().project();
 
@@ -62,20 +63,21 @@ where
       let mut new_edit_list = vec![];
       let mut bytes_consumed = 0;
 
-      edit_list.retain_mut(|value| {
+      edit_list.retain_mut(|(discarding, value)| {
+        // If this is not a discarding edit, then discard 0 at the start.
+        if !*discarding && new_edit_list.is_empty() {
+          new_edit_list.push(0);
+        }
+
         // Get the encrypted block size.
         let data_block_len = data_block.len() as u64 - Block::nonce_size() - Block::mac_size();
-
 
         // Can only consume as many bytes as there are in the data block.
         if min(bytes_consumed + *value, data_block_len) == data_block_len {
           if bytes_consumed != data_block_len {
-            // If the whole data block hasn't been consumed yet, an edit still needs to be added,
-            // only if this block won't be consumed in one go.
+            // If the whole data block hasn't been consumed yet, an edit still needs to be added.
             let last_edit = data_block_len - bytes_consumed;
-            if bytes_consumed != 0 {
-              new_edit_list.push(last_edit);
-            }
+            new_edit_list.push(last_edit);
 
             // And remove this edit from the next value.
             *value -= last_edit;
@@ -134,9 +136,12 @@ where
           // Update the session keys and edit list packets.
           this.header_packet_future.set(None);
           this.session_keys.extend(header_packets.data_enc_packets);
-          *this.edit_list_packet = header_packets.edit_list_packet;
+          if this.edit_list_packet.is_none() {
+            *this.edit_list_packet =
+              Self::create_internal_edit_list(header_packets.edit_list_packet);
+          }
 
-          println!("when decrypting: {:#?}", *this.edit_list_packet);
+          println!("{:?}", this.edit_list_packet);
 
           Poll::Ready(Ok(()))
         }
@@ -281,8 +286,11 @@ impl<R> DecrypterStream<R> {
   }
 
   /// Get the edit list packet. Empty before the header is polled.
-  pub fn edit_list_packet(&self) -> Option<&[u64]> {
-    self.edit_list_packet.as_deref()
+  pub fn edit_list_packet(&self) -> Option<Vec<u64>> {
+    self
+      .edit_list_packet
+      .as_ref()
+      .map(|packet| packet.iter().map(|(_, edit)| *edit).collect())
   }
 
   /// Get the header info.
@@ -298,6 +306,10 @@ impl<R> DecrypterStream<R> {
   /// Get the stream's keys.
   pub fn keys(&self) -> &[Keys] {
     self.keys.as_slice()
+  }
+
+  pub(crate) fn create_internal_edit_list(edit_list: Option<Vec<u64>>) -> Option<Vec<(bool, u64)>> {
+    edit_list.map(|edits| [true, false].iter().cloned().cycle().zip(edits).collect())
   }
 }
 
@@ -441,6 +453,7 @@ mod tests {
   use bytes::BytesMut;
   use futures_util::future::join_all;
   use futures_util::StreamExt;
+  use tokio::fs::File;
 
   use htsget_test::http_tests::get_test_file;
 
@@ -450,6 +463,32 @@ mod tests {
   use htsget_test::crypt4gh::get_decryption_keys;
 
   use super::*;
+
+  #[tokio::test]
+  async fn partition_edit_lists() {
+    let src = get_test_file("crypt4gh/htsnexus_test_NA12878.bam.c4gh").await;
+    let (recipient_private_key, sender_public_key) = get_decryption_keys().await;
+
+    let mut stream = Builder::default()
+      .with_sender_pubkey(PublicKey::new(sender_public_key))
+      .with_edit_list(vec![60113, 100000, 65536])
+      .build(src, vec![recipient_private_key]);
+
+    assert_edit_list(&mut stream, Some(vec![60113, 5423]), vec![0; 65564]);
+    assert_edit_list(&mut stream, Some(vec![0, 65536]), vec![0; 65564]);
+    assert_edit_list(&mut stream, Some(vec![0, 29041, 36495]), vec![0; 65564]);
+    assert_edit_list(&mut stream, Some(vec![29041]), vec![0; 29041 + 12 + 16]);
+  }
+
+  fn assert_edit_list(
+    stream: &mut DecrypterStream<File>,
+    expected: Option<Vec<u64>>,
+    bytes: Vec<u8>,
+  ) {
+    let stream = Pin::new(stream);
+    let edit_list = stream.partition_edit_list(&Bytes::from(bytes));
+    assert_eq!(edit_list, expected);
+  }
 
   #[tokio::test]
   async fn decrypter_stream() {

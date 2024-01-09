@@ -11,6 +11,7 @@ use crate::PublicKey;
 pub struct Builder {
   sender_pubkey: Option<PublicKey>,
   stream_length: Option<u64>,
+  edit_list: Option<Vec<u64>>,
 }
 
 impl Builder {
@@ -36,6 +37,17 @@ impl Builder {
     self
   }
 
+  /// Set the edit list manually.
+  pub fn with_edit_list(self, edit_list: Vec<u64>) -> Self {
+    self.set_edit_list(Some(edit_list))
+  }
+
+  /// Set the edit list manually.
+  pub fn set_edit_list(mut self, edit_list: Option<Vec<u64>>) -> Self {
+    self.edit_list = edit_list;
+    self
+  }
+
   /// Build the decrypter.
   pub fn build<R>(self, inner: R, keys: Vec<Keys>) -> DecrypterStream<R>
   where
@@ -48,7 +60,7 @@ impl Builder {
       sender_pubkey: self.sender_pubkey,
       session_keys: vec![],
       encrypted_header_packets: None,
-      edit_list_packet: None,
+      edit_list_packet: DecrypterStream::<()>::create_internal_edit_list(self.edit_list),
       header_info: None,
       header_length: None,
       current_block_size: None,

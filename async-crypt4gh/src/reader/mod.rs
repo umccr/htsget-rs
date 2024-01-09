@@ -86,7 +86,7 @@ where
   }
 
   /// Get the edit list packet. Empty before the header is polled.
-  pub fn edit_list_packet(&self) -> Option<&[u64]> {
+  pub fn edit_list_packet(&self) -> Option<Vec<u64>> {
     self.stream.get_ref().edit_list_packet()
   }
 

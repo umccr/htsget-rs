@@ -104,7 +104,10 @@ pub fn default_dir() -> PathBuf {
 }
 
 /// Test a response against a bam file including the sliced byte ranges.
-pub async fn test_bam_file_byte_ranges(response: types::Response, file: PathBuf) -> (Vec<u8>, Vec<u8>) {
+pub async fn test_bam_file_byte_ranges(
+  response: types::Response,
+  file: PathBuf,
+) -> (Vec<u8>, Vec<u8>) {
   let file_str = file.to_str().unwrap();
   let mut buf = vec![];
   StdFile::open(file_str)
