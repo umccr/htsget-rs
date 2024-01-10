@@ -7,7 +7,6 @@ use tokio::io::AsyncRead;
 
 use crate::error::{Error, Result};
 use crate::reader::Reader;
-use crate::util::{unencrypted_clamp, unencrypted_clamp_next};
 use crate::PublicKey;
 
 /// Unencrypted byte range positions. Contains inclusive start values and exclusive end values.
@@ -18,6 +17,27 @@ pub struct UnencryptedPosition {
 }
 
 impl UnencryptedPosition {
+  pub fn new(start: u64, end: u64) -> Self {
+    Self { start, end }
+  }
+
+  pub fn start(&self) -> u64 {
+    self.start
+  }
+
+  pub fn end(&self) -> u64 {
+    self.end
+  }
+}
+
+/// Encrypted byte range positions. Contains inclusive start values and exclusive end values.
+#[derive(Debug, Clone)]
+pub struct ClampedPosition {
+  start: u64,
+  end: u64,
+}
+
+impl ClampedPosition {
   pub fn new(start: u64, end: u64) -> Self {
     Self { start, end }
   }
@@ -78,9 +98,9 @@ where
 {
   reader: &'a Reader<R>,
   unencrypted_positions: Vec<UnencryptedPosition>,
+  clamped_positions: Vec<ClampedPosition>,
   private_key: PrivateKey,
   recipient_public_key: PublicKey,
-  stream_length: u64,
 }
 
 impl<'a, R> EditHeader<'a, R>
@@ -90,16 +110,16 @@ where
   pub fn new(
     reader: &'a Reader<R>,
     unencrypted_positions: Vec<UnencryptedPosition>,
+    clamped_positions: Vec<ClampedPosition>,
     private_key: PrivateKey,
     recipient_public_key: PublicKey,
-    stream_length: u64,
   ) -> Self {
     Self {
       reader,
       unencrypted_positions,
+      clamped_positions,
       private_key,
       recipient_public_key,
-      stream_length,
     }
   }
 
@@ -119,23 +139,55 @@ where
 
   /// Create the edit lists from the unencrypted byte positions.
   pub fn create_edit_list(&self) -> Vec<u64> {
-    let ranges_size = self.unencrypted_positions.len();
-    let (edit_list, _) = self.unencrypted_positions.clone().into_iter().fold(
-      (Vec::with_capacity(ranges_size), 0),
-      |(mut edit_list, previous_discard), range| {
-        // Note, edit lists do not relate to the length of the crypt4gh header, only to the 65536 byte
-        // boundaries of the encrypted blocks, so the boundaries can be treated like they have a 0 byte
-        // size header.
-        let start_boundary = unencrypted_clamp(range.start, self.stream_length);
-        let end_boundary = unencrypted_clamp_next(range.end, self.stream_length);
+    let mut unencrypted_positions: Vec<u64> = self
+      .unencrypted_positions
+      .iter()
+      .flat_map(|pos| [pos.start, pos.end])
+      .collect();
 
-        let discard = range.start - start_boundary + previous_discard;
-        let keep = range.end - range.start;
+    // Collect the clamped and unencrypted positions into separate edit list groups.
+    let (mut edit_list, last_discard) =
+      self
+        .clamped_positions
+        .iter()
+        .fold((vec![], 0), |(mut edit_list, previous_discard), pos| {
+          // Get the correct number of unencrypted positions that fit within this clamped position.
+          let partition =
+            unencrypted_positions.partition_point(|unencrypted_pos| unencrypted_pos <= &pos.end);
+          let mut positions: Vec<u64> = unencrypted_positions.drain(..partition).collect();
 
-        edit_list.extend([discard, keep]);
-        (edit_list, end_boundary - range.end)
-      },
-    );
+          // Merge all positions.
+          positions.insert(0, pos.start);
+          positions.push(pos.end);
+
+          // Find the difference between consecutive positions to get the edits.
+          let mut positions: Vec<u64> = positions
+            .iter()
+            .zip(positions.iter().skip(1))
+            .map(|(start, end)| end - start)
+            .collect();
+
+          // Add the previous discard to the first edit.
+          if let Some(first) = positions.first_mut() {
+            *first += previous_discard;
+          }
+
+          // If the last edit is a discard, then carry this over into the next iteration.
+          let next_discard = if positions.len() % 2 == 0 {
+            0
+          } else {
+            positions.pop().unwrap_or(0)
+          };
+
+          // Add edits to the accumulating edit list.
+          edit_list.extend(positions);
+          (edit_list, next_discard)
+        });
+
+    // If there is a final discard, then add this to the edit list.
+    if last_discard != 0 {
+      edit_list.push(last_discard);
+    }
 
     edit_list
   }
@@ -214,12 +266,12 @@ mod tests {
 
     let header = EditHeader::new(
       &reader,
-      test_positions(),
+      test_unencrypted_positions(),
+      test_clamped_positions(),
       PrivateKey(private_key_encrypt.clone().privkey),
       PublicKey {
         bytes: public_key_encrypt.clone(),
       },
-      5485112,
     )
     .edit_list()
     .unwrap()
@@ -253,23 +305,31 @@ mod tests {
 
     let edit_list = EditHeader::new(
       &reader,
-      test_positions(),
+      test_unencrypted_positions(),
+      test_clamped_positions(),
       PrivateKey(private_key_encrypt.clone().privkey),
       PublicKey {
         bytes: public_key_encrypt.clone(),
       },
-      5485112,
     )
     .create_edit_list();
 
     assert_eq!(edit_list, expected_edit_list());
   }
 
-  fn test_positions() -> Vec<UnencryptedPosition> {
+  fn test_unencrypted_positions() -> Vec<UnencryptedPosition> {
     vec![
       UnencryptedPosition::new(0, 7853),
       UnencryptedPosition::new(145110, 453039),
       UnencryptedPosition::new(5485074, 5485112),
+    ]
+  }
+
+  fn test_clamped_positions() -> Vec<ClampedPosition> {
+    vec![
+      ClampedPosition::new(0, 65536),
+      ClampedPosition::new(131072, 458752),
+      ClampedPosition::new(5439488, 5485111),
     ]
   }
 

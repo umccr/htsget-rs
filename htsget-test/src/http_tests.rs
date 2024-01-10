@@ -15,8 +15,6 @@ use tokio::io::AsyncReadExt;
 
 #[cfg(feature = "crypt4gh")]
 use async_crypt4gh::reader::builder::Builder;
-#[cfg(feature = "crypt4gh")]
-use async_crypt4gh::PublicKey;
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::resolver::Resolver;

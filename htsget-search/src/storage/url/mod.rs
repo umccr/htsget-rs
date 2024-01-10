@@ -24,7 +24,7 @@ use tokio_rustls::rustls::PrivateKey;
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
-use async_crypt4gh::edit_lists::UnencryptedPosition;
+use async_crypt4gh::edit_lists::{ClampedPosition, UnencryptedPosition};
 use async_crypt4gh::reader::builder::Builder;
 use async_crypt4gh::reader::Reader;
 use async_crypt4gh::PublicKey;
@@ -372,7 +372,7 @@ impl Storage for UrlStorage {
   async fn update_byte_positions(
     &self,
     reader: Self::Streamable,
-    mut positions_options: BytesPositionOptions<'_>,
+    positions_options: BytesPositionOptions<'_>,
   ) -> Result<Vec<DataBlock>> {
     match reader {
       #[cfg(feature = "crypt4gh")]
@@ -389,11 +389,20 @@ impl Storage for UrlStorage {
         let recipient_public_key =
           Self::decode_public_key(positions_options.headers, CLIENT_PUBLIC_KEY_NAME)?;
 
+        let unencrypted_positions = BytesPosition::merge_all(positions_options.positions.clone());
+        let clamped_positions = BytesPosition::merge_all(
+          positions_options
+            .positions
+            .clone()
+            .into_iter()
+            .map(|pos| pos.convert_to_clamped_crypt4gh_ranges(file_size))
+            .collect::<Vec<_>>(),
+        );
+
         // Calculate edit lists
         let (header_info, edit_list_packet) = self.encrypt.edit_list(
           &reader,
-          positions_options
-            .positions
+          unencrypted_positions
             .iter()
             .map(|position| {
               UnencryptedPosition::new(
@@ -402,13 +411,27 @@ impl Storage for UrlStorage {
               )
             })
             .collect(),
+          clamped_positions
+            .iter()
+            .map(|position| {
+              ClampedPosition::new(
+                position.start.unwrap_or_default(),
+                position.end.unwrap_or(file_size),
+              )
+            })
+            .collect(),
           PrivateKey(keys.privkey.clone()),
           PublicKey::new(recipient_public_key),
-          file_size,
         )?;
 
-        // Note original header byte length.
-        positions_options = positions_options.convert_to_crypt4gh_ranges(header_size, file_size);
+        let encrypted_positions = BytesPosition::merge_all(
+          positions_options
+            .positions
+            .clone()
+            .into_iter()
+            .map(|pos| pos.convert_to_crypt4gh_ranges(header_size, file_size))
+            .collect::<Vec<_>>(),
+        );
 
         // Append header with edit lists attached.
         let header_info_size = header_info.len() as u64;
@@ -421,9 +444,7 @@ impl Storage for UrlStorage {
           ),
           DataBlock::Data(edit_list_packet, Some(Class::Header)),
         ];
-        blocks.extend(DataBlock::from_bytes_positions(
-          positions_options.merge_all().into_inner(),
-        ));
+        blocks.extend(DataBlock::from_bytes_positions(encrypted_positions));
 
         Ok(blocks)
       }

@@ -16,6 +16,7 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
+use async_crypt4gh::util::{unencrypted_clamp, unencrypted_clamp_next};
 #[cfg(feature = "crypt4gh")]
 use async_crypt4gh::util::{unencrypted_to_data_block, unencrypted_to_next_data_block};
 use htsget_config::config::cors::CorsConfig;
@@ -415,6 +416,15 @@ impl BytesPosition {
 
     self
   }
+
+  /// Convert the range to clamped crypt4gh ranges.
+  #[cfg(feature = "crypt4gh")]
+  pub fn convert_to_clamped_crypt4gh_ranges(mut self, file_size: u64) -> Self {
+    self.start = self.start.map(|start| unencrypted_clamp(start, file_size));
+    self.end = self.end.map(|end| unencrypted_clamp_next(end, file_size));
+
+    self
+  }
 }
 
 #[derive(Debug)]
@@ -465,7 +475,7 @@ impl<'a> GetOptions<'a> {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BytesPositionOptions<'a> {
   positions: Vec<BytesPosition>,
   file_size: u64,

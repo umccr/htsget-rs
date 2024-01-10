@@ -141,8 +141,6 @@ where
               Self::create_internal_edit_list(header_packets.edit_list_packet);
           }
 
-          println!("{:?}", this.edit_list_packet);
-
           Poll::Ready(Ok(()))
         }
         Err(err) => Poll::Ready(Err(err)),

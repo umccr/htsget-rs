@@ -1,7 +1,7 @@
 use crate::storage::url::UrlStreamReader;
 use crate::storage::Result;
 use crate::storage::StorageError::UrlParseError;
-use async_crypt4gh::edit_lists::{EditHeader, UnencryptedPosition};
+use async_crypt4gh::edit_lists::{ClampedPosition, EditHeader, UnencryptedPosition};
 use async_crypt4gh::reader::Reader;
 use async_crypt4gh::{util, KeyPair, PublicKey};
 use mockall::mock;
@@ -25,16 +25,16 @@ impl Encrypt {
     &self,
     reader: &Reader<UrlStreamReader>,
     unencrypted_positions: Vec<UnencryptedPosition>,
+    clamped_positions: Vec<ClampedPosition>,
     private_key: PrivateKey,
     public_key: PublicKey,
-    file_size: u64,
   ) -> Result<(Vec<u8>, Vec<u8>)> {
     let (header_info, _, edit_list_packet) = EditHeader::new(
       reader,
       unencrypted_positions,
+      clamped_positions,
       private_key,
       public_key,
-      file_size,
     )
     .edit_list()
     .map_err(|err| UrlParseError(err.to_string()))?
@@ -53,9 +53,9 @@ mock! {
             &self,
             reader: &Reader<UrlStreamReader>,
             unencrypted_positions: Vec<UnencryptedPosition>,
+            clamped_positions: Vec<ClampedPosition>,
             private_key: PrivateKey,
             public_key: PublicKey,
-            file_size: u64
         ) -> Result<(Vec<u8>, Vec<u8>)>;
     }
 
