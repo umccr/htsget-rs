@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bcf;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::index::ReferenceSequence;
+use noodles::csi::binning_index::index::reference_sequence::index::BinnedIndex;
+use noodles::csi::binning_index::index::ReferenceSequence;
 use noodles::csi::Index;
 use noodles::vcf::Header;
 use noodles::{bgzf, csi};
@@ -28,7 +29,8 @@ pub struct BcfSearch<S> {
 }
 
 #[async_trait]
-impl<S, ReaderType> BgzfSearch<S, ReaderType, AsyncReader<ReaderType>, Header> for BcfSearch<S>
+impl<S, ReaderType> BgzfSearch<S, BinnedIndex, ReaderType, AsyncReader<ReaderType>, Header>
+  for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
@@ -43,7 +45,8 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, ReferenceSequence, Index, AsyncReader<ReaderType>, Header>
+impl<S, ReaderType>
+  Search<S, ReaderType, ReferenceSequence<BinnedIndex>, Index, AsyncReader<ReaderType>, Header>
   for BcfSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
