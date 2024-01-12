@@ -32,7 +32,7 @@ import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
 /**
  * Settings related to the htsget lambda stack.
  */
-export type HtsgetLambdaStackSettings = {
+export type HtsgetSettings = {
   /**
    * The location of the htsget-rs config file.
    */
@@ -44,6 +44,11 @@ export type HtsgetLambdaStackSettings = {
   domain: string;
 
   /**
+   * The domain name prefix to use for the htsget-rs server. Defaults to `"htsget"`.
+   */
+  subDomain?: string;
+
+  /**
    * Policies to add to the bucket. If this is not specified, this defaults to `["arn:aws:s3:::*"]`.
    * This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`.
    */
@@ -53,33 +58,14 @@ export type HtsgetLambdaStackSettings = {
    * Whether this deployment is gated behind an authorizer, or if its public. When this is not specified, the htsget
    * api gateway does not have an authorizer.
    */
-  authRequired?: HtsgetAuthSettings;
+  authorizer?: HtsgetAuthSettings;
 
   /**
-   * The certificate to use for the domain name. If not specified, a new certificate is created. This is useful if
-   * reusing an existing certificate.
+   * Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an
+   * existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone under the
+   * domain name.
    */
-  certificateArn?: string;
-
-  /**
-   * The hosted zone to use for the htsget domain. If not specified, a new hosted zone is created. This is useful if
-   * reusing an existing hosted zone.
-   */
-  hostedZone?: HtsgetHostedZoneSettings;
-};
-
-/**
- * Hosted zone related settings.
- */
-export type HtsgetHostedZoneSettings = {
-  /**
-   * Hosted zone name.
-   */
-  name: string;
-  /**
-   * Hosted zone id.
-   */
-  id: string;
+  lookupHostedZone?: boolean;
 };
 
 /**
@@ -145,7 +131,7 @@ export class HtsgetLambdaStack extends Stack {
     scope: Construct,
     id: string,
     props: StackProps,
-    settings: HtsgetLambdaStackSettings,
+    settings: HtsgetSettings,
   ) {
     super(scope, id, props);
 
@@ -204,63 +190,52 @@ export class HtsgetLambdaStack extends Stack {
 
     // Add an authorizer if auth is required.
     let authorizer = undefined;
-    if (settings.authRequired) {
+    if (settings.authorizer) {
       // If the cog user pool id is not specified, create a new one.
-      if (settings.authRequired.cogUserPoolId === undefined) {
+      if (settings.authorizer.cogUserPoolId === undefined) {
         const pool = new UserPool(this, "userPool", {
           userPoolName: "HtsgetRsUserPool",
         });
-        settings.authRequired.cogUserPoolId = pool.userPoolId;
+        settings.authorizer.cogUserPoolId = pool.userPoolId;
       }
 
       authorizer = new HttpJwtAuthorizer(
         id + "HtsgetAuthorizer",
-        `https://cognito-idp.${this.region}.amazonaws.com/${settings.authRequired.cogUserPoolId}`,
+        `https://cognito-idp.${this.region}.amazonaws.com/${settings.authorizer.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
-          jwtAudience: settings.authRequired.jwtAudience,
+          jwtAudience: settings.authorizer.jwtAudience,
         },
       );
     }
 
     let hostedZone;
-    if (settings.hostedZone === undefined) {
+    if (settings.lookupHostedZone ?? true) {
+      hostedZone = HostedZone.fromLookup(this, "HostedZone", {
+        domainName: settings.domain,
+      });
+    } else {
       hostedZone = new HostedZone(this, id + "HtsgetHostedZone", {
         zoneName: settings.domain,
       });
-    } else {
-      hostedZone = HostedZone.fromHostedZoneAttributes(
-        this,
-        id + "HtsgetHostedZone",
-        {
-          hostedZoneId: settings.hostedZone.id,
-          zoneName: settings.hostedZone.name,
-        },
-      );
     }
 
-    let certificate;
-    if (settings.certificateArn === undefined) {
-      certificate = new Certificate(this, id + "HtsgetCertificate", {
-        domainName: settings.domain,
-        validation: CertificateValidation.fromDns(hostedZone),
-        certificateName: settings.domain,
-      });
-    } else {
-      certificate = Certificate.fromCertificateArn(
-        this,
-        id + "HtsgetDomainCert",
-        settings.certificateArn,
-      );
-    }
+    let url = `${settings.subDomain ?? "htsget"}.${settings.domain}`;
+
+    let certificate = new Certificate(this, id + "HtsgetCertificate", {
+      domainName: url,
+      validation: CertificateValidation.fromDns(hostedZone),
+      certificateName: url,
+    });
+
     const domainName = new DomainName(this, id + "HtsgetDomainName", {
       certificate: certificate,
-      domainName: settings.domain,
+      domainName: url,
     });
 
     new ARecord(this, id + "HtsgetARecord", {
       zone: hostedZone,
-      recordName: "htsget",
+      recordName: settings.subDomain ?? "htsget",
       target: RecordTarget.fromAlias(
         new ApiGatewayv2DomainProperties(
           domainName.regionalDomainName,

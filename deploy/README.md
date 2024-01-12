@@ -4,23 +4,36 @@ The [htsget-lambda] crate is a cloud-based implementation of [htsget-rs]. It use
 
 This is an example that deploys [htsget-lambda] using [aws-cdk]. It is deployed as an AWS HTTP [API Gateway Lambda proxy
 integration][aws-api-gateway]. The stack uses [RustFunction][rust-function] in order to integrate [htsget-lambda]
-with API Gateway. It uses a [JWT authorizer][jwt-authorizer] with [AWS Cognito][aws-cognito] as the issuer, and routes
+with API Gateway. It also has the option to use a [JWT authorizer][jwt-authorizer] with [AWS Cognito][aws-cognito] as the issuer, and routes
 the htsget-rs server with [AWS Route 53][route-53].
 
 ## Configuration
 
-To configure the deployment change the config files in the [`config`][config] directory. Make sure to point to that config file on `cdk.json` before running `cdk deploy`, i.e:
+The CDK code in this directory constructs a CDK app from [`HtsgetLambdaStack`][htsget-lambda-stack], and uses a settings file under [`bin/settings.ts`][htsget-settings]. To configure the deployment, change these settings in
+[`bin/settings.ts`][htsget-settings]:
 
-```json
-$ cat deploy/cdk.json
-(...)
-  },
-  "context": {
-    "htsget_rs_config": "config/public_umccr.toml",
-(...)
-```
+#### HtsgetSettings
+These are general settings for the CDK deployment.
 
-These config files configure [htsget-lambda]. See [htsget-config] for a list of available configuration options.
+| Name                                                     | Description                                                                                                                                                                                                                                    | Type                                        |
+|----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| <span id="config">`config`</span>                        | The location of the htsget-rs server config. This must be specified. This config file configures the htsget-rs server. See [htsget-config] for a list of available server configuration options.                                               | `string`                                    | 
+| <span id="domain">`domain`</span>                        | The domain name for the Route53 Hosted Zone that the htsget-rs server will be under. This must be specified. A hosted zone with this name will either be looked up or created depending on the value of [`lookupHostedZone?`](#lookupHostedZone). | `string`                                    |
+| <span id="subDomain">`subDomain`</span>                  | The domain name prefix to use for the htsget-rs server. Together with the [`domain`](#domain), this specifies url that the htsget-rs server will be reachable under. Defaults to `"htsget"`.                                                   | `string`                                    |
+| <span id="s3BucketResources">`s3BucketResources?`</span> | The resources that are affected by the bucket policy with actions: `["s3:List*", "s3:Get*"]`. If this is not specified, this defaults to `["arn:aws:s3:::*"]`. This affects which buckets are allowed to be accessed with the policy.   | `string[]`                                  |
+| <span id="authorizer">`authorizer?`</span>               | Whether this deployment is gated behind an authorizer, or if it's public. When this is not specified, the htsget API gateway does not have an authorizer.                                                                                      | [`HtsgetAuthSettings`](#htsgetauthsettings) |
+| <span id="lookupHostedZone">`lookupHostedZone?`</span>   | Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone with the domain name.     | `boolean`                                   |
+
+#### HtsgetAuthSettings
+These settings are only used if the htsget API gateway endpoint is configured to have an authorizer.
+
+| Name                                             | Description                                                                                                                                          | Type       |
+|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| <span id="jwtAudience">`jwtAudience`</span>      | A list of the intended recipients of the JWT. A valid JWT must provide an aud that matches at least one entry in this list.                          | `string[]` | 
+| <span id="cogUserPoolId?">`cogUserPoolId`</span> | The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.                                                    | `string`   |
+
+The [`HtsgetSettings`](#htsgetsettings) are passed into [`HtsgetLambdaStack`][htsget-lambda-stack] in order to change the deployment config. An example of a public instance deployment
+can be found under [`bin/htsget-lambda.ts`][htsget-lambda-bin]. This uses the [`config/public_umccr.toml`][public-umccr-toml] server config. See [htsget-config] for a list of available server configuration options.
 
 ## Deploying
 
@@ -65,9 +78,9 @@ npx cdk deploy
 
 ### Testing the endpoint
 
-When the deployment is finished, the htsget endpoint can be tested by querying it. Since a JWT authorizer is used,
+When the deployment is finished, the htsget endpoint can be tested by querying it. If a JWT authorizer is configured,
 a valid JWT token must be obtained in order to access the endpoint. This token should be obtained from AWS Cognito using
-the configured user pool id and audience parameters. Then `curl` can be used to query the endpoint:
+the configured audience parameters. Then `curl` can be used to query the endpoint:
 
 ```sh
 curl -H "Authorization: <JWT Token>" "https://<htsget_domain>/reads/service-info"
@@ -150,6 +163,10 @@ $ npx cdklocal deploy
 
 TBD, fetch instructions from [NBIS Sweden usecase, test and document them here properly](https://github.com/NBISweden/htsget-rs/tree/docker-testing/deploy).
 
+[htsget-lambda-bin]: bin/htsget-lambda.ts
+[htsget-lambda-stack]: lib/htsget-lambda-stack.ts
+[htsget-settings]: bin/settings.ts
+[public-umccr-toml]: config/public_umccr.toml
 [htsget-lambda]: ../htsget-lambda
 [cargo-lambda]: https://github.com/cargo-lambda/cargo-lambda
 [data-events]: ../data/events
