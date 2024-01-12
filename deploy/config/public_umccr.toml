@@ -1,13 +1,3 @@
-# Deployment only related options
-domain = "htsget.demo.umccr.org"
-auth_required = false
-s3_bucket_resources = [
-    "arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
-    "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*"
-]
-#cog_user_pool_id = "..."
-
-# htsget-rs server options.
 data_server_enabled = false
 
 name = "umccr-htsget-rs"

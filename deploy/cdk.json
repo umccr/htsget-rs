@@ -15,7 +15,6 @@
     ]
   },
   "context": {
-    "htsget_rs_config": "config/public_umccr.toml",
     "@aws-cdk/aws-apigateway:usagePlanKeyOrderInsensitiveId": true,
     "@aws-cdk/core:stackRelativeExports": true,
     "@aws-cdk/aws-rds:lowercaseDbIdentifier": true,

@@ -2,7 +2,7 @@ import { STACK_NAME } from "../bin/htsget-lambda";
 import * as TOML from "@iarna/toml";
 import { readFileSync } from "fs";
 
-import { Duration, Stack, StackProps, Tags, CfnParameter } from "aws-cdk-lib";
+import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { RustFunction, Settings } from "rust.aws-cdk-lambda";
 
@@ -29,18 +29,76 @@ import {
 import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
 
-// TODO:
-//
-// * Include CORS snippet in S3 buckets' permissions for the public case, iterate through all buckets to enable CORS.
-// * Add a custom domain name for the API gateway, deal with certificates and API gateway Route53 mapping (no CNAME/A's there).
-// * Make sure CORS is disabled/removed for the unauthorized case.
-// * Revisit Cognito config for the auth'd case.
-// * Tweak resolvers regex and substitutions strings, since bam|cram|mixed... does not work currently.
-// * Deploy new changes from upstream htsget-rs.
-// * Consider CDK Pipelines migration so that commits to the GitHub's `master` repo branch trigger a new deployment.
+/**
+ * Settings related to the htsget lambda stack.
+ */
+export type HtsgetLambdaStackSettings = {
+  /**
+   * The location of the htsget-rs config file.
+   */
+  config: string;
+
+  /**
+   * The domain name for the htsget server.
+   */
+  domain: string;
+
+  /**
+   * Policies to add to the bucket. If this is not specified, this defaults to `["arn:aws:s3:::*"]`.
+   * This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`.
+   */
+  s3BucketResources?: string[];
+
+  /**
+   * Whether this deployment is gated behind an authorizer, or if its public. When this is not specified, the htsget
+   * api gateway does not have an authorizer.
+   */
+  authRequired?: HtsgetAuthSettings;
+
+  /**
+   * The certificate to use for the domain name. If not specified, a new certificate is created. This is useful if
+   * reusing an existing certificate.
+   */
+  certificateArn?: string;
+
+  /**
+   * The hosted zone to use for the htsget domain. If not specified, a new hosted zone is created. This is useful if
+   * reusing an existing hosted zone.
+   */
+  hostedZone?: HtsgetHostedZoneSettings;
+};
 
 /**
- * Configuration for HtsgetLambdaStack.
+ * Hosted zone related settings.
+ */
+export type HtsgetHostedZoneSettings = {
+  /**
+   * Hosted zone name.
+   */
+  name: string;
+  /**
+   * Hosted zone id.
+   */
+  id: string;
+};
+
+/**
+ * Authentication related settings.
+ */
+export type HtsgetAuthSettings = {
+  /**
+   * The JWT audience.
+   */
+  jwtAudience: string[];
+
+  /**
+   * The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.
+   */
+  cogUserPoolId?: string;
+};
+
+/**
+ * Configuration for htsget-rs.
  */
 export type Config = {
   /**
@@ -77,41 +135,23 @@ export type Config = {
    * CORS max age.
    */
   maxAge?: Duration;
-
-  /**
-   * The domain name for the htsget server.
-   */
-  domain: string;
-
-  /**
-   * Whether this deployment is gated behind an authorizer, or if its public.
-   */
-  authRequired: boolean;
-
-  /**
-   * The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.
-   * This option only has an effect if authRequired is set to true.
-   */
-  cogUserPoolId?: string;
-
-  /**
-   * Policies to add to the bucket. If this is not specified, it defaults to `["arn:aws:s3:::*"]`.
-   * This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`.
-   */
-  s3BucketResources?: string[];
 };
 
 /**
  * Stack used to deploy htsget-lambda.
  */
 export class HtsgetLambdaStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: StackProps,
+    settings: HtsgetLambdaStackSettings,
+  ) {
     super(scope, id, props);
 
-    // Read config from cdk.json and TOML file(s).
-    const config = this.getConfig();
-
     Tags.of(this).add("Stack", STACK_NAME);
+
+    const config = this.getConfig(settings.config);
 
     const lambdaRole = new Role(this, id + "Role", {
       assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
@@ -120,7 +160,7 @@ export class HtsgetLambdaStack extends Stack {
 
     const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
-      resources: config.s3BucketResources ?? ["arn:aws:s3:::*"]
+      resources: settings.s3BucketResources ?? ["arn:aws:s3:::*"],
     });
 
     lambdaRole.addManagedPolicy(
@@ -164,42 +204,58 @@ export class HtsgetLambdaStack extends Stack {
 
     // Add an authorizer if auth is required.
     let authorizer = undefined;
-    if (config.authRequired) {
+    if (settings.authRequired) {
       // If the cog user pool id is not specified, create a new one.
-      if (config.cogUserPoolId === undefined) {
+      if (settings.authRequired.cogUserPoolId === undefined) {
         const pool = new UserPool(this, "userPool", {
           userPoolName: "HtsgetRsUserPool",
         });
-        config.cogUserPoolId = pool.userPoolId;
+        settings.authRequired.cogUserPoolId = pool.userPoolId;
       }
 
       authorizer = new HttpJwtAuthorizer(
         id + "HtsgetAuthorizer",
-        `https://cognito-idp.${this.region}.amazonaws.com/${config.cogUserPoolId}`,
+        `https://cognito-idp.${this.region}.amazonaws.com/${settings.authRequired.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
-          jwtAudience: ["audience"],
+          jwtAudience: settings.authRequired.jwtAudience,
         },
       );
     }
 
-    // Create a hosted zone for this service.
-    const hostedZone = new HostedZone(this, id + "HtsgetHostedZone", {
-      zoneName: config.domain,
-    });
-    // Create a certificate for the domain name.
-    const certificate = new Certificate(this, id + "HtsgetCertificate", {
-      domainName: config.domain,
-      validation: CertificateValidation.fromDns(hostedZone),
-      certificateName: config.domain,
-    });
-    const domainName = new DomainName(this, id + "HtsgetDomainName", {
-      certificate: Certificate.fromCertificateArn(
+    let hostedZone;
+    if (settings.hostedZone === undefined) {
+      hostedZone = new HostedZone(this, id + "HtsgetHostedZone", {
+        zoneName: settings.domain,
+      });
+    } else {
+      hostedZone = HostedZone.fromHostedZoneAttributes(
+        this,
+        id + "HtsgetHostedZone",
+        {
+          hostedZoneId: settings.hostedZone.id,
+          zoneName: settings.hostedZone.name,
+        },
+      );
+    }
+
+    let certificate;
+    if (settings.certificateArn === undefined) {
+      certificate = new Certificate(this, id + "HtsgetCertificate", {
+        domainName: settings.domain,
+        validation: CertificateValidation.fromDns(hostedZone),
+        certificateName: settings.domain,
+      });
+    } else {
+      certificate = Certificate.fromCertificateArn(
         this,
         id + "HtsgetDomainCert",
-        certificate.certificateArn,
-      ),
-      domainName: config.domain,
+        settings.certificateArn,
+      );
+    }
+    const domainName = new DomainName(this, id + "HtsgetDomainName", {
+      certificate: certificate,
+      domainName: settings.domain,
     });
 
     new ARecord(this, id + "HtsgetARecord", {
@@ -283,10 +339,8 @@ export class HtsgetLambdaStack extends Stack {
   /**
    * Get the environment from config.toml
    */
-  getConfig(): Config {
-    let confFile = this.node.tryGetContext("htsget_rs_config");
-
-    const configToml = TOML.parse(readFileSync(confFile).toString());
+  getConfig(config: string): Config {
+    const configToml = TOML.parse(readFileSync(config).toString());
 
     return {
       htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
@@ -314,10 +368,6 @@ export class HtsgetLambdaStack extends Stack {
         configToml.ticket_server_cors_max_age !== undefined
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
-      domain: configToml.domain as string,
-      authRequired: configToml.auth_required as boolean,
-      cogUserPoolId: configToml.cog_user_pool_id as string | undefined,
-      s3BucketResources: configToml.s3_bucket_resources as string[] | undefined,
     };
   }
 }
