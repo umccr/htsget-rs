@@ -58,7 +58,7 @@ export type HtsgetSettings = {
    * Whether this deployment is gated behind an authorizer, or if its public. When this is not specified, the htsget
    * api gateway does not have an authorizer.
    */
-  authorizer?: HtsgetAuthSettings;
+  authorizer: HtsgetAuthSettings;
 
   /**
    * Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an
@@ -73,9 +73,14 @@ export type HtsgetSettings = {
  */
 export type HtsgetAuthSettings = {
   /**
+   * Whether this deployment is public.
+   */
+  public: boolean;
+
+  /**
    * The JWT audience.
    */
-  jwtAudience: string[];
+  jwtAudience?: string[];
 
   /**
    * The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.
@@ -190,7 +195,7 @@ export class HtsgetLambdaStack extends Stack {
 
     // Add an authorizer if auth is required.
     let authorizer = undefined;
-    if (settings.authorizer) {
+    if (!settings.authorizer.public) {
       // If the cog user pool id is not specified, create a new one.
       if (settings.authorizer.cogUserPoolId === undefined) {
         const pool = new UserPool(this, "userPool", {
@@ -204,7 +209,7 @@ export class HtsgetLambdaStack extends Stack {
         `https://cognito-idp.${this.region}.amazonaws.com/${settings.authorizer.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
-          jwtAudience: settings.authorizer.jwtAudience,
+          jwtAudience: settings.authorizer.jwtAudience ?? [],
         },
       );
     }

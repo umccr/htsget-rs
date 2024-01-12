@@ -15,22 +15,23 @@ The CDK code in this directory constructs a CDK app from [`HtsgetLambdaStack`][h
 #### HtsgetSettings
 These are general settings for the CDK deployment.
 
-| Name                                                     | Description                                                                                                                                                                                                                                    | Type                                        |
-|----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
-| <span id="config">`config`</span>                        | The location of the htsget-rs server config. This must be specified. This config file configures the htsget-rs server. See [htsget-config] for a list of available server configuration options.                                               | `string`                                    | 
+| Name                                                     | Description                                                                                                                                                                                                                                       | Type                                        |
+|----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| <span id="config">`config`</span>                        | The location of the htsget-rs server config. This must be specified. This config file configures the htsget-rs server. See [htsget-config] for a list of available server configuration options.                                                  | `string`                                    | 
 | <span id="domain">`domain`</span>                        | The domain name for the Route53 Hosted Zone that the htsget-rs server will be under. This must be specified. A hosted zone with this name will either be looked up or created depending on the value of [`lookupHostedZone?`](#lookupHostedZone). | `string`                                    |
-| <span id="subDomain">`subDomain`</span>                  | The domain name prefix to use for the htsget-rs server. Together with the [`domain`](#domain), this specifies url that the htsget-rs server will be reachable under. Defaults to `"htsget"`.                                                   | `string`                                    |
-| <span id="s3BucketResources">`s3BucketResources?`</span> | The resources that are affected by the bucket policy with actions: `["s3:List*", "s3:Get*"]`. If this is not specified, this defaults to `["arn:aws:s3:::*"]`. This affects which buckets are allowed to be accessed with the policy.   | `string[]`                                  |
-| <span id="authorizer">`authorizer?`</span>               | Whether this deployment is gated behind an authorizer, or if it's public. When this is not specified, the htsget API gateway does not have an authorizer.                                                                                      | [`HtsgetAuthSettings`](#htsgetauthsettings) |
-| <span id="lookupHostedZone">`lookupHostedZone?`</span>   | Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone with the domain name.     | `boolean`                                   |
+| <span id="authorizer">`authorizer`</span>                | Whether this deployment is gated behind an authorizer, or if it's public. This must be specified.                                                                                                                                                 | [`HtsgetAuthSettings`](#htsgetauthsettings) |
+| <span id="subDomain">`subDomain?`</span>                 | The domain name prefix to use for the htsget-rs server. Together with the [`domain`](#domain), this specifies url that the htsget-rs server will be reachable under. Defaults to `"htsget"`.                                                      | `string`                                    |
+| <span id="s3BucketResources">`s3BucketResources?`</span> | The resources that are affected by the bucket policy with actions: `["s3:List*", "s3:Get*"]`. If this is not specified, it defaults to `["arn:aws:s3:::*"]`. This affects which buckets are allowed to be accessed with the policy.               | `string[]`                                  |
+| <span id="lookupHostedZone">`lookupHostedZone?`</span>   | Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone with the domain name.        | `boolean`                                   |
 
 #### HtsgetAuthSettings
-These settings are only used if the htsget API gateway endpoint is configured to have an authorizer.
+These settings are used to determine if the htsget API gateway endpoint is configured to have an authorizer or not.
 
-| Name                                             | Description                                                                                                                                          | Type       |
-|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
-| <span id="jwtAudience">`jwtAudience`</span>      | A list of the intended recipients of the JWT. A valid JWT must provide an aud that matches at least one entry in this list.                          | `string[]` | 
-| <span id="cogUserPoolId?">`cogUserPoolId`</span> | The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.                                                    | `string`   |
+| Name                                              | Description                                                                                                                                                                         | Type       |
+|---------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| <span id="public">`public`</span>                 | Whether this deployment is public. If this is `true` then no authorizer is present on the API gateway and the options below have no effect.                                         | `boolean`  |
+| <span id="jwtAudience">`jwtAudience?`</span>      | A list of the intended recipients of the JWT. A valid JWT must provide an aud that matches at least one entry in this list. This must be specified if [`public`](#public) is false. | `string[]` | 
+| <span id="cogUserPoolId?">`cogUserPoolId?`</span> | The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.                                                                                   | `string`   |
 
 The [`HtsgetSettings`](#htsgetsettings) are passed into [`HtsgetLambdaStack`][htsget-lambda-stack] in order to change the deployment config. An example of a public instance deployment
 can be found under [`bin/htsget-lambda.ts`][htsget-lambda-bin]. This uses the [`config/public_umccr.toml`][public-umccr-toml] server config. See [htsget-config] for a list of available server configuration options.
@@ -54,8 +55,8 @@ After installing the basic dependencies, complete the following steps:
 Below is a summary of commands to run in this directory:
 
 ```sh
-export CDK_DEFAULT_ACCOUNT=`aws sts get-caller-identity --query Account --output text`
-export CDK_DEFAULT_REGION=`aws configure get region`
+``export CDK_DEFAULT_ACCOUNT=`aws sts get-caller-identity --query Account --output text`
+export CDK_DEFAULT_REGION=`aws configure get region```
 rustup target add aarch64-unknown-linux-gnu
 cargo install cargo-lambda
 npm install
