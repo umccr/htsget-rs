@@ -47,43 +47,58 @@ export type Config = {
    * The config values passed to the htsget-rs server.
    */
   htsgetConfig: { [key: string]: string };
+
   /**
    * CORS allow credentials.
    */
   allowCredentials?: boolean;
+
   /**
    * CORS allow headers.
    */
   allowHeaders?: string[];
+
   /**
    * CORS allow methods.
    */
   allowMethods?: CorsHttpMethod[];
+
   /**
    * CORS allow origins.
    */
   allowOrigins?: string[];
+
   /**
    * CORS expose headers.
    */
   exposeHeaders?: string[];
+
   /**
    * CORS max age.
    */
   maxAge?: Duration;
+
   /**
    * The domain name for the htsget server.
    */
   domain: string;
+
   /**
    * Whether this deployment is gated behind an authorizer, or if its public.
    */
   authRequired: boolean;
+
   /**
    * The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.
    * This option only has an effect if authRequired is set to true.
    */
   cogUserPoolId?: string;
+
+  /**
+   * Policies to add to the bucket. If this is not specified, it defaults to `["arn:aws:s3:::*"]`.
+   * This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`.
+   */
+  s3BucketResources?: string[];
 };
 
 /**
@@ -105,7 +120,7 @@ export class HtsgetLambdaStack extends Stack {
 
     const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
-      resources: this.configResolversToARNBuckets(config.htsgetConfig),
+      resources: config.s3BucketResources ?? ["arn:aws:s3:::*"]
     });
 
     lambdaRole.addManagedPolicy(
@@ -232,38 +247,6 @@ export class HtsgetLambdaStack extends Stack {
   }
 
   /**
-   * Collect resource names from config.
-   * @param config TOML config file
-   * @returns A list of buckets (storage backend identifiers or names)
-   */
-  configResolversToARNBuckets(config: {
-    [key: string]: string;
-  }): Array<string> {
-    // todo
-    return [];
-    // // Example return value:
-    // //  [ "arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
-    // //    "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*" ]
-    //
-    // // Parse the JSON string into a JavaScript object
-    // const resolvers = config["HTSGET_RESOLVERS"];
-    //
-    // // Build a bucket => keys dictionary, for now we'll just need the bucket part for the policies
-    // var out: Array<string> = [];
-    //
-    // const regexPattern = /regex\s*=\s*"\^\(([^/]+)\)\//gm;
-    // const matches = resolvers.match(regexPattern);
-    //
-    // if (matches) {
-    //   for (const match of matches) {
-    //     out.push(match.replace(regexPattern, "arn:aws:s3:::$1/*"));
-    //   }
-    // }
-    //
-    // return out;
-  }
-
-  /**
    * Convert htsget-rs CORS option to CORS options for API Gateway.
    */
   static convertCors(configToml: any, corsValue: string): string[] | undefined {
@@ -334,6 +317,7 @@ export class HtsgetLambdaStack extends Stack {
       domain: configToml.domain as string,
       authRequired: configToml.auth_required as boolean,
       cogUserPoolId: configToml.cog_user_pool_id as string | undefined,
+      s3BucketResources: configToml.s3_bucket_resources as string[] | undefined,
     };
   }
 }

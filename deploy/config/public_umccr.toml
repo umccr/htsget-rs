@@ -1,6 +1,10 @@
 # Deployment only related options
 domain = "htsget.demo.umccr.org"
 auth_required = false
+s3_bucket_resources = [
+    "arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
+    "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*"
+]
 #cog_user_pool_id = "..."
 
 # htsget-rs server options.
@@ -15,10 +19,11 @@ documentation_url = "https://github.com/umccr/htsget-rs"
 environment = "public"
 
 [[resolvers]]
-regex = '^(org.umccr.demo.sbeacon-data)/CINECA_UK1/(?P<key>.*)$'
-substitution_string = 'CINECA_UK1/$key'
+regex = "^(org.umccr.demo.sbeacon-data)/CINECA_UK1/(?P<key>.*)$"
+substitution_string = "CINECA_UK1/$key"
+storage = "S3"
 
-# TODO: Tweak the substitution string
 [[resolvers]]
-regex = '^(org.umccr.demo.htsget-rs-data)/bam|cram|vcf|bcf|crypt4gh|mixed/(?P<key>.*)$'
-substitution_string = '(bam|cram|vcf|bcf|crypt4gh|mixed)/$key'
+regex = "^(org.umccr.demo.htsget-rs-data)/(?P<type>bam|cram|vcf|bcf|crypt4gh|mixed)/(?P<key>.*)$"
+substitution_string = "$type/$key"
+storage = "S3"
