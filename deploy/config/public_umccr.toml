@@ -1,9 +1,12 @@
+# Deployment only related options
+domain = "htsget.demo.umccr.org"
 auth_required = false
+#cog_user_pool_id = "..."
 
+# htsget-rs server options.
 data_server_enabled = false
 
 name = "umccr-htsget-rs"
-domain = "htsget.demo.umccr.org"
 version = "0.1"
 organization_name = "UMCCR"
 organization_url = "https://umccr.org/"

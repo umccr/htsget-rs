@@ -1,6 +1,5 @@
 import { STACK_NAME } from "../bin/htsget-lambda";
 import * as TOML from "@iarna/toml";
-import * as glob from 'glob';
 import { readFileSync } from "fs";
 
 import { Duration, Stack, StackProps, Tags, CfnParameter } from "aws-cdk-lib";
@@ -8,13 +7,27 @@ import { Construct } from "constructs";
 import { RustFunction, Settings } from "rust.aws-cdk-lambda";
 
 import { UserPool } from "aws-cdk-lib/aws-cognito";
-import { Role, ServicePrincipal, PolicyStatement, ManagedPolicy } from "aws-cdk-lib/aws-iam";
+import {
+  Role,
+  ServicePrincipal,
+  PolicyStatement,
+  ManagedPolicy,
+} from "aws-cdk-lib/aws-iam";
 import { Architecture } from "aws-cdk-lib/aws-lambda";
-import { CorsHttpMethod, HttpMethod, HttpApi } from "@aws-cdk/aws-apigatewayv2-alpha";
+import {
+  CorsHttpMethod,
+  HttpMethod,
+  HttpApi,
+  DomainName,
+} from "@aws-cdk/aws-apigatewayv2-alpha";
 import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
-import { Certificate, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
-import { HostedZone } from "aws-cdk-lib/aws-route53";
+import {
+  Certificate,
+  CertificateValidation,
+} from "aws-cdk-lib/aws-certificatemanager";
+import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
+import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
 
 // TODO:
 //
@@ -26,32 +39,57 @@ import { HostedZone } from "aws-cdk-lib/aws-route53";
 // * Deploy new changes from upstream htsget-rs.
 // * Consider CDK Pipelines migration so that commits to the GitHub's `master` repo branch trigger a new deployment.
 
-
 /**
  * Configuration for HtsgetLambdaStack.
  */
 export type Config = {
-  domain: string;
-  environment: string;                          // dev, prod, public
-  htsgetConfig: { [key: string]: string };      // Htsget server config
-  allowCredentials?: boolean;                   // CORS
+  /**
+   * The config values passed to the htsget-rs server.
+   */
+  htsgetConfig: { [key: string]: string };
+  /**
+   * CORS allow credentials.
+   */
+  allowCredentials?: boolean;
+  /**
+   * CORS allow headers.
+   */
   allowHeaders?: string[];
+  /**
+   * CORS allow methods.
+   */
   allowMethods?: CorsHttpMethod[];
+  /**
+   * CORS allow origins.
+   */
   allowOrigins?: string[];
+  /**
+   * CORS expose headers.
+   */
   exposeHeaders?: string[];
+  /**
+   * CORS max age.
+   */
   maxAge?: Duration;
-  authRequired?: boolean;                       // Public instance without authz/n
-  cogUserPoolId?: string;                       // Supply one if already existing
+  /**
+   * The domain name for the htsget server.
+   */
+  domain: string;
+  /**
+   * Whether this deployment is gated behind an authorizer, or if its public.
+   */
+  authRequired: boolean;
+  /**
+   * The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.
+   * This option only has an effect if authRequired is set to true.
+   */
+  cogUserPoolId?: string;
 };
-
-
-
 
 /**
  * Stack used to deploy htsget-lambda.
  */
 export class HtsgetLambdaStack extends Stack {
-  
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
@@ -59,8 +97,6 @@ export class HtsgetLambdaStack extends Stack {
     const config = this.getConfig();
 
     Tags.of(this).add("Stack", STACK_NAME);
-
-   // Environment desired (to be passed to i.e: `cdk deploy --parameter env={public|dev|prod}`
 
     const lambdaRole = new Role(this, id + "Role", {
       assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
@@ -74,8 +110,8 @@ export class HtsgetLambdaStack extends Stack {
 
     lambdaRole.addManagedPolicy(
       ManagedPolicy.fromAwsManagedPolicyName(
-        "service-role/AWSLambdaBasicExecutionRole"
-      )
+        "service-role/AWSLambdaBasicExecutionRole",
+      ),
     );
     lambdaRole.addToPolicy(s3BucketPolicy);
 
@@ -83,7 +119,6 @@ export class HtsgetLambdaStack extends Stack {
     Settings.WORKSPACE_DIR = "../";
     // Don't build htsget packages other than htsget-lambda.
     Settings.BUILD_INDIVIDUALLY = true;
-
 
     let htsgetLambda = new RustFunction(this, id + "Function", {
       // Build htsget-lambda only.
@@ -112,48 +147,62 @@ export class HtsgetLambdaStack extends Stack {
       htsgetLambda,
     );
 
-    // Use a predefined Cognito user pool or create a new one.
-    var cognito = undefined;
-    if (!config.authRequired || config.cogUserPoolId) {
-      Error("Cognito user pool requested by {toml.cognito_name} not found");
-      cognito = config.cogUserPoolId;
-    } else {
-      cognito = this.createNewCognito();
-    }
-
-    // Use a predefined authorizer or create a new one.
-    var authorizer = undefined;
+    // Add an authorizer if auth is required.
+    let authorizer = undefined;
     if (config.authRequired) {
+      // If the cog user pool id is not specified, create a new one.
+      if (config.cogUserPoolId === undefined) {
+        const pool = new UserPool(this, "userPool", {
+          userPoolName: "HtsgetRsUserPool",
+        });
+        config.cogUserPoolId = pool.userPoolId;
+      }
+
       authorizer = new HttpJwtAuthorizer(
-      id + "HtsgetAuthorizer",
-      `https://cognito-idp.${this.region}.amazonaws.com/${config.cogUserPoolId}`,
+        id + "HtsgetAuthorizer",
+        `https://cognito-idp.${this.region}.amazonaws.com/${config.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
           jwtAudience: ["audience"],
-        }
-      )
+        },
+      );
     }
 
     // Create a hosted zone for this service.
-    const hostedZoneObj = new HostedZone(this, id + "HtsgetHostedZone", {
+    const hostedZone = new HostedZone(this, id + "HtsgetHostedZone", {
       zoneName: config.domain,
     });
-
     // Create a certificate for the domain name.
-    const certificateArn = new Certificate(
-      this,
-      id + "HtsgetCertificate",
-      {
-        domainName: config.domain,
-        validation: CertificateValidation.fromDns(hostedZoneObj),
-        certificateName: config.domain,
-      }
-    ).certificateArn;
+    const certificate = new Certificate(this, id + "HtsgetCertificate", {
+      domainName: config.domain,
+      validation: CertificateValidation.fromDns(hostedZone),
+      certificateName: config.domain,
+    });
+    const domainName = new DomainName(this, id + "HtsgetDomainName", {
+      certificate: Certificate.fromCertificateArn(
+        this,
+        id + "HtsgetDomainCert",
+        certificate.certificateArn,
+      ),
+      domainName: config.domain,
+    });
+
+    new ARecord(this, id + "HtsgetARecord", {
+      zone: hostedZone,
+      recordName: "htsget",
+      target: RecordTarget.fromAlias(
+        new ApiGatewayv2DomainProperties(
+          domainName.regionalDomainName,
+          domainName.regionalHostedZoneId,
+        ),
+      ),
+    });
 
     const httpApi = new HttpApi(this, id + "ApiGw", {
-      // Use explicit routes GET, POST with {proxy+} path
-      // defaultIntegration: httpIntegration,
-      defaultAuthorizer: config.authRequired ? authorizer : undefined,
+      defaultAuthorizer: authorizer,
+      defaultDomainMapping: {
+        domainName: domainName,
+      },
       corsPreflight: {
         allowCredentials: config.allowCredentials,
         allowHeaders: config.allowHeaders,
@@ -169,12 +218,6 @@ export class HtsgetLambdaStack extends Stack {
       methods: [HttpMethod.GET, HttpMethod.POST],
       integration: httpIntegration,
     });
-  }
-
-  envParamToConfigToml(env: string): string {
-    const fname = glob.sync(`config/${env}.toml`);
-    console.log(fname);
-    return fname[0];
   }
 
   /**
@@ -193,27 +236,31 @@ export class HtsgetLambdaStack extends Stack {
    * @param config TOML config file
    * @returns A list of buckets (storage backend identifiers or names)
    */
-  configResolversToARNBuckets(config: { [ key: string ]: string }): Array<string> {
-    // Example return value:
-    //  [ "arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
-    //    "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*" ]
-
-    // Parse the JSON string into a JavaScript object
-    const resolvers = config["HTSGET_RESOLVERS"];
-
-    // Build a bucket => keys dictionary, for now we'll just need the bucket part for the policies
-    var out: Array<string> = [];
-
-    const regexPattern = /regex\s*=\s*"\^\(([^/]+)\)\//gm; 
-    const matches = resolvers.match(regexPattern);
-
-    if (matches) {
-      for (const match of matches) {
-        out.push(match.replace(regexPattern, "arn:aws:s3:::$1/*"));
-      }
-    }
-
-    return out;
+  configResolversToARNBuckets(config: {
+    [key: string]: string;
+  }): Array<string> {
+    // todo
+    return [];
+    // // Example return value:
+    // //  [ "arn:aws:s3:::org.umccr.demo.sbeacon-data/*",
+    // //    "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*" ]
+    //
+    // // Parse the JSON string into a JavaScript object
+    // const resolvers = config["HTSGET_RESOLVERS"];
+    //
+    // // Build a bucket => keys dictionary, for now we'll just need the bucket part for the policies
+    // var out: Array<string> = [];
+    //
+    // const regexPattern = /regex\s*=\s*"\^\(([^/]+)\)\//gm;
+    // const matches = resolvers.match(regexPattern);
+    //
+    // if (matches) {
+    //   for (const match of matches) {
+    //     out.push(match.replace(regexPattern, "arn:aws:s3:::$1/*"));
+    //   }
+    // }
+    //
+    // return out;
   }
 
   /**
@@ -234,60 +281,31 @@ export class HtsgetLambdaStack extends Stack {
 
     return undefined;
   }
-  
+
   /**
    * Convert a string CORS allowMethod option to CorsHttpMethod.
    */
   static corsAllowMethodToHttpMethod(
-    corsAllowMethod?: string[]
+    corsAllowMethod?: string[],
   ): CorsHttpMethod[] | undefined {
     if (corsAllowMethod?.length === 1 && corsAllowMethod.includes("*")) {
       return [CorsHttpMethod.ANY];
     } else {
       return corsAllowMethod?.map(
-        (element) =>
-          CorsHttpMethod[element as keyof typeof CorsHttpMethod]
+        (element) => CorsHttpMethod[element as keyof typeof CorsHttpMethod],
       );
     }
   }
 
   /**
-   * Bespoke Cognito infrastructure
-   */
-  createNewCognito() {
-      // Cognito User Pool with Email Sign-in Type.
-      const userPool = new UserPool(this, 'userPool', {
-        userPoolName: 'HtsgetRsUserPool',
-      })
-  
-      // Authorizer for the Hello World API that uses the
-      // Cognito User pool to Authorize users.
-      // const authorizer = new CfnAuthorizer(this, 'cfnAuth', {
-      //   restApiId: helloWorldLambdaRestApi.restApiId,
-      //   name: 'HelloWorldAPIAuthorizer',
-      //   type: 'COGNITO_USER_POOLS',
-      //   identitySource: 'method.request.header.Authorization',
-      //   providerArns: [userPool.userPoolArn],
-      // })
-  }
-  /**
    * Get the environment from config.toml
    */
   getConfig(): Config {
-    let env = this.node.tryGetContext("env");
     let confFile = this.node.tryGetContext("htsget_rs_config");
-
-    if (env === undefined) {
-      env = {
-        account: process.env.CDK_DEFAULT_ACCOUNT,
-        region: process.env.CDK_DEFAULT_REGION,
-      }
-    }
 
     const configToml = TOML.parse(readFileSync(confFile).toString());
 
     return {
-      environment: env,
       htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
       allowCredentials:
         configToml.ticket_server_cors_allow_credentials as boolean,
@@ -305,16 +323,17 @@ export class HtsgetLambdaStack extends Stack {
         configToml,
         "ticket_server_cors_allow_origins",
       ),
-      domain: configToml.domain.toString(),
       exposeHeaders: HtsgetLambdaStack.convertCors(
         configToml,
         "ticket_server_cors_expose_headers",
       ),
-      authRequired: configToml.auth_required as boolean,
       maxAge:
         configToml.ticket_server_cors_max_age !== undefined
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
+      domain: configToml.domain as string,
+      authRequired: configToml.auth_required as boolean,
+      cogUserPoolId: configToml.cog_user_pool_id as string | undefined,
     };
   }
 }
