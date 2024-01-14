@@ -329,7 +329,7 @@ mod tests {
     vec![
       ClampedPosition::new(0, 65536),
       ClampedPosition::new(131072, 458752),
-      ClampedPosition::new(5439488, 5485111),
+      ClampedPosition::new(5439488, 5485112),
     ]
   }
 

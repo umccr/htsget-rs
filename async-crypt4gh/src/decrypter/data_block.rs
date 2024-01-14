@@ -4,10 +4,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use crypt4gh::{body_decrypt, body_decrypt_parts, WriteInfo};
+use crypt4gh::{body_decrypt, WriteInfo};
 use pin_project_lite::pin_project;
 use tokio::task::JoinHandle;
 
+use crate::decrypter::DecrypterStream;
 use crate::error::Error::{Crypt4GHError, JoinHandleError};
 use crate::error::Result;
 use crate::{DecryptedBytes, DecryptedDataBlock};
@@ -44,14 +45,31 @@ impl DataBlockDecrypter {
     let mut write_buf = Cursor::new(vec![]);
     let mut write_info = WriteInfo::new(0, None, &mut write_buf);
 
-    match edit_list_packet {
-      None => body_decrypt(read_buf, session_keys.as_slice(), &mut write_info, 0),
-      Some(edit_list) => body_decrypt_parts(read_buf, session_keys, write_info, edit_list),
+    // Todo crypt4gh-rust body_decrypt_parts does not work properly, so just apply edit list here.
+    body_decrypt(read_buf, session_keys.as_slice(), &mut write_info, 0)
+      .map_err(|err| Crypt4GHError(err.to_string()))?;
+    let mut decrypted_bytes: Bytes = write_buf.into_inner().into();
+    let mut edited_bytes = Bytes::new();
+
+    let edits = DecrypterStream::<()>::create_internal_edit_list(edit_list_packet)
+      .unwrap_or(vec![(false, decrypted_bytes.len() as u64)]);
+    if edits.iter().map(|(_, edit)| edit).sum::<u64>() > decrypted_bytes.len() as u64 {
+      return Err(Crypt4GHError(
+        "invalid edit lists for the decrypted data block".to_string(),
+      ));
     }
-    .map_err(|err| Crypt4GHError(err.to_string()))?;
+
+    edits.into_iter().for_each(|(discarding, edit)| {
+      if !discarding {
+        let edit = decrypted_bytes.slice(0..edit as usize);
+        edited_bytes = [edited_bytes.clone(), edit].concat().into();
+      }
+
+      decrypted_bytes = decrypted_bytes.slice(edit as usize..);
+    });
 
     Ok(DecryptedDataBlock::new(
-      DecryptedBytes::new(write_buf.into_inner().into()),
+      DecryptedBytes::new(edited_bytes),
       size,
     ))
   }
