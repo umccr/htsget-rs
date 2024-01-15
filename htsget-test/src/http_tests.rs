@@ -9,6 +9,7 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use http::uri::Authority;
 use http::HeaderMap;
+use noodles::bgzf;
 use serde::de;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -153,6 +154,14 @@ pub async fn test_bam_file_byte_ranges(
   (output, public_key)
 }
 
+/// Pass the bytes through a BGZF reader.
+pub async fn parse_as_bgzf(bytes: Vec<u8>) {
+  let mut reader = bgzf::AsyncReader::new(bytes.as_slice());
+
+  let mut data = Vec::new();
+  reader.read_to_end(&mut data).await.unwrap();
+}
+
 #[cfg(feature = "crypt4gh")]
 pub async fn test_bam_crypt4gh_byte_ranges(output_bytes: Vec<u8>, expected_bytes: Vec<u8>) {
   let (recipient_private_key, _) = get_decryption_keys().await;
@@ -164,6 +173,8 @@ pub async fn test_bam_crypt4gh_byte_ranges(output_bytes: Vec<u8>, expected_bytes
 
   let mut unencrypted_out = vec![];
   reader.read_to_end(&mut unencrypted_out).await.unwrap();
+
+  parse_as_bgzf(unencrypted_out.clone()).await;
 
   assert_eq!(unencrypted_out, expected_bytes);
 }

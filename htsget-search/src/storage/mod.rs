@@ -16,6 +16,7 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
+#[cfg(feature = "crypt4gh")]
 use async_crypt4gh::util::{unencrypted_clamp, unencrypted_clamp_next};
 #[cfg(feature = "crypt4gh")]
 use async_crypt4gh::util::{unencrypted_to_data_block, unencrypted_to_next_data_block};
