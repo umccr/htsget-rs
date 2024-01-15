@@ -26,7 +26,16 @@ specific code, this defines an interface that handles the core logic of a htsget
 
 Future work may split these two modules into separate crates.
 
+There are three different kinds of storage:
+* `LocalStorage`: which spawns a local server that can respond to URL tickets.
+* `S3Storage`: which returns pre-signed AWS S3 URLs for the tickets.
+* `UrlStorage`: which returns a custom URL endpoint which is intended to respond to URL tickets.
+    * For `UrlStorage`, returning Crypt4GH encrypted files is supported using a custom protocol,
+      by compiling with the `crypt4gh` flag. See the crypt4gh [ARCHITECTURE.md][architecture] file for Crypt4GH for a description on
+      how this works.
+
 [noodles]: https://github.com/zaeleus/noodles
+[architecture]: ../docs/crypt4gh/ARCHITECTURE.md
 
 ### Traits abstraction
 

@@ -1107,9 +1107,15 @@ mod tests {
       )
       .route(
         "/endpoint_head/:id",
-        head(|| async {
+        head(|AxumPath(id): AxumPath<String>| async move {
+          let length = if id == "htsnexus_test_NA12878.bam.c4gh" {
+            "2598043"
+          } else {
+            "2596799"
+          };
+
           let mut headers = HeaderMap::new();
-          headers.insert("Content-Length", HeaderValue::from_static("2596799"));
+          headers.insert("Content-Length", HeaderValue::from_static(length));
 
           (StatusCode::OK, headers).into_response()
         }),
