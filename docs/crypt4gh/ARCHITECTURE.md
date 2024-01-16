@@ -50,7 +50,7 @@ the resolvers do not transform the id, the requests are:
 Here, `<endpoint-index>` and `<endpoint-file>` can be defined in the htsget config. Currently, htsget-rs implements this design.
 
 The following is a diagram of this process:
-![architecture](./htsget-rs-crypt4gh.drawio)
+![architecture](./htsget-rs-crypt4gh.drawio.png)
 
 ### Alternative designs
 
