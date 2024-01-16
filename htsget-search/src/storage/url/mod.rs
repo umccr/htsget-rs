@@ -42,7 +42,7 @@ use crate::storage::{
 };
 use crate::Url as HtsGetUrl;
 
-const CLIENT_PUBLIC_KEY_NAME: &str = "public-key";
+const CLIENT_PUBLIC_KEY_NAME: &str = "client-public-key";
 const SERVER_PUBLIC_KEY_NAME: &str = "server-public-key";
 
 /// A storage struct which derives data from HTTP URLs.
@@ -206,7 +206,7 @@ impl UrlStorage {
     headers: &HeaderMap,
   ) -> Result<Response<Body>> {
     self
-      .send_request(key, headers, Method::HEAD, self.endpoints.head())
+      .send_request(key, headers, Method::HEAD, self.endpoints.file())
       .await
   }
 
@@ -1106,7 +1106,7 @@ mod tests {
         }),
       )
       .route(
-        "/endpoint_head/:id",
+        "/endpoint_file/:id",
         head(|AxumPath(id): AxumPath<String>| async move {
           let length = if id == "htsnexus_test_NA12878.bam.c4gh" {
             "2598043"
@@ -1155,7 +1155,6 @@ mod tests {
     Endpoints::new(
       Uri::from_str("https://example.com").unwrap().into(),
       Uri::from_str("https://example.com").unwrap().into(),
-      Uri::from_str("https://example.com").unwrap().into(),
     )
   }
 
@@ -1163,15 +1162,11 @@ mod tests {
     Endpoints::new(
       Uri::from_str(url).unwrap().into(),
       Uri::from_str(url).unwrap().into(),
-      Uri::from_str(url).unwrap().into(),
     )
   }
 
   fn endpoints_from_url_with_path(url: &str) -> Endpoints {
     Endpoints::new(
-      Uri::from_str(&format!("{}/endpoint_head", url))
-        .unwrap()
-        .into(),
       Uri::from_str(&format!("{}/endpoint_index", url))
         .unwrap()
         .into(),

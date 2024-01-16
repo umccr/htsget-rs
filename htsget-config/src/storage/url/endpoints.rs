@@ -6,7 +6,6 @@ use crate::storage::url::{default_url, ValidatedUrl};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Endpoints {
-  head: ValidatedUrl,
   index: ValidatedUrl,
   file: ValidatedUrl,
 }
@@ -14,7 +13,6 @@ pub struct Endpoints {
 impl Default for Endpoints {
   fn default() -> Self {
     Self {
-      head: default_url(),
       index: default_url(),
       file: default_url(),
     }
@@ -23,13 +21,8 @@ impl Default for Endpoints {
 
 impl Endpoints {
   /// Construct a new endpoints config.
-  pub fn new(head: ValidatedUrl, index: ValidatedUrl, file: ValidatedUrl) -> Self {
-    Self { head, index, file }
-  }
-
-  /// Get the head endpoint.
-  pub fn head(&self) -> &Uri {
-    &self.head.0.inner
+  pub fn new(index: ValidatedUrl, file: ValidatedUrl) -> Self {
+    Self { index, file }
   }
 
   /// Get the index endpoint.
