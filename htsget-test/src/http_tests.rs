@@ -1,5 +1,5 @@
 use std::fs::File as StdFile;
-use std::io::{Cursor, Read};
+use std::io::Read;
 use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -14,8 +14,6 @@ use serde::de;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-#[cfg(feature = "crypt4gh")]
-use async_crypt4gh::reader::builder::Builder;
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::resolver::Resolver;
@@ -25,6 +23,8 @@ use htsget_config::tls::{
 };
 use htsget_config::types;
 use htsget_config::types::{Scheme, TaggedTypeAll};
+#[cfg(feature = "crypt4gh")]
+use {async_crypt4gh::reader::builder::Builder, std::io::Cursor};
 
 #[cfg(feature = "crypt4gh")]
 use crate::crypt4gh::get_decryption_keys;

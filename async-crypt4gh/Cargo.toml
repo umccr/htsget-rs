@@ -15,8 +15,8 @@ crypt4gh = { version = "0.4", git = "https://github.com/umccr/crypt4gh-rust", br
 pin-project-lite = "0.2"
 hex-literal = "0.4"
 bytes = "1.4"
-tokio = { version = "1.29", features = ["macros", "rt-multi-thread"] }
-tokio-util = { version = "0.7", features = ["io", "compat"] }
+tokio = { version = "1.29", features = ["macros", "rt-multi-thread", "io-util"] }
+tokio-util = { version = "0.7", features = ["io", "compat", "codec"] }
 futures = "0.3"
 futures-util = "0.3"
 thiserror = "1.0"

@@ -22,7 +22,6 @@ s3-storage = [
 url-storage = [
     "dep:bytes",
     "dep:hyper-rustls",
-    "dep:crypt4gh",
     "dep:mockall",
     "dep:mockall_double",
     "dep:pin-project",
@@ -32,6 +31,7 @@ url-storage = [
 ]
 crypt4gh = [
     "dep:async-crypt4gh",
+    "dep:crypt4gh",
     "htsget-config/crypt4gh",
     "htsget-test/crypt4gh"
 ]
@@ -66,6 +66,7 @@ aws-config = { version = "0.56", optional = true }
 # Url storage
 hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"], optional = true }
 crypt4gh = { version = "0.4", git = "https://github.com/umccr/crypt4gh-rust", branch = "fix_rust_crypto_et_al", optional = true }
+async-crypt4gh = { version = "0.1.0", path = "../async-crypt4gh", optional = true }
 pin-project = { version = "1.1", optional = true }
 mockall = { version = "0.9", optional = true }
 mockall_double = { version = "0.3", optional = true }
@@ -74,7 +75,6 @@ mockall_double = { version = "0.3", optional = true }
 thiserror = "1.0"
 htsget-config = { version = "0.8.1", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.5.4", path = "../htsget-test", features = ["cors-tests"], default-features = false }
-async-crypt4gh = { version = "0.1.0", path = "../async-crypt4gh", optional = true }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"

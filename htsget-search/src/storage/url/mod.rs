@@ -6,44 +6,49 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use base64::engine::general_purpose;
-use base64::Engine;
 use bytes::Bytes;
-use crypt4gh::Keys;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
-use http::header::{InvalidHeaderValue, CONTENT_LENGTH};
+use http::header::CONTENT_LENGTH;
 use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
-use mockall_double::double;
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, ReadBuf};
-use tokio_rustls::rustls::PrivateKey;
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
-
-use async_crypt4gh::edit_lists::{ClampedPosition, UnencryptedPosition};
-use async_crypt4gh::reader::builder::Builder;
-use async_crypt4gh::reader::Reader;
-use async_crypt4gh::PublicKey;
-use htsget_config::error;
-use htsget_config::storage::url::endpoints::Endpoints;
-use htsget_config::types::{Class, KeyType};
+#[cfg(feature = "crypt4gh")]
+use {
+  crate::storage::BytesPosition,
+  async_crypt4gh::edit_lists::{ClampedPosition, UnencryptedPosition},
+  async_crypt4gh::reader::builder::Builder,
+  async_crypt4gh::reader::Reader,
+  async_crypt4gh::PublicKey,
+  base64::engine::general_purpose,
+  base64::Engine,
+  crypt4gh::Keys,
+  htsget_config::types::Class,
+  http::header::InvalidHeaderValue,
+  mockall_double::double,
+  tokio_rustls::rustls::PrivateKey,
+};
 
 #[cfg(feature = "crypt4gh")]
 #[double]
 use crate::storage::url::encrypt::Encrypt;
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{
-  BytesPosition, BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, Result,
-  Storage, StorageError,
+  BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, Result, Storage,
+  StorageError,
 };
 use crate::Url as HtsGetUrl;
+use htsget_config::error;
+use htsget_config::storage::url::endpoints::Endpoints;
+use htsget_config::types::KeyType;
 
-const CLIENT_PUBLIC_KEY_NAME: &str = "client-public-key";
-const SERVER_PUBLIC_KEY_NAME: &str = "server-public-key";
+pub const CLIENT_PUBLIC_KEY_NAME: &str = "client-public-key";
+pub const SERVER_PUBLIC_KEY_NAME: &str = "server-public-key";
 
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
@@ -99,6 +104,7 @@ impl UrlStorage {
       endpoints,
       response_url,
       forward_headers,
+      #[cfg(feature = "crypt4gh")]
       encrypt: Default::default(),
     }
   }

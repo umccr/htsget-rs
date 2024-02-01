@@ -465,6 +465,11 @@ impl<'a> GetOptions<'a> {
     self
   }
 
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    self.object_type
+  }
+
   /// Get the range.
   pub fn range(&self) -> &BytesPosition {
     &self.range
@@ -521,6 +526,11 @@ impl<'a> BytesPositionOptions<'a> {
   pub fn merge_all(mut self) -> Self {
     self.positions = BytesPosition::merge_all(self.positions);
     self
+  }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    self.object_type
   }
 
   /// Convert the ranges to crypt4gh byte ranges. Does not include the crypt4gh header.

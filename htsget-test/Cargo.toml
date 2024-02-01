@@ -45,7 +45,7 @@ aws-mocks = [
 ]
 s3-storage = ["htsget-config?/s3-storage"]
 url-storage = ["htsget-config?/url-storage"]
-crypt4gh = ["dep:crypt4gh", "dep:async-crypt4gh", "htsget-config?/crypt4gh"]
+crypt4gh = ["dep:crypt4gh", "dep:async-crypt4gh", "htsget-config?/crypt4gh", "http-tests"]
 default = []
 
 [dependencies]
