@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "crypt4gh")]
-use crate::tls::crypt4gh::Crypt4GH;
+use crate::tls::crypt4gh::Crypt4GHKeyPair;
 
 /// Tagged types. For now this is only for generating Crypt4GH keys.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -26,7 +26,7 @@ pub enum ObjectType {
   #[cfg(feature = "crypt4gh")]
   Crypt4GH {
     #[serde(flatten, skip_serializing)]
-    crypt4gh: Crypt4GH,
+    crypt4gh: Crypt4GHKeyPair,
   },
 }
 
@@ -38,6 +38,14 @@ impl ObjectType {
       ObjectType::Tagged(TaggedObjectTypes::GenerateKeys) => true,
       ObjectType::Crypt4GH { .. } => true,
       _ => false,
+    }
+  }
+
+  #[cfg(feature = "crypt4gh")]
+  pub fn crypt4gh_key_pair(&self) -> Option<&Crypt4GHKeyPair> {
+    match self {
+      ObjectType::Crypt4GH { crypt4gh } => Some(crypt4gh),
+      _ => None,
     }
   }
 }

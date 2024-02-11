@@ -6,7 +6,7 @@ use crypt4gh::keys::{get_private_key, get_public_key};
 use serde::Deserialize;
 use tracing::warn;
 
-use async_crypt4gh::PublicKey;
+use async_crypt4gh::{KeyPair, PublicKey};
 
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
@@ -15,39 +15,19 @@ use crate::tls::PrivateKey;
 /// Config for Crypt4GH keys.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(try_from = "Crypt4GHPath")]
-pub struct Crypt4GH {
-  private_key: Vec<u8>,
-  public_key: PublicKey,
-  sender_public_key: Option<PublicKey>,
+pub struct Crypt4GHKeyPair {
+  key_pair: KeyPair,
 }
 
-impl Crypt4GH {
+impl Crypt4GHKeyPair {
   /// Create a new Crypt4GH config.
-  pub fn new(
-    private_key: Vec<u8>,
-    public_key: PublicKey,
-    sender_public_key: Option<PublicKey>,
-  ) -> Self {
-    Self {
-      private_key,
-      public_key,
-      sender_public_key,
-    }
+  pub fn new(key_pair: KeyPair) -> Self {
+    Self { key_pair }
   }
 
-  /// Get the private key used to decrypt the data.
-  pub fn private_key(&self) -> &Vec<u8> {
-    &self.private_key
-  }
-
-  /// Get the public key to verify the encrypted data.
-  pub fn public_key(&self) -> &PublicKey {
-    &self.public_key
-  }
-
-  /// Get the sender key to verify the encrypted data.
-  pub fn sender_public_key(&self) -> &Option<PublicKey> {
-    &self.sender_public_key
+  /// Get the key pair
+  pub fn key_pair(&self) -> &KeyPair {
+    &self.key_pair
   }
 }
 
@@ -55,10 +35,9 @@ impl Crypt4GH {
 pub struct Crypt4GHPath {
   private_key: PathBuf,
   public_key: PathBuf,
-  sender_public_key: Option<PathBuf>,
 }
 
-impl TryFrom<Crypt4GHPath> for Crypt4GH {
+impl TryFrom<Crypt4GHPath> for Crypt4GHKeyPair {
   type Error = Error;
 
   fn try_from(crypt4gh_path: Crypt4GHPath) -> Result<Self> {
@@ -89,10 +68,9 @@ impl TryFrom<Crypt4GHPath> for Crypt4GH {
       )
     };
 
-    Ok(Self::new(
-      private_key,
+    Ok(Self::new(KeyPair::new(
+      rustls::PrivateKey(private_key),
       parse_public_key(Some(crypt4gh_path.public_key))?.expect("expected valid public key"),
-      parse_public_key(crypt4gh_path.sender_public_key)?,
-    ))
+    )))
   }
 }

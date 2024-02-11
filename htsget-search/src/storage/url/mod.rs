@@ -291,10 +291,14 @@ impl Storage for UrlStorage {
       KeyType::File => {
         #[cfg(feature = "crypt4gh")]
         if options.object_type.is_crypt4gh() {
-          let key_pair = self
-            .encrypt
-            .generate_key_pair()
-            .map_err(|err| UrlParseError(err.to_string()))?;
+          let key_pair = if let Some(key_pair) = options.object_type.crypt4gh_key_pair() {
+            key_pair.key_pair().clone()
+          } else {
+            self
+              .encrypt
+              .generate_key_pair()
+              .map_err(|err| UrlParseError(err.to_string()))?
+          };
 
           let mut headers = options.request_headers().clone();
           headers.append(
