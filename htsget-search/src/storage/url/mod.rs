@@ -492,6 +492,7 @@ mod tests {
   use tower_http::services::ServeDir;
 
   use htsget_config::resolver::object::{ObjectType, TaggedObjectTypes};
+  use htsget_config::tls::crypt4gh::Crypt4GHKeyPair;
   use htsget_config::types::Class::{Body, Header};
   use htsget_config::types::Request as HtsgetRequest;
   use htsget_config::types::{Format, Headers, Query, Url};
@@ -831,35 +832,14 @@ mod tests {
       );
 
       let mut key_gen = Encrypt::default();
-      key_gen.expect_generate_key_pair().times(1).returning(|| {
-        Ok(KeyPair::new(
-          PrivateKey(vec![
-            162, 124, 25, 18, 207, 218, 241, 41, 162, 107, 29, 40, 10, 93, 30, 193, 104, 42, 176,
-            235, 207, 248, 126, 230, 97, 205, 253, 224, 215, 160, 67, 239,
-          ]),
-          PublicKey::new(vec![
-            56, 44, 122, 180, 24, 116, 207, 149, 165, 49, 204, 77, 224, 136, 232, 121, 209, 249,
-            23, 51, 120, 2, 187, 147, 82, 227, 232, 32, 17, 223, 7, 38,
-          ]),
-        ))
-      });
+      key_gen
+        .expect_generate_key_pair()
+        .times(1)
+        .returning(|| Ok(expected_key_pair()));
       key_gen
         .expect_edit_list()
         .times(1)
-        .returning(|_, _, _, _, _| {
-          Ok((
-            vec![99, 114, 121, 112, 116, 52, 103, 104, 1, 0, 0, 0, 2, 0, 0, 0],
-            vec![
-              124, 0, 0, 0, 0, 0, 0, 0, 56, 44, 122, 180, 24, 116, 207, 149, 165, 49, 204, 77, 224,
-              136, 232, 121, 209, 249, 23, 51, 120, 2, 187, 147, 82, 227, 232, 32, 17, 223, 7, 38,
-              10, 170, 72, 177, 188, 32, 68, 101, 239, 249, 47, 182, 51, 120, 65, 239, 9, 93, 149,
-              225, 207, 244, 103, 224, 99, 35, 94, 187, 25, 202, 122, 49, 52, 40, 131, 144, 19,
-              142, 223, 245, 152, 170, 3, 70, 0, 146, 64, 18, 159, 109, 26, 245, 246, 169, 59, 232,
-              6, 210, 128, 183, 93, 77, 199, 138, 203, 200, 156, 50, 114, 159, 109, 130, 128, 208,
-              179, 41, 67, 161, 57, 78, 0, 68, 39, 103,
-            ],
-          ))
-        });
+        .returning(|_, _, _, _, _| Ok(expected_edit_list()));
       let storage = storage.with_key_gen(key_gen);
 
       let (_, public_key) = get_encryption_keys().await;
@@ -886,65 +866,147 @@ mod tests {
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await.unwrap();
 
-      let expected_response = HtsgetResponse::new(
-        Format::Bam,
-        vec![
-          // header info
-          Url::new("data:;base64,Y3J5cHQ0Z2gBAAAAAgAAAA=="),
-          // original header
-          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
-            Headers::default()
-              .with_header("authorization", "secret")
-              .with_header(CLIENT_PUBLIC_KEY_NAME, &public_key)
-              .with_header("Range", format!("bytes={}-{}", 16, 123)),
-          ),
-          // edit list packet
-          Url::new(
-            "data:;base64,fAAAAAAAAAA4LHq0GHTPlaUxzE3giOh50fkXM3gCu5NS4+ggEd8HJgqqSLG8IERl7/kvt\
-            jN4Qe8JXZXhz/Rn4GMjXrsZynoxNCiDkBOO3/WYqgNGAJJAEp9tGvX2qTvoBtKAt11Nx4rLyJwycp9tgoDQsylD\
-            oTlOAEQnZw==",
-          ),
-          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
-            Headers::default()
-              .with_header("authorization", "secret")
-              .with_header(CLIENT_PUBLIC_KEY_NAME, &public_key)
-              .with_header("Range", format!("bytes={}-{}", 124, 124 + 65564 - 1)),
-          ),
-          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
-            Headers::default()
-              .with_header("authorization", "secret")
-              .with_header(CLIENT_PUBLIC_KEY_NAME, &public_key)
-              .with_header(
-                "Range",
-                format!("bytes={}-{}", 124 + 196692, 124 + 1114588 - 1),
-              ),
-          ),
-          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
-            Headers::default()
-              .with_header("authorization", "secret")
-              .with_header(CLIENT_PUBLIC_KEY_NAME, &public_key)
-              .with_header("Range", format!("bytes={}-{}", 124 + 2556996, 2598043 - 1)),
-          ),
-        ],
-      );
-
-      assert_eq!(response, expected_response);
-
-      let (bytes, _) = test_bam_file_byte_ranges(
-        response,
-        default_dir().join("data/crypt4gh/htsnexus_test_NA12878.bam.c4gh"),
-      )
-      .await;
-
-      let (expected_bytes, _) = test_bam_file_byte_ranges(
-        expected_bam_response(),
-        default_dir().join("data/bam/htsnexus_test_NA12878.bam"),
-      )
-      .await;
-
-      test_bam_crypt4gh_byte_ranges(bytes.clone(), expected_bytes).await;
+      assert_encrypted_endpoints(&public_key, response).await;
     })
     .await;
+  }
+
+  #[cfg(feature = "crypt4gh")]
+  #[tokio::test]
+  async fn test_endpoints_with_predefined_key_pair() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url_with_path(&url),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+      );
+
+      let mut key_gen = Encrypt::default();
+      key_gen
+        .expect_edit_list()
+        .times(1)
+        .returning(|_, _, _, _, _| Ok(expected_edit_list()));
+      let storage = storage.with_key_gen(key_gen);
+
+      let (_, public_key) = get_encryption_keys().await;
+      let mut header_map = HeaderMap::default();
+      let public_key = general_purpose::STANDARD.encode(public_key);
+      test_headers(&mut header_map);
+      header_map.append(
+        HeaderName::from_str(CLIENT_PUBLIC_KEY_NAME).unwrap(),
+        HeaderValue::from_str(&public_key).unwrap(),
+      );
+
+      let request =
+        HtsgetRequest::new_with_id("htsnexus_test_NA12878".to_string()).with_headers(header_map);
+      let query = Query::new(
+        "htsnexus_test_NA12878",
+        Format::Bam,
+        request,
+        ObjectType::Tagged(TaggedObjectTypes::GenerateKeys),
+      )
+      .with_reference_name("11")
+      .with_start(5015000)
+      .with_end(5050000)
+      .with_object_type(ObjectType::Crypt4GH {
+        crypt4gh: Crypt4GHKeyPair::new(expected_key_pair()),
+      });
+
+      let searcher = HtsGetFromStorage::new(storage);
+      let response = searcher.search(query.clone()).await.unwrap();
+
+      assert_encrypted_endpoints(&public_key, response).await;
+    })
+    .await;
+  }
+
+  fn expected_key_pair() -> KeyPair {
+    KeyPair::new(
+      PrivateKey(vec![
+        162, 124, 25, 18, 207, 218, 241, 41, 162, 107, 29, 40, 10, 93, 30, 193, 104, 42, 176, 235,
+        207, 248, 126, 230, 97, 205, 253, 224, 215, 160, 67, 239,
+      ]),
+      PublicKey::new(vec![
+        56, 44, 122, 180, 24, 116, 207, 149, 165, 49, 204, 77, 224, 136, 232, 121, 209, 249, 23,
+        51, 120, 2, 187, 147, 82, 227, 232, 32, 17, 223, 7, 38,
+      ]),
+    )
+  }
+
+  fn expected_edit_list() -> (Vec<u8>, Vec<u8>) {
+    (
+      vec![99, 114, 121, 112, 116, 52, 103, 104, 1, 0, 0, 0, 2, 0, 0, 0],
+      vec![
+        124, 0, 0, 0, 0, 0, 0, 0, 56, 44, 122, 180, 24, 116, 207, 149, 165, 49, 204, 77, 224, 136,
+        232, 121, 209, 249, 23, 51, 120, 2, 187, 147, 82, 227, 232, 32, 17, 223, 7, 38, 10, 170,
+        72, 177, 188, 32, 68, 101, 239, 249, 47, 182, 51, 120, 65, 239, 9, 93, 149, 225, 207, 244,
+        103, 224, 99, 35, 94, 187, 25, 202, 122, 49, 52, 40, 131, 144, 19, 142, 223, 245, 152, 170,
+        3, 70, 0, 146, 64, 18, 159, 109, 26, 245, 246, 169, 59, 232, 6, 210, 128, 183, 93, 77, 199,
+        138, 203, 200, 156, 50, 114, 159, 109, 130, 128, 208, 179, 41, 67, 161, 57, 78, 0, 68, 39,
+        103,
+      ],
+    )
+  }
+
+  async fn assert_encrypted_endpoints(public_key: &String, response: HtsgetResponse) {
+    let expected_response = HtsgetResponse::new(
+      Format::Bam,
+      vec![
+        // header info
+        Url::new("data:;base64,Y3J5cHQ0Z2gBAAAAAgAAAA=="),
+        // original header
+        Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
+          Headers::default()
+            .with_header("authorization", "secret")
+            .with_header(CLIENT_PUBLIC_KEY_NAME, public_key)
+            .with_header("Range", format!("bytes={}-{}", 16, 123)),
+        ),
+        // edit list packet
+        Url::new(
+          "data:;base64,fAAAAAAAAAA4LHq0GHTPlaUxzE3giOh50fkXM3gCu5NS4+ggEd8HJgqqSLG8IERl7/kvt\
+            jN4Qe8JXZXhz/Rn4GMjXrsZynoxNCiDkBOO3/WYqgNGAJJAEp9tGvX2qTvoBtKAt11Nx4rLyJwycp9tgoDQsylD\
+            oTlOAEQnZw==",
+        ),
+        Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
+          Headers::default()
+            .with_header("authorization", "secret")
+            .with_header(CLIENT_PUBLIC_KEY_NAME, public_key)
+            .with_header("Range", format!("bytes={}-{}", 124, 124 + 65564 - 1)),
+        ),
+        Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
+          Headers::default()
+            .with_header("authorization", "secret")
+            .with_header(CLIENT_PUBLIC_KEY_NAME, public_key)
+            .with_header(
+              "Range",
+              format!("bytes={}-{}", 124 + 196692, 124 + 1114588 - 1),
+            ),
+        ),
+        Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
+          Headers::default()
+            .with_header("authorization", "secret")
+            .with_header(CLIENT_PUBLIC_KEY_NAME, public_key)
+            .with_header("Range", format!("bytes={}-{}", 124 + 2556996, 2598043 - 1)),
+        ),
+      ],
+    );
+
+    assert_eq!(response, expected_response);
+
+    let (bytes, _) = test_bam_file_byte_ranges(
+      response,
+      default_dir().join("data/crypt4gh/htsnexus_test_NA12878.bam.c4gh"),
+    )
+    .await;
+
+    let (expected_bytes, _) = test_bam_file_byte_ranges(
+      expected_bam_response(),
+      default_dir().join("data/bam/htsnexus_test_NA12878.bam"),
+    )
+    .await;
+
+    test_bam_crypt4gh_byte_ranges(bytes.clone(), expected_bytes).await;
   }
 
   fn expected_bam_response() -> HtsgetResponse {
