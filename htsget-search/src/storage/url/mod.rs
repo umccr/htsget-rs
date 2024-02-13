@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use async_crypt4gh::decoder::Block;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
@@ -49,8 +50,8 @@ use htsget_config::types::KeyType;
 
 pub const CLIENT_PUBLIC_KEY_NAME: &str = "client-public-key";
 pub const SERVER_PUBLIC_KEY_NAME: &str = "server-public-key";
-pub const CLIENT_HEADER_LENGTH: &str = "client-header-length";
-pub const SERVER_HEADER_LENGTH: &str = "server-header-length";
+pub const CLIENT_ADDITIONAL_BYTES: &str = "client-additional-bytes";
+pub const SERVER_ADDITIONAL_BYTES: &str = "server-additional-bytes";
 
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
@@ -251,7 +252,24 @@ pub type UrlStreamReader = StreamReader<MapErr<Body, fn(Error) -> StorageError>,
 pub enum UrlStreamEither {
   A(#[pin] UrlStreamReader),
   #[cfg(feature = "crypt4gh")]
-  B(#[pin] Reader<UrlStreamReader>),
+  B(#[pin] Crypt4GHReader),
+}
+
+#[pin_project]
+pub struct Crypt4GHReader {
+  #[pin]
+  reader: Reader<UrlStreamReader>,
+  client_additional_bytes: u64,
+}
+
+impl AsyncRead for Crypt4GHReader {
+  fn poll_read(
+    self: Pin<&mut Self>,
+    cx: &mut Context<'_>,
+    buf: &mut ReadBuf<'_>,
+  ) -> Poll<std::io::Result<()>> {
+    self.project().reader.poll_read(cx, buf)
+  }
 }
 
 impl AsyncRead for UrlStreamEither {
@@ -312,10 +330,12 @@ impl Storage for UrlStorage {
           );
 
           // Additional length for the header.
-          let additional_header_length: Option<u64> = head_output
+          let output_headers = head_output
             .as_ref()
-            .and_then(|output| output.response_headers())
-            .and_then(|headers| headers.get(SERVER_HEADER_LENGTH))
+            .and_then(|output| output.response_headers());
+
+          let additional_header_length: Option<u64> = output_headers
+            .and_then(|headers| headers.get(SERVER_ADDITIONAL_BYTES))
             .and_then(|length| length.to_str().ok())
             .and_then(|length| length.parse().ok());
           let range = options.range;
@@ -347,7 +367,29 @@ impl Storage for UrlStorage {
           );
           let reader = Builder::default().build_with_reader(stream_reader, vec![crypt4gh_keys]);
 
-          return Ok(UrlStreamEither::B(reader));
+          // Additional length for the header.
+          let client_additional_bytes: u64 = output_headers
+            .and_then(|headers| {
+              headers
+                .get(CLIENT_ADDITIONAL_BYTES)
+                .or_else(|| headers.get(SERVER_ADDITIONAL_BYTES))
+            })
+            .and_then(|length| length.to_str().ok())
+            .and_then(|length| length.parse().ok())
+            .ok_or_else(|| {
+              UrlParseError("missing additional bytes for crypt4gh client".to_string())
+            })?;
+
+          if client_additional_bytes < Block::header_info_size() {
+            return Err(UrlParseError(
+              "the additional client bytes cannot be less than the header info size".to_string(),
+            ));
+          }
+
+          return Ok(UrlStreamEither::B(Crypt4GHReader {
+            reader,
+            client_additional_bytes,
+          }));
         }
 
         Ok(
@@ -400,7 +442,7 @@ impl Storage for UrlStorage {
       })?;
 
     debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
-    Ok(len.into())
+    Ok(HeadOutput::new(len, Some(head.headers().clone())))
   }
 
   #[instrument(level = "trace", skip(self, reader))]
@@ -412,14 +454,16 @@ impl Storage for UrlStorage {
     match reader {
       #[cfg(feature = "crypt4gh")]
       UrlStreamEither::B(reader) if positions_options.object_type.is_crypt4gh() => {
+        let Crypt4GHReader {
+          reader,
+          client_additional_bytes,
+        } = reader;
+
         let keys = reader
           .keys()
           .first()
           .ok_or_else(|| UrlParseError("missing crypt4gh keys from reader".to_string()))?;
         let file_size = positions_options.file_size();
-
-        let header_read_error = || UrlParseError("crypt4gh header has not been read".to_string());
-        let header_size = reader.header_size().ok_or_else(header_read_error)?;
 
         let recipient_public_key =
           Self::decode_public_key(positions_options.headers, CLIENT_PUBLIC_KEY_NAME)?;
@@ -464,7 +508,7 @@ impl Storage for UrlStorage {
             .positions
             .clone()
             .into_iter()
-            .map(|pos| pos.convert_to_crypt4gh_ranges(header_size, file_size))
+            .map(|pos| pos.convert_to_crypt4gh_ranges(client_additional_bytes, file_size))
             .collect::<Vec<_>>(),
         );
 
@@ -475,7 +519,7 @@ impl Storage for UrlStorage {
           DataBlock::Range(
             BytesPosition::default()
               .with_start(header_info_size)
-              .with_end(header_size),
+              .with_end(client_additional_bytes),
           ),
           DataBlock::Data(edit_list_packet, Some(Class::Header)),
         ];
@@ -1116,6 +1160,11 @@ mod tests {
         get(|headers: HeaderMap| async move {
           #[cfg(feature = "crypt4gh")]
           if headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
+            assert_eq!(
+              headers.get(RANGE).unwrap().to_str().unwrap(),
+              "bytes=0-70303"
+            );
+
             let mut bytes = vec![];
             let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
             File::open(path)
@@ -1125,8 +1174,7 @@ mod tests {
               .await
               .unwrap();
 
-            // Note, extra bytes can be padded out, or simply return one data block that is smaller
-            // than the standard block size with just the header bytes like here.
+            // Note, this should listen to the Range headers from the request.
             let bytes = bytes[..4668].to_vec();
 
             let encryption_keys = KeyPair::new(
@@ -1218,10 +1266,14 @@ mod tests {
             "2596799"
           };
 
-          let mut headers = HeaderMap::new();
-          headers.insert("Content-Length", HeaderValue::from_static(length));
-
-          (StatusCode::OK, headers).into_response()
+          Response::builder()
+            .header(SERVER_ADDITIONAL_BYTES, 100)
+            .header(CLIENT_ADDITIONAL_BYTES, 124)
+            .header(CONTENT_LENGTH, HeaderValue::from_static(length))
+            .status(StatusCode::OK)
+            .body(StreamBody::new(ReaderStream::new(Cursor::new(vec![]))))
+            .unwrap()
+            .into_response()
         }),
       )
       .nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()))
