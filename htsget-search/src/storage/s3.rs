@@ -23,7 +23,7 @@ use tracing::{debug, warn};
 
 use crate::storage::s3::Retrieval::{Delayed, Immediate};
 use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
-use crate::storage::{BytesPosition, HeadOptions, StorageError};
+use crate::storage::{BytesPosition, HeadOptions, HeadOutput, StorageError};
 use crate::storage::{BytesRange, Storage};
 use crate::Url;
 
@@ -219,6 +219,7 @@ impl Storage for S3Storage {
     &self,
     key: K,
     options: GetOptions<'_>,
+    _head_output: Option<HeadOutput>,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
@@ -248,7 +249,7 @@ impl Storage for S3Storage {
     &self,
     key: K,
     _options: HeadOptions<'_>,
-  ) -> Result<u64> {
+  ) -> Result<HeadOutput> {
     let key = key.as_ref();
 
     let head = self.s3_head(key).await?;
@@ -260,7 +261,7 @@ impl Storage for S3Storage {
     })?;
 
     debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
-    Ok(len)
+    Ok(len.into())
   }
 }
 
@@ -305,6 +306,7 @@ pub(crate) mod tests {
         .get(
           "key2",
           GetOptions::new_with_default_range(&Default::default(), &Default::default()),
+          Default::default(),
         )
         .await;
       assert!(result.is_ok());
@@ -319,6 +321,7 @@ pub(crate) mod tests {
         .get(
           "non-existing-key",
           GetOptions::new_with_default_range(&Default::default(), &Default::default()),
+          Default::default(),
         )
         .await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
@@ -403,7 +406,7 @@ pub(crate) mod tests {
         .head("key2", HeadOptions::new(&Default::default()))
         .await;
       let expected: u64 = 6;
-      assert!(matches!(result, Ok(size) if size == expected));
+      assert!(matches!(result, Ok(size) if size.content_length() == expected));
     })
     .await;
   }

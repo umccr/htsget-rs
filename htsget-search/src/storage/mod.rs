@@ -36,6 +36,39 @@ pub mod url;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
+/// Output for the head function in Storage.
+#[derive(Debug, Default)]
+pub struct HeadOutput {
+  pub(crate) content_length: u64,
+  pub(crate) response_headers: Option<HeaderMap>,
+}
+
+impl HeadOutput {
+  /// Create a new HeadOutput.
+  pub fn new(content_length: u64, response_headers: Option<HeaderMap>) -> Self {
+    Self {
+      content_length,
+      response_headers,
+    }
+  }
+
+  /// Get the content length.
+  pub fn content_length(&self) -> u64 {
+    self.content_length
+  }
+
+  /// Get any additional response headers.
+  pub fn response_headers(&self) -> Option<&HeaderMap> {
+    self.response_headers.as_ref()
+  }
+}
+
+impl From<u64> for HeadOutput {
+  fn from(content_length: u64) -> Self {
+    Self::new(content_length, None)
+  }
+}
+
 /// A Storage represents some kind of object based storage (either locally or in the cloud)
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
@@ -47,6 +80,7 @@ pub trait Storage {
     &self,
     key: K,
     options: GetOptions<'_>,
+    head_output: Option<HeadOutput>,
   ) -> Result<Self::Streamable>;
 
   /// Get the url of the object represented by the key using a bytes range. It is not required for
@@ -62,7 +96,7 @@ pub trait Storage {
     &self,
     key: K,
     options: HeadOptions<'_>,
-  ) -> Result<u64>;
+  ) -> Result<HeadOutput>;
 
   /// Get the url of the object using an inline data uri.
   #[instrument(level = "trace", ret)]

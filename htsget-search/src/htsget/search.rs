@@ -28,7 +28,9 @@ use tracing::{instrument, trace, trace_span, Instrument};
 use htsget_config::types::Class::Header;
 
 use crate::htsget::ConcurrencyError;
-use crate::storage::{BytesPosition, BytesPositionOptions, HeadOptions, RangeUrlOptions, Storage};
+use crate::storage::{
+  BytesPosition, BytesPositionOptions, HeadOptions, HeadOutput, RangeUrlOptions, Storage,
+};
 use crate::storage::{DataBlock, GetOptions};
 use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
 
@@ -236,8 +238,9 @@ where
         HeadOptions::new(query.request().headers()),
       )
       .await?;
+
     Ok(
-      file_size
+      file_size.content_length()
         - u64::try_from(self.get_eof_marker().len())
           .map_err(|err| HtsGetError::InvalidInput(err.to_string()))?,
     )
@@ -245,7 +248,7 @@ where
 
   /// Get the file size.
   #[instrument(level = "trace", skip(self), ret)]
-  async fn file_size(&self, query: &Query) -> Result<u64> {
+  async fn file_size(&self, query: &Query) -> Result<HeadOutput> {
     Ok(
       self
         .get_storage()
@@ -266,6 +269,7 @@ where
       .get(
         query.format().fmt_index(query.id()),
         GetOptions::new_with_default_range(query.request().headers(), query.object_type()),
+        None,
       )
       .await?;
     Self::read_index_inner(storage)
@@ -278,7 +282,10 @@ where
     let index = self.read_index(&query).await?;
 
     let header_end = self.get_header_end_offset(&index).await?;
-    let (header, mut reader) = self.get_header(&query, header_end).await?;
+    let output = self.file_size(&query).await?;
+    let file_size = output.content_length();
+
+    let (header, mut reader) = self.get_header(&query, header_end, output).await?;
 
     match query.class() {
       Body => {
@@ -313,7 +320,6 @@ where
           }
         };
 
-        let file_size = self.file_size(&query).await?;
         if let Some(eof) = self.get_eof_byte_positions(file_size) {
           byte_ranges.push(eof?);
         }
@@ -347,7 +353,6 @@ where
           .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
           .await?;
 
-        let file_size = self.file_size(&query).await?;
         let blocks = self
           .get_storage()
           .update_byte_positions(
@@ -406,7 +411,12 @@ where
 
   /// Get the header from the file specified by the id and format.
   #[instrument(level = "trace", skip(self))]
-  async fn get_header(&self, query: &Query, offset: u64) -> Result<(Header, Reader)> {
+  async fn get_header(
+    &self,
+    query: &Query,
+    offset: u64,
+    output: HeadOutput,
+  ) -> Result<(Header, Reader)> {
     trace!("getting header");
     let get_options = GetOptions::new(
       BytesPosition::default().with_end(offset),
@@ -416,7 +426,7 @@ where
 
     let reader_type = self
       .get_storage()
-      .get(query.format().fmt_file(query), get_options)
+      .get(query.format().fmt_file(query), get_options, Some(output))
       .await?;
 
     let mut reader = Self::init_reader(reader_type);
@@ -505,6 +515,7 @@ where
       .get(
         query.format().fmt_gzi(query.id())?,
         GetOptions::new_with_default_range(query.request().headers(), query.object_type()),
+        None,
       )
       .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {

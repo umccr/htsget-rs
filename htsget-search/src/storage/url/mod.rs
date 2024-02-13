@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
-use http::header::CONTENT_LENGTH;
+use http::header::{CONTENT_LENGTH, RANGE};
 use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
@@ -39,8 +39,8 @@ use {
 use crate::storage::url::encrypt::Encrypt;
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{
-  BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, Result, Storage,
-  StorageError,
+  BytesPositionOptions, BytesRange, DataBlock, GetOptions, HeadOptions, HeadOutput,
+  RangeUrlOptions, Result, Storage, StorageError,
 };
 use crate::Url as HtsGetUrl;
 use htsget_config::error;
@@ -49,6 +49,8 @@ use htsget_config::types::KeyType;
 
 pub const CLIENT_PUBLIC_KEY_NAME: &str = "client-public-key";
 pub const SERVER_PUBLIC_KEY_NAME: &str = "server-public-key";
+pub const CLIENT_HEADER_LENGTH: &str = "client-header-length";
+pub const SERVER_HEADER_LENGTH: &str = "server-header-length";
 
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
@@ -283,6 +285,7 @@ impl Storage for UrlStorage {
     &self,
     key: K,
     options: GetOptions<'_>,
+    head_output: Option<HeadOutput>,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref().to_string();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
@@ -307,6 +310,28 @@ impl Storage for UrlStorage {
               .try_into()
               .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
           );
+
+          // Additional length for the header.
+          let additional_header_length: Option<u64> = head_output
+            .as_ref()
+            .and_then(|output| output.response_headers())
+            .and_then(|headers| headers.get(SERVER_HEADER_LENGTH))
+            .and_then(|length| length.to_str().ok())
+            .and_then(|length| length.parse().ok());
+          let range = options.range;
+          let end = range.get_end();
+          let range =
+            range.with_end(end.unwrap_or_default() + additional_header_length.unwrap_or_default());
+
+          let range: String = String::from(&BytesRange::from(&range));
+          if !range.is_empty() {
+            headers.append(
+              RANGE,
+              range
+                .parse()
+                .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
+            );
+          }
 
           let response = self.get_header(key.to_string(), &headers).await?;
 
@@ -358,11 +383,11 @@ impl Storage for UrlStorage {
     &self,
     key: K,
     options: HeadOptions<'_>,
-  ) -> Result<u64> {
+  ) -> Result<HeadOutput> {
     let key = key.as_ref();
     let head = self.head_key(key, options.request_headers()).await?;
 
-    let len = head
+    let len: u64 = head
       .headers()
       .get(CONTENT_LENGTH)
       .and_then(|content_length| content_length.to_str().ok())
@@ -375,7 +400,7 @@ impl Storage for UrlStorage {
       })?;
 
     debug!(calling_from = ?self, key, len, "size of key {:?} is {}", key, len);
-    Ok(len)
+    Ok(len.into())
   }
 
   #[instrument(level = "trace", skip(self, reader))]
@@ -658,7 +683,7 @@ mod tests {
       let object_type = Default::default();
       let options = GetOptions::new_with_default_range(headers, &object_type);
 
-      let mut reader = storage.get("assets/key1", options).await.unwrap();
+      let mut reader = storage.get("assets/key1", options, None).await.unwrap();
 
       let mut response = [0; 6];
       reader.read_exact(&mut response).await.unwrap();
@@ -704,7 +729,14 @@ mod tests {
       let headers = test_headers(&mut headers);
       let options = HeadOptions::new(headers);
 
-      assert_eq!(storage.head("assets/key1", options).await.unwrap(), 6);
+      assert_eq!(
+        storage
+          .head("assets/key1", options)
+          .await
+          .unwrap()
+          .content_length(),
+        6
+      );
     })
     .await;
   }

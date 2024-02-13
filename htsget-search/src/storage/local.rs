@@ -11,7 +11,7 @@ use tracing::debug;
 use tracing::instrument;
 use url::Url;
 
-use crate::storage::{HeadOptions, Storage, UrlFormatter};
+use crate::storage::{HeadOptions, HeadOutput, Storage, UrlFormatter};
 use crate::Url as HtsGetUrl;
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
@@ -87,6 +87,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     &self,
     key: K,
     _options: GetOptions<'_>,
+    _head_output: Option<HeadOutput>,
   ) -> Result<File> {
     debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
     self.get(key).await
@@ -129,7 +130,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     &self,
     key: K,
     _options: HeadOptions<'_>,
-  ) -> Result<u64> {
+  ) -> Result<HeadOutput> {
     let path = self.get_path_from_key(&key)?;
     let len = tokio::fs::metadata(path)
       .await
@@ -137,7 +138,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
       .len();
 
     debug!(calling_from = ?self, key = key.as_ref(), len, "size of key {:?} is {}", key.as_ref(), len);
-    Ok(len)
+    Ok(len.into())
   }
 }
 
@@ -175,6 +176,7 @@ pub(crate) mod tests {
         &storage,
         "folder",
         GetOptions::new_with_default_range(&Default::default(), &Default::default()),
+        Default::default(),
       )
       .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
@@ -189,6 +191,7 @@ pub(crate) mod tests {
         &storage,
         "folder/../../passwords",
         GetOptions::new_with_default_range(&Default::default(), &Default::default()),
+        Default::default(),
       )
       .await;
       assert!(
@@ -205,6 +208,7 @@ pub(crate) mod tests {
         &storage,
         "folder/../key1",
         GetOptions::new_with_default_range(&Default::default(), &Default::default()),
+        Default::default(),
       )
       .await;
       assert!(result.is_ok());
@@ -316,7 +320,7 @@ pub(crate) mod tests {
       )
       .await;
       let expected: u64 = 6;
-      assert!(matches!(result, Ok(size) if size == expected));
+      assert!(matches!(result, Ok(size) if size.content_length() == expected));
     })
     .await;
   }
