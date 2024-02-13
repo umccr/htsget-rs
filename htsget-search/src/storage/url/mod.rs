@@ -5,12 +5,11 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use async_crypt4gh::decoder::Block;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
-use http::header::{CONTENT_LENGTH, RANGE};
+use http::header::CONTENT_LENGTH;
 use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
@@ -21,7 +20,8 @@ use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 #[cfg(feature = "crypt4gh")]
 use {
-  crate::storage::BytesPosition,
+  crate::storage::{BytesPosition, BytesRange},
+  async_crypt4gh::decoder::Block,
   async_crypt4gh::edit_lists::{ClampedPosition, UnencryptedPosition},
   async_crypt4gh::reader::builder::Builder,
   async_crypt4gh::reader::Reader,
@@ -31,6 +31,7 @@ use {
   crypt4gh::Keys,
   htsget_config::types::Class,
   http::header::InvalidHeaderValue,
+  http::header::RANGE,
   mockall_double::double,
   tokio_rustls::rustls::PrivateKey,
 };
@@ -40,8 +41,8 @@ use {
 use crate::storage::url::encrypt::Encrypt;
 use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::storage::{
-  BytesPositionOptions, BytesRange, DataBlock, GetOptions, HeadOptions, HeadOutput,
-  RangeUrlOptions, Result, Storage, StorageError,
+  BytesPositionOptions, DataBlock, GetOptions, HeadOptions, HeadOutput, RangeUrlOptions, Result,
+  Storage, StorageError,
 };
 use crate::Url as HtsGetUrl;
 use htsget_config::error;
@@ -255,6 +256,7 @@ pub enum UrlStreamEither {
   B(#[pin] Crypt4GHReader),
 }
 
+#[cfg(feature = "crypt4gh")]
 #[pin_project]
 pub struct Crypt4GHReader {
   #[pin]
@@ -262,6 +264,7 @@ pub struct Crypt4GHReader {
   client_additional_bytes: u64,
 }
 
+#[cfg(feature = "crypt4gh")]
 impl AsyncRead for Crypt4GHReader {
   fn poll_read(
     self: Pin<&mut Self>,
@@ -303,7 +306,7 @@ impl Storage for UrlStorage {
     &self,
     key: K,
     options: GetOptions<'_>,
-    head_output: Option<HeadOutput>,
+    _head_output: Option<HeadOutput>,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref().to_string();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
@@ -330,7 +333,7 @@ impl Storage for UrlStorage {
           );
 
           // Additional length for the header.
-          let output_headers = head_output
+          let output_headers = _head_output
             .as_ref()
             .and_then(|output| output.response_headers());
 
@@ -536,7 +539,6 @@ impl Storage for UrlStorage {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashSet;
   use std::future::Future;
   use std::io::Cursor;
   use std::net::TcpListener;
@@ -544,14 +546,12 @@ mod tests {
   use std::result;
   use std::str::FromStr;
 
-  use async_crypt4gh::KeyPair;
   use axum::body::StreamBody;
   use axum::extract::Path as AxumPath;
   use axum::middleware::Next;
   use axum::response::{IntoResponse, Response};
   use axum::routing::{get, head};
   use axum::{middleware, Router};
-  use crypt4gh::encrypt;
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use hyper::body::to_bytes;
@@ -559,14 +559,21 @@ mod tests {
   use tokio::io::AsyncReadExt;
   use tokio_util::io::ReaderStream;
   use tower_http::services::ServeDir;
+  #[cfg(feature = "crypt4gh")]
+  use {
+    async_crypt4gh::KeyPair,
+    crypt4gh::encrypt,
+    htsget_config::resolver::object::{ObjectType, TaggedObjectTypes},
+    htsget_config::tls::crypt4gh::Crypt4GHKeyPair,
+    htsget_test::crypt4gh::get_encryption_keys,
+    htsget_test::http_tests::test_bam_crypt4gh_byte_ranges,
+    std::collections::HashSet,
+  };
 
-  use htsget_config::resolver::object::{ObjectType, TaggedObjectTypes};
-  use htsget_config::tls::crypt4gh::Crypt4GHKeyPair;
   use htsget_config::types::Class::{Body, Header};
   use htsget_config::types::Request as HtsgetRequest;
   use htsget_config::types::{Format, Headers, Query, Url};
-  use htsget_test::crypt4gh::get_encryption_keys;
-  use htsget_test::http_tests::{default_dir, test_bam_crypt4gh_byte_ranges};
+  use htsget_test::http_tests::default_dir;
   use htsget_test::http_tests::{parse_as_bgzf, test_bam_file_byte_ranges};
 
   use crate::htsget::from_storage::HtsGetFromStorage;
@@ -980,14 +987,13 @@ mod tests {
         "htsnexus_test_NA12878",
         Format::Bam,
         request,
-        ObjectType::Tagged(TaggedObjectTypes::GenerateKeys),
+        ObjectType::Crypt4GH {
+          crypt4gh: Crypt4GHKeyPair::new(expected_key_pair()),
+        },
       )
       .with_reference_name("11")
       .with_start(5015000)
-      .with_end(5050000)
-      .with_object_type(ObjectType::Crypt4GH {
-        crypt4gh: Crypt4GHKeyPair::new(expected_key_pair()),
-      });
+      .with_end(5050000);
 
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await.unwrap();
@@ -997,6 +1003,7 @@ mod tests {
     .await;
   }
 
+  #[cfg(feature = "crypt4gh")]
   fn expected_key_pair() -> KeyPair {
     KeyPair::new(
       PrivateKey(vec![
@@ -1010,6 +1017,7 @@ mod tests {
     )
   }
 
+  #[cfg(feature = "crypt4gh")]
   fn expected_edit_list() -> (Vec<u8>, Vec<u8>) {
     (
       vec![99, 114, 121, 112, 116, 52, 103, 104, 1, 0, 0, 0, 2, 0, 0, 0],
@@ -1025,6 +1033,7 @@ mod tests {
     )
   }
 
+  #[cfg(feature = "crypt4gh")]
   async fn assert_encrypted_endpoints(public_key: &String, response: HtsgetResponse) {
     let expected_response = HtsgetResponse::new(
       Format::Bam,
@@ -1157,11 +1166,11 @@ mod tests {
     let router = Router::new()
       .route(
         "/endpoint_file/:id",
-        get(|headers: HeaderMap| async move {
+        get(|_headers: HeaderMap| async move {
           #[cfg(feature = "crypt4gh")]
-          if headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
+          if _headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
             assert_eq!(
-              headers.get(RANGE).unwrap().to_str().unwrap(),
+              _headers.get(RANGE).unwrap().to_str().unwrap(),
               "bytes=0-70303"
             );
 
@@ -1192,7 +1201,7 @@ mod tests {
               method: 0,
               privkey: encryption_keys.private_key().clone().0,
               recipient_pubkey: general_purpose::STANDARD
-                .decode(headers.get(SERVER_PUBLIC_KEY_NAME).unwrap())
+                .decode(_headers.get(SERVER_PUBLIC_KEY_NAME).unwrap())
                 .unwrap(),
             };
 

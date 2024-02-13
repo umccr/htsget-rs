@@ -158,11 +158,6 @@ impl Resolver {
       }
     };
 
-    #[cfg(feature = "crypt4gh")]
-    if let ObjectType::Crypt4GH { .. } = self.object_type() {
-      unimplemented!("reading Crypt4GH files using private keys directly is not yet implemented")
-    }
-
     Ok(self)
   }
 
@@ -293,7 +288,10 @@ impl StorageResolver for &[Resolver] {
 #[cfg(test)]
 mod tests {
   use http::uri::Authority;
+  use rustls::PrivateKey;
+  use std::path::Path;
 
+  use async_crypt4gh::{KeyPair, PublicKey};
   #[cfg(feature = "s3-storage")]
   use {crate::storage::s3::S3Storage, std::collections::HashSet};
   #[cfg(feature = "url-storage")]
@@ -302,8 +300,15 @@ mod tests {
     crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
     hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
   };
+  #[cfg(all(feature = "url-storage", feature = "crypt4gh"))]
+  use {
+    crypt4gh::keys::{generate_keys, get_private_key, get_public_key},
+    tempfile::TempDir,
+  };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
+  use crate::tls::crypt4gh::Crypt4GHKeyPair;
+  use crate::tls::tests::with_test_certificates;
   use crate::types::Format::Bam;
   use crate::types::Scheme::Http;
   use crate::types::Url;
@@ -352,7 +357,7 @@ mod tests {
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "127.0.0.1:8080").await;
+    expected_resolved_request(&vec![resolver], "127.0.0.1:8080").await;
   }
 
   #[cfg(feature = "s3-storage")]
@@ -368,7 +373,7 @@ mod tests {
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "id").await;
+    expected_resolved_request(&vec![resolver], "id").await;
   }
 
   #[cfg(feature = "s3-storage")]
@@ -383,7 +388,7 @@ mod tests {
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "id").await;
+    expected_resolved_request(&vec![resolver], "id").await;
   }
 
   #[cfg(feature = "url-storage")]
@@ -422,7 +427,60 @@ mod tests {
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "https://example.com/").await;
+    expected_resolved_request(&vec![resolver], "https://example.com/").await;
+  }
+
+  #[cfg(all(feature = "url-storage", feature = "crypt4gh"))]
+  #[tokio::test]
+  async fn resolver_resolve_crypt4gh_object_type() {
+    let client = Client::builder().build(
+      HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build(),
+    );
+    let url_storage = UrlStorageClient::new(
+      Endpoints::new(
+        ValidatedUrl(url::Url {
+          inner: InnerUrl::from_str("https://example.com/").unwrap(),
+        }),
+        ValidatedUrl(url::Url {
+          inner: InnerUrl::from_str("https://example.com/").unwrap(),
+        }),
+      ),
+      ValidatedUrl(url::Url {
+        inner: InnerUrl::from_str("https://example.com/").unwrap(),
+      }),
+      true,
+      client,
+    );
+
+    let resolvers = vec![
+      Resolver::new(
+        Storage::Url {
+          url_storage: url_storage.clone(),
+        },
+        "(id)-1",
+        "$1-test",
+        AllowGuard::default(),
+        ObjectType::Tagged(TaggedObjectTypes::GenerateKeys),
+      )
+      .unwrap(),
+      Resolver::new(
+        Storage::Url { url_storage },
+        "(id)-1",
+        "$1-test",
+        AllowGuard::default(),
+        ObjectType::Crypt4GH {
+          crypt4gh: Crypt4GHKeyPair::new(KeyPair::new(PrivateKey(vec![]), PublicKey::new(vec![]))),
+        },
+      )
+      .unwrap(),
+    ];
+
+    expected_resolved_request(&resolvers, "https://example.com/").await;
   }
 
   #[test]
@@ -592,9 +650,129 @@ mod tests {
     );
   }
 
-  async fn expected_resolved_request(resolver: Resolver, expected_id: &str) {
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn config_storage_tagged_url_storage_file() {
+    test_config_from_file(
+      r#"
+      [[resolvers]]
+      regex = "regex"
+      storage = "S3"
+      "#,
+      |config| {
+        println!("{:?}", config.resolvers().first().unwrap().storage());
+        assert!(matches!(
+          config.resolvers().first().unwrap().storage(),
+          Storage::Tagged(TaggedStorageTypes::S3)
+        ));
+      },
+    );
+  }
+
+  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
+  #[test]
+  fn config_resolvers_with_predefined_key_pair() {
+    with_crypt4gh_keys(
+      |_, private_key_path, public_key_path, private_key, public_key| {
+        test_config_from_file(
+          &format!(
+            r#"
+      [[resolvers]]
+      regex = "regex"
+
+      [resolvers.object_type]
+      private_key = "{}"
+      public_key = "{}"
+      "#,
+            private_key_path.to_string_lossy(),
+            public_key_path.to_string_lossy()
+          ),
+          |config| {
+            assert!(matches!(
+              config.resolvers().first().unwrap().object_type(),
+              ObjectType::Crypt4GH { crypt4gh } if crypt4gh.key_pair().private_key().0 == private_key && crypt4gh.key_pair().public_key().clone().into_inner() == public_key
+            ));
+          },
+        );
+      },
+    );
+  }
+
+  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
+  #[test]
+  fn config_resolvers_with_generate_key_pair() {
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+      test_config_from_file(
+        &format!(
+          r#"
+          [[resolvers]]
+          regex = "regex"
+
+          object_type = "GenerateKeys"
+
+          [resolvers.storage]
+          response_url = "https://example.com/"
+          forward_headers = false
+          tls.key = "{}"
+          tls.cert = "{}"
+          tls.root_store = "{}"
+
+          [resolvers.storage.endpoints]
+          head = "https://example.com/"
+          file = "https://example.com/"
+          index = "https://example.com/"
+          "#,
+          key_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          assert!(config
+            .resolvers()
+            .first()
+            .unwrap()
+            .object_type()
+            .is_crypt4gh());
+        },
+      );
+    });
+  }
+
+  #[cfg(feature = "crypt4gh")]
+  pub(crate) fn with_crypt4gh_keys<F>(test: F)
+  where
+    F: FnOnce(&Path, &Path, &Path, &[u8], &[u8]),
+  {
+    let tmp_dir = TempDir::new().unwrap();
+
+    let private_key_path = tmp_dir.path().join("alice.sec");
+    let public_key_path = tmp_dir.path().join("alice.pub");
+
+    generate_keys(
+      &private_key_path.clone(),
+      &public_key_path.clone(),
+      || Ok("".to_string()),
+      None,
+    )
+    .unwrap();
+
+    let private_key = get_private_key(&private_key_path, || Ok("".to_string())).unwrap();
+    let public_key = get_public_key(&public_key_path).unwrap();
+
+    test(
+      tmp_dir.path(),
+      &private_key_path,
+      &public_key_path,
+      &private_key,
+      &public_key,
+    );
+  }
+
+  async fn expected_resolved_request(resolvers: &[Resolver], expected_id: &str) {
     assert_eq!(
-      resolver
+      resolvers
         .resolve_request::<TestResolveResponse>(&mut Query::new_with_defaults("id-1", Bam))
         .await
         .unwrap()
