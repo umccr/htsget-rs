@@ -394,29 +394,7 @@ mod tests {
   #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn resolver_resolve_url_request() {
-    let client = Client::builder().build(
-      HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build(),
-    );
-    let url_storage = UrlStorageClient::new(
-      Endpoints::new(
-        ValidatedUrl(url::Url {
-          inner: InnerUrl::from_str("https://example.com/").unwrap(),
-        }),
-        ValidatedUrl(url::Url {
-          inner: InnerUrl::from_str("https://example.com/").unwrap(),
-        }),
-      ),
-      ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
-      }),
-      true,
-      client,
-    );
+    let url_storage = create_url_storage("https://example.com/");
 
     let resolver = Resolver::new(
       Storage::Url { url_storage },
@@ -430,9 +408,8 @@ mod tests {
     expected_resolved_request(&vec![resolver], "https://example.com/").await;
   }
 
-  #[cfg(all(feature = "url-storage", feature = "crypt4gh"))]
-  #[tokio::test]
-  async fn resolver_resolve_crypt4gh_object_type() {
+  #[cfg(feature = "url-storage")]
+  fn create_url_storage(endpoint: &str) -> UrlStorageClient {
     let client = Client::builder().build(
       HttpsConnectorBuilder::new()
         .with_native_roots()
@@ -441,35 +418,42 @@ mod tests {
         .enable_http2()
         .build(),
     );
-    let url_storage = UrlStorageClient::new(
+
+    UrlStorageClient::new(
       Endpoints::new(
         ValidatedUrl(url::Url {
-          inner: InnerUrl::from_str("https://example.com/").unwrap(),
+          inner: InnerUrl::from_str(endpoint).unwrap(),
         }),
         ValidatedUrl(url::Url {
-          inner: InnerUrl::from_str("https://example.com/").unwrap(),
+          inner: InnerUrl::from_str(endpoint).unwrap(),
         }),
       ),
       ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
+        inner: InnerUrl::from_str(endpoint).unwrap(),
       }),
       true,
       client,
-    );
+    )
+  }
 
+  #[cfg(all(feature = "url-storage", feature = "crypt4gh"))]
+  #[tokio::test]
+  async fn resolver_conflicting_object_type() {
     let resolvers = vec![
       Resolver::new(
         Storage::Url {
-          url_storage: url_storage.clone(),
+          url_storage: create_url_storage("127.0.0.1:8080"),
         },
-        "(id)-1",
+        "(id)-2",
         "$1-test",
         AllowGuard::default(),
         ObjectType::Tagged(TaggedObjectTypes::GenerateKeys),
       )
       .unwrap(),
       Resolver::new(
-        Storage::Url { url_storage },
+        Storage::Url {
+          url_storage: create_url_storage("127.0.0.1:8081"),
+        },
         "(id)-1",
         "$1-test",
         AllowGuard::default(),
@@ -480,7 +464,7 @@ mod tests {
       .unwrap(),
     ];
 
-    expected_resolved_request(&resolvers, "https://example.com/").await;
+    expected_resolved_request(&resolvers, "127.0.0.1:8081").await;
   }
 
   #[test]
