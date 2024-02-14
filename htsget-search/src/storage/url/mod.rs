@@ -1179,10 +1179,8 @@ mod tests {
         get(|_headers: HeaderMap| async move {
           #[cfg(feature = "crypt4gh")]
           if _headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
-            assert_eq!(
-              _headers.get(RANGE).unwrap().to_str().unwrap(),
-              "bytes=0-131327"
-            );
+            let range = _headers.get(RANGE).unwrap().to_str().unwrap();
+            let range = BytesPosition::from_str(range).unwrap();
 
             let mut bytes = vec![];
             let path = default_dir().join("data/bam/htsnexus_test_NA12878.bam");
@@ -1192,9 +1190,6 @@ mod tests {
               .read_to_end(&mut bytes)
               .await
               .unwrap();
-
-            // Note, this should listen to the Range headers from the request.
-            let bytes = bytes[..4668].to_vec();
 
             let encryption_keys = KeyPair::new(
               PrivateKey(vec![
@@ -1227,7 +1222,16 @@ mod tests {
             )
             .unwrap();
 
-            let stream = ReaderStream::new(Cursor::new(write_buf.into_inner()));
+            let data = write_buf.into_inner();
+
+            let data = match (range.start, range.end) {
+              (None, None) => data,
+              (Some(start), None) => data[start as usize..].to_vec(),
+              (None, Some(end)) => data[..end as usize].to_vec(),
+              (Some(start), Some(end)) => data[start as usize..end as usize].to_vec(),
+            };
+
+            let stream = ReaderStream::new(Cursor::new(data));
             let body = StreamBody::new(stream);
 
             return (StatusCode::OK, body).into_response();

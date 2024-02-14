@@ -5,6 +5,8 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
+use std::num::ParseIntError;
+use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -308,6 +310,38 @@ impl From<&BytesRange> for String {
       return "".to_string();
     }
     ranges.to_string()
+  }
+}
+
+/// Convert from a http range to a bytes position.
+impl FromStr for BytesPosition {
+  type Err = StorageError;
+
+  fn from_str(range: &str) -> Result<Self> {
+    let range = range.replacen("bytes=", "", 1);
+
+    let split: Vec<&str> = range.splitn(2, '-').collect();
+    if split.len() > 2 {
+      return Err(StorageError::InternalError(
+        "failed to split range".to_string(),
+      ));
+    }
+
+    let parse_range = |range: Option<&str>| {
+      let range = range.unwrap_or_default();
+      if range.is_empty() {
+        Ok::<_, Self::Err>(None)
+      } else {
+        Ok(Some(range.parse().map_err(|err: ParseIntError| {
+          StorageError::InternalError(err.to_string())
+        })?))
+      }
+    };
+
+    let start = parse_range(split.first().copied())?;
+    let end = parse_range(split.last().copied())?.map(|value| value + 1);
+
+    Ok(Self::new(start, end, None))
   }
 }
 
