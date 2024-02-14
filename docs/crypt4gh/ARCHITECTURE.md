@@ -42,10 +42,14 @@ the resolvers do not transform the id, the requests are:
 
 1. <span id="1"></span>A GET request to fetch the index of the queried file at: `https://<i><endpoint-index></i>/id.bam.bai`.
 2. <span id="2"></span>A HEAD request to get the **encrypted** file size at: `https://<i><endpoint-file></i>/id.bam.c4gh`.
+   1. <span id="2.1"></span>The expected response includes the `content-length` header which specifies the file size.
+   2. <span id="2.2"></span>Additionally, there must be a `server-additional-bytes` header which specifies the size of the Crypt4GH header that htsget-rs will receive 
+      from the `UrlStorage` backend. This is used in [request 3.1](#3.1) to ensure that the byte ranges requested from the backend align to the Crypt4GH block boundaries.
+   3. <span id="2.3"></span>Optionally, there could be a `client-additional-bytes` header which specifies the size of the Crypt4GH header that the client will receive
+      when it queries the `UrlStorage` backend with the first URL ticket, with byte ranges: `range: "bytes=0-<client-additional-bytes - 1>"`. 
+      If this is not specified, it defaults to the `server-additional-bytes`.
 3. <span id="3"></span>A GET request to get the start of the **encrypted** file containing a Crypt4GH header and the BAM header, at: `https://<i><endpoint-file></i>/id.bam.c4gh`.
-   1. <span id="3.1"></span>This requests has additional headers to specify byte ranges for the start of the file: `range: "bytes=0-<encrypted-bam-header-end>`".
-   2. <span id="3.2"></span>This request also gets the size of the Crypt4GH header, which is assumed to be the same size the client requests it in the first URL ticket,
-      with byte ranges: `range: "bytes=0-<crypt4gh-header-length>"`.
+   1. <span id="3.1"></span>This requests has additional headers to specify byte ranges for the start of the file: `range: "bytes=0-<server-additional-bytes + encrypted-bam-header-end - 1>`".
 
 Here, `<endpoint-index>` and `<endpoint-file>` can be defined in the htsget config. Currently, htsget-rs implements this design.
 
@@ -54,14 +58,8 @@ The following is a diagram of this process:
 
 ### Alternative designs
 
-For [request 3](#3) an alternative is to instead decouple returning the start of the file and returning the size of the
-Crypt4GH header. An additional endpoint could be introduced (e.g. `<endpoint-crypt4gh-header-size>`) which just fetches
-size of the header. This has the advantage of not requiring the Crypt4GH header returned in [request 3](#3) to be the same
-size as the Crypt4GH header that the client expects in the URL tickets, at the cost of additional implementation logic.
-
-Additionally, in [request 3](#3), an alternative would be return unencrypted header data directly, howevever this has the
-disadvantage of not using Crypt4GH for the `htsget-rs <-> UrlStorage` portion of the data transfer. This would also require
-a `<endpoint-crypt4gh-header-size>` in order to obtain the size of the Crypt4GH header.
+For [request 3](#3) an alternative would be return unencrypted header data directly, howevever this has the
+disadvantage of not using Crypt4GH for the `htsget-rs <-> UrlStorage` portion of the data transfer.
 
 In general, it is simple to convert unencrypted byte positions to encrypted byte positions, and vice versa, so it's not
 as important whether the size and range returned by `UrlStorage` is unencrypted or encrypted.

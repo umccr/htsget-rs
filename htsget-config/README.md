@@ -171,15 +171,13 @@ To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and s
 `UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
 To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
 
-| Option                                                                | Description                                                                                                                                                       | Type                     | Default                                                                                                         |
-|-----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
-| <span id="endpoint_head">`endpoint_head`</span>                       | The URL to un-encrypted file size. The request will be a HEAD request which expects the un-encrypted file size in HTTP Header Content-Length.                     | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="endpoint_index">`endpoint_index`</span>                     | The URL to fetch index for a file. The request will be a GET request which expects the index file specific to a BAM/CRAM/VCF file.                                | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="endpoint_header">`endpoint_file`</span>                     | The URL to fetch underlying for a file. The request will be a GET request which expects to get the decrypted underlying header from a BAM/CRAM/VCF file.          | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="endpoint_crypt4gh_header">`endpoint_crypt4gh_header`</span> | Th e URL to fetch crypt4gh header size. The request will be a GET request which expects to get the crypt4gh header size for a file.                               | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| Option                                                                | Description                                                                                                                                                      | Type                     | Default                                                                                                         |
+|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
+| <span id="endpoint_index">`endpoint_index`</span>                     | The URL to fetch index for a file. The request will be a GET request which expects the index file specific to a BAM/CRAM/VCF file.                               | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| <span id="endpoint_header">`endpoint_file`</span>                     | The URL to fetch underlying for a file. The request will be a GET request which expects to get the decrypted underlying header from a BAM/CRAM/VCF file.         | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
 | <span id="url">`response_url`</span>                                  | The URL to return to the client for fetching tickets.                                                                                                            | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| `forward_headers`                                                     | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`.  | Boolean                  | `true`                                                                                                          |
-| `tls`                                                                 | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.                                       | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| `forward_headers`                                                     | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                                                                                                          |
+| `tls`                                                                 | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.                                      | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
 When using `UrlStorage`, the following requests will be made:
 * `GET` request to fetch only the crypt4gh headers size of the data file (e.g. `GET /data.bam`), URL used is configured via `endpoint_crypt4gh_header`.
@@ -302,22 +300,30 @@ Further TLS examples are available under [`examples/config-files`][examples-conf
 #### Object type
 There is additional configuration that changes the way a resolver treats an object.
 
+By default, all objects are considered `Regular`. However, the `object_type` can be configured to decrypt Crypt4GH files.
+
 This component can be configured by setting the `[resolver.object_type]` table:
 
-| Option        | Description                                                                                                                   | Type    | Default |
-|---------------|-------------------------------------------------------------------------------------------------------------------------------|---------|---------|
-| `is_crypt4gh` | Does this resolve match objects that are Crypt4GH encrypted. This option must be set to true for Crypt4GH objects to be used. | Boolean | `false` | 
+| Option         | Description                                               | Type   | Default |
+|----------------|-----------------------------------------------------------|--------|---------|
+| `private_key`  | Path to the private key used for decrypted Crypt4GH data. | Path   | Not set | 
+| `public_key`   | Path to the public key used for decrypted Crypt4GH data.  | Path   | Not set | 
+
+Or, to generate keys uniquely for each request, the object type can be set to `GenerateKeys`.
 
 For example to enable Crypt4GH for a resolver, build htsget-rs with the `crypt4gh` feature enabled, and set the following options under `[resolvers.object_type]`:
 
 ```toml
-[[resolvers]]
-regex = ".*"
-substitution_string = "$0"
-
 [resolvers.object_type]
-is_crypt4gh = true
+# Specify the keys that htsget will use manually.
+private_key = "data/crypt4gh/keys/bob.sec" # pragma: allowlist secret
+public_key = "data/crypt4gh/keys/bob.pub"
+
+# Or, generate keys for each request.
+#object_type = "GenerateKeys"
 ```
+
+Note, currently this functionality only works with `UrlStorage`.
 
 #### Config file location
 

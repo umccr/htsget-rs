@@ -20,6 +20,10 @@ url = "http://127.0.0.1:8081"
 response_scheme = "https"
 forward_headers = true
 
+[resolvers.storage.endpoints]
+file = "https://example.com/"
+index = "https://example.com/"
+
 # Set client authentication
 #tls.key = "key.pem"
 #tls.cert = "cert.pem"

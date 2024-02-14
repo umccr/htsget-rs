@@ -6,7 +6,7 @@ RUN cargo install cargo-strip
 
 COPY . .
 
-RUN cargo build --features url-storage --release && \
+RUN cargo build --features url-storage,crypt4gh --release && \
     cargo strip
 
 FROM debian:stable-slim
