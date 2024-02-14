@@ -43,11 +43,13 @@ the resolvers do not transform the id, the requests are:
 1. <span id="1"></span>A GET request to fetch the index of the queried file at: `https://<i><endpoint-index></i>/id.bam.bai`.
 2. <span id="2"></span>A HEAD request to get the **encrypted** file size at: `https://<i><endpoint-file></i>/id.bam.c4gh`.
    1. <span id="2.1"></span>The expected response includes the `content-length` header which specifies the file size.
-   2. <span id="2.2"></span>Additionally, there must be a `server-additional-bytes` header which specifies the size of the Crypt4GH header that htsget-rs will receive 
+   2. <span id="2.2"></span>Additionally, there should be a `server-additional-bytes` header which specifies the size of the Crypt4GH header that htsget-rs will receive 
       from the `UrlStorage` backend. This is used in [request 3.1](#3.1) to ensure that the byte ranges requested from the backend align to the Crypt4GH block boundaries.
+      If this header is not preset, then htsget-rs will request the full file.
    3. <span id="2.3"></span>Optionally, there could be a `client-additional-bytes` header which specifies the size of the Crypt4GH header that the client will receive
       when it queries the `UrlStorage` backend with the first URL ticket, with byte ranges: `range: "bytes=0-<client-additional-bytes - 1>"`. 
-      If this is not specified, it defaults to the `server-additional-bytes`.
+      If this is not specified, it defaults to the `server-additional-bytes`. If `server-additional-bytes` is not present,
+      then the size of the Crypt4GH header is assumed to be same as the size of the Crypt4GH header that htsget-rs receives from `UrlStorage`.
 3. <span id="3"></span>A GET request to get the start of the **encrypted** file containing a Crypt4GH header and the BAM header, at: `https://<i><endpoint-file></i>/id.bam.c4gh`.
    1. <span id="3.1"></span>This requests has additional headers to specify byte ranges for the start of the file: `range: "bytes=0-<server-additional-bytes + encrypted-bam-header-end - 1>`".
 

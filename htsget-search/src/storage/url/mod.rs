@@ -21,7 +21,6 @@ use tracing::{debug, instrument};
 #[cfg(feature = "crypt4gh")]
 use {
   crate::storage::{BytesPosition, BytesRange},
-  async_crypt4gh::decoder::Block,
   async_crypt4gh::edit_lists::{ClampedPosition, UnencryptedPosition},
   async_crypt4gh::reader::builder::Builder,
   async_crypt4gh::reader::Reader,
@@ -261,7 +260,7 @@ pub enum UrlStreamEither {
 pub struct Crypt4GHReader {
   #[pin]
   reader: Reader<UrlStreamReader>,
-  client_additional_bytes: u64,
+  client_additional_bytes: Option<u64>,
 }
 
 #[cfg(feature = "crypt4gh")]
@@ -341,19 +340,31 @@ impl Storage for UrlStorage {
             .and_then(|headers| headers.get(SERVER_ADDITIONAL_BYTES))
             .and_then(|length| length.to_str().ok())
             .and_then(|length| length.parse().ok());
-          let range = options.range;
-          let end = range.get_end();
-          let range =
-            range.with_end(end.unwrap_or_default() + additional_header_length.unwrap_or_default());
 
-          let range: String = String::from(&BytesRange::from(&range));
-          if !range.is_empty() {
-            headers.append(
-              RANGE,
-              range
-                .parse()
-                .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
-            );
+          let file_size: Option<u64> = output_headers
+            .and_then(|headers| headers.get(CONTENT_LENGTH))
+            .and_then(|length| length.to_str().ok())
+            .and_then(|length| length.parse().ok());
+
+          if let (Some(crypt4gh_header_length), Some(file_size)) =
+            (additional_header_length, file_size)
+          {
+            let range = options.range;
+            let range = range.convert_to_crypt4gh_ranges(crypt4gh_header_length, file_size);
+
+            if let Some(end) = range.get_end() {
+              let range = range.with_end(end + additional_header_length.unwrap_or_default());
+
+              let range: String = String::from(&BytesRange::from(&range));
+              if !range.is_empty() {
+                headers.append(
+                  RANGE,
+                  range
+                    .parse()
+                    .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
+                );
+              }
+            }
           }
 
           let response = self.get_header(key.to_string(), &headers).await?;
@@ -371,23 +382,14 @@ impl Storage for UrlStorage {
           let reader = Builder::default().build_with_reader(stream_reader, vec![crypt4gh_keys]);
 
           // Additional length for the header.
-          let client_additional_bytes: u64 = output_headers
+          let client_additional_bytes: Option<u64> = output_headers
             .and_then(|headers| {
               headers
                 .get(CLIENT_ADDITIONAL_BYTES)
                 .or_else(|| headers.get(SERVER_ADDITIONAL_BYTES))
             })
             .and_then(|length| length.to_str().ok())
-            .and_then(|length| length.parse().ok())
-            .ok_or_else(|| {
-              UrlParseError("missing additional bytes for crypt4gh client".to_string())
-            })?;
-
-          if client_additional_bytes < Block::header_info_size() {
-            return Err(UrlParseError(
-              "the additional client bytes cannot be less than the header info size".to_string(),
-            ));
-          }
+            .and_then(|length| length.parse().ok());
 
           return Ok(UrlStreamEither::B(Crypt4GHReader {
             reader,
@@ -467,6 +469,14 @@ impl Storage for UrlStorage {
           .first()
           .ok_or_else(|| UrlParseError("missing crypt4gh keys from reader".to_string()))?;
         let file_size = positions_options.file_size();
+
+        let client_additional_bytes = if let Some(bytes) = client_additional_bytes {
+          bytes
+        } else {
+          reader
+            .header_size()
+            .ok_or_else(|| UrlParseError("crypt4gh header has not been read".to_string()))?
+        };
 
         let recipient_public_key =
           Self::decode_public_key(positions_options.headers, CLIENT_PUBLIC_KEY_NAME)?;
@@ -1171,7 +1181,7 @@ mod tests {
           if _headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
             assert_eq!(
               _headers.get(RANGE).unwrap().to_str().unwrap(),
-              "bytes=0-70303"
+              "bytes=0-131327"
             );
 
             let mut bytes = vec![];
