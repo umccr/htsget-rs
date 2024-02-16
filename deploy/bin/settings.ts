@@ -12,8 +12,10 @@ export const SETTINGS: HtsgetSettings = {
     "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*",
   ],
   lookupHostedZone: true,
-  authorizer: {
+  jwtAuthorizer: {
     // Set this to true if you want a public instance.
     public: false,
+    // jwtAudience: ["audience"],
+    // cogUserPoolId: "user-pool-id"
   },
 };
