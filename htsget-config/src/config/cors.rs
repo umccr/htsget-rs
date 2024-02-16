@@ -92,7 +92,7 @@ impl<T> AllowType<T, TaggedTypeAll> {
   }
 }
 
-fn serialize_allow_types<S, T>(names: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_allow_types<S, T>(names: &[T], serializer: S) -> Result<S::Ok, S::Error>
 where
   T: Display,
   S: Serializer,
