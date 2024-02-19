@@ -46,5 +46,5 @@ jobs:
           output-file-path: search-benchmarks-output.json
           native-benchmark-data-dir-path: target/criterion
           fail-on-alert: false
-          github-token: ${{ secrets.HTSGET_RS_BENCHMARKS_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
