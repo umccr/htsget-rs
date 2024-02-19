@@ -22,7 +22,7 @@ jobs:
       - name: Cache
         uses: mozilla-actions/sccache-action@v0.0.3
       - name: Check out
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         id: toolchain
@@ -31,22 +31,10 @@ jobs:
           components: rustfmt, clippy
       - run: rustup override set ${{ steps.toolchain.outputs.name }}
       - name: Cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
       - name: Cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --all-features  -- -D warnings
+        run: cargo clippy --all-targets --all-features  -- -D warnings
       - name: Run cargo tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+        run: cargo test --all-features
       - name: Run cargo tests with no default features
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --no-default-features
+        run: cargo test --no-default-features
