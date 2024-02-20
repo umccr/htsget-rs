@@ -10,6 +10,8 @@ pub use htsget_config::{
 
 #[cfg(feature = "aws-mocks")]
 pub mod aws_mocks;
+#[cfg(feature = "http-tests")]
+pub mod concat_tests;
 #[cfg(feature = "cors-tests")]
 pub mod cors_tests;
 #[cfg(feature = "http-tests")]

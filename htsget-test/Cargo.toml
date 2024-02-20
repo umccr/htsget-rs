@@ -17,6 +17,10 @@ http-tests = [
     "dep:serde_json",
     "dep:serde",
     "dep:htsget-config",
+    "dep:base64",
+    "dep:tokio",
+    "dep:reqwest",
+    "dep:futures",
 ]
 cors-tests = ["http-tests", "dep:htsget-config"]
 server-tests = [
@@ -50,7 +54,7 @@ htsget-config = { version = "0.8.1", path = "../htsget-config", default-features
 noodles = { version = "0.60", optional = true, features = ["async", "bgzf", "vcf"] }
 
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"], optional = true }
-tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "fs"], optional = true }
 futures = { version = "0.3", optional = true }
 async-trait = { version = "0.1", optional = true }
 http = { version = "0.2", optional = true }
