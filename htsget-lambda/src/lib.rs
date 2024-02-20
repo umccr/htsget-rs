@@ -281,10 +281,10 @@ mod tests {
   use htsget_http::Endpoint;
   use htsget_search::storage::configure_cors;
   use htsget_search::storage::data_server::BindDataServer;
-  use htsget_test::http_tests::{config_with_tls, default_test_config, get_test_file};
-  use htsget_test::http_tests::{Header, Response as TestResponse, TestRequest, TestServer};
-  use htsget_test::server_tests::{expected_url_path, test_response, test_response_service_info};
-  use htsget_test::{cors_tests, server_tests};
+  use htsget_test::http::server::{expected_url_path, test_response, test_response_service_info};
+  use htsget_test::http::{config_with_tls, default_test_config, get_test_file};
+  use htsget_test::http::{cors, server};
+  use htsget_test::http::{Header, Response as TestResponse, TestRequest, TestServer};
 
   use super::*;
 
@@ -383,60 +383,56 @@ mod tests {
 
   #[tokio::test]
   async fn get_http_tickets() {
-    server_tests::test_get::<JsonResponse, _>(&LambdaTestServer::default()).await;
+    server::test_get::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn post_http_tickets() {
-    server_tests::test_post::<JsonResponse, _>(&LambdaTestServer::default()).await;
+    server::test_post::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn parameterized_get_http_tickets() {
-    server_tests::test_parameterized_get::<JsonResponse, _>(&LambdaTestServer::default()).await;
+    server::test_parameterized_get::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn parameterized_post_http_tickets() {
-    server_tests::test_parameterized_post::<JsonResponse, _>(&LambdaTestServer::default()).await;
+    server::test_parameterized_post::<JsonResponse, _>(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn parameterized_post_class_header_http_tickets() {
-    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
-      &LambdaTestServer::default(),
-    )
-    .await;
+    server::test_parameterized_post_class_header::<JsonResponse, _>(&LambdaTestServer::default())
+      .await;
   }
 
   #[tokio::test]
   async fn cors_simple_request() {
-    cors_tests::test_cors_simple_request(&LambdaTestServer::default()).await;
+    cors::test_cors_simple_request(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn cors_preflight_request() {
-    cors_tests::test_cors_preflight_request(&LambdaTestServer::default()).await;
+    cors::test_cors_preflight_request(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]
   async fn get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_get::<JsonResponse, _>(&LambdaTestServer::new_with_tls(base_path.path()))
-      .await;
+    server::test_get::<JsonResponse, _>(&LambdaTestServer::new_with_tls(base_path.path())).await;
   }
 
   #[tokio::test]
   async fn post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_post::<JsonResponse, _>(&LambdaTestServer::new_with_tls(base_path.path()))
-      .await;
+    server::test_post::<JsonResponse, _>(&LambdaTestServer::new_with_tls(base_path.path())).await;
   }
 
   #[tokio::test]
   async fn parameterized_get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_get::<JsonResponse, _>(&LambdaTestServer::new_with_tls(
+    server::test_parameterized_get::<JsonResponse, _>(&LambdaTestServer::new_with_tls(
       base_path.path(),
     ))
     .await;
@@ -445,7 +441,7 @@ mod tests {
   #[tokio::test]
   async fn parameterized_post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post::<JsonResponse, _>(&LambdaTestServer::new_with_tls(
+    server::test_parameterized_post::<JsonResponse, _>(&LambdaTestServer::new_with_tls(
       base_path.path(),
     ))
     .await;
@@ -454,7 +450,7 @@ mod tests {
   #[tokio::test]
   async fn parameterized_post_class_header_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
+    server::test_parameterized_post_class_header::<JsonResponse, _>(
       &LambdaTestServer::new_with_tls(base_path.path()),
     )
     .await;
@@ -462,7 +458,7 @@ mod tests {
 
   #[tokio::test]
   async fn service_info() {
-    server_tests::test_service_info(&LambdaTestServer::default()).await;
+    server::test_service_info(&LambdaTestServer::default()).await;
   }
 
   #[tokio::test]

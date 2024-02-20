@@ -60,7 +60,7 @@ hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "
 # Error control, tracing, config
 thiserror = "1.0"
 htsget-config = { version = "0.8.1", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.5.4", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-test = { version = "0.5.4", path = "../htsget-test", features = ["http"], default-features = false }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"

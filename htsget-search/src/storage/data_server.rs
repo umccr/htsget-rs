@@ -211,8 +211,8 @@ mod tests {
   use reqwest::{Client, ClientBuilder, RequestBuilder};
   use tempfile::tempdir;
 
-  use htsget_test::cors_tests::{test_cors_preflight_request_uri, test_cors_simple_request_uri};
-  use htsget_test::http_tests::{
+  use htsget_test::http::cors::{test_cors_preflight_request_uri, test_cors_simple_request_uri};
+  use htsget_test::http::{
     config_with_tls, default_cors_config, default_test_config, Header, Response as TestResponse,
     TestRequest, TestServer,
   };

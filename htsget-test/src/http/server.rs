@@ -9,11 +9,11 @@ use reqwest::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::concat_tests::ConcatResponse;
+use crate::http::concat::ConcatResponse;
 use htsget_config::types::Class;
 use htsget_config::types::Format;
 
-use crate::http_tests::{Header, Response, TestRequest, TestServer};
+use crate::http::{Header, Response, TestRequest, TestServer};
 use crate::util::expected_bgzf_eof_data_url;
 use crate::Config;
 
