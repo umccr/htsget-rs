@@ -1,10 +1,7 @@
 use std::fmt::Debug;
 use std::net::SocketAddr;
 
-use futures::TryStreamExt;
 use http::Method;
-use noodles::bgzf;
-use noodles::vcf;
 use reqwest::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -41,21 +38,13 @@ where
     .build()
     .unwrap();
 
-  let merged = ConcatResponse::new(
+  ConcatResponse::new(
     serde_json::from_value(expected_response.get("htsget").unwrap().clone()).unwrap(),
   )
   .concat_from_client(&client)
+  .await
+  .read_records()
   .await;
-
-  let mut reader = vcf::AsyncReader::new(bgzf::AsyncReader::new(merged.as_slice()));
-  let header = reader.read_header().await.unwrap();
-  println!("{header}");
-
-  let mut records = reader.records(&header);
-  while let Some(record) = records.try_next().await.unwrap() {
-    println!("{record}");
-    continue;
-  }
 }
 
 /// Get the expected url path from the formatter.
