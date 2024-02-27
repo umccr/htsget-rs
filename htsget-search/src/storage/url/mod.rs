@@ -17,7 +17,7 @@ use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, ReadBuf};
 use tokio_util::io::StreamReader;
-use tracing::{debug, instrument};
+use tracing::{debug, info, instrument};
 #[cfg(feature = "crypt4gh")]
 use {
   crate::storage::{BytesPosition, BytesRange},
@@ -307,6 +307,7 @@ impl Storage for UrlStorage {
     options: GetOptions<'_>,
     _head_output: Option<HeadOutput>,
   ) -> Result<Self::Streamable> {
+    info!("Getting underlying file");
     let key = key.as_ref().to_string();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
@@ -315,12 +316,16 @@ impl Storage for UrlStorage {
         #[cfg(feature = "crypt4gh")]
         if options.object_type.is_crypt4gh() {
           let key_pair = if let Some(key_pair) = options.object_type.crypt4gh_key_pair() {
-            key_pair.key_pair().clone()
+            let key_pair = key_pair.key_pair().clone();
+            info!("Got key pair from config");
+            key_pair
           } else {
-            self
+            let key_pair = self
               .encrypt
               .generate_key_pair()
-              .map_err(|err| UrlParseError(err.to_string()))?
+              .map_err(|err| UrlParseError(err.to_string()))?;
+            info!("Got key pair generated");
+            key_pair
           };
 
           let mut headers = options.request_headers().clone();
@@ -330,6 +335,8 @@ impl Storage for UrlStorage {
               .try_into()
               .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
           );
+
+          info!("appended server public key");
 
           // Additional length for the header.
           let output_headers = _head_output
@@ -367,6 +374,8 @@ impl Storage for UrlStorage {
             }
           }
 
+          info!("Sending to storage backend with headers: {:#?}", headers);
+
           let response = self.get_header(key.to_string(), &headers).await?;
 
           let crypt4gh_keys = Keys {
@@ -379,6 +388,9 @@ impl Storage for UrlStorage {
               .into_body()
               .map_err(|err| ResponseError(format!("reading body from response: {}", err))),
           );
+
+          info!("got stream reader");
+
           let reader = Builder::default().build_with_reader(stream_reader, vec![crypt4gh_keys]);
 
           // Additional length for the header.
@@ -390,6 +402,11 @@ impl Storage for UrlStorage {
             })
             .and_then(|length| length.to_str().ok())
             .and_then(|length| length.parse().ok());
+
+          info!(
+            "additional bytes to return to client: {:#?}",
+            client_additional_bytes
+          );
 
           return Ok(UrlStreamEither::B(Crypt4GHReader {
             reader,
@@ -419,6 +436,7 @@ impl Storage for UrlStorage {
     key: K,
     options: RangeUrlOptions<'_>,
   ) -> Result<HtsGetUrl> {
+    info!("creating range urls");
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
@@ -431,6 +449,7 @@ impl Storage for UrlStorage {
     key: K,
     options: HeadOptions<'_>,
   ) -> Result<HeadOutput> {
+    info!("getting head");
     let key = key.as_ref();
     let head = self.head_key(key, options.request_headers()).await?;
 
@@ -456,6 +475,8 @@ impl Storage for UrlStorage {
     reader: Self::Streamable,
     positions_options: BytesPositionOptions<'_>,
   ) -> Result<Vec<DataBlock>> {
+    info!("updating bytes positions");
+
     match reader {
       #[cfg(feature = "crypt4gh")]
       UrlStreamEither::B(reader) if positions_options.object_type.is_crypt4gh() => {
@@ -470,6 +491,8 @@ impl Storage for UrlStorage {
           .ok_or_else(|| UrlParseError("missing crypt4gh keys from reader".to_string()))?;
         let file_size = positions_options.file_size();
 
+        info!("got keys from reader");
+
         let client_additional_bytes = if let Some(bytes) = client_additional_bytes {
           bytes
         } else {
@@ -477,6 +500,8 @@ impl Storage for UrlStorage {
             .header_size()
             .ok_or_else(|| UrlParseError("crypt4gh header has not been read".to_string()))?
         };
+
+        info!("got client additional bytes from reader");
 
         let recipient_public_key =
           Self::decode_public_key(positions_options.headers, CLIENT_PUBLIC_KEY_NAME)?;
@@ -537,6 +562,8 @@ impl Storage for UrlStorage {
           DataBlock::Data(edit_list_packet, Some(Class::Header)),
         ];
         blocks.extend(DataBlock::from_bytes_positions(encrypted_positions));
+
+        info!("data blocks returned: {:#?}", blocks);
 
         Ok(blocks)
       }
