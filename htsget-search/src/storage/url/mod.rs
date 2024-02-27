@@ -506,6 +506,8 @@ impl Storage for UrlStorage {
         let recipient_public_key =
           Self::decode_public_key(positions_options.headers, CLIENT_PUBLIC_KEY_NAME)?;
 
+        info!("decoded client public key: {:#?}", recipient_public_key);
+
         let unencrypted_positions = BytesPosition::merge_all(positions_options.positions.clone());
         let clamped_positions = BytesPosition::merge_all(
           positions_options
@@ -540,6 +542,8 @@ impl Storage for UrlStorage {
           PrivateKey(keys.privkey.clone()),
           PublicKey::new(recipient_public_key),
         )?;
+
+        info!("created edit list");
 
         let encrypted_positions = BytesPosition::merge_all(
           positions_options

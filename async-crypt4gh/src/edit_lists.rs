@@ -4,6 +4,7 @@ use crypt4gh::header::{encrypt, make_packet_data_edit_list, HeaderInfo};
 use crypt4gh::Keys;
 use rustls::PrivateKey;
 use tokio::io::AsyncRead;
+use tracing::info;
 
 use crate::error::{Error, Result};
 use crate::reader::Reader;
@@ -125,6 +126,7 @@ where
 
   /// Encrypt the edit list packet.
   pub fn encrypt_edit_list(&self, edit_list_packet: Vec<u8>) -> Result<Vec<u8>> {
+    info!("encrypting edit list");
     let keys = Keys {
       method: 0,
       privkey: self.private_key.clone().0,
@@ -139,6 +141,7 @@ where
 
   /// Create the edit lists from the unencrypted byte positions.
   pub fn create_edit_list(&self) -> Vec<u64> {
+    info!("creating edit list");
     let mut unencrypted_positions: Vec<u64> = self
       .unencrypted_positions
       .iter()
@@ -194,6 +197,7 @@ where
 
   /// Add edit lists and return a header packet.
   pub fn edit_list(self) -> Result<Option<Header>> {
+    info!("adding edit list");
     if self.reader.edit_list_packet().is_some() {
       return Err(Error::Crypt4GHError("edit lists already exist".to_string()));
     }
