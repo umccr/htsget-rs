@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use async_crypt4gh::util::read_public_key;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
@@ -503,10 +504,16 @@ impl Storage for UrlStorage {
 
         info!("got client additional bytes from reader");
 
-        let recipient_public_key =
+        let client_public_key =
           Self::decode_public_key(positions_options.headers, CLIENT_PUBLIC_KEY_NAME)?;
 
-        info!("decoded client public key: {:#?}", recipient_public_key);
+        info!("decoded client public key: {:#?}", client_public_key);
+
+        let client_public_key = read_public_key(client_public_key)
+          .await
+          .map_err(|err| UrlParseError(format!("failed to parse client public key: {}", err)))?;
+
+        info!("got client public key: {:#?}", client_public_key);
 
         let unencrypted_positions = BytesPosition::merge_all(positions_options.positions.clone());
         let clamped_positions = BytesPosition::merge_all(
@@ -540,7 +547,7 @@ impl Storage for UrlStorage {
             })
             .collect(),
           PrivateKey(keys.privkey.clone()),
-          PublicKey::new(recipient_public_key),
+          client_public_key,
         )?;
 
         info!("created edit list");

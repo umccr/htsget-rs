@@ -2,6 +2,8 @@ use crypt4gh::keys::{generate_keys, get_private_key, get_public_key};
 use rustls::PrivateKey;
 use std::cmp::min;
 use tempfile::TempDir;
+use tokio::fs;
+use tracing::info;
 
 use crate::decoder::Block;
 use crate::error::{Error, Result};
@@ -111,6 +113,23 @@ pub fn generate_key_pair() -> Result<KeyPair> {
     PrivateKey(private_key),
     PublicKey::new(public_key),
   ))
+}
+
+/// Generate a private and public key pair.
+pub async fn read_public_key(bytes: Vec<u8>) -> Result<PublicKey> {
+  // Todo, very janky, avoid writing this to a file first.
+  let temp_dir = TempDir::new().map_err(|err| Error::Crypt4GHError(err.to_string()))?;
+
+  let public_key = temp_dir.path().join("public_key");
+  fs::write(public_key.clone(), &bytes)
+    .await
+    .map_err(|err| Error::Crypt4GHError(err.to_string()))?;
+
+  let public_key = get_public_key(public_key)?;
+
+  info!("read public key from filesystem");
+
+  Ok(PublicKey::new(public_key))
 }
 
 #[cfg(test)]
