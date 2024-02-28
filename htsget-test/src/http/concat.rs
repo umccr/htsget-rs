@@ -7,11 +7,13 @@ use http::{HeaderMap, HeaderName, HeaderValue};
 use noodles::{bam, bcf, bgzf, cram, fasta, vcf};
 use reqwest::Client;
 use std::future::Future;
+use std::path::Path;
 use std::str::FromStr;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
 /// A response concatenator which concatenates url tickets.
+#[derive(Debug)]
 pub struct ConcatResponse {
   response: Response,
 }
@@ -30,6 +32,12 @@ impl ConcatResponse {
   /// Get the inner response.
   pub fn response(&self) -> &Response {
     &self.response
+  }
+
+  /// Concatenate a response into the bytes represented by the url ticket with a file path
+  pub async fn concat_from_file_path(self, path: impl AsRef<Path>) -> ReadRecords {
+    let file = File::open(path).await.unwrap();
+    self.concat_from_file(file).await
   }
 
   /// Concatenate a response into the bytes represented by the url ticket with file data.
@@ -110,7 +118,14 @@ impl ConcatResponse {
   }
 }
 
+impl From<Response> for ConcatResponse {
+  fn from(response: Response) -> Self {
+    Self::new(response)
+  }
+}
+
 /// A record reader.
+#[derive(Debug)]
 pub struct ReadRecords {
   format: Format,
   merged_bytes: Vec<u8>,

@@ -134,13 +134,15 @@ pub(crate) mod tests {
 
   use htsget_config::storage;
   use htsget_config::types::Scheme::Http;
+  use htsget_test::http::concat::ConcatResponse;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
-    expected_url as bam_expected_url, with_local_storage as with_bam_local_storage,
+    expected_url as bam_expected_url, with_local_storage as with_bam_local_storage, BAM_FILE_NAME,
   };
   use crate::htsget::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
+    VCF_FILE_NAME_SPEC,
   };
   #[cfg(feature = "s3-storage")]
   use crate::storage::s3::tests::with_aws_s3_storage_fn;
@@ -164,7 +166,9 @@ pub(crate) mod tests {
           Url::new(expected_bgzf_eof_data_url()),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -179,6 +183,8 @@ pub(crate) mod tests {
       println!("{response:#?}");
 
       assert_eq!(response, expected_vcf_response(filename));
+
+      Some((VCF_FILE_NAME_SPEC.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -192,6 +198,8 @@ pub(crate) mod tests {
         let response = HtsGetFromStorage::<()>::from_local(&local_storage, &query).await;
 
         assert_eq!(response, expected_vcf_response(filename));
+
+        Some((VCF_FILE_NAME_SPEC.to_string(), response.unwrap().into()))
       },
       "data/vcf",
       &[],
@@ -216,6 +224,8 @@ pub(crate) mod tests {
         let response = resolvers.search(query).await;
 
         assert_eq!(response, expected_vcf_response(filename));
+
+        Some((VCF_FILE_NAME_SPEC.to_string(), response.unwrap().into()))
       },
       "data/vcf",
       &[],
@@ -234,33 +244,33 @@ pub(crate) mod tests {
     ))
   }
 
-  async fn copy_files(from_path: &str, to_path: &Path, file_names: &[&str]) -> PathBuf {
+  async fn copy_files_from(from_path: &str, to_path: &Path, copy_files: &[&str]) -> PathBuf {
     let mut base_path = std::env::current_dir()
       .unwrap()
       .parent()
       .unwrap()
       .join(from_path);
 
-    for file_name in file_names {
+    for file_name in copy_files {
       fs::copy(base_path.join(file_name), to_path.join(file_name)).unwrap();
     }
-    if !file_names.is_empty() {
+    if !copy_files.is_empty() {
       base_path = PathBuf::from(to_path);
     }
 
     base_path
   }
 
-  async fn with_config_local_storage<F, Fut>(test: F, path: &str, file_names: &[&str])
+  async fn with_config_local_storage<F, Fut>(test: F, path: &str, copy_files: &[&str])
   where
     F: FnOnce(PathBuf, LocalStorageConfig) -> Fut,
-    Fut: Future<Output = ()>,
+    Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     let tmp_dir = TempDir::new().unwrap();
-    let base_path = copy_files(path, tmp_dir.path(), file_names).await;
+    let base_path = copy_files_from(path, tmp_dir.path(), copy_files).await;
 
     println!("{:#?}", base_path);
-    test(
+    let response = test(
       base_path.clone(),
       LocalStorageConfig::new(
         Http,
@@ -269,13 +279,25 @@ pub(crate) mod tests {
         "/data".to_string(),
       ),
     )
-    .await
+    .await;
+
+    read_records(response, &base_path).await;
   }
 
-  pub(crate) async fn with_local_storage_fn<F, Fut>(test: F, path: &str, file_names: &[&str])
+  async fn read_records(response: Option<(String, ConcatResponse)>, base_path: &Path) {
+    if let Some((target_file, response)) = response {
+      response
+        .concat_from_file_path(&base_path.join(target_file))
+        .await
+        .read_records()
+        .await;
+    }
+  }
+
+  pub(crate) async fn with_local_storage_fn<F, Fut>(test: F, path: &str, copy_files: &[&str])
   where
     F: FnOnce(Arc<LocalStorage<LocalStorageConfig>>) -> Fut,
-    Fut: Future<Output = ()>,
+    Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_config_local_storage(
       |base_path, local_storage| async {
@@ -285,23 +307,31 @@ pub(crate) mod tests {
         .await
       },
       path,
-      file_names,
+      copy_files,
     )
     .await;
   }
 
   #[cfg(feature = "s3-storage")]
-  pub(crate) async fn with_aws_storage_fn<F, Fut>(test: F, path: &str, file_names: &[&str])
+  pub(crate) async fn with_aws_storage_fn<F, Fut>(test: F, path: &str, copy_files: &[&str])
   where
     F: FnOnce(Arc<S3Storage>) -> Fut,
-    Fut: Future<Output = ()>,
+    Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     let tmp_dir = TempDir::new().unwrap();
     let to_path = tmp_dir.into_path().join("folder");
     create_dir(&to_path).unwrap();
 
-    let base_path = copy_files(path, &to_path, file_names).await;
+    let base_path = copy_files_from(path, &to_path, copy_files).await;
 
-    with_aws_s3_storage_fn(test, "folder".to_string(), base_path.parent().unwrap()).await;
+    with_aws_s3_storage_fn(
+      |storage| async {
+        let response = test(storage).await;
+        read_records(response, &base_path).await;
+      },
+      "folder".to_string(),
+      base_path.parent().unwrap(),
+    )
+    .await;
   }
 }

@@ -292,6 +292,7 @@ mod tests {
   use std::future::Future;
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_test::http::concat::ConcatResponse;
   use htsget_test::util::expected_cram_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
@@ -304,6 +305,7 @@ mod tests {
 
   const DATA_LOCATION: &str = "data/cram";
   const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.cram.crai";
+  const CRAM_FILE_NAME: &str = "htsnexus_test_NA12878.cram";
 
   #[tokio::test]
   async fn search_all_reads() {
@@ -321,7 +323,9 @@ mod tests {
           Url::new(expected_cram_eof_data_url()),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -347,7 +351,9 @@ mod tests {
           Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -373,7 +379,9 @@ mod tests {
           Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -397,7 +405,9 @@ mod tests {
           Url::new(expected_cram_eof_data_url()),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -414,7 +424,9 @@ mod tests {
       println!("{response:#?}");
 
       let expected_response = Ok(expected_response_with_start());
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -430,7 +442,9 @@ mod tests {
       println!("{response:#?}");
 
       let expected_response = Ok(expected_response_with_start());
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -461,7 +475,9 @@ mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
           .with_class(Header)],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
     })
     .await;
   }
@@ -474,6 +490,8 @@ mod tests {
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -490,6 +508,8 @@ mod tests {
           .with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -506,6 +526,8 @@ mod tests {
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -522,6 +544,8 @@ mod tests {
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -539,6 +563,8 @@ mod tests {
           .with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -556,6 +582,8 @@ mod tests {
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -566,7 +594,7 @@ mod tests {
   async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
-    Fut: Future<Output = ()>,
+    Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_local_storage_fn(test, "data/cram", &[]).await
   }
