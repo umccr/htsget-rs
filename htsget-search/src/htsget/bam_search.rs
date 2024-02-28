@@ -1,7 +1,6 @@
 //! Module providing the search capability using BAM/BAI files
 //!
 
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -13,16 +12,13 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
 use noodles::csi::binning_index::index::ReferenceSequence;
 use noodles::csi::BinningIndex;
-use noodles::sam::header::record::value::map::read_group::platform::ParseError;
-use noodles::sam::header::record::value::map::read_group::Platform;
 use noodles::sam::Header;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
-use tracing::{instrument, trace, warn};
+use tracing::{instrument, trace};
 
 use crate::htsget::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::htsget::HtsGetError;
-use crate::htsget::ParsedHeader;
 use crate::Class::Body;
 use crate::{
   htsget::{Format, Query, Result},
@@ -68,11 +64,8 @@ where
       .with_class(Body)])
   }
 
-  async fn read_bytes(header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
-    reader
-      .read_record(header, &mut Default::default())
-      .await
-      .ok()
+  async fn read_bytes(_header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader.read_record(&mut Default::default()).await.ok()
   }
 
   fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
@@ -93,34 +86,7 @@ where
   }
 
   async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
-    let header = reader.read_header().await;
-    reader.read_reference_sequences().await?;
-
-    if let Ok(header) = header.as_deref() {
-      for value in header.split_whitespace() {
-        if let Some(value) = value.strip_prefix("PL:") {
-          if let Err(ParseError::Invalid) = Platform::from_str(value) {
-            warn!(
-              "invalid read group platform `{value}`, only `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, \
-              `{}`, `{}`, `{}`, `{}`, or `{}` is supported",
-              Platform::Capillary.as_ref(),
-              Platform::DnbSeq.as_ref(),
-              Platform::Element.as_ref(),
-              Platform::Ls454.as_ref(),
-              Platform::Illumina.as_ref(),
-              Platform::Solid.as_ref(),
-              Platform::Helicos.as_ref(),
-              Platform::IonTorrent.as_ref(),
-              Platform::Ont.as_ref(),
-              Platform::PacBio.as_ref(),
-              Platform::Ultima.as_ref()
-            );
-          }
-        }
-      }
-    }
-
-    Ok(header?.parse::<ParsedHeader<Header>>()?.into_inner())
+    reader.read_header().await
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
@@ -164,7 +130,7 @@ where
     header: &'a Header,
     name: &str,
   ) -> Option<usize> {
-    Some(header.reference_sequences().get_index_of(name)?)
+    Some(header.reference_sequences().get_index_of(name.as_bytes())?)
   }
 
   async fn get_byte_ranges_for_unmapped_reads(

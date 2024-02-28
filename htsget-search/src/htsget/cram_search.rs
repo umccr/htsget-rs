@@ -108,7 +108,7 @@ where
     header: &'a Header,
     name: &str,
   ) -> Option<usize> {
-    Some(header.reference_sequences().get_index_of(name)?)
+    Some(header.reference_sequences().get_index_of(name.as_bytes())?)
   }
 
   async fn get_byte_ranges_for_unmapped_reads(
