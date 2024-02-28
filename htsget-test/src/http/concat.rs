@@ -154,13 +154,11 @@ impl ReadRecords {
   pub async fn read_records(self) {
     match self.format {
       Format::Bam => {
-        let mut reader =
-          bam::AsyncReader::new(bgzf::AsyncReader::new(self.merged_bytes.as_slice()));
-        let header = reader.read_header().await.unwrap().parse().unwrap();
-        println!("{header}");
+        let mut reader = bam::AsyncReader::new(self.merged_bytes.as_slice());
+        let header = reader.read_header().await.unwrap();
+        println!("{:#?}", header);
 
-        reader.read_reference_sequences().await.unwrap();
-        let mut records = reader.records(&header);
+        let mut records = reader.records();
         while let Some(record) = records.try_next().await.unwrap() {
           println!("{:#?}", record);
           continue;
@@ -172,7 +170,7 @@ impl ReadRecords {
         reader.read_file_definition().await.unwrap();
         let repository = fasta::Repository::default();
         let header = reader.read_file_header().await.unwrap().parse().unwrap();
-        println!("{header}");
+        println!("{:#?}", header);
 
         let mut records = reader.records(&repository, &header);
         while let Some(record) = records.try_next().await.unwrap() {
