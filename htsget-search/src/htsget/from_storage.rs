@@ -133,6 +133,7 @@ pub(crate) mod tests {
   use tempfile::TempDir;
 
   use htsget_config::storage;
+  use htsget_config::types::Class::Body;
   use htsget_config::types::Scheme::Http;
   use htsget_test::http::concat::ConcatResponse;
   use htsget_test::util::expected_bgzf_eof_data_url;
@@ -168,7 +169,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -184,7 +185,10 @@ pub(crate) mod tests {
 
       assert_eq!(response, expected_vcf_response(filename));
 
-      Some((VCF_FILE_NAME_SPEC.to_string(), response.unwrap().into()))
+      Some((
+        VCF_FILE_NAME_SPEC.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await;
   }
@@ -199,7 +203,10 @@ pub(crate) mod tests {
 
         assert_eq!(response, expected_vcf_response(filename));
 
-        Some((VCF_FILE_NAME_SPEC.to_string(), response.unwrap().into()))
+        Some((
+          VCF_FILE_NAME_SPEC.to_string(),
+          (response.unwrap(), Body).into(),
+        ))
       },
       "data/vcf",
       &[],
@@ -225,7 +232,10 @@ pub(crate) mod tests {
 
         assert_eq!(response, expected_vcf_response(filename));
 
-        Some((VCF_FILE_NAME_SPEC.to_string(), response.unwrap().into()))
+        Some((
+          VCF_FILE_NAME_SPEC.to_string(),
+          (response.unwrap(), Body).into(),
+        ))
       },
       "data/vcf",
       &[],

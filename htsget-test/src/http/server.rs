@@ -40,6 +40,7 @@ where
 
   ConcatResponse::new(
     serde_json::from_value(expected_response.get("htsget").unwrap().clone()).unwrap(),
+    class,
   )
   .concat_from_client(&client)
   .await

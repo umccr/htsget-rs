@@ -319,13 +319,13 @@ mod tests {
         Format::Cram,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-1627755")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-1672409")),
           Url::new(expected_cram_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response);
 
-      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((CRAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -343,17 +343,17 @@ mod tests {
         Format::Cram,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-6133"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=1280106-1627755"))
+            .with_headers(Headers::default().with_header("Range", "bytes=1324614-1672409"))
             .with_class(Body),
           Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
 
-      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((CRAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -371,17 +371,17 @@ mod tests {
         Format::Cram,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-6133"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=604231-1280105"))
+            .with_headers(Headers::default().with_header("Range", "bytes=625728-1324613"))
             .with_class(Body),
           Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
 
-      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((CRAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -401,13 +401,13 @@ mod tests {
         Format::Cram,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-465708")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-480537")),
           Url::new(expected_cram_eof_data_url()),
         ],
       ));
       assert_eq!(response, expected_response);
 
-      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((CRAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -426,7 +426,7 @@ mod tests {
       let expected_response = Ok(expected_response_with_start());
       assert_eq!(response, expected_response);
 
-      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((CRAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -444,7 +444,7 @@ mod tests {
       let expected_response = Ok(expected_response_with_start());
       assert_eq!(response, expected_response);
 
-      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((CRAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -454,7 +454,7 @@ mod tests {
       Format::Cram,
       vec![
         Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-604230")),
+          .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
         Url::new(expected_cram_eof_data_url()),
       ],
     )
@@ -472,12 +472,15 @@ mod tests {
       let expected_response = Ok(Response::new(
         Format::Cram,
         vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-6086"))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-6133"))
           .with_class(Header)],
       ));
       assert_eq!(response, expected_response);
 
-      Some((CRAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((
+        CRAM_FILE_NAME.to_string(),
+        (response.unwrap(), Header).into(),
+      ))
     })
     .await;
   }

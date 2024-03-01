@@ -132,6 +132,7 @@ mod tests {
   use std::future::Future;
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::types::Class::Body;
   use htsget_test::http::concat::ConcatResponse;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
@@ -146,7 +147,7 @@ mod tests {
 
   const DATA_LOCATION: &str = "data/bcf";
   const INDEX_FILE_LOCATION: &str = "vcf-spec-v4.3.bcf.csi";
-  const BCF_FILE_NAME_SPEC: &str = "spec-v4.3.bcf";
+  const BCF_FILE_NAME_SPEC: &str = "vcf-spec-v4.3.bcf";
   const BCF_FILE_NAME_SAMPLE: &str = "sample1-bcbio-cancer.bcf";
 
   #[tokio::test]
@@ -161,7 +162,10 @@ mod tests {
       let expected_response = Ok(expected_bcf_response(filename));
       assert_eq!(response, expected_response);
 
-      Some((BCF_FILE_NAME_SAMPLE.to_string(), response.unwrap().into()))
+      Some((
+        BCF_FILE_NAME_SAMPLE.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await
   }
@@ -185,7 +189,10 @@ mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BCF_FILE_NAME_SPEC.to_string(), response.unwrap().into()))
+      Some((
+        BCF_FILE_NAME_SPEC.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await
   }
@@ -212,7 +219,10 @@ mod tests {
       let expected_response = Ok(expected_bcf_response(filename));
       assert_eq!(response, expected_response);
 
-      Some((BCF_FILE_NAME_SAMPLE.to_string(), response.unwrap().into()))
+      Some((
+        BCF_FILE_NAME_SAMPLE.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await
   }
@@ -244,7 +254,10 @@ mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BCF_FILE_NAME_SPEC.to_string(), response.unwrap().into()))
+      Some((
+        BCF_FILE_NAME_SPEC.to_string(),
+        (response.unwrap(), Header).into(),
+      ))
     })
     .await
   }
@@ -410,7 +423,10 @@ mod tests {
     let expected_response = Ok(expected_bcf_response(filename));
     assert_eq!(response, expected_response);
 
-    Some((BCF_FILE_NAME_SAMPLE.to_string(), response.unwrap().into()))
+    Some((
+      BCF_FILE_NAME_SAMPLE.to_string(),
+      (response.unwrap(), Body).into(),
+    ))
   }
 
   fn expected_bcf_response(filename: &str) -> Response {

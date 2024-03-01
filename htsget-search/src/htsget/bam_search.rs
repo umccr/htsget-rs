@@ -202,7 +202,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -230,7 +230,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -258,7 +258,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -294,7 +294,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -323,7 +323,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -357,7 +357,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await
   }
@@ -388,7 +388,7 @@ pub(crate) mod tests {
         ));
         assert_eq!(response, expected_response);
 
-        Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+        Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
       },
       DATA_LOCATION,
       &[BAM_FILE_NAME, INDEX_FILE_LOCATION],
@@ -413,7 +413,10 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((
+        BAM_FILE_NAME.to_string(),
+        (response.unwrap(), Header).into(),
+      ))
     })
     .await;
   }
@@ -438,7 +441,7 @@ pub(crate) mod tests {
       ));
       assert_eq!(response, expected_response);
 
-      Some((BAM_FILE_NAME.to_string(), response.unwrap().into()))
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }

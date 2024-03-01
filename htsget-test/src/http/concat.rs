@@ -1,12 +1,13 @@
 use base64::engine::general_purpose;
 use base64::Engine;
 use futures::future::join_all;
-use futures::TryStreamExt;
-use htsget_config::types::{Format, Response, Url};
+use futures::{Stream, TryStreamExt};
+use htsget_config::types::{Class, Format, Response, Url};
 use http::{HeaderMap, HeaderName, HeaderValue};
 use noodles::{bam, bcf, bgzf, cram, fasta, vcf};
 use reqwest::Client;
 use std::future::Future;
+use std::io;
 use std::path::Path;
 use std::str::FromStr;
 use tokio::fs::File;
@@ -16,12 +17,13 @@ use tokio::io::AsyncReadExt;
 #[derive(Debug)]
 pub struct ConcatResponse {
   response: Response,
+  class: Class,
 }
 
 impl ConcatResponse {
   /// Create a new response concatenator.
-  pub fn new(response: Response) -> Self {
-    Self { response }
+  pub fn new(response: Response, class: Class) -> Self {
+    Self { response, class }
   }
 
   /// Get the inner response.
@@ -80,7 +82,7 @@ impl ConcatResponse {
     .collect::<Vec<Vec<u8>>>()
     .concat();
 
-    ReadRecords::new(self.response.format, merged_bytes)
+    ReadRecords::new(self.response.format, self.class, merged_bytes)
   }
 
   /// Concatenate a response into the bytes represented by the url ticket with bytes data.
@@ -93,7 +95,7 @@ impl ConcatResponse {
 
         let split: Vec<&str> = range.splitn(2, '-').collect();
 
-        bytes[split[0].parse().unwrap()..split[1].parse().unwrap()].to_vec()
+        bytes[split[0].parse().unwrap()..split[1].parse::<usize>().unwrap() + 1].to_vec()
       })
     }))
     .await
@@ -101,7 +103,7 @@ impl ConcatResponse {
     .collect::<Vec<Vec<u8>>>()
     .concat();
 
-    ReadRecords::new(self.response.format, merged_bytes)
+    ReadRecords::new(self.response.format, self.class, merged_bytes)
   }
 
   /// Convert the url to bytes with a transform function for the range urls.
@@ -118,9 +120,9 @@ impl ConcatResponse {
   }
 }
 
-impl From<Response> for ConcatResponse {
-  fn from(response: Response) -> Self {
-    Self::new(response)
+impl From<(Response, Class)> for ConcatResponse {
+  fn from((response, class): (Response, Class)) -> Self {
+    Self::new(response, class)
   }
 }
 
@@ -128,14 +130,16 @@ impl From<Response> for ConcatResponse {
 #[derive(Debug)]
 pub struct ReadRecords {
   format: Format,
+  class: Class,
   merged_bytes: Vec<u8>,
 }
 
 impl ReadRecords {
   /// Create a new record reader.
-  pub fn new(format: Format, merged_bytes: Vec<u8>) -> Self {
+  pub fn new(format: Format, class: Class, merged_bytes: Vec<u8>) -> Self {
     Self {
       format,
+      class,
       merged_bytes,
     }
   }
@@ -158,11 +162,7 @@ impl ReadRecords {
         let header = reader.read_header().await.unwrap();
         println!("{:#?}", header);
 
-        let mut records = reader.records();
-        while let Some(record) = records.try_next().await.unwrap() {
-          println!("{:#?}", record);
-          continue;
-        }
+        self.iterate_records(reader.records()).await;
       }
       Format::Cram => {
         let mut reader = cram::AsyncReader::new(self.merged_bytes.as_slice());
@@ -172,11 +172,9 @@ impl ReadRecords {
         let header = reader.read_file_header().await.unwrap().parse().unwrap();
         println!("{:#?}", header);
 
-        let mut records = reader.records(&repository, &header);
-        while let Some(record) = records.try_next().await.unwrap() {
-          println!("{:#?}", record);
-          continue;
-        }
+        self
+          .iterate_records(reader.records(&repository, &header))
+          .await;
       }
       Format::Vcf => {
         let mut reader =
@@ -184,23 +182,22 @@ impl ReadRecords {
         let header = reader.read_header().await.unwrap();
         println!("{header}");
 
-        let mut records = reader.records(&header);
-        while let Some(record) = records.try_next().await.unwrap() {
-          println!("{record}");
-          continue;
-        }
+        self.iterate_records(reader.records(&header)).await;
       }
       Format::Bcf => {
-        let mut reader =
-          bcf::AsyncReader::new(bgzf::AsyncReader::new(self.merged_bytes.as_slice()));
+        let mut reader = bcf::AsyncReader::new(self.merged_bytes.as_slice());
         reader.read_file_format().await.unwrap();
         reader.read_header().await.unwrap();
 
-        let mut records = reader.lazy_records();
-        while let Some(record) = records.try_next().await.unwrap() {
-          println!("{:#?}", record);
-          continue;
-        }
+        self.iterate_records(reader.lazy_records()).await;
+      }
+    }
+  }
+
+  async fn iterate_records<T>(&self, mut records: impl Stream<Item = io::Result<T>> + Unpin) {
+    if let Class::Body = self.class {
+      while records.try_next().await.unwrap().is_some() {
+        continue;
       }
     }
   }
