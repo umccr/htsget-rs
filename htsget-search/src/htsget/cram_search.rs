@@ -359,7 +359,31 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn search_reference_name_without_seq_range() {
+  async fn search_reference_name_without_seq_range_chr11() {
+    with_local_storage(|storage| async move {
+      let search = CramSearch::new(storage.clone());
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+        .with_reference_name("11");
+      let response = search.search(query).await;
+      println!("{response:#?}");
+
+      let expected_response = Ok(Response::new(
+        Format::Cram,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
+          Url::new(expected_cram_eof_data_url()),
+        ],
+      ));
+      assert_eq!(response, expected_response);
+
+      Some((CRAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)

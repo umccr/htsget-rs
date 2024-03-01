@@ -50,6 +50,7 @@ impl ConcatResponse {
     self.concat_from_bytes(bytes.as_slice()).await
   }
 
+  /// Concatentate a response into bytes using a reqwest client.
   pub async fn concat_from_client(self, client: &Client) -> ReadRecords {
     let merged_bytes = join_all(self.response.urls.into_iter().map(|url| {
       Self::url_to_bytes(url, |url| async move {
@@ -196,9 +197,14 @@ impl ReadRecords {
 
   async fn iterate_records<T>(&self, mut records: impl Stream<Item = io::Result<T>> + Unpin) {
     if let Class::Body = self.class {
+      let mut total_records = 0;
+
       while records.try_next().await.unwrap().is_some() {
+        total_records += 1;
         continue;
       }
+
+      println!("total records read: {}", total_records);
     }
   }
 }
