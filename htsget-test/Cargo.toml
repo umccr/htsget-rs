@@ -64,3 +64,4 @@ s3s-aws = { version = "0.8", optional = true }
 
 # Default dependencies
 rcgen = "0.12"
+thiserror = "1.0"

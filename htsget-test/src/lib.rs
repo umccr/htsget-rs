@@ -6,6 +6,7 @@ pub use htsget_config::{
 
 #[cfg(feature = "aws-mocks")]
 pub mod aws_mocks;
+pub mod error;
 #[cfg(feature = "http")]
 pub mod http;
 pub mod util;

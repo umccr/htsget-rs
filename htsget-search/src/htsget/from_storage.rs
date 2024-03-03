@@ -299,8 +299,10 @@ pub(crate) mod tests {
       response
         .concat_from_file_path(&base_path.join(target_file))
         .await
+        .unwrap()
         .read_records()
-        .await;
+        .await
+        .unwrap();
     }
   }
 

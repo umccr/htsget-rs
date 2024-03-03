@@ -44,8 +44,10 @@ where
   )
   .concat_from_client(&client)
   .await
+  .unwrap()
   .read_records()
-  .await;
+  .await
+  .unwrap();
 }
 
 /// Get the expected url path from the formatter.
