@@ -132,6 +132,8 @@ mod tests {
   use std::future::Future;
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::types::Class::Body;
+  use htsget_test::http::concat::ConcatResponse;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
@@ -145,6 +147,8 @@ mod tests {
 
   const DATA_LOCATION: &str = "data/bcf";
   const INDEX_FILE_LOCATION: &str = "vcf-spec-v4.3.bcf.csi";
+  const BCF_FILE_NAME_SPEC: &str = "vcf-spec-v4.3.bcf";
+  const BCF_FILE_NAME_SAMPLE: &str = "sample1-bcbio-cancer.bcf";
 
   #[tokio::test]
   async fn search_all_variants() {
@@ -156,7 +160,12 @@ mod tests {
       println!("{response:#?}");
 
       let expected_response = Ok(expected_bcf_response(filename));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        BCF_FILE_NAME_SAMPLE.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await
   }
@@ -178,7 +187,12 @@ mod tests {
           Url::new(expected_bgzf_eof_data_url()),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        BCF_FILE_NAME_SPEC.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await
   }
@@ -203,7 +217,12 @@ mod tests {
       println!("{response:#?}");
 
       let expected_response = Ok(expected_bcf_response(filename));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        BCF_FILE_NAME_SAMPLE.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await
   }
@@ -233,7 +252,12 @@ mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=0-949"))
           .with_class(Header)],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        BCF_FILE_NAME_SPEC.to_string(),
+        (response.unwrap(), Header).into(),
+      ))
     })
     .await
   }
@@ -246,6 +270,8 @@ mod tests {
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -262,6 +288,8 @@ mod tests {
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -278,6 +306,8 @@ mod tests {
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -295,6 +325,8 @@ mod tests {
       println!("{response:#?}");
 
       assert!(matches!(response, Err(NotFound(_))));
+
+      None
     })
     .await;
   }
@@ -311,6 +343,8 @@ mod tests {
         let response = search.get_header_end_offset(&index).await;
 
         assert_eq!(response, Ok(65536));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -327,6 +361,8 @@ mod tests {
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -344,6 +380,8 @@ mod tests {
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -361,6 +399,8 @@ mod tests {
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -368,7 +408,9 @@ mod tests {
     .await
   }
 
-  async fn test_reference_sequence_with_seq_range(storage: Arc<LocalStorage<ConfigLocalStorage>>) {
+  async fn test_reference_sequence_with_seq_range(
+    storage: Arc<LocalStorage<ConfigLocalStorage>>,
+  ) -> Option<(String, ConcatResponse)> {
     let search = BcfSearch::new(storage.clone());
     let filename = "sample1-bcbio-cancer";
     let query = Query::new_with_default_request(filename, Format::Bcf)
@@ -379,7 +421,12 @@ mod tests {
     println!("{response:#?}");
 
     let expected_response = Ok(expected_bcf_response(filename));
-    assert_eq!(response, expected_response)
+    assert_eq!(response, expected_response);
+
+    Some((
+      BCF_FILE_NAME_SAMPLE.to_string(),
+      (response.unwrap(), Body).into(),
+    ))
   }
 
   fn expected_bcf_response(filename: &str) -> Response {
@@ -396,7 +443,7 @@ mod tests {
   async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
-    Fut: Future<Output = ()>,
+    Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_local_storage_fn(test, "data/bcf", &[]).await
   }

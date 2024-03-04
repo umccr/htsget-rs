@@ -11,16 +11,11 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-test/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-http-tests = [
+http = [
     "dep:async-trait",
     "dep:http",
     "dep:serde_json",
     "dep:serde",
-    "dep:htsget-config",
-]
-cors-tests = ["http-tests", "dep:htsget-config"]
-server-tests = [
-    "http-tests",
     "dep:htsget-config",
     "dep:noodles",
     "dep:reqwest",
@@ -47,10 +42,10 @@ default = []
 # Server tests dependencies
 htsget-config = { version = "0.8.1", path = "../htsget-config", default-features = false, optional = true }
 
-noodles = { version = "0.65", optional = true, features = ["async", "bgzf", "vcf"] }
+noodles = { version = "0.65", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
 
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"], optional = true }
-tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "fs"], optional = true }
 futures = { version = "0.3", optional = true }
 async-trait = { version = "0.1", optional = true }
 http = { version = "0.2", optional = true }
@@ -69,3 +64,4 @@ s3s-aws = { version = "0.8", optional = true }
 
 # Default dependencies
 rcgen = "0.12"
+thiserror = "1.0"

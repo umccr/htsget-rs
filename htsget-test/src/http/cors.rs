@@ -4,7 +4,7 @@ use http::header::{
 };
 use http::Method;
 
-use crate::http_tests::{Header, TestRequest, TestServer};
+use crate::http::{Header, TestRequest, TestServer};
 
 /// A simple cors request test.
 pub async fn test_cors_simple_request<T: TestRequest>(tester: &impl TestServer<T>) {

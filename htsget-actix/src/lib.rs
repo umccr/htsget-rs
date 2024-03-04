@@ -151,12 +151,12 @@ mod tests {
 
   use htsget_config::types::JsonResponse;
   use htsget_search::storage::data_server::BindDataServer;
-  use htsget_test::http_tests::{config_with_tls, default_test_config};
-  use htsget_test::http_tests::{
+  use htsget_test::http::server::expected_url_path;
+  use htsget_test::http::{config_with_tls, default_test_config};
+  use htsget_test::http::{cors, server};
+  use htsget_test::http::{
     Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
-  use htsget_test::server_tests::expected_url_path;
-  use htsget_test::{cors_tests, server_tests};
 
   use crate::Config;
 
@@ -272,55 +272,51 @@ mod tests {
 
   #[actix_web::test]
   async fn get_http_tickets() {
-    server_tests::test_get::<JsonResponse, _>(&ActixTestServer::default()).await;
+    server::test_get::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn post_http_tickets() {
-    server_tests::test_post::<JsonResponse, _>(&ActixTestServer::default()).await;
+    server::test_post::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_get_http_tickets() {
-    server_tests::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::default()).await;
+    server::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_http_tickets() {
-    server_tests::test_parameterized_post::<JsonResponse, _>(&ActixTestServer::default()).await;
+    server::test_parameterized_post::<JsonResponse, _>(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn parameterized_post_class_header_http_tickets() {
-    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
-      &ActixTestServer::default(),
-    )
-    .await;
+    server::test_parameterized_post_class_header::<JsonResponse, _>(&ActixTestServer::default())
+      .await;
   }
 
   #[actix_web::test]
   async fn service_info() {
-    server_tests::test_service_info(&ActixTestServer::default()).await;
+    server::test_service_info(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_get::<JsonResponse, _>(&ActixTestServer::new_with_tls(base_path.path()))
-      .await;
+    server::test_get::<JsonResponse, _>(&ActixTestServer::new_with_tls(base_path.path())).await;
   }
 
   #[actix_web::test]
   async fn post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_post::<JsonResponse, _>(&ActixTestServer::new_with_tls(base_path.path()))
-      .await;
+    server::test_post::<JsonResponse, _>(&ActixTestServer::new_with_tls(base_path.path())).await;
   }
 
   #[actix_web::test]
   async fn parameterized_get_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::new_with_tls(
+    server::test_parameterized_get::<JsonResponse, _>(&ActixTestServer::new_with_tls(
       base_path.path(),
     ))
     .await;
@@ -329,7 +325,7 @@ mod tests {
   #[actix_web::test]
   async fn parameterized_post_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post::<JsonResponse, _>(&ActixTestServer::new_with_tls(
+    server::test_parameterized_post::<JsonResponse, _>(&ActixTestServer::new_with_tls(
       base_path.path(),
     ))
     .await;
@@ -338,7 +334,7 @@ mod tests {
   #[actix_web::test]
   async fn parameterized_post_class_header_https_tickets() {
     let base_path = TempDir::new().unwrap();
-    server_tests::test_parameterized_post_class_header::<JsonResponse, _>(
+    server::test_parameterized_post_class_header::<JsonResponse, _>(
       &ActixTestServer::new_with_tls(base_path.path()),
     )
     .await;
@@ -346,11 +342,11 @@ mod tests {
 
   #[actix_web::test]
   async fn cors_simple_request() {
-    cors_tests::test_cors_simple_request(&ActixTestServer::default()).await;
+    cors::test_cors_simple_request(&ActixTestServer::default()).await;
   }
 
   #[actix_web::test]
   async fn cors_preflight_request() {
-    cors_tests::test_cors_preflight_request(&ActixTestServer::default()).await;
+    cors::test_cors_preflight_request(&ActixTestServer::default()).await;
   }
 }

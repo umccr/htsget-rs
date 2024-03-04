@@ -1,23 +1,16 @@
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::str::FromStr;
 
-use base64::engine::general_purpose;
-use base64::Engine;
-use futures::future::join_all;
-use futures::TryStreamExt;
-use http::header::HeaderName;
-use http::{HeaderMap, HeaderValue, Method};
-use noodles::bgzf;
-use noodles::vcf;
+use http::Method;
 use reqwest::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::http::concat::ConcatResponse;
 use htsget_config::types::Class;
 use htsget_config::types::Format;
 
-use crate::http_tests::{Header, Response, TestRequest, TestServer};
+use crate::http::{Header, Response, TestRequest, TestServer};
 use crate::util::expected_bgzf_eof_data_url;
 use crate::Config;
 
@@ -45,65 +38,16 @@ where
     .build()
     .unwrap();
 
-  let merged_response = join_all(
-    expected_response
-      .get("htsget")
-      .unwrap()
-      .get("urls")
-      .unwrap()
-      .as_array()
-      .unwrap()
-      .iter()
-      .map(|url| async {
-        if let Some(data_uri) = url
-          .get("url")
-          .unwrap()
-          .as_str()
-          .unwrap()
-          .strip_prefix("data:;base64,")
-        {
-          general_purpose::STANDARD.decode(data_uri).unwrap()
-        } else {
-          client
-            .get(url.get("url").unwrap().as_str().unwrap())
-            .headers(HeaderMap::from_iter(
-              url
-                .get("headers")
-                .unwrap()
-                .as_object()
-                .unwrap_or(&serde_json::Map::new())
-                .into_iter()
-                .map(|(key, value)| {
-                  (
-                    HeaderName::from_str(key).unwrap(),
-                    HeaderValue::from_str(value.as_str().unwrap()).unwrap(),
-                  )
-                }),
-            ))
-            .send()
-            .await
-            .unwrap()
-            .bytes()
-            .await
-            .unwrap()
-            .to_vec()
-        }
-      }),
+  ConcatResponse::new(
+    serde_json::from_value(expected_response.get("htsget").unwrap().clone()).unwrap(),
+    class,
   )
+  .concat_from_client(&client)
   .await
-  .into_iter()
-  .reduce(|acc, x| [acc, x].concat())
+  .unwrap()
+  .read_records()
+  .await
   .unwrap();
-
-  let mut reader = vcf::AsyncReader::new(bgzf::AsyncReader::new(merged_response.as_slice()));
-  let header = reader.read_header().await.unwrap();
-  println!("{header}");
-
-  let mut records = reader.records(&header);
-  while let Some(record) = records.try_next().await.unwrap() {
-    println!("{record}");
-    continue;
-  }
 }
 
 /// Get the expected url path from the formatter.

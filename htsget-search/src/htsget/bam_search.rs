@@ -169,6 +169,7 @@ pub(crate) mod tests {
   use std::future::Future;
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_test::http::concat::ConcatResponse;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
@@ -181,6 +182,7 @@ pub(crate) mod tests {
 
   const DATA_LOCATION: &str = "data/bam";
   const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.bam.bai";
+  pub(crate) const BAM_FILE_NAME: &str = "htsnexus_test_NA12878.bam";
 
   #[tokio::test]
   async fn search_all_reads() {
@@ -198,7 +200,9 @@ pub(crate) mod tests {
           Url::new(expected_bgzf_eof_data_url()),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -224,13 +228,39 @@ pub(crate) mod tests {
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
 
   #[tokio::test]
-  async fn search_reference_name_without_seq_range() {
+  async fn search_reference_name_without_seq_range_chr11() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11");
+      let response = search.search(query).await;
+      println!("{response:#?}");
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-996014")),
+          Url::new(expected_bgzf_eof_data_url()),
+        ],
+      ));
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
@@ -250,7 +280,9 @@ pub(crate) mod tests {
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -284,7 +316,9 @@ pub(crate) mod tests {
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -311,7 +345,9 @@ pub(crate) mod tests {
           Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -343,7 +379,9 @@ pub(crate) mod tests {
           Url::new(expected_bgzf_eof_data_url()),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await
   }
@@ -372,10 +410,12 @@ pub(crate) mod tests {
             Url::new(expected_bgzf_eof_data_url()).with_class(Body),
           ],
         ));
-        assert_eq!(response, expected_response)
+        assert_eq!(response, expected_response);
+
+        Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
       },
       DATA_LOCATION,
-      &["htsnexus_test_NA12878.bam", INDEX_FILE_LOCATION],
+      &[BAM_FILE_NAME, INDEX_FILE_LOCATION],
     )
     .await
   }
@@ -395,7 +435,12 @@ pub(crate) mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
           .with_class(Header)],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        BAM_FILE_NAME.to_string(),
+        (response.unwrap(), Header).into(),
+      ))
     })
     .await;
   }
@@ -419,6 +464,8 @@ pub(crate) mod tests {
         ],
       ));
       assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -433,6 +480,8 @@ pub(crate) mod tests {
       println!("{response:#?}");
 
       assert!(matches!(response, Err(NotFound(_))));
+
+      None
     })
     .await;
   }
@@ -445,6 +494,8 @@ pub(crate) mod tests {
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -461,6 +512,8 @@ pub(crate) mod tests {
           .with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -477,6 +530,8 @@ pub(crate) mod tests {
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -496,6 +551,8 @@ pub(crate) mod tests {
         let response = search.get_header_end_offset(&index).await;
 
         assert_eq!(response, Ok(70204));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -512,6 +569,8 @@ pub(crate) mod tests {
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -529,6 +588,8 @@ pub(crate) mod tests {
           .with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -546,6 +607,8 @@ pub(crate) mod tests {
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -556,7 +619,7 @@ pub(crate) mod tests {
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
-    Fut: Future<Output = ()>,
+    Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_local_storage_fn(test, DATA_LOCATION, &[]).await
   }
