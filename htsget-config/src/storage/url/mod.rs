@@ -30,6 +30,7 @@ pub struct UrlStorage {
   endpoints: Endpoints,
   response_url: ValidatedUrl,
   forward_headers: bool,
+  user_agent: Option<String>,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
 }
@@ -40,6 +41,7 @@ pub struct UrlStorageClient {
   endpoints: Endpoints,
   response_url: ValidatedUrl,
   forward_headers: bool,
+  user_agent: Option<String>,
   client: Client<HttpsConnector<HttpConnector>>,
 }
 
@@ -58,6 +60,7 @@ impl From<UrlStorage> for UrlStorageClient {
       storage.endpoints,
       storage.response_url,
       storage.forward_headers,
+      storage.user_agent,
       client,
     )
   }
@@ -69,12 +72,14 @@ impl UrlStorageClient {
     endpoints: Endpoints,
     response_url: ValidatedUrl,
     forward_headers: bool,
+    user_agent: Option<String>,
     client: Client<HttpsConnector<HttpConnector>>,
   ) -> Self {
     Self {
       endpoints,
       response_url,
       forward_headers,
+      user_agent,
       client,
     }
   }
@@ -94,6 +99,12 @@ impl UrlStorageClient {
     self.forward_headers
   }
 
+  /// Get the user agent.
+  pub fn user_agent(&self) -> Option<String> {
+    self.user_agent.clone()
+  }
+
+  /// Get a cloned copy of the http client.
   pub fn client_cloned(&self) -> Client<HttpsConnector<HttpConnector>> {
     self.client.clone()
   }
@@ -142,6 +153,7 @@ impl UrlStorage {
     endpoints: Endpoints,
     response_url: InnerUrl,
     forward_headers: bool,
+    user_agent: Option<String>,
     tls: TlsClientConfig,
   ) -> Self {
     Self {
@@ -150,6 +162,7 @@ impl UrlStorage {
         inner: response_url,
       }),
       forward_headers,
+      user_agent,
       tls,
     }
   }
@@ -170,6 +183,11 @@ impl UrlStorage {
     self.forward_headers
   }
 
+  /// Get the user agent.
+  pub fn user_agent(&self) -> Option<&str> {
+    self.user_agent.as_deref()
+  }
+
   /// Get the tls client config.
   pub fn tls(&self) -> &TlsClientConfig {
     &self.tls
@@ -182,6 +200,7 @@ impl Default for UrlStorage {
       endpoints: Default::default(),
       response_url: default_url(),
       forward_headers: true,
+      user_agent: None,
       tls: TlsClientConfig::default(),
     }
   }
@@ -208,6 +227,7 @@ mod tests {
         [resolvers.storage]
         response_url = "https://example.com/"
         forward_headers = false
+        user_agent = "user-agent"
         tls.key = "{}"
         tls.cert = "{}"
         tls.root_store = "{}"
@@ -226,7 +246,7 @@ mod tests {
           assert!(matches!(
               config.resolvers().first().unwrap().storage(),
               Storage::Url { url_storage } if *url_storage.endpoints().file() == "https://example.com/"
-                && !url_storage.forward_headers()
+                && !url_storage.forward_headers() && url_storage.user_agent() == Some("user-agent".to_string())
           ));
         },
       );

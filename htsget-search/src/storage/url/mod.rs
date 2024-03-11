@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
-use http::header::CONTENT_LENGTH;
+use http::header::{CONTENT_LENGTH, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
@@ -54,6 +54,8 @@ pub const SERVER_PUBLIC_KEY_NAME: &str = "server-public-key";
 pub const CLIENT_ADDITIONAL_BYTES: &str = "client-additional-bytes";
 pub const SERVER_ADDITIONAL_BYTES: &str = "server-additional-bytes";
 
+static HTSGET_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
 pub struct UrlStorage {
@@ -61,6 +63,7 @@ pub struct UrlStorage {
   endpoints: Endpoints,
   response_url: Uri,
   forward_headers: bool,
+  user_agent: Option<String>,
   #[cfg(feature = "crypt4gh")]
   encrypt: Encrypt,
 }
@@ -72,12 +75,14 @@ impl UrlStorage {
     endpoints: Endpoints,
     response_url: Uri,
     forward_headers: bool,
+    user_agent: Option<String>,
   ) -> Self {
     Self {
       client,
       endpoints,
       response_url,
       forward_headers,
+      user_agent,
       #[cfg(feature = "crypt4gh")]
       encrypt: Default::default(),
     }
@@ -95,6 +100,7 @@ impl UrlStorage {
     endpoints: Endpoints,
     response_url: Uri,
     forward_headers: bool,
+    user_agent: Option<String>,
   ) -> Self {
     Self {
       client: Client::builder().build(
@@ -108,6 +114,7 @@ impl UrlStorage {
       endpoints,
       response_url,
       forward_headers,
+      user_agent,
       #[cfg(feature = "crypt4gh")]
       encrypt: Default::default(),
     }
@@ -162,6 +169,10 @@ impl UrlStorage {
     let request = headers
       .iter()
       .fold(request, |acc, (key, value)| acc.header(key, value))
+      .header(
+        USER_AGENT,
+        self.user_agent.as_deref().unwrap_or(HTSGET_USER_AGENT),
+      )
       .body(Body::empty())
       .map_err(|err| UrlParseError(err.to_string()))?;
 
@@ -600,7 +611,7 @@ mod tests {
   use axum::response::{IntoResponse, Response};
   use axum::routing::{get, head};
   use axum::{middleware, Router};
-  use http::header::AUTHORIZATION;
+  use http::header::{AUTHORIZATION, USER_AGENT};
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use hyper::body::to_bytes;
   use tokio::fs::File;
@@ -638,6 +649,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      Some("user-agent".to_string()),
     );
 
     assert_eq!(
@@ -658,6 +670,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      Some("user-agent".to_string()),
     );
 
     assert_eq!(
@@ -679,6 +692,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut headers = HeaderMap::default();
@@ -715,6 +729,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut headers = HeaderMap::default();
@@ -746,6 +761,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut headers = HeaderMap::default();
@@ -775,6 +791,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut headers = HeaderMap::default();
@@ -800,6 +817,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut headers = HeaderMap::default();
@@ -822,6 +840,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut headers = HeaderMap::default();
@@ -847,6 +866,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      Some("user-agent".to_string()),
     );
 
     let mut headers = HeaderMap::default();
@@ -873,6 +893,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("http://example.com").unwrap(),
       true,
+      Some("user-agent".to_string()),
     );
 
     let mut headers = HeaderMap::default();
@@ -899,6 +920,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("https://localhost:8081").unwrap(),
       false,
+      Some("user-agent".to_string()),
     );
 
     let mut headers = HeaderMap::default();
@@ -918,6 +940,7 @@ mod tests {
         endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut header_map = HeaderMap::default();
@@ -960,6 +983,7 @@ mod tests {
         endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut key_gen = Encrypt::default();
@@ -1011,6 +1035,7 @@ mod tests {
         endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
+        Some("user-agent".to_string()),
       );
 
       let mut key_gen = Encrypt::default();
@@ -1214,10 +1239,15 @@ mod tests {
     let router = Router::new()
       .route(
         "/endpoint_file/:id",
-        get(|_headers: HeaderMap| async move {
+        get(|headers: HeaderMap| async move {
+          assert_eq!(
+            headers.get(USER_AGENT),
+            Some(&HeaderValue::from_static("user-agent"))
+          );
+
           #[cfg(feature = "crypt4gh")]
-          if _headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
-            let range = _headers.get(RANGE).unwrap().to_str().unwrap();
+          if headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
+            let range = headers.get(RANGE).unwrap().to_str().unwrap();
             let range = BytesPosition::from_str(range).unwrap();
 
             let mut bytes = vec![];
@@ -1244,7 +1274,7 @@ mod tests {
               method: 0,
               privkey: encryption_keys.private_key().clone().0,
               recipient_pubkey: general_purpose::STANDARD
-                .decode(_headers.get(SERVER_PUBLIC_KEY_NAME).unwrap())
+                .decode(headers.get(SERVER_PUBLIC_KEY_NAME).unwrap())
                 .unwrap(),
             };
 

@@ -432,6 +432,7 @@ mod tests {
         inner: InnerUrl::from_str(endpoint).unwrap(),
       }),
       true,
+      Some("user-agent".to_string()),
       client,
     )
   }
