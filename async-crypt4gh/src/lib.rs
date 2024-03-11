@@ -228,7 +228,7 @@ impl Deref for DecryptedBytes {
 pub(crate) mod tests {
   use tokio::io::AsyncReadExt;
 
-  use htsget_test::http_tests::get_test_file;
+  use htsget_test::http::get_test_file;
 
   /// Get the original file bytes.
   pub(crate) async fn get_original_file() -> Vec<u8> {

@@ -453,7 +453,7 @@ mod tests {
   use futures_util::StreamExt;
   use tokio::fs::File;
 
-  use htsget_test::http_tests::get_test_file;
+  use htsget_test::http::get_test_file;
 
   use crate::decoder::tests::assert_last_data_block;
   use crate::decrypter::builder::Builder;

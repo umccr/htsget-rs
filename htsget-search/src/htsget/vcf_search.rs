@@ -141,6 +141,8 @@ pub(crate) mod tests {
   use std::future::Future;
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::types::Class::Body;
+  use htsget_test::http::concat::ConcatResponse;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
@@ -153,6 +155,8 @@ pub(crate) mod tests {
 
   const VCF_LOCATION: &str = "data/vcf";
   const INDEX_FILE_LOCATION: &str = "spec-v4.3.vcf.gz.tbi";
+  pub(crate) const VCF_FILE_NAME_SPEC: &str = "spec-v4.3.vcf.gz";
+  const VCF_FILE_NAME_SAMPLE: &str = "sample1-bcbio-cancer.vcf.gz";
 
   #[tokio::test]
   async fn search_all_variants() {
@@ -164,7 +168,12 @@ pub(crate) mod tests {
       println!("{response:#?}");
 
       let expected_response = Ok(expected_vcf_response(filename));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        VCF_FILE_NAME_SAMPLE.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await;
   }
@@ -183,7 +192,12 @@ pub(crate) mod tests {
         vec![Url::new(expected_url(filename))
           .with_headers(Headers::default().with_header("Range", "bytes=0-850"))],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        VCF_FILE_NAME_SPEC.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await;
   }
@@ -208,6 +222,11 @@ pub(crate) mod tests {
 
       let expected_response = Ok(expected_vcf_response(filename));
       assert_eq!(response, expected_response);
+
+      Some((
+        VCF_FILE_NAME_SAMPLE.to_string(),
+        (response.unwrap(), Body).into(),
+      ))
     })
     .await;
   }
@@ -240,7 +259,12 @@ pub(crate) mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=0-822"))
           .with_class(Header)],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        VCF_FILE_NAME_SPEC.to_string(),
+        (response.unwrap(), Header).into(),
+      ))
     })
     .await;
   }
@@ -253,6 +277,8 @@ pub(crate) mod tests {
         let query = Query::new_with_defaults("spec-v4.3", Format::Vcf);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -268,6 +294,8 @@ pub(crate) mod tests {
         let query = Query::new_with_defaults("spec-v4.3", Format::Vcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -283,6 +311,8 @@ pub(crate) mod tests {
         let query = Query::new_with_defaults("spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -299,6 +329,8 @@ pub(crate) mod tests {
       println!("{response:#?}");
 
       assert!(matches!(response, Err(NotFound(_))));
+
+      None
     })
     .await;
   }
@@ -314,6 +346,8 @@ pub(crate) mod tests {
         let response = search.get_header_end_offset(&index).await;
 
         assert_eq!(response, Ok(65536));
+
+        None
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -330,6 +364,8 @@ pub(crate) mod tests {
         let query = Query::new_with_defaults("spec-v4.3", Format::Vcf);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -346,6 +382,8 @@ pub(crate) mod tests {
         let query = Query::new_with_defaults("spec-v4.3", Format::Vcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -362,6 +400,8 @@ pub(crate) mod tests {
         let query = Query::new_with_defaults("spec-v4.3", Format::Vcf).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       VCF_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -369,7 +409,9 @@ pub(crate) mod tests {
     .await
   }
 
-  async fn test_reference_name_with_seq_range(storage: Arc<LocalStorage<ConfigLocalStorage>>) {
+  async fn test_reference_name_with_seq_range(
+    storage: Arc<LocalStorage<ConfigLocalStorage>>,
+  ) -> Option<(String, ConcatResponse)> {
     let search = VcfSearch::new(storage.clone());
     let filename = "sample1-bcbio-cancer";
     let query = Query::new_with_defaults(filename, Format::Vcf)
@@ -381,6 +423,11 @@ pub(crate) mod tests {
 
     let expected_response = Ok(expected_vcf_response(filename));
     assert_eq!(response, expected_response);
+
+    Some((
+      VCF_FILE_NAME_SAMPLE.to_string(),
+      (response.unwrap(), Body).into(),
+    ))
   }
 
   fn expected_vcf_response(filename: &str) -> Response {
@@ -394,7 +441,7 @@ pub(crate) mod tests {
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
-    Fut: Future<Output = ()>,
+    Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_local_storage_fn(test, "data/vcf", &[]).await
   }

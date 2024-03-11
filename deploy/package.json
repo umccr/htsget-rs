@@ -10,19 +10,21 @@
     "cdk": "cdk"
   },
   "devDependencies": {
-    "@types/node": "^20.5.9",
-    "aws-cdk": "^2.94.0",
-    "prettier": "3.0.3",
-    "typescript": "^5.2.2"
+    "@types/node": "^18.11.18",
+    "aws-cdk": "^2.96.1",
+    "aws-cdk-local": "^2.18.0",
+    "prettier": "2.8.3",
+    "typescript": "^4.9.4"
   },
   "dependencies": {
-    "@aws-cdk/aws-apigatewayv2-alpha": "^2.94.0-alpha.0",
-    "@aws-cdk/aws-apigatewayv2-authorizers-alpha": "^2.94.0-alpha.0",
-    "@aws-cdk/aws-apigatewayv2-integrations-alpha": "^2.94.0-alpha.0",
+    "@aws-cdk/aws-apigatewayv2-alpha": "^2.96.1-alpha.0",
+    "@aws-cdk/aws-apigatewayv2-authorizers-alpha": "^2.96.1-alpha.0",
+    "@aws-cdk/aws-apigatewayv2-integrations-alpha": "^2.96.1-alpha.0",
     "@iarna/toml": "^3.0.0",
-    "aws-cdk-lib": "^2.94.0",
-    "constructs": "^10.2.70",
-    "rust.aws-cdk-lambda": "^1.2.1",
+    "aws-cdk-lib": "^2.96.1",
+    "constructs": "^10.1.148",
+    "glob": "^10.3.10",
+    "rust.aws-cdk-lambda": "^1.1.3",
     "source-map-support": "^0.5.21"
   }
 }

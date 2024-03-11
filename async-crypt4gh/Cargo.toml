@@ -30,4 +30,4 @@ tracing = "0.1"
 [dev-dependencies]
 noodles = { version = "0.60", features = ["async", "bam", "sam"] }
 
-htsget-test = { version = "0.5.0", path = "../htsget-test", features = ["http-tests", "crypt4gh"], default-features = false }
+htsget-test = { version = "0.5.0", path = "../htsget-test", features = ["http", "crypt4gh"], default-features = false }

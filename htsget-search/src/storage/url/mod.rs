@@ -614,15 +614,15 @@ mod tests {
     htsget_config::resolver::object::{ObjectType, TaggedObjectTypes},
     htsget_config::tls::crypt4gh::Crypt4GHKeyPair,
     htsget_test::crypt4gh::get_encryption_keys,
-    htsget_test::http_tests::test_bam_crypt4gh_byte_ranges,
+    htsget_test::http::test_bam_crypt4gh_byte_ranges,
     std::collections::HashSet,
   };
 
   use htsget_config::types::Class::{Body, Header};
   use htsget_config::types::Request as HtsgetRequest;
   use htsget_config::types::{Format, Headers, Query, Url};
-  use htsget_test::http_tests::default_dir;
-  use htsget_test::http_tests::{parse_as_bgzf, test_bam_file_byte_ranges};
+  use htsget_test::http::default_dir;
+  use htsget_test::http::{parse_as_bgzf, test_bam_file_byte_ranges};
 
   use crate::htsget::from_storage::HtsGetFromStorage;
   use crate::htsget::HtsGet;

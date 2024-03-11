@@ -1,67 +1,160 @@
+import { STACK_NAME } from "../bin/htsget-lambda";
+import * as TOML from "@iarna/toml";
+import { readFileSync } from "fs";
+
 import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import * as iam from "aws-cdk-lib/aws-iam";
 import { RustFunction, Settings } from "rust.aws-cdk-lambda";
+
+import { UserPool } from "aws-cdk-lib/aws-cognito";
+import {
+  Role,
+  ServicePrincipal,
+  PolicyStatement,
+  ManagedPolicy,
+} from "aws-cdk-lib/aws-iam";
 import { Architecture } from "aws-cdk-lib/aws-lambda";
-import * as apigwv2 from "@aws-cdk/aws-apigatewayv2-alpha";
-import { STACK_NAME } from "../bin/htsget-lambda";
+import {
+  CorsHttpMethod,
+  HttpMethod,
+  HttpApi,
+  DomainName,
+} from "@aws-cdk/aws-apigatewayv2-alpha";
 import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
-import { StringParameter } from "aws-cdk-lib/aws-ssm";
 import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
+import {
+  Certificate,
+  CertificateValidation,
+} from "aws-cdk-lib/aws-certificatemanager";
 import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
-import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
-import * as fs from "fs";
-import * as TOML from "@iarna/toml";
 
 /**
- * Configuration for HtsgetLambdaStack.
+ * Settings related to the htsget lambda stack.
  */
-export type Config = {
-  environment: string;
-  htsgetConfig: { [key: string]: any };
-  allowCredentials?: boolean;
-  allowHeaders?: string[];
-  allowMethods?: apigwv2.CorsHttpMethod[];
-  allowOrigins?: string[];
-  exposeHeaders?: string[];
-  maxAge?: Duration;
-  parameterStoreConfig: ParameterStoreConfig;
+export type HtsgetSettings = {
+  /**
+   * The location of the htsget-rs config file.
+   */
+  config: string;
+
+  /**
+   * The domain name for the htsget server.
+   */
+  domain: string;
+
+  /**
+   * The domain name prefix to use for the htsget-rs server. Defaults to `"htsget"`.
+   */
+  subDomain?: string;
+
+  /**
+   * Policies to add to the bucket. If this is not specified, this defaults to `["arn:aws:s3:::*"]`.
+   * This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`.
+   */
+  s3BucketResources?: string[];
+
+  /**
+   * Whether this deployment is gated behind a JWT authorizer, or if its public.
+   */
+  jwtAuthorizer: HtsgetJwtAuthSettings;
+
+  /**
+   * Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an
+   * existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone under the
+   * domain name.
+   */
+  lookupHostedZone?: boolean;
 };
 
 /**
- * Configuration values obtained from AWS System Manager Parameter Store.
+ * JWT authorization settings.
  */
-export type ParameterStoreConfig = {
-  arnCert: string;
-  hostedZoneId: string;
-  hostedZoneName: string;
-  htsgetDomain: string;
-  cogUserPoolId: string;
-  jwtAud: string[];
+export type HtsgetJwtAuthSettings = {
+  /**
+   * Whether this deployment is public.
+   */
+  public: boolean;
+
+  /**
+   * The JWT audience.
+   */
+  jwtAudience?: string[];
+
+  /**
+   * The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.
+   */
+  cogUserPoolId?: string;
+};
+
+/**
+ * Configuration for htsget-rs.
+ */
+export type Config = {
+  /**
+   * The config values passed to the htsget-rs server.
+   */
+  htsgetConfig: { [key: string]: string };
+
+  /**
+   * CORS allow credentials.
+   */
+  allowCredentials?: boolean;
+
+  /**
+   * CORS allow headers.
+   */
+  allowHeaders?: string[];
+
+  /**
+   * CORS allow methods.
+   */
+  allowMethods?: CorsHttpMethod[];
+
+  /**
+   * CORS allow origins.
+   */
+  allowOrigins?: string[];
+
+  /**
+   * CORS expose headers.
+   */
+  exposeHeaders?: string[];
+
+  /**
+   * CORS max age.
+   */
+  maxAge?: Duration;
 };
 
 /**
  * Stack used to deploy htsget-lambda.
  */
 export class HtsgetLambdaStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: StackProps,
+    settings: HtsgetSettings,
+  ) {
     super(scope, id, props);
 
     Tags.of(this).add("Stack", STACK_NAME);
 
-    const lambdaRole = new iam.Role(this, id + "Role", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    const config = this.getConfig(settings.config);
+
+    const lambdaRole = new Role(this, id + "Role", {
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
       description: "Lambda execution role for " + id,
     });
 
-    const s3BucketPolicy = new iam.PolicyStatement({
+    const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
-      resources: ["arn:aws:s3:::*"],
+      resources: settings.s3BucketResources ?? ["arn:aws:s3:::*"],
     });
 
     lambdaRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName(
+      ManagedPolicy.fromAwsManagedPolicyName(
         "service-role/AWSLambdaBasicExecutionRole",
       ),
     );
@@ -72,7 +165,6 @@ export class HtsgetLambdaStack extends Stack {
     // Don't build htsget packages other than htsget-lambda.
     Settings.BUILD_INDIVIDUALLY = true;
 
-    const config = this.getConfig();
     let htsgetLambda = new RustFunction(this, id + "Function", {
       // Build htsget-lambda only.
       package: "htsget-lambda",
@@ -95,39 +187,59 @@ export class HtsgetLambdaStack extends Stack {
       role: lambdaRole,
     });
 
-    const parameterStoreConfig = config.parameterStoreConfig;
     const httpIntegration = new HttpLambdaIntegration(
       id + "HtsgetIntegration",
       htsgetLambda,
     );
-    const authorizer = new HttpJwtAuthorizer(
-      id + "HtsgetAuthorizer",
-      `https://cognito-idp.${this.region}.amazonaws.com/${parameterStoreConfig.cogUserPoolId}`,
-      {
-        identitySource: ["$request.header.Authorization"],
-        jwtAudience: parameterStoreConfig.jwtAud,
-      },
-    );
 
-    const domainName = new apigwv2.DomainName(this, id + "HtsgetDomainName", {
-      certificate: Certificate.fromCertificateArn(
-        this,
-        id + "HtsgetDomainCert",
-        parameterStoreConfig.arnCert,
-      ),
-      domainName: parameterStoreConfig.htsgetDomain,
+    // Add an authorizer if auth is required.
+    let authorizer = undefined;
+    if (!settings.jwtAuthorizer.public) {
+      // If the cog user pool id is not specified, create a new one.
+      if (settings.jwtAuthorizer.cogUserPoolId === undefined) {
+        const pool = new UserPool(this, "userPool", {
+          userPoolName: "HtsgetRsUserPool",
+        });
+        settings.jwtAuthorizer.cogUserPoolId = pool.userPoolId;
+      }
+
+      authorizer = new HttpJwtAuthorizer(
+        id + "HtsgetAuthorizer",
+        `https://cognito-idp.${this.region}.amazonaws.com/${settings.jwtAuthorizer.cogUserPoolId}`,
+        {
+          identitySource: ["$request.header.Authorization"],
+          jwtAudience: settings.jwtAuthorizer.jwtAudience ?? [],
+        },
+      );
+    }
+
+    let hostedZone;
+    if (settings.lookupHostedZone ?? true) {
+      hostedZone = HostedZone.fromLookup(this, "HostedZone", {
+        domainName: settings.domain,
+      });
+    } else {
+      hostedZone = new HostedZone(this, id + "HtsgetHostedZone", {
+        zoneName: settings.domain,
+      });
+    }
+
+    let url = `${settings.subDomain ?? "htsget"}.${settings.domain}`;
+
+    let certificate = new Certificate(this, id + "HtsgetCertificate", {
+      domainName: url,
+      validation: CertificateValidation.fromDns(hostedZone),
+      certificateName: url,
     });
-    const hostedZone = HostedZone.fromHostedZoneAttributes(
-      this,
-      id + "HtsgetHostedZone",
-      {
-        hostedZoneId: parameterStoreConfig.hostedZoneId,
-        zoneName: parameterStoreConfig.hostedZoneName,
-      },
-    );
+
+    const domainName = new DomainName(this, id + "HtsgetDomainName", {
+      certificate: certificate,
+      domainName: url,
+    });
+
     new ARecord(this, id + "HtsgetARecord", {
       zone: hostedZone,
-      recordName: "htsget",
+      recordName: settings.subDomain ?? "htsget",
       target: RecordTarget.fromAlias(
         new ApiGatewayv2DomainProperties(
           domainName.regionalDomainName,
@@ -136,9 +248,7 @@ export class HtsgetLambdaStack extends Stack {
       ),
     });
 
-    const httpApi = new apigwv2.HttpApi(this, id + "ApiGw", {
-      // Use explicit routes GET, POST with {proxy+} path
-      // defaultIntegration: httpIntegration,
+    const httpApi = new HttpApi(this, id + "ApiGw", {
       defaultAuthorizer: authorizer,
       defaultDomainMapping: {
         domainName: domainName,
@@ -155,41 +265,9 @@ export class HtsgetLambdaStack extends Stack {
 
     httpApi.addRoutes({
       path: "/{proxy+}",
-      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      methods: [HttpMethod.GET, HttpMethod.POST],
       integration: httpIntegration,
     });
-  }
-
-  /**
-   * Get config values from the Parameter Store.
-   */
-  getParameterStoreConfig(config: any): ParameterStoreConfig {
-    const parameterStoreNames = config.parameter_store_names;
-    return {
-      arnCert: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.arn_cert,
-      ),
-      jwtAud: parameterStoreNames.jwt_aud.map((jwtAud: string) =>
-        StringParameter.valueFromLookup(this, jwtAud),
-      ),
-      cogUserPoolId: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.cog_user_pool_id,
-      ),
-      htsgetDomain: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.htsget_domain,
-      ),
-      hostedZoneId: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.hosted_zone_id,
-      ),
-      hostedZoneName: StringParameter.valueFromLookup(
-        this,
-        parameterStoreNames.hosted_zone_name,
-      ),
-    };
   }
 
   /**
@@ -227,35 +305,23 @@ export class HtsgetLambdaStack extends Stack {
    */
   static corsAllowMethodToHttpMethod(
     corsAllowMethod?: string[],
-  ): apigwv2.CorsHttpMethod[] | undefined {
+  ): CorsHttpMethod[] | undefined {
     if (corsAllowMethod?.length === 1 && corsAllowMethod.includes("*")) {
-      return [apigwv2.CorsHttpMethod.ANY];
+      return [CorsHttpMethod.ANY];
     } else {
       return corsAllowMethod?.map(
-        (element) =>
-          apigwv2.CorsHttpMethod[
-            element as keyof typeof apigwv2.CorsHttpMethod
-          ],
+        (element) => CorsHttpMethod[element as keyof typeof CorsHttpMethod],
       );
     }
   }
 
   /**
-   * Get the environment configuration from cdk.json. Pass `--context "env=dev"` or `--context "env=prod"` to
-   * control the environment.
+   * Get the environment from config.toml
    */
-  getConfig(): Config {
-    let env: string = this.node.tryGetContext("env");
-    if (!env) {
-      console.log("No environment supplied, using `dev` environment config");
-      env = "dev";
-    }
-
-    const config = this.node.tryGetContext(env);
-    const configToml = TOML.parse(fs.readFileSync(config.config).toString());
+  getConfig(config: string): Config {
+    const configToml = TOML.parse(readFileSync(config).toString());
 
     return {
-      environment: env,
       htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
       allowCredentials:
         configToml.ticket_server_cors_allow_credentials as boolean,
@@ -281,7 +347,6 @@ export class HtsgetLambdaStack extends Stack {
         configToml.ticket_server_cors_max_age !== undefined
           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
           : undefined,
-      parameterStoreConfig: this.getParameterStoreConfig(config),
     };
   }
 }

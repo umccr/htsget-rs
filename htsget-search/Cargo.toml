@@ -56,7 +56,7 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.60", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.65", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
 bytes = { version = "1.4", optional = true }
@@ -74,7 +74,7 @@ mockall_double = { version = "0.3", optional = true }
 # Error control, tracing, config
 thiserror = "1.0"
 htsget-config = { version = "0.8.1", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.5.4", path = "../htsget-test", features = ["cors-tests"], default-features = false }
+htsget-test = { version = "0.5.4", path = "../htsget-test", features = ["http"], default-features = false }
 tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"

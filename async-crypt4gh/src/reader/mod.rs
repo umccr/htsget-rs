@@ -256,7 +256,7 @@ mod tests {
   use noodles::sam::Header;
   use tokio::io::AsyncReadExt;
 
-  use htsget_test::http_tests::get_test_file;
+  use htsget_test::http::get_test_file;
 
   use crate::advance::Advance;
   use crate::reader::builder::Builder;

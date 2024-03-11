@@ -1,3 +1,10 @@
+//! Testing functionality related to http and url tickets.
+//!
+
+pub mod concat;
+pub mod cors;
+pub mod server;
+
 use std::fs::File as StdFile;
 use std::io::Read;
 use std::net::{SocketAddr, TcpListener};

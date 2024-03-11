@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use htsget_config::types::{Headers, JsonResponse};
 use htsget_http::{PostRequest, Region};
-use htsget_test::http_tests::{default_config_fixed_port, default_dir, default_dir_data};
+use htsget_test::http::{default_config_fixed_port, default_dir, default_dir_data};
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;

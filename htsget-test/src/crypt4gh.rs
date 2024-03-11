@@ -1,7 +1,7 @@
 use crypt4gh::keys::{get_private_key, get_public_key};
 use crypt4gh::Keys;
 
-use crate::http_tests::get_test_path;
+use crate::http::get_test_path;
 
 /// Returns the private keys of the recipient and the senders public key from the context of decryption.
 pub async fn get_decryption_keys() -> (Keys, Vec<u8>) {

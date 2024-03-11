@@ -1,7 +1,6 @@
 //! Module providing the search capability using BAM/BAI files
 //!
 
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -13,16 +12,13 @@ use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
 use noodles::csi::binning_index::index::ReferenceSequence;
 use noodles::csi::BinningIndex;
-use noodles::sam::header::record::value::map::read_group::platform::ParseError;
-use noodles::sam::header::record::value::map::read_group::Platform;
 use noodles::sam::Header;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
-use tracing::{instrument, trace, warn};
+use tracing::{instrument, trace};
 
 use crate::htsget::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::htsget::HtsGetError;
-use crate::htsget::ParsedHeader;
 use crate::Class::Body;
 use crate::{
   htsget::{Format, Query, Result},
@@ -68,11 +64,8 @@ where
       .with_class(Body)])
   }
 
-  async fn read_bytes(header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
-    reader
-      .read_record(header, &mut Default::default())
-      .await
-      .ok()
+  async fn read_bytes(_header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader.read_record(&mut Default::default()).await.ok()
   }
 
   fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
@@ -93,34 +86,7 @@ where
   }
 
   async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
-    let header = reader.read_header().await;
-    reader.read_reference_sequences().await?;
-
-    if let Ok(header) = header.as_deref() {
-      for value in header.split_whitespace() {
-        if let Some(value) = value.strip_prefix("PL:") {
-          if let Err(ParseError::Invalid) = Platform::from_str(value) {
-            warn!(
-              "invalid read group platform `{value}`, only `{}`, `{}`, `{}`, `{}`, `{}`, `{}`, \
-              `{}`, `{}`, `{}`, `{}`, or `{}` is supported",
-              Platform::Capillary.as_ref(),
-              Platform::DnbSeq.as_ref(),
-              Platform::Element.as_ref(),
-              Platform::Ls454.as_ref(),
-              Platform::Illumina.as_ref(),
-              Platform::Solid.as_ref(),
-              Platform::Helicos.as_ref(),
-              Platform::IonTorrent.as_ref(),
-              Platform::Ont.as_ref(),
-              Platform::PacBio.as_ref(),
-              Platform::Ultima.as_ref()
-            );
-          }
-        }
-      }
-    }
-
-    Ok(header?.parse::<ParsedHeader<Header>>()?.into_inner())
+    reader.read_header().await
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
@@ -168,7 +134,7 @@ where
     header: &'a Header,
     name: &str,
   ) -> Option<usize> {
-    Some(header.reference_sequences().get_index_of(name)?)
+    Some(header.reference_sequences().get_index_of(name.as_bytes())?)
   }
 
   async fn get_byte_ranges_for_unmapped_reads(
@@ -207,6 +173,7 @@ pub(crate) mod tests {
   use std::future::Future;
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_test::http::concat::ConcatResponse;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
@@ -218,6 +185,7 @@ pub(crate) mod tests {
 
   const DATA_LOCATION: &str = "data/bam";
   const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.bam.bai";
+  pub(crate) const BAM_FILE_NAME: &str = "htsnexus_test_NA12878.bam";
 
   #[tokio::test]
   async fn search_all_reads() {
@@ -232,7 +200,9 @@ pub(crate) mod tests {
         vec![Url::new(expected_url())
           .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -257,13 +227,41 @@ pub(crate) mod tests {
             .with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
 
   #[tokio::test]
-  async fn search_reference_name_without_seq_range() {
+  async fn search_reference_name_without_seq_range_chr11() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage.clone());
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("11");
+      let response = search.search(query).await;
+      println!("{response:#?}");
+
+      let expected_response = Ok(Response::new(
+        Format::Bam,
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-996014")),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+            .with_class(Body),
+        ],
+      ));
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
       let query =
@@ -285,7 +283,9 @@ pub(crate) mod tests {
             .with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -321,7 +321,9 @@ pub(crate) mod tests {
             .with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -350,7 +352,9 @@ pub(crate) mod tests {
             .with_class(Body),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -383,7 +387,9 @@ pub(crate) mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798")),
         ],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await
   }
@@ -414,10 +420,12 @@ pub(crate) mod tests {
               .with_class(Body),
           ],
         ));
-        assert_eq!(response, expected_response)
+        assert_eq!(response, expected_response);
+
+        Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
       },
       DATA_LOCATION,
-      &["htsnexus_test_NA12878.bam", INDEX_FILE_LOCATION],
+      &[BAM_FILE_NAME, INDEX_FILE_LOCATION],
     )
     .await
   }
@@ -436,7 +444,12 @@ pub(crate) mod tests {
           .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
           .with_class(Header)],
       ));
-      assert_eq!(response, expected_response)
+      assert_eq!(response, expected_response);
+
+      Some((
+        BAM_FILE_NAME.to_string(),
+        (response.unwrap(), Header).into(),
+      ))
     })
     .await;
   }
@@ -462,6 +475,8 @@ pub(crate) mod tests {
         ],
       ));
       assert_eq!(response, expected_response);
+
+      Some((BAM_FILE_NAME.to_string(), (response.unwrap(), Body).into()))
     })
     .await;
   }
@@ -476,6 +491,8 @@ pub(crate) mod tests {
       println!("{response:#?}");
 
       assert!(matches!(response, Err(NotFound(_))));
+
+      None
     })
     .await;
   }
@@ -488,6 +505,8 @@ pub(crate) mod tests {
         let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -504,6 +523,8 @@ pub(crate) mod tests {
           Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -520,6 +541,8 @@ pub(crate) mod tests {
           Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -539,6 +562,8 @@ pub(crate) mod tests {
         let response = search.get_header_end_offset(&index).await;
 
         assert_eq!(response, Ok(70204));
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -555,6 +580,8 @@ pub(crate) mod tests {
         let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -572,6 +599,8 @@ pub(crate) mod tests {
           Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -589,6 +618,8 @@ pub(crate) mod tests {
           Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
+
+        None
       },
       DATA_LOCATION,
       &[INDEX_FILE_LOCATION],
@@ -599,7 +630,7 @@ pub(crate) mod tests {
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
-    Fut: Future<Output = ()>,
+    Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_local_storage_fn(test, DATA_LOCATION, &[]).await
   }

@@ -20,7 +20,7 @@ jobs:
         os: [ubuntu-latest]
     steps:
       - name: Check out
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         id: toolchain
@@ -33,7 +33,7 @@ jobs:
           shared-key: build-cache
           save-if: false
       - name: Install cargo-criterion
-        uses: baptiste0928/cargo-install@v1
+        uses: baptiste0928/cargo-install@v3
         with:
           crate: cargo-criterion
       - name: Run search benchmarks
@@ -46,5 +46,5 @@ jobs:
           output-file-path: search-benchmarks-output.json
           native-benchmark-data-dir-path: target/criterion
           fail-on-alert: false
-          github-token: ${{ secrets.HTSGET_RS_BENCHMARKS_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
