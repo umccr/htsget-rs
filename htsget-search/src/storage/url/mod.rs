@@ -371,18 +371,14 @@ impl Storage for UrlStorage {
             let range = options.range;
             let range = range.convert_to_crypt4gh_ranges(crypt4gh_header_length, file_size);
 
-            if let Some(end) = range.get_end() {
-              let range = range.with_end(end + additional_header_length.unwrap_or_default());
-
-              let range: String = String::from(&BytesRange::from(&range));
-              if !range.is_empty() {
-                headers.append(
-                  RANGE,
-                  range
-                    .parse()
-                    .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
-                );
-              }
+            let range: String = String::from(&BytesRange::from(&range));
+            if !range.is_empty() {
+              headers.append(
+                RANGE,
+                range
+                  .parse()
+                  .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
+              );
             }
           }
 
@@ -1358,7 +1354,7 @@ mod tests {
           };
 
           Response::builder()
-            .header(SERVER_ADDITIONAL_BYTES, 100)
+            .header(SERVER_ADDITIONAL_BYTES, 124)
             .header(CLIENT_ADDITIONAL_BYTES, 124)
             .header(CONTENT_LENGTH, HeaderValue::from_static(length))
             .status(StatusCode::OK)

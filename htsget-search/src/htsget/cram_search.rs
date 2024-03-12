@@ -297,7 +297,6 @@ mod tests {
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::http::concat::ConcatResponse;
-  use htsget_test::util::expected_cram_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
@@ -321,11 +320,8 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![
-          Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-1672447")),
-          Url::new(expected_cram_eof_data_url()),
-        ],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=0-1672447"))],
       ));
       assert_eq!(response, expected_response);
 
@@ -376,8 +372,7 @@ mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447"))
-            .with_class(Body),
+            .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447")),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -434,8 +429,7 @@ mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-480537")),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447"))
-            .with_class(Body),
+            .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447")),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -489,8 +483,7 @@ mod tests {
         Url::new(expected_url())
           .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
         Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447"))
-          .with_class(Body),
+          .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447")),
       ],
     )
   }

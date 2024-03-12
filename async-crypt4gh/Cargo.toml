@@ -11,7 +11,7 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/async-crypt4gh/README.m
 repository = "https://github.com/umccr/htsget-rs"
 
 [dependencies]
-crypt4gh = { version = "0.4", git = "https://github.com/umccr/crypt4gh-rust", branch = "fix_rust_crypto_et_al" }
+crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust" }
 pin-project-lite = "0.2"
 hex-literal = "0.4"
 bytes = "1.4"

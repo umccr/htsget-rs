@@ -736,15 +736,15 @@ mod tests {
     let public_key_path = tmp_dir.path().join("alice.pub");
 
     generate_keys(
-      &private_key_path.clone(),
-      &public_key_path.clone(),
-      || Ok("".to_string()),
+      private_key_path.clone(),
+      public_key_path.clone(),
+      Ok("".to_string()),
       None,
     )
     .unwrap();
 
-    let private_key = get_private_key(&private_key_path, || Ok("".to_string())).unwrap();
-    let public_key = get_public_key(&public_key_path).unwrap();
+    let private_key = get_private_key(private_key_path.clone(), Ok("".to_string())).unwrap();
+    let public_key = get_public_key(public_key_path.clone()).unwrap();
 
     test(
       tmp_dir.path(),

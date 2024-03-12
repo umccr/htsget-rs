@@ -41,7 +41,7 @@ impl TryFrom<Crypt4GHPath> for Crypt4GHKeyPair {
   type Error = Error;
 
   fn try_from(crypt4gh_path: Crypt4GHPath) -> Result<Self> {
-    let private_key = get_private_key(&crypt4gh_path.private_key, || Ok("".to_string()));
+    let private_key = get_private_key(crypt4gh_path.private_key.clone(), Ok("".to_string()));
 
     let private_key = match private_key {
       Ok(key) => key,
@@ -61,7 +61,7 @@ impl TryFrom<Crypt4GHPath> for Crypt4GHKeyPair {
       Ok(
         key
           .map(|key| {
-            get_public_key(&key).map_err(|err| ParseError(format!("loading public key: {}", err)))
+            get_public_key(key).map_err(|err| ParseError(format!("loading public key: {}", err)))
           })
           .transpose()?
           .map(PublicKey::new),

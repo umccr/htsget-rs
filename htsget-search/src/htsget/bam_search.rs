@@ -249,8 +249,7 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-996014")),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
-            .with_class(Body),
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798")),
         ],
       ));
       assert_eq!(response, expected_response);
