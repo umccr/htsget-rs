@@ -1,9 +1,11 @@
-use crypt4gh::keys::{generate_keys, get_private_key, get_public_key};
+use base64::engine::general_purpose;
+use base64::Engine;
+use bstr::ByteSlice;
+use crypt4gh::error::Crypt4GHError;
+use crypt4gh::keys::generate_private_key;
 use rustls::PrivateKey;
 use std::cmp::min;
-use tempfile::TempDir;
-use tokio::fs;
-use tracing::info;
+use std::io;
 
 use crate::decoder::Block;
 use crate::error::{Error, Result};
@@ -93,50 +95,59 @@ pub fn unencrypted_clamp_next(pos: u64, encrypted_file_size: u64) -> u64 {
 
 /// Generate a private and public key pair.
 pub fn generate_key_pair() -> Result<KeyPair> {
-  // Todo, very janky, avoid writing this to a file first.
-  let temp_dir = TempDir::new().map_err(|err| Error::Crypt4GHError(err.to_string()))?;
-
-  let private_key = temp_dir.path().join("private_key");
-  let public_key = temp_dir.path().join("public_key");
-  generate_keys(
-    private_key.clone(),
-    public_key.clone(),
-    Ok("".to_string()),
-    None,
-  )
-  .map_err(|err| Error::Crypt4GHError(err.to_string()))?;
-
-  let private_key = get_private_key(private_key, Ok("".to_string()))?;
-  let public_key = get_public_key(public_key)?;
+  let skpk = generate_private_key()?;
+  let (private_key, public_key) = skpk.split_at(32);
 
   Ok(KeyPair::new(
-    PrivateKey(private_key),
-    PublicKey::new(public_key),
+    PrivateKey(Vec::from(private_key)),
+    PublicKey::new(Vec::from(public_key)),
   ))
 }
 
 /// Generate a private and public key pair.
 pub async fn read_public_key(bytes: Vec<u8>) -> Result<PublicKey> {
-  // Todo, very janky, avoid writing this to a file first.
-  let temp_dir = TempDir::new().map_err(|err| Error::Crypt4GHError(err.to_string()))?;
+  let mut lines = ByteSlice::lines(bytes.as_slice()).collect::<Vec<&[u8]>>();
 
-  let public_key = temp_dir.path().join("public_key");
-  fs::write(public_key.clone(), &bytes)
-    .await
-    .map_err(|err| Error::Crypt4GHError(err.to_string()))?;
+  let error = || {
+    Error::IOError(io::Error::new(
+      io::ErrorKind::Other,
+      "invalid public key".to_string(),
+    ))
+  };
 
-  let public_key = get_public_key(public_key)?;
+  if lines.is_empty() {
+    return Err(error());
+  }
 
-  info!("read public key from filesystem");
+  // Optionally decode the key from a string.
+  let key = if lines
+    .first()
+    .is_some_and(|first| first.contains_str(b"CRYPT4GH"))
+    && lines
+      .last()
+      .is_some_and(|first| first.contains_str(b"CRYPT4GH"))
+  {
+    lines.remove(0);
+    lines.pop();
 
-  Ok(PublicKey::new(public_key))
+    general_purpose::STANDARD
+      .decode(lines.into_iter().flatten().copied().collect::<Vec<u8>>())
+      .map_err(|e| Crypt4GHError::BadBase64Error(e.into()))?
+  } else {
+    lines.into_iter().flatten().copied().collect()
+  };
+
+  Ok(PublicKey::new(key))
 }
 
 #[cfg(test)]
 mod tests {
-  use crate::util::{unencrypted_clamp, unencrypted_to_data_block, unencrypted_to_next_data_block};
+  use crypt4gh::keys::get_public_key;
+  use htsget_test::http::get_test_path;
+  use std::fs;
 
   use super::*;
+  use crate::util::{unencrypted_clamp, unencrypted_to_data_block, unencrypted_to_next_data_block};
 
   #[test]
   fn test_to_encrypted() {
@@ -212,5 +223,26 @@ mod tests {
     let expected = 5485112;
     let result = unencrypted_clamp_next(pos, to_encrypted_file_size(5485112, 0));
     assert_eq!(result, expected);
+  }
+
+  #[tokio::test]
+  async fn test_read_public_key_raw() {
+    let test_key = vec![
+      56, 44, 122, 180, 24, 116, 207, 149, 165, 49, 204, 77, 224, 136, 232, 121, 209, 249, 23, 51,
+      120, 2, 187, 147, 82, 227, 232, 32, 17, 223, 7, 38,
+    ];
+
+    let result = read_public_key(test_key.clone()).await.unwrap();
+    assert_eq!(result, PublicKey::new(test_key))
+  }
+
+  #[tokio::test]
+  async fn test_read_public_key_with_header() {
+    let expected_public_key = get_public_key(get_test_path("crypt4gh/keys/bob.pub")).unwrap();
+    let result = read_public_key(fs::read(get_test_path("crypt4gh/keys/bob.pub")).unwrap())
+      .await
+      .unwrap();
+
+    assert_eq!(result, PublicKey::new(expected_public_key))
   }
 }

@@ -1,6 +1,7 @@
 //! Module providing the search capability using BAM/BAI files
 //!
 
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,6 +9,7 @@ use noodles::bam;
 use noodles::bam::bai;
 use noodles::bam::bai::Index;
 use noodles::bgzf;
+use noodles::bgzf::r#async::reader::Builder;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
 use noodles::csi::binning_index::index::ReferenceSequence;
@@ -82,7 +84,11 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    AsyncReader::new(inner)
+    AsyncReader::from(
+      Builder::default()
+        .set_worker_count(NonZeroUsize::try_from(1).expect("expected valid non zero usize"))
+        .build_with_reader(inner),
+    )
   }
 
   async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
