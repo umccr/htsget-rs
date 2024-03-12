@@ -6,14 +6,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "crypt4gh")]
 use crate::tls::crypt4gh::Crypt4GHKeyPair;
 
-/// Tagged types. For now this is only for generating Crypt4GH keys.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub enum TaggedObjectTypes {
-  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
-  #[serde(alias = "generatekeys", alias = "GENERATEKEYS")]
-  GenerateKeys,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(untagged, deny_unknown_fields)]
 #[non_exhaustive]
@@ -22,9 +14,10 @@ pub enum ObjectType {
   Regular,
   #[cfg(feature = "crypt4gh")]
   // Only valid for url storage.
-  Tagged(TaggedObjectTypes),
+  GenerateKeys { send_encrypted_to_client: bool },
   #[cfg(feature = "crypt4gh")]
   Crypt4GH {
+    send_encrypted_to_client: bool,
     #[serde(flatten, skip_serializing)]
     crypt4gh: Crypt4GHKeyPair,
   },
@@ -35,16 +28,32 @@ impl ObjectType {
   pub fn is_crypt4gh(&self) -> bool {
     match self {
       #[cfg(feature = "url-storage")]
-      ObjectType::Tagged(TaggedObjectTypes::GenerateKeys) => true,
+      ObjectType::GenerateKeys { .. } => true,
       ObjectType::Crypt4GH { .. } => true,
       _ => false,
+    }
+  }
+
+  /// Should returned data be unencrypted for the client.
+  #[cfg(feature = "crypt4gh")]
+  pub fn send_encrypted_to_client(&self) -> Option<bool> {
+    match self {
+      #[cfg(feature = "url-storage")]
+      ObjectType::GenerateKeys {
+        send_encrypted_to_client,
+      } => Some(*send_encrypted_to_client),
+      ObjectType::Crypt4GH {
+        send_encrypted_to_client,
+        ..
+      } => Some(*send_encrypted_to_client),
+      _ => None,
     }
   }
 
   #[cfg(feature = "crypt4gh")]
   pub fn crypt4gh_key_pair(&self) -> Option<&Crypt4GHKeyPair> {
     match self {
-      ObjectType::Crypt4GH { crypt4gh } => Some(crypt4gh),
+      ObjectType::Crypt4GH { crypt4gh, .. } => Some(crypt4gh),
       _ => None,
     }
   }

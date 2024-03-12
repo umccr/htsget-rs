@@ -87,7 +87,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     &self,
     key: K,
     _options: GetOptions<'_>,
-    _head_output: Option<HeadOutput>,
+    _head_output: &mut Option<&mut HeadOutput>,
   ) -> Result<File> {
     debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
     self.get(key).await
@@ -176,7 +176,7 @@ pub(crate) mod tests {
         &storage,
         "folder",
         GetOptions::new_with_default_range(&Default::default(), &Default::default()),
-        Default::default(),
+        &mut Default::default(),
       )
       .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
@@ -191,7 +191,7 @@ pub(crate) mod tests {
         &storage,
         "folder/../../passwords",
         GetOptions::new_with_default_range(&Default::default(), &Default::default()),
-        Default::default(),
+        &mut Default::default(),
       )
       .await;
       assert!(
@@ -208,7 +208,7 @@ pub(crate) mod tests {
         &storage,
         "folder/../key1",
         GetOptions::new_with_default_range(&Default::default(), &Default::default()),
-        Default::default(),
+        &mut Default::default(),
       )
       .await;
       assert!(result.is_ok());
@@ -222,7 +222,7 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "non-existing-key",
-        RangeUrlOptions::new_with_default_range(&Default::default()),
+        RangeUrlOptions::new_with_default_range(&Default::default(), &Default::default()),
       )
       .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "non-existing-key"));
@@ -236,7 +236,7 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder",
-        RangeUrlOptions::new_with_default_range(&Default::default()),
+        RangeUrlOptions::new_with_default_range(&Default::default(), &Default::default()),
       )
       .await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "folder"));
@@ -250,7 +250,7 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../../passwords",
-        RangeUrlOptions::new_with_default_range(&Default::default()),
+        RangeUrlOptions::new_with_default_range(&Default::default(), &Default::default()),
       )
       .await;
       assert!(
@@ -266,7 +266,7 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::new_with_default_range(&Default::default()),
+        RangeUrlOptions::new_with_default_range(&Default::default(), &Default::default()),
       )
       .await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1");
@@ -284,6 +284,7 @@ pub(crate) mod tests {
         RangeUrlOptions::new(
           BytesPosition::new(Some(7), Some(10), None),
           &Default::default(),
+          &Default::default(),
         ),
       )
       .await;
@@ -300,7 +301,11 @@ pub(crate) mod tests {
       let result = Storage::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
+        RangeUrlOptions::new(
+          BytesPosition::new(Some(7), None, None),
+          &Default::default(),
+          &Default::default(),
+        ),
       )
       .await;
       let expected = Url::new("http://127.0.0.1:8081/data/key1")

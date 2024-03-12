@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use async_crypt4gh::util::read_public_key;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
@@ -25,6 +24,7 @@ use {
   async_crypt4gh::edit_lists::{ClampedPosition, UnencryptedPosition},
   async_crypt4gh::reader::builder::Builder,
   async_crypt4gh::reader::Reader,
+  async_crypt4gh::util::{read_public_key, to_unencrypted_file_size},
   async_crypt4gh::PublicKey,
   base64::engine::general_purpose,
   base64::Engine,
@@ -32,6 +32,7 @@ use {
   htsget_config::types::Class,
   http::header::InvalidHeaderValue,
   http::header::RANGE,
+  http::HeaderValue,
   mockall_double::double,
   tokio_rustls::rustls::PrivateKey,
 };
@@ -203,6 +204,18 @@ impl UrlStorage {
     endpoint: &Uri,
   ) -> Result<HtsGetUrl> {
     let key = key.as_ref();
+
+    #[cfg(feature = "crypt4gh")]
+    let key = if options
+      .object_type()
+      .send_encrypted_to_client()
+      .is_some_and(|value| !value)
+    {
+      key.strip_suffix(".c4gh").unwrap_or(key)
+    } else {
+      key
+    };
+
     let url = self.get_url_from_key(key, endpoint)?.into_parts();
     let url = Uri::from_parts(url)
       .map_err(|err| InternalError(format!("failed to convert to uri from parts: {}", err)))?;
@@ -317,7 +330,7 @@ impl Storage for UrlStorage {
     &self,
     key: K,
     options: GetOptions<'_>,
-    _head_output: Option<HeadOutput>,
+    head_output: &mut Option<&mut HeadOutput>,
   ) -> Result<Self::Streamable> {
     info!("Getting underlying file");
     let key = key.as_ref().to_string();
@@ -326,8 +339,8 @@ impl Storage for UrlStorage {
     match KeyType::from_ending(&key) {
       KeyType::File => {
         #[cfg(feature = "crypt4gh")]
-        if options.object_type.is_crypt4gh() {
-          let key_pair = if let Some(key_pair) = options.object_type.crypt4gh_key_pair() {
+        if options.object_type().is_crypt4gh() {
+          let key_pair = if let Some(key_pair) = options.object_type().crypt4gh_key_pair() {
             let key_pair = key_pair.key_pair().clone();
             info!("Got key pair from config");
             key_pair
@@ -350,35 +363,39 @@ impl Storage for UrlStorage {
 
           info!("appended server public key");
 
-          // Additional length for the header.
-          let output_headers = _head_output
-            .as_ref()
-            .and_then(|output| output.response_headers());
-
-          let additional_header_length: Option<u64> = output_headers
-            .and_then(|headers| headers.get(SERVER_ADDITIONAL_BYTES))
-            .and_then(|length| length.to_str().ok())
-            .and_then(|length| length.parse().ok());
-
-          let file_size: Option<u64> = output_headers
-            .and_then(|headers| headers.get(CONTENT_LENGTH))
-            .and_then(|length| length.to_str().ok())
-            .and_then(|length| length.parse().ok());
-
-          if let (Some(crypt4gh_header_length), Some(file_size)) =
-            (additional_header_length, file_size)
           {
-            let range = options.range;
-            let range = range.convert_to_crypt4gh_ranges(crypt4gh_header_length, file_size);
+            // Additional length for the header.
+            let output_headers = head_output
+              .as_ref()
+              .and_then(|output| output.response_headers());
 
-            let range: String = String::from(&BytesRange::from(&range));
-            if !range.is_empty() {
-              headers.append(
-                RANGE,
-                range
-                  .parse()
-                  .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
-              );
+            let additional_header_length: Option<u64> = output_headers
+              .and_then(|headers| headers.get(SERVER_ADDITIONAL_BYTES))
+              .and_then(|length| length.to_str().ok())
+              .and_then(|length| length.parse().ok());
+
+            let file_size: Option<u64> = output_headers
+              .and_then(|headers| headers.get(CONTENT_LENGTH))
+              .and_then(|length| length.to_str().ok())
+              .and_then(|length| length.parse().ok());
+
+            if let (Some(crypt4gh_header_length), Some(file_size)) =
+              (additional_header_length, file_size)
+            {
+              let range = options.range();
+              let range = range
+                .clone()
+                .convert_to_crypt4gh_ranges(crypt4gh_header_length, file_size);
+
+              let range: String = String::from(&BytesRange::from(&range));
+              if !range.is_empty() {
+                headers.append(
+                  RANGE,
+                  range
+                    .parse()
+                    .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
+                );
+              }
             }
           }
 
@@ -399,10 +416,44 @@ impl Storage for UrlStorage {
 
           info!("got stream reader");
 
-          let reader = Builder::default().build_with_reader(stream_reader, vec![crypt4gh_keys]);
+          let mut reader = Builder::default().build_with_reader(stream_reader, vec![crypt4gh_keys]);
+
+          reader
+            .read_header()
+            .await
+            .map_err(|err| UrlParseError(err.to_string()))?;
+
+          // Convert back to the original file size if sending unencrypted to client
+          if options
+            .object_type()
+            .send_encrypted_to_client()
+            .is_some_and(|value| !value)
+          {
+            head_output.iter_mut().try_for_each(|output| {
+              let original_file_size = to_unencrypted_file_size(
+                output.content_length,
+                reader.header_size().unwrap_or_default(),
+              );
+
+              output.content_length = original_file_size;
+
+              let header_content_length = HeaderValue::from_str(&original_file_size.to_string())
+                .map_err(|err| UrlParseError(err.to_string()))?;
+              output.response_headers.iter_mut().for_each(|header| {
+                header
+                  .get_mut(CONTENT_LENGTH)
+                  .iter_mut()
+                  .for_each(|header| **header = header_content_length.clone())
+              });
+
+              Ok::<_, StorageError>(())
+            })?;
+          }
 
           // Additional length for the header.
-          let client_additional_bytes: Option<u64> = output_headers
+          let client_additional_bytes: Option<u64> = head_output
+            .as_ref()
+            .and_then(|output| output.response_headers())
             .and_then(|headers| {
               headers
                 .get(CLIENT_ADDITIONAL_BYTES)
@@ -487,7 +538,13 @@ impl Storage for UrlStorage {
 
     match reader {
       #[cfg(feature = "crypt4gh")]
-      UrlStreamEither::B(reader) if positions_options.object_type.is_crypt4gh() => {
+      UrlStreamEither::B(reader)
+        if positions_options.object_type.is_crypt4gh()
+          && positions_options
+            .object_type
+            .send_encrypted_to_client()
+            .is_some_and(|send_encrypted_to_client| send_encrypted_to_client) =>
+      {
         let Crypt4GHReader {
           reader,
           client_additional_bytes,
@@ -607,6 +664,7 @@ mod tests {
   use axum::response::{IntoResponse, Response};
   use axum::routing::{get, head};
   use axum::{middleware, Router};
+  use htsget_config::resolver::object::ObjectType;
   use http::header::{AUTHORIZATION, USER_AGENT};
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use hyper::body::to_bytes;
@@ -616,12 +674,8 @@ mod tests {
   use tower_http::services::ServeDir;
   #[cfg(feature = "crypt4gh")]
   use {
-    async_crypt4gh::KeyPair,
-    crypt4gh::encrypt,
-    htsget_config::resolver::object::{ObjectType, TaggedObjectTypes},
-    htsget_config::tls::crypt4gh::Crypt4GHKeyPair,
-    htsget_test::crypt4gh::get_encryption_keys,
-    htsget_test::http::test_bam_crypt4gh_byte_ranges,
+    async_crypt4gh::KeyPair, crypt4gh::encrypt, htsget_config::tls::crypt4gh::Crypt4GHKeyPair,
+    htsget_test::crypt4gh::get_encryption_keys, htsget_test::http::test_bam_crypt4gh_byte_ranges,
     std::collections::HashSet,
   };
 
@@ -795,7 +849,10 @@ mod tests {
       let object_type = Default::default();
       let options = GetOptions::new_with_default_range(headers, &object_type);
 
-      let mut reader = storage.get("assets/key1", options, None).await.unwrap();
+      let mut reader = storage
+        .get("assets/key1", options, &mut None)
+        .await
+        .unwrap();
 
       let mut response = [0; 6];
       reader.read_exact(&mut response).await.unwrap();
@@ -817,7 +874,8 @@ mod tests {
       );
 
       let mut headers = HeaderMap::default();
-      let options = test_range_options(&mut headers);
+      let object_type = Default::default();
+      let options = test_range_options(&mut headers, &object_type);
 
       assert_eq!(
         storage.range_url("assets/key1", options).await.unwrap(),
@@ -866,7 +924,8 @@ mod tests {
     );
 
     let mut headers = HeaderMap::default();
-    let options = test_range_options(&mut headers);
+    let object_type = Default::default();
+    let options = test_range_options(&mut headers, &object_type);
 
     assert_eq!(
       storage
@@ -893,7 +952,8 @@ mod tests {
     );
 
     let mut headers = HeaderMap::default();
-    let options = test_range_options(&mut headers);
+    let object_type = Default::default();
+    let options = test_range_options(&mut headers, &object_type);
 
     assert_eq!(
       storage
@@ -920,7 +980,8 @@ mod tests {
     );
 
     let mut headers = HeaderMap::default();
-    let options = test_range_options(&mut headers);
+    let object_type = Default::default();
+    let options = test_range_options(&mut headers, &object_type);
 
     assert_eq!(
       storage.range_url("assets/key1", options,).await.unwrap(),
@@ -1008,7 +1069,9 @@ mod tests {
         "htsnexus_test_NA12878",
         Format::Bam,
         request,
-        ObjectType::Tagged(TaggedObjectTypes::GenerateKeys),
+        ObjectType::GenerateKeys {
+          send_encrypted_to_client: true,
+        },
       )
       .with_reference_name("11")
       .with_start(5015000)
@@ -1018,6 +1081,73 @@ mod tests {
       let response = searcher.search(query.clone()).await.unwrap();
 
       assert_encrypted_endpoints(&public_key, response).await;
+    })
+    .await;
+  }
+
+  #[cfg(feature = "crypt4gh")]
+  #[tokio::test]
+  async fn test_endpoints_with_encrypted_file_unencrypted_to_client() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url_with_path(&url),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        Some("user-agent".to_string()),
+      );
+
+      let mut key_gen = Encrypt::default();
+      key_gen
+        .expect_generate_key_pair()
+        .times(1)
+        .returning(|| Ok(expected_key_pair()));
+      let storage = storage.with_key_gen(key_gen);
+
+      let (_, public_key) = get_encryption_keys().await;
+      let mut header_map = HeaderMap::default();
+      let public_key = general_purpose::STANDARD.encode(public_key);
+      test_headers(&mut header_map);
+      header_map.append(
+        HeaderName::from_str(CLIENT_PUBLIC_KEY_NAME).unwrap(),
+        HeaderValue::from_str(&public_key).unwrap(),
+      );
+
+      let request =
+        HtsgetRequest::new_with_id("htsnexus_test_NA12878".to_string()).with_headers(header_map);
+      let query = Query::new(
+        "htsnexus_test_NA12878",
+        Format::Bam,
+        request,
+        ObjectType::GenerateKeys {
+          send_encrypted_to_client: false,
+        },
+      )
+      .with_reference_name("11")
+      .with_start(5015000)
+      .with_end(5050000);
+
+      let searcher = HtsGetFromStorage::new(storage);
+      let response = searcher.search(query.clone()).await.unwrap();
+
+      let mut expected_response = expected_bam_response();
+      expected_response.urls.iter_mut().for_each(|url| {
+        url.headers.iter_mut().for_each(|header| {
+          *header = header
+            .clone()
+            .with_header(CLIENT_PUBLIC_KEY_NAME, public_key.clone())
+        })
+      });
+
+      assert_eq!(response, expected_response);
+
+      let (bytes, _) = test_bam_file_byte_ranges(
+        response,
+        default_dir().join("data/bam/htsnexus_test_NA12878.bam"),
+      )
+      .await;
+
+      parse_as_bgzf(bytes).await;
     })
     .await;
   }
@@ -1058,6 +1188,7 @@ mod tests {
         request,
         ObjectType::Crypt4GH {
           crypt4gh: Crypt4GHKeyPair::new(expected_key_pair()),
+          send_encrypted_to_client: true,
         },
       )
       .with_reference_name("11")
@@ -1387,9 +1518,12 @@ mod tests {
     headers
   }
 
-  fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions {
+  fn test_range_options<'a>(
+    headers: &'a mut HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> RangeUrlOptions<'a> {
     let headers = test_headers(headers);
-    let options = RangeUrlOptions::new_with_default_range(headers);
+    let options = RangeUrlOptions::new_with_default_range(headers, object_type);
 
     options
   }

@@ -558,7 +558,7 @@ impl From<io::Error> for HtsGetError {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Headers(BTreeMap<String, String>);
 
 impl Headers {

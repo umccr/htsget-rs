@@ -303,25 +303,24 @@ There is additional configuration that changes the way a resolver treats an obje
 
 By default, all objects are considered `Regular`. However, the `object_type` can be configured to decrypt Crypt4GH files.
 
-This component can be configured by setting the `[resolver.object_type]` table:
+This component can be configured by setting the `[resolver.object_type]` table in order to enable Crypt4GH:
 
-| Option         | Description                                               | Type   | Default |
-|----------------|-----------------------------------------------------------|--------|---------|
-| `private_key`  | Path to the private key used for decrypted Crypt4GH data. | Path   | Not set | 
-| `public_key`   | Path to the public key used for decrypted Crypt4GH data.  | Path   | Not set | 
+| Option                     | Description                                                                                                                                                                               | Type    | Default                                        |
+|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|------------------------------------------------|
+| `send_encrypted_to_client` | Whether to send data encrypted byte ranges to the client. Note, this does not affect data sent to the `UrlStorage` backend, which remains encrypted if type Crypt4GH object type is used. | Boolean | Not set                                        |
+| `private_key`              | Path to the private key used for decrypted Crypt4GH data.                                                                                                                                 | Path    | Not set, generates ephemeral keys if not set.  | 
+| `public_key`               | Path to the public key used for decrypted Crypt4GH data.                                                                                                                                  | Path    | Not set, generates ephemeral keys if not set.  | 
 
-Or, to generate keys uniquely for each request, the object type can be set to `GenerateKeys`.
+Or, to generate keys uniquely for each request, the `private_key` and `public_key` options should not be set.
 
 For example to enable Crypt4GH for a resolver, build htsget-rs with the `crypt4gh` feature enabled, and set the following options under `[resolvers.object_type]`:
 
 ```toml
 [resolvers.object_type]
 # Specify the keys that htsget will use manually.
+send_encrypted_to_client = true
 private_key = "data/crypt4gh/keys/bob.sec" # pragma: allowlist secret
 public_key = "data/crypt4gh/keys/bob.pub"
-
-# Or, generate keys for each request.
-#object_type = "GenerateKeys"
 ```
 
 Note, currently this functionality only works with `UrlStorage`.

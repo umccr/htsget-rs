@@ -9,8 +9,6 @@ use crate::config::DataServerConfig;
 use crate::error;
 use crate::resolver::allow_guard::{AllowGuard, QueryAllowed, ReferenceNames};
 use crate::resolver::object::ObjectType;
-#[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
-use crate::resolver::object::TaggedObjectTypes;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
@@ -150,7 +148,7 @@ impl Resolver {
 
     #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
     // `Crypt4GHGenerate` is only supported for `UrlStorage`.
-    if let ObjectType::Tagged(TaggedObjectTypes::GenerateKeys) = self.object_type() {
+    if let ObjectType::GenerateKeys { .. } = self.object_type() {
       if !matches!(self.storage(), Storage::Url { .. }) {
         return Err(error::Error::ParseError(
           "generating Crypt4GH keys is not supported if not using `UrlStorage`".to_string(),
@@ -288,10 +286,7 @@ impl StorageResolver for &[Resolver] {
 #[cfg(test)]
 mod tests {
   use http::uri::Authority;
-  use rustls::PrivateKey;
-  use std::path::Path;
 
-  use async_crypt4gh::{KeyPair, PublicKey};
   #[cfg(feature = "s3-storage")]
   use {crate::storage::s3::S3Storage, std::collections::HashSet};
   #[cfg(feature = "url-storage")]
@@ -300,15 +295,18 @@ mod tests {
     crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
     hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
   };
-  #[cfg(all(feature = "url-storage", feature = "crypt4gh"))]
+  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
   use {
+    crate::tls::crypt4gh::Crypt4GHKeyPair,
+    crate::tls::tests::with_test_certificates,
+    async_crypt4gh::{KeyPair, PublicKey},
     crypt4gh::keys::{generate_keys, get_private_key, get_public_key},
+    rustls::PrivateKey,
+    std::path::Path,
     tempfile::TempDir,
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
-  use crate::tls::crypt4gh::Crypt4GHKeyPair;
-  use crate::tls::tests::with_test_certificates;
   use crate::types::Format::Bam;
   use crate::types::Scheme::Http;
   use crate::types::Url;
@@ -448,7 +446,9 @@ mod tests {
         "(id)-2",
         "$1-test",
         AllowGuard::default(),
-        ObjectType::Tagged(TaggedObjectTypes::GenerateKeys),
+        ObjectType::GenerateKeys {
+          send_encrypted_to_client: true,
+        },
       )
       .unwrap(),
       Resolver::new(
@@ -460,6 +460,7 @@ mod tests {
         AllowGuard::default(),
         ObjectType::Crypt4GH {
           crypt4gh: Crypt4GHKeyPair::new(KeyPair::new(PrivateKey(vec![]), PublicKey::new(vec![]))),
+          send_encrypted_to_client: true,
         },
       )
       .unwrap(),
@@ -666,6 +667,7 @@ mod tests {
       regex = "regex"
 
       [resolvers.object_type]
+      send_encrypted_to_client = false
       private_key = "{}"
       public_key = "{}"
       "#,
@@ -675,7 +677,8 @@ mod tests {
           |config| {
             assert!(matches!(
               config.resolvers().first().unwrap().object_type(),
-              ObjectType::Crypt4GH { crypt4gh } if crypt4gh.key_pair().private_key().0 == private_key && crypt4gh.key_pair().public_key().clone().into_inner() == public_key
+              ObjectType::Crypt4GH { crypt4gh, send_encrypted_to_client } if crypt4gh.key_pair().private_key().0 == private_key && crypt4gh.key_pair().public_key().clone().into_inner() == public_key
+              && !*send_encrypted_to_client
             ));
           },
         );
@@ -695,7 +698,8 @@ mod tests {
           [[resolvers]]
           regex = "regex"
 
-          object_type = "GenerateKeys"
+          [resolvers.object_type]
+          send_encrypted_to_client = false
 
           [resolvers.storage]
           response_url = "https://example.com/"
@@ -725,7 +729,7 @@ mod tests {
     });
   }
 
-  #[cfg(feature = "crypt4gh")]
+  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
   pub(crate) fn with_crypt4gh_keys<F>(test: F)
   where
     F: FnOnce(&Path, &Path, &Path, &[u8], &[u8]),

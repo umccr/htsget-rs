@@ -21,6 +21,7 @@ use tracing::{instrument, trace};
 
 use crate::htsget::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::htsget::HtsGetError;
+use crate::storage::HeadOutput;
 use crate::Class::Body;
 use crate::{
   htsget::{Format, Query, Result},
@@ -44,8 +45,9 @@ where
   #[instrument(level = "trace", skip(self, index))]
   async fn get_byte_ranges_for_unmapped(
     &self,
-    query: &Query,
+    _query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for unmapped reads");
     let last_interval = index.last_first_record_start_position();
@@ -62,7 +64,7 @@ where
 
     Ok(vec![BytesPosition::default()
       .with_start(start.compressed())
-      .with_end(self.position_at_eof(query).await?)
+      .with_end(self.position_at_eof(head_output).await?)
       .with_class(Body)])
   }
 
@@ -111,10 +113,11 @@ where
     index: &Index,
     header: &Header,
     query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for reference name");
     self
-      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query, head_output)
       .await
   }
 
@@ -147,8 +150,11 @@ where
     &self,
     query: &Query,
     bai_index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
-    self.get_byte_ranges_for_unmapped(query, bai_index).await
+    self
+      .get_byte_ranges_for_unmapped(query, bai_index, head_output)
+      .await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
@@ -156,9 +162,10 @@ where
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index, head_output)
       .await
   }
 }

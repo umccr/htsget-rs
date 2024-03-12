@@ -21,7 +21,7 @@ use htsget_config::types::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{ConcurrencyError, ParsedHeader};
-use crate::storage::{BytesPosition, DataBlock, Storage};
+use crate::storage::{BytesPosition, DataBlock, HeadOutput, Storage};
 use crate::Class::Body;
 use crate::{Format, HtsGetError, Query, Result};
 
@@ -48,9 +48,9 @@ where
   ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   #[instrument(level = "trace", skip_all, ret)]
-  async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
+  async fn get_byte_ranges_for_all(&self, head_output: &HeadOutput) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?)
+      BytesPosition::default().with_end(self.position_at_eof(head_output).await?)
     ])
   }
 
@@ -75,6 +75,7 @@ where
     _header: &Header,
     _reader: &mut AsyncReader<ReaderType>,
     _query: &Query,
+    _head_output: &HeadOutput,
   ) -> Result<BytesPosition> {
     Ok(
       BytesPosition::default()
@@ -115,12 +116,14 @@ where
     &self,
     query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       query,
       index,
       Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
+      head_output,
     )
     .await
   }
@@ -130,12 +133,14 @@ where
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       query,
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
+      head_output,
     )
     .await
   }
@@ -179,9 +184,10 @@ where
     index: &Index,
     header: &Header,
     query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     self
-      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query, head_output)
       .await
   }
 
@@ -211,6 +217,7 @@ where
     query: &Query,
     crai_index: &[Record],
     predicate: Arc<F>,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>>
   where
     F: Fn(&Record) -> bool + Send + Sync + 'static,
@@ -251,9 +258,11 @@ where
         ));
       }
       Some(last) if predicate(last) => {
-        if let Some(range) =
-          Self::bytes_ranges_for_record(query.interval(), last, self.position_at_eof(query).await?)?
-        {
+        if let Some(range) = Self::bytes_ranges_for_record(
+          query.interval(),
+          last,
+          self.position_at_eof(head_output).await?,
+        )? {
           byte_ranges.push(range);
         }
       }

@@ -20,7 +20,7 @@ use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, Search};
 use crate::htsget::ParsedHeader;
-use crate::storage::{BytesPosition, Storage};
+use crate::storage::{BytesPosition, HeadOutput, Storage};
 use crate::{Format, Query, Result};
 
 type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
@@ -89,6 +89,7 @@ where
     index: &Index,
     header: &Header,
     query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for reference name");
     // We are assuming the order of the contigs in the header and the references sequences
@@ -112,7 +113,7 @@ where
     .await?;
 
     let byte_ranges = self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index, head_output)
       .await?;
     Ok(byte_ranges)
   }

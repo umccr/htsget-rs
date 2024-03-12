@@ -39,7 +39,7 @@ pub mod url;
 type Result<T> = core::result::Result<T, StorageError>;
 
 /// Output for the head function in Storage.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct HeadOutput {
   pub(crate) content_length: u64,
   pub(crate) response_headers: Option<HeaderMap>,
@@ -82,7 +82,7 @@ pub trait Storage {
     &self,
     key: K,
     options: GetOptions<'_>,
-    head_output: Option<HeadOutput>,
+    head_output: &mut Option<&mut HeadOutput>,
   ) -> Result<Self::Streamable>;
 
   /// Get the url of the object represented by the key using a bytes range. It is not required for
@@ -618,18 +618,27 @@ impl<'a> BytesPositionOptions<'a> {
 pub struct RangeUrlOptions<'a> {
   range: BytesPosition,
   response_headers: &'a HeaderMap,
+  object_type: &'a ObjectType,
 }
 
 impl<'a> RangeUrlOptions<'a> {
-  pub fn new(range: BytesPosition, response_headers: &'a HeaderMap) -> Self {
+  pub fn new(
+    range: BytesPosition,
+    response_headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
     Self {
       range,
       response_headers,
+      object_type,
     }
   }
 
-  pub fn new_with_default_range(request_headers: &'a HeaderMap) -> Self {
-    Self::new(Default::default(), request_headers)
+  pub fn new_with_default_range(
+    request_headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
+    Self::new(Default::default(), request_headers, object_type)
   }
 
   pub fn with_range(mut self, range: BytesPosition) -> Self {
@@ -657,6 +666,11 @@ impl<'a> RangeUrlOptions<'a> {
   /// Get the response headers.
   pub fn response_headers(&self) -> &'a HeaderMap {
     self.response_headers
+  }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    self.object_type
   }
 }
 
@@ -1110,7 +1124,8 @@ mod tests {
   #[test]
   fn url_options_with_range() {
     let request_headers = Default::default();
-    let result = RangeUrlOptions::new_with_default_range(&request_headers)
+    let object_type = Default::default();
+    let result = RangeUrlOptions::new_with_default_range(&request_headers, &object_type)
       .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
     assert_eq!(
       result.range(),
@@ -1122,6 +1137,7 @@ mod tests {
   fn url_options_apply_with_bytes_range() {
     let result = RangeUrlOptions::new(
       BytesPosition::new(Some(5), Some(11), Some(Class::Header)),
+      &Default::default(),
       &Default::default(),
     )
     .apply(Url::new(""));
@@ -1136,7 +1152,8 @@ mod tests {
 
   #[test]
   fn url_options_apply_no_bytes_range() {
-    let result = RangeUrlOptions::new_with_default_range(&Default::default()).apply(Url::new(""));
+    let result = RangeUrlOptions::new_with_default_range(&Default::default(), &Default::default())
+      .apply(Url::new(""));
     assert_eq!(result, Url::new(""));
   }
 
@@ -1144,6 +1161,7 @@ mod tests {
   fn url_options_apply_with_headers() {
     let result = RangeUrlOptions::new(
       BytesPosition::new(Some(5), Some(11), Some(Class::Header)),
+      &Default::default(),
       &Default::default(),
     )
     .apply(Url::new("").with_headers(Headers::default().with_header("header", "value")));

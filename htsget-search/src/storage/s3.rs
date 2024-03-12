@@ -219,7 +219,7 @@ impl Storage for S3Storage {
     &self,
     key: K,
     options: GetOptions<'_>,
-    _head_output: Option<HeadOutput>,
+    _head_output: &mut Option<&mut HeadOutput>,
   ) -> Result<Self::Streamable> {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
@@ -306,7 +306,7 @@ pub(crate) mod tests {
         .get(
           "key2",
           GetOptions::new_with_default_range(&Default::default(), &Default::default()),
-          Default::default(),
+          &mut Default::default(),
         )
         .await;
       assert!(result.is_ok());
@@ -321,7 +321,7 @@ pub(crate) mod tests {
         .get(
           "non-existing-key",
           GetOptions::new_with_default_range(&Default::default(), &Default::default()),
-          Default::default(),
+          &mut Default::default(),
         )
         .await;
       assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
@@ -335,7 +335,7 @@ pub(crate) mod tests {
       let result = storage
         .range_url(
           "key2",
-          RangeUrlOptions::new_with_default_range(&Default::default()),
+          RangeUrlOptions::new_with_default_range(&Default::default(), &Default::default()),
         )
         .await
         .unwrap();
@@ -356,6 +356,7 @@ pub(crate) mod tests {
           "key2",
           RangeUrlOptions::new(
             BytesPosition::new(Some(7), Some(9), None),
+            &Default::default(),
             &Default::default(),
           ),
         )
@@ -381,7 +382,11 @@ pub(crate) mod tests {
       let result = storage
         .range_url(
           "key2",
-          RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
+          RangeUrlOptions::new(
+            BytesPosition::new(Some(7), None, None),
+            &Default::default(),
+            &Default::default(),
+          ),
         )
         .await
         .unwrap();
