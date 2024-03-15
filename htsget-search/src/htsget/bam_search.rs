@@ -1,6 +1,7 @@
 //! Module providing the search capability using BAM/BAI files
 //!
 
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,6 +9,7 @@ use noodles::bam;
 use noodles::bam::bai;
 use noodles::bam::bai::Index;
 use noodles::bgzf;
+use noodles::bgzf::r#async::reader::Builder;
 use noodles::bgzf::VirtualPosition;
 use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
 use noodles::csi::binning_index::index::ReferenceSequence;
@@ -19,6 +21,7 @@ use tracing::{instrument, trace};
 
 use crate::htsget::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::htsget::HtsGetError;
+use crate::storage::HeadOutput;
 use crate::Class::Body;
 use crate::{
   htsget::{Format, Query, Result},
@@ -37,13 +40,14 @@ impl<S, ReaderType> BgzfSearch<S, LinearIndex, ReaderType, AsyncReader<ReaderTyp
   for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   #[instrument(level = "trace", skip(self, index))]
   async fn get_byte_ranges_for_unmapped(
     &self,
-    query: &Query,
+    _query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for unmapped reads");
     let last_interval = index.last_first_record_start_position();
@@ -60,7 +64,7 @@ where
 
     Ok(vec![BytesPosition::default()
       .with_start(start.compressed())
-      .with_end(self.position_at_eof(query).await?)
+      .with_end(self.position_at_eof(head_output).await?)
       .with_class(Body)])
   }
 
@@ -79,10 +83,14 @@ impl<S, ReaderType>
   for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
-    AsyncReader::new(inner)
+    AsyncReader::from(
+      Builder::default()
+        .set_worker_count(NonZeroUsize::try_from(1).expect("expected valid non zero usize"))
+        .build_with_reader(inner),
+    )
   }
 
   async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
@@ -94,6 +102,10 @@ where
     reader.read_index().await
   }
 
+  fn into_inner(reader: AsyncReader<ReaderType>) -> ReaderType {
+    reader.into_inner().into_inner()
+  }
+
   #[instrument(level = "trace", skip(self, index, header, query))]
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -101,10 +113,11 @@ where
     index: &Index,
     header: &Header,
     query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     trace!("getting byte ranges for reference name");
     self
-      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query, head_output)
       .await
   }
 
@@ -123,7 +136,7 @@ impl<S, ReaderType>
   for BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   async fn get_reference_sequence_from_name<'a>(
     &self,
@@ -137,8 +150,11 @@ where
     &self,
     query: &Query,
     bai_index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
-    self.get_byte_ranges_for_unmapped(query, bai_index).await
+    self
+      .get_byte_ranges_for_unmapped(query, bai_index, head_output)
+      .await
   }
 
   async fn get_byte_ranges_for_reference_sequence(
@@ -146,9 +162,10 @@ where
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     self
-      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index)
+      .get_byte_ranges_for_reference_sequence_bgzf(query, ref_seq_id, index, head_output)
       .await
   }
 }
@@ -156,7 +173,7 @@ where
 impl<S, ReaderType> BamSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   /// Create the bam search.
   pub fn new(storage: Arc<S>) -> Self {
@@ -170,7 +187,6 @@ pub(crate) mod tests {
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::http::concat::ConcatResponse;
-  use htsget_test::util::expected_bgzf_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
@@ -188,17 +204,14 @@ pub(crate) mod tests {
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await;
       println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![
-          Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
-          Url::new(expected_bgzf_eof_data_url()),
-        ],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
       ));
       assert_eq!(response, expected_response);
 
@@ -211,8 +224,8 @@ pub(crate) mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("*");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("*");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -223,9 +236,8 @@ pub(crate) mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596770"))
+            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798"))
             .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -239,8 +251,8 @@ pub(crate) mod tests {
   async fn search_reference_name_without_seq_range_chr11() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("11");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("11");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -249,7 +261,8 @@ pub(crate) mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-996014")),
-          Url::new(expected_bgzf_eof_data_url()),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798")),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -263,8 +276,8 @@ pub(crate) mod tests {
   async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("20");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -277,7 +290,9 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165"))
             .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -291,7 +306,7 @@ pub(crate) mod tests {
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000)
         .with_end(5050000);
@@ -313,7 +328,9 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996014"))
             .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -327,7 +344,7 @@ pub(crate) mod tests {
   async fn search_reference_name_no_end_position() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000);
       let response = search.search(query).await;
@@ -342,7 +359,9 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=256721-996014"))
             .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -356,7 +375,7 @@ pub(crate) mod tests {
   async fn search_many_response_urls() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(4999976)
         .with_end(5003981);
@@ -376,7 +395,8 @@ pub(crate) mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
-          Url::new(expected_bgzf_eof_data_url()),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798")),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -391,7 +411,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("11")
           .with_start(5015000)
           .with_end(5050000);
@@ -407,7 +427,9 @@ pub(crate) mod tests {
             Url::new(expected_url())
               .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951"))
               .with_class(Body),
-            Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+            Url::new(expected_url())
+              .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+              .with_class(Body),
           ],
         ));
         assert_eq!(response, expected_response);
@@ -424,8 +446,7 @@ pub(crate) mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query =
-        Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -449,8 +470,8 @@ pub(crate) mod tests {
   async fn search_header_with_no_mapped_reads() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("22");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("22");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -460,7 +481,9 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
             .with_class(Header),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -474,8 +497,8 @@ pub(crate) mod tests {
   async fn search_header_with_non_existent_reference_name() {
     with_local_storage(|storage| async move {
       let search = BamSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("25");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("25");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -491,7 +514,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -508,8 +531,8 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-          .with_reference_name("20");
+        let query =
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -527,7 +550,7 @@ pub(crate) mod tests {
       |storage| async move {
         let search = BamSearch::new(storage.clone());
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -545,7 +568,7 @@ pub(crate) mod tests {
       |storage| async move {
         let search = BamSearch::new(storage.clone());
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
 
         let index = search.read_index(&query).await.unwrap();
         let response = search.get_header_end_offset(&index).await;
@@ -566,7 +589,7 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -584,8 +607,8 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-          .with_reference_name("20");
+        let query =
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -604,7 +627,7 @@ pub(crate) mod tests {
       |storage| async move {
         let search = BamSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
 

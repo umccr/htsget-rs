@@ -171,17 +171,20 @@ To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and s
 `UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
 To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
 
-| Option                               | Description                                                                                                                                                      | Type                     | Default                                                                                                         |
-|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
-| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                                                            | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                                                                                                          |
-| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.                                      | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| Option                                            | Description                                                                                                                                                      | Type       | Default                                                                                                   |
+|---------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------------------|
+| <span id="endpoint_index">`endpoint_index`</span> | The URL to fetch index for a file. The request will be a GET request which expects the index file specific to a BAM/CRAM/VCF file.                               | HTTP URL   | `"https://127.0.0.1:8081/"`                                                                               |
+| <span id="endpoint_header">`endpoint_file`</span> | The URL to fetch underlying for a file. The request will be a GET request which expects to get the decrypted underlying header from a BAM/CRAM/VCF file.         | HTTP URL   | `"https://127.0.0.1:8081/"`                                                                               |
+| <span id="url">`response_url`</span>              | The URL to return to the client for fetching tickets.                                                                                                            | HTTP URL   | `"https://127.0.0.1:8081/"`                                                                               |
+| `forward_headers`                                 | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean    | `true`                                                                                                    |
+| `user_agent`                                      | A user agent to provide when making requests to the URLs.                                                                                                        | String     | A combination of the cargo package name and version. For example, `htsget-search/0.6.6`.                       |
+| `tls`                                             | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.                                      | TOML table | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
-When using `UrlStorage`, the following requests will be made to the `url`.
-* `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
-* `GET` request to fetch the entire index file (e.g. `GET /data.bam.bai`).
-* `HEAD` request on the data file to get its length (e.g. `HEAD /data.bam`).
+When using `UrlStorage`, the following requests will be made:
+* `GET` request to fetch only the crypt4gh headers size of the data file (e.g. `GET /data.bam`), URL used is configured via `endpoint_crypt4gh_header`.
+* `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`), URL used is configured via `endpoint_header`.
+* `GET` request to fetch the entire index file (e.g. `GET /data.bam.bai`), URL used is configured via `endpoint_index`.
+* `HEAD` request on the data file to get its length (e.g. `HEAD /data.bam`), URL used is configured via `endpoint_head`.
 
 All headers received in the initial query will be included when making these requests.
 
@@ -235,7 +238,7 @@ Additionally, the resolver component has a feature, which allows resolving IDs b
 This is useful as allows the resolver to match an ID, if a particular set of query parameters are also present. For example, 
 a resolver can be set to only resolve IDs if the format is also BAM.
 
-This component can be configured by setting the `[resolver.allow_guard]` table with. The following options are available to restrict which queries are resolved by a resolver:
+This component can be configured by setting the `[resolver.allow_guard]` table. The following options are available to restrict which queries are resolved by a resolver:
 
 | Option                  | Description                                                                             | Type                                                                  | Default                             |
 |-------------------------|-----------------------------------------------------------------------------------------|-----------------------------------------------------------------------|-------------------------------------|
@@ -294,6 +297,33 @@ ticket_server_tls.key = "key.pem"
 Further TLS examples are available under [`examples/config-files`][examples-config-files].
 
 [examples-config-files]: examples/config-files
+
+#### Object type
+There is additional configuration that changes the way a resolver treats an object.
+
+By default, all objects are considered `Regular`. However, the `object_type` can be configured to decrypt Crypt4GH files.
+
+This component can be configured by setting the `[resolver.object_type]` table in order to enable Crypt4GH:
+
+| Option                     | Description                                                                                                                                                                               | Type    | Default                                        |
+|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|------------------------------------------------|
+| `send_encrypted_to_client` | Whether to send data encrypted byte ranges to the client. Note, this does not affect data sent to the `UrlStorage` backend, which remains encrypted if type Crypt4GH object type is used. | Boolean | Not set                                        |
+| `private_key`              | Path to the private key used for decrypted Crypt4GH data.                                                                                                                                 | Path    | Not set, generates ephemeral keys if not set.  | 
+| `public_key`               | Path to the public key used for decrypted Crypt4GH data.                                                                                                                                  | Path    | Not set, generates ephemeral keys if not set.  | 
+
+Or, to generate keys uniquely for each request, the `private_key` and `public_key` options should not be set.
+
+For example to enable Crypt4GH for a resolver, build htsget-rs with the `crypt4gh` feature enabled, and set the following options under `[resolvers.object_type]`:
+
+```toml
+[resolvers.object_type]
+# Specify the keys that htsget will use manually.
+send_encrypted_to_client = true
+private_key = "data/crypt4gh/keys/bob.sec" # pragma: allowlist secret
+public_key = "data/crypt4gh/keys/bob.pub"
+```
+
+Note, currently this functionality only works with `UrlStorage`.
 
 #### Config file location
 
@@ -464,6 +494,7 @@ regex, and changing it by using a substitution string.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `crypt4gh`: used to enable Crypt4GH functionality.
 
 ## License
 

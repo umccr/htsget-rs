@@ -81,7 +81,7 @@ mod tests {
       }
       .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
-      vec![Query::new("id", Format::Vcf, request).with_class(Class::Header)]
+      vec![Query::new("id", Format::Vcf, request, Default::default()).with_class(Class::Header)]
     );
   }
 
@@ -104,7 +104,7 @@ mod tests {
       }
       .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
-      vec![Query::new("id", Format::Vcf, request)
+      vec![Query::new("id", Format::Vcf, request, Default::default())
         .with_class(Class::Header)
         .with_reference_name("20".to_string())
         .with_start(150)
@@ -139,12 +139,12 @@ mod tests {
       .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
       vec![
-        Query::new("id", Format::Vcf, request.clone())
+        Query::new("id", Format::Vcf, request.clone(), Default::default())
           .with_class(Class::Header)
           .with_reference_name("20".to_string())
           .with_start(150)
           .with_end(153),
-        Query::new("id", Format::Vcf, request)
+        Query::new("id", Format::Vcf, request, Default::default())
           .with_class(Class::Header)
           .with_reference_name("11".to_string())
           .with_start(152)

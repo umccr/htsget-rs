@@ -38,3 +38,5 @@ allow_classes = [
     "body",
     "header",
 ]
+
+[resolvers.object_type]

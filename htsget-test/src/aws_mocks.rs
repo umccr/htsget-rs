@@ -1,3 +1,6 @@
+use std::future::Future;
+use std::path::{Path, PathBuf};
+
 use aws_config::SdkConfig;
 use aws_credential_types::provider::SharedCredentialsProvider;
 use aws_credential_types::Credentials;
@@ -6,8 +9,6 @@ use aws_sdk_s3::Client;
 use s3s::auth::SimpleAuth;
 use s3s::service::S3ServiceBuilder;
 use s3s_fs::FileSystem;
-use std::future::Future;
-use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 /// Default domain to use for mock s3 server

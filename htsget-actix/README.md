@@ -110,6 +110,7 @@ are exposed in the public API.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `crypt4gh`: used to enable Crypt4GH functionality.
 
 ## Benchmarks
 Benchmarks for this crate written using [Criterion.rs][criterion-rs], and aim to compare the performance of this crate with the 

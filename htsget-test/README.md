@@ -41,6 +41,7 @@ This crate has the following features:
 * `server-tests`: used to enable server tests.
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `crypt4gh`: used to enable Crypt4GH functionality.
 
 [dev-dependencies]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies
 

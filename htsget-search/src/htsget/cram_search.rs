@@ -21,7 +21,7 @@ use htsget_config::types::Interval;
 
 use crate::htsget::search::{Search, SearchAll, SearchReads};
 use crate::htsget::{ConcurrencyError, ParsedHeader};
-use crate::storage::{BytesPosition, DataBlock, Storage};
+use crate::storage::{BytesPosition, DataBlock, HeadOutput, Storage};
 use crate::Class::Body;
 use crate::{Format, HtsGetError, Query, Result};
 
@@ -45,12 +45,12 @@ impl<S, ReaderType>
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   #[instrument(level = "trace", skip_all, ret)]
-  async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
+  async fn get_byte_ranges_for_all(&self, head_output: &HeadOutput) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?)
+      BytesPosition::default().with_end(self.position_at_eof(head_output).await?)
     ])
   }
 
@@ -75,6 +75,7 @@ where
     _header: &Header,
     _reader: &mut AsyncReader<ReaderType>,
     _query: &Query,
+    _head_output: &HeadOutput,
   ) -> Result<BytesPosition> {
     Ok(
       BytesPosition::default()
@@ -101,7 +102,7 @@ impl<S, ReaderType>
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   async fn get_reference_sequence_from_name<'a>(
     &self,
@@ -115,12 +116,14 @@ where
     &self,
     query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       query,
       index,
       Arc::new(|record: &Record| record.reference_sequence_id().is_none()),
+      head_output,
     )
     .await
   }
@@ -130,12 +133,14 @@ where
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     Self::bytes_ranges_from_index(
       self,
       query,
       index,
       Arc::new(move |record: &Record| record.reference_sequence_id() == Some(ref_seq_id)),
+      head_output,
     )
     .await
   }
@@ -147,7 +152,7 @@ impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<
   for CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
     AsyncReader::new(BufReader::new(inner))
@@ -169,15 +174,20 @@ where
     crai::AsyncReader::new(inner).read_index().await
   }
 
+  fn into_inner(reader: AsyncReader<ReaderType>) -> ReaderType {
+    reader.into_inner().into_inner()
+  }
+
   async fn get_byte_ranges_for_reference_name(
     &self,
     reference_name: String,
     index: &Index,
     header: &Header,
     query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     self
-      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query)
+      .get_byte_ranges_for_reference_name_reads(&reference_name, index, header, query, head_output)
       .await
   }
 
@@ -193,7 +203,7 @@ where
 impl<S, ReaderType> CramSearch<S>
 where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
+  ReaderType: AsyncRead + Unpin + Send + Sync + 'static,
 {
   /// Create the cram search.
   pub fn new(storage: Arc<S>) -> Self {
@@ -207,6 +217,7 @@ where
     query: &Query,
     crai_index: &[Record],
     predicate: Arc<F>,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>>
   where
     F: Fn(&Record) -> bool + Send + Sync + 'static,
@@ -247,9 +258,11 @@ where
         ));
       }
       Some(last) if predicate(last) => {
-        if let Some(range) =
-          Self::bytes_ranges_for_record(query.interval(), last, self.position_at_eof(query).await?)?
-        {
+        if let Some(range) = Self::bytes_ranges_for_record(
+          query.interval(),
+          last,
+          self.position_at_eof(head_output).await?,
+        )? {
           byte_ranges.push(range);
         }
       }
@@ -293,7 +306,6 @@ mod tests {
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::http::concat::ConcatResponse;
-  use htsget_test::util::expected_cram_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
   use crate::htsget::from_storage::tests::with_aws_storage_fn;
@@ -311,17 +323,14 @@ mod tests {
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await;
       println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![
-          Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-1672409")),
-          Url::new(expected_cram_eof_data_url()),
-        ],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=0-1672447"))],
       ));
       assert_eq!(response, expected_response);
 
@@ -334,8 +343,8 @@ mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("*");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("*");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -346,9 +355,8 @@ mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-6133"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=1324614-1672409"))
+            .with_headers(Headers::default().with_header("Range", "bytes=1324614-1672447"))
             .with_class(Body),
-          Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -362,8 +370,8 @@ mod tests {
   async fn search_reference_name_without_seq_range_chr11() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("11");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("11");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -372,7 +380,8 @@ mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
-          Url::new(expected_cram_eof_data_url()),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447")),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -386,8 +395,8 @@ mod tests {
   async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("20");
+      let query =
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -400,7 +409,9 @@ mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=625728-1324613"))
             .with_class(Body),
-          Url::new(expected_cram_eof_data_url()).with_class(Body),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447"))
+            .with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -414,7 +425,7 @@ mod tests {
   async fn search_reference_name_with_seq_range_no_overlap() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
         .with_end(5050000);
@@ -426,7 +437,8 @@ mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-480537")),
-          Url::new(expected_cram_eof_data_url()),
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447")),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -440,7 +452,7 @@ mod tests {
   async fn search_reference_name_with_seq_range_overlap() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
         .with_end(5100000);
@@ -459,7 +471,7 @@ mod tests {
   async fn search_reference_name_with_no_end_position() {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000);
       let response = search.search(query).await;
@@ -479,7 +491,8 @@ mod tests {
       vec![
         Url::new(expected_url())
           .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
-        Url::new(expected_cram_eof_data_url()),
+        Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447")),
       ],
     )
   }
@@ -489,7 +502,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let search = CramSearch::new(storage.clone());
       let query =
-        Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+        Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -514,7 +527,7 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = CramSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -531,8 +544,8 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = CramSearch::new(storage.clone());
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-          .with_reference_name("20");
+        let query =
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -550,7 +563,7 @@ mod tests {
       |storage| async move {
         let search = CramSearch::new(storage.clone());
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -568,7 +581,7 @@ mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = CramSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+        let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -586,8 +599,8 @@ mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let search = CramSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-          .with_reference_name("20");
+        let query =
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -606,7 +619,7 @@ mod tests {
       |storage| async move {
         let search = CramSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+          Query::new_with_defaults("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
 

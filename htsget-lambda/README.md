@@ -46,6 +46,7 @@ routing queries are exposed in the public API.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `crypt4gh`: used to enable Crypt4GH functionality.
 
 ## License
 

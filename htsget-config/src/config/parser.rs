@@ -1,12 +1,14 @@
-use crate::config::Config;
-use figment::providers::{Env, Format, Serialized, Toml};
-use figment::Figment;
-use serde::Deserialize;
 use std::fmt::Debug;
 use std::io;
 use std::io::ErrorKind;
 use std::path::Path;
+
+use figment::providers::{Env, Format, Serialized, Toml};
+use figment::Figment;
+use serde::Deserialize;
 use tracing::{info, instrument};
+
+use crate::config::Config;
 
 const ENVIRONMENT_VARIABLE_PREFIX: &str = "HTSGET_";
 

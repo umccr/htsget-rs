@@ -10,7 +10,10 @@ use serde_with::with_prefix;
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
+use crate::storage::url::endpoints::Endpoints;
 use crate::tls::TlsClientConfig;
+
+pub mod endpoints;
 
 fn default_url() -> ValidatedUrl {
   ValidatedUrl(Url {
@@ -24,9 +27,10 @@ with_prefix!(client_auth_prefix "client_");
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct UrlStorage {
-  url: ValidatedUrl,
+  endpoints: Endpoints,
   response_url: ValidatedUrl,
   forward_headers: bool,
+  user_agent: Option<String>,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
 }
@@ -34,9 +38,10 @@ pub struct UrlStorage {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(from = "UrlStorage")]
 pub struct UrlStorageClient {
-  url: ValidatedUrl,
+  endpoints: Endpoints,
   response_url: ValidatedUrl,
   forward_headers: bool,
+  user_agent: Option<String>,
   client: Client<HttpsConnector<HttpConnector>>,
 }
 
@@ -52,9 +57,10 @@ impl From<UrlStorage> for UrlStorageClient {
     );
 
     Self::new(
-      storage.url,
+      storage.endpoints,
       storage.response_url,
       storage.forward_headers,
+      storage.user_agent,
       client,
     )
   }
@@ -63,22 +69,24 @@ impl From<UrlStorage> for UrlStorageClient {
 impl UrlStorageClient {
   /// Create a new url storage client.
   pub fn new(
-    url: ValidatedUrl,
+    endpoints: Endpoints,
     response_url: ValidatedUrl,
     forward_headers: bool,
+    user_agent: Option<String>,
     client: Client<HttpsConnector<HttpConnector>>,
   ) -> Self {
     Self {
-      url,
+      endpoints,
       response_url,
       forward_headers,
+      user_agent,
       client,
     }
   }
 
-  /// Get the url called when resolving the query.
-  pub fn url(&self) -> &InnerUrl {
-    &self.url.0.inner
+  /// Get the endpoints config.
+  pub fn endpoints(&self) -> &Endpoints {
+    &self.endpoints
   }
 
   /// Get the response url to return to the client
@@ -91,6 +99,12 @@ impl UrlStorageClient {
     self.forward_headers
   }
 
+  /// Get the user agent.
+  pub fn user_agent(&self) -> Option<String> {
+    self.user_agent.clone()
+  }
+
+  /// Get a cloned copy of the http client.
   pub fn client_cloned(&self) -> Client<HttpsConnector<HttpConnector>> {
     self.client.clone()
   }
@@ -108,6 +122,12 @@ pub(crate) struct Url {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(try_from = "Url")]
 pub struct ValidatedUrl(pub(crate) Url);
+
+impl From<InnerUrl> for ValidatedUrl {
+  fn from(url: InnerUrl) -> Self {
+    ValidatedUrl(Url { inner: url })
+  }
+}
 
 impl ValidatedUrl {
   /// Get the inner url.
@@ -130,35 +150,42 @@ impl TryFrom<Url> for ValidatedUrl {
 impl UrlStorage {
   /// Create a new url storage.
   pub fn new(
-    url: InnerUrl,
+    endpoints: Endpoints,
     response_url: InnerUrl,
     forward_headers: bool,
+    user_agent: Option<String>,
     tls: TlsClientConfig,
   ) -> Self {
     Self {
-      url: ValidatedUrl(Url { inner: url }),
+      endpoints,
       response_url: ValidatedUrl(Url {
         inner: response_url,
       }),
       forward_headers,
+      user_agent,
       tls,
     }
   }
 
-  /// Get the url called when resolving the query.
-  pub fn url(&self) -> &InnerUrl {
-    &self.url.0.inner
+  /// Get the endpoints config.
+  pub fn endpoints(&self) -> &Endpoints {
+    &self.endpoints
   }
 
   /// Get the response url which is returned to the client.
   pub fn response_url(&self) -> &InnerUrl {
-    &self.url.0.inner
+    &self.response_url.0.inner
   }
 
   /// Whether headers received in a query request should be
   /// included in the returned data block tickets.
   pub fn forward_headers(&self) -> bool {
     self.forward_headers
+  }
+
+  /// Get the user agent.
+  pub fn user_agent(&self) -> Option<&str> {
+    self.user_agent.as_deref()
   }
 
   /// Get the tls client config.
@@ -170,9 +197,10 @@ impl UrlStorage {
 impl Default for UrlStorage {
   fn default() -> Self {
     Self {
-      url: default_url(),
+      endpoints: Default::default(),
       response_url: default_url(),
       forward_headers: true,
+      user_agent: None,
       tls: TlsClientConfig::default(),
     }
   }
@@ -182,7 +210,6 @@ impl Default for UrlStorage {
 mod tests {
   use crate::config::tests::test_config_from_file;
   use crate::storage::Storage;
-
   use crate::tls::tests::with_test_certificates;
 
   #[test]
@@ -198,12 +225,17 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        url = "https://example.com/"
         response_url = "https://example.com/"
         forward_headers = false
+        user_agent = "user-agent"
         tls.key = "{}"
         tls.cert = "{}"
         tls.root_store = "{}"
+
+        [resolvers.storage.endpoints]
+        head = "https://example.com/"
+        file = "https://example.com/"
+        index = "https://example.com/"
         "#,
           key_path.to_string_lossy().escape_default(),
           cert_path.to_string_lossy().escape_default(),
@@ -213,8 +245,8 @@ mod tests {
           println!("{:?}", config.resolvers().first().unwrap().storage());
           assert!(matches!(
               config.resolvers().first().unwrap().storage(),
-              Storage::Url { url_storage } if *url_storage.url() == "https://example.com/"
-                && !url_storage.forward_headers()
+              Storage::Url { url_storage } if *url_storage.endpoints().file() == "https://example.com/"
+                && !url_storage.forward_headers() && url_storage.user_agent() == Some("user-agent".to_string())
           ));
         },
       );
