@@ -579,10 +579,26 @@ impl Storage for UrlStorage {
 
         info!("got client public key: {:#?}", client_public_key);
 
-        let unencrypted_positions = BytesPosition::merge_all(positions_options.positions.clone());
+        // Need to work from the context of defined start and end ranges.
+        let positions = positions_options
+          .positions
+          .clone()
+          .into_iter()
+          .map(|mut pos| {
+            if pos.start.is_none() {
+              pos.start = Some(0);
+            }
+            if pos.end.is_none() {
+              pos.end = Some(file_size);
+            }
+
+            pos
+          })
+          .collect::<Vec<BytesPosition>>();
+
+        let unencrypted_positions = BytesPosition::merge_all(positions.clone());
         let clamped_positions = BytesPosition::merge_all(
-          positions_options
-            .positions
+          positions
             .clone()
             .into_iter()
             .map(|pos| pos.convert_to_clamped_crypt4gh_ranges(file_size))
@@ -617,8 +633,7 @@ impl Storage for UrlStorage {
         info!("created edit list");
 
         let encrypted_positions = BytesPosition::merge_all(
-          positions_options
-            .positions
+          positions
             .clone()
             .into_iter()
             .map(|pos| pos.convert_to_crypt4gh_ranges(client_additional_bytes, file_size))
@@ -1199,6 +1214,114 @@ mod tests {
       let response = searcher.search(query.clone()).await.unwrap();
 
       assert_encrypted_endpoints(&public_key, response).await;
+    })
+    .await;
+  }
+
+  #[cfg(feature = "crypt4gh")]
+  #[tokio::test]
+  async fn test_endpoints_with_full_file_encrypted() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url_with_path(&url),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        Some("user-agent".to_string()),
+      );
+
+      let mut key_gen = Encrypt::default();
+      key_gen
+        .expect_edit_list()
+        .times(1)
+        .returning(|_, _, _, _, _| {
+          Ok((
+            vec![99, 114, 121, 112, 116, 52, 103, 104, 1, 0, 0, 0, 2, 0, 0, 0],
+            vec![
+              92, 0, 0, 0, 0, 0, 0, 0, 56, 44, 122, 180, 24, 116, 207, 149, 165, 49, 204, 77, 224,
+              136, 232, 121, 209, 249, 23, 51, 120, 2, 187, 147, 82, 227, 232, 32, 17, 223, 7, 38,
+              137, 197, 83, 68, 73, 33, 229, 38, 173, 186, 106, 216, 22, 90, 243, 19, 191, 45, 212,
+              253, 97, 151, 103, 27, 151, 29, 169, 155, 208, 93, 197, 217, 40, 133, 166, 160, 125,
+              43, 82, 75, 1, 20, 104, 45, 116, 193, 165, 160, 189, 186, 146, 175,
+            ],
+          ))
+        });
+      let storage = storage.with_key_gen(key_gen);
+
+      let (_, public_key) = get_encryption_keys().await;
+      let mut header_map = HeaderMap::default();
+      let public_key = general_purpose::STANDARD.encode(public_key);
+      test_headers(&mut header_map);
+      header_map.append(
+        HeaderName::from_str(CLIENT_PUBLIC_KEY_NAME).unwrap(),
+        HeaderValue::from_str(&public_key).unwrap(),
+      );
+
+      let request =
+        HtsgetRequest::new_with_id("htsnexus_test_NA12878".to_string()).with_headers(header_map);
+      let query = Query::new(
+        "htsnexus_test_NA12878",
+        Format::Bam,
+        request,
+        ObjectType::Crypt4GH {
+          crypt4gh: Crypt4GHKeyPair::new(expected_key_pair()),
+          send_encrypted_to_client: true,
+        },
+      );
+
+      let searcher = HtsGetFromStorage::new(storage);
+      let response = searcher.search(query.clone()).await.unwrap();
+
+      let expected_response = HtsgetResponse::new(
+        Format::Bam,
+        vec![
+          // header info
+          Url::new("data:;base64,Y3J5cHQ0Z2gBAAAAAgAAAA=="),
+          // original header
+          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header(CLIENT_PUBLIC_KEY_NAME, public_key.clone())
+              .with_header("Range", format!("bytes={}-{}", 16, 123)),
+          ),
+          // edit list packet
+          Url::new(
+            "data:;base64,XAAAAAAAAAA4LHq0GHTPlaUxzE3giOh50fkXM3gCu5NS4+ggEd8HJonFU0RJIeUmrbpq2\
+            BZa8xO/LdT9YZdnG5cdqZvQXcXZKIWmoH0rUksBFGgtdMGloL26kq8=",
+          ),
+          Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
+            Headers::default()
+              .with_header("authorization", "secret")
+              .with_header(CLIENT_PUBLIC_KEY_NAME, public_key.clone())
+              .with_header("Range", format!("bytes={}-{}", 124, 2598043 - 1)),
+          ),
+        ],
+      );
+
+      assert_eq!(response, expected_response);
+
+      let (bytes, _) = test_bam_file_byte_ranges(
+        response,
+        default_dir().join("data/crypt4gh/htsnexus_test_NA12878.bam.c4gh"),
+      )
+      .await;
+
+      let (expected_bytes, _) = test_bam_file_byte_ranges(
+        HtsgetResponse::new(
+          Format::Bam,
+          vec![
+            Url::new("http://example.com/htsnexus_test_NA12878.bam").with_headers(
+              Headers::default()
+                .with_header("authorization", "secret")
+                .with_header("Range", "bytes=0-2596798"),
+            ),
+          ],
+        ),
+        default_dir().join("data/bam/htsnexus_test_NA12878.bam"),
+      )
+      .await;
+
+      test_bam_crypt4gh_byte_ranges(bytes.clone(), expected_bytes).await;
     })
     .await;
   }
