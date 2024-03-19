@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+      - docs/docker-minio-example
+
+env:
+  LATEST_TAG: ghcr.io/umccr/htsget-rs:latest
 
 jobs:
   release:
@@ -29,11 +33,22 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Docker GitHub release
-        id: docker_build
+      - name: Build and export to Docker
         uses: docker/build-push-action@v5
         with:
           context: .
           file: deploy/Dockerfile
-          push: true
-          tags: ghcr.io/umccr/htsget-rs:latest
+          tags: ${{ env.LATEST_TAG }}
+      - name: Test running image
+        run: |
+          docker run --rm ${{ env.LATEST_TAG }}
+
+#      - name: Docker GitHub release
+#        id: docker_build
+#        uses: docker/build-push-action@v5
+#        with:
+#          context: .
+#          file: deploy/Dockerfile
+#          push: true
+#          tags: |
+#            ${{ env.LATEST_TAG }}
