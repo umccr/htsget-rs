@@ -36,6 +36,4 @@ jobs:
           context: .
           file: deploy/Dockerfile
           push: true
-          tags: |
-            ghcr.io/umccr/htsget-rs:dev-latest
-            ghcr.io/umccr/htsget-rs:dev-${{ github.run_number }}
+          tags: ghcr.io/umccr/htsget-rs:latest
