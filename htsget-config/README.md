@@ -435,9 +435,9 @@ endpoint = 'http://127.0.0.1:9000'
 path_style = true
 ```
 
-Care must be taken to ensure that the correct `AWS_REGION`, `AWS_ACCESS_KEY` and `AWS_SECRET_ACCESS_KEY` is set to allow
-the AWS sdk to reach the endpoint. Additional configuration of the MinIO server is required to use virtual-hosted style
-addressing by setting the `MINIO_DOMAIN` environment variable. Path style addressing can be forced using `path_style = true`.
+Care must be taken to ensure that the [correct][env-variables] `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY` and `AWS_SECRET_ACCESS_KEY` is set to allow
+the AWS sdk to reach the endpoint. Additional configuration of the MinIO server is required to use [virtual-hosted][virtual-addressing] style
+addressing by setting the `MINIO_DOMAIN` environment variable. [Path][path-addressing] style addressing can be forced using `path_style = true`.
 
 See the MinIO deployment [example][minio-deployment] for more information on how to configure htsget-rs and MinIO.
 
@@ -459,6 +459,9 @@ This crate has the following features:
 
 This project is licensed under the [MIT license][license].
 
+[path-addressing]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#path-style-access
+[env-variables]: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+[virtual-addressing]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#virtual-hosted-style-access
 [minio-deployment]: ../deploy/examples/minio/README.md
 [license]: LICENSE
 [minio]: https://min.io/
