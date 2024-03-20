@@ -137,21 +137,12 @@ Examples of different Lambda events are located in the [`data/events`][data-even
 
 ## Docker
 
-There is a [`compose.yml`][compose-yml] which allows using htsget with docker:
+There are example deployments using Docker under the [examples] directory. These include a [`LocalStorage`][local] deployment
+and a [MinIO][minio] deployment.
 
-```
-docker compose up
-```
-
-This launches a `LocalStorage` htsget-actix server serving data from the [`data`][data] directory
-
-### Local with MinIO (S3) backend
-
-See instructions [inside htsget-config][minio] for an example with docker and MinIO.
-
-[compose-yml]: compose.yml
-[data]: ../data
-[minio]: ../htsget-config/README.md#minio
+[local]: examples/local_storage/README.md
+[examples]: examples
+[minio]: examples/minio/README.md
 [htsget-lambda-bin]: bin/htsget-lambda.ts
 [htsget-lambda-stack]: lib/htsget-lambda-stack.ts
 [htsget-settings]: bin/settings.ts
