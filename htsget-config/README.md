@@ -422,34 +422,24 @@ export HTSGET_DATA_SERVER_ENABLED=false
 
 ### MinIO
 
-Operating a local object storage like [MinIO][minio] can be easily achieved by leveraging the `endpoint` directive as shown below:
+Operating a local object storage like [MinIO][minio] can be achieved by leveraging the `endpoint` directive as shown below:
 
 ```toml
 [[resolvers]]
-regex = ".*"
-substitution_string = "$0"
+regex = '.*'
+substitution_string = '$0'
 
 [resolvers.storage]
 bucket = 'bucket'
-endpoint = "http://127.0.0.1:9000"
+endpoint = 'http://127.0.0.1:9000'
+path_style = true
 ```
 
-This will have htsget-rs behaving like the native AWS CLI, i.e:
+Care must be taken to ensure that the [correct][env-variables] `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY` and `AWS_SECRET_ACCESS_KEY` is set to allow
+the AWS sdk to reach the endpoint. Additional configuration of the MinIO server is required to use [virtual-hosted][virtual-addressing] style
+addressing by setting the `MINIO_DOMAIN` environment variable. [Path][path-addressing] style addressing can be forced using `path_style = true`.
 
-```
-mkdir /tmp/test
-minio server /tmp/test
-export AWS_ACCESS_KEY_ID=minioadmin
-export AWS_SECRET_ACCESS_KEY=minioadmin
-aws s3 mb --endpoint-url=http://localhost:9000 s3://bucket/
-aws s3 cp --recursive --endpoint-url=http://localhost:9000 htsget-rs/data/bam s3://bucket/
-cargo run -p htsget-actix -- --config ~/.htsget-rs/config.toml
-
-# On another session/terminal
-curl http://localhost:8080/reads/htsnexus_test_NA12878
-```
-
-Please don't run the example above as-is in production systems ;)
+See the MinIO deployment [example][minio-deployment] for more information on how to configure htsget-rs and MinIO.
 
 ### As a library
 
@@ -469,5 +459,9 @@ This crate has the following features:
 
 This project is licensed under the [MIT license][license].
 
+[path-addressing]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#path-style-access
+[env-variables]: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+[virtual-addressing]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#virtual-hosted-style-access
+[minio-deployment]: ../deploy/examples/minio/README.md
 [license]: LICENSE
 [minio]: https://min.io/

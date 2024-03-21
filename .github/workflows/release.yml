@@ -30,12 +30,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Docker GitHub release
-        id: docker_build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: deploy/Dockerfile
           push: true
           tags: |
-            ghcr.io/umccr/htsget-rs:dev-latest
-            ghcr.io/umccr/htsget-rs:dev-${{ github.run_number }}
+            ghcr.io/umccr/htsget-rs:latest
