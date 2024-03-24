@@ -114,7 +114,7 @@ pub async fn encode_public_key(public_key: PublicKey) -> String {
   pk.add("\n-----END CRYPT4GH PUBLIC KEY-----\n")
 }
 
-/// Generate a private and public key pair.
+/// Read a public key from bytes
 pub async fn read_public_key(bytes: Vec<u8>) -> Result<PublicKey> {
   let mut lines = ByteSlice::lines(bytes.as_slice()).collect::<Vec<&[u8]>>();
 

@@ -695,9 +695,9 @@ mod tests {
   use tower_http::services::ServeDir;
   #[cfg(feature = "crypt4gh")]
   use {
-    async_crypt4gh::KeyPair, crypt4gh::encrypt, htsget_config::tls::crypt4gh::Crypt4GHKeyPair,
-    htsget_test::crypt4gh::get_encryption_keys, htsget_test::http::test_bam_crypt4gh_byte_ranges,
-    std::collections::HashSet,
+    async_crypt4gh::util::read_public_key, async_crypt4gh::KeyPair, crypt4gh::encrypt,
+    htsget_config::tls::crypt4gh::Crypt4GHKeyPair, htsget_test::crypt4gh::get_encryption_keys,
+    htsget_test::http::test_bam_crypt4gh_byte_ranges, std::collections::HashSet,
   };
 
   use htsget_config::types::Class::{Body, Header};
@@ -1529,9 +1529,14 @@ mod tests {
             let keys = Keys {
               method: 0,
               privkey: encryption_keys.private_key().clone().0,
-              recipient_pubkey: general_purpose::STANDARD
-                .decode(headers.get(SERVER_PUBLIC_KEY_NAME).unwrap())
-                .unwrap(),
+              recipient_pubkey: read_public_key(
+                general_purpose::STANDARD
+                  .decode(headers.get(SERVER_PUBLIC_KEY_NAME).unwrap())
+                  .unwrap(),
+              )
+              .await
+              .unwrap()
+              .into_inner(),
             };
 
             let mut read_buf = Cursor::new(bytes);
