@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use async_crypt4gh::util::encode_public_key;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
@@ -356,9 +357,14 @@ impl Storage for UrlStorage {
           let mut headers = options.request_headers().clone();
           headers.append(
             SERVER_PUBLIC_KEY_NAME,
-            Self::encode_key(key_pair.public_key())
-              .try_into()
-              .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
+            Self::encode_key(&PublicKey::new(
+              encode_public_key(key_pair.public_key().clone())
+                .await
+                .as_bytes()
+                .to_vec(),
+            ))
+            .try_into()
+            .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
           );
 
           info!("appended server public key");

@@ -6,6 +6,7 @@ use crypt4gh::keys::generate_private_key;
 use rustls::PrivateKey;
 use std::cmp::min;
 use std::io;
+use std::ops::Add;
 
 use crate::decoder::Block;
 use crate::error::{Error, Result};
@@ -102,6 +103,15 @@ pub fn generate_key_pair() -> Result<KeyPair> {
     PrivateKey(Vec::from(private_key)),
     PublicKey::new(Vec::from(public_key)),
   ))
+}
+
+pub async fn encode_public_key(public_key: PublicKey) -> String {
+  let pk = String::new();
+  let pk = pk.add("-----BEGIN CRYPT4GH PUBLIC KEY-----\n");
+
+  let pk = pk.add(&general_purpose::STANDARD.encode(public_key.into_inner()));
+
+  pk.add("\n-----END CRYPT4GH PUBLIC KEY-----\n")
 }
 
 /// Generate a private and public key pair.
