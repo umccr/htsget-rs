@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use actix_web::web::{Path, Query};
-use actix_web::{http::StatusCode, Either, HttpRequest, Responder};
-use http::HeaderMap as HttpHeaderMap;
+use actix_web::{http::StatusCode, header::HeaderMap, Either, HttpRequest, Responder};
 
 use htsget_config::types::{JsonResponse, Request};
 use htsget_http::Result;
 use pretty_json::PrettyJson;
+use actix_web::http::header::HeaderName;
 
 pub use crate::handlers::service_info::{
   get_service_info_json, reads_service_info, variants_service_info,
@@ -28,7 +28,7 @@ impl HeaderMap {
 
 impl From<&HttpRequest> for HeaderMap {
   fn from(http_request: &HttpRequest) -> Self {
-    HeaderMap(HttpHeaderMap::from_iter(http_request.headers().clone()))
+    HeaderMap(HttpHeaderMap::from_iter(http_request.headers().clone().into_iter().map(|(name, value)| (HeaderName::from(name), value))))
   }
 }
 
