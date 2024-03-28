@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.9](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.5.8...htsget-actix-v0.5.9) - 2024-03-28
+
+### Other
+- *(test)* remove server-tests and cors-tests features and create http module
+
 ## [0.5.8](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.5.7...htsget-actix-v0.5.8) - 2024-01-02
 
 ### Other
