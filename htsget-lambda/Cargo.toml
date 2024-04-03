@@ -17,20 +17,20 @@ default = []
 
 [dependencies]
 tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
-tower-http = { version = "0.4", features = ["cors"] }
-lambda_http = { version = "0.8" }
-lambda_runtime = { version = "0.8" }
+tower-http = { version = "0.5", features = ["cors"] }
+lambda_http = { version = "0.11" }
+lambda_runtime = { version = "0.11" }
 htsget-config = { version = "0.8.1", path = "../htsget-config", default-features = false }
 htsget-search = { version = "0.6.6", path = "../htsget-search", default-features = false }
 htsget-http = { version = "0.4.12", path = "../htsget-http", default-features = false }
 htsget-test = { version = "0.5.4", path = "../htsget-test", features = ["http"], default-features = false }
-serde = { version = "1.0" }
-serde_json = "1.0"
+serde = { version = "1" }
+serde_json = "1"
 mime = "0.3"
-regex = "1.8"
+regex = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-bytes = "1.4"
+bytes = "1"
 
 [dev-dependencies]
 async-trait = "0.1"

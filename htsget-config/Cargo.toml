@@ -16,30 +16,31 @@ url-storage = ["hyper"]
 default = []
 
 [dependencies]
-thiserror = "1.0"
+thiserror = "1"
 async-trait = "0.1"
-noodles = { version = "0.65", features = ["core"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_with = "3.0"
-serde_regex = "1.1"
-regex = "1.8"
+noodles = { version = "0.67", features = ["core"] }
+serde = { version = "1", features = ["derive"] }
+serde_with = "3"
+serde_regex = "1"
+regex = "1"
 figment = { version = "0.10", features = ["env", "toml"] }
-clap = { version = "4.3", features = ["derive", "env", "cargo"] }
+clap = { version = "4", features = ["derive", "env", "cargo"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter", "ansi", "json"] }
 toml = "0.8"
-http = "0.2"
-http-serde = "1.1"
-rustls-pemfile = "1.0"
-rustls = "0.21"
-rustls-native-certs = "0.6"
-hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"] }
+http = "1"
+http-serde = "2"
+rustls-pemfile = "2"
+rustls = "0.23"
+rustls-native-certs = "0.7"
+rustls-pki-types = "1"
+hyper-rustls = { version = "0.27", features = ["rustls-native-certs", "http2", "http1"] }
 
-hyper = { version = "0.14", features = ["http1", "http2", "client"], optional = true }
+hyper = { version = "1", features = ["http1", "http2", "client"], optional = true }
 
 [dev-dependencies]
-serde_json = "1.0"
+serde_json = "1"
 figment = { version = "0.10", features = ["test"] }
-tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tempfile = "3.6"
-rcgen = "0.12"
+rcgen = "0.13"

@@ -27,7 +27,7 @@ htsget-search = { version = "0.6.6", path = "../htsget-search", default-features
 htsget-config = { version = "0.8.1", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.5.4", path = "../htsget-test", features = ["http"], default-features = false }
 futures = { version = "0.3" }
-tokio = { version = "1.36", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 tracing-actix-web = "0.7"
 tracing = "0.1"
@@ -36,8 +36,8 @@ tracing = "0.1"
 async-trait = "0.1"
 
 criterion = { version = "0.5", features = ["async_tokio"] }
-reqwest = { version = "0.11", default-features = false, features = ["json", "blocking", "rustls-tls"] }
-tempfile = "3.5"
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
+tempfile = "3"
 
 [[bench]]
 name = "request-benchmarks"
