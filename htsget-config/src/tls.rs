@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
+use hyper_rustls::ConfigBuilderExt;
 use rustls::{ClientConfig, RootCertStore, ServerConfig};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use rustls_native_certs::load_native_certs;
@@ -39,10 +40,7 @@ pub struct TlsClientConfig {
 impl Default for TlsClientConfig {
   fn default() -> Self {
     Self {
-      client_config: ClientConfig::builder()
-        .with_safe_defaults()
-        .with_native_roots()
-        .with_no_client_auth(),
+      client_config: ClientConfig::builder().with_native_roots().unwrap().with_no_client_auth(),
     }
   }
 }
@@ -132,7 +130,7 @@ impl TryFrom<CertificateKeyPairPath> for TlsServerConfig {
   }
 }
 
-impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
+impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair<'static> {
   type Error = Error;
 
   fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
@@ -192,9 +190,7 @@ pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKeyDer<'static>> {
     match read_one(&mut key_reader)
       .map_err(|err| ParseError(format!("failed to parse private key: {}", err)))?
     {
-      Some(rustls_pemfile::Item::RSAKey(key)) => return Ok(PrivateKey(key)),
-      Some(rustls_pemfile::Item::PKCS8Key(key)) => return Ok(PrivateKey(key)),
-      Some(rustls_pemfile::Item::ECKey(key)) => return Ok(PrivateKey(key)),
+      Some(rustls_pemfile::Item::Pkcs8Key(key)) => return Ok(PrivateKeyDer::Pkcs8(key)),
       None => break,
       _ => {}
     }
@@ -209,11 +205,7 @@ pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<CertificateDer<'static
     File::open(certs).map_err(|err| IoError(format!("failed to open cert file: {}", err)))?,
   );
 
-  let certs: Vec<CertificateDer> = rustls_pemfile::certs(&mut cert_reader)
-    .map_err(|err| ParseError(format!("failed to parse certificates: {}", err)))?
-    .into_iter()
-    .map(CertificateDer)
-    .collect();
+  let certs: Vec<CertificateDer> = rustls_pemfile::certs(cert_reader).collect();
 
   if certs.is_empty() {
     return Err(ParseError("no certificates found in pem file".to_string()));
@@ -224,7 +216,7 @@ pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<CertificateDer<'static
 
 /// Load certificates from a file and place them in a root CA store.
 pub fn load_root_store_from_path<P: AsRef<Path>>(certs: P) -> Result<RootCertStore> {
-  let certs: Vec<Vec<u8>> = load_certs(certs)?.into_iter().map(|cert| cert.0).collect();
+  let certs: Vec<Vec<u8>> = load_certs(certs)?;
 
   load_root_store(certs)
 }
@@ -252,7 +244,6 @@ pub fn tls_server_config(key_pair: CertificateKeyPair) -> Result<ServerConfig> {
   let (certs, key) = key_pair.into_inner();
 
   let mut config = ServerConfig::builder()
-    .with_safe_defaults()
     .with_no_client_auth()
     .with_single_cert(certs, key)
     .map_err(|err| ParseError(err.to_string()))?;
@@ -268,14 +259,14 @@ pub fn tls_client_config(
   key_pair: Option<CertificateKeyPair>,
   root_store: Option<RootCertStore>,
 ) -> Result<ClientConfig> {
-  let config = ClientConfig::builder().with_safe_defaults();
+  let config = ClientConfig::builder();
 
   let config = if let Some(root_store) = root_store {
     config.with_root_certificates(root_store)
   } else {
     let certs =
       load_native_certs().map_err(|err| ParseError(format!("loading native certs: {}", err)))?;
-    let root_store = load_root_store(certs.into_iter().map(|cert| cert.0).collect())?;
+    let root_store = load_root_store(certs.into_iter().map(|cert| cert).collect())?;
 
     config.with_root_certificates(root_store)
   };
@@ -308,7 +299,7 @@ pub(crate) mod tests {
 
   #[test]
   fn test_load_key() {
-    with_test_certificates(|path, key, _| {
+    with_test_certificates(|path: &Path, key, _| {
       let key_path = path.join("key.pem");
       let loaded_key = load_key(key_path).unwrap();
 
@@ -318,7 +309,7 @@ pub(crate) mod tests {
 
   #[test]
   fn test_load_cert() {
-    with_test_certificates(|path, _, cert| {
+    with_test_certificates(|path: &Path, _, cert| {
       let cert_path = path.join("cert.pem");
       let certs = load_certs(cert_path).unwrap();
 
@@ -329,7 +320,7 @@ pub(crate) mod tests {
 
   #[test]
   fn test_load_root_ca() {
-    with_test_certificates(|path, _, _| {
+    with_test_certificates(|path: &Path, _, _| {
       let cert_path = path.join("cert.pem");
       let certs = load_root_store_from_path(cert_path).unwrap();
 
@@ -351,7 +342,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn test_tls_client_config() {
-    with_test_certificates(|path, key, cert| {
+    with_test_certificates(|path: &Path, key, cert| {
       let certs = load_root_store_from_path(path.join("cert.pem")).unwrap();
       let client_config =
         tls_client_config(Some(CertificateKeyPair::new(vec![cert], key)), Some(certs));
@@ -362,7 +353,7 @@ pub(crate) mod tests {
 
   pub(crate) fn with_test_certificates<F>(test: F)
   where
-    F: FnOnce(&Path, PrivateKey, Certificate),
+    F: FnOnce(&Path, PrivateKeyDer, CertificateDer),
   {
     let tmp_dir = TempDir::new().unwrap();
 
@@ -371,22 +362,20 @@ pub(crate) mod tests {
 
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
 
-    let key = cert.serialize_private_key_pem();
-    let cert = cert.serialize_pem().unwrap();
+    let key = cert.key_pair.serialized_der();
+    let cert = cert.key_pair.serialized_der();
 
     write(key_path, &key).unwrap();
     write(cert_path, &cert).unwrap();
 
     let key = PrivateKeyDer(
       pkcs8_private_keys(&mut Cursor::new(key))
-        .unwrap()
         .into_iter()
         .next()
         .unwrap(),
     );
     let cert = CertificateDer(
       certs(&mut Cursor::new(cert))
-        .unwrap()
         .into_iter()
         .next()
         .unwrap(),
