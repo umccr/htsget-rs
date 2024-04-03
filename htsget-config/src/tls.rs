@@ -1,9 +1,9 @@
-use hyper_rustls::ConfigBuilderExt;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-use rustls::{Certificate, ClientConfig, PrivateKey, RootCertStore, ServerConfig};
+use rustls::{ClientConfig, RootCertStore, ServerConfig};
+use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use rustls_native_certs::load_native_certs;
 use rustls_pemfile::read_one;
 use serde::{Deserialize, Serialize};
@@ -81,19 +81,19 @@ pub struct CertificateKeyPairPath {
 
 /// The certificate and key pair used for TLS.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CertificateKeyPair {
-  certs: Vec<Certificate>,
-  key: PrivateKey,
+pub struct CertificateKeyPair<'a> {
+  certs: Vec<CertificateDer<'a>>,
+  key: PrivateKeyDer<'a>,
 }
 
-impl CertificateKeyPair {
+impl CertificateKeyPair<'static> {
   /// Create a new CertificateKeyPair.
-  pub fn new(certs: Vec<Certificate>, key: PrivateKey) -> Self {
+  pub fn new(certs: Vec<CertificateDer>, key: PrivateKeyDer) -> Self {
     Self { certs, key }
   }
 
   /// Get the owned certificate and private key.
-  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey) {
+  pub fn into_inner(self) -> (Vec<CertificateDer<'static>>, PrivateKeyDer<'static>) {
     (self.certs, self.key)
   }
 }
@@ -183,7 +183,7 @@ impl KeyPairScheme for Option<&TlsServerConfig> {
 }
 
 /// Load a private key from a file. Supports RSA, PKCS8, and Sec1 encoded keys.
-pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
+pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKeyDer<'static>> {
   let mut key_reader = BufReader::new(
     File::open(key).map_err(|err| IoError(format!("failed to open key file: {}", err)))?,
   );
@@ -204,15 +204,15 @@ pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
 }
 
 /// Load certificates from a file.
-pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
+pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<CertificateDer<'static>>> {
   let mut cert_reader = BufReader::new(
     File::open(certs).map_err(|err| IoError(format!("failed to open cert file: {}", err)))?,
   );
 
-  let certs: Vec<Certificate> = rustls_pemfile::certs(&mut cert_reader)
+  let certs: Vec<CertificateDer> = rustls_pemfile::certs(&mut cert_reader)
     .map_err(|err| ParseError(format!("failed to parse certificates: {}", err)))?
     .into_iter()
-    .map(Certificate)
+    .map(CertificateDer)
     .collect();
 
   if certs.is_empty() {
@@ -377,14 +377,14 @@ pub(crate) mod tests {
     write(key_path, &key).unwrap();
     write(cert_path, &cert).unwrap();
 
-    let key = PrivateKey(
+    let key = PrivateKeyDer(
       pkcs8_private_keys(&mut Cursor::new(key))
         .unwrap()
         .into_iter()
         .next()
         .unwrap(),
     );
-    let cert = Certificate(
+    let cert = CertificateDer(
       certs(&mut Cursor::new(cert))
         .unwrap()
         .into_iter()
