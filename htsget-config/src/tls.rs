@@ -40,7 +40,9 @@ pub struct TlsClientConfig {
 impl Default for TlsClientConfig {
   fn default() -> Self {
     Self {
-      client_config: ClientConfig::builder().with_native_roots().unwrap().with_no_client_auth(),
+      client_config: ClientConfig::builder().with_native_roots()
+                                            .unwrap()
+                                            .with_no_client_auth(),
     }
   }
 }
@@ -78,7 +80,7 @@ pub struct CertificateKeyPairPath {
 }
 
 /// The certificate and key pair used for TLS.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CertificateKeyPair<'a> {
   certs: Vec<CertificateDer<'a>>,
   key: PrivateKeyDer<'a>,
@@ -205,20 +207,20 @@ pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<CertificateDer<'static
     File::open(certs).map_err(|err| IoError(format!("failed to open cert file: {}", err)))?,
   );
 
-  let certs: Vec<CertificateDer> = rustls_pemfile::certs(cert_reader).collect();
+  let certs = rustls_pemfile::certs(&mut cert_reader);
 
-  if certs.is_empty() {
+  if certs.peekable().peek().is_none() {
     return Err(ParseError("no certificates found in pem file".to_string()));
   }
 
-  Ok(certs)
+  Ok(certs.map(|f| f.unwrap()).collect())
 }
 
 /// Load certificates from a file and place them in a root CA store.
 pub fn load_root_store_from_path<P: AsRef<Path>>(certs: P) -> Result<RootCertStore> {
-  let certs: Vec<Vec<u8>> = load_certs(certs)?;
+  let certs = load_certs(certs)?;
 
-  load_root_store(certs)
+  Ok(RootCertStore::from_iter(certs))
 }
 
 /// Load certificates and place them in a root CA store.
@@ -266,9 +268,8 @@ pub fn tls_client_config(
   } else {
     let certs =
       load_native_certs().map_err(|err| ParseError(format!("loading native certs: {}", err)))?;
-    let root_store = load_root_store(certs.into_iter().map(|cert| cert).collect())?;
 
-    config.with_root_certificates(root_store)
+    config.with_root_certificates(certs)
   };
 
   let config = if let Some(key_pair) = key_pair {
@@ -288,11 +289,9 @@ pub fn tls_client_config(
 #[cfg(test)]
 pub(crate) mod tests {
   use std::fs::write;
-  use std::io::Cursor;
   use std::path::Path;
 
   use rcgen::generate_simple_self_signed;
-  use rustls_pemfile::{certs, pkcs8_private_keys};
   use tempfile::TempDir;
 
   use super::*;
@@ -368,18 +367,8 @@ pub(crate) mod tests {
     write(key_path, &key).unwrap();
     write(cert_path, &cert).unwrap();
 
-    let key = PrivateKeyDer(
-      pkcs8_private_keys(&mut Cursor::new(key))
-        .into_iter()
-        .next()
-        .unwrap(),
-    );
-    let cert = CertificateDer(
-      certs(&mut Cursor::new(cert))
-        .into_iter()
-        .next()
-        .unwrap(),
-    );
+    let key = PrivateKeyDer::Pkcs8(key.into());
+    let cert = CertificateDer::from(cert);
 
     test(tmp_dir.path(), key, cert);
   }
