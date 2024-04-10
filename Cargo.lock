@@ -1960,9 +1960,11 @@ dependencies = [
  "rcgen",
  "regex",
  "rustls 0.23.4",
+ "rustls-cert-file-reader",
  "rustls-native-certs 0.7.0",
  "rustls-pemfile 2.1.1",
  "rustls-pki-types",
+ "rustls-webpki 0.102.2",
  "serde",
  "serde_json",
  "serde_regex",
@@ -3576,6 +3578,28 @@ dependencies = [
  "rustls-webpki 0.102.2",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rustls-cert-file-reader"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b07fb1ad76bcc5f2556e38efb848183eea3eb376afe946a5e24d45993e9c8011"
+dependencies = [
+ "rustls-cert-read",
+ "rustls-pemfile 2.1.1",
+ "rustls-pki-types",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "rustls-cert-read"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd46e8c5ae4de3345c4786a83f99ec7aff287209b9e26fa883c473aeb28f19d5"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]

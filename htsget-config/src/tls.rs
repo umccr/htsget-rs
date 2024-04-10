@@ -2,13 +2,14 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
+use async_trait::async_trait;
 use hyper_rustls::ConfigBuilderExt;
 use rustls::{ClientConfig, RootCertStore, ServerConfig};
+use rustls_cert_file_reader::{ FileReader, ReadCerts };
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use rustls_native_certs::load_native_certs;
 use rustls_pemfile::read_one;
 use serde::{Deserialize, Serialize};
-use tracing::warn;
 
 use crate::error::Error::{IoError, ParseError};
 use crate::error::{Error, Result};
@@ -16,6 +17,7 @@ use crate::types::Scheme;
 use crate::types::Scheme::{Http, Https};
 
 /// A trait to determine which scheme a key pair option has.
+#[async_trait]
 pub trait KeyPairScheme {
   /// Get the scheme.
   fn get_scheme(&self) -> Scheme;
@@ -132,27 +134,29 @@ impl TryFrom<CertificateKeyPairPath> for TlsServerConfig {
   }
 }
 
-impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair<'static> {
+#[async_trait]
+impl<'a> TryFrom<CertificateKeyPairPath> for CertificateKeyPair<'a> {
   type Error = Error;
 
-  fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
-    let certs = load_certs(key_pair.cert)?;
-    let key = load_key(key_pair.key)?;
+  async fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
+    let certs = load_certs(key_pair.cert).await?;
+    let key = load_key(key_pair.key).await?;
 
     Ok(CertificateKeyPair::new(certs, key))
   }
 }
 
+#[async_trait]
 impl TryFrom<RootCertStorePair> for TlsClientConfig {
   type Error = Error;
 
-  fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
+  async fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
     let (key_pair, root_store) = root_store_pair.into_inner();
 
+    let root_certs = Some(load_root_store_from_path(root_store.expect("Could not load some root certificate")).await?);
     let key_pair = key_pair.map(TryInto::try_into).transpose()?;
-    let root_store = root_store.map(load_root_store_from_path).transpose()?;
 
-    tls_client_config(key_pair, root_store).map(Self::new)
+    tls_client_config(key_pair, root_certs).map(Self::new)
   }
 }
 
@@ -183,7 +187,7 @@ impl KeyPairScheme for Option<&TlsServerConfig> {
 }
 
 /// Load a private key from a file. Supports RSA, PKCS8, and Sec1 encoded keys.
-pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKeyDer<'static>> {
+pub async fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKeyDer<'static>> {
   let mut key_reader = BufReader::new(
     File::open(key).map_err(|err| IoError(format!("failed to open key file: {}", err)))?,
   );
@@ -202,47 +206,37 @@ pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKeyDer<'static>> {
 }
 
 /// Load certificates from a file.
-pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<CertificateDer<'static>>> {
-  let mut cert_reader = BufReader::new(
-    File::open(certs).map_err(|err| IoError(format!("failed to open cert file: {}", err)))?,
-  );
+pub async fn load_certs(certs: PathBuf) -> Result<Vec<CertificateDer<'static>>> {
+  let certs = FileReader::new(certs, rustls_cert_file_reader::Format::DER).read_certs().await;
 
-  let certs = rustls_pemfile::certs(&mut cert_reader);
-
-  if certs.peekable().peek().is_none() {
-    return Err(ParseError("no certificates found in pem file".to_string()));
-  }
-
-  Ok(certs.map(|f| f.unwrap()).collect())
+  Ok(certs.map_err(|err| ParseError(err.to_string()))?)
 }
 
 /// Load certificates from a file and place them in a root CA store.
-pub fn load_root_store_from_path<P: AsRef<Path>>(certs: P) -> Result<RootCertStore> {
-  let certs = load_certs(certs)?;
+pub async fn load_root_store_from_path(certs: PathBuf) -> Result<RootCertStore> {
+  let certs = load_certs(certs).await?.into_iter();
+  let mut root_store = RootCertStore::empty();
 
-  Ok(RootCertStore::from_iter(certs))
+  for cert in certs {
+    root_store.add(CertificateDer::from(cert));
+  }
+
+  Ok(root_store)
 }
 
 /// Load certificates and place them in a root CA store.
 pub fn load_root_store(certs: Vec<Vec<u8>>) -> Result<RootCertStore> {
-  let mut roots = RootCertStore::empty();
-  let (_, ignored) = roots.add_parsable_certificates(&certs);
+  let mut root_store = RootCertStore::empty();
 
-  if ignored != 0 {
-    warn!("{} certificates ignored when loading root CA", ignored);
+  for cert in certs {
+    root_store.add(CertificateDer::from(cert));
   }
 
-  if roots.is_empty() {
-    return Err(ParseError(
-      "no certificates found in root CA file".to_string(),
-    ));
-  }
-
-  Ok(roots)
+  Ok(root_store)
 }
 
 /// Load TLS server config.
-pub fn tls_server_config(key_pair: CertificateKeyPair) -> Result<ServerConfig> {
+pub fn tls_server_config(key_pair: CertificateKeyPair<'static>) -> Result<ServerConfig> {
   let (certs, key) = key_pair.into_inner();
 
   let mut config = ServerConfig::builder()
@@ -264,26 +258,31 @@ pub fn tls_client_config(
   let config = ClientConfig::builder();
 
   let config = if let Some(root_store) = root_store {
-    config.with_root_certificates(root_store)
-  } else {
-    let certs =
-      load_native_certs().map_err(|err| ParseError(format!("loading native certs: {}", err)))?;
+      config.with_root_certificates(root_store)
+    } else {
+      let certs =
+        load_native_certs().map_err(|err| ParseError(format!("loading native certs: {}", err)))?;
 
-    config.with_root_certificates(certs)
+        let mut root_store = RootCertStore::empty();
+
+        for cert in certs {
+          root_store.add(CertificateDer::from(cert));
+        }
+
+      config.with_root_certificates(root_store)
   };
 
-  let config = if let Some(key_pair) = key_pair {
-    let (certs, key) = key_pair.into_inner();
-    config
-      .with_client_auth_cert(certs, key)
-      .map_err(|err| ParseError(format!("single cert: {}", err)))?
-  } else {
-    config.with_no_client_auth()
-  };
+  // let config = if let Some(key_pair) = key_pair {
+  //   config
+  //     .with_client_auth_cert(key_pair.certs, key_pair.key)
+  //     .map_err(|err| ParseError(format!("single cert: {}", err)))?
+  // } else {
+  //   config.with_no_client_auth()
+  // };
 
   // No need to define ALPN protocols for hyper-rustls connector.
 
-  Ok(config)
+  Ok(config.with_no_client_auth())
 }
 
 #[cfg(test)]
@@ -296,32 +295,32 @@ pub(crate) mod tests {
 
   use super::*;
 
-  #[test]
-  fn test_load_key() {
+  #[tokio::test]
+  async fn test_load_key() {
     with_test_certificates(|path: &Path, key, _| {
       let key_path = path.join("key.pem");
-      let loaded_key = load_key(key_path).unwrap();
+      let loaded_key = load_key(key_path).await?;
 
       assert_eq!(loaded_key, key);
     });
   }
 
-  #[test]
-  fn test_load_cert() {
+  #[tokio::test]
+  async fn test_load_cert() {
     with_test_certificates(|path: &Path, _, cert| {
       let cert_path = path.join("cert.pem");
-      let certs = load_certs(cert_path).unwrap();
+      let certs = load_certs(cert_path).await?;
 
       assert_eq!(certs.len(), 1);
       assert_eq!(certs.into_iter().next().unwrap(), cert);
     });
   }
 
-  #[test]
-  fn test_load_root_ca() {
+  #[tokio::test]
+  async fn test_load_root_ca() {
     with_test_certificates(|path: &Path, _, _| {
       let cert_path = path.join("cert.pem");
-      let certs = load_root_store_from_path(cert_path).unwrap();
+      let certs = load_root_store_from_path(cert_path).await?;
 
       assert_eq!(certs.len(), 1);
     });
@@ -342,7 +341,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn test_tls_client_config() {
     with_test_certificates(|path: &Path, key, cert| {
-      let certs = load_root_store_from_path(path.join("cert.pem")).unwrap();
+      let certs = load_root_store_from_path(path.join("cert.pem")).await?;
       let client_config =
         tls_client_config(Some(CertificateKeyPair::new(vec![cert], key)), Some(certs));
 
