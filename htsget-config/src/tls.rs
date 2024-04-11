@@ -83,12 +83,12 @@ pub struct CertificateKeyPairPath {
 
 /// The certificate and key pair used for TLS.
 #[derive(Debug, PartialEq, Eq)]
-pub struct CertificateKeyPair<'a> {
-  certs: Vec<CertificateDer<'a>>,
-  key: PrivateKeyDer<'a>,
+pub struct CertificateKeyPair {
+  certs: Vec<CertificateDer<'static>>,
+  key: PrivateKeyDer<'static>,
 }
 
-impl CertificateKeyPair<'static> {
+impl CertificateKeyPair {
   /// Create a new CertificateKeyPair.
   pub fn new(certs: Vec<CertificateDer>, key: PrivateKeyDer) -> Self {
     Self { certs, key }
@@ -134,26 +134,24 @@ impl TryFrom<CertificateKeyPairPath> for TlsServerConfig {
   }
 }
 
-#[async_trait]
-impl<'a> TryFrom<CertificateKeyPairPath> for CertificateKeyPair<'a> {
+impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
   type Error = Error;
 
-  async fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
-    let certs = load_certs(key_pair.cert).await?;
-    let key = load_key(key_pair.key).await?;
+  fn try_from(key_pair: CertificateKeyPairPath) -> Result<Self> {
+    let certs = load_certs(key_pair.cert);
+    let key = load_key(key_pair.key);
 
     Ok(CertificateKeyPair::new(certs, key))
   }
 }
 
-#[async_trait]
 impl TryFrom<RootCertStorePair> for TlsClientConfig {
   type Error = Error;
 
-  async fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
+  fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
     let (key_pair, root_store) = root_store_pair.into_inner();
 
-    let root_certs = Some(load_root_store_from_path(root_store.expect("Could not load some root certificate")).await?);
+    let root_certs = Some(load_root_store_from_path(root_store.expect("Could not load some root certificate")));
     let key_pair = key_pair.map(TryInto::try_into).transpose()?;
 
     tls_client_config(key_pair, root_certs).map(Self::new)
@@ -236,7 +234,7 @@ pub fn load_root_store(certs: Vec<Vec<u8>>) -> Result<RootCertStore> {
 }
 
 /// Load TLS server config.
-pub fn tls_server_config(key_pair: CertificateKeyPair<'static>) -> Result<ServerConfig> {
+pub fn tls_server_config(key_pair: CertificateKeyPair) -> Result<ServerConfig> {
   let (certs, key) = key_pair.into_inner();
 
   let mut config = ServerConfig::builder()
