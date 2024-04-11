@@ -25,3 +25,5 @@ htsget-test = { version = "0.5.4", path = "../htsget-test", default-features = f
 futures = { version = "0.3" }
 tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
+jsonwebtoken = { version = "9.3.0" }
+serde_json = { version = "1.0" }
