@@ -16,7 +16,7 @@ In order for htsget-rs to do this, it needs a few pieces of information:
     * The header of the queried file. This header is used by htsget-rs to map a reference name in the query to the corresponding
       index position. For example, these headers are lines at the beginning BAM files that start with `@`, or lines at the beginning.
       of VCF files that start with `##`.
-    * The size of the queried file. The file size is used to simply certain queries and for queries that involve byte ranges that
+    * The size of the queried file. The file size is used to simplify certain queries and for queries that involve byte ranges that
       go to the end of the file. For example, this is the size of the BAM, CRAM, VCF, or BCF file.
 2. It also needs the size of the Crypt4GH header which the client will use to decrypt the data. Because each Crypt4GH
    file has a header at the start, this is needed in order to calculate byte ranges that align to the 64KiB Crypt4GH boundaries.
@@ -26,24 +26,29 @@ backend can fetch the required data and decrypt it. With this approach, the htsg
 process the request by passing public key information, which is used by htsget-rs and the `UrlStorage` backend to encrypt
 data for the client.
 
-The htsget-rs server can pass client information to the backend, such as the client's public key, alongside its own public
-key in order to receive all the information it requires to calculate byte ranges. With this information, htsget-rs can
-return the Crypt4GH header for the client, and an edit list, alongside byte ranges, in order for the client to concatenate
-and decrypt the data.
+The htsget-rs server can pass client information to the backend, such as it's own public key in order to receive all the
+information it requires to calculate byte ranges. With this information, htsget-rs can return the Crypt4GH header for the
+client, and an edit list, alongside byte ranges, in order for the client to concatenate and decrypt the data.
 
 ## The protocol
 
 The protocol starts when the client queries the htsget-rs server. The client sends their public key in a header called
 `client-public-key`, which is base64 encoded. From here the htsget-rs queries the `UrlStorage` backend in three separate
-requests. All requests forward the `client-public-key` and any additional headers from the client, as well as the server's
-public key, which is base64 encoded in a header called `server-public-key`. Assuming the query is for a BAM file called `id`, and
-the resolvers do not transform the id, the requests are:
+requests.
 
+The htsget-rs sends the requests to the `UrlStorage` backend with its own `client-public-key`, which replaces the client's
+`client-public-key`. It is expected that data returned to the htsget-rs server is encrypted with this public key.
+The client's original `client-public-key` is mirrored back to the client, which is used when fetching
+the URL tickets. Note, that the same header contains two different public keys at different points. Between the client and htsget-rs,
+it contains the client's public key. Between htsget-rs and the `UrlStorage` backend, it contains htsget-rs' public key.
+
+All of the client's headers are forwarded to `UrlStorage`, except the `client-public-key` and `user-agent` (which htsget-rs replaces
+with it's own values). Assuming the query is for a BAM file called `id`, and the resolvers do not transform the id, the requests are:
 
 1. <span id="1"></span>A GET request to fetch the index of the queried file at: `https://<i><endpoint-index></i>/id.bam.bai`.
 2. <span id="2"></span>A HEAD request to get the **encrypted** file size at: `https://<i><endpoint-file></i>/id.bam.c4gh`.
-   1. <span id="2.1"></span>The expected response includes the `content-length` header which specifies the file size.
-   2. <span id="2.2"></span>Additionally, there should be a `server-additional-bytes` header which specifies the size of the Crypt4GH header that htsget-rs will receive 
+   1. <span id="2.1"></span>The expected response includes the `content-length` header which specifies the file size. This file size is relevant to ensure that the client receives correct end-coordinate URL tickets.
+   2. <span id="2.2"></span>Additionally, there can be a `server-additional-bytes` header which specifies the size of the Crypt4GH header that htsget-rs will receive 
       from the `UrlStorage` backend. This is used in [request 3.1](#3.1) to ensure that the byte ranges requested from the backend align to the Crypt4GH block boundaries.
       If this header is not preset, then htsget-rs will request the full file.
    3. <span id="2.3"></span>Optionally, there could be a `client-additional-bytes` header which specifies the size of the Crypt4GH header that the client will receive
@@ -57,6 +62,9 @@ Here, `<endpoint-index>` and `<endpoint-file>` can be defined in the htsget conf
 
 The following is a diagram of this process:
 ![architecture](./htsget-rs-crypt4gh.drawio.png)
+
+Note, currently this protocol doesn't include a way to verify the public key of the sender of the Crypt4GH data, although
+this could be included in the future. This would involve returning additional public keys from `UrlStorage` to htsget-rs and from htsget-rs to the client.
 
 ### Alternative designs
 

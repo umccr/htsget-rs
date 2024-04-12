@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
 use futures_util::TryStreamExt;
-use http::header::{CONTENT_LENGTH, USER_AGENT};
+use http::header::{Entry, IntoHeaderName, CONTENT_LENGTH, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, Uri};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error};
@@ -52,7 +52,6 @@ use htsget_config::storage::url::endpoints::Endpoints;
 use htsget_config::types::KeyType;
 
 pub const CLIENT_PUBLIC_KEY_NAME: &str = "client-public-key";
-pub const SERVER_PUBLIC_KEY_NAME: &str = "server-public-key";
 pub const CLIENT_ADDITIONAL_BYTES: &str = "client-additional-bytes";
 pub const SERVER_ADDITIONAL_BYTES: &str = "server-additional-bytes";
 
@@ -266,6 +265,16 @@ impl UrlStorage {
       .send_request(key, headers, Method::GET, self.endpoints.index())
       .await
   }
+
+  /// Remove all header entries from the header map.
+  fn remove_header_entries<K: IntoHeaderName>(headers: &mut HeaderMap, key: K) {
+    match headers.entry(key) {
+      Entry::Occupied(entry) => {
+        entry.remove_entry_mult();
+      }
+      Entry::Vacant(_) => {}
+    }
+  }
 }
 
 /// Type representing the `StreamReader` for `UrlStorage`.
@@ -355,8 +364,11 @@ impl Storage for UrlStorage {
           };
 
           let mut headers = options.request_headers().clone();
+          Self::remove_header_entries(&mut headers, CLIENT_PUBLIC_KEY_NAME);
+          Self::remove_header_entries(&mut headers, USER_AGENT);
+
           headers.append(
-            SERVER_PUBLIC_KEY_NAME,
+            CLIENT_PUBLIC_KEY_NAME,
             Self::encode_key(&PublicKey::new(
               encode_public_key(key_pair.public_key().clone())
                 .await
@@ -1502,7 +1514,7 @@ mod tests {
           );
 
           #[cfg(feature = "crypt4gh")]
-          if headers.contains_key(SERVER_PUBLIC_KEY_NAME) {
+          if headers.contains_key(CLIENT_PUBLIC_KEY_NAME) {
             let range = headers.get(RANGE).unwrap().to_str().unwrap();
             let range = BytesPosition::from_str(range).unwrap();
 
@@ -1531,7 +1543,7 @@ mod tests {
               privkey: encryption_keys.private_key().clone().0,
               recipient_pubkey: read_public_key(
                 general_purpose::STANDARD
-                  .decode(headers.get(SERVER_PUBLIC_KEY_NAME).unwrap())
+                  .decode(headers.get(CLIENT_PUBLIC_KEY_NAME).unwrap())
                   .unwrap(),
               )
               .await
