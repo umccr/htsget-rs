@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use async_crypt4gh::util::encode_public_key;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
@@ -25,7 +24,9 @@ use {
   async_crypt4gh::edit_lists::{ClampedPosition, UnencryptedPosition},
   async_crypt4gh::reader::builder::Builder,
   async_crypt4gh::reader::Reader,
+  async_crypt4gh::util::encode_public_key,
   async_crypt4gh::util::{read_public_key, to_unencrypted_file_size},
+  async_crypt4gh::KeyPair,
   async_crypt4gh::PublicKey,
   base64::engine::general_purpose,
   base64::Engine,
@@ -48,8 +49,10 @@ use crate::storage::{
 };
 use crate::Url as HtsGetUrl;
 use htsget_config::error;
+#[cfg(feature = "crypt4gh")]
+use htsget_config::resolver::object::ObjectType;
 use htsget_config::storage::url::endpoints::Endpoints;
-use htsget_config::types::KeyType;
+use htsget_config::types::{KeyType, Query};
 
 pub const CLIENT_PUBLIC_KEY_NAME: &str = "client-public-key";
 pub const CLIENT_ADDITIONAL_BYTES: &str = "client-additional-bytes";
@@ -66,6 +69,8 @@ pub struct UrlStorage {
   forward_headers: bool,
   user_agent: Option<String>,
   #[cfg(feature = "crypt4gh")]
+  key_pair: Option<KeyPair>,
+  #[cfg(feature = "crypt4gh")]
   encrypt: Encrypt,
 }
 
@@ -77,23 +82,31 @@ impl UrlStorage {
     response_url: Uri,
     forward_headers: bool,
     user_agent: Option<String>,
-  ) -> Self {
-    Self {
+    _query: &Query,
+    #[cfg(feature = "crypt4gh")] _encrypt: Encrypt,
+  ) -> Result<Self> {
+    #[cfg(feature = "crypt4gh")]
+    let mut key_pair = None;
+    #[cfg(feature = "crypt4gh")]
+    if _query.object_type().crypt4gh_key_pair().is_none() {
+      key_pair = Some(
+        _encrypt
+          .generate_key_pair()
+          .map_err(|err| UrlParseError(err.to_string()))?,
+      );
+    }
+
+    Ok(Self {
       client,
       endpoints,
       response_url,
       forward_headers,
       user_agent,
       #[cfg(feature = "crypt4gh")]
-      encrypt: Default::default(),
-    }
-  }
-
-  #[cfg(feature = "crypt4gh")]
-  /// Add the key generator.
-  pub fn with_key_gen(mut self, key_gen: Encrypt) -> Self {
-    self.encrypt = key_gen;
-    self
+      key_pair,
+      #[cfg(feature = "crypt4gh")]
+      encrypt: _encrypt,
+    })
   }
 
   /// Construct a new UrlStorage with a default client.
@@ -102,8 +115,21 @@ impl UrlStorage {
     response_url: Uri,
     forward_headers: bool,
     user_agent: Option<String>,
-  ) -> Self {
-    Self {
+    _query: &Query,
+    #[cfg(feature = "crypt4gh")] _encrypt: Encrypt,
+  ) -> Result<Self> {
+    #[cfg(feature = "crypt4gh")]
+    let mut key_pair = None;
+    #[cfg(feature = "crypt4gh")]
+    if _query.object_type().crypt4gh_key_pair().is_none() {
+      key_pair = Some(
+        _encrypt
+          .generate_key_pair()
+          .map_err(|err| UrlParseError(err.to_string()))?,
+      );
+    }
+
+    Ok(Self {
       client: Client::builder().build(
         HttpsConnectorBuilder::new()
           .with_native_roots()
@@ -117,8 +143,10 @@ impl UrlStorage {
       forward_headers,
       user_agent,
       #[cfg(feature = "crypt4gh")]
-      encrypt: Default::default(),
-    }
+      key_pair,
+      #[cfg(feature = "crypt4gh")]
+      encrypt: _encrypt,
+    })
   }
 
   /// Construct the Crypt4GH query.
@@ -267,13 +295,54 @@ impl UrlStorage {
   }
 
   /// Remove all header entries from the header map.
-  fn remove_header_entries<K: IntoHeaderName>(headers: &mut HeaderMap, key: K) {
+  pub fn remove_header_entries<K: IntoHeaderName>(headers: &mut HeaderMap, key: K) {
     match headers.entry(key) {
       Entry::Occupied(entry) => {
         entry.remove_entry_mult();
       }
       Entry::Vacant(_) => {}
     }
+  }
+
+  /// Update the headers with the correct keys and user agent.
+  #[cfg(feature = "crypt4gh")]
+  pub async fn update_headers(
+    &self,
+    object_type: &ObjectType,
+    headers: &HeaderMap,
+  ) -> Result<(HeaderMap, KeyPair)> {
+    let key_pair = if let Some(key_pair) = object_type.crypt4gh_key_pair() {
+      let key_pair = key_pair.key_pair().clone();
+      info!("Got key pair from config");
+      key_pair
+    } else {
+      info!("Got key pair generated");
+      self
+        .key_pair
+        .as_ref()
+        .ok_or_else(|| InternalError("missing key pair".to_string()))?
+        .clone()
+    };
+
+    let mut headers = headers.clone();
+    Self::remove_header_entries(&mut headers, CLIENT_PUBLIC_KEY_NAME);
+    Self::remove_header_entries(&mut headers, USER_AGENT);
+
+    headers.append(
+      CLIENT_PUBLIC_KEY_NAME,
+      Self::encode_key(&PublicKey::new(
+        encode_public_key(key_pair.public_key().clone())
+          .await
+          .as_bytes()
+          .to_vec(),
+      ))
+      .try_into()
+      .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
+    );
+
+    info!("appended server public key");
+
+    Ok((headers, key_pair))
   }
 }
 
@@ -350,37 +419,9 @@ impl Storage for UrlStorage {
       KeyType::File => {
         #[cfg(feature = "crypt4gh")]
         if options.object_type().is_crypt4gh() {
-          let key_pair = if let Some(key_pair) = options.object_type().crypt4gh_key_pair() {
-            let key_pair = key_pair.key_pair().clone();
-            info!("Got key pair from config");
-            key_pair
-          } else {
-            let key_pair = self
-              .encrypt
-              .generate_key_pair()
-              .map_err(|err| UrlParseError(err.to_string()))?;
-            info!("Got key pair generated");
-            key_pair
-          };
-
-          let mut headers = options.request_headers().clone();
-          Self::remove_header_entries(&mut headers, CLIENT_PUBLIC_KEY_NAME);
-          Self::remove_header_entries(&mut headers, USER_AGENT);
-
-          headers.append(
-            CLIENT_PUBLIC_KEY_NAME,
-            Self::encode_key(&PublicKey::new(
-              encode_public_key(key_pair.public_key().clone())
-                .await
-                .as_bytes()
-                .to_vec(),
-            ))
-            .try_into()
-            .map_err(|err: InvalidHeaderValue| UrlParseError(err.to_string()))?,
-          );
-
-          info!("appended server public key");
-
+          let (mut headers, key_pair) = self
+            .update_headers(options.object_type(), options.request_headers())
+            .await?;
           {
             // Additional length for the header.
             let output_headers = head_output
@@ -528,7 +569,16 @@ impl Storage for UrlStorage {
   ) -> Result<HeadOutput> {
     info!("getting head");
     let key = key.as_ref();
-    let head = self.head_key(key, options.request_headers()).await?;
+
+    #[allow(unused_mut)]
+    let mut headers = options.request_headers().clone();
+    #[cfg(feature = "crypt4gh")]
+    if options.object_type().is_crypt4gh() {
+      let (updated_headers, _) = self.update_headers(options.object_type(), &headers).await?;
+      headers = updated_headers;
+    }
+
+    let head = self.head_key(key, &headers).await?;
 
     let len: u64 = head
       .headers()
@@ -733,7 +783,11 @@ mod tests {
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
       Some("user-agent".to_string()),
-    );
+      &Default::default(),
+      #[cfg(feature = "crypt4gh")]
+      default_key_gen(),
+    )
+    .unwrap();
 
     assert_eq!(
       storage
@@ -754,7 +808,11 @@ mod tests {
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
       Some("user-agent".to_string()),
-    );
+      &Default::default(),
+      #[cfg(feature = "crypt4gh")]
+      default_key_gen(),
+    )
+    .unwrap();
 
     assert_eq!(
       storage
@@ -776,7 +834,11 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         true,
         Some("user-agent".to_string()),
-      );
+        &Default::default(),
+        #[cfg(feature = "crypt4gh")]
+        default_key_gen(),
+      )
+      .unwrap();
 
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
@@ -813,7 +875,11 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         true,
         Some("user-agent".to_string()),
-      );
+        &Default::default(),
+        #[cfg(feature = "crypt4gh")]
+        default_key_gen(),
+      )
+      .unwrap();
 
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
@@ -845,7 +911,11 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         true,
         Some("user-agent".to_string()),
-      );
+        &Default::default(),
+        #[cfg(feature = "crypt4gh")]
+        default_key_gen(),
+      )
+      .unwrap();
 
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
@@ -875,7 +945,11 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         true,
         Some("user-agent".to_string()),
-      );
+        &Default::default(),
+        #[cfg(feature = "crypt4gh")]
+        default_key_gen(),
+      )
+      .unwrap();
 
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
@@ -904,7 +978,11 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         true,
         Some("user-agent".to_string()),
-      );
+        &Default::default(),
+        #[cfg(feature = "crypt4gh")]
+        default_key_gen(),
+      )
+      .unwrap();
 
       let mut headers = HeaderMap::default();
       let object_type = Default::default();
@@ -928,11 +1006,16 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         true,
         Some("user-agent".to_string()),
-      );
+        &Default::default(),
+        #[cfg(feature = "crypt4gh")]
+        default_key_gen(),
+      )
+      .unwrap();
 
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
-      let options = HeadOptions::new(headers);
+      let object_type = Default::default();
+      let options = HeadOptions::new(headers, &object_type);
 
       assert_eq!(
         storage
@@ -954,7 +1037,11 @@ mod tests {
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
       Some("user-agent".to_string()),
-    );
+      &Default::default(),
+      #[cfg(feature = "crypt4gh")]
+      default_key_gen(),
+    )
+    .unwrap();
 
     let mut headers = HeaderMap::default();
     let object_type = Default::default();
@@ -982,7 +1069,11 @@ mod tests {
       Uri::from_str("http://example.com").unwrap(),
       true,
       Some("user-agent".to_string()),
-    );
+      &Default::default(),
+      #[cfg(feature = "crypt4gh")]
+      default_key_gen(),
+    )
+    .unwrap();
 
     let mut headers = HeaderMap::default();
     let object_type = Default::default();
@@ -1010,7 +1101,11 @@ mod tests {
       Uri::from_str("https://localhost:8081").unwrap(),
       false,
       Some("user-agent".to_string()),
-    );
+      &Default::default(),
+      #[cfg(feature = "crypt4gh")]
+      default_key_gen(),
+    )
+    .unwrap();
 
     let mut headers = HeaderMap::default();
     let object_type = Default::default();
@@ -1025,14 +1120,6 @@ mod tests {
   #[tokio::test]
   async fn test_endpoints_with_real_file() {
     with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        endpoints_from_url_with_path(&url),
-        Uri::from_str("http://example.com").unwrap(),
-        true,
-        Some("user-agent".to_string()),
-      );
-
       let mut header_map = HeaderMap::default();
       test_headers(&mut header_map);
       let request =
@@ -1046,6 +1133,18 @@ mod tests {
       .with_reference_name("11")
       .with_start(5015000)
       .with_end(5050000);
+
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url_with_path(&url),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        Some("user-agent".to_string()),
+        &query,
+        #[cfg(feature = "crypt4gh")]
+        default_key_gen(),
+      )
+      .unwrap();
 
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await;
@@ -1068,24 +1167,11 @@ mod tests {
   #[tokio::test]
   async fn test_endpoints_with_real_file_encrypted() {
     with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        endpoints_from_url_with_path(&url),
-        Uri::from_str("http://example.com").unwrap(),
-        true,
-        Some("user-agent".to_string()),
-      );
-
-      let mut key_gen = Encrypt::default();
-      key_gen
-        .expect_generate_key_pair()
-        .times(1)
-        .returning(|| Ok(expected_key_pair()));
+      let mut key_gen = default_key_gen();
       key_gen
         .expect_edit_list()
         .times(1)
         .returning(|_, _, _, _, _| Ok(expected_edit_list()));
-      let storage = storage.with_key_gen(key_gen);
 
       let (_, public_key) = get_encryption_keys().await;
       let mut header_map = HeaderMap::default();
@@ -1094,6 +1180,10 @@ mod tests {
       header_map.append(
         HeaderName::from_str(CLIENT_PUBLIC_KEY_NAME).unwrap(),
         HeaderValue::from_str(&public_key).unwrap(),
+      );
+      header_map.append(
+        HeaderName::from_str(USER_AGENT.as_ref()).unwrap(),
+        HeaderValue::from_str("client-user-agent").unwrap(),
       );
 
       let request =
@@ -1110,6 +1200,17 @@ mod tests {
       .with_start(5015000)
       .with_end(5050000);
 
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url_with_path(&url),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        Some("user-agent".to_string()),
+        &query,
+        key_gen,
+      )
+      .unwrap();
+
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await.unwrap();
 
@@ -1122,20 +1223,7 @@ mod tests {
   #[tokio::test]
   async fn test_endpoints_with_encrypted_file_unencrypted_to_client() {
     with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        endpoints_from_url_with_path(&url),
-        Uri::from_str("http://example.com").unwrap(),
-        true,
-        Some("user-agent".to_string()),
-      );
-
-      let mut key_gen = Encrypt::default();
-      key_gen
-        .expect_generate_key_pair()
-        .times(1)
-        .returning(|| Ok(expected_key_pair()));
-      let storage = storage.with_key_gen(key_gen);
+      let key_gen = default_key_gen();
 
       let (_, public_key) = get_encryption_keys().await;
       let mut header_map = HeaderMap::default();
@@ -1144,6 +1232,10 @@ mod tests {
       header_map.append(
         HeaderName::from_str(CLIENT_PUBLIC_KEY_NAME).unwrap(),
         HeaderValue::from_str(&public_key).unwrap(),
+      );
+      header_map.append(
+        HeaderName::from_str(USER_AGENT.as_ref()).unwrap(),
+        HeaderValue::from_str("client-user-agent").unwrap(),
       );
 
       let request =
@@ -1160,6 +1252,17 @@ mod tests {
       .with_start(5015000)
       .with_end(5050000);
 
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url_with_path(&url),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        Some("user-agent".to_string()),
+        &query,
+        key_gen,
+      )
+      .unwrap();
+
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await.unwrap();
 
@@ -1169,6 +1272,7 @@ mod tests {
           *header = header
             .clone()
             .with_header(CLIENT_PUBLIC_KEY_NAME, public_key.clone())
+            .with_header(USER_AGENT.to_string(), "client-user-agent")
         })
       });
 
@@ -1189,20 +1293,11 @@ mod tests {
   #[tokio::test]
   async fn test_endpoints_with_predefined_key_pair() {
     with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        endpoints_from_url_with_path(&url),
-        Uri::from_str("http://example.com").unwrap(),
-        true,
-        Some("user-agent".to_string()),
-      );
-
       let mut key_gen = Encrypt::default();
       key_gen
         .expect_edit_list()
         .times(1)
         .returning(|_, _, _, _, _| Ok(expected_edit_list()));
-      let storage = storage.with_key_gen(key_gen);
 
       let (_, public_key) = get_encryption_keys().await;
       let mut header_map = HeaderMap::default();
@@ -1211,6 +1306,10 @@ mod tests {
       header_map.append(
         HeaderName::from_str(CLIENT_PUBLIC_KEY_NAME).unwrap(),
         HeaderValue::from_str(&public_key).unwrap(),
+      );
+      header_map.append(
+        HeaderName::from_str(USER_AGENT.as_ref()).unwrap(),
+        HeaderValue::from_str("client-user-agent").unwrap(),
       );
 
       let request =
@@ -1228,6 +1327,17 @@ mod tests {
       .with_start(5015000)
       .with_end(5050000);
 
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url_with_path(&url),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        Some("user-agent".to_string()),
+        &query,
+        key_gen,
+      )
+      .unwrap();
+
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await.unwrap();
 
@@ -1240,14 +1350,6 @@ mod tests {
   #[tokio::test]
   async fn test_endpoints_with_full_file_encrypted() {
     with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        endpoints_from_url_with_path(&url),
-        Uri::from_str("http://example.com").unwrap(),
-        true,
-        Some("user-agent".to_string()),
-      );
-
       let mut key_gen = Encrypt::default();
       key_gen
         .expect_edit_list()
@@ -1264,7 +1366,6 @@ mod tests {
             ],
           ))
         });
-      let storage = storage.with_key_gen(key_gen);
 
       let (_, public_key) = get_encryption_keys().await;
       let mut header_map = HeaderMap::default();
@@ -1273,6 +1374,10 @@ mod tests {
       header_map.append(
         HeaderName::from_str(CLIENT_PUBLIC_KEY_NAME).unwrap(),
         HeaderValue::from_str(&public_key).unwrap(),
+      );
+      header_map.append(
+        HeaderName::from_str(USER_AGENT.as_ref()).unwrap(),
+        HeaderValue::from_str("client-user-agent").unwrap(),
       );
 
       let request =
@@ -1287,6 +1392,17 @@ mod tests {
         },
       );
 
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url_with_path(&url),
+        Uri::from_str("http://example.com").unwrap(),
+        true,
+        Some("user-agent".to_string()),
+        &query,
+        key_gen,
+      )
+      .unwrap();
+
       let searcher = HtsGetFromStorage::new(storage);
       let response = searcher.search(query.clone()).await.unwrap();
 
@@ -1300,7 +1416,8 @@ mod tests {
             Headers::default()
               .with_header("authorization", "secret")
               .with_header(CLIENT_PUBLIC_KEY_NAME, public_key.clone())
-              .with_header("Range", format!("bytes={}-{}", 16, 123)),
+              .with_header("Range", format!("bytes={}-{}", 16, 123))
+              .with_header(USER_AGENT.to_string(), "client-user-agent"),
           ),
           // edit list packet
           Url::new(
@@ -1311,7 +1428,8 @@ mod tests {
             Headers::default()
               .with_header("authorization", "secret")
               .with_header(CLIENT_PUBLIC_KEY_NAME, public_key.clone())
-              .with_header("Range", format!("bytes={}-{}", 124, 2598043 - 1)),
+              .with_header("Range", format!("bytes={}-{}", 124, 2598043 - 1))
+              .with_header(USER_AGENT.to_string(), "client-user-agent"),
           ),
         ],
       );
@@ -1375,6 +1493,16 @@ mod tests {
   }
 
   #[cfg(feature = "crypt4gh")]
+  fn default_key_gen() -> Encrypt {
+    let mut key_gen = Encrypt::default();
+    key_gen
+      .expect_generate_key_pair()
+      .times(1)
+      .returning(|| Ok(expected_key_pair()));
+    key_gen
+  }
+
+  #[cfg(feature = "crypt4gh")]
   async fn assert_encrypted_endpoints(public_key: &String, response: HtsgetResponse) {
     let expected_response = HtsgetResponse::new(
       Format::Bam,
@@ -1386,7 +1514,8 @@ mod tests {
           Headers::default()
             .with_header("authorization", "secret")
             .with_header(CLIENT_PUBLIC_KEY_NAME, public_key)
-            .with_header("Range", format!("bytes={}-{}", 16, 123)),
+            .with_header("Range", format!("bytes={}-{}", 16, 123))
+            .with_header(USER_AGENT.to_string(), "client-user-agent"),
         ),
         // edit list packet
         Url::new(
@@ -1398,7 +1527,8 @@ mod tests {
           Headers::default()
             .with_header("authorization", "secret")
             .with_header(CLIENT_PUBLIC_KEY_NAME, public_key)
-            .with_header("Range", format!("bytes={}-{}", 124, 124 + 65564 - 1)),
+            .with_header("Range", format!("bytes={}-{}", 124, 124 + 65564 - 1))
+            .with_header(USER_AGENT.to_string(), "client-user-agent"),
         ),
         Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
           Headers::default()
@@ -1407,13 +1537,15 @@ mod tests {
             .with_header(
               "Range",
               format!("bytes={}-{}", 124 + 196692, 124 + 1114588 - 1),
-            ),
+            )
+            .with_header(USER_AGENT.to_string(), "client-user-agent"),
         ),
         Url::new("http://example.com/htsnexus_test_NA12878.bam.c4gh").with_headers(
           Headers::default()
             .with_header("authorization", "secret")
             .with_header(CLIENT_PUBLIC_KEY_NAME, public_key)
-            .with_header("Range", format!("bytes={}-{}", 124 + 2556996, 2598043 - 1)),
+            .with_header("Range", format!("bytes={}-{}", 124 + 2556996, 2598043 - 1))
+            .with_header(USER_AGENT.to_string(), "client-user-agent"),
         ),
       ],
     );
@@ -1551,6 +1683,11 @@ mod tests {
               .into_inner(),
             };
 
+            assert_eq!(
+              keys.recipient_pubkey,
+              expected_key_pair().public_key().clone().into_inner()
+            );
+
             let mut read_buf = Cursor::new(bytes);
             let mut write_buf = Cursor::new(vec![]);
 
@@ -1623,22 +1760,45 @@ mod tests {
       )
       .route(
         "/endpoint_file/:id",
-        head(|AxumPath(id): AxumPath<String>| async move {
-          let length = if id == "htsnexus_test_NA12878.bam.c4gh" {
-            "2598043"
-          } else {
-            "2596799"
-          };
+        head(
+          |AxumPath(id): AxumPath<String>, headers: HeaderMap| async move {
+            assert_eq!(
+              headers.get(USER_AGENT),
+              Some(&HeaderValue::from_static("user-agent"))
+            );
 
-          Response::builder()
-            .header(SERVER_ADDITIONAL_BYTES, 124)
-            .header(CLIENT_ADDITIONAL_BYTES, 124)
-            .header(CONTENT_LENGTH, HeaderValue::from_static(length))
-            .status(StatusCode::OK)
-            .body(StreamBody::new(ReaderStream::new(Cursor::new(vec![]))))
-            .unwrap()
-            .into_response()
-        }),
+            #[cfg(feature = "crypt4gh")]
+            if headers.contains_key(CLIENT_PUBLIC_KEY_NAME) {
+              let public_key = read_public_key(
+                general_purpose::STANDARD
+                  .decode(headers.get(CLIENT_PUBLIC_KEY_NAME).unwrap())
+                  .unwrap(),
+              )
+              .await
+              .unwrap()
+              .into_inner();
+              assert_eq!(
+                public_key,
+                expected_key_pair().public_key().clone().into_inner()
+              );
+            }
+
+            let length = if id == "htsnexus_test_NA12878.bam.c4gh" {
+              "2598043"
+            } else {
+              "2596799"
+            };
+
+            Response::builder()
+              .header(SERVER_ADDITIONAL_BYTES, 124)
+              .header(CLIENT_ADDITIONAL_BYTES, 124)
+              .header(CONTENT_LENGTH, HeaderValue::from_static(length))
+              .status(StatusCode::OK)
+              .body(StreamBody::new(ReaderStream::new(Cursor::new(vec![]))))
+              .unwrap()
+              .into_response()
+          },
+        ),
       )
       .nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()))
       .route_layer(middleware::from_fn(test_auth));

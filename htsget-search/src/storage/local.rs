@@ -321,7 +321,7 @@ pub(crate) mod tests {
       let result = Storage::head(
         &storage,
         "folder/../key1",
-        HeadOptions::new(&Default::default()),
+        HeadOptions::new(&Default::default(), &Default::default()),
       )
       .await;
       let expected: u64 = 6;

@@ -254,7 +254,7 @@ where
         .get_storage()
         .head(
           query.format().fmt_file(query),
-          HeadOptions::new(query.request().headers()),
+          HeadOptions::new(query.request().headers(), query.object_type()),
         )
         .await?,
     )
@@ -345,7 +345,7 @@ where
           .get_storage()
           .head(
             query.format().fmt_file(&query),
-            HeadOptions::new(query.request().headers()),
+            HeadOptions::new(query.request().headers(), query.object_type()),
           )
           .await?;
 

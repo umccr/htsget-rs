@@ -407,8 +407,9 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn file_size() {
     with_aws_s3_storage(|storage| async move {
+      let object_type = Default::default();
       let result = storage
-        .head("key2", HeadOptions::new(&Default::default()))
+        .head("key2", HeadOptions::new(&Default::default(), &object_type))
         .await;
       let expected: u64 = 6;
       assert!(matches!(result, Ok(size) if size.content_length() == expected));

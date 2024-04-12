@@ -678,17 +678,26 @@ impl<'a> RangeUrlOptions<'a> {
 #[derive(Debug)]
 pub struct HeadOptions<'a> {
   request_headers: &'a HeaderMap,
+  object_type: &'a ObjectType,
 }
 
 impl<'a> HeadOptions<'a> {
   /// Create a new HeadOptions struct.
-  pub fn new(request_headers: &'a HeaderMap) -> Self {
-    Self { request_headers }
+  pub fn new(request_headers: &'a HeaderMap, object_type: &'a ObjectType) -> Self {
+    Self {
+      request_headers,
+      object_type,
+    }
   }
 
   /// Get the request headers.
   pub fn request_headers(&self) -> &'a HeaderMap {
     self.request_headers
+  }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    self.object_type
   }
 }
 

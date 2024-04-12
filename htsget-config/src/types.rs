@@ -13,13 +13,15 @@ use tracing::instrument;
 use crate::error::Error;
 use crate::error::Error::ParseError;
 use crate::resolver::object::ObjectType;
+use crate::types::TaggedTypeAll::All;
 
 pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all(serialize = "UPPERCASE"))]
 pub enum Format {
+  #[default]
   #[serde(alias = "bam", alias = "BAM")]
   Bam,
   #[serde(alias = "cram", alias = "CRAM")]
@@ -139,9 +141,10 @@ impl Display for Format {
 }
 
 /// Class component of htsget response.
-#[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all(serialize = "lowercase"))]
 pub enum Class {
+  #[default]
   #[serde(alias = "header", alias = "HEADER")]
   Header,
   #[serde(alias = "body", alias = "BODY")]
@@ -266,6 +269,12 @@ pub enum Fields {
   List(HashSet<String>),
 }
 
+impl Default for Fields {
+  fn default() -> Self {
+    Self::Tagged(All)
+  }
+}
+
 /// Possible values for the tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(untagged)]
@@ -276,12 +285,18 @@ pub enum Tags {
   List(HashSet<String>),
 }
 
+impl Default for Tags {
+  fn default() -> Self {
+    Self::Tagged(All)
+  }
+}
+
 /// The no tags parameter.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub struct NoTags(pub Option<HashSet<String>>);
 
 /// A struct containing the information from the HTTP request.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Request {
   path: String,
   query: HashMap<String, String>,
@@ -327,7 +342,7 @@ impl Request {
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Query {
   id: String,
   format: Format,
