@@ -27,3 +27,4 @@ tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 jsonwebtoken = { version = "9.3.0" }
 serde_json = { version = "1.0" }
+regex = "1.10.2"

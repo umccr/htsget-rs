@@ -1753,6 +1753,7 @@ dependencies = [
  "htsget-test",
  "http",
  "jsonwebtoken",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",
