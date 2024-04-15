@@ -10,8 +10,8 @@ ticket_server_cors_max_age = 86400
 ticket_server_cors_expose_headers = []
 data_server_enabled = true
 data_server_addr = "127.0.0.1:8081"
-data_server_local_path = "data"
-data_server_serve_at = "/data"
+data_server_local_path = "./"
+data_server_serve_at = ""
 data_server_cors_allow_credentials = false
 data_server_cors_allow_origins = ["http://localhost:8080"]
 data_server_cors_allow_headers = "All"
@@ -20,8 +20,8 @@ data_server_cors_max_age = 86400
 data_server_cors_expose_headers = []
 
 [[resolvers]]
-regex = "(data)/(.*)"
-substitution_string = "$2"
+regex = ".*"
+substitution_string = "$0"
 storage = "Local"
 
 [resolvers.allow_guard]

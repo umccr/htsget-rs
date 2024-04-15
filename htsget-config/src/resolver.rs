@@ -270,13 +270,8 @@ impl QueryAllowed for AllowGuard {
 
 impl Default for Resolver {
   fn default() -> Self {
-    Self::new(
-      Storage::default(),
-      "(data)/(.*)",
-      "$2",
-      AllowGuard::default(),
-    )
-    .expect("expected valid storage")
+    Self::new(Storage::default(), ".*", "$0", AllowGuard::default())
+      .expect("expected valid storage")
   }
 }
 
