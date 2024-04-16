@@ -6,3 +6,4 @@ deploy/.build
 request-benchmarks.json
 volume
 cdk.context.json
+.DS_Store
