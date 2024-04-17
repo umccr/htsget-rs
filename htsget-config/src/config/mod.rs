@@ -42,11 +42,7 @@ fn default_server_origin() -> &'static str {
 }
 
 pub(crate) fn default_path() -> &'static str {
-  "data"
-}
-
-pub(crate) fn default_serve_at() -> &'static str {
-  "/data"
+  "./"
 }
 
 /// The command line arguments allowed for the htsget-rs executables.
@@ -268,7 +264,7 @@ impl Default for DataServerConfig {
         .parse()
         .expect("expected valid address"),
       local_path: default_path().into(),
-      serve_at: default_serve_at().into(),
+      serve_at: Default::default(),
       tls: None,
       cors: CorsConfig::default(),
     }

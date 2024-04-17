@@ -1,0 +1,15 @@
+*
+
+!/htsget-actix
+!/htsget-config
+!/htsget-http
+!/htsget-lambda
+!/htsget-search
+!/htsget-test
+!/Cargo.toml
+!/Cargo.lock
+
+**/benches
+**/examples
+**/LICENSE
+**/*.md

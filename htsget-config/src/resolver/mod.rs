@@ -111,8 +111,8 @@ impl Default for Resolver {
   fn default() -> Self {
     Self::new(
       Storage::default(),
-      "(data)/(.*)",
-      "$2",
+      ".*",
+      "$0",
       AllowGuard::default(),
       ObjectType::default(),
     )
