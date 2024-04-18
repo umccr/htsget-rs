@@ -43,7 +43,7 @@ impl KeyType {
   /// Get the key type from an ending.
   pub fn from_ending<K: AsRef<str>>(key: K) -> KeyType {
     if key.as_ref().ends_with(Format::Bam.index_file_ending())
-      || key.as_ref().ends_with(Format::Vcf.index_file_ending())
+      || key.as_ref().ends_with(Format::Bcf.index_file_ending())
       || key.as_ref().ends_with(Format::Cram.index_file_ending())
       || key.as_ref().ends_with(Format::Vcf.index_file_ending())
       || key.as_ref().ends_with(".bam.gzi")

@@ -2115,6 +2115,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "url",
+ "walkdir",
 ]
 
 [[package]]
@@ -2126,6 +2127,7 @@ dependencies = [
  "aws-config",
  "aws-credential-types",
  "aws-sdk-s3",
+ "axum",
  "base64 0.21.7",
  "crypt4gh",
  "futures",
@@ -2143,6 +2145,11 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tower",
+ "tower-http",
+ "walkdir",
 ]
 
 [[package]]

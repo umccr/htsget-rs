@@ -29,12 +29,16 @@ use htsget_config::tls::{
   load_certs, load_key, tls_server_config, CertificateKeyPair, TlsServerConfig,
 };
 use htsget_config::types;
+#[cfg(feature = "crypt4gh")]
+use htsget_config::types::{Class, Format};
 use htsget_config::types::{Scheme, TaggedTypeAll};
 #[cfg(feature = "crypt4gh")]
 use {async_crypt4gh::reader::builder::Builder, std::io::Cursor};
 
 #[cfg(feature = "crypt4gh")]
 use crate::crypt4gh::get_decryption_keys;
+#[cfg(feature = "crypt4gh")]
+use crate::http::concat::ReadRecords;
 use crate::util::generate_test_certificates;
 use crate::Config;
 
@@ -109,11 +113,13 @@ pub fn default_dir() -> PathBuf {
     .to_path_buf()
 }
 
-/// Test a response against a bam file including the sliced byte ranges.
-pub async fn test_bam_file_byte_ranges(
+/// Get byte ranges from a url storage response.
+pub async fn get_byte_ranges_from_url_storage_response(
   response: types::Response,
   file: PathBuf,
 ) -> (Vec<u8>, Vec<u8>) {
+  println!("{:#?}", response);
+
   let file_str = file.to_str().unwrap();
   let mut buf = vec![];
   StdFile::open(file_str)
@@ -146,18 +152,6 @@ pub async fn test_bam_file_byte_ranges(
     .reduce(|acc, x| [acc, x].concat())
     .unwrap();
 
-  // Todo investigate why noodles fails here but samtools doesn't.
-  // let mut reader = bam::AsyncReader::new(bgzf::AsyncReader::new(output.as_slice()));
-  // let header = reader.read_header().await.unwrap().parse().unwrap();
-  // reader.read_reference_sequences().await.unwrap();
-  // println!("{header}");
-  //
-  // let mut records = reader.records(&header);
-  // while let Some(record) = records.try_next().await.unwrap() {
-  //   println!("{:#?}", record);
-  //   continue;
-  // }
-
   (output, public_key)
 }
 
@@ -186,7 +180,25 @@ pub async fn test_bam_crypt4gh_byte_ranges(output_bytes: Vec<u8>, expected_bytes
   assert_eq!(unencrypted_out, expected_bytes);
 }
 
-/// Get the default directory where data is present..
+#[cfg(feature = "crypt4gh")]
+pub async fn test_parsable_byte_ranges(output_bytes: Vec<u8>, format: Format, class: Class) {
+  let (recipient_private_key, _) = get_decryption_keys().await;
+
+  let mut reader = Builder::default()
+    .build_with_stream_length(Cursor::new(output_bytes), vec![recipient_private_key])
+    .await
+    .unwrap();
+
+  let mut unencrypted_out = vec![];
+  reader.read_to_end(&mut unencrypted_out).await.unwrap();
+
+  ReadRecords::new(format, class, unencrypted_out)
+    .read_records()
+    .await
+    .unwrap();
+}
+
+/// Get the default directory where data is present.
 pub fn default_dir_data() -> PathBuf {
   default_dir().join("data")
 }
