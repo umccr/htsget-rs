@@ -7,7 +7,7 @@ use rustls::{Certificate, ClientConfig, RootCertStore, ServerConfig};
 use rustls_native_certs::load_native_certs;
 use rustls_pemfile::read_one;
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::error::Error::{IoError, ParseError};
 use crate::error::{Error, Result};
@@ -43,6 +43,8 @@ pub struct TlsClientConfig {
 
 impl Default for TlsClientConfig {
   fn default() -> Self {
+    debug!("using default client TLS config");
+
     Self {
       client_config: ClientConfig::builder()
         .with_safe_defaults()
@@ -306,7 +308,7 @@ pub fn load_reqwest_identity<P: AsRef<Path>>(key: P, cert: P) -> Result<reqwest:
   let key = read_bytes(key)?;
   let cert = read_bytes(cert)?;
 
-  reqwest::Identity::from_pkcs8_pem(&cert, &key)
+  reqwest::Identity::from_pem(&[cert, key].concat())
     .map_err(|err| IoError(format!("failed to pkcs8 pem identity: {}", err)))
 }
 

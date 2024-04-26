@@ -79,7 +79,7 @@ tracing = "0.1"
 base64 = "0.21"
 serde = "1.0"
 
-reqwest = { version = "0.11", features = ["rustls-tls", "native-tls", "stream"], default-features = false }
+reqwest = { version = "0.11", features = ["rustls-tls", "stream"], default-features = false }
 
 [dev-dependencies]
 tempfile = "3.6"

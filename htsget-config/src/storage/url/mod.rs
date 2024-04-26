@@ -4,6 +4,7 @@ use http::Uri as InnerUrl;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
+use tracing::debug;
 
 use crate::error::Error::{ConfigError, ParseError};
 use crate::error::{Error, Result};
@@ -29,6 +30,7 @@ pub struct UrlStorage {
   response_url: ValidatedUrl,
   forward_headers: bool,
   user_agent: Option<String>,
+  danger_accept_invalid_certs: bool,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
 }
@@ -51,10 +53,13 @@ impl TryFrom<UrlStorage> for UrlStorageClient {
 
     let (_, cert, identity) = storage.tls.into_inner();
 
+    builder = builder.danger_accept_invalid_certs(storage.danger_accept_invalid_certs);
     if let Some(cert) = cert {
+      debug!("adding custom root certificate");
       builder = builder.add_root_certificate(cert);
     }
     if let Some(identity) = identity {
+      debug!("adding client authentication identity");
       builder = builder.identity(identity);
     }
 
@@ -160,6 +165,7 @@ impl UrlStorage {
     response_url: InnerUrl,
     forward_headers: bool,
     user_agent: Option<String>,
+    danger_accept_invalid_certs: bool,
     tls: TlsClientConfig,
   ) -> Self {
     Self {
@@ -169,6 +175,7 @@ impl UrlStorage {
       }),
       forward_headers,
       user_agent,
+      danger_accept_invalid_certs,
       tls,
     }
   }
@@ -207,6 +214,7 @@ impl Default for UrlStorage {
       response_url: default_url(),
       forward_headers: true,
       user_agent: None,
+      danger_accept_invalid_certs: false,
       tls: Default::default(),
     }
   }

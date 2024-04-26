@@ -1,7 +1,7 @@
 # An example that treats files as Crypt4GH encrypted.
 # Run with `cargo run -p htsget-actix --features crypt4gh,url-storage -- --config crypt4gh.toml`
 
-ticket_server_addr = "0.0.0.0:8080"
+ticket_server_addr = "0.0.0.0:7000"
 #data_server_addr = "0.0.0.0:8081"
 
 [[resolvers]]
@@ -9,16 +9,23 @@ regex = ".*"
 substitution_string = "$0"
 
 [resolvers.object_type]
-# Specify the keys that htsget will use manually.
+# This option specified Crypt4GH files.
+send_encrypted_to_client = true
+# Specify the keys that htsget will use manually. These can be commented out to generate keys.
 private_key = "data/crypt4gh/keys/bob.sec" # pragma: allowlist secret
 public_key = "data/crypt4gh/keys/bob.pub"
-
-# Or, generate keys for each request.
-#object_type = "GenerateKeys"
 
 [resolvers.storage]
 response_url = "https://example.com/"
 forward_headers = false
+
+# Add a custom user agent.
+#user_agent = "user-agent"
+# Trust invalid certificates.
+#danger_accept_invalid_certs = true
+
+# Add a certificate to the client.
+#tls.root_store = "htsget-config/examples/config-files/cert.pem"
 
 [resolvers.storage.endpoints]
 file = "https://example.com/"
