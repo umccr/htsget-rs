@@ -3,18 +3,18 @@ pub mod encrypt;
 
 use std::fmt::Debug;
 use std::pin::Pin;
+use std::result;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::stream::MapErr;
-use futures_util::TryStreamExt;
+use futures_util::{Stream, TryStreamExt};
 use http::header::{Entry, IntoHeaderName, CONTENT_LENGTH, USER_AGENT};
-use http::{HeaderMap, Method, Request, Response, Uri};
-use hyper::client::HttpConnector;
-use hyper::{Body, Client, Error};
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use http::{HeaderMap, Method, Request, Uri};
+use hyper::Body;
 use pin_project::pin_project;
+use reqwest::{Client, ClientBuilder};
 use tokio::io::{AsyncRead, ReadBuf};
 use tokio_util::io::StreamReader;
 use tracing::{debug, info, instrument};
@@ -64,7 +64,7 @@ static HTSGET_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARG
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
 pub struct UrlStorage {
-  client: Client<HttpsConnector<HttpConnector>>,
+  client: Client,
   endpoints: Endpoints,
   response_url: Uri,
   forward_headers: bool,
@@ -78,7 +78,7 @@ pub struct UrlStorage {
 impl UrlStorage {
   /// Construct a new UrlStorage.
   pub fn new(
-    client: Client<HttpsConnector<HttpConnector>>,
+    client: Client,
     endpoints: Endpoints,
     response_url: Uri,
     forward_headers: bool,
@@ -131,14 +131,9 @@ impl UrlStorage {
     }
 
     Ok(Self {
-      client: Client::builder().build(
-        HttpsConnectorBuilder::new()
-          .with_native_roots()
-          .https_or_http()
-          .enable_http1()
-          .enable_http2()
-          .build(),
-      ),
+      client: ClientBuilder::new()
+        .build()
+        .map_err(|err| InternalError(format!("failed to build reqwest client: {}", err)))?,
       endpoints,
       response_url,
       forward_headers,
@@ -190,7 +185,7 @@ impl UrlStorage {
     headers: &HeaderMap,
     method: Method,
     url: &Uri,
-  ) -> Result<Response<Body>> {
+  ) -> Result<reqwest::Response> {
     let key = key.as_ref();
     let url = self.get_url_from_key(key, url)?;
 
@@ -210,7 +205,11 @@ impl UrlStorage {
 
     let response = self
       .client
-      .request(request)
+      .execute(
+        request
+          .try_into()
+          .map_err(|err| InternalError(format!("failed to create reqwest: {}", err)))?,
+      )
       .await
       .map_err(|err| KeyNotFound(format!("{} with key {}", err, key)))?;
 
@@ -267,7 +266,7 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
-  ) -> Result<Response<Body>> {
+  ) -> Result<reqwest::Response> {
     self
       .send_request(key, headers, Method::HEAD, self.endpoints.file())
       .await
@@ -278,7 +277,7 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
-  ) -> Result<Response<Body>> {
+  ) -> Result<reqwest::Response> {
     self
       .send_request(key, headers, Method::GET, self.endpoints.file())
       .await
@@ -289,7 +288,7 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
-  ) -> Result<Response<Body>> {
+  ) -> Result<reqwest::Response> {
     self
       .send_request(key, headers, Method::GET, self.endpoints.index())
       .await
@@ -348,7 +347,14 @@ impl UrlStorage {
 }
 
 /// Type representing the `StreamReader` for `UrlStorage`.
-pub type UrlStreamReader = StreamReader<MapErr<Body, fn(Error) -> StorageError>, Bytes>;
+/// Todo, definitely tidy this type...
+pub type UrlStreamReader = StreamReader<
+  MapErr<
+    Pin<Box<dyn Stream<Item = result::Result<Bytes, reqwest::Error>> + Send + Sync>>,
+    fn(reqwest::Error) -> StorageError,
+  >,
+  Bytes,
+>;
 
 /// An enum representing the variants of a stream reader. Note, cannot use tokio_util::Either
 /// directly because this needs to be gated behind a feature flag.
@@ -393,11 +399,15 @@ impl AsyncRead for UrlStreamEither {
   }
 }
 
-impl From<Response<Body>> for UrlStreamEither {
-  fn from(response: Response<Body>) -> Self {
-    Self::A(StreamReader::new(response.into_body().map_err(|err| {
-      ResponseError(format!("reading body from response: {}", err))
-    })))
+impl From<reqwest::Response> for UrlStreamEither {
+  fn from(response: reqwest::Response) -> Self {
+    let response: Pin<Box<dyn Stream<Item = result::Result<Bytes, reqwest::Error>> + Send + Sync>> =
+      Box::pin(response.bytes_stream());
+    let stream_reader: UrlStreamReader = StreamReader::new(
+      response.map_err(|err| ResponseError(format!("reading body from response: {}", err))),
+    );
+
+    Self::A(stream_reader)
   }
 }
 
@@ -468,10 +478,12 @@ impl Storage for UrlStorage {
             privkey: key_pair.private_key().clone().0,
             recipient_pubkey: key_pair.public_key().clone().into_inner(),
           };
+
+          let response: Pin<
+            Box<dyn Stream<Item = result::Result<Bytes, reqwest::Error>> + Send + Sync>,
+          > = Box::pin(response.bytes_stream());
           let stream_reader: UrlStreamReader = StreamReader::new(
-            response
-              .into_body()
-              .map_err(|err| ResponseError(format!("reading body from response: {}", err))),
+            response.map_err(|err| ResponseError(format!("reading body from response: {}", err))),
           );
 
           info!("got stream reader");
@@ -534,12 +546,24 @@ impl Storage for UrlStorage {
             .into(),
         )
       }
-      KeyType::Index => Ok(
-        self
-          .get_index(key.to_string(), options.request_headers())
-          .await?
-          .into(),
-      ),
+      KeyType::Index => {
+        #[cfg(feature = "crypt4gh")]
+        if options.object_type().is_crypt4gh() {
+          let (headers, _) = self
+            .update_headers(options.object_type(), options.request_headers())
+            .await?;
+          {
+            return Ok(self.get_index(key.to_string(), &headers).await?.into());
+          }
+        }
+
+        Ok(
+          self
+            .get_index(key.to_string(), options.request_headers())
+            .await?
+            .into(),
+        )
+      }
     }
   }
 
@@ -739,7 +763,6 @@ mod tests {
   use htsget_test::http::server::with_test_server;
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue};
-  use hyper::body::to_bytes;
   use tokio::io::AsyncReadExt;
   #[cfg(feature = "crypt4gh")]
   use {
@@ -834,21 +857,19 @@ mod tests {
       let headers = test_headers(&mut headers);
 
       let response = String::from_utf8(
-        to_bytes(
-          storage
-            .send_request(
-              "assets/key1",
-              headers,
-              Method::GET,
-              &Uri::from_str(&url).unwrap(),
-            )
-            .await
-            .unwrap()
-            .into_body(),
-        )
-        .await
-        .unwrap()
-        .to_vec(),
+        storage
+          .send_request(
+            "assets/key1",
+            headers,
+            Method::GET,
+            &Uri::from_str(&url).unwrap(),
+          )
+          .await
+          .unwrap()
+          .bytes()
+          .await
+          .unwrap()
+          .to_vec(),
       )
       .unwrap();
       assert_eq!(response, "value1");
@@ -875,16 +896,14 @@ mod tests {
       let headers = test_headers(&mut headers);
 
       let response = String::from_utf8(
-        to_bytes(
-          storage
-            .get_header("assets/key1", headers)
-            .await
-            .unwrap()
-            .into_body(),
-        )
-        .await
-        .unwrap()
-        .to_vec(),
+        storage
+          .get_header("assets/key1", headers)
+          .await
+          .unwrap()
+          .bytes()
+          .await
+          .unwrap()
+          .to_vec(),
       )
       .unwrap();
       assert_eq!(response, "value1");
@@ -1590,15 +1609,8 @@ mod tests {
     )
   }
 
-  fn test_client() -> Client<HttpsConnector<HttpConnector>> {
-    Client::builder().build(
-      HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build(),
-    )
+  fn test_client() -> Client {
+    ClientBuilder::new().build().unwrap()
   }
 
   pub(crate) async fn with_url_test_server<F, Fut>(test: F)

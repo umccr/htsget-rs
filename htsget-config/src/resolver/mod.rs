@@ -292,8 +292,8 @@ mod tests {
   #[cfg(feature = "url-storage")]
   use {
     crate::storage::url, crate::storage::url::endpoints::Endpoints,
-    crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
-    hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
+    crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, reqwest::ClientBuilder,
+    std::str::FromStr,
   };
   #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
   use {
@@ -408,14 +408,7 @@ mod tests {
 
   #[cfg(feature = "url-storage")]
   fn create_url_storage(endpoint: &str) -> UrlStorageClient {
-    let client = Client::builder().build(
-      HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build(),
-    );
+    let client = ClientBuilder::new().build().unwrap();
 
     UrlStorageClient::new(
       Endpoints::new(

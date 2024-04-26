@@ -1,13 +1,11 @@
 use std::str::FromStr;
 
 use http::Uri as InnerUrl;
-use hyper::client::HttpConnector;
-use hyper::Client;
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
-use crate::error::Error::ParseError;
+use crate::error::Error::{ConfigError, ParseError};
 use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
 use crate::storage::url::endpoints::Endpoints;
@@ -36,33 +34,41 @@ pub struct UrlStorage {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-#[serde(from = "UrlStorage")]
+#[serde(try_from = "UrlStorage")]
 pub struct UrlStorageClient {
   endpoints: Endpoints,
   response_url: ValidatedUrl,
   forward_headers: bool,
   user_agent: Option<String>,
-  client: Client<HttpsConnector<HttpConnector>>,
+  client: Client,
 }
 
-impl From<UrlStorage> for UrlStorageClient {
-  fn from(storage: UrlStorage) -> Self {
-    let client = Client::builder().build(
-      HttpsConnectorBuilder::new()
-        .with_tls_config(storage.tls.into_inner())
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build(),
-    );
+impl TryFrom<UrlStorage> for UrlStorageClient {
+  type Error = Error;
 
-    Self::new(
+  fn try_from(storage: UrlStorage) -> Result<Self> {
+    let mut builder = Client::builder();
+
+    let (_, cert, identity) = storage.tls.into_inner();
+
+    if let Some(cert) = cert {
+      builder = builder.add_root_certificate(cert);
+    }
+    if let Some(identity) = identity {
+      builder = builder.identity(identity);
+    }
+
+    let client = builder
+      .build()
+      .map_err(|err| ConfigError(format!("building url storage client: {}", err)))?;
+
+    Ok(Self::new(
       storage.endpoints,
       storage.response_url,
       storage.forward_headers,
       storage.user_agent,
       client,
-    )
+    ))
   }
 }
 
@@ -73,7 +79,7 @@ impl UrlStorageClient {
     response_url: ValidatedUrl,
     forward_headers: bool,
     user_agent: Option<String>,
-    client: Client<HttpsConnector<HttpConnector>>,
+    client: Client,
   ) -> Self {
     Self {
       endpoints,
@@ -105,7 +111,7 @@ impl UrlStorageClient {
   }
 
   /// Get a cloned copy of the http client.
-  pub fn client_cloned(&self) -> Client<HttpsConnector<HttpConnector>> {
+  pub fn client_cloned(&self) -> Client {
     self.client.clone()
   }
 }
@@ -201,7 +207,7 @@ impl Default for UrlStorage {
       response_url: default_url(),
       forward_headers: true,
       user_agent: None,
-      tls: TlsClientConfig::default(),
+      tls: Default::default(),
     }
   }
 }

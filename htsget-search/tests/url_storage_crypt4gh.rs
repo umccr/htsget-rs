@@ -19,21 +19,12 @@ use htsget_test::http::{
 };
 use http::header::{AUTHORIZATION, USER_AGENT};
 use http::{HeaderMap, HeaderName, HeaderValue, Uri};
-use hyper::client::HttpConnector;
-use hyper::Client;
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use reqwest::{Client, ClientBuilder};
 use std::future::Future;
 use std::str::FromStr;
 
-fn test_client() -> Client<HttpsConnector<HttpConnector>> {
-  Client::builder().build(
-    HttpsConnectorBuilder::new()
-      .with_native_roots()
-      .https_or_http()
-      .enable_http1()
-      .enable_http2()
-      .build(),
-  )
+fn test_client() -> Client {
+  ClientBuilder::new().build().unwrap()
 }
 
 fn test_headers(headers: &mut HeaderMap) -> &HeaderMap {

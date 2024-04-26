@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use hyper_rustls::ConfigBuilderExt;
@@ -37,6 +37,8 @@ pub struct TlsServerConfig {
 #[serde(try_from = "RootCertStorePair")]
 pub struct TlsClientConfig {
   client_config: ClientConfig,
+  cert: Option<reqwest::Certificate>,
+  identity: Option<reqwest::Identity>,
 }
 
 impl Default for TlsClientConfig {
@@ -46,6 +48,8 @@ impl Default for TlsClientConfig {
         .with_safe_defaults()
         .with_native_roots()
         .with_no_client_auth(),
+      cert: None,
+      identity: None,
     }
   }
 }
@@ -64,13 +68,27 @@ impl TlsServerConfig {
 
 impl TlsClientConfig {
   /// Create a new TlsClientConfig.
-  pub fn new(client_config: ClientConfig) -> Self {
-    Self { client_config }
+  pub fn new(
+    client_config: ClientConfig,
+    cert: Option<reqwest::Certificate>,
+    identity: Option<reqwest::Identity>,
+  ) -> Self {
+    Self {
+      client_config,
+      cert,
+      identity,
+    }
   }
 
   /// Get the inner client config.
-  pub fn into_inner(self) -> ClientConfig {
-    self.client_config
+  pub fn into_inner(
+    self,
+  ) -> (
+    ClientConfig,
+    Option<reqwest::Certificate>,
+    Option<reqwest::Identity>,
+  ) {
+    (self.client_config, self.cert, self.identity)
   }
 }
 
@@ -187,10 +205,16 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
   fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
     let (key_pair, root_store) = root_store_pair.into_inner();
 
+    let cert = root_store.clone().map(load_reqwest_cert).transpose()?;
+    let identity = key_pair
+      .clone()
+      .map(|pair| load_reqwest_identity(pair.key, pair.cert))
+      .transpose()?;
+
     let key_pair = key_pair.map(TryInto::try_into).transpose()?;
     let root_store = root_store.map(load_root_store_from_path).transpose()?;
 
-    tls_client_config(key_pair, root_store).map(Self::new)
+    tls_client_config(key_pair, root_store).map(|config| Self::new(config, cert, identity))
   }
 }
 
@@ -258,6 +282,32 @@ pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
   }
 
   Ok(certs)
+}
+
+/// Read byte data.
+pub fn read_bytes<P: AsRef<Path>>(path: P) -> Result<Vec<u8>> {
+  let mut bytes = vec![];
+  File::open(path)
+    .map_err(|err| IoError(format!("failed to open cert file: {}", err)))?
+    .read_to_end(&mut bytes)
+    .map_err(|err| IoError(format!("failed to read bytes: {}", err)))?;
+  Ok(bytes)
+}
+
+/// Load a pem reqwest cert.
+pub fn load_reqwest_cert<P: AsRef<Path>>(path: P) -> Result<reqwest::Certificate> {
+  let bytes = read_bytes(path)?;
+  reqwest::Certificate::from_pem(&bytes)
+    .map_err(|err| IoError(format!("failed to read certificate: {}", err)))
+}
+
+/// Load a pem reqwest cert.
+pub fn load_reqwest_identity<P: AsRef<Path>>(key: P, cert: P) -> Result<reqwest::Identity> {
+  let key = read_bytes(key)?;
+  let cert = read_bytes(cert)?;
+
+  reqwest::Identity::from_pkcs8_pem(&cert, &key)
+    .map_err(|err| IoError(format!("failed to pkcs8 pem identity: {}", err)))
 }
 
 /// Load certificates from a file and place them in a root CA store.
