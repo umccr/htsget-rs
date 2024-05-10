@@ -1,7 +1,7 @@
 [package]
 name = "htsget-search"
 version = "0.6.6"
-rust-version = "1.65"
+rust-version = "1.66"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "The primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using noodles to query files and their indices."
@@ -21,8 +21,9 @@ s3-storage = [
 ]
 url-storage = [
     "dep:bytes",
-    "dep:hyper-rustls",
     "hyper/client",
+    "reqwest",
+    "pin-project-lite",
     "htsget-config/url-storage",
     "htsget-test/url-storage"
 ]
@@ -55,7 +56,8 @@ aws-sdk-s3 = { version = "0.34", optional = true }
 aws-config = { version = "0.56", optional = true }
 
 # Url storage
-hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"], optional = true }
+reqwest = { version = "0.11", features = ["rustls-tls", "stream"], default-features = false, optional = true }
+pin-project-lite = { version = "0.2", optional = true }
 
 # Error control, tracing, config
 thiserror = "1.0"

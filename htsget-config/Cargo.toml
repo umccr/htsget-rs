@@ -12,7 +12,7 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = []
-url-storage = ["hyper"]
+url-storage = ["reqwest"]
 default = []
 
 [dependencies]
@@ -35,7 +35,8 @@ rustls = "0.21"
 rustls-native-certs = "0.6"
 hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"] }
 
-hyper = { version = "0.14", features = ["http1", "http2", "client"], optional = true }
+# url-storage
+reqwest = { version = "0.11", features = ["rustls-tls"], default-features = false, optional = true }
 
 [dev-dependencies]
 serde_json = "1.0"

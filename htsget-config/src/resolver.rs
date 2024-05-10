@@ -440,8 +440,8 @@ mod tests {
 
   #[cfg(feature = "url-storage")]
   use {
-    crate::storage::url, crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, hyper::Client,
-    hyper_rustls::HttpsConnectorBuilder, std::str::FromStr,
+    crate::storage::url, crate::storage::url::ValidatedUrl, http::Uri as InnerUrl,
+    reqwest::ClientBuilder, std::str::FromStr,
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
@@ -528,14 +528,7 @@ mod tests {
   #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn resolver_resolve_url_request() {
-    let client = Client::builder().build(
-      HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build(),
-    );
+    let client = ClientBuilder::new().build().unwrap();
     let url_storage = UrlStorageClient::new(
       ValidatedUrl(url::Url {
         inner: InnerUrl::from_str("https://example.com/").unwrap(),
