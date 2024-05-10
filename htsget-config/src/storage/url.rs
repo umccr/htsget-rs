@@ -1,16 +1,14 @@
 use std::str::FromStr;
 
 use http::Uri as InnerUrl;
-use hyper::client::HttpConnector;
-use hyper::Client;
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
-use crate::tls::TlsClientConfig;
+use crate::tls::client::TlsClientConfig;
 
 fn default_url() -> ValidatedUrl {
   ValidatedUrl(Url {
@@ -32,31 +30,41 @@ pub struct UrlStorage {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-#[serde(from = "UrlStorage")]
+#[serde(try_from = "UrlStorage")]
 pub struct UrlStorageClient {
   url: ValidatedUrl,
   response_url: ValidatedUrl,
   forward_headers: bool,
-  client: Client<HttpsConnector<HttpConnector>>,
+  client: Client,
 }
 
-impl From<UrlStorage> for UrlStorageClient {
-  fn from(storage: UrlStorage) -> Self {
-    let client = Client::builder().build(
-      HttpsConnectorBuilder::new()
-        .with_tls_config(storage.tls.into_inner())
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build(),
-    );
+impl TryFrom<UrlStorage> for UrlStorageClient {
+  type Error = Error;
 
-    Self::new(
+  fn try_from(storage: UrlStorage) -> Result<Self> {
+    let mut builder = Client::builder();
+
+    let (certs, identity) = storage.tls.into_inner();
+
+    if let Some(certs) = certs {
+      for cert in certs {
+        builder = builder.add_root_certificate(cert);
+      }
+    }
+    if let Some(identity) = identity {
+      builder = builder.identity(identity);
+    }
+
+    let client = builder
+      .build()
+      .map_err(|err| ParseError(format!("building url storage client: {}", err)))?;
+
+    Ok(Self::new(
       storage.url,
       storage.response_url,
       storage.forward_headers,
       client,
-    )
+    ))
   }
 }
 
@@ -66,7 +74,7 @@ impl UrlStorageClient {
     url: ValidatedUrl,
     response_url: ValidatedUrl,
     forward_headers: bool,
-    client: Client<HttpsConnector<HttpConnector>>,
+    client: Client,
   ) -> Self {
     Self {
       url,
@@ -91,7 +99,8 @@ impl UrlStorageClient {
     self.forward_headers
   }
 
-  pub fn client_cloned(&self) -> Client<HttpsConnector<HttpConnector>> {
+  /// Get an owned client by cloning.
+  pub fn client_cloned(&self) -> Client {
     self.client.clone()
   }
 }
@@ -181,9 +190,28 @@ impl Default for UrlStorage {
 #[cfg(test)]
 mod tests {
   use crate::config::tests::test_config_from_file;
+  use crate::storage::url::{UrlStorage, UrlStorageClient};
   use crate::storage::Storage;
+  use crate::tls::client::tests::client_config_from_path;
 
   use crate::tls::tests::with_test_certificates;
+
+  use super::*;
+
+  #[tokio::test]
+  async fn test_building_client() {
+    with_test_certificates(|path, _, _| {
+      let client_config = client_config_from_path(path);
+      let url_storage = UrlStorageClient::try_from(UrlStorage::new(
+        "https://example.com".parse::<InnerUrl>().unwrap(),
+        "https://example.com".parse::<InnerUrl>().unwrap(),
+        true,
+        client_config,
+      ));
+
+      assert!(url_storage.is_ok());
+    });
+  }
 
   #[test]
   fn config_storage_url_file() {

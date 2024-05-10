@@ -1,14 +1,15 @@
 use std::fmt::Debug;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures_util::stream::MapErr;
+use futures::Stream;
 use futures_util::TryStreamExt;
 use http::header::CONTENT_LENGTH;
-use http::{HeaderMap, Method, Request, Response, Uri};
-use hyper::client::HttpConnector;
-use hyper::{Body, Client, Error};
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use http::{HeaderMap, Method, Request, Uri};
+use pin_project_lite::pin_project;
+use reqwest::{Client, ClientBuilder};
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
@@ -21,7 +22,7 @@ use crate::Url as HtsGetUrl;
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
 pub struct UrlStorage {
-  client: Client<HttpsConnector<HttpConnector>>,
+  client: Client,
   url: Uri,
   response_url: Uri,
   forward_headers: bool,
@@ -29,12 +30,7 @@ pub struct UrlStorage {
 
 impl UrlStorage {
   /// Construct a new UrlStorage.
-  pub fn new(
-    client: Client<HttpsConnector<HttpConnector>>,
-    url: Uri,
-    response_url: Uri,
-    forward_headers: bool,
-  ) -> Self {
+  pub fn new(client: Client, url: Uri, response_url: Uri, forward_headers: bool) -> Self {
     Self {
       client,
       url,
@@ -44,20 +40,19 @@ impl UrlStorage {
   }
 
   /// Construct a new UrlStorage with a default client.
-  pub fn new_with_default_client(url: Uri, response_url: Uri, forward_headers: bool) -> Self {
-    Self {
-      client: Client::builder().build(
-        HttpsConnectorBuilder::new()
-          .with_native_roots()
-          .https_or_http()
-          .enable_http1()
-          .enable_http2()
-          .build(),
-      ),
+  pub fn new_with_default_client(
+    url: Uri,
+    response_url: Uri,
+    forward_headers: bool,
+  ) -> Result<Self> {
+    Ok(Self {
+      client: ClientBuilder::new()
+        .build()
+        .map_err(|err| InternalError(format!("failed to build reqwest client: {}", err)))?,
       url,
       response_url,
       forward_headers,
-    }
+    })
   }
 
   /// Get a url from the key.
@@ -80,7 +75,7 @@ impl UrlStorage {
     key: K,
     headers: &HeaderMap,
     method: Method,
-  ) -> Result<Response<Body>> {
+  ) -> Result<reqwest::Response> {
     let key = key.as_ref();
     let url = self.get_url_from_key(key)?;
 
@@ -89,12 +84,16 @@ impl UrlStorage {
     let request = headers
       .iter()
       .fold(request, |acc, (key, value)| acc.header(key, value))
-      .body(Body::empty())
+      .body(vec![])
       .map_err(|err| UrlParseError(err.to_string()))?;
 
     let response = self
       .client
-      .request(request)
+      .execute(
+        request
+          .try_into()
+          .map_err(|err| InternalError(format!("failed to create http request: {}", err)))?,
+      )
       .await
       .map_err(|err| KeyNotFound(format!("{} with key {}", err, key)))?;
 
@@ -137,7 +136,7 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
-  ) -> Result<Response<Body>> {
+  ) -> Result<reqwest::Response> {
     self.send_request(key, headers, Method::HEAD).await
   }
 
@@ -146,14 +145,37 @@ impl UrlStorage {
     &self,
     key: K,
     headers: &HeaderMap,
-  ) -> Result<Response<Body>> {
+  ) -> Result<reqwest::Response> {
     self.send_request(key, headers, Method::GET).await
+  }
+}
+
+pin_project! {
+  /// A wrapper around a stream used by `UrlStorage`.
+  pub struct UrlStream {
+    #[pin]
+    inner: Box<dyn Stream<Item = Result<Bytes>> + Unpin + Send + Sync>
+  }
+}
+
+impl UrlStream {
+  /// Create a new UrlStream.
+  pub fn new(inner: Box<dyn Stream<Item = Result<Bytes>> + Unpin + Send + Sync>) -> Self {
+    Self { inner }
+  }
+}
+
+impl Stream for UrlStream {
+  type Item = Result<Bytes>;
+
+  fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    self.project().inner.poll_next(cx)
   }
 }
 
 #[async_trait]
 impl Storage for UrlStorage {
-  type Streamable = StreamReader<MapErr<Body, fn(Error) -> StorageError>, Bytes>;
+  type Streamable = StreamReader<UrlStream, Bytes>;
 
   #[instrument(level = "trace", skip(self))]
   async fn get<K: AsRef<str> + Send + Debug>(
@@ -168,9 +190,11 @@ impl Storage for UrlStorage {
       .get_key(key.to_string(), options.request_headers())
       .await?;
 
-    Ok(StreamReader::new(response.into_body().map_err(|err| {
-      ResponseError(format!("reading body from response: {}", err))
-    })))
+    Ok(StreamReader::new(UrlStream::new(Box::new(
+      response
+        .bytes_stream()
+        .map_err(|err| ResponseError(format!("reading body from response: {}", err))),
+    ))))
   }
 
   #[instrument(level = "trace", skip(self))]
@@ -224,7 +248,6 @@ mod tests {
   use axum::{middleware, Router};
   use http::header::AUTHORIZATION;
   use http::{HeaderName, HeaderValue, Request, StatusCode};
-  use hyper::body::to_bytes;
   use tokio::io::AsyncReadExt;
   use tower_http::services::ServeDir;
 
@@ -278,16 +301,14 @@ mod tests {
       let headers = test_headers(&mut headers);
 
       let response = String::from_utf8(
-        to_bytes(
-          storage
-            .send_request("assets/key1", headers, Method::GET)
-            .await
-            .unwrap()
-            .into_body(),
-        )
-        .await
-        .unwrap()
-        .to_vec(),
+        storage
+          .send_request("assets/key1", headers, Method::GET)
+          .await
+          .unwrap()
+          .bytes()
+          .await
+          .unwrap()
+          .to_vec(),
       )
       .unwrap();
       assert_eq!(response, "value1");
@@ -309,16 +330,14 @@ mod tests {
       let headers = test_headers(&mut headers);
 
       let response = String::from_utf8(
-        to_bytes(
-          storage
-            .get_key("assets/key1", headers)
-            .await
-            .unwrap()
-            .into_body(),
-        )
-        .await
-        .unwrap()
-        .to_vec(),
+        storage
+          .get_key("assets/key1", headers)
+          .await
+          .unwrap()
+          .bytes()
+          .await
+          .unwrap()
+          .to_vec(),
       )
       .unwrap();
       assert_eq!(response, "value1");
@@ -476,15 +495,8 @@ mod tests {
     );
   }
 
-  fn test_client() -> Client<HttpsConnector<HttpConnector>> {
-    Client::builder().build(
-      HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build(),
-    )
+  fn test_client() -> Client {
+    ClientBuilder::new().build().unwrap()
   }
 
   pub(crate) async fn with_url_test_server<F, Fut>(test: F)
