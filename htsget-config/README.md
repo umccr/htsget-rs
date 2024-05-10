@@ -275,11 +275,11 @@ TLS can be configured for the ticket server, data server, or the url storage cli
 certificates from PEM-formatted files. Certificates must be in X.509 format and private keys can be RSA, PKCS8, or SEC1 (EC) encoded. 
 The following options are available:
 
-| Option                 | Description                                                                                                                               | Type              | Default |
-|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
-| `key`                  | The path to the PEM formatted X.509 certificate. Specifies TLS for servers or client authentication for clients.                          | Filesystem path   | Not Set | 
-| `cert`                 | The path to the PEM formatted RSA, PKCS8, or SEC1 encoded EC private key. Specifies TLS for servers or client authentication for clients. | Filesystem path   | Not Set |
-| `root_store`           | The path to the PEM formatted root certificate store. Only used to specify non-native root certificates for client TLS.                   | Filesystem path   | Not Set |
+| Option                 | Description                                                                                                                                  | Type              | Default |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
+| `key`                  | The path to the PEM formatted X.509 certificate. Specifies TLS for servers or client authentication for clients.                             | Filesystem path   | Not Set | 
+| `cert`                 | The path to the PEM formatted RSA, PKCS8, or SEC1 encoded EC private key. Specifies TLS for servers or client authentication for clients.    | Filesystem path   | Not Set |
+| `root_store`           | The path to the PEM formatted root certificate store. Only used to specify non-native root certificates for the HTTP client in `UrlStorage`. | Filesystem path   | Not Set |
 
 When used by the ticket and data servers, `key` and `cert` enable TLS, and when used with the url storage client, they enable client authentication.
 The root store is only used by the url storage client. Note, the url storage client always allows TLS, however the default configuration performs no client authentication
@@ -291,9 +291,41 @@ ticket_server_tls.cert = "cert.pem"
 ticket_server_tls.key = "key.pem"
 ```
 
+This project uses [rustls] for all TLS logic, and it does not depend on OpenSSL. The rustls library can be more
+strict when accepting certificates and keys. For example, it does not accept self-signed certificates that have
+a CA used as an end-entity. If generating certificates for `root_store` using OpenSSL, the correct extensions,
+such as `subjectAltName` should be included.
+
+An example of generating a custom root CA and certificates for a `UrlStorage` backend:
+
+```sh
+# Create a root CA
+openssl req -x509 -noenc -subj '/CN=localhost' -newkey rsa -keyout root.key -out root.crt
+
+# Create a certificate signing request
+openssl req -noenc -newkey rsa -keyout server.key -out server.csr -subj '/CN=localhost' -addext subjectAltName=DNS:localhost
+
+# Create the `UrlStorage` server's certificate
+openssl x509 -req -in server.csr -CA root.crt -CAkey root.key -days 365 -out server.crt -copy_extensions copy
+
+# An additional client certificate signing request and certificate can be created in the same way as the server
+# certificate if using client authentication.
+```
+
+The `root.crt` can then be used in htsget-rs to allow authenticating to a `UrlStorage` backend using `server.crt`:
+
+```toml
+# Trust the root CA that signed the server's certificate.
+tls.root_store = "root.crt"
+```
+
+Alternatively, projects such as [mkcert] can be used to simplify this process.
+
 Further TLS examples are available under [`examples/config-files`][examples-config-files].
 
 [examples-config-files]: examples/config-files
+[rustls]: https://github.com/rustls/rustls
+[mkcert]: https://github.com/FiloSottile/mkcert
 
 #### Config file location
 

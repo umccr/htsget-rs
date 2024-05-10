@@ -17,7 +17,7 @@ substitution_string = "$0"
 
 [resolvers.storage]
 url = "http://127.0.0.1:8081"
-response_scheme = "https"
+response_url = "https://127.0.0.1:8081"
 forward_headers = true
 
 # Set client authentication
