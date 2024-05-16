@@ -25,6 +25,7 @@ pub struct UrlStorage {
   url: ValidatedUrl,
   response_url: ValidatedUrl,
   forward_headers: bool,
+  header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
 }
@@ -35,6 +36,7 @@ pub struct UrlStorageClient {
   url: ValidatedUrl,
   response_url: ValidatedUrl,
   forward_headers: bool,
+  header_blacklist: Vec<String>,
   client: Client,
 }
 
@@ -63,6 +65,7 @@ impl TryFrom<UrlStorage> for UrlStorageClient {
       storage.url,
       storage.response_url,
       storage.forward_headers,
+      storage.header_blacklist,
       client,
     ))
   }
@@ -74,12 +77,14 @@ impl UrlStorageClient {
     url: ValidatedUrl,
     response_url: ValidatedUrl,
     forward_headers: bool,
+    header_blacklist: Vec<String>,
     client: Client,
   ) -> Self {
     Self {
       url,
       response_url,
       forward_headers,
+      header_blacklist,
       client,
     }
   }
@@ -97,6 +102,11 @@ impl UrlStorageClient {
   /// Whether to forward headers in the url tickets.
   pub fn forward_headers(&self) -> bool {
     self.forward_headers
+  }
+
+  /// Get the headers that should not be forwarded.
+  pub fn header_blacklist(&self) -> &[String] {
+    &self.header_blacklist
   }
 
   /// Get an owned client by cloning.
@@ -142,6 +152,7 @@ impl UrlStorage {
     url: InnerUrl,
     response_url: InnerUrl,
     forward_headers: bool,
+    header_blacklist: Vec<String>,
     tls: TlsClientConfig,
   ) -> Self {
     Self {
@@ -150,6 +161,7 @@ impl UrlStorage {
         inner: response_url,
       }),
       forward_headers,
+      header_blacklist,
       tls,
     }
   }
@@ -182,6 +194,7 @@ impl Default for UrlStorage {
       url: default_url(),
       response_url: default_url(),
       forward_headers: true,
+      header_blacklist: vec![],
       tls: TlsClientConfig::default(),
     }
   }
@@ -206,6 +219,7 @@ mod tests {
         "https://example.com".parse::<InnerUrl>().unwrap(),
         "https://example.com".parse::<InnerUrl>().unwrap(),
         true,
+        vec![],
         client_config,
       ));
 

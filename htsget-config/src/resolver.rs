@@ -537,6 +537,7 @@ mod tests {
         inner: InnerUrl::from_str("https://example.com/").unwrap(),
       }),
       true,
+      vec![],
       client,
     );
 
