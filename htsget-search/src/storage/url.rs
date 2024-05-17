@@ -31,13 +31,19 @@ pub struct UrlStorage {
 
 impl UrlStorage {
   /// Construct a new UrlStorage.
-  pub fn new(client: Client, url: Uri, response_url: Uri, forward_headers: bool, header_blacklist: Vec<String>) -> Self {
+  pub fn new(
+    client: Client,
+    url: Uri,
+    response_url: Uri,
+    forward_headers: bool,
+    header_blacklist: Vec<String>,
+  ) -> Self {
     Self {
       client,
       url,
       response_url,
       forward_headers,
-      header_blacklist
+      header_blacklist,
     }
   }
 
@@ -46,7 +52,7 @@ impl UrlStorage {
     url: Uri,
     response_url: Uri,
     forward_headers: bool,
-    header_blacklist: Vec<String>
+    header_blacklist: Vec<String>,
   ) -> Result<Self> {
     Ok(Self {
       client: ClientBuilder::new()
@@ -55,7 +61,7 @@ impl UrlStorage {
       url,
       response_url,
       forward_headers,
-      header_blacklist
+      header_blacklist,
     })
   }
 
@@ -213,7 +219,7 @@ impl Storage for UrlStorage {
     if self.header_blacklist.is_empty() {
       return self.format_url(key, options);
     }
-    
+
     let mut response_headers = options.response_headers().clone();
     for blacklisted_header in &self.header_blacklist {
       response_headers.remove(blacklisted_header);
@@ -255,8 +261,8 @@ mod tests {
   use std::future::Future;
   use std::net::TcpListener;
   use std::path::Path;
-  use std::{result, vec};
   use std::str::FromStr;
+  use std::{result, vec};
 
   use axum::middleware::Next;
   use axum::response::Response;
@@ -454,7 +460,10 @@ mod tests {
       );
 
       let mut headers = HeaderMap::default();
-      headers.insert(HeaderName::from_str(HOST.as_str()).unwrap(), HeaderValue::from_str("example.com").unwrap());
+      headers.insert(
+        HeaderName::from_str(HOST.as_str()).unwrap(),
+        HeaderValue::from_str("example.com").unwrap(),
+      );
 
       let options = test_range_options(&mut headers);
 
