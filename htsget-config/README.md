@@ -171,19 +171,21 @@ To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and s
 `UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
 To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
 
-| Option                               | Description                                                                                                                                                      | Type                     | Default                                                                                                         |
-|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
-| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                                                            | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                                                                                                          |
-| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.                                      | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| Option                               | Description                                                                                                                  | Type                     | Default                                                                                                         |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
+| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                  | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                        | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query.                                          | Boolean                  | `true`                                                                                                          |
+| `header_blacklist`                   | List of headers that should not be forwarded                                                                                 | Array of headers         | `[]`                                                                                                            |
+| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.  | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
 When using `UrlStorage`, the following requests will be made to the `url`.
 * `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
 * `GET` request to fetch the entire index file (e.g. `GET /data.bam.bai`).
 * `HEAD` request on the data file to get its length (e.g. `HEAD /data.bam`).
 
-All headers received in the initial query will be included when making these requests.
+By default, all headers received in the initial query will be included when making these requests. To exclude certain headers from being forwarded, set the `header_blacklist` option. Note that the blacklisted headers are removed from the requests made to `url` and from the URL tickets as well.
+
 
 For example, a `resolvers` value of:
 ```toml
@@ -222,6 +224,18 @@ bucket = 'bucket'
 ```
 
 `UrlStorage` can only be specified manually.
+Example of a resolver with `UrlStorage`:
+```toml
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.storage]
+url = "http://localhost:8080"
+response_url = "https://example.com"
+forward_headers = true
+header_blacklist = ["Host"]
+```
 
 There are additional examples of config files located under [`examples/config-files`][examples-config-files].
 
