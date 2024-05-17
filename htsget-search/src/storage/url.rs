@@ -79,6 +79,14 @@ impl UrlStorage {
       .map_err(|err| UrlParseError(err.to_string()))
   }
 
+  /// Remove blacklisted headers from the headers.
+  pub fn remove_blacklisted_headers(&self, mut headers: HeaderMap) -> HeaderMap {
+    for blacklisted_header in &self.header_blacklist {
+      headers.remove(blacklisted_header);
+    }
+    headers
+  }
+
   /// Construct and send a request
   pub async fn send_request<K: AsRef<str> + Send>(
     &self,
@@ -196,9 +204,8 @@ impl Storage for UrlStorage {
     let key = key.as_ref().to_string();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
-    let response = self
-      .get_key(key.to_string(), options.request_headers())
-      .await?;
+    let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
+    let response = self.get_key(key.to_string(), &request_headers).await?;
 
     Ok(StreamReader::new(UrlStream::new(Box::new(
       response
@@ -216,15 +223,7 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
-    if self.header_blacklist.is_empty() {
-      return self.format_url(key, options);
-    }
-
-    let mut response_headers = options.response_headers().clone();
-    for blacklisted_header in &self.header_blacklist {
-      response_headers.remove(blacklisted_header);
-    }
-
+    let response_headers = self.remove_blacklisted_headers(options.response_headers().clone());
     let new_options = RangeUrlOptions::new(options.range().clone(), &response_headers);
 
     self.format_url(key, new_options)
@@ -237,7 +236,9 @@ impl Storage for UrlStorage {
     options: HeadOptions<'_>,
   ) -> Result<u64> {
     let key = key.as_ref();
-    let head = self.head_key(key, options.request_headers()).await?;
+
+    let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
+    let head = self.head_key(key, &request_headers).await?;
 
     let len = head
       .headers()
@@ -308,6 +309,31 @@ mod tests {
       storage.get_response_url_from_key("assets/key1").unwrap(),
       Uri::from_str("https://localhost:8080/assets/key1").unwrap()
     );
+  }
+
+  #[test]
+  fn remove_blacklisted_headers() {
+    let storage = UrlStorage::new(
+      test_client(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://localhost:8080").unwrap(),
+      true,
+      vec![HOST.to_string()],
+    );
+
+    let mut headers = HeaderMap::default();
+    headers.insert(
+      HeaderName::from_str(HOST.as_str()).unwrap(),
+      HeaderValue::from_str("example.com").unwrap(),
+    );
+    headers.insert(
+      HeaderName::from_str(AUTHORIZATION.as_str()).unwrap(),
+      HeaderValue::from_str("secret").unwrap(),
+    );
+
+    let headers = storage.remove_blacklisted_headers(headers.clone());
+
+    assert_eq!(headers.len(), 1);
   }
 
   #[tokio::test]
