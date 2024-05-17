@@ -9,7 +9,7 @@ use rustls_cert_file_reader::{ FileReader, ReadCerts };
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use rustls_native_certs::load_native_certs;
 use rustls_pemfile::read_one;
-use serde::{Deserialize, Serialize};
+use tokio_serde::{Deserializer, Serializer};
 
 use crate::error::Error::{IoError, ParseError};
 use crate::error::{Error, Result};
@@ -26,7 +26,6 @@ pub trait KeyPairScheme {
 /// A certificate and key pair used for TLS. Serialization is not implemented because there
 /// is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "CertificateKeyPairPath")]
 pub struct TlsServerConfig {
   server_config: ServerConfig,
 }
@@ -34,7 +33,6 @@ pub struct TlsServerConfig {
 /// A certificate and key pair used for TLS. Serialization is not implemented because there
 /// is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "RootCertStorePair")]
 pub struct TlsClientConfig {
   client_config: ClientConfig,
 }
@@ -75,7 +73,7 @@ impl TlsClientConfig {
 
 /// The location of a certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serializer, Deserializer, Debug, Clone, PartialEq, Eq)]
 pub struct CertificateKeyPairPath {
   cert: PathBuf,
   key: PathBuf,
@@ -102,7 +100,7 @@ impl CertificateKeyPair {
 
 /// The location of a certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serializer, Deserializer, Debug, Clone, PartialEq, Eq)]
 pub struct RootCertStorePair {
   #[serde(flatten)]
   key_pair: Option<CertificateKeyPairPath>,
@@ -148,10 +146,10 @@ impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
 impl TryFrom<RootCertStorePair> for TlsClientConfig {
   type Error = Error;
 
-  fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
+  async fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
     let (key_pair, root_store) = root_store_pair.into_inner();
 
-    let root_certs = Some(load_root_store_from_path(root_store.expect("Could not load some root certificate")));
+    let root_certs = Some(load_root_store_from_path(root_store.expect("Could not load some root certificate")).await);
     let key_pair = key_pair.map(TryInto::try_into).transpose()?;
 
     tls_client_config(key_pair, root_certs).map(Self::new)

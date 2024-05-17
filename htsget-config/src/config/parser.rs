@@ -1,7 +1,7 @@
 use crate::config::Config;
+use tokio_serde::Deserializer;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
-use serde::Deserialize;
 use std::fmt::Debug;
 use std::io;
 use std::io::ErrorKind;
@@ -22,7 +22,7 @@ impl<'a> Parser<'a> {
   #[instrument]
   pub fn deserialize_config_into<T>(&self) -> io::Result<T>
   where
-    for<'de> T: Deserialize<'de> + Debug,
+    for<'de> T: Deserializer<'de> + Debug,
   {
     let config = Figment::from(Serialized::defaults(Config::default()))
       .merge(match self {
@@ -49,7 +49,7 @@ impl<'a> Parser<'a> {
 #[instrument]
 pub fn from_path<T>(path: &Path) -> io::Result<T>
 where
-  for<'a> T: Deserialize<'a> + Debug,
+  for<'a> T: Deserializer<'a> + Debug,
 {
   Parser::Path(path).deserialize_config_into()
 }
@@ -58,7 +58,7 @@ where
 #[instrument]
 pub fn from_str<T>(str: &str) -> io::Result<T>
 where
-  for<'a> T: Deserialize<'a> + Debug,
+  for<'a> T: Deserializer<'a> + Debug,
 {
   Parser::String(str).deserialize_config_into()
 }

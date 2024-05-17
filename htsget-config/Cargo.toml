@@ -19,7 +19,7 @@ default = []
 thiserror = "1"
 async-trait = "0"
 noodles = { version = "0", features = ["core"] }
-serde = { version = "1", features = ["derive"] }
+tokio-serde = { version = "0" }
 serde_with = "3"
 serde_regex = "1"
 regex = "1"

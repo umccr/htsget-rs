@@ -6,7 +6,7 @@ use std::{fmt, io, result};
 use http::HeaderMap;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
-use serde::{Deserialize, Serialize};
+use tokio_serde::{Deserializer, Serializer};
 use thiserror::Error;
 use tracing::instrument;
 
@@ -16,7 +16,7 @@ use crate::error::Error::ParseError;
 pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serializer, Deserializer)]
 #[serde(rename_all(serialize = "UPPERCASE"))]
 pub enum Format {
   #[serde(alias = "bam", alias = "BAM")]
@@ -609,7 +609,7 @@ impl From<Response> for JsonResponse {
 }
 
 /// The response for a HtsGet query.
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serializer, Deserializer)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
