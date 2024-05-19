@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.5.8...htsget-actix-v0.6.0) - 2024-05-19
+
+### Other
+- update MSRV
+- [**breaking**] swap out hyper for reqwest to support redirects
+- *(test)* remove server-tests and cors-tests features and create http module
+
 ## [0.5.8](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.5.7...htsget-actix-v0.5.8) - 2024-01-02
 
 ### Other
