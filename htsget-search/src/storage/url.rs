@@ -26,16 +26,24 @@ pub struct UrlStorage {
   url: Uri,
   response_url: Uri,
   forward_headers: bool,
+  header_blacklist: Vec<String>,
 }
 
 impl UrlStorage {
   /// Construct a new UrlStorage.
-  pub fn new(client: Client, url: Uri, response_url: Uri, forward_headers: bool) -> Self {
+  pub fn new(
+    client: Client,
+    url: Uri,
+    response_url: Uri,
+    forward_headers: bool,
+    header_blacklist: Vec<String>,
+  ) -> Self {
     Self {
       client,
       url,
       response_url,
       forward_headers,
+      header_blacklist,
     }
   }
 
@@ -44,6 +52,7 @@ impl UrlStorage {
     url: Uri,
     response_url: Uri,
     forward_headers: bool,
+    header_blacklist: Vec<String>,
   ) -> Result<Self> {
     Ok(Self {
       client: ClientBuilder::new()
@@ -52,6 +61,7 @@ impl UrlStorage {
       url,
       response_url,
       forward_headers,
+      header_blacklist,
     })
   }
 
@@ -67,6 +77,14 @@ impl UrlStorage {
     format!("{}{}", self.response_url, key.as_ref())
       .parse::<Uri>()
       .map_err(|err| UrlParseError(err.to_string()))
+  }
+
+  /// Remove blacklisted headers from the headers.
+  pub fn remove_blacklisted_headers(&self, mut headers: HeaderMap) -> HeaderMap {
+    for blacklisted_header in &self.header_blacklist {
+      headers.remove(blacklisted_header);
+    }
+    headers
   }
 
   /// Construct and send a request
@@ -186,9 +204,8 @@ impl Storage for UrlStorage {
     let key = key.as_ref().to_string();
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
-    let response = self
-      .get_key(key.to_string(), options.request_headers())
-      .await?;
+    let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
+    let response = self.get_key(key.to_string(), &request_headers).await?;
 
     Ok(StreamReader::new(UrlStream::new(Box::new(
       response
@@ -206,7 +223,10 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
-    self.format_url(key, options)
+    let response_headers = self.remove_blacklisted_headers(options.response_headers().clone());
+    let new_options = RangeUrlOptions::new(options.range().clone(), &response_headers);
+
+    self.format_url(key, new_options)
   }
 
   #[instrument(level = "trace", skip(self))]
@@ -216,7 +236,9 @@ impl Storage for UrlStorage {
     options: HeadOptions<'_>,
   ) -> Result<u64> {
     let key = key.as_ref();
-    let head = self.head_key(key, options.request_headers()).await?;
+
+    let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
+    let head = self.head_key(key, &request_headers).await?;
 
     let len = head
       .headers()
@@ -240,13 +262,13 @@ mod tests {
   use std::future::Future;
   use std::net::TcpListener;
   use std::path::Path;
-  use std::result;
   use std::str::FromStr;
+  use std::{result, vec};
 
   use axum::middleware::Next;
   use axum::response::Response;
   use axum::{middleware, Router};
-  use http::header::AUTHORIZATION;
+  use http::header::{AUTHORIZATION, HOST};
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use tokio::io::AsyncReadExt;
   use tower_http::services::ServeDir;
@@ -264,6 +286,7 @@ mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      vec![],
     );
 
     assert_eq!(
@@ -279,12 +302,38 @@ mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      vec![],
     );
 
     assert_eq!(
       storage.get_response_url_from_key("assets/key1").unwrap(),
       Uri::from_str("https://localhost:8080/assets/key1").unwrap()
     );
+  }
+
+  #[test]
+  fn remove_blacklisted_headers() {
+    let storage = UrlStorage::new(
+      test_client(),
+      Uri::from_str("https://example.com").unwrap(),
+      Uri::from_str("https://localhost:8080").unwrap(),
+      true,
+      vec![HOST.to_string()],
+    );
+
+    let mut headers = HeaderMap::default();
+    headers.insert(
+      HeaderName::from_str(HOST.as_str()).unwrap(),
+      HeaderValue::from_str("example.com").unwrap(),
+    );
+    headers.insert(
+      HeaderName::from_str(AUTHORIZATION.as_str()).unwrap(),
+      HeaderValue::from_str("secret").unwrap(),
+    );
+
+    let headers = storage.remove_blacklisted_headers(headers.clone());
+
+    assert_eq!(headers.len(), 1);
   }
 
   #[tokio::test]
@@ -295,6 +344,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
       );
 
       let mut headers = HeaderMap::default();
@@ -324,6 +374,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
       );
 
       let mut headers = HeaderMap::default();
@@ -353,6 +404,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
       );
 
       let mut headers = HeaderMap::default();
@@ -382,6 +434,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
       );
 
       let mut headers = HeaderMap::default();
@@ -406,9 +459,38 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
       );
 
       let mut headers = HeaderMap::default();
+      let options = test_range_options(&mut headers);
+
+      assert_eq!(
+        storage.range_url("assets/key1", options).await.unwrap(),
+        HtsGetUrl::new(format!("{}/assets/key1", url))
+          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+      );
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn range_url_storage_blacklisted_headers() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        test_client(),
+        Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
+        true,
+        vec![HOST.to_string()],
+      );
+
+      let mut headers = HeaderMap::default();
+      headers.insert(
+        HeaderName::from_str(HOST.as_str()).unwrap(),
+        HeaderValue::from_str("example.com").unwrap(),
+      );
+
       let options = test_range_options(&mut headers);
 
       assert_eq!(
@@ -428,6 +510,7 @@ mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
       );
 
       let mut headers = HeaderMap::default();
@@ -446,6 +529,7 @@ mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      vec![],
     );
 
     let mut headers = HeaderMap::default();
@@ -465,6 +549,7 @@ mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("http://example.com").unwrap(),
       true,
+      vec![],
     );
 
     let mut headers = HeaderMap::default();
@@ -484,6 +569,7 @@ mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8081").unwrap(),
       false,
+      vec![],
     );
 
     let mut headers = HeaderMap::default();
