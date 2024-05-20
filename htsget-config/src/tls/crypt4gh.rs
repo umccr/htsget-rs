@@ -3,14 +3,46 @@
 use std::path::PathBuf;
 
 use crypt4gh::keys::{get_private_key, get_public_key};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use async_crypt4gh::{KeyPair, PublicKey};
 
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
-use crate::tls::PrivateKey;
+use crate::tls::load_key;
+
+/// Wrapper around a private key.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(try_from = "PathBuf", into = "Vec<u8>")]
+pub struct PrivateKey(rustls::PrivateKey);
+
+impl PrivateKey {
+  /// Get the inner value.
+  pub fn into_inner(self) -> rustls::PrivateKey {
+    self.0
+  }
+}
+
+impl AsRef<rustls::PrivateKey> for PrivateKey {
+  fn as_ref(&self) -> &rustls::PrivateKey {
+    &self.0
+  }
+}
+
+impl TryFrom<PathBuf> for PrivateKey {
+  type Error = Error;
+
+  fn try_from(path: PathBuf) -> Result<Self> {
+    Ok(PrivateKey(load_key(path)?))
+  }
+}
+
+impl From<PrivateKey> for Vec<u8> {
+  fn from(key: PrivateKey) -> Self {
+    key.into_inner().0
+  }
+}
 
 /// Config for Crypt4GH keys.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]

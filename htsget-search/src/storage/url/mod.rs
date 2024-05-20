@@ -12,7 +12,6 @@ use futures_util::stream::MapErr;
 use futures_util::{Stream, TryStreamExt};
 use http::header::{Entry, IntoHeaderName, CONTENT_LENGTH, USER_AGENT};
 use http::{HeaderMap, Method, Request, Uri};
-use hyper::Body;
 use pin_project::pin_project;
 use reqwest::{Client, ClientBuilder};
 use tokio::io::{AsyncRead, ReadBuf};
@@ -68,6 +67,7 @@ pub struct UrlStorage {
   endpoints: Endpoints,
   response_url: Uri,
   forward_headers: bool,
+  header_blacklist: Vec<String>,
   user_agent: Option<String>,
   #[cfg(feature = "crypt4gh")]
   key_pair: Option<KeyPair>,
@@ -77,11 +77,13 @@ pub struct UrlStorage {
 
 impl UrlStorage {
   /// Construct a new UrlStorage.
+  #[allow(clippy::too_many_arguments)]
   pub fn new(
     client: Client,
     endpoints: Endpoints,
     response_url: Uri,
     forward_headers: bool,
+    header_blacklist: Vec<String>,
     user_agent: Option<String>,
     _query: &Query,
     #[cfg(feature = "crypt4gh")] _encrypt: Encrypt,
@@ -102,6 +104,7 @@ impl UrlStorage {
       endpoints,
       response_url,
       forward_headers,
+      header_blacklist,
       user_agent,
       #[cfg(feature = "crypt4gh")]
       key_pair,
@@ -115,6 +118,7 @@ impl UrlStorage {
     endpoints: Endpoints,
     response_url: Uri,
     forward_headers: bool,
+    header_blacklist: Vec<String>,
     user_agent: Option<String>,
     _query: &Query,
     #[cfg(feature = "crypt4gh")] _encrypt: Encrypt,
@@ -137,6 +141,7 @@ impl UrlStorage {
       endpoints,
       response_url,
       forward_headers,
+      header_blacklist,
       user_agent,
       #[cfg(feature = "crypt4gh")]
       key_pair,
@@ -178,6 +183,14 @@ impl UrlStorage {
       .map_err(|err| UrlParseError(err.to_string()))
   }
 
+  /// Remove blacklisted headers from the headers.
+  pub fn remove_blacklisted_headers(&self, mut headers: HeaderMap) -> HeaderMap {
+    for blacklisted_header in &self.header_blacklist {
+      headers.remove(blacklisted_header);
+    }
+    headers
+  }
+
   /// Construct and send a request
   pub async fn send_request<K: AsRef<str> + Send>(
     &self,
@@ -198,7 +211,7 @@ impl UrlStorage {
         USER_AGENT,
         self.user_agent.as_deref().unwrap_or(HTSGET_USER_AGENT),
       )
-      .body(Body::empty())
+      .body(vec![])
       .map_err(|err| UrlParseError(err.to_string()))?;
 
     debug!("Calling with request: {:#?}", &request);
@@ -208,7 +221,7 @@ impl UrlStorage {
       .execute(
         request
           .try_into()
-          .map_err(|err| InternalError(format!("failed to create reqwest: {}", err)))?,
+          .map_err(|err| InternalError(format!("failed to create http request: {}", err)))?,
       )
       .await
       .map_err(|err| KeyNotFound(format!("{} with key {}", err, key)))?;
@@ -327,6 +340,7 @@ impl UrlStorage {
     let mut headers = headers.clone();
     Self::remove_header_entries(&mut headers, CLIENT_PUBLIC_KEY_NAME);
     Self::remove_header_entries(&mut headers, USER_AGENT);
+    let mut headers = self.remove_blacklisted_headers(headers);
 
     headers.append(
       CLIENT_PUBLIC_KEY_NAME,
@@ -577,7 +591,14 @@ impl Storage for UrlStorage {
     let key = key.as_ref();
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
-    self.format_url(key, options, &self.response_url).await
+    let response_headers = self.remove_blacklisted_headers(options.response_headers().clone());
+    let new_options = RangeUrlOptions::new(
+      options.range().clone(),
+      &response_headers,
+      options.object_type(),
+    );
+
+    self.format_url(key, new_options, &self.response_url).await
   }
 
   #[instrument(level = "trace", skip(self))]
@@ -761,7 +782,7 @@ mod tests {
 
   use htsget_config::resolver::object::ObjectType;
   use htsget_test::http::server::with_test_server;
-  use http::header::AUTHORIZATION;
+  use http::header::{AUTHORIZATION, HOST};
   use http::{HeaderName, HeaderValue};
   use tokio::io::AsyncReadExt;
   #[cfg(feature = "crypt4gh")]
@@ -795,6 +816,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      vec![],
       Some("user-agent".to_string()),
       &Default::default(),
       #[cfg(feature = "crypt4gh")]
@@ -820,6 +842,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      vec![],
       Some("user-agent".to_string()),
       &Default::default(),
       #[cfg(feature = "crypt4gh")]
@@ -838,6 +861,36 @@ mod tests {
     );
   }
 
+  #[test]
+  fn remove_blacklisted_headers() {
+    let storage = UrlStorage::new(
+      test_client(),
+      endpoints_test(),
+      Uri::from_str("https://localhost:8080").unwrap(),
+      true,
+      vec![HOST.to_string()],
+      Some("user-agent".to_string()),
+      &Default::default(),
+      #[cfg(feature = "crypt4gh")]
+      default_key_gen(),
+    )
+    .unwrap();
+
+    let mut headers = HeaderMap::default();
+    headers.insert(
+      HeaderName::from_str(HOST.as_str()).unwrap(),
+      HeaderValue::from_str("example.com").unwrap(),
+    );
+    headers.insert(
+      HeaderName::from_str(AUTHORIZATION.as_str()).unwrap(),
+      HeaderValue::from_str("secret").unwrap(),
+    );
+
+    let headers = storage.remove_blacklisted_headers(headers.clone());
+
+    assert_eq!(headers.len(), 1);
+  }
+
   #[tokio::test]
   async fn send_request() {
     with_url_test_server(|url| async move {
@@ -846,6 +899,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &Default::default(),
         #[cfg(feature = "crypt4gh")]
@@ -885,6 +939,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &Default::default(),
         #[cfg(feature = "crypt4gh")]
@@ -919,6 +974,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &Default::default(),
         #[cfg(feature = "crypt4gh")]
@@ -953,6 +1009,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &Default::default(),
         #[cfg(feature = "crypt4gh")]
@@ -986,6 +1043,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &Default::default(),
         #[cfg(feature = "crypt4gh")]
@@ -1007,6 +1065,40 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn range_url_storage_blacklisted_headers() {
+    with_url_test_server(|url| async move {
+      let storage = UrlStorage::new(
+        test_client(),
+        endpoints_from_url(&url),
+        Uri::from_str(&url).unwrap(),
+        true,
+        vec![HOST.to_string()],
+        Some("user-agent".to_string()),
+        &Default::default(),
+        #[cfg(feature = "crypt4gh")]
+        default_key_gen(),
+      )
+      .unwrap();
+
+      let mut headers = HeaderMap::default();
+      headers.insert(
+        HeaderName::from_str(HOST.as_str()).unwrap(),
+        HeaderValue::from_str("example.com").unwrap(),
+      );
+
+      let object_type = Default::default();
+      let options = test_range_options(&mut headers, &object_type);
+
+      assert_eq!(
+        storage.range_url("assets/key1", options).await.unwrap(),
+        HtsGetUrl::new(format!("{}/assets/key1", url))
+          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+      );
+    })
+    .await;
+  }
+
+  #[tokio::test]
   async fn head_storage() {
     with_url_test_server(|url| async move {
       let storage = UrlStorage::new(
@@ -1014,6 +1106,7 @@ mod tests {
         endpoints_from_url(&url),
         Uri::from_str(&url).unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &Default::default(),
         #[cfg(feature = "crypt4gh")]
@@ -1045,6 +1138,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("https://localhost:8080").unwrap(),
       true,
+      vec![],
       Some("user-agent".to_string()),
       &Default::default(),
       #[cfg(feature = "crypt4gh")]
@@ -1077,6 +1171,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("http://example.com").unwrap(),
       true,
+      vec![],
       Some("user-agent".to_string()),
       &Default::default(),
       #[cfg(feature = "crypt4gh")]
@@ -1109,6 +1204,7 @@ mod tests {
       endpoints_test(),
       Uri::from_str("https://localhost:8081").unwrap(),
       false,
+      vec![],
       Some("user-agent".to_string()),
       &Default::default(),
       #[cfg(feature = "crypt4gh")]
@@ -1149,6 +1245,7 @@ mod tests {
         endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &query,
         #[cfg(feature = "crypt4gh")]
@@ -1215,6 +1312,7 @@ mod tests {
         endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &query,
         key_gen,
@@ -1267,6 +1365,7 @@ mod tests {
         endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &query,
         key_gen,
@@ -1342,6 +1441,7 @@ mod tests {
         endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &query,
         key_gen,
@@ -1407,6 +1507,7 @@ mod tests {
         endpoints_from_url_with_path(&url),
         Uri::from_str("http://example.com").unwrap(),
         true,
+        vec![],
         Some("user-agent".to_string()),
         &query,
         key_gen,

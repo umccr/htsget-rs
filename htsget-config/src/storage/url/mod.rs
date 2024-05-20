@@ -4,13 +4,12 @@ use http::Uri as InnerUrl;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
-use tracing::debug;
 
-use crate::error::Error::{ConfigError, ParseError};
+use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
 use crate::storage::url::endpoints::Endpoints;
-use crate::tls::TlsClientConfig;
+use crate::tls::client::TlsClientConfig;
 
 pub mod endpoints;
 
@@ -31,6 +30,7 @@ pub struct UrlStorage {
   forward_headers: bool,
   user_agent: Option<String>,
   danger_accept_invalid_certs: bool,
+  header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
 }
@@ -42,6 +42,7 @@ pub struct UrlStorageClient {
   response_url: ValidatedUrl,
   forward_headers: bool,
   user_agent: Option<String>,
+  header_blacklist: Vec<String>,
   client: Client,
 }
 
@@ -51,26 +52,26 @@ impl TryFrom<UrlStorage> for UrlStorageClient {
   fn try_from(storage: UrlStorage) -> Result<Self> {
     let mut builder = Client::builder();
 
-    let (_, cert, identity) = storage.tls.into_inner();
+    let (certs, identity) = storage.tls.into_inner();
 
-    builder = builder.danger_accept_invalid_certs(storage.danger_accept_invalid_certs);
-    if let Some(cert) = cert {
-      debug!("adding custom root certificate");
-      builder = builder.add_root_certificate(cert);
+    if let Some(certs) = certs {
+      for cert in certs {
+        builder = builder.add_root_certificate(cert);
+      }
     }
     if let Some(identity) = identity {
-      debug!("adding client authentication identity");
       builder = builder.identity(identity);
     }
 
     let client = builder
       .build()
-      .map_err(|err| ConfigError(format!("building url storage client: {}", err)))?;
+      .map_err(|err| ParseError(format!("building url storage client: {}", err)))?;
 
     Ok(Self::new(
       storage.endpoints,
       storage.response_url,
       storage.forward_headers,
+      storage.header_blacklist,
       storage.user_agent,
       client,
     ))
@@ -83,6 +84,7 @@ impl UrlStorageClient {
     endpoints: Endpoints,
     response_url: ValidatedUrl,
     forward_headers: bool,
+    header_blacklist: Vec<String>,
     user_agent: Option<String>,
     client: Client,
   ) -> Self {
@@ -91,6 +93,7 @@ impl UrlStorageClient {
       response_url,
       forward_headers,
       user_agent,
+      header_blacklist,
       client,
     }
   }
@@ -115,7 +118,12 @@ impl UrlStorageClient {
     self.user_agent.clone()
   }
 
-  /// Get a cloned copy of the http client.
+  /// Get the headers that should not be forwarded.
+  pub fn header_blacklist(&self) -> &[String] {
+    &self.header_blacklist
+  }
+
+  /// Get an owned client by cloning.
   pub fn client_cloned(&self) -> Client {
     self.client.clone()
   }
@@ -164,6 +172,7 @@ impl UrlStorage {
     endpoints: Endpoints,
     response_url: InnerUrl,
     forward_headers: bool,
+    header_blacklist: Vec<String>,
     user_agent: Option<String>,
     danger_accept_invalid_certs: bool,
     tls: TlsClientConfig,
@@ -174,6 +183,7 @@ impl UrlStorage {
         inner: response_url,
       }),
       forward_headers,
+      header_blacklist,
       user_agent,
       danger_accept_invalid_certs,
       tls,
@@ -213,6 +223,7 @@ impl Default for UrlStorage {
       endpoints: Default::default(),
       response_url: default_url(),
       forward_headers: true,
+      header_blacklist: vec![],
       user_agent: None,
       danger_accept_invalid_certs: false,
       tls: Default::default(),
@@ -223,8 +234,38 @@ impl Default for UrlStorage {
 #[cfg(test)]
 mod tests {
   use crate::config::tests::test_config_from_file;
+  use crate::storage::url::{UrlStorage, UrlStorageClient};
   use crate::storage::Storage;
+  use crate::tls::client::tests::client_config_from_path;
+
   use crate::tls::tests::with_test_certificates;
+
+  use super::*;
+
+  #[tokio::test]
+  async fn test_building_client() {
+    with_test_certificates(|path, _, _| {
+      let client_config = client_config_from_path(path);
+      let url_storage = UrlStorageClient::try_from(UrlStorage::new(
+        Endpoints::new(
+          ValidatedUrl(Url {
+            inner: "https://example.com".parse::<InnerUrl>().unwrap(),
+          }),
+          ValidatedUrl(Url {
+            inner: "https://example.com".parse::<InnerUrl>().unwrap(),
+          }),
+        ),
+        "https://example.com".parse::<InnerUrl>().unwrap(),
+        true,
+        vec![],
+        Some("user-agent".to_string()),
+        false,
+        client_config,
+      ));
+
+      assert!(url_storage.is_ok());
+    });
+  }
 
   #[test]
   fn config_storage_url_file() {

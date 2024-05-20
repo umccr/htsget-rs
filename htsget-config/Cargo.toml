@@ -1,7 +1,7 @@
 [package]
 name = "htsget-config"
-version = "0.8.1"
-rust-version = "1.70"
+version = "0.9.0"
+rust-version = "1.74"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 description = "Used to configure htsget-rs by using a config file or reading environment variables."
@@ -12,7 +12,7 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = []
-url-storage = ["hyper"]
+url-storage = ["reqwest"]
 crypt4gh = ["dep:async-crypt4gh", "dep:crypt4gh"]
 default = []
 
@@ -33,15 +33,12 @@ http = "0.2"
 http-serde = "1.1"
 rustls-pemfile = "1.0"
 rustls = "0.21"
-rustls-native-certs = "0.6"
-hyper-rustls = { version = "0.24", features = ["rustls-native-certs", "http2", "http1"] }
 
-hyper = { version = "0.14", features = ["http1", "http2", "client"], optional = true }
-reqwest = { version = "0.11", features = ["rustls-tls"], default-features = false }
+# url-storage
+reqwest = { version = "0.11", features = ["rustls-tls"], default-features = false, optional = true }
 
 async-crypt4gh = { version = "0.1.0", path = "../async-crypt4gh", default-features = false, optional = true }
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
-log = "0.4.21"
 
 [dev-dependencies]
 serde_json = "1.0"

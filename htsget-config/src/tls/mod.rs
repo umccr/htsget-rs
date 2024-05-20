@@ -1,13 +1,16 @@
+//! Configuration related to TLS.
+//!
+
+#[cfg(feature = "url-storage")]
+pub mod client;
+
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
-use hyper_rustls::ConfigBuilderExt;
-use rustls::{Certificate, ClientConfig, RootCertStore, ServerConfig};
-use rustls_native_certs::load_native_certs;
+use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::read_one;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn};
 
 use crate::error::Error::{IoError, ParseError};
 use crate::error::{Error, Result};
@@ -31,31 +34,6 @@ pub struct TlsServerConfig {
   server_config: ServerConfig,
 }
 
-/// A certificate and key pair used for TLS. Serialization is not implemented because there
-/// is no way to convert back to a `PathBuf`.
-#[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "RootCertStorePair")]
-pub struct TlsClientConfig {
-  client_config: ClientConfig,
-  cert: Option<reqwest::Certificate>,
-  identity: Option<reqwest::Identity>,
-}
-
-impl Default for TlsClientConfig {
-  fn default() -> Self {
-    debug!("using default client TLS config");
-
-    Self {
-      client_config: ClientConfig::builder()
-        .with_safe_defaults()
-        .with_native_roots()
-        .with_no_client_auth(),
-      cert: None,
-      identity: None,
-    }
-  }
-}
-
 impl TlsServerConfig {
   /// Create a new TlsServerConfig.
   pub fn new(server_config: ServerConfig) -> Self {
@@ -65,32 +43,6 @@ impl TlsServerConfig {
   /// Get the inner server config.
   pub fn into_inner(self) -> ServerConfig {
     self.server_config
-  }
-}
-
-impl TlsClientConfig {
-  /// Create a new TlsClientConfig.
-  pub fn new(
-    client_config: ClientConfig,
-    cert: Option<reqwest::Certificate>,
-    identity: Option<reqwest::Identity>,
-  ) -> Self {
-    Self {
-      client_config,
-      cert,
-      identity,
-    }
-  }
-
-  /// Get the inner client config.
-  pub fn into_inner(
-    self,
-  ) -> (
-    ClientConfig,
-    Option<reqwest::Certificate>,
-    Option<reqwest::Identity>,
-  ) {
-    (self.client_config, self.cert, self.identity)
   }
 }
 
@@ -109,50 +61,15 @@ pub struct CertificateKeyPair {
   key: PrivateKey,
 }
 
-/// Wrapper around a private key.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(try_from = "PathBuf", into = "Vec<u8>")]
-pub struct PrivateKey(rustls::PrivateKey);
-
-impl PrivateKey {
-  /// Get the inner value.
-  pub fn into_inner(self) -> rustls::PrivateKey {
-    self.0
-  }
-}
-
-impl AsRef<rustls::PrivateKey> for PrivateKey {
-  fn as_ref(&self) -> &rustls::PrivateKey {
-    &self.0
-  }
-}
-
-impl TryFrom<PathBuf> for PrivateKey {
-  type Error = Error;
-
-  fn try_from(path: PathBuf) -> Result<Self> {
-    Ok(PrivateKey(load_key(path)?))
-  }
-}
-
-impl From<PrivateKey> for Vec<u8> {
-  fn from(key: PrivateKey) -> Self {
-    key.into_inner().0
-  }
-}
-
 impl CertificateKeyPair {
   /// Create a new CertificateKeyPair.
-  pub fn new(certs: Vec<Certificate>, key: rustls::PrivateKey) -> Self {
-    Self {
-      certs,
-      key: PrivateKey(key),
-    }
+  pub fn new(certs: Vec<Certificate>, key: PrivateKey) -> Self {
+    Self { certs, key }
   }
 
   /// Get the owned certificate and private key.
-  pub fn into_inner(self) -> (Vec<Certificate>, rustls::PrivateKey) {
-    (self.certs, self.key.into_inner())
+  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey) {
+    (self.certs, self.key)
   }
 }
 
@@ -201,25 +118,6 @@ impl TryFrom<CertificateKeyPairPath> for CertificateKeyPair {
   }
 }
 
-impl TryFrom<RootCertStorePair> for TlsClientConfig {
-  type Error = Error;
-
-  fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
-    let (key_pair, root_store) = root_store_pair.into_inner();
-
-    let cert = root_store.clone().map(load_reqwest_cert).transpose()?;
-    let identity = key_pair
-      .clone()
-      .map(|pair| load_reqwest_identity(pair.key, pair.cert))
-      .transpose()?;
-
-    let key_pair = key_pair.map(TryInto::try_into).transpose()?;
-    let root_store = root_store.map(load_root_store_from_path).transpose()?;
-
-    tls_client_config(key_pair, root_store).map(|config| Self::new(config, cert, identity))
-  }
-}
-
 impl CertificateKeyPairPath {
   /// Create a new certificate key pair.
   pub fn new(cert: PathBuf, key: PathBuf) -> Self {
@@ -247,7 +145,7 @@ impl KeyPairScheme for Option<&TlsServerConfig> {
 }
 
 /// Load a private key from a file. Supports RSA, PKCS8, and Sec1 encoded keys.
-pub fn load_key<P: AsRef<Path>>(key: P) -> Result<rustls::PrivateKey> {
+pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
   let mut key_reader = BufReader::new(
     File::open(key).map_err(|err| IoError(format!("failed to open key file: {}", err)))?,
   );
@@ -256,15 +154,25 @@ pub fn load_key<P: AsRef<Path>>(key: P) -> Result<rustls::PrivateKey> {
     match read_one(&mut key_reader)
       .map_err(|err| ParseError(format!("failed to parse private key: {}", err)))?
     {
-      Some(rustls_pemfile::Item::RSAKey(key)) => return Ok(rustls::PrivateKey(key)),
-      Some(rustls_pemfile::Item::PKCS8Key(key)) => return Ok(rustls::PrivateKey(key)),
-      Some(rustls_pemfile::Item::ECKey(key)) => return Ok(rustls::PrivateKey(key)),
+      Some(rustls_pemfile::Item::RSAKey(key)) => return Ok(PrivateKey(key)),
+      Some(rustls_pemfile::Item::PKCS8Key(key)) => return Ok(PrivateKey(key)),
+      Some(rustls_pemfile::Item::ECKey(key)) => return Ok(PrivateKey(key)),
       None => break,
       _ => {}
     }
   }
 
   Err(ParseError("no key found in pem file".to_string()))
+}
+
+/// Read byte data.
+pub fn read_bytes<P: AsRef<Path>>(path: P) -> Result<Vec<u8>> {
+  let mut bytes = vec![];
+  File::open(path)
+    .map_err(|err| IoError(format!("failed to open certificate or key file: {}", err)))?
+    .read_to_end(&mut bytes)
+    .map_err(|err| IoError(format!("failed to read certificate or key bytes: {}", err)))?;
+  Ok(bytes)
 }
 
 /// Load certificates from a file.
@@ -286,57 +194,6 @@ pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
   Ok(certs)
 }
 
-/// Read byte data.
-pub fn read_bytes<P: AsRef<Path>>(path: P) -> Result<Vec<u8>> {
-  let mut bytes = vec![];
-  File::open(path)
-    .map_err(|err| IoError(format!("failed to open cert file: {}", err)))?
-    .read_to_end(&mut bytes)
-    .map_err(|err| IoError(format!("failed to read bytes: {}", err)))?;
-  Ok(bytes)
-}
-
-/// Load a pem reqwest cert.
-pub fn load_reqwest_cert<P: AsRef<Path>>(path: P) -> Result<reqwest::Certificate> {
-  let bytes = read_bytes(path)?;
-  reqwest::Certificate::from_pem(&bytes)
-    .map_err(|err| IoError(format!("failed to read certificate: {}", err)))
-}
-
-/// Load a pem reqwest cert.
-pub fn load_reqwest_identity<P: AsRef<Path>>(key: P, cert: P) -> Result<reqwest::Identity> {
-  let key = read_bytes(key)?;
-  let cert = read_bytes(cert)?;
-
-  reqwest::Identity::from_pem(&[cert, key].concat())
-    .map_err(|err| IoError(format!("failed to pkcs8 pem identity: {}", err)))
-}
-
-/// Load certificates from a file and place them in a root CA store.
-pub fn load_root_store_from_path<P: AsRef<Path>>(certs: P) -> Result<RootCertStore> {
-  let certs: Vec<Vec<u8>> = load_certs(certs)?.into_iter().map(|cert| cert.0).collect();
-
-  load_root_store(certs)
-}
-
-/// Load certificates and place them in a root CA store.
-pub fn load_root_store(certs: Vec<Vec<u8>>) -> Result<RootCertStore> {
-  let mut roots = RootCertStore::empty();
-  let (_, ignored) = roots.add_parsable_certificates(&certs);
-
-  if ignored != 0 {
-    warn!("{} certificates ignored when loading root CA", ignored);
-  }
-
-  if roots.is_empty() {
-    return Err(ParseError(
-      "no certificates found in root CA file".to_string(),
-    ));
-  }
-
-  Ok(roots)
-}
-
 /// Load TLS server config.
 pub fn tls_server_config(key_pair: CertificateKeyPair) -> Result<ServerConfig> {
   let (certs, key) = key_pair.into_inner();
@@ -348,38 +205,6 @@ pub fn tls_server_config(key_pair: CertificateKeyPair) -> Result<ServerConfig> {
     .map_err(|err| ParseError(err.to_string()))?;
 
   config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-
-  Ok(config)
-}
-
-/// Load TLS client config. Defaults to the system's native root store if `root_store` is `None`,
-/// and to no client authentication if `key_pair` is `None`.
-pub fn tls_client_config(
-  key_pair: Option<CertificateKeyPair>,
-  root_store: Option<RootCertStore>,
-) -> Result<ClientConfig> {
-  let config = ClientConfig::builder().with_safe_defaults();
-
-  let config = if let Some(root_store) = root_store {
-    config.with_root_certificates(root_store)
-  } else {
-    let certs =
-      load_native_certs().map_err(|err| ParseError(format!("loading native certs: {}", err)))?;
-    let root_store = load_root_store(certs.into_iter().map(|cert| cert.0).collect())?;
-
-    config.with_root_certificates(root_store)
-  };
-
-  let config = if let Some(key_pair) = key_pair {
-    let (certs, key) = key_pair.into_inner();
-    config
-      .with_client_auth_cert(certs, key)
-      .map_err(|err| ParseError(format!("single cert: {}", err)))?
-  } else {
-    config.with_no_client_auth()
-  };
-
-  // No need to define ALPN protocols for hyper-rustls connector.
 
   Ok(config)
 }
@@ -417,16 +242,6 @@ pub(crate) mod tests {
     });
   }
 
-  #[test]
-  fn test_load_root_ca() {
-    with_test_certificates(|path, _, _| {
-      let cert_path = path.join("cert.pem");
-      let certs = load_root_store_from_path(cert_path).unwrap();
-
-      assert_eq!(certs.len(), 1);
-    });
-  }
-
   #[tokio::test]
   async fn test_tls_server_config() {
     with_test_certificates(|_, key, cert| {
@@ -439,20 +254,9 @@ pub(crate) mod tests {
     });
   }
 
-  #[tokio::test]
-  async fn test_tls_client_config() {
-    with_test_certificates(|path, key, cert| {
-      let certs = load_root_store_from_path(path.join("cert.pem")).unwrap();
-      let client_config =
-        tls_client_config(Some(CertificateKeyPair::new(vec![cert], key)), Some(certs));
-
-      assert!(client_config.is_ok());
-    });
-  }
-
   pub(crate) fn with_test_certificates<F>(test: F)
   where
-    F: FnOnce(&Path, rustls::PrivateKey, Certificate),
+    F: FnOnce(&Path, PrivateKey, Certificate),
   {
     let tmp_dir = TempDir::new().unwrap();
 
@@ -467,7 +271,7 @@ pub(crate) mod tests {
     write(key_path, &key).unwrap();
     write(cert_path, &cert).unwrap();
 
-    let key = rustls::PrivateKey(
+    let key = PrivateKey(
       pkcs8_private_keys(&mut Cursor::new(key))
         .unwrap()
         .into_iter()

@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.8.1...htsget-config-v0.9.0) - 2024-05-19
+
+### Added
+- UrlStorage forwarded header blacklist
+
+### Fixed
+- *(config)* clippy warning
+
+### Other
+- document UrlStorage header_blacklist option
+- update MSRV
+- *(config)* update examples and add openssl certificate example
+- [**breaking**] swap out hyper for reqwest to support redirects
+- simplify default resolvers and local storage data
+- add links
+- add full minio example, rearrange location of compose.yml examples
+- remove S3 default on s3-storage feature flag, reword docs for compose deployment
+- *(deps)* update noodles to 0.65
+
 ## [0.8.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.8.0...htsget-config-v0.8.1) - 2024-01-02
 
 ### Other

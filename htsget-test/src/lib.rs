@@ -1,4 +1,4 @@
-#[cfg(any(feature = "server-tests", feature = "http"))]
+#[cfg(feature = "http")]
 pub use htsget_config::{
   config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig},
   storage::Storage,

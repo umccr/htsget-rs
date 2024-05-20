@@ -179,6 +179,7 @@ To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and
 | `forward_headers`                                 | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean    | `true`                                                                                                          |
 | `user_agent`                                      | A user agent to provide when making requests to the URLs.                                                                                                        | String     | A combination of the cargo package name and version. For example, `htsget-search/0.6.6`.                        |
 | `danger_accept_invalid_certs`                     | Trusted invalid certificates, such as self-signed certificates. Only affects TLS on the HTTP client in `UrlStorage`.                                             | Boolean    | false                                                                                                           |
+| `header_blacklist`                                | List of headers that should not be forwarded                                                                                 | Array of headers         | `[]`                                                                                                            |
 | `tls`                                             | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.                                      | TOML table | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
 When using `UrlStorage`, the following requests will be made:
@@ -187,7 +188,8 @@ When using `UrlStorage`, the following requests will be made:
 * `GET` request to fetch the entire index file (e.g. `GET /data.bam.bai`), URL used is configured via `endpoint_index`.
 * `HEAD` request on the data file to get its length (e.g. `HEAD /data.bam`), URL used is configured via `endpoint_head`.
 
-All headers received in the initial query will be included when making these requests.
+By default, all headers received in the initial query will be included when making these requests. To exclude certain headers from being forwarded, set the `header_blacklist` option. Note that the blacklisted headers are removed from the requests made to `url` and from the URL tickets as well.
+
 
 For example, a `resolvers` value of:
 ```toml
@@ -226,6 +228,19 @@ bucket = 'bucket'
 ```
 
 `UrlStorage` can only be specified manually.
+
+Example of a resolver with `UrlStorage`:
+```toml
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.storage]
+url = "http://localhost:8080"
+response_url = "https://example.com"
+forward_headers = true
+header_blacklist = ["Host"]
+```
 
 There are additional examples of config files located under [`examples/config-files`][examples-config-files].
 
@@ -279,11 +294,11 @@ TLS can be configured for the ticket server, data server, or the url storage cli
 certificates from PEM-formatted files. Certificates must be in X.509 format and private keys can be RSA, PKCS8, or SEC1 (EC) encoded. 
 The following options are available:
 
-| Option                         | Description                                                                                                                               | Type            | Default |
-|--------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-----------------|---------|
-| `key`                          | The path to the PEM formatted X.509 certificate. Specifies TLS for servers or client authentication for clients.                          | Filesystem path | Not Set | 
-| `cert`                         | The path to the PEM formatted RSA, PKCS8, or SEC1 encoded EC private key. Specifies TLS for servers or client authentication for clients. | Filesystem path | Not Set |
-| `root_store`                   | The path to the PEM formatted root certificate store. Only used to specify non-native root certificates for client TLS.                   | Filesystem path | Not Set |
+| Option                 | Description                                                                                                                                  | Type              | Default |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
+| `key`                  | The path to the PEM formatted X.509 certificate. Specifies TLS for servers or client authentication for clients.                             | Filesystem path   | Not Set | 
+| `cert`                 | The path to the PEM formatted RSA, PKCS8, or SEC1 encoded EC private key. Specifies TLS for servers or client authentication for clients.    | Filesystem path   | Not Set |
+| `root_store`           | The path to the PEM formatted root certificate store. Only used to specify non-native root certificates for the HTTP client in `UrlStorage`. | Filesystem path   | Not Set |
 
 When used by the ticket and data servers, `key` and `cert` enable TLS, and when used with the url storage client, they enable client authentication.
 The root store is only used by the url storage client. Note, the url storage client always allows TLS, however the default configuration performs no client authentication
@@ -295,9 +310,41 @@ ticket_server_tls.cert = "cert.pem"
 ticket_server_tls.key = "key.pem"
 ```
 
+This project uses [rustls] for all TLS logic, and it does not depend on OpenSSL. The rustls library can be more
+strict when accepting certificates and keys. For example, it does not accept self-signed certificates that have
+a CA used as an end-entity. If generating certificates for `root_store` using OpenSSL, the correct extensions,
+such as `subjectAltName` should be included.
+
+An example of generating a custom root CA and certificates for a `UrlStorage` backend:
+
+```sh
+# Create a root CA
+openssl req -x509 -noenc -subj '/CN=localhost' -newkey rsa -keyout root.key -out root.crt
+
+# Create a certificate signing request
+openssl req -noenc -newkey rsa -keyout server.key -out server.csr -subj '/CN=localhost' -addext subjectAltName=DNS:localhost
+
+# Create the `UrlStorage` server's certificate
+openssl x509 -req -in server.csr -CA root.crt -CAkey root.key -days 365 -out server.crt -copy_extensions copy
+
+# An additional client certificate signing request and certificate can be created in the same way as the server
+# certificate if using client authentication.
+```
+
+The `root.crt` can then be used in htsget-rs to allow authenticating to a `UrlStorage` backend using `server.crt`:
+
+```toml
+# Trust the root CA that signed the server's certificate.
+tls.root_store = "root.crt"
+```
+
+Alternatively, projects such as [mkcert] can be used to simplify this process.
+
 Further TLS examples are available under [`examples/config-files`][examples-config-files].
 
 [examples-config-files]: examples/config-files
+[rustls]: https://github.com/rustls/rustls
+[mkcert]: https://github.com/FiloSottile/mkcert
 
 #### Object type
 There is additional configuration that changes the way a resolver treats an object.
