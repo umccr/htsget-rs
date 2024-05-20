@@ -3,7 +3,7 @@ use std::str::FromStr;
 use http::uri::Authority;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{default_localstorage_addr, default_path, default_serve_at, DataServerConfig};
+use crate::config::{default_localstorage_addr, default_path, DataServerConfig};
 use crate::tls::KeyPairScheme;
 use crate::types::Scheme;
 
@@ -13,10 +13,6 @@ pub(crate) fn default_authority() -> Authority {
 
 fn default_local_path() -> String {
   default_path().into()
-}
-
-fn default_path_prefix() -> String {
-  default_serve_at().into()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -72,7 +68,7 @@ impl Default for LocalStorage {
       scheme: Scheme::Http,
       authority: default_authority(),
       local_path: default_local_path(),
-      path_prefix: default_path_prefix(),
+      path_prefix: Default::default(),
     }
   }
 }

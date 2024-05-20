@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.5.4...htsget-test-v0.6.0) - 2024-05-19
+
+### Fixed
+- *(test)* remove unused feature flag
+
+### Other
+- update MSRV
+- *(refactor)* convert unwraps to Results inside concat module
+- *(search)* additional chr11 and chr20 byte ranges tests for bam and cram
+- all range tests now concatenate bytes, update CRAM files
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into test/concat-responses
+- *(deps)* update noodles to 0.65
+
 ## [0.5.4](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.5.3...htsget-test-v0.5.4) - 2024-01-02
 
 ### Other

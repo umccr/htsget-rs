@@ -25,14 +25,8 @@ pub enum TaggedStorageTypes {
 
 /// If s3-storage is enabled, then the default is `S3`, otherwise it is `Local`.
 impl Default for TaggedStorageTypes {
-  #[cfg(not(feature = "s3-storage"))]
   fn default() -> Self {
     Self::Local
-  }
-
-  #[cfg(feature = "s3-storage")]
-  fn default() -> Self {
-    Self::S3
   }
 }
 
@@ -160,13 +154,6 @@ pub(crate) mod tests {
     });
   }
 
-  #[cfg(feature = "s3-storage")]
-  #[test]
-  fn default_tagged_storage_type_s3() {
-    assert_eq!(TaggedStorageTypes::default(), TaggedStorageTypes::S3);
-  }
-
-  #[cfg(not(feature = "s3-storage"))]
   #[test]
   fn default_tagged_storage_type_local() {
     assert_eq!(TaggedStorageTypes::default(), TaggedStorageTypes::Local);

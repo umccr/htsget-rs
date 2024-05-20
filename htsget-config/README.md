@@ -59,8 +59,8 @@ To configure the data server, set the following options:
 | Option                                                                                    | Description                                                                                                                                                                                              | Type                                      | Default                     |
 |-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|-----------------------------|
 | <span id="data_server_addr">`data_server_addr`</span>                                     | The address for the data server.                                                                                                                                                                         | Socket address                            | `'127.0.0.1:8081'`          | 
-| <span id="data_server_local_path">`data_server_local_path`</span>                         | The local path which the data server can access to serve files.                                                                                                                                          | Filesystem path                           | `'data'`                    |
-| <span id="data_server_serve_at">`data_server_serve_at`</span>                             | The path which the data server will prefix to all response URLs for tickets.                                                                                                                             | URL path                                  | `'/data'`                   |
+| <span id="data_server_local_path">`data_server_local_path`</span>                         | The local path which the data server can access to serve files.                                                                                                                                          | Filesystem path                           | `'./'`                      |
+| <span id="data_server_serve_at">`data_server_serve_at`</span>                             | The path which the data server will prefix to all response URLs for tickets.                                                                                                                             | URL path                                  | `''`                        |
 | <span id="data_server_tls">`data_server_tls`</span>                                       | Enable TLS for the data server. See [TLS](#tls) for more details.                                                                                                                                        | TOML table                                | Not enabled                 |
 | <span id="data_server_cors_allow_credentials">`data_server_cors_allow_credentials`</span> | Controls the CORS Access-Control-Allow-Credentials for the data server.                                                                                                                                  | Boolean                                   | `false`                     |
 | <span id="data_server_cors_allow_origins">`data_server_cors_allow_origins`</span>         | Set the CORS Access-Control-Allow-Origin returned by the data server, this can be set to `All` to send a wildcard, `Mirror` to echo back the request sent by the client, or a specific array of origins. | `'All'`, `'Mirror'` or a array of origins | `['http://localhost:8080']` |
@@ -72,8 +72,8 @@ To configure the data server, set the following options:
 TLS is supported by setting the `data_server_key` and `data_server_cert` options.  An example of config for the data server:
 ```toml
 data_server_addr = '127.0.0.1:8081'
-data_server_local_path = 'data'
-data_server_serve_at = '/data'
+data_server_local_path = './'
+data_server_serve_at = ''
 data_server_key = 'key.pem'
 data_server_cert = 'cert.pem'
 data_server_cors_allow_credentials = false
@@ -134,8 +134,8 @@ To create a resolver, add a `[[resolvers]]` array of tables, and set the followi
 
 | Option                | Description                                                                                                             | Type                                  | Default |
 |-----------------------|-------------------------------------------------------------------------------------------------------------------------|---------------------------------------|---------|
-| `regex`               | A regular expression which can match a query ID.                                                                        | Regex                                 | '.*'    | 
-| `substitution_string` | The replacement expression used to map the matched query ID. This has access to the match groups in the `regex` option. | String with access to capture groups  | '$0'    |
+| `regex`               | A regular expression which can match a query ID.                                                                        | Regex                                 | `'.*'`  | 
+| `substitution_string` | The replacement expression used to map the matched query ID. This has access to the match groups in the `regex` option. | String with access to capture groups  | `'$0'`  |
 
 For example, below is a `regex` option which matches a `/` between two groups, and inserts an additional `data`
 inbetween the groups with the `substitution_string`.
@@ -157,8 +157,8 @@ To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for 
 |---------------------|-------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
 | `scheme`            | The scheme present on URL tickets.                                                                                                  | Derived from `data_server_key` and `data_server_cert`. If no key and cert are present, then uses `Http`, otherwise uses `Https`. | Either `'Http'` or `'Https'` | `'Http'`           |
 | `authority`         | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | Same as `data_server_addr`.                                                                                                      | URL authority                | `'127.0.0.1:8081'` |
-| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Same as `data_server_local_path`.                                                                                                | Filesystem path              | `'data'`           |
-| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | Same as `data_server_serve_at`.                                                                                                  | URL path                     | `'/data'`          |
+| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Same as `data_server_local_path`.                                                                                                | Filesystem path              | `'./'`             |
+| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | Same as `data_server_serve_at`.                                                                                                  | URL path                     | `''`               |
 
 To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
 
@@ -171,19 +171,21 @@ To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and s
 `UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
 To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
 
-| Option                               | Description                                                                                                                                                      | Type                     | Default                                                                                                         |
-|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
-| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                                                      | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                                                            | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query. Note, the headers received with the query are always forwarded to the `url`. | Boolean                  | `true`                                                                                                          |
-| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.                                      | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| Option                               | Description                                                                                                                  | Type                     | Default                                                                                                         |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
+| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                  | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                        | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query.                                          | Boolean                  | `true`                                                                                                          |
+| `header_blacklist`                   | List of headers that should not be forwarded                                                                                 | Array of headers         | `[]`                                                                                                            |
+| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.  | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
 When using `UrlStorage`, the following requests will be made to the `url`.
 * `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
 * `GET` request to fetch the entire index file (e.g. `GET /data.bam.bai`).
 * `HEAD` request on the data file to get its length (e.g. `HEAD /data.bam`).
 
-All headers received in the initial query will be included when making these requests.
+By default, all headers received in the initial query will be included when making these requests. To exclude certain headers from being forwarded, set the `header_blacklist` option. Note that the blacklisted headers are removed from the requests made to `url` and from the URL tickets as well.
+
 
 For example, a `resolvers` value of:
 ```toml
@@ -206,8 +208,8 @@ substitution_string = '$0'
 [resolvers.storage]
 scheme = 'Http'
 authority = '127.0.0.1:8081'
-local_path = 'data'
-path_prefix = '/data'
+local_path = './'
+path_prefix = ''
 ```
 
 or, to manually set the config for `S3Storage`:
@@ -222,6 +224,18 @@ bucket = 'bucket'
 ```
 
 `UrlStorage` can only be specified manually.
+Example of a resolver with `UrlStorage`:
+```toml
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.storage]
+url = "http://localhost:8080"
+response_url = "https://example.com"
+forward_headers = true
+header_blacklist = ["Host"]
+```
 
 There are additional examples of config files located under [`examples/config-files`][examples-config-files].
 
@@ -275,11 +289,11 @@ TLS can be configured for the ticket server, data server, or the url storage cli
 certificates from PEM-formatted files. Certificates must be in X.509 format and private keys can be RSA, PKCS8, or SEC1 (EC) encoded. 
 The following options are available:
 
-| Option                 | Description                                                                                                                               | Type              | Default |
-|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
-| `key`                  | The path to the PEM formatted X.509 certificate. Specifies TLS for servers or client authentication for clients.                          | Filesystem path   | Not Set | 
-| `cert`                 | The path to the PEM formatted RSA, PKCS8, or SEC1 encoded EC private key. Specifies TLS for servers or client authentication for clients. | Filesystem path   | Not Set |
-| `root_store`           | The path to the PEM formatted root certificate store. Only used to specify non-native root certificates for client TLS.                   | Filesystem path   | Not Set |
+| Option                 | Description                                                                                                                                  | Type              | Default |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
+| `key`                  | The path to the PEM formatted X.509 certificate. Specifies TLS for servers or client authentication for clients.                             | Filesystem path   | Not Set | 
+| `cert`                 | The path to the PEM formatted RSA, PKCS8, or SEC1 encoded EC private key. Specifies TLS for servers or client authentication for clients.    | Filesystem path   | Not Set |
+| `root_store`           | The path to the PEM formatted root certificate store. Only used to specify non-native root certificates for the HTTP client in `UrlStorage`. | Filesystem path   | Not Set |
 
 When used by the ticket and data servers, `key` and `cert` enable TLS, and when used with the url storage client, they enable client authentication.
 The root store is only used by the url storage client. Note, the url storage client always allows TLS, however the default configuration performs no client authentication
@@ -291,9 +305,41 @@ ticket_server_tls.cert = "cert.pem"
 ticket_server_tls.key = "key.pem"
 ```
 
+This project uses [rustls] for all TLS logic, and it does not depend on OpenSSL. The rustls library can be more
+strict when accepting certificates and keys. For example, it does not accept self-signed certificates that have
+a CA used as an end-entity. If generating certificates for `root_store` using OpenSSL, the correct extensions,
+such as `subjectAltName` should be included.
+
+An example of generating a custom root CA and certificates for a `UrlStorage` backend:
+
+```sh
+# Create a root CA
+openssl req -x509 -noenc -subj '/CN=localhost' -newkey rsa -keyout root.key -out root.crt
+
+# Create a certificate signing request
+openssl req -noenc -newkey rsa -keyout server.key -out server.csr -subj '/CN=localhost' -addext subjectAltName=DNS:localhost
+
+# Create the `UrlStorage` server's certificate
+openssl x509 -req -in server.csr -CA root.crt -CAkey root.key -days 365 -out server.crt -copy_extensions copy
+
+# An additional client certificate signing request and certificate can be created in the same way as the server
+# certificate if using client authentication.
+```
+
+The `root.crt` can then be used in htsget-rs to allow authenticating to a `UrlStorage` backend using `server.crt`:
+
+```toml
+# Trust the root CA that signed the server's certificate.
+tls.root_store = "root.crt"
+```
+
+Alternatively, projects such as [mkcert] can be used to simplify this process.
+
 Further TLS examples are available under [`examples/config-files`][examples-config-files].
 
 [examples-config-files]: examples/config-files
+[rustls]: https://github.com/rustls/rustls
+[mkcert]: https://github.com/FiloSottile/mkcert
 
 #### Config file location
 
@@ -422,34 +468,24 @@ export HTSGET_DATA_SERVER_ENABLED=false
 
 ### MinIO
 
-Operating a local object storage like [MinIO][minio] can be easily achieved by leveraging the `endpoint` directive as shown below:
+Operating a local object storage like [MinIO][minio] can be achieved by leveraging the `endpoint` directive as shown below:
 
 ```toml
 [[resolvers]]
-regex = ".*"
-substitution_string = "$0"
+regex = '.*'
+substitution_string = '$0'
 
 [resolvers.storage]
 bucket = 'bucket'
-endpoint = "http://127.0.0.1:9000"
+endpoint = 'http://127.0.0.1:9000'
+path_style = true
 ```
 
-This will have htsget-rs behaving like the native AWS CLI, i.e:
+Care must be taken to ensure that the [correct][env-variables] `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY` and `AWS_SECRET_ACCESS_KEY` is set to allow
+the AWS sdk to reach the endpoint. Additional configuration of the MinIO server is required to use [virtual-hosted][virtual-addressing] style
+addressing by setting the `MINIO_DOMAIN` environment variable. [Path][path-addressing] style addressing can be forced using `path_style = true`.
 
-```
-mkdir /tmp/test
-minio server /tmp/test
-export AWS_ACCESS_KEY_ID=minioadmin
-export AWS_SECRET_ACCESS_KEY=minioadmin
-aws s3 mb --endpoint-url=http://localhost:9000 s3://bucket/
-aws s3 cp --recursive --endpoint-url=http://localhost:9000 htsget-rs/data/bam s3://bucket/
-cargo run -p htsget-actix -- --config ~/.htsget-rs/config.toml
-
-# On another session/terminal
-curl http://localhost:8080/reads/htsnexus_test_NA12878
-```
-
-Please don't run the example above as-is in production systems ;)
+See the MinIO deployment [example][minio-deployment] for more information on how to configure htsget-rs and MinIO.
 
 ### As a library
 
@@ -469,5 +505,9 @@ This crate has the following features:
 
 This project is licensed under the [MIT license][license].
 
+[path-addressing]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#path-style-access
+[env-variables]: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+[virtual-addressing]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#virtual-hosted-style-access
+[minio-deployment]: ../deploy/examples/minio/README.md
 [license]: LICENSE
 [minio]: https://min.io/

@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.15](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.14...htsget-lambda-v0.4.15) - 2024-05-19
+
+### Other
+- update MSRV
+- *(test)* remove server-tests and cors-tests features and create http module
+
 ## [0.4.14](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.13...htsget-lambda-v0.4.14) - 2024-01-02
 
 ### Other
