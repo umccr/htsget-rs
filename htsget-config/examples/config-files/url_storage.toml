@@ -16,9 +16,12 @@ regex = ".*"
 substitution_string = "$0"
 
 [resolvers.storage]
-url = "http://127.0.0.1:8081"
 response_url = "https://127.0.0.1:8081"
 forward_headers = true
+
+[resolvers.storage.endpoints]
+file = "https://example.com/"
+index = "https://example.com/"
 
 # Set client authentication
 #tls.key = "key.pem"

@@ -5,15 +5,21 @@ pub mod concat;
 pub mod cors;
 pub mod server;
 
-use std::fs;
+use std::fs::File as StdFile;
+use std::io::Read;
 use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
+use base64::engine::general_purpose;
+use base64::Engine;
 use http::uri::Authority;
 use http::HeaderMap;
+use noodles::bgzf;
 use serde::de;
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{DataServerConfig, TicketServerConfig};
@@ -22,8 +28,17 @@ use htsget_config::storage::{local::LocalStorage, Storage};
 use htsget_config::tls::{
   load_certs, load_key, tls_server_config, CertificateKeyPair, TlsServerConfig,
 };
+use htsget_config::types;
+#[cfg(feature = "crypt4gh")]
+use htsget_config::types::{Class, Format};
 use htsget_config::types::{Scheme, TaggedTypeAll};
+#[cfg(feature = "crypt4gh")]
+use {async_crypt4gh::reader::builder::Builder, std::io::Cursor};
 
+#[cfg(feature = "crypt4gh")]
+use crate::crypt4gh::get_decryption_keys;
+#[cfg(feature = "crypt4gh")]
+use crate::http::concat::ReadRecords;
 use crate::util::generate_test_certificates;
 use crate::Config;
 
@@ -98,7 +113,92 @@ pub fn default_dir() -> PathBuf {
     .to_path_buf()
 }
 
-/// Get the default directory where data is present..
+/// Get byte ranges from a url storage response.
+pub async fn get_byte_ranges_from_url_storage_response(
+  response: types::Response,
+  file: PathBuf,
+) -> (Vec<u8>, Vec<u8>) {
+  println!("{:#?}", response);
+
+  let file_str = file.to_str().unwrap();
+  let mut buf = vec![];
+  StdFile::open(file_str)
+    .unwrap()
+    .read_to_end(&mut buf)
+    .unwrap();
+
+  let mut public_key = vec![];
+  let output = response
+    .urls
+    .into_iter()
+    .map(|url| {
+      if let Some(data_uri) = url.url.as_str().strip_prefix("data:;base64,") {
+        general_purpose::STANDARD.decode(data_uri).unwrap()
+      } else {
+        let headers = url.headers.unwrap().into_inner();
+        let range = headers.get("Range").unwrap();
+        let mut range = range.strip_prefix("bytes=").unwrap().split('-');
+
+        let start = usize::from_str(range.next().unwrap()).unwrap();
+        let end = usize::from_str(range.next().unwrap()).unwrap() + 1;
+
+        if let Some(header_public_key) = headers.get("public-key") {
+          public_key = general_purpose::STANDARD.decode(header_public_key).unwrap();
+        }
+
+        buf[start..end].to_vec()
+      }
+    })
+    .reduce(|acc, x| [acc, x].concat())
+    .unwrap();
+
+  (output, public_key)
+}
+
+/// Pass the bytes through a BGZF reader.
+pub async fn parse_as_bgzf(bytes: Vec<u8>) {
+  let mut reader = bgzf::AsyncReader::new(bytes.as_slice());
+
+  let mut data = Vec::new();
+  reader.read_to_end(&mut data).await.unwrap();
+}
+
+#[cfg(feature = "crypt4gh")]
+pub async fn test_bam_crypt4gh_byte_ranges(output_bytes: Vec<u8>, expected_bytes: Vec<u8>) {
+  let (recipient_private_key, _) = get_decryption_keys().await;
+
+  let mut reader = Builder::default()
+    .build_with_stream_length(Cursor::new(output_bytes), vec![recipient_private_key])
+    .await
+    .unwrap();
+
+  let mut unencrypted_out = vec![];
+  reader.read_to_end(&mut unencrypted_out).await.unwrap();
+
+  parse_as_bgzf(unencrypted_out.clone()).await;
+
+  assert_eq!(unencrypted_out, expected_bytes);
+}
+
+#[cfg(feature = "crypt4gh")]
+pub async fn test_parsable_byte_ranges(output_bytes: Vec<u8>, format: Format, class: Class) {
+  let (recipient_private_key, _) = get_decryption_keys().await;
+
+  let mut reader = Builder::default()
+    .build_with_stream_length(Cursor::new(output_bytes), vec![recipient_private_key])
+    .await
+    .unwrap();
+
+  let mut unencrypted_out = vec![];
+  reader.read_to_end(&mut unencrypted_out).await.unwrap();
+
+  ReadRecords::new(format, class, unencrypted_out)
+    .read_records()
+    .await
+    .unwrap();
+}
+
+/// Get the default directory where data is present.
 pub fn default_dir_data() -> PathBuf {
   default_dir().join("data")
 }
@@ -119,12 +219,14 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Vec<Resolver> 
       "^1-(.*)$",
       "$1",
       Default::default(),
+      Default::default(),
     )
     .unwrap(),
     Resolver::new(
       Storage::Local { local_storage },
       "^2-(.*)$",
       "$1",
+      Default::default(),
       Default::default(),
     )
     .unwrap(),
@@ -207,8 +309,25 @@ pub fn test_tls_server_config(key_path: PathBuf, cert_path: PathBuf) -> TlsServe
   TlsServerConfig::new(server_config)
 }
 
-/// Get the event associated with the file.
-pub fn get_test_file<P: AsRef<Path>>(path: P) -> String {
-  let path = default_dir().join("data").join(path);
-  fs::read_to_string(path).expect("failed to read file")
+/// Get a test file as a string.
+pub async fn get_test_file_string<P: AsRef<Path>>(path: P) -> String {
+  let mut string = String::new();
+  get_test_file(path)
+    .await
+    .read_to_string(&mut string)
+    .await
+    .expect("failed to read to string");
+  string
+}
+
+/// Get a test file path.
+pub fn get_test_path<P: AsRef<Path>>(path: P) -> PathBuf {
+  default_dir().join("data").join(path)
+}
+
+/// Get a test file.
+pub async fn get_test_file<P: AsRef<Path>>(path: P) -> File {
+  File::open(get_test_path(path))
+    .await
+    .expect("failed to read file")
 }

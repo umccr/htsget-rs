@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::thread::sleep;
@@ -61,11 +62,15 @@ fn request(url: reqwest::Url, json_content: &impl Serialize, client: &Client) ->
         client
           .get(&json_url.url)
           .headers(
-            json_url
-              .headers
-              .as_ref()
-              .unwrap_or(&Headers::default())
-              .as_ref_inner()
+            (&HashMap::from_iter(
+              json_url
+                .headers
+                .as_ref()
+                .unwrap_or(&Headers::default())
+                .as_ref_inner()
+                .iter()
+                .map(|(k, v)| (String::from(k), String::from(v))),
+            ))
               .try_into()
               .unwrap(),
           )

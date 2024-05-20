@@ -1,0 +1,35 @@
+[package]
+name = "async-crypt4gh"
+version = "0.1.0"
+rust-version = "1.70"
+authors = ["Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
+description = "An async wrapper around crypt4gh-rust using AsyncRead and Stream."
+license = "MIT"
+documentation = "https://github.com/umccr/htsget-rs/blob/main/async-crypt4gh/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/async-crypt4gh/README.md"
+repository = "https://github.com/umccr/htsget-rs"
+
+[dependencies]
+crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust" }
+pin-project-lite = "0.2"
+hex-literal = "0.4"
+bytes = "1.4"
+tokio = { version = "1.29", features = ["macros", "rt-multi-thread", "io-util"] }
+tokio-util = { version = "0.7", features = ["io", "compat", "codec"] }
+futures = "0.3"
+futures-util = "0.3"
+thiserror = "1.0"
+async-trait = "0.1"
+rustls = "0.21"
+rand_chacha = "0.3.1"
+bincode = "1.3.3"
+tempfile = "3.9"
+tracing = "0.1"
+base64 = "0.22"
+bstr = "1.9"
+
+[dev-dependencies]
+noodles = { version = "0.60", features = ["async", "bam", "sam"] }
+
+htsget-test = { version = "0.6.0", path = "../htsget-test", features = ["http", "crypt4gh"], default-features = false }

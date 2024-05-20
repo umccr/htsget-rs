@@ -13,6 +13,7 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-test/s3-storage"]
 url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget-test/url-storage"]
+crypt4gh = ["htsget-config/crypt4gh", "htsget-search/crypt4gh", "htsget-test/crypt4gh"]
 default = []
 
 [dependencies]
@@ -23,5 +24,5 @@ htsget-search = { version = "0.7.0", path = "../htsget-search", default-features
 htsget-config = { version = "0.9.0", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.6.0", path = "../htsget-test", default-features = false }
 futures = { version = "0.3" }
-tokio = { version = "1.28", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.29", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"

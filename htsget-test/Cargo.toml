@@ -19,10 +19,8 @@ http = [
     "dep:htsget-config",
     "dep:noodles",
     "dep:reqwest",
-    "dep:tokio",
     "dep:futures",
     "dep:mime",
-    "dep:base64"
 ]
 aws-mocks = [
     "s3-storage",
@@ -36,6 +34,13 @@ aws-mocks = [
 ]
 s3-storage = ["htsget-config?/s3-storage"]
 url-storage = ["htsget-config?/url-storage"]
+crypt4gh = [
+    "dep:crypt4gh",
+    "dep:tempfile",
+    "dep:async-crypt4gh",
+    "htsget-config?/crypt4gh",
+    "http"
+]
 default = []
 
 [dependencies]
@@ -45,14 +50,14 @@ htsget-config = { version = "0.9.0", path = "../htsget-config", default-features
 noodles = { version = "0.65", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
 
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"], optional = true }
-tokio = { version = "1", features = ["rt-multi-thread", "fs"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "fs"] }
 futures = { version = "0.3", optional = true }
 async-trait = { version = "0.1", optional = true }
 http = { version = "0.2", optional = true }
 mime = { version = "0.3", optional = true }
 serde_json = { version = "1.0", features = ["preserve_order"], optional = true }
 serde = { version = "1", optional = true }
-base64 = { version = "0.21", optional = true }
+base64 = { version = "0.21" }
 
 tempfile = { version = "3.3", optional = true }
 aws-sdk-s3 = { version = "0.34", features = ["test-util"], optional = true }
@@ -61,6 +66,15 @@ aws-credential-types = { version = "0.56", features = ["test-util"], optional = 
 s3s = { version = "0.8", optional = true }
 s3s-fs = { version = "0.8", optional = true }
 s3s-aws = { version = "0.8", optional = true }
+
+crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
+async-crypt4gh = { version = "0.1.0", path = "../async-crypt4gh", optional = true }
+axum =  { version = "0.6" }
+walkdir =  { version = "2.5" }
+tokio-util = { version = "0.7" }
+tower = { version = "0.4", features = ["make"] }
+tower-http = { version = "0.4", features = ["trace", "cors", "fs"] }
+tokio-rustls = { version = "0.24" }
 
 # Default dependencies
 rcgen = "0.12"

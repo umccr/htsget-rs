@@ -26,7 +26,16 @@ specific code, this defines an interface that handles the core logic of a htsget
 
 Future work may split these two modules into separate crates.
 
+There are three different kinds of storage:
+* `LocalStorage`: which spawns a local server that can respond to URL tickets.
+* `S3Storage`: which returns pre-signed AWS S3 URLs for the tickets.
+* `UrlStorage`: which returns a custom URL endpoint which is intended to respond to URL tickets.
+    * For `UrlStorage`, returning Crypt4GH encrypted files is supported using a custom protocol,
+      by compiling with the `crypt4gh` flag. See the crypt4gh [ARCHITECTURE.md][architecture] file for Crypt4GH for a description on
+      how this works.
+
 [noodles]: https://github.com/zaeleus/noodles
+[architecture]: ../docs/crypt4gh/ARCHITECTURE.md
 
 ### Traits abstraction
 
@@ -56,6 +65,7 @@ For htsget-rs to function, files need to be organised in the following way:
 * BGZF compressed files (BAM, CRAM, VCF) can optionally also have a [GZ index][gzi] to make byte ranges smaller.
     * GZI files must end with `.gzi`.
     * See [minimising byte ranges][minimising-byte-ranges] for more details on GZI.
+* Crypt4GH encrypted files must end with `.c4gh`.
 
 This is quite inflexible, and is likely to change in the future to allow arbitrary mappings of files and indices.
 
@@ -77,6 +87,7 @@ used to process requests.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `crypt4gh`: used to enable Crypt4GH functionality.
 
 [htsget]: src/htsget
 [storage]: src/storage

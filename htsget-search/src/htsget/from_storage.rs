@@ -57,7 +57,7 @@ impl HtsGet for &[Resolver] {
 #[async_trait]
 impl<S, R> HtsGet for HtsGetFromStorage<S>
 where
-  R: AsyncRead + Send + Sync + Unpin,
+  R: AsyncRead + Send + Sync + Unpin + 'static,
   S: Storage<Streamable = R> + Sync + Send + 'static,
 {
   #[instrument(level = "debug", skip(self))]
@@ -101,11 +101,15 @@ impl<S> ResolveResponse for HtsGetFromStorage<S> {
   async fn from_url(url_storage_config: &UrlStorageConfig, query: &Query) -> Result<Response> {
     let searcher = HtsGetFromStorage::new(UrlStorage::new(
       url_storage_config.client_cloned(),
-      url_storage_config.url().clone(),
+      url_storage_config.endpoints().clone(),
       url_storage_config.response_url().clone(),
       url_storage_config.forward_headers(),
       url_storage_config.header_blacklist().to_vec(),
-    ));
+      url_storage_config.user_agent(),
+      query,
+      #[cfg(feature = "crypt4gh")]
+      Default::default(),
+    )?);
     searcher.search(query.clone()).await
   }
 }
@@ -137,7 +141,6 @@ pub(crate) mod tests {
   use htsget_config::types::Class::Body;
   use htsget_config::types::Scheme::Http;
   use htsget_test::http::concat::ConcatResponse;
-  use htsget_test::util::expected_bgzf_eof_data_url;
 
   use crate::htsget::bam_search::tests::{
     expected_url as bam_expected_url, with_local_storage as with_bam_local_storage, BAM_FILE_NAME,
@@ -156,17 +159,14 @@ pub(crate) mod tests {
   async fn search_bam() {
     with_bam_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+      let query = Query::new_with_defaults("htsnexus_test_NA12878", Format::Bam);
       let response = htsget.search(query).await;
       println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![
-          Url::new(bam_expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
-          Url::new(expected_bgzf_eof_data_url()),
-        ],
+        vec![Url::new(bam_expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
       ));
       assert_eq!(response, expected_response);
 
@@ -180,7 +180,7 @@ pub(crate) mod tests {
     with_vcf_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(Arc::try_unwrap(storage).unwrap());
       let filename = "spec-v4.3";
-      let query = Query::new_with_default_request(filename, Format::Vcf);
+      let query = Query::new_with_defaults(filename, Format::Vcf);
       let response = htsget.search(query).await;
       println!("{response:#?}");
 
@@ -199,7 +199,7 @@ pub(crate) mod tests {
     with_config_local_storage(
       |_, local_storage| async move {
         let filename = "spec-v4.3";
-        let query = Query::new_with_default_request(filename, Format::Vcf);
+        let query = Query::new_with_defaults(filename, Format::Vcf);
         let response = HtsGetFromStorage::<()>::from_local(&local_storage, &query).await;
 
         assert_eq!(response, expected_vcf_response(filename));
@@ -224,11 +224,12 @@ pub(crate) mod tests {
           ".*",
           "$0",
           Default::default(),
+          Default::default(),
         )
         .unwrap()];
 
         let filename = "spec-v4.3";
-        let query = Query::new_with_default_request(filename, Format::Vcf);
+        let query = Query::new_with_defaults(filename, Format::Vcf);
         let response = resolvers.search(query).await;
 
         assert_eq!(response, expected_vcf_response(filename));
@@ -247,11 +248,8 @@ pub(crate) mod tests {
   fn expected_vcf_response(filename: &str) -> Result<Response> {
     Ok(Response::new(
       Format::Vcf,
-      vec![
-        Url::new(vcf_expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-822")),
-        Url::new(expected_bgzf_eof_data_url()),
-      ],
+      vec![Url::new(vcf_expected_url(filename))
+        .with_headers(Headers::default().with_header("Range", "bytes=0-850"))],
     ))
   }
 

@@ -17,6 +17,9 @@ use crate::error::{Error, Result};
 use crate::types::Scheme;
 use crate::types::Scheme::{Http, Https};
 
+#[cfg(feature = "crypt4gh")]
+pub mod crypt4gh;
+
 /// A trait to determine which scheme a key pair option has.
 pub trait KeyPairScheme {
   /// Get the scheme.

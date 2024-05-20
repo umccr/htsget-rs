@@ -2,6 +2,7 @@
 resolver = "2"
 
 members = [
+    "async-crypt4gh",
     "htsget-config",
     "htsget-actix",
     "htsget-http",

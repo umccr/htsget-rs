@@ -40,6 +40,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/umccr/htsget-rs:latest
+
 ## SOCI (Seekable OCI) support. Only enable when and if docker layers surpass 10MB in the future, see:
 # https://github.com/awslabs/soci-snapshotter/issues/100
 #      - name: Install aws SOCI

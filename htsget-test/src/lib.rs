@@ -10,3 +10,6 @@ pub mod error;
 #[cfg(feature = "http")]
 pub mod http;
 pub mod util;
+
+#[cfg(feature = "crypt4gh")]
+pub mod crypt4gh;

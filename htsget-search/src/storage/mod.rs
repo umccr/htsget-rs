@@ -5,6 +5,8 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
+use std::num::ParseIntError;
+use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -16,7 +18,12 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::util::{unencrypted_clamp, unencrypted_clamp_next};
+#[cfg(feature = "crypt4gh")]
+use async_crypt4gh::util::{unencrypted_to_data_block, unencrypted_to_next_data_block};
 use htsget_config::config::cors::CorsConfig;
+use htsget_config::resolver::object::ObjectType;
 use htsget_config::storage::local::LocalStorage;
 use htsget_config::types::{Class, Scheme};
 
@@ -31,6 +38,39 @@ pub mod url;
 
 type Result<T> = core::result::Result<T, StorageError>;
 
+/// Output for the head function in Storage.
+#[derive(Debug, Default, Clone)]
+pub struct HeadOutput {
+  pub(crate) content_length: u64,
+  pub(crate) response_headers: Option<HeaderMap>,
+}
+
+impl HeadOutput {
+  /// Create a new HeadOutput.
+  pub fn new(content_length: u64, response_headers: Option<HeaderMap>) -> Self {
+    Self {
+      content_length,
+      response_headers,
+    }
+  }
+
+  /// Get the content length.
+  pub fn content_length(&self) -> u64 {
+    self.content_length
+  }
+
+  /// Get any additional response headers.
+  pub fn response_headers(&self) -> Option<&HeaderMap> {
+    self.response_headers.as_ref()
+  }
+}
+
+impl From<u64> for HeadOutput {
+  fn from(content_length: u64) -> Self {
+    Self::new(content_length, None)
+  }
+}
+
 /// A Storage represents some kind of object based storage (either locally or in the cloud)
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
@@ -42,6 +82,7 @@ pub trait Storage {
     &self,
     key: K,
     options: GetOptions<'_>,
+    head_output: &mut Option<&mut HeadOutput>,
   ) -> Result<Self::Streamable>;
 
   /// Get the url of the object represented by the key using a bytes range. It is not required for
@@ -57,7 +98,7 @@ pub trait Storage {
     &self,
     key: K,
     options: HeadOptions<'_>,
-  ) -> Result<u64>;
+  ) -> Result<HeadOutput>;
 
   /// Get the url of the object using an inline data uri.
   #[instrument(level = "trace", ret)]
@@ -70,6 +111,18 @@ pub trait Storage {
       general_purpose::STANDARD.encode(data)
     ))
     .set_class(class)
+  }
+
+  /// Optionally update byte positions before they are passed to the other functions.
+  #[instrument(level = "trace", ret, skip(self, _reader))]
+  async fn update_byte_positions(
+    &self,
+    _reader: Self::Streamable,
+    positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<DataBlock>> {
+    Ok(DataBlock::from_bytes_positions(
+      positions_options.merge_all().into_inner(),
+    ))
   }
 }
 
@@ -207,12 +260,9 @@ pub enum DataBlock {
 }
 
 impl DataBlock {
-  /// Convert a vec of bytes positions to a vec of data blocks. Merges bytes positions.
+  /// Convert a vec of bytes positions to a vec of data blocks.
   pub fn from_bytes_positions(positions: Vec<BytesPosition>) -> Vec<Self> {
-    BytesPosition::merge_all(positions)
-      .into_iter()
-      .map(DataBlock::Range)
-      .collect()
+    positions.into_iter().map(DataBlock::Range).collect()
   }
 
   /// Update the classes of all blocks so that they all contain a class, or None. Does not merge
@@ -260,6 +310,38 @@ impl From<&BytesRange> for String {
       return "".to_string();
     }
     ranges.to_string()
+  }
+}
+
+/// Convert from a http range to a bytes position.
+impl FromStr for BytesPosition {
+  type Err = StorageError;
+
+  fn from_str(range: &str) -> Result<Self> {
+    let range = range.replacen("bytes=", "", 1);
+
+    let split: Vec<&str> = range.splitn(2, '-').collect();
+    if split.len() > 2 {
+      return Err(StorageError::InternalError(
+        "failed to split range".to_string(),
+      ));
+    }
+
+    let parse_range = |range: Option<&str>| {
+      let range = range.unwrap_or_default();
+      if range.is_empty() {
+        Ok::<_, Self::Err>(None)
+      } else {
+        Ok(Some(range.parse().map_err(|err: ParseIntError| {
+          StorageError::InternalError(err.to_string())
+        })?))
+      }
+    };
+
+    let start = parse_range(split.first().copied())?;
+    let end = parse_range(split.last().copied())?.map(|value| value + 1);
+
+    Ok(Self::new(start, end, None))
   }
 }
 
@@ -390,24 +472,55 @@ impl BytesPosition {
       optimized_ranges
     }
   }
+
+  /// Convert the range to crypt4gh byte range.
+  #[cfg(feature = "crypt4gh")]
+  pub fn convert_to_crypt4gh_ranges(mut self, crypt4gh_header_length: u64, file_size: u64) -> Self {
+    self.start = self
+      .start
+      .map(|start| unencrypted_to_data_block(start, crypt4gh_header_length, file_size));
+    self.end = self
+      .end
+      .map(|end| unencrypted_to_next_data_block(end, crypt4gh_header_length, file_size));
+
+    self
+  }
+
+  /// Convert the range to clamped crypt4gh ranges.
+  #[cfg(feature = "crypt4gh")]
+  pub fn convert_to_clamped_crypt4gh_ranges(mut self, file_size: u64) -> Self {
+    self.start = self.start.map(|start| unencrypted_clamp(start, file_size));
+    self.end = self.end.map(|end| unencrypted_clamp_next(end, file_size));
+
+    self
+  }
 }
 
 #[derive(Debug)]
 pub struct GetOptions<'a> {
   range: BytesPosition,
   request_headers: &'a HeaderMap,
+  object_type: &'a ObjectType,
 }
 
 impl<'a> GetOptions<'a> {
-  pub fn new(range: BytesPosition, request_headers: &'a HeaderMap) -> Self {
+  pub fn new(
+    range: BytesPosition,
+    request_headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
     Self {
       range,
       request_headers,
+      object_type,
     }
   }
 
-  pub fn new_with_default_range(request_headers: &'a HeaderMap) -> Self {
-    Self::new(Default::default(), request_headers)
+  pub fn new_with_default_range(
+    request_headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
+    Self::new(Default::default(), request_headers, object_type)
   }
 
   pub fn with_max_length(mut self, max_length: u64) -> Self {
@@ -418,6 +531,11 @@ impl<'a> GetOptions<'a> {
   pub fn with_range(mut self, range: BytesPosition) -> Self {
     self.range = range;
     self
+  }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    self.object_type
   }
 
   /// Get the range.
@@ -431,22 +549,96 @@ impl<'a> GetOptions<'a> {
   }
 }
 
+#[derive(Debug, Clone)]
+pub struct BytesPositionOptions<'a> {
+  positions: Vec<BytesPosition>,
+  file_size: u64,
+  headers: &'a HeaderMap,
+  object_type: &'a ObjectType,
+}
+
+impl<'a> BytesPositionOptions<'a> {
+  pub fn new(
+    positions: Vec<BytesPosition>,
+    file_size: u64,
+    headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
+    Self {
+      positions,
+      file_size,
+      headers,
+      object_type,
+    }
+  }
+
+  /// Get the response headers.
+  pub fn headers(&self) -> &'a HeaderMap {
+    self.headers
+  }
+
+  pub fn positions(&self) -> &Vec<BytesPosition> {
+    &self.positions
+  }
+
+  pub fn file_size(&self) -> u64 {
+    self.file_size
+  }
+
+  /// Get the inner value.
+  pub fn into_inner(self) -> Vec<BytesPosition> {
+    self.positions
+  }
+
+  /// Merge all bytes positions
+  pub fn merge_all(mut self) -> Self {
+    self.positions = BytesPosition::merge_all(self.positions);
+    self
+  }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    self.object_type
+  }
+
+  /// Convert the ranges to crypt4gh byte ranges. Does not include the crypt4gh header.
+  #[cfg(feature = "crypt4gh")]
+  pub fn convert_to_crypt4gh_ranges(mut self, header_length: u64, file_size: u64) -> Self {
+    self.positions = self
+      .positions
+      .into_iter()
+      .map(|pos| pos.convert_to_crypt4gh_ranges(header_length, file_size))
+      .collect();
+
+    self
+  }
+}
+
 #[derive(Debug)]
 pub struct RangeUrlOptions<'a> {
   range: BytesPosition,
   response_headers: &'a HeaderMap,
+  object_type: &'a ObjectType,
 }
 
 impl<'a> RangeUrlOptions<'a> {
-  pub fn new(range: BytesPosition, response_headers: &'a HeaderMap) -> Self {
+  pub fn new(
+    range: BytesPosition,
+    response_headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
     Self {
       range,
       response_headers,
+      object_type,
     }
   }
 
-  pub fn new_with_default_range(request_headers: &'a HeaderMap) -> Self {
-    Self::new(Default::default(), request_headers)
+  pub fn new_with_default_range(
+    request_headers: &'a HeaderMap,
+    object_type: &'a ObjectType,
+  ) -> Self {
+    Self::new(Default::default(), request_headers, object_type)
   }
 
   pub fn with_range(mut self, range: BytesPosition) -> Self {
@@ -475,29 +667,43 @@ impl<'a> RangeUrlOptions<'a> {
   pub fn response_headers(&self) -> &'a HeaderMap {
     self.response_headers
   }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    self.object_type
+  }
 }
 
 /// A struct to represent options passed to a `Storage` head call.
 #[derive(Debug)]
 pub struct HeadOptions<'a> {
   request_headers: &'a HeaderMap,
+  object_type: &'a ObjectType,
 }
 
 impl<'a> HeadOptions<'a> {
   /// Create a new HeadOptions struct.
-  pub fn new(request_headers: &'a HeaderMap) -> Self {
-    Self { request_headers }
+  pub fn new(request_headers: &'a HeaderMap, object_type: &'a ObjectType) -> Self {
+    Self {
+      request_headers,
+      object_type,
+    }
   }
 
   /// Get the request headers.
   pub fn request_headers(&self) -> &'a HeaderMap {
     self.request_headers
   }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    self.object_type
+  }
 }
 
 #[cfg(test)]
 mod tests {
-  use std::collections::HashMap;
+  use std::collections::BTreeMap;
 
   use http::uri::Authority;
 
@@ -881,10 +1087,10 @@ mod tests {
 
   #[test]
   fn data_block_from_bytes_positions() {
-    let blocks = DataBlock::from_bytes_positions(vec![
+    let blocks = DataBlock::from_bytes_positions(BytesPosition::merge_all(vec![
       BytesPosition::new(None, Some(1), None),
       BytesPosition::new(Some(1), Some(2), None),
-    ]);
+    ]));
     assert_eq!(
       blocks,
       vec![DataBlock::Range(BytesPosition::new(None, Some(2), None))]
@@ -901,7 +1107,10 @@ mod tests {
   #[test]
   fn get_options_with_max_length() {
     let request_headers = Default::default();
-    let result = GetOptions::new_with_default_range(&request_headers).with_max_length(1);
+    let object_type = Default::default();
+
+    let result =
+      GetOptions::new_with_default_range(&request_headers, &object_type).with_max_length(1);
     assert_eq!(
       result.range(),
       &BytesPosition::default().with_start(0).with_end(1)
@@ -911,7 +1120,9 @@ mod tests {
   #[test]
   fn get_options_with_range() {
     let request_headers = Default::default();
-    let result = GetOptions::new_with_default_range(&request_headers)
+    let object_type = Default::default();
+
+    let result = GetOptions::new_with_default_range(&request_headers, &object_type)
       .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
     assert_eq!(
       result.range(),
@@ -922,7 +1133,8 @@ mod tests {
   #[test]
   fn url_options_with_range() {
     let request_headers = Default::default();
-    let result = RangeUrlOptions::new_with_default_range(&request_headers)
+    let object_type = Default::default();
+    let result = RangeUrlOptions::new_with_default_range(&request_headers, &object_type)
       .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
     assert_eq!(
       result.range(),
@@ -935,20 +1147,22 @@ mod tests {
     let result = RangeUrlOptions::new(
       BytesPosition::new(Some(5), Some(11), Some(Class::Header)),
       &Default::default(),
+      &Default::default(),
     )
     .apply(Url::new(""));
     println!("{result:?}");
     assert_eq!(
       result,
       Url::new("")
-        .with_headers(Headers::new(HashMap::new()).with_header("Range", "bytes=5-10"))
+        .with_headers(Headers::new(BTreeMap::new()).with_header("Range", "bytes=5-10"))
         .with_class(Class::Header)
     );
   }
 
   #[test]
   fn url_options_apply_no_bytes_range() {
-    let result = RangeUrlOptions::new_with_default_range(&Default::default()).apply(Url::new(""));
+    let result = RangeUrlOptions::new_with_default_range(&Default::default(), &Default::default())
+      .apply(Url::new(""));
     assert_eq!(result, Url::new(""));
   }
 
@@ -956,6 +1170,7 @@ mod tests {
   fn url_options_apply_with_headers() {
     let result = RangeUrlOptions::new(
       BytesPosition::new(Some(5), Some(11), Some(Class::Header)),
+      &Default::default(),
       &Default::default(),
     )
     .apply(Url::new("").with_headers(Headers::default().with_header("header", "value")));
@@ -965,7 +1180,7 @@ mod tests {
       result,
       Url::new("")
         .with_headers(
-          Headers::new(HashMap::new())
+          Headers::new(BTreeMap::new())
             .with_header("Range", "bytes=5-10")
             .with_header("header", "value")
         )

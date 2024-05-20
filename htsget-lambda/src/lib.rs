@@ -282,7 +282,7 @@ mod tests {
   use htsget_search::storage::configure_cors;
   use htsget_search::storage::data_server::BindDataServer;
   use htsget_test::http::server::{expected_url_path, test_response, test_response_service_info};
-  use htsget_test::http::{config_with_tls, default_test_config, get_test_file};
+  use htsget_test::http::{config_with_tls, default_test_config, get_test_file_string};
   use htsget_test::http::{cors, server};
   use htsget_test::http::{Header, Response as TestResponse, TestRequest, TestServer};
 
@@ -698,8 +698,8 @@ mod tests {
     test(router).await;
   }
 
-  fn get_request_from_file(file_path: &str) -> Request {
-    let event = get_test_file(file_path);
+  async fn get_request_from_file(file_path: &str) -> Request {
+    let event = get_test_file_string(file_path).await;
     lambda_http::request::from_str(&event).expect("Failed to create lambda request.")
   }
 
@@ -720,7 +720,7 @@ mod tests {
     with_router(
       |router| async move {
         let response = route_request_to_response(
-          get_request_from_file(file_path),
+          get_request_from_file(file_path).await,
           router,
           expected_path,
           config,
@@ -739,7 +739,7 @@ mod tests {
     with_router(
       |router| async {
         let response = route_request_to_response(
-          get_request_from_file(file_path),
+          get_request_from_file(file_path).await,
           router,
           expected_path,
           config,

@@ -13,11 +13,12 @@ The CDK code in this directory constructs a CDK app from [`HtsgetLambdaStack`][h
 [`bin/settings.ts`][htsget-settings]:
 
 #### HtsgetSettings
+
 These are general settings for the CDK deployment.
 
 | Name                                                     | Description                                                                                                                                                                                                                                       | Type                                              |
-|----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
-| <span id="config">`config`</span>                        | The location of the htsget-rs server config. This must be specified. This config file configures the htsget-rs server. See [htsget-config] for a list of available server configuration options.                                                  | `string`                                          | 
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| <span id="config">`config`</span>                        | The location of the htsget-rs server config. This must be specified. This config file configures the htsget-rs server. See [htsget-config] for a list of available server configuration options.                                                  | `string`                                          |
 | <span id="domain">`domain`</span>                        | The domain name for the Route53 Hosted Zone that the htsget-rs server will be under. This must be specified. A hosted zone with this name will either be looked up or created depending on the value of [`lookupHostedZone?`](#lookupHostedZone). | `string`                                          |
 | <span id="authorizer">`authorizer`</span>                | Deployment options related to the authorizer. Note that this option allows specifying an AWS [JWT authorizer][jwt-authorizer]. The JWT authorizer automatically verifies tokens issued by a Cognito user pool.                                    | [`HtsgetJwtAuthSettings`](#htsgetjwtauthsettings) |
 | <span id="subDomain">`subDomain?`</span>                 | The domain name prefix to use for the htsget-rs server. Together with the [`domain`](#domain), this specifies url that the htsget-rs server will be reachable under. Defaults to `"htsget"`.                                                      | `string`                                          |
@@ -25,12 +26,13 @@ These are general settings for the CDK deployment.
 | <span id="lookupHostedZone">`lookupHostedZone?`</span>   | Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone with the domain name.        | `boolean`                                         |
 
 #### HtsgetJwtAuthSettings
+
 These settings are used to determine if the htsget API gateway endpoint is configured to have a JWT authorizer or not.
 
 | Name                                              | Description                                                                                                                                               | Type       |
-|---------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | <span id="public">`public`</span>                 | Whether this deployment is public. If this is `true` then no authorizer is present on the API gateway and the options below have no effect.               | `boolean`  |
-| <span id="jwtAudience">`jwtAudience?`</span>      | A list of the intended recipients of the JWT. A valid JWT must provide an aud that matches at least one entry in this list.                               | `string[]` | 
+| <span id="jwtAudience">`jwtAudience?`</span>      | A list of the intended recipients of the JWT. A valid JWT must provide an aud that matches at least one entry in this list.                               | `string[]` |
 | <span id="cogUserPoolId?">`cogUserPoolId?`</span> | The cognito user pool id for the authorizer. If this is not set, then a new user pool is created. No user pool is created if [`public`](#public) is true. | `string`   |
 
 The [`HtsgetSettings`](#htsgetsettings) are passed into [`HtsgetLambdaStack`][htsget-lambda-stack] in order to change the deployment config. An example of a public instance deployment
@@ -47,20 +49,20 @@ can be found under [`bin/htsget-lambda.ts`][htsget-lambda-bin]. This uses the [`
 
 After installing the basic dependencies, complete the following steps:
 
-1. Define CDK\_DEFAULT\_* env variables (if not defined already). You must be authenticated with your AWS cloud to run this step.
+1. Define CDK_DEFAULT\_\* env variables (if not defined already). You must be authenticated with your AWS cloud to run this step.
 1. Add the arm cross-compilation target to rust.
 1. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
-1. Define which configuration to use for htsget-rs on `cdk.json` as stated in aforementioned configuration section. 
+1. Define which configuration to use for htsget-rs on `cdk.json` as stated in aforementioned configuration section.
 
 Below is a summary of commands to run in this directory:
 
-```sh
+````sh
 ``export CDK_DEFAULT_ACCOUNT=`aws sts get-caller-identity --query Account --output text`
 export CDK_DEFAULT_REGION=`aws configure get region```
 rustup target add aarch64-unknown-linux-gnu
 cargo install cargo-lambda
 npm install
-```
+````
 
 ### Deploy to AWS
 

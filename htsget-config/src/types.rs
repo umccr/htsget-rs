@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::io::ErrorKind::Other;
 use std::{fmt, io, result};
@@ -12,13 +12,16 @@ use tracing::instrument;
 
 use crate::error::Error;
 use crate::error::Error::ParseError;
+use crate::resolver::object::ObjectType;
+use crate::types::TaggedTypeAll::All;
 
 pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all(serialize = "UPPERCASE"))]
 pub enum Format {
+  #[default]
   #[serde(alias = "bam", alias = "BAM")]
   Bam,
   #[serde(alias = "cram", alias = "CRAM")]
@@ -27,6 +30,31 @@ pub enum Format {
   Vcf,
   #[serde(alias = "bcf", alias = "BCF")]
   Bcf,
+}
+
+/// The type of key of the file.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KeyType {
+  File,
+  Index,
+}
+
+impl KeyType {
+  /// Get the key type from an ending.
+  pub fn from_ending<K: AsRef<str>>(key: K) -> KeyType {
+    if key.as_ref().ends_with(Format::Bam.index_file_ending())
+      || key.as_ref().ends_with(Format::Bcf.index_file_ending())
+      || key.as_ref().ends_with(Format::Cram.index_file_ending())
+      || key.as_ref().ends_with(Format::Vcf.index_file_ending())
+      || key.as_ref().ends_with(".bam.gzi")
+      || key.as_ref().ends_with(".vcf.gz.gzi")
+      || key.as_ref().ends_with(".bcf.gzi")
+    {
+      Self::Index
+    } else {
+      Self::File
+    }
+  }
 }
 
 /// Todo allow these to be configurable.
@@ -40,8 +68,17 @@ impl Format {
     }
   }
 
-  pub fn fmt_file(&self, id: &str) -> String {
-    format!("{id}{}", self.file_ending())
+  pub fn fmt_file(&self, query: &Query) -> String {
+    let id = query.id();
+    let id = format!("{id}{}", self.file_ending());
+
+    #[cfg(feature = "crypt4gh")]
+    if query.object_type().is_crypt4gh() {
+      return format!("{id}.c4gh");
+    }
+
+    #[allow(clippy::let_and_return)]
+    id
   }
 
   pub fn index_file_ending(&self) -> &str {
@@ -58,6 +95,18 @@ impl Format {
   }
 
   pub fn gzi_index_file_ending(&self) -> io::Result<&str> {
+    match self {
+      Format::Bam => Ok(".bam.gzi"),
+      Format::Cram => Err(io::Error::new(
+        Other,
+        "CRAM does not support GZI".to_string(),
+      )),
+      Format::Vcf => Ok(".vcf.gz.gzi"),
+      Format::Bcf => Ok(".bcf.gzi"),
+    }
+  }
+
+  pub fn gzi_endings(&self) -> io::Result<&str> {
     match self {
       Format::Bam => Ok(".bam.gzi"),
       Format::Cram => Err(io::Error::new(
@@ -92,9 +141,10 @@ impl Display for Format {
 }
 
 /// Class component of htsget response.
-#[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all(serialize = "lowercase"))]
 pub enum Class {
+  #[default]
   #[serde(alias = "header", alias = "HEADER")]
   Header,
   #[serde(alias = "body", alias = "BODY")]
@@ -219,6 +269,12 @@ pub enum Fields {
   List(HashSet<String>),
 }
 
+impl Default for Fields {
+  fn default() -> Self {
+    Self::Tagged(All)
+  }
+}
+
 /// Possible values for the tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(untagged)]
@@ -229,12 +285,18 @@ pub enum Tags {
   List(HashSet<String>),
 }
 
+impl Default for Tags {
+  fn default() -> Self {
+    Self::Tagged(All)
+  }
+}
+
 /// The no tags parameter.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub struct NoTags(pub Option<HashSet<String>>);
 
 /// A struct containing the information from the HTTP request.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Request {
   path: String,
   query: HashMap<String, String>,
@@ -256,6 +318,12 @@ impl Request {
     Self::new(id, Default::default(), Default::default())
   }
 
+  /// Set the request headers.
+  pub fn with_headers(mut self, headers: HeaderMap) -> Self {
+    self.headers = headers;
+    self
+  }
+
   /// Get the id.
   pub fn path(&self) -> &str {
     &self.path
@@ -274,7 +342,7 @@ impl Request {
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Query {
   id: String,
   format: Format,
@@ -288,11 +356,17 @@ pub struct Query {
   no_tags: NoTags,
   /// The raw HTTP request information.
   request: Request,
+  object_type: ObjectType,
 }
 
 impl Query {
   /// Create a new query.
-  pub fn new(id: impl Into<String>, format: Format, request: Request) -> Self {
+  pub fn new(
+    id: impl Into<String>,
+    format: Format,
+    request: Request,
+    object_type: ObjectType,
+  ) -> Self {
     Self {
       id: id.into(),
       format,
@@ -303,13 +377,19 @@ impl Query {
       tags: Tags::Tagged(TaggedTypeAll::All),
       no_tags: NoTags(None),
       request,
+      object_type,
     }
   }
 
   /// Create a new query with a default request.
-  pub fn new_with_default_request(id: impl Into<String>, format: Format) -> Self {
+  pub fn new_with_defaults(id: impl Into<String>, format: Format) -> Self {
     let id = id.into();
-    Self::new(id.clone(), format, Request::new_with_id(id))
+    Self::new(
+      id.clone(),
+      format,
+      Request::new_with_id(id),
+      Default::default(),
+    )
   }
 
   /// Set the id.
@@ -408,6 +488,22 @@ impl Query {
   pub fn request(&self) -> &Request {
     &self.request
   }
+
+  /// Get the object type of this query.
+  pub fn object_type(&self) -> &ObjectType {
+    &self.object_type
+  }
+
+  /// Set the object type.
+  pub fn with_object_type(mut self, object_type: ObjectType) -> Self {
+    self.set_object_type(object_type);
+    self
+  }
+
+  /// Set the object type.
+  pub fn set_object_type(&mut self, object_type: ObjectType) {
+    self.object_type = object_type;
+  }
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -477,11 +573,11 @@ impl From<io::Error> for HtsGetError {
 }
 
 /// The headers that need to be supplied when requesting data from a url.
-#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Headers(HashMap<String, String>);
+#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct Headers(BTreeMap<String, String>);
 
 impl Headers {
-  pub fn new(headers: HashMap<String, String>) -> Self {
+  pub fn new(headers: BTreeMap<String, String>) -> Self {
     Self(headers)
   }
 
@@ -512,13 +608,13 @@ impl Headers {
     self.0.extend(headers.into_inner());
   }
 
-  /// Get the inner HashMap.
-  pub fn into_inner(self) -> HashMap<String, String> {
+  /// Get the inner BTreeMap.
+  pub fn into_inner(self) -> BTreeMap<String, String> {
     self.0
   }
 
-  /// Get a reference to the inner HashMap.
-  pub fn as_ref_inner(&self) -> &HashMap<String, String> {
+  /// Get a reference to the inner BTreeMap.
+  pub fn as_ref_inner(&self) -> &BTreeMap<String, String> {
     &self.0
   }
 }
@@ -623,7 +719,7 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
-  use std::collections::{HashMap, HashSet};
+  use std::collections::{BTreeMap, HashSet};
   use std::str::FromStr;
 
   use http::{HeaderMap, HeaderName, HeaderValue};
@@ -741,44 +837,43 @@ mod tests {
 
   #[test]
   fn query_new() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam);
+    let result = Query::new_with_defaults("NA12878", Format::Bam);
     assert_eq!(result.id(), "NA12878");
   }
 
   #[test]
   fn query_with_format() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam);
+    let result = Query::new_with_defaults("NA12878", Format::Bam);
     assert_eq!(result.format(), Format::Bam);
   }
 
   #[test]
   fn query_with_class() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam).with_class(Class::Header);
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_class(Class::Header);
     assert_eq!(result.class(), Class::Header);
   }
 
   #[test]
   fn query_with_reference_name() {
-    let result =
-      Query::new_with_default_request("NA12878", Format::Bam).with_reference_name("chr1");
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_reference_name("chr1");
     assert_eq!(result.reference_name(), Some("chr1"));
   }
 
   #[test]
   fn query_with_start() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam).with_start(0);
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_start(0);
     assert_eq!(result.interval().start(), Some(0));
   }
 
   #[test]
   fn query_with_end() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam).with_end(0);
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_end(0);
     assert_eq!(result.interval().end(), Some(0));
   }
 
   #[test]
   fn query_with_fields() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam).with_fields(Fields::List(
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_fields(Fields::List(
       HashSet::from_iter(vec!["QNAME".to_string(), "FLAG".to_string()]),
     ));
     assert_eq!(
@@ -792,15 +887,14 @@ mod tests {
 
   #[test]
   fn query_with_tags() {
-    let result = Query::new_with_default_request("NA12878", Format::Bam)
-      .with_tags(Tags::Tagged(TaggedTypeAll::All));
+    let result =
+      Query::new_with_defaults("NA12878", Format::Bam).with_tags(Tags::Tagged(TaggedTypeAll::All));
     assert_eq!(result.tags(), &Tags::Tagged(TaggedTypeAll::All));
   }
 
   #[test]
   fn query_with_no_tags() {
-    let result =
-      Query::new_with_default_request("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
+    let result = Query::new_with_defaults("NA12878", Format::Bam).with_no_tags(vec!["RG", "OQ"]);
     assert_eq!(
       result.no_tags(),
       &NoTags(Some(HashSet::from_iter(vec![
@@ -836,19 +930,19 @@ mod tests {
 
   #[test]
   fn headers_with_header() {
-    let header = Headers::new(HashMap::new()).with_header("Range", "bytes=0-1023");
+    let header = Headers::new(BTreeMap::new()).with_header("Range", "bytes=0-1023");
     let result = header.0.get("Range");
     assert_eq!(result, Some(&"bytes=0-1023".to_string()));
   }
 
   #[test]
   fn headers_is_empty() {
-    assert!(Headers::new(HashMap::new()).is_empty());
+    assert!(Headers::new(BTreeMap::new()).is_empty());
   }
 
   #[test]
   fn headers_insert() {
-    let mut header = Headers::new(HashMap::new());
+    let mut header = Headers::new(BTreeMap::new());
     header.insert("Range", "bytes=0-1023");
     let result = header.0.get("Range");
     assert_eq!(result, Some(&"bytes=0-1023".to_string()));
@@ -856,10 +950,10 @@ mod tests {
 
   #[test]
   fn headers_extend() {
-    let mut headers = Headers::new(HashMap::new());
+    let mut headers = Headers::new(BTreeMap::new());
     headers.insert("Range", "bytes=0-1023");
 
-    let mut extend_with = Headers::new(HashMap::new());
+    let mut extend_with = Headers::new(BTreeMap::new());
     extend_with.insert("header", "value");
 
     headers.extend(extend_with);
@@ -873,7 +967,7 @@ mod tests {
 
   #[test]
   fn headers_multiple_values() {
-    let headers = Headers::new(HashMap::new())
+    let headers = Headers::new(BTreeMap::new())
       .with_header("Range", "bytes=0-1023")
       .with_header("Range", "bytes=1024-2047");
     let result = headers.0.get("Range");
@@ -907,7 +1001,7 @@ mod tests {
 
   #[test]
   fn serialize_headers() {
-    let headers = Headers::new(HashMap::new())
+    let headers = Headers::new(BTreeMap::new())
       .with_header("Range", "bytes=0-1023")
       .with_header("Range", "bytes=1024-2047");
 
@@ -923,23 +1017,23 @@ mod tests {
   #[test]
   fn url_with_headers() {
     let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
-      .with_headers(Headers::new(HashMap::new()));
+      .with_headers(Headers::new(BTreeMap::new()));
     assert_eq!(result.headers, None);
   }
 
   #[test]
   fn url_add_headers() {
-    let mut headers = Headers::new(HashMap::new());
+    let mut headers = Headers::new(BTreeMap::new());
     headers.insert("Range", "bytes=0-1023");
 
-    let mut extend_with = Headers::new(HashMap::new());
+    let mut extend_with = Headers::new(BTreeMap::new());
     extend_with.insert("header", "value");
 
     let result = Url::new("data:application/vnd.ga4gh.bam;base64,QkFNAQ==")
       .with_headers(headers)
       .add_headers(extend_with);
 
-    let expected_headers = Headers::new(HashMap::new())
+    let expected_headers = Headers::new(BTreeMap::new())
       .with_header("Range", "bytes=0-1023")
       .with_header("header", "value");
 

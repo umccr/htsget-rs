@@ -8,6 +8,8 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+// #[cfg(feature = "crypt4gh")]
+// use async_crypt4gh::reader::builder::Builder;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
@@ -26,7 +28,9 @@ use tracing::{instrument, trace, trace_span, Instrument};
 use htsget_config::types::Class::Header;
 
 use crate::htsget::ConcurrencyError;
-use crate::storage::{BytesPosition, HeadOptions, RangeUrlOptions, Storage};
+use crate::storage::{
+  BytesPosition, BytesPositionOptions, HeadOptions, HeadOutput, RangeUrlOptions, Storage,
+};
 use crate::storage::{DataBlock, GetOptions};
 use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
 
@@ -73,7 +77,7 @@ where
   Index: Send + Sync,
 {
   /// This returns mapped and placed unmapped ranges.
-  async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>>;
+  async fn get_byte_ranges_for_all(&self, head_output: &HeadOutput) -> Result<Vec<BytesPosition>>;
 
   /// Get the offset in the file of the end of the header.
   async fn get_header_end_offset(&self, index: &Index) -> Result<u64>;
@@ -85,6 +89,7 @@ where
     header: &Header,
     reader: &mut Reader,
     query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<BytesPosition>;
 
   /// Get the eof marker for this format.
@@ -92,6 +97,28 @@ where
 
   /// Get the eof data block for this format.
   fn get_eof_data_block(&self) -> Option<DataBlock>;
+
+  /// Get the eof bytes positions converting from a data block.
+  fn get_eof_byte_positions(&self, file_size: u64) -> Option<Result<BytesPosition>> {
+    if let Some(DataBlock::Data(data, class)) = self.get_eof_data_block() {
+      let data_len =
+        u64::try_from(data.len()).map_err(|err| HtsGetError::InvalidInput(err.to_string()));
+
+      return match data_len {
+        Ok(data_len) => {
+          let bytes_position = BytesPosition::default()
+            .with_start(file_size - data_len)
+            .with_end(file_size);
+          let bytes_position = bytes_position.set_class(class);
+
+          Some(Ok(bytes_position))
+        }
+        Err(err) => Some(Err(err)),
+      };
+    }
+
+    None
+  }
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -124,6 +151,7 @@ where
     &self,
     query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>>;
 
   /// Get reads ranges for a reference sequence implementation.
@@ -132,6 +160,7 @@ where
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>>;
 
   ///Get reads for a given reference name and an optional sequence range.
@@ -141,9 +170,12 @@ where
     index: &Index,
     header: &Header,
     query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     if reference_name == "*" {
-      return self.get_byte_ranges_for_unmapped_reads(query, index).await;
+      return self
+        .get_byte_ranges_for_unmapped_reads(query, index, head_output)
+        .await;
     }
 
     let maybe_ref_seq = self
@@ -155,7 +187,8 @@ where
         "reference name not found: {reference_name}"
       ))),
       Some(ref_seq_id) => {
-        Self::get_byte_ranges_for_reference_sequence(self, ref_seq_id, query, index).await
+        Self::get_byte_ranges_for_reference_sequence(self, ref_seq_id, query, index, head_output)
+          .await
       }
     }?;
     Ok(byte_ranges)
@@ -185,6 +218,8 @@ where
   async fn read_header(reader: &mut Reader) -> io::Result<Header>;
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
+  fn into_inner(reader: Reader) -> ReaderType;
+
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
     &self,
@@ -192,6 +227,7 @@ where
     index: &Index,
     header: &Header,
     query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>>;
 
   /// Get the storage of this format.
@@ -202,18 +238,25 @@ where
 
   /// Get the position at the end of file marker.
   #[instrument(level = "trace", skip(self), ret)]
-  async fn position_at_eof(&self, query: &Query) -> Result<u64> {
-    let file_size = self
-      .get_storage()
-      .head(
-        query.format().fmt_file(query.id()),
-        HeadOptions::new(query.request().headers()),
-      )
-      .await?;
+  async fn position_at_eof(&self, file_size: &HeadOutput) -> Result<u64> {
     Ok(
-      file_size
+      file_size.content_length()
         - u64::try_from(self.get_eof_marker().len())
           .map_err(|err| HtsGetError::InvalidInput(err.to_string()))?,
+    )
+  }
+
+  /// Get the file size.
+  #[instrument(level = "trace", skip(self), ret)]
+  async fn file_size(&self, query: &Query) -> Result<HeadOutput> {
+    Ok(
+      self
+        .get_storage()
+        .head(
+          query.format().fmt_file(query),
+          HeadOptions::new(query.request().headers(), query.object_type()),
+        )
+        .await?,
     )
   }
 
@@ -225,7 +268,8 @@ where
       .get_storage()
       .get(
         query.format().fmt_index(query.id()),
-        GetOptions::new_with_default_range(query.request().headers()),
+        GetOptions::new_with_default_range(query.request().headers(), query.object_type()),
+        &mut None,
       )
       .await?;
     Self::read_index_inner(storage)
@@ -235,6 +279,13 @@ where
 
   /// Search based on the query.
   async fn search(&self, query: Query) -> Result<Response> {
+    let index = self.read_index(&query).await?;
+
+    let header_end = self.get_header_end_offset(&index).await?;
+    let mut output = self.file_size(&query).await?;
+
+    let (header, mut reader) = self.get_header(&query, header_end, &mut output).await?;
+
     match query.class() {
       Body => {
         let format = self.get_format();
@@ -246,26 +297,22 @@ where
           )));
         }
 
-        let byte_ranges = match query.reference_name().as_ref() {
-          None => self.get_byte_ranges_for_all(&query).await?,
+        let mut byte_ranges = match query.reference_name().as_ref() {
+          None => self.get_byte_ranges_for_all(&output).await?,
           Some(reference_name) => {
-            let index = self.read_index(&query).await?;
-
-            let header_end = self.get_header_end_offset(&index).await?;
-            let (header, mut reader) = self.get_header(&query, header_end).await?;
-
             let mut byte_ranges = self
               .get_byte_ranges_for_reference_name(
                 reference_name.to_string(),
                 &index,
                 &header,
                 &query,
+                &output,
               )
               .await?;
 
             byte_ranges.push(
               self
-                .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
+                .get_byte_ranges_for_header(&index, &header, &mut reader, &query, &output)
                 .await?,
             );
 
@@ -273,10 +320,22 @@ where
           }
         };
 
-        let mut blocks = DataBlock::from_bytes_positions(byte_ranges);
-        if let Some(eof) = self.get_eof_data_block() {
-          blocks.push(eof);
+        if let Some(eof) = self.get_eof_byte_positions(output.content_length()) {
+          byte_ranges.push(eof?);
         }
+
+        let blocks = self
+          .get_storage()
+          .update_byte_positions(
+            Self::into_inner(reader),
+            BytesPositionOptions::new(
+              byte_ranges,
+              output.content_length(),
+              query.request().headers(),
+              query.object_type(),
+            ),
+          )
+          .await?;
 
         self.build_response(&query, blocks).await
       }
@@ -285,26 +344,29 @@ where
         self
           .get_storage()
           .head(
-            query.format().fmt_file(query.id()),
-            HeadOptions::new(query.request().headers()),
+            query.format().fmt_file(&query),
+            HeadOptions::new(query.request().headers(), query.object_type()),
           )
           .await?;
-
-        let index = self.read_index(&query).await?;
-
-        let header_end = self.get_header_end_offset(&index).await?;
-        let (header, mut reader) = self.get_header(&query, header_end).await?;
 
         let header_byte_ranges = self
-          .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
+          .get_byte_ranges_for_header(&index, &header, &mut reader, &query, &output)
           .await?;
 
-        self
-          .build_response(
-            &query,
-            DataBlock::from_bytes_positions(vec![header_byte_ranges]),
+        let blocks = self
+          .get_storage()
+          .update_byte_positions(
+            Self::into_inner(reader),
+            BytesPositionOptions::new(
+              vec![header_byte_ranges],
+              output.content_length(),
+              query.request().headers(),
+              query.object_type(),
+            ),
           )
-          .await
+          .await?;
+
+        self.build_response(&query, blocks).await
       }
     }
   }
@@ -324,8 +386,12 @@ where
           storage_futures.push_back(tokio::spawn(async move {
             storage
               .range_url(
-                query_owned.format().fmt_file(query_owned.id()),
-                RangeUrlOptions::new(range, query_owned.request().headers()),
+                query_owned.format().fmt_file(&query_owned),
+                RangeUrlOptions::new(
+                  range,
+                  query_owned.request().headers(),
+                  query_owned.object_type(),
+                ),
               )
               .await
           }));
@@ -349,19 +415,29 @@ where
 
   /// Get the header from the file specified by the id and format.
   #[instrument(level = "trace", skip(self))]
-  async fn get_header(&self, query: &Query, offset: u64) -> Result<(Header, Reader)> {
+  async fn get_header(
+    &self,
+    query: &Query,
+    offset: u64,
+    output: &mut HeadOutput,
+  ) -> Result<(Header, Reader)> {
     trace!("getting header");
     let get_options = GetOptions::new(
       BytesPosition::default().with_end(offset),
       query.request().headers(),
+      query.object_type(),
     );
 
     let reader_type = self
       .get_storage()
-      .get(query.format().fmt_file(query.id()), get_options)
+      .get(
+        query.format().fmt_file(query),
+        get_options,
+        &mut Some(output),
+      )
       .await?;
-    let mut reader = Self::init_reader(reader_type);
 
+    let mut reader = Self::init_reader(reader_type);
     Ok((
       Self::read_header(&mut reader).await.map_err(|err| {
         HtsGetError::io_error(format!("reading `{}` header: {}", self.get_format(), err))
@@ -430,6 +506,7 @@ where
     query: &Query,
     ref_seq_id: usize,
     index: &Index<I>,
+    head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     let chunks: Result<Vec<Chunk>> = trace_span!("querying chunks").in_scope(|| {
       trace!(id = ?query.id(), ref_seq_id = ?ref_seq_id, "querying chunks");
@@ -446,7 +523,8 @@ where
       .get_storage()
       .get(
         query.format().fmt_gzi(query.id())?,
-        GetOptions::new_with_default_range(query.request().headers()),
+        GetOptions::new_with_default_range(query.request().headers(), query.object_type()),
+        &mut None,
       )
       .await;
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
@@ -469,13 +547,13 @@ where
         .await;
 
         self
-          .bytes_positions_from_chunks(query, chunks?.into_iter(), gzi?.into_iter())
+          .bytes_positions_from_chunks(head_output, chunks?.into_iter(), gzi?.into_iter())
           .await?
       }
       Err(_) => {
         self
           .bytes_positions_from_chunks(
-            query,
+            head_output,
             chunks?.into_iter(),
             Self::index_positions(index).into_iter(),
           )
@@ -490,7 +568,7 @@ where
   #[instrument(level = "trace", skip(self, chunks, positions))]
   async fn bytes_positions_from_chunks<'a>(
     &self,
-    query: &Query,
+    head_output: &HeadOutput,
     chunks: impl Iterator<Item = Chunk> + Send + 'a,
     mut positions: impl Iterator<Item = u64> + Send + 'a,
   ) -> Result<Vec<BytesPosition>> {
@@ -523,7 +601,7 @@ where
       let end = match maybe_end {
         None => match end_position {
           None => {
-            let pos = self.position_at_eof(query).await?;
+            let pos = self.position_at_eof(head_output).await?;
             end_position = Some(pos);
             pos
           }
@@ -543,6 +621,7 @@ where
     &self,
     _query: &Query,
     _index: &Index<I>,
+    _head_output: &HeadOutput,
   ) -> Result<Vec<BytesPosition>> {
     Ok(Vec::new())
   }
@@ -566,9 +645,9 @@ where
   T: BgzfSearch<S, I, ReaderType, Reader, Header> + Send + Sync,
 {
   #[instrument(level = "debug", skip(self), ret)]
-  async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
+  async fn get_byte_ranges_for_all(&self, head_output: &HeadOutput) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?)
+      BytesPosition::default().with_end(self.position_at_eof(head_output).await?)
     ])
   }
 
@@ -585,6 +664,7 @@ where
           ))
         })?;
 
+    // Todo consider the header length if it includes the crypt4gh header.
     // The header can only extend past the first index position by the maximum BGZF block size
     // because otherwise the first index position wouldn't be representing the first reference.
     Ok(first_index_position + MAX_BGZF_ISIZE)
@@ -595,7 +675,8 @@ where
     index: &Index<I>,
     header: &Header,
     reader: &mut Reader,
-    query: &Query,
+    _query: &Query,
+    head_output: &HeadOutput,
   ) -> Result<BytesPosition> {
     let current_block_index = self.virtual_position(reader);
 
@@ -621,7 +702,7 @@ where
       let position = positions.into_iter().next().unwrap_or_default();
 
       if position == 0 {
-        self.position_at_eof(query).await?
+        self.position_at_eof(head_output).await?
       } else {
         position
       }

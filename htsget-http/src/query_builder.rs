@@ -17,7 +17,7 @@ impl QueryBuilder {
     let id = request.path().to_string();
 
     Self {
-      query: Query::new(id, format, request),
+      query: Query::new(id, format, request, Default::default()),
     }
   }
 

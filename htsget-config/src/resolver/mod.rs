@@ -1,21 +1,24 @@
-use std::collections::HashSet;
 use std::result;
 
 use async_trait::async_trait;
 use regex::{Error, Regex};
 use serde::{Deserialize, Serialize};
-use serde_with::with_prefix;
 use tracing::instrument;
 
 use crate::config::DataServerConfig;
+use crate::error;
+use crate::resolver::allow_guard::{AllowGuard, QueryAllowed, ReferenceNames};
+use crate::resolver::object::ObjectType;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
 #[cfg(feature = "url-storage")]
 use crate::storage::url::UrlStorageClient;
 use crate::storage::{ResolvedId, Storage, TaggedStorageTypes};
-use crate::types::Format::{Bam, Bcf, Cram, Vcf};
-use crate::types::{Class, Fields, Format, Interval, Query, Response, Result, TaggedTypeAll, Tags};
+use crate::types::{Class, Fields, Format, Interval, Query, Response, Result, Tags};
+
+pub mod allow_guard;
+pub mod object;
 
 /// A trait which matches the query id, replacing the match in the substitution text.
 pub trait IdResolver {
@@ -48,12 +51,6 @@ pub trait StorageResolver {
   ) -> Option<Result<Response>>;
 }
 
-/// Determines whether the query matches for use with the storage.
-pub trait QueryAllowed {
-  /// Does this query match.
-  fn query_allowed(&self, query: &Query) -> bool;
-}
-
 /// A regex storage is a storage that matches ids using Regex.
 #[derive(Serialize, Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -64,6 +61,7 @@ pub struct Resolver {
   substitution_string: String,
   storage: Storage,
   allow_guard: AllowGuard,
+  object_type: ObjectType,
 }
 
 /// A type which holds a resolved storage and an resolved id.
@@ -93,185 +91,32 @@ impl<T> ResolvedStorage<T> {
   }
 }
 
-impl ResolvedId {}
-
-with_prefix!(allow_interval_prefix "allow_interval_");
-
-/// A query guard represents query parameters that can be allowed to storage for a given query.
-#[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
-#[serde(default)]
-pub struct AllowGuard {
-  allow_reference_names: ReferenceNames,
-  allow_fields: Fields,
-  allow_tags: Tags,
-  allow_formats: Vec<Format>,
-  allow_classes: Vec<Class>,
-  #[serde(flatten, with = "allow_interval_prefix")]
-  allow_interval: Interval,
-}
-
-/// Reference names that can be matched.
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(untagged)]
-pub enum ReferenceNames {
-  Tagged(TaggedTypeAll),
-  List(HashSet<String>),
-}
-
-impl AllowGuard {
-  /// Create a new allow guard.
-  pub fn new(
-    allow_reference_names: ReferenceNames,
-    allow_fields: Fields,
-    allow_tags: Tags,
-    allow_formats: Vec<Format>,
-    allow_classes: Vec<Class>,
-    allow_interval: Interval,
-  ) -> Self {
-    Self {
-      allow_reference_names,
-      allow_fields,
-      allow_tags,
-      allow_formats,
-      allow_classes,
-      allow_interval,
+impl IdResolver for Resolver {
+  #[instrument(level = "trace", skip(self), ret)]
+  fn resolve_id(&self, query: &Query) -> Option<ResolvedId> {
+    if self.regex.is_match(query.id()) && self.allow_guard.query_allowed(query) {
+      Some(ResolvedId::new(
+        self
+          .regex
+          .replace(query.id(), &self.substitution_string)
+          .to_string(),
+      ))
+    } else {
+      None
     }
-  }
-
-  /// Get allow formats.
-  pub fn allow_formats(&self) -> &[Format] {
-    &self.allow_formats
-  }
-
-  /// Get allow classes.
-  pub fn allow_classes(&self) -> &[Class] {
-    &self.allow_classes
-  }
-
-  /// Get allow interval.
-  pub fn allow_interval(&self) -> Interval {
-    self.allow_interval
-  }
-
-  /// Get allow reference names.
-  pub fn allow_reference_names(&self) -> &ReferenceNames {
-    &self.allow_reference_names
-  }
-
-  /// Get allow fields.
-  pub fn allow_fields(&self) -> &Fields {
-    &self.allow_fields
-  }
-
-  /// Get allow tags.
-  pub fn allow_tags(&self) -> &Tags {
-    &self.allow_tags
-  }
-
-  /// Set the allow reference names.
-  pub fn with_allow_reference_names(mut self, allow_reference_names: ReferenceNames) -> Self {
-    self.allow_reference_names = allow_reference_names;
-    self
-  }
-
-  /// Set the allow fields.
-  pub fn with_allow_fields(mut self, allow_fields: Fields) -> Self {
-    self.allow_fields = allow_fields;
-    self
-  }
-
-  /// Set the allow tags.
-  pub fn with_allow_tags(mut self, allow_tags: Tags) -> Self {
-    self.allow_tags = allow_tags;
-    self
-  }
-
-  /// Set the allow formats.
-  pub fn with_allow_formats(mut self, allow_formats: Vec<Format>) -> Self {
-    self.allow_formats = allow_formats;
-    self
-  }
-
-  /// Set the allow classes.
-  pub fn with_allow_classes(mut self, allow_classes: Vec<Class>) -> Self {
-    self.allow_classes = allow_classes;
-    self
-  }
-
-  /// Set the allow interval.
-  pub fn with_allow_interval(mut self, allow_interval: Interval) -> Self {
-    self.allow_interval = allow_interval;
-    self
-  }
-}
-
-impl Default for AllowGuard {
-  fn default() -> Self {
-    Self {
-      allow_formats: vec![Bam, Cram, Vcf, Bcf],
-      allow_classes: vec![Class::Body, Class::Header],
-      allow_interval: Default::default(),
-      allow_reference_names: ReferenceNames::Tagged(TaggedTypeAll::All),
-      allow_fields: Fields::Tagged(TaggedTypeAll::All),
-      allow_tags: Tags::Tagged(TaggedTypeAll::All),
-    }
-  }
-}
-
-impl QueryAllowed for ReferenceNames {
-  fn query_allowed(&self, query: &Query) -> bool {
-    match (self, &query.reference_name()) {
-      (ReferenceNames::Tagged(TaggedTypeAll::All), _) => true,
-      (ReferenceNames::List(reference_names), Some(reference_name)) => {
-        reference_names.contains(*reference_name)
-      }
-      (ReferenceNames::List(_), None) => false,
-    }
-  }
-}
-
-impl QueryAllowed for Fields {
-  fn query_allowed(&self, query: &Query) -> bool {
-    match (self, &query.fields()) {
-      (Fields::Tagged(TaggedTypeAll::All), _) => true,
-      (Fields::List(self_fields), Fields::List(query_fields)) => {
-        self_fields.is_subset(query_fields)
-      }
-      (Fields::List(_), Fields::Tagged(TaggedTypeAll::All)) => false,
-    }
-  }
-}
-
-impl QueryAllowed for Tags {
-  fn query_allowed(&self, query: &Query) -> bool {
-    match (self, &query.tags()) {
-      (Tags::Tagged(TaggedTypeAll::All), _) => true,
-      (Tags::List(self_tags), Tags::List(query_tags)) => self_tags.is_subset(query_tags),
-      (Tags::List(_), Tags::Tagged(TaggedTypeAll::All)) => false,
-    }
-  }
-}
-
-impl QueryAllowed for AllowGuard {
-  fn query_allowed(&self, query: &Query) -> bool {
-    self.allow_formats.contains(&query.format())
-      && self.allow_classes.contains(&query.class())
-      && self
-        .allow_interval
-        .contains(query.interval().start().unwrap_or(u32::MIN))
-      && self
-        .allow_interval
-        .contains(query.interval().end().unwrap_or(u32::MAX))
-      && self.allow_reference_names.query_allowed(query)
-      && self.allow_fields.query_allowed(query)
-      && self.allow_tags.query_allowed(query)
   }
 }
 
 impl Default for Resolver {
   fn default() -> Self {
-    Self::new(Storage::default(), ".*", "$0", AllowGuard::default())
-      .expect("expected valid storage")
+    Self::new(
+      Storage::default(),
+      ".*",
+      "$0",
+      AllowGuard::default(),
+      ObjectType::default(),
+    )
+    .expect("expected valid storage")
   }
 }
 
@@ -282,22 +127,36 @@ impl Resolver {
     regex: &str,
     replacement_string: &str,
     allow_guard: AllowGuard,
+    object_type: ObjectType,
   ) -> result::Result<Self, Error> {
     Ok(Self {
       regex: Regex::new(regex)?,
       substitution_string: replacement_string.to_string(),
       storage,
       allow_guard,
+      object_type,
     })
   }
 
-  /// Set the local resolvers from the data server config.
-  pub fn resolvers_from_data_server_config(&mut self, config: &DataServerConfig) {
+  /// Validate resolvers and set the local resolvers from the data server config.
+  pub fn validate(mut self, config: &DataServerConfig) -> error::Result<Self> {
     if let Storage::Tagged(TaggedStorageTypes::Local) = self.storage() {
       if let Some(local_storage) = config.into() {
         self.storage = Storage::Local { local_storage };
       }
     }
+
+    #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
+    // `Crypt4GHGenerate` is only supported for `UrlStorage`.
+    if let ObjectType::GenerateKeys { .. } = self.object_type() {
+      if !matches!(self.storage(), Storage::Url { .. }) {
+        return Err(error::Error::ParseError(
+          "generating Crypt4GH keys is not supported if not using `UrlStorage`".to_string(),
+        ));
+      }
+    };
+
+    Ok(self)
   }
 
   /// Get the match associated with the capture group at index `i` using the `regex_match`.
@@ -337,38 +196,27 @@ impl Resolver {
 
   /// Get allow interval.
   pub fn allow_interval(&self) -> Interval {
-    self.allow_guard.allow_interval
+    self.allow_guard.allow_interval()
   }
 
   /// Get allow reference names.
   pub fn allow_reference_names(&self) -> &ReferenceNames {
-    &self.allow_guard.allow_reference_names
+    self.allow_guard.allow_reference_names()
   }
 
   /// Get allow fields.
   pub fn allow_fields(&self) -> &Fields {
-    &self.allow_guard.allow_fields
+    self.allow_guard.allow_fields()
   }
 
   /// Get allow tags.
   pub fn allow_tags(&self) -> &Tags {
-    &self.allow_guard.allow_tags
+    self.allow_guard.allow_tags()
   }
-}
 
-impl IdResolver for Resolver {
-  #[instrument(level = "trace", skip(self), ret)]
-  fn resolve_id(&self, query: &Query) -> Option<ResolvedId> {
-    if self.regex.is_match(query.id()) && self.allow_guard.query_allowed(query) {
-      Some(ResolvedId::new(
-        self
-          .regex
-          .replace(query.id(), &self.substitution_string)
-          .to_string(),
-      ))
-    } else {
-      None
-    }
+  /// Get the object type config.
+  pub fn object_type(&self) -> &ObjectType {
+    &self.object_type
   }
 }
 
@@ -383,6 +231,7 @@ impl StorageResolver for Resolver {
     let _matched_id = query.id().to_string();
 
     query.set_id(resolved_id.into_inner());
+    query.set_object_type(self.object_type().clone());
 
     if let Some(response) = self.storage().resolve_local_storage::<T>(query).await {
       return Some(response);
@@ -438,15 +287,27 @@ impl StorageResolver for &[Resolver] {
 mod tests {
   use http::uri::Authority;
 
+  #[cfg(feature = "s3-storage")]
+  use {crate::storage::s3::S3Storage, std::collections::HashSet};
   #[cfg(feature = "url-storage")]
   use {
-    crate::storage::url, crate::storage::url::ValidatedUrl, http::Uri as InnerUrl,
-    reqwest::ClientBuilder, std::str::FromStr,
+    crate::storage::url, crate::storage::url::endpoints::Endpoints,
+    crate::storage::url::ValidatedUrl, http::Uri as InnerUrl, reqwest::ClientBuilder,
+    std::str::FromStr,
+  };
+  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
+  use {
+    crate::tls::crypt4gh::Crypt4GHKeyPair,
+    crate::tls::tests::with_test_certificates,
+    async_crypt4gh::{KeyPair, PublicKey},
+    crypt4gh::keys::{generate_keys, get_private_key, get_public_key},
+    rustls::PrivateKey,
+    std::path::Path,
+    tempfile::TempDir,
   };
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
-  #[cfg(feature = "s3-storage")]
-  use crate::storage::s3::S3Storage;
+  use crate::types::Format::Bam;
   use crate::types::Scheme::Http;
   use crate::types::Url;
 
@@ -472,7 +333,7 @@ mod tests {
     async fn from_url(url_storage: &UrlStorageClient, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
-        vec![Url::new(url_storage.url().to_string())],
+        vec![Url::new(url_storage.endpoints().file().to_string())],
       ))
     }
   }
@@ -490,10 +351,11 @@ mod tests {
       "id",
       "$0-test",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "127.0.0.1:8080").await;
+    expected_resolved_request(&vec![resolver], "127.0.0.1:8080").await;
   }
 
   #[cfg(feature = "s3-storage")]
@@ -505,10 +367,11 @@ mod tests {
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "id").await;
+    expected_resolved_request(&vec![resolver], "id").await;
   }
 
   #[cfg(feature = "s3-storage")]
@@ -519,37 +382,85 @@ mod tests {
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "id").await;
+    expected_resolved_request(&vec![resolver], "id").await;
   }
 
   #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn resolver_resolve_url_request() {
-    let client = ClientBuilder::new().build().unwrap();
-    let url_storage = UrlStorageClient::new(
-      ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
-      }),
-      ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
-      }),
-      true,
-      vec![],
-      client,
-    );
+    let url_storage = create_url_storage("https://example.com/");
 
     let resolver = Resolver::new(
       Storage::Url { url_storage },
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
 
-    expected_resolved_request(resolver, "https://example.com/").await;
+    expected_resolved_request(&vec![resolver], "https://example.com/").await;
+  }
+
+  #[cfg(feature = "url-storage")]
+  fn create_url_storage(endpoint: &str) -> UrlStorageClient {
+    let client = ClientBuilder::new().build().unwrap();
+
+    UrlStorageClient::new(
+      Endpoints::new(
+        ValidatedUrl(url::Url {
+          inner: InnerUrl::from_str(endpoint).unwrap(),
+        }),
+        ValidatedUrl(url::Url {
+          inner: InnerUrl::from_str(endpoint).unwrap(),
+        }),
+      ),
+      ValidatedUrl(url::Url {
+        inner: InnerUrl::from_str(endpoint).unwrap(),
+      }),
+      true,
+      vec![],
+      Some("user-agent".to_string()),
+      client,
+    )
+  }
+
+  #[cfg(all(feature = "url-storage", feature = "crypt4gh"))]
+  #[tokio::test]
+  async fn resolver_conflicting_object_type() {
+    let resolvers = vec![
+      Resolver::new(
+        Storage::Url {
+          url_storage: create_url_storage("127.0.0.1:8080"),
+        },
+        "(id)-2",
+        "$1-test",
+        AllowGuard::default(),
+        ObjectType::GenerateKeys {
+          send_encrypted_to_client: true,
+        },
+      )
+      .unwrap(),
+      Resolver::new(
+        Storage::Url {
+          url_storage: create_url_storage("127.0.0.1:8081"),
+        },
+        "(id)-1",
+        "$1-test",
+        AllowGuard::default(),
+        ObjectType::Crypt4GH {
+          crypt4gh: Crypt4GHKeyPair::new(KeyPair::new(PrivateKey(vec![]), PublicKey::new(vec![]))),
+          send_encrypted_to_client: true,
+        },
+      )
+      .unwrap(),
+    ];
+
+    expected_resolved_request(&resolvers, "127.0.0.1:8081").await;
   }
 
   #[test]
@@ -559,6 +470,7 @@ mod tests {
       "^(id)/(?P<key>.*)$",
       "$0",
       AllowGuard::default(),
+      ObjectType::default(),
     )
     .unwrap();
     let first_match = resolver.get_match(1, "id/key").unwrap();
@@ -568,8 +480,14 @@ mod tests {
 
   #[test]
   fn resolver_get_matches_no_captures() {
-    let resolver =
-      Resolver::new(Storage::default(), "^id/id$", "$0", AllowGuard::default()).unwrap();
+    let resolver = Resolver::new(
+      Storage::default(),
+      "^id/id$",
+      "$0",
+      AllowGuard::default(),
+      ObjectType::default(),
+    )
+    .unwrap();
     let first_match = resolver.get_match(1, "/id/key");
 
     assert_eq!(first_match, None);
@@ -577,11 +495,17 @@ mod tests {
 
   #[test]
   fn resolver_resolve_id() {
-    let resolver =
-      Resolver::new(Storage::default(), "id", "$0-test", AllowGuard::default()).unwrap();
+    let resolver = Resolver::new(
+      Storage::default(),
+      "id",
+      "$0-test",
+      AllowGuard::default(),
+      ObjectType::default(),
+    )
+    .unwrap();
     assert_eq!(
       resolver
-        .resolve_id(&Query::new_with_default_request("id", Bam))
+        .resolve_id(&Query::new_with_defaults("id", Bam))
         .unwrap()
         .into_inner(),
       "id-test"
@@ -596,6 +520,7 @@ mod tests {
         "^(id-1)(.*)$",
         "$1-test-1",
         AllowGuard::default(),
+        ObjectType::default(),
       )
       .unwrap(),
       Resolver::new(
@@ -603,6 +528,7 @@ mod tests {
         "^(id-2)(.*)$",
         "$1-test-2",
         AllowGuard::default(),
+        ObjectType::default(),
       )
       .unwrap(),
     ];
@@ -610,7 +536,7 @@ mod tests {
     assert_eq!(
       resolver
         .as_slice()
-        .resolve_id(&Query::new_with_default_request("id-1", Bam))
+        .resolve_id(&Query::new_with_defaults("id-1", Bam))
         .unwrap()
         .into_inner(),
       "id-1-test-1"
@@ -618,7 +544,7 @@ mod tests {
     assert_eq!(
       resolver
         .as_slice()
-        .resolve_id(&Query::new_with_default_request("id-2", Bam))
+        .resolve_id(&Query::new_with_defaults("id-2", Bam))
         .unwrap()
         .into_inner(),
       "id-2-test-2"
@@ -704,10 +630,133 @@ mod tests {
     );
   }
 
-  async fn expected_resolved_request(resolver: Resolver, expected_id: &str) {
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn config_storage_tagged_url_storage_file() {
+    test_config_from_file(
+      r#"
+      [[resolvers]]
+      regex = "regex"
+      storage = "S3"
+      "#,
+      |config| {
+        println!("{:?}", config.resolvers().first().unwrap().storage());
+        assert!(matches!(
+          config.resolvers().first().unwrap().storage(),
+          Storage::Tagged(TaggedStorageTypes::S3)
+        ));
+      },
+    );
+  }
+
+  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
+  #[test]
+  fn config_resolvers_with_predefined_key_pair() {
+    with_crypt4gh_keys(
+      |_, private_key_path, public_key_path, private_key, public_key| {
+        test_config_from_file(
+          &format!(
+            r#"
+      [[resolvers]]
+      regex = "regex"
+
+      [resolvers.object_type]
+      send_encrypted_to_client = false
+      private_key = "{}"
+      public_key = "{}"
+      "#,
+            private_key_path.to_string_lossy(),
+            public_key_path.to_string_lossy()
+          ),
+          |config| {
+            assert!(matches!(
+              config.resolvers().first().unwrap().object_type(),
+              ObjectType::Crypt4GH { crypt4gh, send_encrypted_to_client } if crypt4gh.key_pair().private_key().0 == private_key && crypt4gh.key_pair().public_key().clone().into_inner() == public_key
+              && !*send_encrypted_to_client
+            ));
+          },
+        );
+      },
+    );
+  }
+
+  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
+  #[test]
+  fn config_resolvers_with_generate_key_pair() {
+    with_test_certificates(|path, _, _| {
+      let key_path = path.join("key.pem");
+      let cert_path = path.join("cert.pem");
+      test_config_from_file(
+        &format!(
+          r#"
+          [[resolvers]]
+          regex = "regex"
+
+          [resolvers.object_type]
+          send_encrypted_to_client = false
+
+          [resolvers.storage]
+          response_url = "https://example.com/"
+          forward_headers = false
+          tls.key = "{}"
+          tls.cert = "{}"
+          tls.root_store = "{}"
+
+          [resolvers.storage.endpoints]
+          head = "https://example.com/"
+          file = "https://example.com/"
+          index = "https://example.com/"
+          "#,
+          key_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default(),
+          cert_path.to_string_lossy().escape_default()
+        ),
+        |config| {
+          assert!(config
+            .resolvers()
+            .first()
+            .unwrap()
+            .object_type()
+            .is_crypt4gh());
+        },
+      );
+    });
+  }
+
+  #[cfg(all(feature = "crypt4gh", feature = "url-storage"))]
+  pub(crate) fn with_crypt4gh_keys<F>(test: F)
+  where
+    F: FnOnce(&Path, &Path, &Path, &[u8], &[u8]),
+  {
+    let tmp_dir = TempDir::new().unwrap();
+
+    let private_key_path = tmp_dir.path().join("alice.sec");
+    let public_key_path = tmp_dir.path().join("alice.pub");
+
+    generate_keys(
+      private_key_path.clone(),
+      public_key_path.clone(),
+      Ok("".to_string()),
+      None,
+    )
+    .unwrap();
+
+    let private_key = get_private_key(private_key_path.clone(), Ok("".to_string())).unwrap();
+    let public_key = get_public_key(public_key_path.clone()).unwrap();
+
+    test(
+      tmp_dir.path(),
+      &private_key_path,
+      &public_key_path,
+      &private_key,
+      &public_key,
+    );
+  }
+
+  async fn expected_resolved_request(resolvers: &[Resolver], expected_id: &str) {
     assert_eq!(
-      resolver
-        .resolve_request::<TestResolveResponse>(&mut Query::new_with_default_request("id-1", Bam))
+      resolvers
+        .resolve_request::<TestResolveResponse>(&mut Query::new_with_defaults("id-1", Bam))
         .await
         .unwrap()
         .unwrap(),
