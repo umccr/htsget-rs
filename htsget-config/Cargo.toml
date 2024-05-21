@@ -2,7 +2,7 @@
 name = "htsget-config"
 version = "0.9.0"
 rust-version = "1.74"
-authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
+authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "Used to configure htsget-rs by using a config file or reading environment variables."
 license = "MIT"
@@ -12,33 +12,34 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = []
-url-storage = ["reqwest"]
+url-storage = ["dep:reqwest"]
 default = []
 
 [dependencies]
-thiserror = "1.0"
+thiserror = "1"
 async-trait = "0.1"
-noodles = { version = "0.65", features = ["core"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_with = "3.0"
-serde_regex = "1.1"
-regex = "1.8"
+noodles = { version = "0.74", features = ["core"] }
+serde = { version = "1", features = ["derive"] }
+serde_with = "3"
+serde_regex = "1"
+regex = "1"
 figment = { version = "0.10", features = ["env", "toml"] }
-clap = { version = "4.3", features = ["derive", "env", "cargo"] }
+clap = { version = "4", features = ["derive", "env", "cargo"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter", "ansi", "json"] }
 toml = "0.8"
-http = "0.2"
-http-serde = "1.1"
-rustls-pemfile = "1.0"
-rustls = "0.21"
+http = "1"
+http-serde = "2"
+rustls-pemfile = "2"
+rustls = "0.23"
+rustls-pki-types = "1"
 
 # url-storage
-reqwest = { version = "0.11", features = ["rustls-tls"], default-features = false, optional = true }
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false, optional = true }
 
 [dev-dependencies]
 serde_json = "1"
-figment = { version = "0", features = ["test"] }
+figment = { version = "0.10", features = ["test"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tempfile = "3"
-rcgen = "0"
+rcgen = { version = "0.13", features = ["pem"] }

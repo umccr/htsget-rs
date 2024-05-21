@@ -2,7 +2,7 @@
 name = "htsget-test"
 version = "0.6.0"
 rust-version = "1.74"
-authors = ["Marko Malenic <mmalenic1@gmail.com>"]
+authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 license = "MIT"
 description = "Common test functions and utilities used by htsget-rs."
@@ -42,7 +42,7 @@ default = []
 # Server tests dependencies
 htsget-config = { version = "0.9.0", path = "../htsget-config", default-features = false, optional = true }
 
-noodles = { version = "0.65", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
+noodles = { version = "0.74", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "fs"], optional = true }
@@ -54,14 +54,14 @@ serde_json = { version = "1", features = ["preserve_order"], optional = true }
 serde = { version = "1", optional = true }
 base64 = { version = "0.22", optional = true }
 
-tempfile = { version = "3.3", optional = true }
+tempfile = { version = "3", optional = true }
 aws-sdk-s3 = { version = "1", features = ["test-util"], optional = true }
 aws-config = { version = "1", optional = true }
 aws-credential-types = { version = "1", features = ["test-util"], optional = true }
-s3s = { version = "0.9", optional = true }
-s3s-fs = { version = "0.9", optional = true }
-s3s-aws = { version = "0.9", optional = true }
+s3s = { version = "0.10", optional = true }
+s3s-fs = { version = "0.10", optional = true }
+s3s-aws = { version = "0.10", optional = true }
 
 # Default dependencies
 rcgen = "0.13"
-thiserror = "1.0"
+thiserror = "1"

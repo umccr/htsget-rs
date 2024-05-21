@@ -15,15 +15,15 @@ s3-storage = [
     "dep:bytes",
     "dep:aws-sdk-s3",
     "dep:aws-config",
+    "dep:pin-project-lite",
     "htsget-config/s3-storage",
     "htsget-test/s3-storage",
     "htsget-test/aws-mocks"
 ]
 url-storage = [
     "dep:bytes",
-    "hyper/client",
-    "reqwest",
-    "pin-project-lite",
+    "dep:reqwest",
+    "dep:pin-project-lite",
     "htsget-config/url-storage",
     "htsget-test/url-storage"
 ]
@@ -31,8 +31,9 @@ default = []
 
 [dependencies]
 # Axum server
-url = "2.3"
+url = "2"
 hyper = { version = "1", features = ["http1", "http2", "server"] }
+hyper-util = "0.1"
 tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
 http = "1"
 axum = "0.7"
@@ -41,14 +42,14 @@ tower = { version = "0.4", features = ["make"] }
 
 # Async
 tokio-rustls = "0.26"
-tokio = { version = "1.37", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.65", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.74", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
 bytes = { version = "1", optional = true }
@@ -60,15 +61,15 @@ reqwest = { version = "0.12", features = ["rustls-tls", "stream"], default-featu
 pin-project-lite = { version = "0.2", optional = true }
 
 # Error control, tracing, config
-thiserror = "1.0"
+thiserror = "1"
 htsget-config = { version = "0.9.0", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.6.0", path = "../htsget-test", features = ["http"], default-features = false }
 tracing = "0.1"
 base64 = "0.22"
-serde = "1.0"
+serde = "1"
 
 [dev-dependencies]
-tempfile = "3.6"
+tempfile = "3"
 data-url = "0.3"
 
 # Axum server

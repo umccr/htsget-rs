@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use actix_web::web::{Path, Query};
-use actix_web::{http::StatusCode, header::HeaderMap, Either, HttpRequest, Responder};
+use actix_web::{http::StatusCode, Either, HttpRequest, Responder};
+use http::{HeaderMap as HttpHeaderMap, HeaderName, Method};
 
 use htsget_config::types::{JsonResponse, Request};
 use htsget_http::Result;
 use pretty_json::PrettyJson;
-use actix_web::http::header::HeaderName;
 
 pub use crate::handlers::service_info::{
   get_service_info_json, reads_service_info, variants_service_info,
@@ -28,7 +28,7 @@ impl HeaderMap {
 
 impl From<&HttpRequest> for HeaderMap {
   fn from(http_request: &HttpRequest) -> Self {
-    HeaderMap(HttpHeaderMap::from_iter(http_request.headers().clone().into_iter().map(|(name, value)| (HeaderName::from(name), value))))
+    HeaderMap(HttpHeaderMap::from_iter(http_request.headers().clone()))
   }
 }
 
@@ -37,7 +37,11 @@ fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, imp
   match response {
     Err(error) => {
       let (json, status_code) = error.to_json_representation();
-      Either::Left(PrettyJson(json).customize().with_status(status_code))
+      Either::Left(
+        PrettyJson(json)
+          .customize()
+          .with_status(HttpVersionCompat::status_code_1_to_0_2(status_code)),
+      )
     }
     Ok(json) => Either::Right(PrettyJson(json).customize().with_status(StatusCode::OK)),
   }
@@ -53,6 +57,47 @@ fn extract_request(
   Request::new(
     path.into_inner(),
     query,
-    HeaderMap::from(&http_request).into_inner(),
+    HttpVersionCompat::header_map_0_2_to_1(HeaderMap::from(&http_request).into_inner()),
   )
+}
+
+// Todo, remove this when actix-web starts using http 1.0.
+pub(crate) struct HttpVersionCompat;
+
+impl HttpVersionCompat {
+  pub(crate) fn header_names_1_to_0_2(header_name: Vec<http_1::HeaderName>) -> Vec<HeaderName> {
+    header_name
+      .iter()
+      .map(|name| name.as_str().parse().ok())
+      .collect::<Option<_>>()
+      .unwrap_or_default()
+  }
+
+  pub(crate) fn methods_0_2_to_1(method: Vec<http_1::Method>) -> Vec<Method> {
+    method
+      .iter()
+      .map(|method| method.as_str().parse().ok())
+      .collect::<Option<_>>()
+      .unwrap_or_default()
+  }
+
+  pub(crate) fn header_map_0_2_to_1(header_map: HttpHeaderMap) -> http_1::HeaderMap {
+    // Silently ignore incompatible headers. This isn't ideal but it shouldn't cause any errors.
+    header_map
+      .iter()
+      .map(|(name, value)| {
+        let name = name.as_str().parse().ok()?;
+        let value = value.to_str().ok()?.parse().ok()?;
+
+        Some((name, value))
+      })
+      .collect::<Option<Vec<_>>>()
+      .map(FromIterator::from_iter)
+      .unwrap_or_default()
+  }
+
+  pub(crate) fn status_code_1_to_0_2(status_code: http_1::StatusCode) -> StatusCode {
+    // Report an error if the status code is not convertible
+    StatusCode::from_u16(status_code.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+  }
 }

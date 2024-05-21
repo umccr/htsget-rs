@@ -14,7 +14,7 @@ use htsget_search::htsget::from_storage::HtsGetFromStorage;
 use htsget_search::htsget::HtsGet;
 use htsget_search::storage::local::LocalStorage;
 
-use crate::handlers::{get, post, reads_service_info, variants_service_info};
+use crate::handlers::{get, post, reads_service_info, variants_service_info, HttpVersionCompat};
 
 pub mod handlers;
 
@@ -78,7 +78,9 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
     .allow_headers()
     .apply_any(|cors_layer| cors_layer.allow_any_header(), cors_layer);
   cors_layer = cors.allow_headers().apply_list(
-    |cors_layer, headers| cors_layer.allowed_headers(headers.clone()),
+    |cors_layer, headers| {
+      cors_layer.allowed_headers(HttpVersionCompat::header_names_1_to_0_2(headers.clone()))
+    },
     cors_layer,
   );
 
@@ -86,7 +88,9 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
     .allow_methods()
     .apply_any(|cors_layer| cors_layer.allow_any_method(), cors_layer);
   cors_layer = cors.allow_methods().apply_list(
-    |cors_layer, methods| cors_layer.allowed_methods(methods.clone()),
+    |cors_layer, methods| {
+      cors_layer.allowed_methods(HttpVersionCompat::methods_0_2_to_1(methods.clone()))
+    },
     cors_layer,
   );
 
@@ -94,7 +98,9 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
     .expose_headers()
     .apply_any(|cors_layer| cors_layer.expose_any_header(), cors_layer);
   cors_layer = cors.expose_headers().apply_list(
-    |cors_layer, headers| cors_layer.expose_headers(headers.clone()),
+    |cors_layer, headers| {
+      cors_layer.expose_headers(HttpVersionCompat::header_names_1_to_0_2(headers.clone()))
+    },
     cors_layer,
   );
 
@@ -131,7 +137,7 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
     }
     Some(tls) => {
       info!("using TLS ticket server");
-      server.bind_rustls_021(addr, tls.into_inner())?
+      server.bind_rustls_0_23(addr, tls.into_inner())?
     }
   };
 
@@ -208,7 +214,7 @@ mod tests {
       let path = self.get_config().data_server().local_path().to_path_buf();
       tokio::spawn(async move { server.serve(path).await.unwrap() });
 
-      expected_url_path(self.get_config(), addr)
+      expected_url_path(self.get_config(), addr.unwrap())
     }
 
     fn get_config(&self) -> &Config {
@@ -232,10 +238,12 @@ mod tests {
 
       TestResponse::new(
         status,
-        headers
-          .drain()
-          .map(|(name, value)| (name.unwrap(), value))
-          .collect(),
+        HttpVersionCompat::header_map_0_2_to_1(
+          headers
+            .drain()
+            .map(|(name, value)| (name.unwrap(), value))
+            .collect(),
+        ),
         bytes,
         expected_path,
       )

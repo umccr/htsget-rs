@@ -2,7 +2,7 @@
 name = "htsget-http"
 version = "0.4.13"
 rust-version = "1.74"
-authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>"]
+authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 license = "MIT"
 description = "Crate for handling HTTP in htsget-rs."

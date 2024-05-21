@@ -1,10 +1,11 @@
 //! TLS configuration related to HTTP clients.
 //!
 
-use crate::error::Error;
 use crate::error::Error::IoError;
+use crate::error::{Error, Result};
 use crate::tls::RootCertStorePair;
 use crate::tls::{load_certs, read_bytes};
+use reqwest::{Certificate, Identity};
 use serde::Deserialize;
 
 /// A certificate and key pair used for TLS. Serialization is not implemented because there
@@ -12,18 +13,18 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(try_from = "RootCertStorePair")]
 pub struct TlsClientConfig {
-  cert: Option<Vec<reqwest::Certificate>>,
-  identity: Option<reqwest::Identity>,
+  cert: Option<Vec<Certificate>>,
+  identity: Option<Identity>,
 }
 
 impl TlsClientConfig {
   /// Create a new TlsClientConfig.
-  pub fn new(cert: Option<Vec<reqwest::Certificate>>, identity: Option<reqwest::Identity>) -> Self {
+  pub fn new(cert: Option<Vec<Certificate>>, identity: Option<Identity>) -> Self {
     Self { cert, identity }
   }
 
   /// Get the inner client config.
-  pub fn into_inner(self) -> (Option<Vec<reqwest::Certificate>>, Option<reqwest::Identity>) {
+  pub fn into_inner(self) -> (Option<Vec<Certificate>>, Option<Identity>) {
     (self.cert, self.identity)
   }
 }
@@ -31,7 +32,7 @@ impl TlsClientConfig {
 impl TryFrom<RootCertStorePair> for TlsClientConfig {
   type Error = Error;
 
-  fn try_from(root_store_pair: RootCertStorePair) -> crate::error::Result<Self> {
+  fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
     let (key_pair, root_store) = root_store_pair.into_inner();
 
     let cert = root_store
@@ -42,10 +43,10 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
         certs
           .into_iter()
           .map(|cert| {
-            reqwest::Certificate::from_der(&cert.0)
+            Certificate::from_der(&cert)
               .map_err(|err| IoError(format!("failed to read certificate from pem: {}", err)))
           })
-          .collect::<crate::error::Result<Vec<_>>>()
+          .collect::<Result<Vec<_>>>()
       })
       .transpose()?;
 
@@ -55,7 +56,7 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
         let key = read_bytes(pair.key)?;
         let certs = read_bytes(pair.cert)?;
 
-        reqwest::Identity::from_pem(&[certs, key].concat())
+        Identity::from_pem(&[certs, key].concat())
           .map_err(|err| IoError(format!("failed to pkcs8 pem identity: {}", err)))
       })
       .transpose()?;

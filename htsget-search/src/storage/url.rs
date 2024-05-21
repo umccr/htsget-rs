@@ -260,17 +260,18 @@ impl Storage for UrlStorage {
 #[cfg(test)]
 mod tests {
   use std::future::Future;
-  use std::net::TcpListener;
   use std::path::Path;
   use std::str::FromStr;
   use std::{result, vec};
 
+  use axum::body::Body;
   use axum::middleware::Next;
   use axum::response::Response;
   use axum::{middleware, Router};
   use http::header::{AUTHORIZATION, HOST};
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use tokio::io::AsyncReadExt;
+  use tokio::net::TcpListener;
   use tower_http::services::ServeDir;
 
   use htsget_config::types::Headers;
@@ -594,10 +595,7 @@ mod tests {
     with_test_server(base_path.path(), test).await;
   }
 
-  async fn test_auth<B>(
-    request: Request<B>,
-    next: Next<B>,
-  ) -> result::Result<Response, StatusCode> {
+  async fn test_auth(request: Request<Body>, next: Next) -> result::Result<Response, StatusCode> {
     let auth_header = request
       .headers()
       .get(AUTHORIZATION)
@@ -619,14 +617,10 @@ mod tests {
       .route_layer(middleware::from_fn(test_auth));
 
     // TODO fix this in htsget-test to bind and return tcp listener.
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
 
-    tokio::spawn(
-      axum::Server::from_tcp(listener)
-        .unwrap()
-        .serve(router.into_make_service()),
-    );
+    tokio::spawn(async move { axum::serve(listener, router.into_make_service()).await });
 
     test(format!("http://{}", addr)).await;
   }

@@ -72,7 +72,6 @@ where
   async fn get_byte_ranges_for_header(
     &self,
     index: &Index,
-    _header: &Header,
     _reader: &mut AsyncReader<ReaderType>,
     _query: &Query,
   ) -> Result<BytesPosition> {

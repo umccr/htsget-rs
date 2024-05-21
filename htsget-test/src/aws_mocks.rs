@@ -1,7 +1,7 @@
 use aws_config::SdkConfig;
 use aws_credential_types::provider::SharedCredentialsProvider;
 use aws_credential_types::Credentials;
-use aws_sdk_s3::config::Region;
+use aws_sdk_s3::config::{BehaviorVersion, Region};
 use aws_sdk_s3::Client;
 use s3s::auth::SimpleAuth;
 use s3s::service::S3ServiceBuilder;
@@ -27,7 +27,7 @@ pub async fn run_s3_test_server<F, Fut>(
 {
   let cred = Credentials::for_tests();
 
-  let conn = {
+  let client = {
     let fs = FileSystem::new(server_base_path).unwrap();
 
     let auth = SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
@@ -36,14 +36,15 @@ pub async fn run_s3_test_server<F, Fut>(
     service.set_auth(auth);
     service.set_base_domain(domain_name);
 
-    s3s_aws::Connector::from(service.build().into_shared())
+    s3s_aws::Client::from(service.build().into_shared())
   };
 
   let sdk_config = SdkConfig::builder()
     .credentials_provider(SharedCredentialsProvider::new(cred))
-    .http_connector(conn)
+    .http_client(client)
     .region(Region::new(region))
     .endpoint_url(format!("http://{domain_name}"))
+    .behavior_version(BehaviorVersion::latest())
     .build();
 
   test(Client::new(&sdk_config), server_base_path.to_path_buf()).await;

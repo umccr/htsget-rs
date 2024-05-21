@@ -216,19 +216,15 @@ impl ReadRecords {
         let mut reader =
           vcf::AsyncReader::new(bgzf::AsyncReader::new(self.merged_bytes.as_slice()));
         let header = reader.read_header().await.map_err(TestError::read_record)?;
-        println!("{header}");
+        println!("{:#?}", header);
 
-        self.iterate_records(reader.records(&header)).await
+        self.iterate_records(reader.records()).await
       }
       Format::Bcf => {
         let mut reader = bcf::AsyncReader::new(self.merged_bytes.as_slice());
-        reader
-          .read_file_format()
-          .await
-          .map_err(TestError::read_record)?;
         reader.read_header().await.map_err(TestError::read_record)?;
 
-        self.iterate_records(reader.lazy_records()).await
+        self.iterate_records(reader.records()).await
       }
     }
   }

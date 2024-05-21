@@ -1,5 +1,6 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
+
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::io;
@@ -196,6 +197,12 @@ impl From<StorageError> for io::Error {
       StorageError::IoError(_, ref io_error) => Self::new(io_error.kind(), err),
       err => Self::new(ErrorKind::Other, err),
     }
+  }
+}
+
+impl From<io::Error> for StorageError {
+  fn from(error: io::Error) -> Self {
+    Self::IoError("io error".to_string(), error)
   }
 }
 

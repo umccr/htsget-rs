@@ -38,15 +38,12 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  async fn read_bytes(header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
-    reader
-      .read_record(header, &mut Default::default())
-      .await
-      .ok()
+  async fn read_bytes(reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader.read_record(&mut Default::default()).await.ok()
   }
 
   fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
-    reader.virtual_position()
+    reader.get_ref().virtual_position()
   }
 }
 
