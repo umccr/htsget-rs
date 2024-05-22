@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.16](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.15...htsget-lambda-v0.4.16) - 2024-05-22
+
+### Other
+- major dep updates, rustls 0.21 -> 0.23, http 0.2 -> 1, reqwest 0.11 -> 0.12, noodles 0.65 -> 0.74 + minor bumps for other crates depending on these.
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into mio_h2_bump
+
 ## [0.4.15](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.14...htsget-lambda-v0.4.15) - 2024-05-19
 
 ### Other
