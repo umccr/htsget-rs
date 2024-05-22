@@ -17,7 +17,6 @@ use tokio::io::AsyncRead;
 use tracing::{instrument, trace};
 
 use crate::htsget::search::{find_first, BgzfSearch, Search};
-use crate::htsget::ParsedHeader;
 use crate::storage::{BytesPosition, Storage};
 use crate::{Format, Query, Result};
 
@@ -35,12 +34,12 @@ where
   S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   ReaderType: AsyncRead + Unpin + Send + Sync,
 {
-  async fn read_bytes(_header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
-    reader.read_lazy_record(&mut Default::default()).await.ok()
+  async fn read_bytes(reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+    reader.read_record(&mut Default::default()).await.ok()
   }
 
   fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
-    reader.virtual_position()
+    reader.get_ref().virtual_position()
   }
 }
 
@@ -57,15 +56,7 @@ where
   }
 
   async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
-    reader.read_file_format().await?;
-
-    Ok(
-      reader
-        .read_header()
-        .await?
-        .parse::<ParsedHeader<Header>>()?
-        .into_inner(),
-    )
+    reader.read_header().await
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {

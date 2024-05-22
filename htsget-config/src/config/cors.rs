@@ -48,6 +48,18 @@ impl<T, Tagged> AllowType<T, Tagged> {
     }
   }
 
+  /// Apply a function to the builder when the type is a List returning a Result.
+  pub fn try_apply_list<F, U, E>(&self, func: F, builder: U) -> Result<U, E>
+  where
+    F: FnOnce(U, &Vec<T>) -> Result<U, E>,
+  {
+    if let Self::List(list) = self {
+      func(builder, list)
+    } else {
+      Ok(builder)
+    }
+  }
+
   /// Apply a function to the builder when the type is tagged.
   pub fn apply_tagged<F, U>(&self, func: F, builder: U, tagged_type: &Tagged) -> U
   where

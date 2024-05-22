@@ -5,14 +5,17 @@
 pub mod client;
 
 use std::fs::File;
+use std::io;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
-use rustls::{Certificate, PrivateKey, ServerConfig};
-use rustls_pemfile::read_one;
+use rustls::ServerConfig;
+use rustls_pemfile::Item::{Pkcs1Key, Pkcs8Key, Sec1Key};
+use rustls_pemfile::{certs, read_one};
+use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use serde::{Deserialize, Serialize};
 
-use crate::error::Error::{IoError, ParseError};
+use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::types::Scheme;
 use crate::types::Scheme::{Http, Https};
@@ -52,20 +55,20 @@ pub struct CertificateKeyPairPath {
 }
 
 /// The certificate and key pair used for TLS.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CertificateKeyPair {
-  certs: Vec<Certificate>,
-  key: PrivateKey,
+  certs: Vec<CertificateDer<'static>>,
+  key: PrivateKeyDer<'static>,
 }
 
 impl CertificateKeyPair {
   /// Create a new CertificateKeyPair.
-  pub fn new(certs: Vec<Certificate>, key: PrivateKey) -> Self {
+  pub fn new(certs: Vec<CertificateDer<'static>>, key: PrivateKeyDer<'static>) -> Self {
     Self { certs, key }
   }
 
   /// Get the owned certificate and private key.
-  pub fn into_inner(self) -> (Vec<Certificate>, PrivateKey) {
+  pub fn into_inner(self) -> (Vec<CertificateDer<'static>>, PrivateKeyDer<'static>) {
     (self.certs, self.key)
   }
 }
@@ -141,51 +144,39 @@ impl KeyPairScheme for Option<&TlsServerConfig> {
   }
 }
 
-/// Load a private key from a file. Supports RSA, PKCS8, and Sec1 encoded keys.
-pub fn load_key<P: AsRef<Path>>(key: P) -> Result<PrivateKey> {
-  let mut key_reader = BufReader::new(
-    File::open(key).map_err(|err| IoError(format!("failed to open key file: {}", err)))?,
-  );
+/// Loads the first private key from a file. Supports RSA, PKCS8, and Sec1 encoded EC keys.
+pub fn load_key<P: AsRef<Path>>(key_path: P) -> Result<PrivateKeyDer<'static>> {
+  let mut key_reader = BufReader::new(File::open(key_path)?);
 
   loop {
-    match read_one(&mut key_reader)
-      .map_err(|err| ParseError(format!("failed to parse private key: {}", err)))?
-    {
-      Some(rustls_pemfile::Item::RSAKey(key)) => return Ok(PrivateKey(key)),
-      Some(rustls_pemfile::Item::PKCS8Key(key)) => return Ok(PrivateKey(key)),
-      Some(rustls_pemfile::Item::ECKey(key)) => return Ok(PrivateKey(key)),
+    match read_one(&mut key_reader)? {
+      Some(Pkcs1Key(key)) => return Ok(PrivateKeyDer::from(key)),
+      Some(Pkcs8Key(key)) => return Ok(PrivateKeyDer::from(key)),
+      Some(Sec1Key(key)) => return Ok(PrivateKeyDer::from(key)),
+      // Silently disregard unknown private keys.
+      Some(_) => continue,
       None => break,
-      _ => {}
     }
   }
 
-  Err(ParseError("no key found in pem file".to_string()))
+  Err(ParseError("no keys found in pem file".to_string()))
 }
 
 /// Read byte data.
 pub fn read_bytes<P: AsRef<Path>>(path: P) -> Result<Vec<u8>> {
   let mut bytes = vec![];
-  File::open(path)
-    .map_err(|err| IoError(format!("failed to open certificate or key file: {}", err)))?
-    .read_to_end(&mut bytes)
-    .map_err(|err| IoError(format!("failed to read certificate or key bytes: {}", err)))?;
+  File::open(path)?.read_to_end(&mut bytes)?;
   Ok(bytes)
 }
 
 /// Load certificates from a file.
-pub fn load_certs<P: AsRef<Path>>(certs: P) -> Result<Vec<Certificate>> {
-  let mut cert_reader = BufReader::new(
-    File::open(certs).map_err(|err| IoError(format!("failed to open cert file: {}", err)))?,
-  );
+pub fn load_certs<P: AsRef<Path>>(certs_path: P) -> Result<Vec<CertificateDer<'static>>> {
+  let mut cert_reader = BufReader::new(File::open(certs_path)?);
 
-  let certs: Vec<Certificate> = rustls_pemfile::certs(&mut cert_reader)
-    .map_err(|err| ParseError(format!("failed to parse certificates: {}", err)))?
-    .into_iter()
-    .map(Certificate)
-    .collect();
-
+  let certs: Vec<CertificateDer> =
+    certs(&mut cert_reader).collect::<io::Result<Vec<CertificateDer>>>()?;
   if certs.is_empty() {
-    return Err(ParseError("no certificates found in pem file".to_string()));
+    return Err(ParseError("no certificates found in .pem file".to_string()));
   }
 
   Ok(certs)
@@ -196,7 +187,6 @@ pub fn tls_server_config(key_pair: CertificateKeyPair) -> Result<ServerConfig> {
   let (certs, key) = key_pair.into_inner();
 
   let mut config = ServerConfig::builder()
-    .with_safe_defaults()
     .with_no_client_auth()
     .with_single_cert(certs, key)
     .map_err(|err| ParseError(err.to_string()))?;
@@ -253,7 +243,7 @@ pub(crate) mod tests {
 
   pub(crate) fn with_test_certificates<F>(test: F)
   where
-    F: FnOnce(&Path, PrivateKey, Certificate),
+    F: FnOnce(&Path, PrivateKeyDer<'static>, CertificateDer<'static>),
   {
     let tmp_dir = TempDir::new().unwrap();
 
@@ -262,26 +252,19 @@ pub(crate) mod tests {
 
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
 
-    let key = cert.serialize_private_key_pem();
-    let cert = cert.serialize_pem().unwrap();
+    let key = cert.key_pair.serialize_pem();
+    let cert = cert.cert.pem();
 
     write(key_path, &key).unwrap();
     write(cert_path, &cert).unwrap();
 
-    let key = PrivateKey(
-      pkcs8_private_keys(&mut Cursor::new(key))
-        .unwrap()
-        .into_iter()
+    let key = PrivateKeyDer::from(
+      pkcs8_private_keys(&mut Cursor::new(key.clone()))
         .next()
+        .unwrap()
         .unwrap(),
     );
-    let cert = Certificate(
-      certs(&mut Cursor::new(cert))
-        .unwrap()
-        .into_iter()
-        .next()
-        .unwrap(),
-    );
+    let cert = certs(&mut Cursor::new(cert)).next().unwrap().unwrap();
 
     test(tmp_dir.path(), key, cert);
   }

@@ -82,7 +82,6 @@ where
   async fn get_byte_ranges_for_header(
     &self,
     index: &Index,
-    header: &Header,
     reader: &mut Reader,
     query: &Query,
   ) -> Result<BytesPosition>;
@@ -265,7 +264,7 @@ where
 
             byte_ranges.push(
               self
-                .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
+                .get_byte_ranges_for_header(&index, &mut reader, &query)
                 .await?,
             );
 
@@ -293,10 +292,10 @@ where
         let index = self.read_index(&query).await?;
 
         let header_end = self.get_header_end_offset(&index).await?;
-        let (header, mut reader) = self.get_header(&query, header_end).await?;
+        let (_, mut reader) = self.get_header(&query, header_end).await?;
 
         let header_byte_ranges = self
-          .get_byte_ranges_for_header(&index, &header, &mut reader, &query)
+          .get_byte_ranges_for_header(&index, &mut reader, &query)
           .await?;
 
         self
@@ -548,7 +547,7 @@ where
   }
 
   /// Get the virtual position of the underlying reader.
-  async fn read_bytes(header: &Header, reader: &mut Reader) -> Option<usize>;
+  async fn read_bytes(reader: &mut Reader) -> Option<usize>;
 
   /// Get the virtual position of the underlying reader.
   fn virtual_position(&self, reader: &Reader) -> VirtualPosition;
@@ -593,7 +592,6 @@ where
   async fn get_byte_ranges_for_header(
     &self,
     index: &Index<I>,
-    header: &Header,
     reader: &mut Reader,
     query: &Query,
   ) -> Result<BytesPosition> {
@@ -603,7 +601,7 @@ where
       current_block_index.compressed()
     } else {
       loop {
-        let bytes_read = Self::read_bytes(header, reader).await.unwrap_or_default();
+        let bytes_read = Self::read_bytes(reader).await.unwrap_or_default();
         let actual_block_index = self.virtual_position(reader).compressed();
 
         if bytes_read == 0 || actual_block_index > current_block_index.compressed() {

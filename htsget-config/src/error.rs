@@ -26,3 +26,9 @@ impl From<Error> for io::Error {
     io::Error::new(io::ErrorKind::Other, error.to_string())
   }
 }
+
+impl From<io::Error> for Error {
+  fn from(error: io::Error) -> Self {
+    Error::IoError(error.to_string())
+  }
+}

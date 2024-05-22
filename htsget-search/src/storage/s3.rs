@@ -4,25 +4,29 @@
 use std::fmt::Debug;
 use std::io;
 use std::io::ErrorKind::Other;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use aws_config::BehaviorVersion;
 use aws_sdk_s3::error::{DisplayErrorContext, SdkError};
 use aws_sdk_s3::operation::get_object::builders::GetObjectFluentBuilder;
 use aws_sdk_s3::operation::get_object::GetObjectError;
 use aws_sdk_s3::operation::head_object::{HeadObjectError, HeadObjectOutput};
 use aws_sdk_s3::presigning::PresigningConfig;
-use aws_sdk_s3::primitives::{ByteStream, SdkBody};
+use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::StorageClass;
 use aws_sdk_s3::Client;
 use bytes::Bytes;
-use http::Response;
+use futures::Stream;
+use pin_project_lite::pin_project;
 use tokio_util::io::StreamReader;
 use tracing::instrument;
 use tracing::{debug, warn};
 
 use crate::storage::s3::Retrieval::{Delayed, Immediate};
-use crate::storage::StorageError::{AwsS3Error, KeyNotFound};
+use crate::storage::StorageError::{AwsS3Error, IoError, KeyNotFound};
 use crate::storage::{BytesPosition, HeadOptions, StorageError};
 use crate::storage::{BytesRange, Storage};
 use crate::Url;
@@ -58,7 +62,7 @@ impl S3Storage {
     endpoint: Option<String>,
     path_style: bool,
   ) -> Self {
-    let sdk_config = aws_config::load_from_env().await;
+    let sdk_config = aws_config::load_defaults(BehaviorVersion::latest()).await;
     let mut s3_config_builder = aws_sdk_s3::config::Builder::from(&sdk_config);
     s3_config_builder.set_endpoint_url(endpoint); // For local S3 storage, i.e: Minio
     s3_config_builder.set_force_path_style(Some(path_style));
@@ -189,14 +193,16 @@ impl S3Storage {
     &self,
     key: K,
     options: GetOptions<'_>,
-  ) -> Result<StreamReader<ByteStream, Bytes>> {
-    let response = self.get_content(key, options).await?;
-    Ok(StreamReader::new(response))
+  ) -> Result<StreamReader<S3Stream, Bytes>> {
+    Ok(StreamReader::new(S3Stream::new(
+      self.get_content(key, options).await?,
+    )))
   }
 
-  fn map_get_error<K>(key: K, error: SdkError<GetObjectError, Response<SdkBody>>) -> StorageError
+  fn map_get_error<K, T>(key: K, error: SdkError<GetObjectError, T>) -> StorageError
   where
     K: AsRef<str> + Send,
+    T: Debug + Send + Sync + 'static,
   {
     warn!("S3 error: {}", DisplayErrorContext(&error));
 
@@ -209,9 +215,36 @@ impl S3Storage {
   }
 }
 
+pin_project! {
+  /// A wrapper around a `ByteStream` in order to implement `Stream`.
+  pub struct S3Stream {
+    #[pin]
+    inner: ByteStream
+  }
+}
+
+impl S3Stream {
+  /// Create a new S3Stream.
+  pub fn new(inner: ByteStream) -> Self {
+    S3Stream { inner }
+  }
+}
+
+impl Stream for S3Stream {
+  type Item = Result<Bytes>;
+
+  fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    self
+      .project()
+      .inner
+      .poll_next(cx)
+      .map_err(|err| IoError("io error".to_string(), err.into()))
+  }
+}
+
 #[async_trait]
 impl Storage for S3Storage {
-  type Streamable = StreamReader<ByteStream, Bytes>;
+  type Streamable = StreamReader<S3Stream, Bytes>;
 
   /// Gets the actual s3 object as a buffered reader.
   #[instrument(level = "trace", skip(self))]
@@ -252,8 +285,13 @@ impl Storage for S3Storage {
     let key = key.as_ref();
 
     let head = self.s3_head(key).await?;
-    let len = u64::try_from(head.content_length).map_err(|err| {
-      StorageError::IoError(
+
+    let content_length = head
+      .content_length()
+      .ok_or_else(|| AwsS3Error("unknown content length".to_string(), key.to_string()))?;
+
+    let len = u64::try_from(content_length).map_err(|err| {
+      IoError(
         "failed to convert file length to `u64`".to_string(),
         io::Error::new(Other, err),
       )

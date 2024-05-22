@@ -64,12 +64,12 @@ where
       .with_class(Body)])
   }
 
-  async fn read_bytes(_header: &Header, reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+  async fn read_bytes(reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
     reader.read_record(&mut Default::default()).await.ok()
   }
 
   fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
-    reader.virtual_position()
+    reader.get_ref().virtual_position()
   }
 }
 

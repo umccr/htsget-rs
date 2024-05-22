@@ -711,7 +711,7 @@ mod tests {
     let path = config.data_server().local_path().to_path_buf();
     tokio::spawn(async move { server.serve(path).await.unwrap() });
 
-    expected_url_path(config, addr)
+    expected_url_path(config, addr.unwrap())
   }
 
   async fn endpoint_from_file(file_path: &str, class: Class, config: &Config) {
