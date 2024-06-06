@@ -41,39 +41,38 @@ can be found under [`bin/htsget-lambda.ts`][htsget-lambda-bin]. This uses the [`
 ### Prerequisites
 
 1. [aws-cli] should be installed and authenticated in the shell.
-1. Node.js and [npm] should be installed.
-1. [Rust][rust] should be installed.
-1. [Zig][zig] should be installed
+2. Node.js and [npm] should be installed.
+3. [Rust][rust] should be installed.
+4. [Zig][zig] should be installed.
 
 After installing the basic dependencies, complete the following steps:
 
-1. Define CDK\_DEFAULT\_* env variables (if not defined already). You must be authenticated with your AWS cloud to run this step.
-1. Add the arm cross-compilation target to rust.
-1. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
-1. Define which configuration to use for htsget-rs on `cdk.json` as stated in aforementioned configuration section. 
+1. Login to AWS and define `CDK_DEFAULT_*` env variables (if not defined already). You must be authenticated with your AWS cloud to run this step.
+2. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
+3. Define which configuration to use for htsget-rs as stated in the configuration section. 
 
 Below is a summary of commands to run in this directory:
 
 ```sh
-``export CDK_DEFAULT_ACCOUNT=`aws sts get-caller-identity --query Account --output text`
-export CDK_DEFAULT_REGION=`aws configure get region```
-rustup target add aarch64-unknown-linux-gnu
 cargo install cargo-lambda
+
+export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+export CDK_DEFAULT_REGION=$(aws configure get region)
+
 npm install
 ```
 
 ### Deploy to AWS
 
-CDK should be bootstrapped once, if this hasn't been done before.
+CDK should be bootstrapped once, if this hasn't been done before:
 
 ```sh
 npx cdk bootstrap
 ```
 
-In order to deploy, check that the stack synthesizes correctly and then deploy.
+Then to deploy the stack, run:
 
 ```sh
-npx cdk synth
 npx cdk deploy
 ```
 
