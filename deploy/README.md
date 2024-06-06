@@ -43,7 +43,7 @@ can be found under [`bin/htsget-lambda.ts`][htsget-lambda-bin]. This uses the [`
 1. [aws-cli] should be installed and authenticated in the shell.
 2. Node.js and [npm] should be installed.
 3. [Rust][rust] should be installed.
-4. [Zig][zig] should be installed.
+4. [Zig][zig] should be installed. Zig can be installed by running `cargo lambda build` at least once.
 
 After installing the basic dependencies, complete the following steps:
 
@@ -55,6 +55,9 @@ Below is a summary of commands to run in this directory:
 
 ```sh
 cargo install cargo-lambda
+
+## Install zig if not already installed.
+#cd .. && cargo lambda build && cd deploy
 
 export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 export CDK_DEFAULT_REGION=$(aws configure get region)
