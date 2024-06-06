@@ -15,7 +15,7 @@ export const SETTINGS: HtsgetSettings = {
   jwtAuthorizer: {
     // Set this to true if you want a public instance.
     public: false,
-    jwtAudience: ["audience"],
-    cogUserPoolId: "user-pool-id",
+    // jwtAudience: ["audience"],
+    // cogUserPoolId: "user-pool-id",
   },
 };
