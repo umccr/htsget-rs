@@ -4,7 +4,6 @@ import { readFileSync } from "fs";
 
 import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import { RustFunction, Settings } from "rust.aws-cdk-lambda";
 
 import { UserPool } from "aws-cdk-lib/aws-cognito";
 import {
@@ -15,19 +14,21 @@ import {
 } from "aws-cdk-lib/aws-iam";
 import { Architecture } from "aws-cdk-lib/aws-lambda";
 import {
-  CorsHttpMethod,
-  HttpMethod,
-  HttpApi,
-  DomainName,
-} from "@aws-cdk/aws-apigatewayv2-alpha";
-import { HttpLambdaIntegration } from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
-import { HttpJwtAuthorizer } from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
-import {
   Certificate,
   CertificateValidation,
 } from "aws-cdk-lib/aws-certificatemanager";
 import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
+import { RustFunction } from "cargo-lambda-cdk";
+import path from "path";
+import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import {
+  CorsHttpMethod,
+  DomainName,
+  HttpApi,
+  HttpMethod,
+} from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 
 /**
  * Settings related to the htsget lambda stack.
@@ -160,28 +161,23 @@ export class HtsgetLambdaStack extends Stack {
     );
     lambdaRole.addToPolicy(s3BucketPolicy);
 
-    // Set the workspace directory of htsget.
-    Settings.WORKSPACE_DIR = "../";
-    // Don't build htsget packages other than htsget-lambda.
-    Settings.BUILD_INDIVIDUALLY = true;
-
     let htsgetLambda = new RustFunction(this, id + "Function", {
-      // Build htsget-lambda only.
-      package: "htsget-lambda",
-      target: "aarch64-unknown-linux-gnu",
-
+      manifestPath: path.join(__dirname, "..", ".."),
+      binaryName: "htsget-lambda",
+      bundling: {
+        environment: {
+          RUSTFLAGS: "-C target-cpu=neoverse-n1",
+          CARGO_PROFILE_RELEASE_LTO: "true",
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1",
+        },
+        cargoLambdaFlags: ["--features", "s3-storage"],
+      },
       memorySize: 128,
       timeout: Duration.seconds(28),
       environment: {
         ...config.htsgetConfig,
         RUST_LOG:
           "info,htsget_http_lambda=trace,htsget_config=trace,htsget_http_core=trace,htsget_search=trace",
-      },
-      features: ["s3-storage"],
-      buildEnvironment: {
-        RUSTFLAGS: "-C target-cpu=neoverse-n1",
-        CARGO_PROFILE_RELEASE_LTO: "true",
-        CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1",
       },
       architecture: Architecture.ARM_64,
       role: lambdaRole,
