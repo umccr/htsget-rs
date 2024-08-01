@@ -17,13 +17,11 @@ use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tracing::{instrument, trace};
 
-use crate::htsget::search::{BgzfSearch, Search, SearchAll, SearchReads};
-use crate::htsget::HtsGetError;
+use crate::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::Class::Body;
-use crate::{
-  htsget::{Format, Query, Result},
-  storage::{BytesPosition, Storage},
-};
+use crate::HtsGetError;
+use crate::{Format, Query, Result};
+use htsget_storage::{BytesPosition, Storage};
 
 type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -173,10 +171,10 @@ pub(crate) mod tests {
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
-  use crate::htsget::from_storage::tests::with_aws_storage_fn;
-  use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::storage::local::LocalStorage;
+  use crate::from_storage::tests::with_aws_storage_fn;
+  use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+  use htsget_storage::local::LocalStorage;
 
   use super::*;
 

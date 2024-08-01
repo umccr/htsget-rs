@@ -27,8 +27,8 @@ use htsget_config::config::DataServerConfig;
 use htsget_config::tls::TlsServerConfig;
 use htsget_config::types::Scheme;
 
-use crate::storage::configure_cors;
-use crate::storage::StorageError::{IoError, ServerError};
+use crate::configure_cors;
+use crate::StorageError::{IoError, ServerError};
 
 use super::{Result, StorageError};
 
@@ -221,7 +221,7 @@ mod tests {
     TestRequest, TestServer,
   };
 
-  use crate::storage::local::tests::create_local_test_files;
+  use crate::local::tests::create_local_test_files;
   use crate::Config;
 
   use super::*;

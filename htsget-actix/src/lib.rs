@@ -10,9 +10,9 @@ use tracing_actix_web::TracingLogger;
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig, USAGE};
 pub use htsget_config::storage::Storage;
-use htsget_search::htsget::from_storage::HtsGetFromStorage;
-use htsget_search::htsget::HtsGet;
-use htsget_search::storage::local::LocalStorage;
+use htsget_search::from_storage::HtsGetFromStorage;
+use htsget_search::HtsGet;
+use htsget_search::LocalStorage;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info, HttpVersionCompat};
 
@@ -156,7 +156,7 @@ mod tests {
   use tempfile::TempDir;
 
   use htsget_config::types::JsonResponse;
-  use htsget_search::storage::data_server::BindDataServer;
+  use htsget_storage::data_server::BindDataServer;
   use htsget_test::http::server::expected_url_path;
   use htsget_test::http::{config_with_tls, default_test_config};
   use htsget_test::http::{cors, server};

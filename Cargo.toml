@@ -7,6 +7,7 @@ members = [
     "htsget-http",
     "htsget-lambda",
     "htsget-search",
+    "htsget-storage",
     "htsget-test"
 ]
 

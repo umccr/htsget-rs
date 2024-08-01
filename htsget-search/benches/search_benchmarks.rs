@@ -10,7 +10,7 @@ use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
 use htsget_config::types::Class::Header;
 use htsget_config::types::Format::{Bam, Bcf, Cram, Vcf};
 use htsget_config::types::{HtsGetError, Query, Scheme};
-use htsget_search::htsget::from_storage::HtsGetFromStorage;
+use htsget_search::from_storage::HtsGetFromStorage;
 
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
 const NUMBER_OF_SAMPLES: usize = 50;

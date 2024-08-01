@@ -11,8 +11,8 @@ use tracing::debug;
 use tracing::instrument;
 use url::Url;
 
-use crate::storage::{HeadOptions, Storage, UrlFormatter};
 use crate::Url as HtsGetUrl;
+use crate::{HeadOptions, Storage, UrlFormatter};
 
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
@@ -154,7 +154,7 @@ pub(crate) mod tests {
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_config::types::Scheme;
 
-  use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
+  use crate::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
   use crate::{Headers, Url};
 
   use super::*;

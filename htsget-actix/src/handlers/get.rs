@@ -8,7 +8,7 @@ use tracing::info;
 use tracing::instrument;
 
 use htsget_http::{get, Endpoint};
-use htsget_search::htsget::HtsGet;
+use htsget_search::HtsGet;
 
 use crate::handlers::extract_request;
 use crate::AppState;

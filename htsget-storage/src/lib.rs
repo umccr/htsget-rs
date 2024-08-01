@@ -1,6 +1,14 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 
+pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
+pub use htsget_config::resolver::{
+  IdResolver, QueryAllowed, ResolveResponse, Resolver, StorageResolver,
+};
+pub use htsget_config::types::{
+  Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Url,
+};
+
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::io;
@@ -19,9 +27,7 @@ use tracing::instrument;
 
 use htsget_config::config::cors::CorsConfig;
 use htsget_config::storage::local::LocalStorage;
-use htsget_config::types::{Class, Scheme};
-
-use crate::{Headers, Url};
+use htsget_config::types::Scheme;
 
 pub mod data_server;
 pub mod local;
@@ -115,6 +121,25 @@ pub enum StorageError {
 
   #[error("parsing url: {0}")]
   UrlParseError(String),
+}
+
+impl From<StorageError> for HtsGetError {
+  fn from(err: StorageError) -> Self {
+    match err {
+      err @ StorageError::InvalidInput(_) => Self::InvalidInput(err.to_string()),
+      err @ (StorageError::KeyNotFound(_)
+      | StorageError::InvalidKey(_)
+      | StorageError::ResponseError(_)) => Self::NotFound(err.to_string()),
+      err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
+      err @ (StorageError::ServerError(_)
+      | StorageError::InvalidUri(_)
+      | StorageError::InvalidAddress(_)
+      | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
+      #[cfg(feature = "s3-storage")]
+      err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
+      err @ StorageError::UrlParseError(_) => Self::ParseError(err.to_string()),
+    }
+  }
 }
 
 impl UrlFormatter for LocalStorage {
@@ -510,7 +535,7 @@ mod tests {
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
 
-  use crate::storage::local::LocalStorage;
+  use crate::local::LocalStorage;
 
   use super::*;
 
@@ -1000,6 +1025,18 @@ mod tests {
       "/data".to_string(),
     );
     test_formatter_authority(formatter, "https");
+  }
+
+  #[test]
+  fn htsget_error_from_storage_not_found() {
+    let result = HtsGetError::from(StorageError::KeyNotFound("error".to_string()));
+    assert!(matches!(result, HtsGetError::NotFound(_)));
+  }
+
+  #[test]
+  fn htsget_error_from_storage_invalid_key() {
+    let result = HtsGetError::from(StorageError::InvalidKey("error".to_string()));
+    assert!(matches!(result, HtsGetError::NotFound(_)));
   }
 
   fn test_formatter_authority(formatter: ConfigLocalStorage, scheme: &str) {

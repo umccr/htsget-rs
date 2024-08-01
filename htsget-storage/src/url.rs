@@ -15,9 +15,9 @@ use tracing::{debug, instrument};
 
 use htsget_config::error;
 
-use crate::storage::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
-use crate::storage::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
+use crate::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
 use crate::Url as HtsGetUrl;
+use crate::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
 
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
@@ -276,7 +276,7 @@ mod tests {
 
   use htsget_config::types::Headers;
 
-  use crate::storage::local::tests::create_local_test_files;
+  use crate::local::tests::create_local_test_files;
 
   use super::*;
 

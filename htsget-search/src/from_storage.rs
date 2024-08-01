@@ -11,25 +11,25 @@ use tracing::instrument;
 use htsget_config::resolver::{ResolveResponse, StorageResolver};
 use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
 #[cfg(feature = "s3-storage")]
-use {crate::storage::s3::S3Storage, htsget_config::storage::s3::S3Storage as S3StorageConfig};
+use {htsget_config::storage::s3::S3Storage as S3StorageConfig, htsget_storage::s3::S3Storage};
 #[cfg(feature = "url-storage")]
 use {
-  crate::storage::url::UrlStorage,
   htsget_config::storage::url::UrlStorageClient as UrlStorageConfig,
+  htsget_storage::url::UrlStorage,
 };
 
-use crate::htsget::search::Search;
-use crate::storage::local::LocalStorage;
+use crate::search::Search;
 use crate::Resolver;
 use crate::{
-  htsget::bam_search::BamSearch,
-  htsget::bcf_search::BcfSearch,
-  htsget::cram_search::CramSearch,
-  htsget::vcf_search::VcfSearch,
-  htsget::{HtsGet, Query, Response, Result},
-  storage::Storage,
+  bam_search::BamSearch,
+  bcf_search::BcfSearch,
+  cram_search::CramSearch,
+  vcf_search::VcfSearch,
+  {HtsGet, Query, Response, Result},
 };
 use crate::{Format, HtsGetError};
+use htsget_storage::local::LocalStorage;
+use htsget_storage::Storage;
 
 /// Implementation of the [HtsGet] trait using a [Storage].
 #[derive(Debug, Clone)]
@@ -139,16 +139,15 @@ pub(crate) mod tests {
   use htsget_test::http::concat::ConcatResponse;
   use htsget_test::util::expected_bgzf_eof_data_url;
 
-  use crate::htsget::bam_search::tests::{
+  use crate::bam_search::tests::{
     expected_url as bam_expected_url, with_local_storage as with_bam_local_storage, BAM_FILE_NAME,
   };
-  use crate::htsget::vcf_search::tests::{
+  use crate::vcf_search::tests::{
     expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
     VCF_FILE_NAME_SPEC,
   };
-  #[cfg(feature = "s3-storage")]
-  use crate::storage::s3::tests::with_aws_s3_storage_fn;
   use crate::{Headers, Url};
+  use htsget_test::aws_mocks::with_s3_test_server;
 
   use super::*;
 
@@ -345,6 +344,18 @@ pub(crate) mod tests {
       "folder".to_string(),
       base_path.parent().unwrap(),
     )
+    .await;
+  }
+
+  #[cfg(feature = "s3-storage")]
+  pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
+  where
+    F: FnOnce(Arc<S3Storage>) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_s3_test_server(base_path, |client| async move {
+      test(Arc::new(S3Storage::new(client, folder_name))).await;
+    })
     .await;
   }
 }

@@ -19,11 +19,11 @@ use tracing::{instrument, trace};
 use htsget_config::types::Class::Header as HtsGetHeader;
 use htsget_config::types::Interval;
 
-use crate::htsget::search::{Search, SearchAll, SearchReads};
-use crate::htsget::{ConcurrencyError, ParsedHeader};
-use crate::storage::{BytesPosition, DataBlock, Storage};
+use crate::search::{Search, SearchAll, SearchReads};
 use crate::Class::Body;
+use crate::{ConcurrencyError, ParsedHeader};
 use crate::{Format, HtsGetError, Query, Result};
+use htsget_storage::{BytesPosition, DataBlock, Storage};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
 static CRAM_EOF: &[u8] = &[
@@ -295,10 +295,10 @@ mod tests {
   use htsget_test::util::expected_cram_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
-  use crate::htsget::from_storage::tests::with_aws_storage_fn;
-  use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::storage::local::LocalStorage;
+  use crate::from_storage::tests::with_aws_storage_fn;
+  use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+  use htsget_storage::local::LocalStorage;
 
   use super::*;
 

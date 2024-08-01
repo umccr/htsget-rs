@@ -5,7 +5,7 @@ use tracing::instrument;
 
 use htsget_http::get_service_info_json as get_base_service_info_json;
 use htsget_http::Endpoint;
-use htsget_search::htsget::HtsGet;
+use htsget_search::HtsGet;
 
 use crate::handlers::pretty_json::PrettyJson;
 use crate::AppState;

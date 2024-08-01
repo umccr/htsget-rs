@@ -1,24 +1,29 @@
 [package]
-name = "htsget-search"
-version = "0.7.1"
+name = "htsget-storage"
+version = "0.1.0"
 rust-version = "1.74"
-authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
+authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
-description = "The primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using noodles to query files and their indices."
 license = "MIT"
-documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
-homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
+description = "Storage interfaces and abstractions for htsget-rs."
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-storage/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-storage/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = [
-    "htsget-storage/s3-storage",
+    "dep:bytes",
+    "dep:aws-sdk-s3",
+    "dep:aws-config",
+    "dep:pin-project-lite",
     "htsget-config/s3-storage",
     "htsget-test/s3-storage",
     "htsget-test/aws-mocks"
 ]
 url-storage = [
-    "htsget-storage/url-storage",
+    "dep:bytes",
+    "dep:reqwest",
+    "dep:pin-project-lite",
     "htsget-config/url-storage",
     "htsget-test/url-storage"
 ]
@@ -62,7 +67,6 @@ base64 = "0.22"
 serde = "1"
 
 htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false }
-htsget-storage = { version = "0.1.0", path = "../htsget-storage", default-features = false }
 htsget-test = { version = "0.6.1", path = "../htsget-test", features = ["http"], default-features = false }
 
 [dev-dependencies]
@@ -73,8 +77,3 @@ data-url = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
 criterion = { version = "0.5", features = ["async_tokio"] }
-
-[[bench]]
-name = "search-benchmarks"
-harness = false
-path = "benches/search_benchmarks.rs"

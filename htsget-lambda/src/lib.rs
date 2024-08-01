@@ -17,8 +17,8 @@ use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
 pub use htsget_config::storage::Storage;
 use htsget_http::{Endpoint, PostRequest};
-use htsget_search::htsget::HtsGet;
-use htsget_search::storage::configure_cors;
+use htsget_search::HtsGet;
+use htsget_storage::configure_cors;
 
 use crate::handlers::get::get;
 use crate::handlers::post::post;
@@ -279,8 +279,8 @@ mod tests {
   use htsget_config::resolver::Resolver;
   use htsget_config::types::{Class, JsonResponse};
   use htsget_http::Endpoint;
-  use htsget_search::storage::configure_cors;
-  use htsget_search::storage::data_server::BindDataServer;
+  use htsget_storage::configure_cors;
+  use htsget_storage::data_server::BindDataServer;
   use htsget_test::http::server::{expected_url_path, test_response, test_response_service_info};
   use htsget_test::http::{config_with_tls, default_test_config, get_test_file};
   use htsget_test::http::{cors, server};
