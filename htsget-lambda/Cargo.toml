@@ -11,8 +11,8 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-lambda/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http/s3-storage", "htsget-storage/s3-storage", "htsget-test/s3-storage"]
-url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget-http/url-storage", "htsget-storage/url-storage", "htsget-test/url-storage"]
+s3-storage = ["htsget-axum/s3-storage", "htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http/s3-storage", "htsget-test/s3-storage"]
+url-storage = ["htsget-axum/url-storage", "htsget-config/url-storage", "htsget-search/url-storage", "htsget-http/url-storage", "htsget-test/url-storage"]
 default = []
 
 [dependencies]
@@ -32,7 +32,7 @@ htsget-config = { version = "0.10.0", path = "../htsget-config", default-feature
 htsget-search = { version = "0.7.1", path = "../htsget-search", default-features = false }
 htsget-http = { version = "0.4.14", path = "../htsget-http", default-features = false }
 htsget-test = { version = "0.6.1", path = "../htsget-test", features = ["http"], default-features = false }
-htsget-storage = { version = "0.1.0", path = "../htsget-storage", default-features = false }
+htsget-axum = { version = "0.1.0", path = "../htsget-axum", default-features = false }
 
 [dev-dependencies]
 async-trait = "0.1"

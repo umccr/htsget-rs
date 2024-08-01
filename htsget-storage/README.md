@@ -53,3 +53,9 @@ This crate has the following features:
 [local]: src/local.rs
 [s3]: src/s3.rs
 [url]: src/url.rs
+
+## License
+
+This project is licensed under the [MIT license][license].
+
+[license]: LICENSE

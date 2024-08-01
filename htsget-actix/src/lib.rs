@@ -155,8 +155,8 @@ mod tests {
   use async_trait::async_trait;
   use tempfile::TempDir;
 
+  use htsget_axum::data_server::BindDataServer;
   use htsget_config::types::JsonResponse;
-  use htsget_storage::data_server::BindDataServer;
   use htsget_test::http::server::expected_url_path;
   use htsget_test::http::{config_with_tls, default_test_config};
   use htsget_test::http::{cors, server};

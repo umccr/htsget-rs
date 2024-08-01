@@ -3,8 +3,8 @@ use tracing::debug;
 
 use htsget_actix::run_server;
 use htsget_actix::Config;
+use htsget_axum::data_server::BindDataServer;
 use htsget_config::command;
-use htsget_storage::data_server::BindDataServer;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

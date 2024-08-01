@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "htsget-config",
     "htsget-actix",
+    "htsget-axum",
     "htsget-http",
     "htsget-lambda",
     "htsget-search",

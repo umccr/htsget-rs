@@ -13,12 +13,12 @@ use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
 
+use htsget_axum::configure_cors;
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
 pub use htsget_config::storage::Storage;
 use htsget_http::{Endpoint, PostRequest};
 use htsget_search::HtsGet;
-use htsget_storage::configure_cors;
 
 use crate::handlers::get::get;
 use crate::handlers::post::post;
@@ -238,7 +238,7 @@ where
   F: FnMut(Request) -> Fut,
   Fut: Future<Output = http::Result<Response<Body>>> + Send,
 {
-  let cors_layer = configure_cors(cors)?;
+  let cors_layer = configure_cors(cors);
 
   let handler = ServiceBuilder::new()
     .layer(cors_layer)
@@ -276,11 +276,11 @@ mod tests {
   use query_map::QueryMap;
   use tempfile::TempDir;
 
+  use htsget_axum::configure_cors;
+  use htsget_axum::data_server::BindDataServer;
   use htsget_config::resolver::Resolver;
   use htsget_config::types::{Class, JsonResponse};
   use htsget_http::Endpoint;
-  use htsget_storage::configure_cors;
-  use htsget_storage::data_server::BindDataServer;
   use htsget_test::http::server::{expected_url_path, test_response, test_response_service_info};
   use htsget_test::http::{config_with_tls, default_test_config, get_test_file};
   use htsget_test::http::{cors, server};
@@ -759,7 +759,7 @@ mod tests {
     config: &Config,
   ) -> TestResponse {
     let response = ServiceBuilder::new()
-      .layer(configure_cors(config.ticket_server().cors().clone()).unwrap())
+      .layer(configure_cors(config.ticket_server().cors().clone()))
       .service(service_fn(|event: Request| async {
         router.route_request(event).await
       }))

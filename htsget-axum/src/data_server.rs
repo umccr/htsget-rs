@@ -5,7 +5,7 @@
 //!
 
 use axum::extract::Request;
-use std::net::{AddrParseError, SocketAddr};
+use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -28,9 +28,8 @@ use htsget_config::tls::TlsServerConfig;
 use htsget_config::types::Scheme;
 
 use crate::configure_cors;
-use crate::StorageError::{IoError, ServerError};
-
-use super::{Result, StorageError};
+use crate::error::Error::ServerError;
+use crate::error::Result;
 
 /// The maximum amount of time a CORS request can be cached for.
 pub const CORS_MAX_AGE: u64 = 86400;
@@ -111,12 +110,6 @@ impl From<DataServerConfig> for BindDataServer {
   }
 }
 
-impl From<AddrParseError> for StorageError {
-  fn from(err: AddrParseError) -> Self {
-    StorageError::InvalidAddress(err)
-  }
-}
-
 /// The local storage static http server.
 #[derive(Debug)]
 pub struct DataServer {
@@ -135,9 +128,7 @@ impl DataServer {
     cert_key_pair: Option<TlsServerConfig>,
     cors: CorsConfig,
   ) -> Result<DataServer> {
-    let listener = TcpListener::bind(addr)
-      .await
-      .map_err(|err| IoError("binding data server addr".to_string(), err))?;
+    let listener = TcpListener::bind(addr).await?;
 
     info!(address = ?listener.local_addr(), "data server address bound to");
     Ok(Self {
@@ -153,7 +144,7 @@ impl DataServer {
   pub async fn serve<P: AsRef<Path>>(self, path: P) -> Result<()> {
     let app = Router::new()
       .nest_service(&self.serve_at, ServeDir::new(path))
-      .layer(configure_cors(self.cors)?)
+      .layer(configure_cors(self.cors))
       .layer(TraceLayer::new_for_http());
 
     match self.cert_key_pair {
@@ -199,30 +190,24 @@ impl DataServer {
   }
 }
 
-impl From<hyper::Error> for StorageError {
-  fn from(error: hyper::Error) -> Self {
-    ServerError(error.to_string())
-  }
-}
-
 #[cfg(test)]
 mod tests {
   use std::str::FromStr;
 
   use async_trait::async_trait;
-  use http::header::HeaderName;
-  use http::{HeaderMap, HeaderValue, Method};
-  use reqwest::{Client, ClientBuilder, RequestBuilder};
-  use tempfile::tempdir;
-
   use htsget_test::http::cors::{test_cors_preflight_request_uri, test_cors_simple_request_uri};
   use htsget_test::http::{
     config_with_tls, default_cors_config, default_test_config, Header, Response as TestResponse,
     TestRequest, TestServer,
   };
+  use http::header::HeaderName;
+  use http::{HeaderMap, HeaderValue, Method};
+  use reqwest::{Client, ClientBuilder, RequestBuilder};
+  use tempfile::{tempdir, TempDir};
+  use tokio::fs::{create_dir, File};
+  use tokio::io::AsyncWriteExt;
 
-  use crate::local::tests::create_local_test_files;
-  use crate::Config;
+  use htsget_config::config::Config;
 
   use super::*;
 
@@ -431,5 +416,32 @@ mod tests {
 
     assert!(response.is_success());
     assert_eq!(response.body, b"value1");
+  }
+
+  pub(crate) async fn create_local_test_files() -> (String, TempDir) {
+    let base_path = TempDir::new().unwrap();
+
+    let folder_name = "folder";
+    let key1 = "key1";
+    let value1 = b"value1";
+    let key2 = "key2";
+    let value2 = b"value2";
+    File::create(base_path.path().join(key1))
+      .await
+      .unwrap()
+      .write_all(value1)
+      .await
+      .unwrap();
+    create_dir(base_path.path().join(folder_name))
+      .await
+      .unwrap();
+    File::create(base_path.path().join(folder_name).join(key2))
+      .await
+      .unwrap()
+      .write_all(value2)
+      .await
+      .unwrap();
+
+    (folder_name.to_string(), base_path)
   }
 }

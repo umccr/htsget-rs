@@ -14,22 +14,18 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
-use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
-use http::{uri, HeaderMap, HeaderValue};
+use http::{uri, HeaderMap};
 use thiserror::Error;
 use tokio::io::AsyncRead;
-use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
-use htsget_config::config::cors::CorsConfig;
 use htsget_config::storage::local::LocalStorage;
 use htsget_config::types::Scheme;
 
-pub mod data_server;
 pub mod local;
 #[cfg(feature = "s3-storage")]
 pub mod s3;
@@ -155,65 +151,6 @@ impl UrlFormatter for LocalStorage {
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
       .map(|value| value.to_string())
   }
-}
-
-/// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
-/// are supported.
-pub fn configure_cors(cors: CorsConfig) -> Result<CorsLayer> {
-  let mut cors_layer = CorsLayer::new();
-
-  cors_layer = cors.allow_origins().apply_any(
-    |cors_layer| cors_layer.allow_origin(AllowOrigin::any()),
-    cors_layer,
-  );
-  cors_layer = cors.allow_origins().apply_mirror(
-    |cors_layer| cors_layer.allow_origin(AllowOrigin::mirror_request()),
-    cors_layer,
-  );
-  cors_layer = cors.allow_origins().apply_list(
-    |cors_layer, origins| {
-      cors_layer.allow_origin(
-        origins
-          .iter()
-          .map(|header| header.clone().into_inner())
-          .collect::<Vec<HeaderValue>>(),
-      )
-    },
-    cors_layer,
-  );
-
-  cors_layer = cors.allow_headers().apply_any(
-    |cors_layer| cors_layer.allow_headers(AllowHeaders::mirror_request()),
-    cors_layer,
-  );
-  cors_layer = cors.allow_headers().apply_list(
-    |cors_layer, headers| cors_layer.allow_headers(headers.clone()),
-    cors_layer,
-  );
-
-  cors_layer = cors.allow_methods().apply_any(
-    |cors_layer| cors_layer.allow_methods(AllowMethods::mirror_request()),
-    cors_layer,
-  );
-  cors_layer = cors.allow_methods().apply_list(
-    |cors_layer, methods| cors_layer.allow_methods(methods.clone()),
-    cors_layer,
-  );
-
-  cors_layer = cors.expose_headers().apply_any(
-    |cors_layer| cors_layer.expose_headers(ExposeHeaders::any()),
-    cors_layer,
-  );
-  cors_layer = cors.expose_headers().apply_list(
-    |cors_layer, headers| cors_layer.expose_headers(headers.clone()),
-    cors_layer,
-  );
-
-  Ok(
-    cors_layer
-      .allow_credentials(cors.allow_credentials())
-      .max_age(Duration::from_secs(cors.max_age() as u64)),
-  )
 }
 
 impl From<StorageError> for io::Error {
