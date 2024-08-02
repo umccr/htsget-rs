@@ -125,10 +125,10 @@ impl<S> HtsGetFromStorage<S> {
 #[cfg(test)]
 pub(crate) mod tests {
   use std::fs;
-  #[cfg(feature = "s3-storage")]
-  use std::fs::create_dir;
   use std::future::Future;
   use std::path::{Path, PathBuf};
+  #[cfg(feature = "s3-storage")]
+  use {htsget_test::aws_mocks::with_s3_test_server, std::fs::create_dir};
 
   use http::uri::Authority;
   use tempfile::TempDir;
@@ -147,7 +147,6 @@ pub(crate) mod tests {
     VCF_FILE_NAME_SPEC,
   };
   use crate::{Headers, Url};
-  use htsget_test::aws_mocks::with_s3_test_server;
 
   use super::*;
 
