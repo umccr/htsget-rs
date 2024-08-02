@@ -6,6 +6,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use tokio::fs;
 use tokio::fs::File;
 use tracing::debug;
 use tracing::instrument;
@@ -131,7 +132,7 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     _options: HeadOptions<'_>,
   ) -> Result<u64> {
     let path = self.get_path_from_key(&key)?;
-    let len = tokio::fs::metadata(path)
+    let len = fs::metadata(path)
       .await
       .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
       .len();

@@ -155,7 +155,7 @@ mod tests {
   use async_trait::async_trait;
   use tempfile::TempDir;
 
-  use htsget_axum::data_server::BindDataServer;
+  use htsget_axum::server::BindServer;
   use htsget_config::types::JsonResponse;
   use htsget_test::http::server::expected_url_path;
   use htsget_test::http::{config_with_tls, default_test_config};
@@ -207,8 +207,11 @@ mod tests {
   #[async_trait(?Send)]
   impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
     async fn get_expected_path(&self) -> String {
-      let mut bind_data_server = BindDataServer::from(self.get_config().data_server().clone());
-      let server = bind_data_server.bind_data_server().await.unwrap();
+      let mut bind_data_server = BindServer::from(self.get_config().data_server().clone());
+      let server = bind_data_server
+        .bind_data_server("/data".to_string())
+        .await
+        .unwrap();
       let addr = server.local_addr();
 
       let path = self.get_config().data_server().local_path().to_path_buf();

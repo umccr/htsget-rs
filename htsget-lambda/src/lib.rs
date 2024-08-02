@@ -13,7 +13,7 @@ use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
 
-use htsget_axum::configure_cors;
+use htsget_axum::server::configure_cors;
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
 pub use htsget_config::storage::Storage;
@@ -276,8 +276,8 @@ mod tests {
   use query_map::QueryMap;
   use tempfile::TempDir;
 
-  use htsget_axum::configure_cors;
-  use htsget_axum::data_server::BindDataServer;
+  use htsget_axum::server::configure_cors;
+  use htsget_axum::server::BindServer;
   use htsget_config::resolver::Resolver;
   use htsget_config::types::{Class, JsonResponse};
   use htsget_http::Endpoint;
@@ -704,8 +704,11 @@ mod tests {
   }
 
   async fn spawn_server(config: &Config) -> String {
-    let mut bind_data_server = BindDataServer::from(config.data_server().clone());
-    let server = bind_data_server.bind_data_server().await.unwrap();
+    let mut bind_data_server = BindServer::from(config.data_server().clone());
+    let server = bind_data_server
+      .bind_data_server("/data".to_string())
+      .await
+      .unwrap();
     let addr = server.local_addr();
 
     let path = config.data_server().local_path().to_path_buf();

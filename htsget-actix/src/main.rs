@@ -3,7 +3,7 @@ use tracing::debug;
 
 use htsget_actix::run_server;
 use htsget_actix::Config;
-use htsget_axum::data_server::BindDataServer;
+use htsget_axum::server::BindServer;
 use htsget_config::command;
 
 #[actix_web::main]
@@ -19,9 +19,10 @@ async fn main() -> std::io::Result<()> {
 
     if config.data_server().enabled() {
       let server = config.data_server().clone();
-      let mut bind_data_server = BindDataServer::from(server.clone());
 
-      let local_server = bind_data_server.bind_data_server().await?;
+      let local_server = BindServer::from(server.clone())
+        .bind_data_server(server.serve_at().to_string())
+        .await?;
       let local_server =
         tokio::spawn(async move { local_server.serve(&server.local_path()).await });
 

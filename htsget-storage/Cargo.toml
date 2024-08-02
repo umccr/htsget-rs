@@ -30,26 +30,15 @@ url-storage = [
 default = []
 
 [dependencies]
-# Axum server
 url = "2"
-hyper = { version = "1", features = ["http1", "http2", "server"] }
-hyper-util = "0.1"
-tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
 http = "1"
-axum = "0.7"
-rustls-pemfile = "2"
-tower = { version = "0.4", features = ["make"] }
 
 # Async
-tokio-rustls = "0.26"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"
 async-trait = "0.1"
-
-# Noodles
-noodles = { version = "0.74", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Amazon S3
 bytes = { version = "1", optional = true }
@@ -64,12 +53,13 @@ pin-project-lite = { version = "0.2", optional = true }
 thiserror = "1"
 tracing = "0.1"
 base64 = "0.22"
-serde = "1"
 
 htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.6.1", path = "../htsget-test", features = ["http"], default-features = false }
 
 [dev-dependencies]
+tower-http = { version = "0.5", features = ["fs"] }
+axum = "0.7"
 tempfile = "3"
 data-url = "0.3"
 
