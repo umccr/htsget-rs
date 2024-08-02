@@ -1,3 +1,6 @@
+//! The axum data server.
+//!
+
 use crate::error::Result;
 use crate::server::{configure_cors, BindServer, Server};
 use axum::Router;
@@ -5,8 +8,10 @@ use htsget_config::config::cors::CorsConfig;
 use htsget_config::config::DataServerConfig;
 use std::net::SocketAddr;
 use std::path::Path;
+use tokio::task::JoinHandle;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
+use tracing::info;
 
 /// An data block server.
 #[derive(Debug)]
@@ -60,6 +65,21 @@ impl From<DataServerConfig> for BindServer {
       Some(tls) => Self::new_with_tls(addr, cors, tls),
     }
   }
+}
+
+/// Spawn a task to run the data server.
+pub async fn join_handle(config: DataServerConfig) -> Result<JoinHandle<Result<()>>> {
+  let serve_at = config.serve_at().to_string();
+  let local_path = config.local_path().to_path_buf();
+  let data_server = BindServer::from(config.clone())
+    .bind_data_server(serve_at)
+    .await?;
+
+  info!(address = ?data_server.local_addr()?, "data server address bound to");
+
+  Ok(tokio::spawn(
+    async move { data_server.serve(&local_path).await },
+  ))
 }
 
 #[cfg(test)]

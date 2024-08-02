@@ -47,16 +47,29 @@ This crate has the following features:
 * `url-storage`: used to enable `UrlStorage` functionality.
 
 ## Benchmarks
+Benchmarks for this crate written using [Criterion.rs][criterion-rs], and aim to compare the performance of this crate with the
+[htsget Reference Server][htsget-refserver].
+There are a set of light benchmarks, and one heavy benchmark. Light benchmarks can be performed by executing:
 
-There are a set of benchmarks for this crate which are similar to those for [htsget-axum]. They also use  [Criterion.rs][criterion-rs],
-and aim to compare the performance of this crate with the [htsget Reference Server][htsget-refserver]. To run benchmarks
-follow the benchmarks instructions for [htsget-axum][htsget-axum-bench], replacing calls to `htsget-axum` with `htsget-actix`.
+```
+cargo bench -p htsget-axum -- LIGHT
+```
+
+To run the heavy benchmark, an additional vcf file needs to be downloaded, and placed in the [`data/vcf`][data-vcf] directory:
+
+```
+curl ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000_genomes_project/release/20190312_biallelic_SNV_and_INDEL/ALL.chr14.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.vcf.gz > data/vcf/internationalgenomesample.vcf.gz
+```
+
+Then to run the heavy benchmark:
+
+```
+cargo bench -p htsget-axum -- HEAVY
+```
 
 [criterion-rs]: https://github.com/bheisler/criterion.rs
 [htsget-refserver]: https://github.com/ga4gh/htsget-refserver
-[htsget-axum]: ../htsget-axum
-[htsget-axum-usage]: ../htsget-axum#usage
-[htsget-axum-bench]: ../htsget-axum#benchmarks
+[data-vcf]: ../data/vcf
 
 ## License
 

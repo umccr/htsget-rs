@@ -1984,7 +1984,6 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-extra",
- "criterion",
  "data-url",
  "futures",
  "htsget-config",

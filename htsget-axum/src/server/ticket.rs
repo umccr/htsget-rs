@@ -1,15 +1,20 @@
+//! The Axum ticket server.
+//!
+
 use crate::error::Result;
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
 use crate::server::{configure_cors, AppState, BindServer, Server};
 use axum::routing::get;
 use axum::Router;
 use htsget_config::config::cors::CorsConfig;
-use htsget_config::config::{ServiceInfo, TicketServerConfig};
+use htsget_config::config::{Config, ServiceInfo, TicketServerConfig};
 use htsget_search::HtsGet;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
+use tracing::info;
 
 impl From<TicketServerConfig> for BindServer {
   /// Returns a ticket server with TLS enabled if the tls config is not None or without TLS enabled
@@ -83,6 +88,18 @@ where
   }
 }
 
+/// Spawn a task to run the ticket server.
+pub async fn join_handle(config: Config) -> Result<JoinHandle<Result<()>>> {
+  let service_info = config.service_info().clone();
+  let ticket_server = BindServer::from(config.ticket_server().clone())
+    .bind_ticket_server(config.owned_resolvers(), service_info)
+    .await?;
+
+  info!(address = ?ticket_server.local_addr()?, "ticket server address bound to");
+
+  Ok(tokio::spawn(async move { ticket_server.serve().await }))
+}
+
 #[cfg(test)]
 mod tests {
   use std::convert::Infallible;
@@ -150,7 +167,7 @@ mod tests {
     }
   }
 
-  #[async_trait(? Send)]
+  #[async_trait(?Send)]
   impl TestServer<AxumTestRequest<Request<Body>>> for AxumTestServer {
     async fn get_expected_path(&self) -> String {
       let mut bind_data_server = BindServer::from(self.get_config().data_server().clone());
