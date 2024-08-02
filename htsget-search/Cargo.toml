@@ -1,7 +1,7 @@
 [package]
 name = "htsget-search"
 version = "0.7.1"
-rust-version = "1.74"
+rust-version = "1.75"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "The primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using noodles to query files and their indices."
