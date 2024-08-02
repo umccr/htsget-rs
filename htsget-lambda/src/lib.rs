@@ -236,7 +236,7 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 pub async fn handle_request_service_fn<F, Fut>(cors: CorsConfig, service: F) -> Result<(), Error>
 where
   F: FnMut(Request) -> Fut,
-  Fut: Future<Output = http::Result<Response<Body>>> + Send,
+  Fut: Future<Output = Result<Response<Body>, Error>> + Send,
 {
   let cors_layer = configure_cors(cors);
 
@@ -255,7 +255,7 @@ where
 {
   handle_request_service_fn(cors, |event: Request| async move {
     info!(event = ?event, "received request");
-    router.route_request(event).await
+    Ok(router.route_request(event).await?)
   })
   .await
 }
