@@ -343,11 +343,11 @@ Further TLS examples are available under [`examples/config-files`][examples-conf
 
 #### Config file location
 
-The htsget-rs binaries ([htsget-actix] and [htsget-lambda]) support some command line options. The config file location can
+The htsget-rs binaries ([htsget-axum], [htsget-actix] and [htsget-lambda]) support some command line options. The config file location can
 be specified by setting the `--config` option:
 
 ```shell
-cargo run -p htsget-actix -- --config "config.toml"
+cargo run -p htsget-axum -- --config "config.toml"
 ```
 
 The config can also be read from an environment variable:
@@ -359,12 +359,13 @@ If no config file is specified, the default configuration is used. Further, the 
 the `--print-default-config` flag:
 
 ```shell
-cargo run -p htsget-actix -- --print-default-config
+cargo run -p htsget-axum -- --print-default-config
 ```
 
 Use the `--help` flag to see more details on command line options.
 
 [htsget-actix]: ../htsget-actix
+[htsget-axum]: ../htsget-axum
 [htsget-lambda]: ../htsget-lambda
 
 #### Log formatting
