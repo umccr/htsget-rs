@@ -13,8 +13,7 @@
 > projects to use [htsget-axum] instead.
 > 
 > This crate will be maintained to preserve backwards compatibility, however [htsget-axum] is
-> favoured because it contains components that better fit with the rest of htsget-rs, and [htsget-actix]
-> depends on some of them.
+> favoured because it contains components that better fit with the rest of htsget-rs.
 
 Framework dependent code for a server instance of [htsget-rs], using [Actix Web][actix-web].
 
@@ -34,6 +33,12 @@ This crate is used for running a local instance of htsget-rs. It is based on:
 
 This application has the same functionality as [htsget-axum]. To use it, following the [htsget-axum][htsget-axum-usage] instructions, and
 replace any calls to `htsget-axum` with `htsget-actix`.
+
+It is recommended to use [htsget-axum] because it better fits with the rest of [htsget-rs]. For example [htsget-actix]
+uses the actix-web framework for the ticket server, however it depends on [htsget-axum] for the data server. Also, components
+in [htsget-lambda] use Axum dependencies.
+
+[htsget-lambda]: ../htsget-lambda
 
 ### As a library
 
