@@ -9,7 +9,7 @@ use tracing::info;
 use tracing::instrument;
 
 use htsget_http::{post, Endpoint, PostRequest};
-use htsget_search::htsget::HtsGet;
+use htsget_search::HtsGet;
 
 use crate::handlers::extract_request;
 use crate::AppState;

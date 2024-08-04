@@ -1,7 +1,7 @@
 [package]
 name = "htsget-test"
 version = "0.6.1"
-rust-version = "1.74"
+rust-version = "1.75"
 authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 license = "MIT"
@@ -42,7 +42,7 @@ default = []
 # Server tests dependencies
 htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false, optional = true }
 
-noodles = { version = "0.74", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
+noodles = { version = "0.78", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "fs"], optional = true }

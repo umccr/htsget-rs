@@ -13,12 +13,12 @@ use lambda_runtime::Error;
 use tracing::instrument;
 use tracing::{debug, info};
 
+use htsget_axum::server::configure_cors;
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
 pub use htsget_config::storage::Storage;
 use htsget_http::{Endpoint, PostRequest};
-use htsget_search::htsget::HtsGet;
-use htsget_search::storage::configure_cors;
+use htsget_search::HtsGet;
 
 use crate::handlers::get::get;
 use crate::handlers::post::post;
@@ -236,9 +236,9 @@ impl<'a, H: HtsGet + Send + Sync + 'static> Router<'a, H> {
 pub async fn handle_request_service_fn<F, Fut>(cors: CorsConfig, service: F) -> Result<(), Error>
 where
   F: FnMut(Request) -> Fut,
-  Fut: Future<Output = http::Result<Response<Body>>> + Send,
+  Fut: Future<Output = Result<Response<Body>, Error>> + Send,
 {
-  let cors_layer = configure_cors(cors)?;
+  let cors_layer = configure_cors(cors);
 
   let handler = ServiceBuilder::new()
     .layer(cors_layer)
@@ -255,7 +255,7 @@ where
 {
   handle_request_service_fn(cors, |event: Request| async move {
     info!(event = ?event, "received request");
-    router.route_request(event).await
+    Ok(router.route_request(event).await?)
   })
   .await
 }
@@ -276,11 +276,11 @@ mod tests {
   use query_map::QueryMap;
   use tempfile::TempDir;
 
+  use htsget_axum::server::configure_cors;
+  use htsget_axum::server::BindServer;
   use htsget_config::resolver::Resolver;
   use htsget_config::types::{Class, JsonResponse};
   use htsget_http::Endpoint;
-  use htsget_search::storage::configure_cors;
-  use htsget_search::storage::data_server::BindDataServer;
   use htsget_test::http::server::{expected_url_path, test_response, test_response_service_info};
   use htsget_test::http::{config_with_tls, default_test_config, get_test_file};
   use htsget_test::http::{cors, server};
@@ -704,8 +704,11 @@ mod tests {
   }
 
   async fn spawn_server(config: &Config) -> String {
-    let mut bind_data_server = BindDataServer::from(config.data_server().clone());
-    let server = bind_data_server.bind_data_server().await.unwrap();
+    let mut bind_data_server = BindServer::from(config.data_server().clone());
+    let server = bind_data_server
+      .bind_data_server("/data".to_string())
+      .await
+      .unwrap();
     let addr = server.local_addr();
 
     let path = config.data_server().local_path().to_path_buf();
@@ -759,7 +762,7 @@ mod tests {
     config: &Config,
   ) -> TestResponse {
     let response = ServiceBuilder::new()
-      .layer(configure_cors(config.ticket_server().cors().clone()).unwrap())
+      .layer(configure_cors(config.ticket_server().cors().clone()))
       .service(service_fn(|event: Request| async {
         router.route_request(event).await
       }))

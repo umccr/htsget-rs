@@ -20,9 +20,9 @@ use tracing::{instrument, trace};
 
 use htsget_config::types::HtsGetError;
 
-use crate::htsget::search::{find_first, BgzfSearch, Search};
-use crate::storage::{BytesPosition, Storage};
+use crate::search::{find_first, BgzfSearch, Search};
 use crate::{Format, Query, Result};
+use htsget_storage::{BytesPosition, Storage};
 
 type AsyncReader<ReaderType> = vcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
 
@@ -139,11 +139,11 @@ pub(crate) mod tests {
   use htsget_test::util::expected_bgzf_eof_data_url;
 
   #[cfg(feature = "s3-storage")]
-  use crate::htsget::from_storage::tests::with_aws_storage_fn;
-  use crate::htsget::from_storage::tests::with_local_storage_fn;
-  use crate::htsget::search::SearchAll;
-  use crate::storage::local::LocalStorage;
+  use crate::from_storage::tests::with_aws_storage_fn;
+  use crate::from_storage::tests::with_local_storage_fn;
+  use crate::search::SearchAll;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+  use htsget_storage::local::LocalStorage;
 
   use super::*;
 

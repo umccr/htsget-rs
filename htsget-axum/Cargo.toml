@@ -1,0 +1,56 @@
+[package]
+name = "htsget-axum"
+version = "0.1.0"
+rust-version = "1.75"
+authors = ["Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
+license = "MIT"
+description = "A webserver instance of htsget-rs using Axum."
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-axum/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-axum/README.md"
+repository = "https://github.com/umccr/htsget-rs"
+
+[features]
+s3-storage = [
+    "htsget-config/s3-storage",
+    "htsget-search/s3-storage",
+    "htsget-test/s3-storage",
+    "htsget-test/aws-mocks"
+]
+url-storage = [
+    "htsget-config/url-storage",
+    "htsget-search/url-storage",
+    "htsget-test/url-storage"
+]
+default = []
+
+[dependencies]
+# Axum server
+hyper = { version = "1", features = ["http1", "http2", "server"] }
+hyper-util = "0.1"
+tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
+http = "1"
+axum = { version = "0.7", features = ["http2"] }
+axum-extra = { version = "0.9", features = ["erased-json"] }
+tower = { version = "0.4", features = ["make"] }
+
+# Async
+tokio-rustls = "0.26"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+futures = { version = "0.3" }
+async-trait = "0.1"
+
+# Tracing and error
+thiserror = "1"
+tracing = "0.1"
+
+htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.6.1", path = "../htsget-test", features = ["http"], default-features = false }
+htsget-search = { version = "0.7.1", path = "../htsget-search", default-features = false }
+htsget-http = { version = "0.4.14", path = "../htsget-http", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+data-url = "0.3"
+
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }

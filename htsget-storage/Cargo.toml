@@ -1,0 +1,69 @@
+[package]
+name = "htsget-storage"
+version = "0.1.0"
+rust-version = "1.75"
+authors = ["Marko Malenic <mmalenic1@gmail.com>"]
+edition = "2021"
+license = "MIT"
+description = "Storage interfaces and abstractions for htsget-rs."
+documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-storage/README.md"
+homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-storage/README.md"
+repository = "https://github.com/umccr/htsget-rs"
+
+[features]
+s3-storage = [
+    "dep:bytes",
+    "dep:aws-sdk-s3",
+    "dep:aws-config",
+    "dep:pin-project-lite",
+    "htsget-config/s3-storage",
+    "htsget-test/s3-storage",
+    "htsget-test/aws-mocks"
+]
+url-storage = [
+    "dep:bytes",
+    "dep:reqwest",
+    "dep:pin-project-lite",
+    "htsget-config/url-storage",
+    "htsget-test/url-storage"
+]
+default = []
+
+[dependencies]
+url = "2"
+http = "1"
+
+# Async
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio-util = { version = "0.7", features = ["io", "compat"] }
+futures = { version = "0.3" }
+futures-util = "0.3"
+async-trait = "0.1"
+
+# Amazon S3
+bytes = { version = "1", optional = true }
+aws-sdk-s3 = { version = "1", optional = true }
+aws-config = { version = "1", optional = true }
+
+# Url storage
+reqwest = { version = "0.12", features = ["rustls-tls", "stream"], default-features = false, optional = true }
+pin-project-lite = { version = "0.2", optional = true }
+
+# Error control, tracing, config
+thiserror = "1"
+tracing = "0.1"
+base64 = "0.22"
+
+htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.6.1", path = "../htsget-test", features = ["http"], default-features = false }
+
+[dev-dependencies]
+tower-http = { version = "0.5", features = ["fs"] }
+axum = "0.7"
+tempfile = "3"
+data-url = "0.3"
+
+# Axum server
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+criterion = { version = "0.5", features = ["async_tokio"] }

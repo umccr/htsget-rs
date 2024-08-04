@@ -25,11 +25,11 @@ use tokio_util::io::StreamReader;
 use tracing::instrument;
 use tracing::{debug, warn};
 
-use crate::storage::s3::Retrieval::{Delayed, Immediate};
-use crate::storage::StorageError::{AwsS3Error, IoError, KeyNotFound};
-use crate::storage::{BytesPosition, HeadOptions, StorageError};
-use crate::storage::{BytesRange, Storage};
+use crate::s3::Retrieval::{Delayed, Immediate};
+use crate::StorageError::{AwsS3Error, IoError, KeyNotFound};
 use crate::Url;
+use crate::{BytesPosition, HeadOptions, StorageError};
+use crate::{BytesRange, Storage};
 
 use super::{GetOptions, RangeUrlOptions, Result};
 
@@ -310,11 +310,11 @@ pub(crate) mod tests {
 
   use htsget_test::aws_mocks::with_s3_test_server;
 
-  use crate::storage::local::tests::create_local_test_files;
-  use crate::storage::s3::S3Storage;
-  use crate::storage::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
-  use crate::storage::{HeadOptions, StorageError};
+  use crate::local::tests::create_local_test_files;
+  use crate::s3::S3Storage;
   use crate::Headers;
+  use crate::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
+  use crate::{HeadOptions, StorageError};
 
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
   where

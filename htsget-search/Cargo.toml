@@ -1,7 +1,7 @@
 [package]
 name = "htsget-search"
 version = "0.7.1"
-rust-version = "1.74"
+rust-version = "1.75"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "The primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using noodles to query files and their indices."
@@ -12,68 +12,39 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = [
-    "dep:bytes",
-    "dep:aws-sdk-s3",
-    "dep:aws-config",
-    "dep:pin-project-lite",
+    "htsget-storage/s3-storage",
     "htsget-config/s3-storage",
     "htsget-test/s3-storage",
     "htsget-test/aws-mocks"
 ]
 url-storage = [
-    "dep:bytes",
-    "dep:reqwest",
-    "dep:pin-project-lite",
+    "htsget-storage/url-storage",
     "htsget-config/url-storage",
     "htsget-test/url-storage"
 ]
 default = []
 
 [dependencies]
-# Axum server
-url = "2"
-hyper = { version = "1", features = ["http1", "http2", "server"] }
-hyper-util = "0.1"
-tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
-http = "1"
-axum = "0.7"
-rustls-pemfile = "2"
-tower = { version = "0.4", features = ["make"] }
-
 # Async
-tokio-rustls = "0.26"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.74", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
-
-# Amazon S3
-bytes = { version = "1", optional = true }
-aws-sdk-s3 = { version = "1", optional = true }
-aws-config = { version = "1", optional = true }
-
-# Url storage
-reqwest = { version = "0.12", features = ["rustls-tls", "stream"], default-features = false, optional = true }
-pin-project-lite = { version = "0.2", optional = true }
+noodles = { version = "0.78", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Error control, tracing, config
 thiserror = "1"
-htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.6.1", path = "../htsget-test", features = ["http"], default-features = false }
 tracing = "0.1"
-base64 = "0.22"
-serde = "1"
+
+htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false }
+htsget-storage = { version = "0.1.0", path = "../htsget-storage", default-features = false }
+htsget-test = { version = "0.6.1", path = "../htsget-test", features = ["http"], default-features = false }
 
 [dev-dependencies]
 tempfile = "3"
-data-url = "0.3"
-
-# Axum server
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+http = "1"
 
 criterion = { version = "0.5", features = ["async_tokio"] }
 

@@ -5,7 +5,7 @@ use tracing::debug;
 use tracing::instrument;
 
 use htsget_config::types::Format;
-use htsget_search::htsget::HtsGet;
+use htsget_search::HtsGet;
 
 use crate::ConfigServiceInfo;
 use crate::Endpoint;

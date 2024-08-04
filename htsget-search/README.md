@@ -11,7 +11,6 @@
 Creates URL tickets for [htsget-rs] by processing bioinformatics files. It:
 * Takes a htsget query and produces htsget URL tickets.
 * Uses [noodles] to process files.
-* Features a storage abstraction layer which can represent data locally or in the cloud.
 
 [htsget-rs]: https://github.com/umccr/htsget-rs
 
@@ -19,26 +18,10 @@ Creates URL tickets for [htsget-rs] by processing bioinformatics files. It:
 
 This crate is the primary mechanism by which htsget-rs interacts with, and processes
 bioinformatics files. It does this by using [noodles] to query files and their indices.
-It is split up into two modules:
-* [htsget]: which contains abstractions that remove commonalities between file formats. Together with file format 
-specific code, this defines an interface that handles the core logic of a htsget request.
-* [storage]: which implements an object based storage abstraction, either locally or on the cloud, that can be used to fetch data. 
-
-Future work may split these two modules into separate crates.
+This crate contains abstractions that remove commonalities between file formats. Together with file format 
+specific code, this defines an interface that handles the core logic of a htsget request. ht
 
 [noodles]: https://github.com/zaeleus/noodles
-
-### Traits abstraction
-
-The two modules are architectured to remove commonalities between file formats and to allow implementing additional features with ease.
-The `storage` module is the location of storage backends. This module acts as the 'data server', as 
-described by the htsget protocol, and implementing an additional backend requires implementing the `Storage` trait. This trait is used 
-by `htsget` to fetch the underlying file and query the data. For example, similar to `S3Storage`, a Cloudflare R2 storage
-could be added. 
-
-Note that the storage backend is responsible for allowing the user to fetch the URL tickets returned by the
-ticket server. In the case of `LocalStorage`, this entails a separate `data_server` that can serve files using HTTP. `S3Storage`
-simply returns presigned S3 URLs.
 
 ## Usage
 
@@ -64,22 +47,18 @@ This is quite inflexible, and is likely to change in the future to allow arbitra
 
 ### As a library
 
-The two modules that this crate provides have the following features:
+This crate has the following features:
 
-* [htsget]: The `HtsGet` trait represents an entity that can resolve queries according to the htsget spec. 
+* The `HtsGet` trait represents an entity that can resolve queries according to the htsget spec. 
 The htsget trait comes with a basic model to represent components needed to perform a search: `Query`, `Format`, 
 `Class`, `Tags`, `Headers`, `Url`, `Response`. `HtsGetFromStorage` is the struct which is 
 used to process requests.
-* [storage]: The `Storage` trait contains functions used to fetch data: `get`, `range_url`, `head` and `data_url`.
-
+* 
 #### Feature flags
 
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-
-[htsget]: src/htsget
-[storage]: src/storage
 
 ## Minimising Byte Ranges
 

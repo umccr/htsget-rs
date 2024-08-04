@@ -3,8 +3,8 @@ use tracing::debug;
 
 use htsget_actix::run_server;
 use htsget_actix::Config;
+use htsget_axum::server::data;
 use htsget_config::command;
-use htsget_search::storage::data_server::BindDataServer;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -18,15 +18,11 @@ async fn main() -> std::io::Result<()> {
     debug!(config = ?config, "config parsed");
 
     if config.data_server().enabled() {
-      let server = config.data_server().clone();
-      let mut bind_data_server = BindDataServer::from(server.clone());
-
-      let local_server = bind_data_server.bind_data_server().await?;
-      let local_server =
-        tokio::spawn(async move { local_server.serve(&server.local_path()).await });
+      let local_server = data::join_handle(config.data_server().clone()).await?;
 
       let ticket_server_config = config.ticket_server().clone();
       let service_info = config.service_info().clone();
+
       select! {
         local_server = local_server => Ok(local_server??),
         actix_server = run_server(

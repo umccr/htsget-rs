@@ -1,7 +1,7 @@
 [package]
 name = "htsget-config"
 version = "0.10.0"
-rust-version = "1.74"
+rust-version = "1.75"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "Used to configure htsget-rs by using a config file or reading environment variables."
@@ -18,7 +18,7 @@ default = []
 [dependencies]
 thiserror = "1"
 async-trait = "0.1"
-noodles = { version = "0.74", features = ["core"] }
+noodles = { version = "0.78", features = ["core"] }
 serde = { version = "1", features = ["derive"] }
 serde_with = "3"
 serde_regex = "1"

@@ -7,7 +7,7 @@ use tracing::debug;
 use tracing::instrument;
 
 use htsget_config::types::{JsonResponse, Request, Response};
-use htsget_search::htsget::HtsGet;
+use htsget_search::HtsGet;
 
 use crate::HtsGetError::InvalidInput;
 use crate::{

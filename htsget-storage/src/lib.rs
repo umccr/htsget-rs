@@ -1,29 +1,31 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 
+pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
+pub use htsget_config::resolver::{
+  IdResolver, QueryAllowed, ResolveResponse, Resolver, StorageResolver,
+};
+pub use htsget_config::types::{
+  Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Url,
+};
+
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::ErrorKind;
 use std::net::AddrParseError;
-use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
-use http::{uri, HeaderMap, HeaderValue};
+use http::{uri, HeaderMap};
 use thiserror::Error;
 use tokio::io::AsyncRead;
-use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::instrument;
 
-use htsget_config::config::cors::CorsConfig;
 use htsget_config::storage::local::LocalStorage;
-use htsget_config::types::{Class, Scheme};
+use htsget_config::types::Scheme;
 
-use crate::{Headers, Url};
-
-pub mod data_server;
 pub mod local;
 #[cfg(feature = "s3-storage")]
 pub mod s3;
@@ -117,6 +119,25 @@ pub enum StorageError {
   UrlParseError(String),
 }
 
+impl From<StorageError> for HtsGetError {
+  fn from(err: StorageError) -> Self {
+    match err {
+      err @ StorageError::InvalidInput(_) => Self::InvalidInput(err.to_string()),
+      err @ (StorageError::KeyNotFound(_)
+      | StorageError::InvalidKey(_)
+      | StorageError::ResponseError(_)) => Self::NotFound(err.to_string()),
+      err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
+      err @ (StorageError::ServerError(_)
+      | StorageError::InvalidUri(_)
+      | StorageError::InvalidAddress(_)
+      | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
+      #[cfg(feature = "s3-storage")]
+      err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
+      err @ StorageError::UrlParseError(_) => Self::ParseError(err.to_string()),
+    }
+  }
+}
+
 impl UrlFormatter for LocalStorage {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     uri::Builder::new()
@@ -130,65 +151,6 @@ impl UrlFormatter for LocalStorage {
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
       .map(|value| value.to_string())
   }
-}
-
-/// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
-/// are supported.
-pub fn configure_cors(cors: CorsConfig) -> Result<CorsLayer> {
-  let mut cors_layer = CorsLayer::new();
-
-  cors_layer = cors.allow_origins().apply_any(
-    |cors_layer| cors_layer.allow_origin(AllowOrigin::any()),
-    cors_layer,
-  );
-  cors_layer = cors.allow_origins().apply_mirror(
-    |cors_layer| cors_layer.allow_origin(AllowOrigin::mirror_request()),
-    cors_layer,
-  );
-  cors_layer = cors.allow_origins().apply_list(
-    |cors_layer, origins| {
-      cors_layer.allow_origin(
-        origins
-          .iter()
-          .map(|header| header.clone().into_inner())
-          .collect::<Vec<HeaderValue>>(),
-      )
-    },
-    cors_layer,
-  );
-
-  cors_layer = cors.allow_headers().apply_any(
-    |cors_layer| cors_layer.allow_headers(AllowHeaders::mirror_request()),
-    cors_layer,
-  );
-  cors_layer = cors.allow_headers().apply_list(
-    |cors_layer, headers| cors_layer.allow_headers(headers.clone()),
-    cors_layer,
-  );
-
-  cors_layer = cors.allow_methods().apply_any(
-    |cors_layer| cors_layer.allow_methods(AllowMethods::mirror_request()),
-    cors_layer,
-  );
-  cors_layer = cors.allow_methods().apply_list(
-    |cors_layer, methods| cors_layer.allow_methods(methods.clone()),
-    cors_layer,
-  );
-
-  cors_layer = cors.expose_headers().apply_any(
-    |cors_layer| cors_layer.expose_headers(ExposeHeaders::any()),
-    cors_layer,
-  );
-  cors_layer = cors.expose_headers().apply_list(
-    |cors_layer, headers| cors_layer.expose_headers(headers.clone()),
-    cors_layer,
-  );
-
-  Ok(
-    cors_layer
-      .allow_credentials(cors.allow_credentials())
-      .max_age(Duration::from_secs(cors.max_age() as u64)),
-  )
 }
 
 impl From<StorageError> for io::Error {
@@ -510,7 +472,7 @@ mod tests {
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
 
-  use crate::storage::local::LocalStorage;
+  use crate::local::LocalStorage;
 
   use super::*;
 
@@ -1000,6 +962,18 @@ mod tests {
       "/data".to_string(),
     );
     test_formatter_authority(formatter, "https");
+  }
+
+  #[test]
+  fn htsget_error_from_storage_not_found() {
+    let result = HtsGetError::from(StorageError::KeyNotFound("error".to_string()));
+    assert!(matches!(result, HtsGetError::NotFound(_)));
+  }
+
+  #[test]
+  fn htsget_error_from_storage_invalid_key() {
+    let result = HtsGetError::from(StorageError::InvalidKey("error".to_string()));
+    assert!(matches!(result, HtsGetError::NotFound(_)));
   }
 
   fn test_formatter_authority(formatter: ConfigLocalStorage, scheme: &str) {
