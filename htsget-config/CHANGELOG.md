@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.10.0...htsget-config-v0.10.1) - 2024-08-04
+
+### Fixed
+- *(axum)* enable http2 support, re-word docs to include htsget-axum
+
+### Other
+- update rust msrv
+- bump Lambda and noodles dependencies
+
 ## [0.10.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.9.0...htsget-config-v0.10.0) - 2024-05-22
 
 ### Other

@@ -1,6 +1,6 @@
 [package]
 name = "htsget-http"
-version = "0.4.14"
+version = "0.4.15"
 rust-version = "1.75"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
@@ -19,9 +19,9 @@ default = []
 thiserror = "1"
 serde = { version = "1", features = ["derive"] }
 http = "1"
-htsget-search = { version = "0.7.1", path = "../htsget-search", default-features = false }
-htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.6.1", path = "../htsget-test", default-features = false }
+htsget-search = { version = "0.8.0", path = "../htsget-search", default-features = false }
+htsget-config = { version = "0.10.1", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.6.2", path = "../htsget-test", default-features = false }
 futures = { version = "0.3" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"

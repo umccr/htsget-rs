@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.17](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.16...htsget-lambda-v0.4.17) - 2024-08-04
+
+### Other
+- update rust msrv
+- bump Lambda and noodles dependencies
+- add routers for data and ticket servers
+- move the data server to its own htsget-axum crate
+- move storage module from htsget-search to htsget-storage
+
 ## [0.4.16](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.15...htsget-lambda-v0.4.16) - 2024-05-22
 
 ### Other

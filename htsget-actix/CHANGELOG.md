@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.6.1...htsget-actix-v0.6.2) - 2024-08-04
+
+### Added
+- *(axum)* add join handle helper functions
+
+### Other
+- update rust msrv
+- *(actix)* clarify axum vs actix usage
+- add routers for data and ticket servers
+- move the data server to its own htsget-axum crate
+- move storage module from htsget-search to htsget-storage
+
 ## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.6.0...htsget-actix-v0.6.1) - 2024-05-22
 
 ### Other
