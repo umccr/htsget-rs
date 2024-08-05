@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.15](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.14...htsget-http-v0.4.15) - 2024-08-04
+
+### Other
+- update rust msrv
+- move storage module from htsget-search to htsget-storage
+
 ## [0.4.14](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.13...htsget-http-v0.4.14) - 2024-05-22
 
 ### Other

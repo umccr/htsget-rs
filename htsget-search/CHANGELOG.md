@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.7.1...htsget-search-v0.8.0) - 2024-08-04
+
+### Other
+- update rust msrv
+- bump Lambda and noodles dependencies
+- *(axum)* add server tests for axum ticket server
+- add routers for data and ticket servers
+- move storage module from htsget-search to htsget-storage
+
 ## [0.7.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.7.0...htsget-search-v0.7.1) - 2024-05-22
 
 ### Other

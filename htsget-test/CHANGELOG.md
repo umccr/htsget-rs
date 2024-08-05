@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.6.1...htsget-test-v0.6.2) - 2024-08-04
+
+### Other
+- update rust msrv
+- bump Lambda and noodles dependencies
+
 ## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.6.0...htsget-test-v0.6.1) - 2024-05-22
 
 ### Other

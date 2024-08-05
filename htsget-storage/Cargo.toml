@@ -54,8 +54,8 @@ thiserror = "1"
 tracing = "0.1"
 base64 = "0.22"
 
-htsget-config = { version = "0.10.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.6.1", path = "../htsget-test", features = ["http"], default-features = false }
+htsget-config = { version = "0.10.1", path = "../htsget-config", default-features = false }
+htsget-test = { version = "0.6.2", path = "../htsget-test", features = ["http"], default-features = false }
 
 [dev-dependencies]
 tower-http = { version = "0.5", features = ["fs"] }
