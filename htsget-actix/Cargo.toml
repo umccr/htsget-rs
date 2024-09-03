@@ -30,11 +30,11 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing-actix-web = "0.7"
 tracing = "0.1"
 
-htsget-http = { version = "0.4.15", path = "../htsget-http", default-features = false }
-htsget-search = { version = "0.8.0", path = "../htsget-search", default-features = false }
+htsget-http = { version = "0.4.16", path = "../htsget-http", default-features = false }
+htsget-search = { version = "0.8.1", path = "../htsget-search", default-features = false }
 htsget-config = { version = "0.10.1", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.6.2", path = "../htsget-test", features = ["http"], default-features = false }
-htsget-axum = { version = "0.1.0", path = "../htsget-axum", default-features = false }
+htsget-axum = { version = "0.1.1", path = "../htsget-axum", default-features = false }
 
 [dev-dependencies]
 async-trait = "0.1"

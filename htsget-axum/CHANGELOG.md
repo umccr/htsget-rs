@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.1.0...htsget-axum-v0.1.1) - 2024-09-03
+
+### Other
+- release
+- release
+
 ## [0.1.0](https://github.com/umccr/htsget-rs/releases/tag/htsget-axum-v0.1.0) - 2024-09-03
 
 ### Added

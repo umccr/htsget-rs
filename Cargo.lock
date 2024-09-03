@@ -1979,7 +1979,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-axum"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "axum",
@@ -2033,7 +2033,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-http"
-version = "0.4.15"
+version = "0.4.16"
 dependencies = [
  "futures",
  "htsget-config",
@@ -2073,7 +2073,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-search"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "async-trait",
  "criterion",
