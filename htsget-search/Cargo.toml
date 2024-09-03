@@ -39,7 +39,7 @@ thiserror = "1"
 tracing = "0.1"
 
 htsget-config = { version = "0.10.1", path = "../htsget-config", default-features = false }
-htsget-storage = { version = "0.1.0", path = "../htsget-storage", default-features = false }
+htsget-storage = { version = "0.1.1", path = "../htsget-storage", default-features = false }
 htsget-test = { version = "0.6.2", path = "../htsget-test", features = ["http"], default-features = false }
 
 [dev-dependencies]
