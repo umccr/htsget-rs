@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::net::SocketAddr;
 
-use http::Method;
+use http::{HeaderValue, Method, StatusCode};
 use reqwest::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -105,12 +105,12 @@ where
     tester,
     vec![
       tester
-        .get_request()
-        .method(Method::GET.to_string())
+        .request()
+        .method(Method::GET)
         .uri("/variants/1-vcf/sample1-bcbio-cancer"),
       tester
-        .get_request()
-        .method(Method::GET.to_string())
+        .request()
+        .method(Method::GET)
         .uri("/variants/2-vcf/sample1-bcbio-cancer"),
     ],
     Class::Body,
@@ -120,12 +120,15 @@ where
 
 fn post_request_one<T: TestRequest>(tester: &impl TestServer<T>) -> T {
   tester
-    .get_request()
-    .method(Method::POST.to_string())
+    .request()
+    .method(Method::POST)
     .uri("/variants/1-vcf/sample1-bcbio-cancer")
     .insert_header(Header {
-      name: http::header::CONTENT_TYPE.to_string(),
-      value: mime::APPLICATION_JSON.to_string(),
+      name: http::header::CONTENT_TYPE,
+      value: mime::APPLICATION_JSON
+        .to_string()
+        .parse::<HeaderValue>()
+        .unwrap(),
     })
 }
 
@@ -145,6 +148,18 @@ where
     let response = tester.test_server(request, expected_path.clone()).await;
     test_response::<R>(response, class).await;
   }
+}
+
+/// Test an array of requests that are expected to return error status codes.
+async fn test_error_response<T>(
+  tester: &impl TestServer<T>,
+  request: T,
+  expected_status: StatusCode,
+) where
+  T: TestRequest,
+{
+  let response = tester.test_server(request, "".to_string()).await;
+  assert_eq!(response.status, expected_status);
 }
 
 /// A post test using the tester.
@@ -174,12 +189,12 @@ where
     tester,
     vec![
       tester
-        .get_request()
-        .method(Method::GET.to_string())
+        .request()
+        .method(Method::GET)
         .uri("/variants/1-vcf/sample1-bcbio-cancer?format=VCF&class=header"),
       tester
-        .get_request()
-        .method(Method::GET.to_string())
+        .request()
+        .method(Method::GET)
         .uri("/variants/2-vcf/sample1-bcbio-cancer?format=VCF&class=header"),
     ],
     Class::Header,
@@ -230,14 +245,51 @@ where
 /// A service info test.
 pub async fn test_service_info<T: TestRequest>(tester: &impl TestServer<T>) {
   let request = tester
-    .get_request()
-    .method(Method::GET.to_string())
+    .request()
+    .method(Method::GET)
     .uri("/variants/service-info");
   let response = tester
     .test_server(request, tester.get_expected_path().await)
     .await;
 
   test_response_service_info(&response);
+}
+
+/// Test requests that should result in errors.
+pub async fn test_errors<T>(tester: &impl TestServer<T>)
+where
+  T: TestRequest,
+{
+  test_error_response(
+    tester,
+    tester.request().method(Method::DELETE).uri("/reads/id"),
+    StatusCode::METHOD_NOT_ALLOWED,
+  )
+  .await;
+  test_error_response(
+    tester,
+    tester.request().method(Method::GET).uri("/"),
+    StatusCode::NOT_FOUND,
+  )
+  .await;
+  test_error_response(
+    tester,
+    tester.request().method(Method::GET).uri("/path"),
+    StatusCode::NOT_FOUND,
+  )
+  .await;
+  test_error_response(
+    tester,
+    tester.request().method(Method::GET).uri("/reads"),
+    StatusCode::NOT_FOUND,
+  )
+  .await;
+  test_error_response(
+    tester,
+    tester.request().method(Method::DELETE).uri("/variants"),
+    StatusCode::NOT_FOUND,
+  )
+  .await;
 }
 
 /// An example VCF search response.

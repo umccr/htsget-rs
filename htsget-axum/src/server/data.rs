@@ -88,7 +88,7 @@ mod tests {
 
   use async_trait::async_trait;
   use http::header::HeaderName;
-  use http::{HeaderMap, HeaderValue, Method};
+  use http::{HeaderMap, Method};
   use reqwest::{Client, ClientBuilder, RequestBuilder};
   use tempfile::{tempdir, TempDir};
   use tokio::fs::{create_dir, File};
@@ -118,11 +118,11 @@ mod tests {
   }
 
   impl TestRequest for DataTestRequest {
-    fn insert_header(mut self, header: Header<impl Into<String>>) -> Self {
-      self.headers.insert(
-        HeaderName::from_str(&header.name.into()).unwrap(),
-        HeaderValue::from_str(&header.value.into()).unwrap(),
-      );
+    fn insert_header(
+      mut self,
+      header: Header<impl Into<HeaderName>, impl Into<http::HeaderValue>>,
+    ) -> Self {
+      self.headers.insert(header.name.into(), header.value.into());
       self
     }
 
@@ -136,8 +136,8 @@ mod tests {
       self
     }
 
-    fn method(mut self, method: impl Into<String>) -> Self {
-      self.method = method.into().parse().unwrap();
+    fn method(mut self, method: impl Into<Method>) -> Self {
+      self.method = method.into();
       self
     }
   }
@@ -186,7 +186,7 @@ mod tests {
       &self.config
     }
 
-    fn get_request(&self) -> DataTestRequest {
+    fn request(&self) -> DataTestRequest {
       DataTestRequest::default()
     }
 
@@ -294,8 +294,8 @@ mod tests {
 
     let test_server = DataTestServer::default();
     let request = test_server
-      .get_request()
-      .method(Method::GET.to_string())
+      .request()
+      .method(Method::GET)
       .uri(format!("{scheme}://localhost:{port}/data/key1"));
     let response = test_server.test_server(request, "".to_string()).await;
 

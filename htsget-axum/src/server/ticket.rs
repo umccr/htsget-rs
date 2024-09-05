@@ -105,7 +105,6 @@ mod tests {
   use std::convert::Infallible;
   use std::path::Path;
   use std::result;
-  use std::str::FromStr;
 
   use super::*;
   use async_trait::async_trait;
@@ -119,7 +118,7 @@ mod tests {
     TestRequest, TestServer,
   };
   use http::header::HeaderName;
-  use http::Request;
+  use http::{Method, Request};
   use tempfile::TempDir;
   use tower::ServiceExt;
 
@@ -130,15 +129,14 @@ mod tests {
   struct AxumTestRequest<T>(T);
 
   impl TestRequest for AxumTestRequest<Request<Body>> {
-    fn insert_header(mut self, header: Header<impl Into<String>>) -> Self {
-      self.0.headers_mut().insert(
-        HeaderName::from_str(&header.name.into()).expect("expected valid header name"),
-        header
-          .value
-          .into()
-          .parse()
-          .expect("expected valid header value"),
-      );
+    fn insert_header(
+      mut self,
+      header: Header<impl Into<HeaderName>, impl Into<http::HeaderValue>>,
+    ) -> Self {
+      self
+        .0
+        .headers_mut()
+        .insert(header.name.into(), header.value.into());
       self
     }
 
@@ -153,8 +151,8 @@ mod tests {
       self
     }
 
-    fn method(mut self, method: impl Into<String>) -> Self {
-      *self.0.method_mut() = method.into().parse().expect("expected valid method");
+    fn method(mut self, method: impl Into<Method>) -> Self {
+      *self.0.method_mut() = method.into();
       self
     }
   }
@@ -187,7 +185,7 @@ mod tests {
       &self.config
     }
 
-    fn get_request(&self) -> AxumTestRequest<Request<Body>> {
+    fn request(&self) -> AxumTestRequest<Request<Body>> {
       AxumTestRequest(Request::default())
     }
 
@@ -305,5 +303,10 @@ mod tests {
   #[tokio::test]
   async fn cors_preflight_request() {
     cors::test_cors_preflight_request(&AxumTestServer::default()).await;
+  }
+
+  #[tokio::test]
+  async fn get_route_invalid_method() {
+    server::test_errors(&AxumTestServer::default()).await;
   }
 }

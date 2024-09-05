@@ -175,8 +175,16 @@ mod tests {
   struct ActixTestRequest<T>(T);
 
   impl TestRequest for ActixTestRequest<test::TestRequest> {
-    fn insert_header(self, header: TestHeader<impl Into<String>>) -> Self {
-      Self(self.0.insert_header(header.into_tuple()))
+    fn insert_header(
+      self,
+      header: TestHeader<impl Into<http_1::HeaderName>, impl Into<http_1::HeaderValue>>,
+    ) -> Self {
+      let (name, value) = header.into_tuple();
+      Self(
+        self
+          .0
+          .insert_header((name.to_string(), value.to_str().unwrap())),
+      )
     }
 
     fn set_payload(self, payload: impl Into<String>) -> Self {
@@ -187,11 +195,15 @@ mod tests {
       Self(self.0.uri(&uri.into()))
     }
 
-    fn method(self, method: impl Into<String>) -> Self {
+    fn method(self, method: impl Into<http_1::Method>) -> Self {
       Self(
-        self
-          .0
-          .method(method.into().parse().expect("expected valid method")),
+        self.0.method(
+          method
+            .into()
+            .to_string()
+            .parse()
+            .expect("expected valid method"),
+        ),
       )
     }
   }
@@ -224,7 +236,7 @@ mod tests {
       &self.config
     }
 
-    fn get_request(&self) -> ActixTestRequest<test::TestRequest> {
+    fn request(&self) -> ActixTestRequest<test::TestRequest> {
       ActixTestRequest(test::TestRequest::default())
     }
 
