@@ -3,12 +3,13 @@
 [MinIO][minio] can be used with htsget-rs by configuring the [storage type][storage] as `S3` and setting the `endpoint` to the MinIO server.
 There are a few specific configuration options that need to be considered to use MinIO with htsget-rs, and those include:
 
-- The standard [AWS environment variables][env-variables] for connecting to AWS services must be set, and configured to match those
-  used by MinIO.
-  _ This means that htsget-rs expects an `AWS_DEFAULT_REGION` to be set, which must match the region used by MinIO (by default us-east-1).
-  _ It also means that the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` must be set to match the credentials used by MinIO.
-- If using virtual-hosted style [addressing][virtual-addressing] instead of path style [addressing][path-addressing], `MINIO_DOMAIN` must be
-  set on the MinIO server and DNS resolution must allow accessing the MinIO server using `bucket.<MINIO_DOMAIN>`. \* Path style addressing can be used instead by setting `path_style = true` under the htsget-rs resolvers storage type.
+* The standard [AWS environment variables][env-variables] for connecting to AWS services must be set, and configured to match those
+used by MinIO.
+    * This means that htsget-rs expects an `AWS_DEFAULT_REGION` to be set, which must match the region used by MinIO (by default us-east-1).
+    * It also means that the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` must be set to match the credentials used by MinIO.
+* If using virtual-hosted style [addressing][virtual-addressing] instead of path style [addressing][path-addressing], `MINIO_DOMAIN` must be
+set on the MinIO server and DNS resolution must allow accessing the MinIO server using `bucket.<MINIO_DOMAIN>`.
+    * Path style addressing can be used instead by setting `path_style = true` under the htsget-rs resolvers storage type.
 
 The caveats around the addressing style occur because there are two different addressing styles for S3 buckets, path style, e.g.
 `http://minio:9000/bucket`, and virtual-hosted style, e.g. `http://bucket.minio:9000`. AWS has declared path style addressing
