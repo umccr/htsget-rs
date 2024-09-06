@@ -12,6 +12,7 @@ export const SETTINGS: HtsgetSettings = {
     "arn:aws:s3:::org.umccr.demo.htsget-rs-data/*",
   ],
   lookupHostedZone: true,
+  createS3Buckets: [],
   jwtAuthorizer: {
     // Set this to true if you want a public instance.
     public: false,

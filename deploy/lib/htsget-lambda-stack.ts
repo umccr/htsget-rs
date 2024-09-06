@@ -2,15 +2,15 @@ import { STACK_NAME } from "../bin/htsget-lambda";
 import * as TOML from "@iarna/toml";
 import { readFileSync } from "fs";
 
-import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
+import { Duration, RemovalPolicy, Stack, StackProps, Tags } from "aws-cdk-lib";
 import { Construct } from "constructs";
 
 import { UserPool } from "aws-cdk-lib/aws-cognito";
 import {
+  ManagedPolicy,
+  PolicyStatement,
   Role,
   ServicePrincipal,
-  PolicyStatement,
-  ManagedPolicy,
 } from "aws-cdk-lib/aws-iam";
 import { Architecture } from "aws-cdk-lib/aws-lambda";
 import {
@@ -29,6 +29,12 @@ import {
   HttpMethod,
 } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
+import {
+  BlockPublicAccess,
+  Bucket,
+  BucketEncryption,
+} from "aws-cdk-lib/aws-s3";
+import { BucketDeployment, Source } from "aws-cdk-lib/aws-s3-deployment";
 
 /**
  * Settings related to the htsget lambda stack.
@@ -50,10 +56,12 @@ export type HtsgetSettings = {
   subDomain?: string;
 
   /**
-   * Policies to add to the bucket. If this is not specified, this defaults to `["arn:aws:s3:::*"]`.
-   * This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`.
+   * The buckets to serve data from. If this is not specified, this defaults to `[]`. This affects which buckets are
+   * allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`. Note that this option alone
+   * does not create buckets, it only gives permission to access them, see the `createS3Buckets` option.
+   * This option must be specified to allow `htsget-rs` to access data in the buckets.
    */
-  s3BucketResources?: string[];
+  s3BucketResources: string[];
 
   /**
    * Whether this deployment is gated behind a JWT authorizer, or if its public.
@@ -66,6 +74,13 @@ export type HtsgetSettings = {
    * domain name.
    */
   lookupHostedZone?: boolean;
+
+  /**
+   * A list of buckets to create. Defaults to no buckets. Buckets are created with
+   * [`RemovalPolicy.RETAIN`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.RemovalPolicy.html).
+   * This also copies the example data under the `data` directory to those buckets.
+   */
+  createS3Buckets?: string[];
 };
 
 /**
@@ -151,8 +166,26 @@ export class HtsgetLambdaStack extends Stack {
 
     const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
-      resources: settings.s3BucketResources ?? ["arn:aws:s3:::*"],
+      resources: settings.s3BucketResources ?? [],
     });
+
+    if (settings.createS3Buckets) {
+      for (const name of settings.createS3Buckets ?? []) {
+        const bucket = new Bucket(this, "Bucket", {
+          blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+          encryption: BucketEncryption.S3_MANAGED,
+          enforceSSL: true,
+          removalPolicy: RemovalPolicy.RETAIN,
+          bucketName: name,
+        });
+
+        const dataDir = path.join(__dirname, "..", "..", "data");
+        new BucketDeployment(this, "DeployFiles", {
+          sources: [Source.asset(dataDir)],
+          destinationBucket: bucket,
+        });
+      }
+    }
 
     lambdaRole.addManagedPolicy(
       ManagedPolicy.fromAwsManagedPolicyName(
