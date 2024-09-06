@@ -306,7 +306,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn get_route_invalid_method() {
+  async fn test_errors() {
     server::test_errors(&AxumTestServer::default()).await;
   }
 }

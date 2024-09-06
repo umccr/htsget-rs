@@ -6,7 +6,7 @@ use futures::future::join_all;
 use futures::{Stream, TryStreamExt};
 use htsget_config::types::{Class, Format, Response, Url};
 use http::{HeaderMap, HeaderName, HeaderValue};
-use noodles::{bam, bcf, bgzf, cram, fasta, vcf};
+use noodles::{bam, bcf, bgzf, cram, vcf};
 use reqwest::Client;
 use std::future::Future;
 use std::io;
@@ -199,7 +199,6 @@ impl ReadRecords {
           .read_file_definition()
           .await
           .map_err(TestError::read_record)?;
-        let repository = fasta::Repository::default();
         let header = reader
           .read_file_header()
           .await
@@ -208,9 +207,7 @@ impl ReadRecords {
           .map_err(TestError::read_record)?;
         println!("{:#?}", header);
 
-        self
-          .iterate_records(reader.records(&repository, &header))
-          .await
+        self.iterate_records(reader.records(&header)).await
       }
       Format::Vcf => {
         let mut reader =

@@ -290,6 +290,52 @@ where
     StatusCode::NOT_FOUND,
   )
   .await;
+
+  test_error_response(
+    tester,
+    tester
+      .request()
+      .method(Method::GET)
+      .uri("/variants/1-vcf/sample1-bcbio-cancer?format=BED"),
+    StatusCode::BAD_REQUEST,
+  )
+  .await;
+  test_error_response(
+    tester,
+    tester
+      .request()
+      .method(Method::GET)
+      .uri("/variants/1-vcf/sample1-bcbio-cancer?class=header&start=1"),
+    StatusCode::BAD_REQUEST,
+  )
+  .await;
+  test_error_response(
+    tester,
+    tester
+      .request()
+      .method(Method::GET)
+      .uri("/variants/1-vcf/sample1-bcbio-cancer?referenceName=*&start=1"),
+    StatusCode::BAD_REQUEST,
+  )
+  .await;
+  test_error_response(
+    tester,
+    tester
+      .request()
+      .method(Method::GET)
+      .uri("/variants/1-vcf/sample1-bcbio-cancer?referenceName=chr1&start=2&end=1"),
+    StatusCode::BAD_REQUEST,
+  )
+  .await;
+  test_error_response(
+    tester,
+    tester
+      .request()
+      .method(Method::GET)
+      .uri("/variants/1-vcf/sample1-bcbio-cancer?referenceName=*&end=1"),
+    StatusCode::BAD_REQUEST,
+  )
+  .await;
 }
 
 /// An example VCF search response.

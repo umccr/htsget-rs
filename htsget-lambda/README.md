@@ -38,8 +38,8 @@ See [htsget-search] for details on how to structure files.
 
 ### As a library
 
-There shouldn't be any need to interact with this crate as a library, however some functions which deal with
-routing queries are exposed in the public API.
+There is no need to interact with this crate as a library. Note that the Lambda function itself doesn't have any
+library code, and it instead uses `htsget-axum`. Please use that crate for functionality related to routing.
 
 #### Feature flags
 
