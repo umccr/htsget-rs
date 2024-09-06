@@ -1,0 +1,20 @@
+ticket_server_cors_allow_headers = "All"
+ticket_server_cors_allow_origins = []
+ticket_server_cors_allow_methods = "All"
+ticket_server_cors_allow_credentials = true
+ticket_server_cors_max_age = 300
+
+data_server_enabled = false
+
+name = "umccr-htsget-rs"
+version = "0.1"
+organization_name = "UMCCR"
+organization_url = "https://umccr.org/"
+contact_url = "https://umccr.org/"
+documentation_url = "https://github.com/umccr/htsget-rs"
+environment = "dev"
+
+[[resolvers]]
+regex = '^(?P<bucket>.*?)/(?P<key>.*)$'
+substitution_string = '$key'
+storage = 'S3'

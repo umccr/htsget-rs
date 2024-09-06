@@ -2,15 +2,22 @@ import { STACK_NAME } from "../bin/htsget-lambda";
 import * as TOML from "@iarna/toml";
 import { readFileSync } from "fs";
 
-import { Duration, Stack, StackProps, Tags } from "aws-cdk-lib";
+import {
+  CfnOutput,
+  Duration,
+  RemovalPolicy,
+  Stack,
+  StackProps,
+  Tags,
+} from "aws-cdk-lib";
 import { Construct } from "constructs";
 
 import { UserPool } from "aws-cdk-lib/aws-cognito";
 import {
+  ManagedPolicy,
+  PolicyStatement,
   Role,
   ServicePrincipal,
-  PolicyStatement,
-  ManagedPolicy,
 } from "aws-cdk-lib/aws-iam";
 import { Architecture } from "aws-cdk-lib/aws-lambda";
 import {
@@ -29,6 +36,12 @@ import {
   HttpMethod,
 } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
+import {
+  BlockPublicAccess,
+  Bucket,
+  BucketEncryption,
+} from "aws-cdk-lib/aws-s3";
+import { BucketDeployment, Source } from "aws-cdk-lib/aws-s3-deployment";
 
 /**
  * Settings related to the htsget lambda stack.
@@ -50,10 +63,13 @@ export type HtsgetSettings = {
   subDomain?: string;
 
   /**
-   * Policies to add to the bucket. If this is not specified, this defaults to `["arn:aws:s3:::*"]`.
+   * The buckets to serve data from. If this is not specified, this defaults to `[]`.
    * This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`.
+   * Note that this option does not create buckets, it only gives permission to access them, see the `createS3Buckets`
+   * option. This option must be specified to allow `htsget-rs` to access data in buckets that are not created in
+   * this stack.
    */
-  s3BucketResources?: string[];
+  s3BucketResources: string[];
 
   /**
    * Whether this deployment is gated behind a JWT authorizer, or if its public.
@@ -66,6 +82,25 @@ export type HtsgetSettings = {
    * domain name.
    */
   lookupHostedZone?: boolean;
+
+  /**
+   * Whether to create a test bucket. Defaults to true. Buckets are created with
+   * [`RemovalPolicy.RETAIN`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.RemovalPolicy.html).
+   * The correct access permissions are automatically added.
+   */
+  createS3Bucket?: boolean;
+
+  /**
+   * The name of the bucket created using `createS3Bucket`. The name defaults to an automatically generated CDK name,
+   * use this option to override that. This option only has an affect is `createS3Buckets` is true.
+   */
+  bucketName?: string;
+
+  /**
+   * Whether to copy test data into the bucket. Defaults to true. This copies the example data under the `data`
+   * directory to those buckets. This option only has an affect is `createS3Buckets` is true.
+   */
+  copyTestData?: boolean;
 };
 
 /**
@@ -151,8 +186,30 @@ export class HtsgetLambdaStack extends Stack {
 
     const s3BucketPolicy = new PolicyStatement({
       actions: ["s3:List*", "s3:Get*"],
-      resources: settings.s3BucketResources ?? ["arn:aws:s3:::*"],
+      resources: settings.s3BucketResources ?? [],
     });
+
+    if (settings.createS3Bucket) {
+      const bucket = new Bucket(this, "Bucket", {
+        blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+        encryption: BucketEncryption.S3_MANAGED,
+        enforceSSL: true,
+        removalPolicy: RemovalPolicy.RETAIN,
+        bucketName: settings.bucketName,
+      });
+
+      if (settings.copyTestData) {
+        const dataDir = path.join(__dirname, "..", "..", "data");
+        new BucketDeployment(this, "DeployFiles", {
+          sources: [Source.asset(dataDir)],
+          destinationBucket: bucket,
+        });
+      }
+
+      s3BucketPolicy.addResources(`arn:aws:s3:::${bucket.bucketName}/*`);
+
+      new CfnOutput(this, "HtsgetBucketName", { value: bucket.bucketName });
+    }
 
     lambdaRole.addManagedPolicy(
       ManagedPolicy.fromAwsManagedPolicyName(
@@ -206,6 +263,10 @@ export class HtsgetLambdaStack extends Stack {
           identitySource: ["$request.header.Authorization"],
           jwtAudience: settings.jwtAuthorizer.jwtAudience ?? [],
         },
+      );
+    } else {
+      console.warn(
+        "This will create an instance of htsget-rs that is public! Anyone will be able to query the server without authorization.",
       );
     }
 

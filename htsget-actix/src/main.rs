@@ -8,9 +8,7 @@ use htsget_config::command;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-  if let Some(path) =
-    Config::parse_args_with_command(command!()).expect("expected valid command parsing")
-  {
+  if let Some(path) = Config::parse_args_with_command(command!())? {
     let config = Config::from_path(&path)?;
 
     config.setup_tracing()?;

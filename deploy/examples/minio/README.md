@@ -13,7 +13,7 @@ set on the MinIO server and DNS resolution must allow accessing the MinIO server
 
 The caveats around the addressing style occur because there are two different addressing styles for S3 buckets, path style, e.g.
 `http://minio:9000/bucket`, and virtual-hosted style, e.g. `http://bucket.minio:9000`. AWS has declared path style addressing
-as [deprecated][path-style-deprecated], so this example sets up virtual-hosted style addressing as the default. 
+as [deprecated][path-style-deprecated], so this example sets up virtual-hosted style addressing as the default.
 
 ## Deployment using Docker
 
@@ -36,6 +36,7 @@ curl http://127.0.0.1:8080/reads/bam/htsnexus_test_NA12878
 ```
 
 Outputs:
+
 ```sh
 {
   "htsget": {

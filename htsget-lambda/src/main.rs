@@ -1,17 +1,18 @@
-use std::sync::Arc;
+use std::env::set_var;
 
-use lambda_http::Error;
-use tracing::debug;
-
+use htsget_axum::server::ticket::TicketServer;
 use htsget_config::command;
-use htsget_lambda::Config;
-use htsget_lambda::{handle_request, Router};
+use htsget_config::config::Config;
+use lambda_http::{run, Error};
+use tracing::debug;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-  if let Some(path) =
-    Config::parse_args_with_command(command!()).expect("expected valid command parsing")
-  {
+  // Ignore the API gateway stage.
+  // See https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/lambda-http#integration-with-api-gateway-stages
+  set_var("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH", "true");
+
+  if let Some(path) = Config::parse_args_with_command(command!())? {
     let config = Config::from_path(&path)?;
 
     config.setup_tracing()?;
@@ -20,9 +21,9 @@ async fn main() -> Result<(), Error> {
 
     let service_info = config.service_info().clone();
     let cors = config.ticket_server().cors().clone();
-    let router = &Router::new(Arc::new(config.owned_resolvers()), &service_info);
+    let router = TicketServer::router(config.owned_resolvers(), service_info, cors);
 
-    handle_request(cors, router).await
+    run(router).await
   } else {
     Ok(())
   }

@@ -13,24 +13,29 @@ The CDK code in this directory constructs a CDK app from [`HtsgetLambdaStack`][h
 [`bin/settings.ts`][htsget-settings]:
 
 #### HtsgetSettings
+
 These are general settings for the CDK deployment.
 
-| Name                                                     | Description                                                                                                                                                                                                                                       | Type                                              |
-|----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
-| <span id="config">`config`</span>                        | The location of the htsget-rs server config. This must be specified. This config file configures the htsget-rs server. See [htsget-config] for a list of available server configuration options.                                                  | `string`                                          | 
-| <span id="domain">`domain`</span>                        | The domain name for the Route53 Hosted Zone that the htsget-rs server will be under. This must be specified. A hosted zone with this name will either be looked up or created depending on the value of [`lookupHostedZone?`](#lookupHostedZone). | `string`                                          |
-| <span id="authorizer">`authorizer`</span>                | Deployment options related to the authorizer. Note that this option allows specifying an AWS [JWT authorizer][jwt-authorizer]. The JWT authorizer automatically verifies tokens issued by a Cognito user pool.                                    | [`HtsgetJwtAuthSettings`](#htsgetjwtauthsettings) |
-| <span id="subDomain">`subDomain?`</span>                 | The domain name prefix to use for the htsget-rs server. Together with the [`domain`](#domain), this specifies url that the htsget-rs server will be reachable under. Defaults to `"htsget"`.                                                      | `string`                                          |
-| <span id="s3BucketResources">`s3BucketResources?`</span> | The resources that are affected by the bucket policy with actions: `["s3:List*", "s3:Get*"]`. If this is not specified, it defaults to `["arn:aws:s3:::*"]`. This affects which buckets are allowed to be accessed with the policy.               | `string[]`                                        |
-| <span id="lookupHostedZone">`lookupHostedZone?`</span>   | Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone with the domain name.        | `boolean`                                         |
+| Name                                                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                  | Type                                              |
+|--------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
+| <span id="config">`config`</span>                      | The location of the htsget-rs server config. This must be specified. This config file configures the htsget-rs server. See [htsget-config] for a list of available server configuration options.                                                                                                                                                                                                                                             | `string`                                          |
+| <span id="domain">`domain`</span>                      | The domain name for the Route53 Hosted Zone that the htsget-rs server will be under. This must be specified. A hosted zone with this name will either be looked up or created depending on the value of [`lookupHostedZone?`](#lookupHostedZone).                                                                                                                                                                                            | `string`                                          |
+| <span id="authorizer">`authorizer`</span>              | Deployment options related to the authorizer. Note that this option allows specifying an AWS [JWT authorizer][jwt-authorizer]. The JWT authorizer automatically verifies tokens issued by a Cognito user pool.                                                                                                                                                                                                                               | [`HtsgetJwtAuthSettings`](#htsgetjwtauthsettings) |
+| <span id="subDomain">`subDomain?`</span>               | The domain name prefix to use for the htsget-rs server. Together with the [`domain`](#domain), this specifies url that the htsget-rs server will be reachable under. Defaults to `"htsget"`.                                                                                                                                                                                                                                                 | `string`                                          |
+| <span id="s3BucketResources">`s3BucketResources`</span> | The buckets to serve data from. If this is not specified, this defaults to `[]`. This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`. Note that this option does not create buckets, it only gives permission to access them, see the `createS3Buckets` option. This option must be specified to allow `htsget-rs` to access data in buckets that are not created in this stack. | `string[]`                                        |
+| <span id="lookupHostedZone">`lookupHostedZone?`</span> | Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone with the domain name.                                                                                                                                                                                                   | `boolean`                                         |
+| <span id="createS3Bucket">`createS3Bucket?`</span>   | Whether to create a test bucket. Defaults to true. Buckets are created with [`RemovalPolicy.RETAIN`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.RemovalPolicy.html). The correct access permissions are automatically added.                                                                                                                                                                                                    | `boolean`                                         |
+| <span id="bucketName">`bucketName?`</span>       | The name of the bucket created using `createS3Bucket`. The name defaults to an automatically generated CDK name, use this option to override that. This option only has an affect is `createS3Buckets` is true.                                                                                                                                                                                                                              | `string`                                          |
+| <span id="copyTestData">`copyTestData?`</span>     | Whether to copy test data into the bucket. Defaults to true. This copies the example data under the `data` directory to those buckets. This option only has an affect is `createS3Buckets` is true.                                                                                                                                                                                                                                          | `boolean`                                         |
 
 #### HtsgetJwtAuthSettings
+
 These settings are used to determine if the htsget API gateway endpoint is configured to have a JWT authorizer or not.
 
 | Name                                              | Description                                                                                                                                               | Type       |
-|---------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | <span id="public">`public`</span>                 | Whether this deployment is public. If this is `true` then no authorizer is present on the API gateway and the options below have no effect.               | `boolean`  |
-| <span id="jwtAudience">`jwtAudience?`</span>      | A list of the intended recipients of the JWT. A valid JWT must provide an aud that matches at least one entry in this list.                               | `string[]` | 
+| <span id="jwtAudience">`jwtAudience?`</span>      | A list of the intended recipients of the JWT. A valid JWT must provide an aud that matches at least one entry in this list.                               | `string[]` |
 | <span id="cogUserPoolId?">`cogUserPoolId?`</span> | The cognito user pool id for the authorizer. If this is not set, then a new user pool is created. No user pool is created if [`public`](#public) is true. | `string`   |
 
 The [`HtsgetSettings`](#htsgetsettings) are passed into [`HtsgetLambdaStack`][htsget-lambda-stack] in order to change the deployment config. An example of a public instance deployment
@@ -49,7 +54,7 @@ After installing the basic dependencies, complete the following steps:
 
 1. Login to AWS and define `CDK_DEFAULT_*` env variables (if not defined already). You must be authenticated with your AWS cloud to run this step.
 2. Install [cargo-lambda], as it is used to compile artifacts that are uploaded to aws lambda.
-3. Define which configuration to use for htsget-rs as stated in the configuration section. 
+3. Define which configuration to use for htsget-rs as stated in the configuration section.
 
 Below is a summary of commands to run in this directory:
 
@@ -67,6 +72,11 @@ npm install
 
 ### Deploy to AWS
 
+> [!IMPORTANT]  
+> The default deployment is designed to work out of the box. A bucket with a CDK-generated name is created with test
+> data from the [`data`][data] directory. All deployment settings can be tweaked using the [`settings.ts`][htsget-settings].
+> The only option that must be specified in the `domain`, which determines the domain name to serve htsget-rs at.
+
 CDK should be bootstrapped once, if this hasn't been done before:
 
 ```sh
@@ -78,6 +88,10 @@ Then to deploy the stack, run:
 ```sh
 npx cdk deploy
 ```
+
+> [!WARNING]  
+> By default this deployment will create a public instance of htsget-rs. Anyone will be able to query the server
+> without authorizing unless you modify the `HtsgetJwtAuthSettings` settings.
 
 ### Testing the endpoint
 
@@ -173,3 +187,4 @@ and a [MinIO][minio] deployment.
 [rust]: https://www.rust-lang.org/tools/install
 [zig]: https://ziglang.org/
 [zig-getting-started]: https://ziglang.org/learn/getting-started/
+[data]: ../data

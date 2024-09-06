@@ -1,10 +1,12 @@
 *
 
 !/htsget-actix
+!/htsget-axum
 !/htsget-config
 !/htsget-http
 !/htsget-lambda
 !/htsget-search
+!/htsget-storage
 !/htsget-test
 !/Cargo.toml
 !/Cargo.lock

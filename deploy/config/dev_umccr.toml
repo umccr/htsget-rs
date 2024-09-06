@@ -24,6 +24,11 @@ documentation_url = "https://github.com/umccr/htsget-rs"
 environment = "dev"
 
 [[resolvers]]
+regex = '^(org.umccr.dev.htsget-rs-test-data)/(?P<key>.*)$'
+substitution_string = '$key'
+storage = 'S3'
+
+[[resolvers]]
 regex = '^(umccr-10c-data-dev)/(?P<key>.*)$'
 substitution_string = '$key'
 storage = 'S3'

@@ -12,7 +12,7 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use http::uri::Authority;
-use http::HeaderMap;
+use http::{HeaderMap, HeaderName, Method};
 use serde::de;
 
 use htsget_config::config::cors::{AllowType, CorsConfig};
@@ -29,13 +29,13 @@ use crate::Config;
 
 /// Represents a http header.
 #[derive(Debug)]
-pub struct Header<T: Into<String>> {
-  pub name: T,
-  pub value: T,
+pub struct Header<K, V> {
+  pub name: K,
+  pub value: V,
 }
 
-impl<T: Into<String>> Header<T> {
-  pub fn into_tuple(self) -> (String, String) {
+impl<K: Into<HeaderName>, V: Into<http::HeaderValue>> Header<K, V> {
+  pub fn into_tuple(self) -> (HeaderName, http::HeaderValue) {
     (self.name.into(), self.value.into())
   }
 }
@@ -75,10 +75,13 @@ impl Response {
 
 /// Mock request trait that should be implemented to use test functions.
 pub trait TestRequest {
-  fn insert_header(self, header: Header<impl Into<String>>) -> Self;
+  fn insert_header(
+    self,
+    header: Header<impl Into<HeaderName>, impl Into<http::HeaderValue>>,
+  ) -> Self;
   fn set_payload(self, payload: impl Into<String>) -> Self;
   fn uri(self, uri: impl Into<String>) -> Self;
-  fn method(self, method: impl Into<String>) -> Self;
+  fn method(self, method: impl Into<Method>) -> Self;
 }
 
 /// Mock server trait that should be implemented to use test functions.
@@ -86,7 +89,7 @@ pub trait TestRequest {
 pub trait TestServer<T: TestRequest> {
   async fn get_expected_path(&self) -> String;
   fn get_config(&self) -> &Config;
-  fn get_request(&self) -> T;
+  fn request(&self) -> T;
   async fn test_server(&self, request: T, expected_path: String) -> Response;
 }
 
