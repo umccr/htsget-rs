@@ -24,7 +24,7 @@ use htsget_config::tls::{
 };
 use htsget_config::types::{Scheme, TaggedTypeAll};
 
-use crate::util::generate_test_certificates;
+use crate::util::{default_dir, default_dir_data, generate_test_certificates};
 use crate::Config;
 
 /// Represents a http header.
@@ -93,19 +93,6 @@ pub trait TestServer<T: TestRequest> {
   async fn test_server(&self, request: T, expected_path: String) -> Response;
 }
 
-/// Get the default directory.
-pub fn default_dir() -> PathBuf {
-  PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-    .parent()
-    .unwrap()
-    .to_path_buf()
-}
-
-/// Get the default directory where data is present..
-pub fn default_dir_data() -> PathBuf {
-  default_dir().join("data")
-}
-
 /// Get the default test storage.
 pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Vec<Resolver> {
   let local_storage = LocalStorage::new(
@@ -113,6 +100,7 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Vec<Resolver> 
     Authority::from_str(&addr.to_string()).unwrap(),
     default_dir_data().to_str().unwrap().to_string(),
     "/data".to_string(),
+    Default::default(),
   );
   vec![
     Resolver::new(

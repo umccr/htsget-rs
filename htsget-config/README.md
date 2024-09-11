@@ -488,6 +488,40 @@ addressing by setting the `MINIO_DOMAIN` environment variable. [Path][path-addre
 
 See the MinIO deployment [example][minio-deployment] for more information on how to configure htsget-rs and MinIO.
 
+### Crypt4GH
+
+There is experimental support for serving [Crypt4GH][c4gh] encrypted files. This can be enabled by compiling with the 
+`c4gh-experimental` feature flag.
+
+This allows htsget-rs to read Crypt4GH files and serve them encrypted, directly to the client. In the process of
+serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and reencrypt them so that the client can read
+them. When the client receives byte ranges from htsget-rs and concatenates them, the output bytes will be Crypt4GH encrypted,
+and will need to be decrypted before they can be read. All file formats (BAM, CRAM, VCF, and BCF) are supported using Crypt4GH.
+
+To use this feature, an additional config option called `object_type` under `resolvers.storage` is required,
+which allows specifying the private and public keys:
+
+| Option                 | Description                                                                                                                                                              | Type              | Default |
+|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
+| `private_key`          | The path to private key which htsget-rs uses to decrypt Crypt4GH data.                                                                                                   | Filesystem path   | Not Set | 
+| `recipient_public_key` | The path to the public key which the recipient of the data will use. This is what the client will use to decrypt the returned data, using the corresponding private key. | Filesystem path   | Not Set |
+
+For example:
+
+```toml
+[[resolvers]]
+regex = ".*"
+substitution_string = "$0"
+
+[resolvers.storage]
+object_type = { private_key = "data/c4gh/keys/bob.sec", recipient_public_key = "data/c4gh/keys/alice.pub" } # pragma: allowlist secret
+```
+
+The htsget-rs server expects the Crypt4GH file to end with `.c4gh`, and the index file to be unencrypted. See the [`data/c4gh`][data-c4gh] for examples of file structure.
+
+> [!NOTE]  
+> This option is currently only supported for `LocalStorage`. The `object_type` will not have an effect if using `S3Storage` or `UrlStorage`.
+
 ### As a library
 
 This crate reads config files and environment variables using [figment], and accepts command-line arguments using clap. The main function for this is `from_config`,
@@ -501,6 +535,7 @@ regex, and changing it by using a substitution string.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `c4gh-experimental`: used to enable `C4GHStorage` functionality.
 
 ## License
 
@@ -512,3 +547,5 @@ This project is licensed under the [MIT license][license].
 [minio-deployment]: ../deploy/examples/minio/README.md
 [license]: LICENSE
 [minio]: https://min.io/
+[c4gh]: https://samtools.github.io/hts-specs/crypt4gh.pdf
+[data-c4gh]: ../data/c4gh

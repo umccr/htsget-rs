@@ -1,4 +1,4 @@
-//! Module providing an implementation for the [Storage] trait using Amazon's S3 object storage service.
+//! Module providing an implementation for the [StorageTrait] trait using Amazon's S3 object storage service.
 //!
 
 use std::fmt::Debug;
@@ -27,9 +27,9 @@ use tracing::{debug, warn};
 
 use crate::s3::Retrieval::{Delayed, Immediate};
 use crate::StorageError::{AwsS3Error, IoError, KeyNotFound};
-use crate::Url;
 use crate::{BytesPosition, HeadOptions, StorageError};
-use crate::{BytesRange, Storage};
+use crate::{BytesRange, StorageTrait};
+use crate::{Streamable, Url};
 
 use super::{GetOptions, RangeUrlOptions, Result};
 
@@ -42,7 +42,7 @@ pub enum Retrieval {
   Delayed(StorageClass),
 }
 
-/// Implementation for the [Storage] trait utilising data from an S3 bucket.
+/// Implementation for the [StorageTrait] trait utilising data from an S3 bucket.
 #[derive(Debug, Clone)]
 pub struct S3Storage {
   client: Client,
@@ -243,31 +243,21 @@ impl Stream for S3Stream {
 }
 
 #[async_trait]
-impl Storage for S3Storage {
-  type Streamable = StreamReader<S3Stream, Bytes>;
-
+impl StorageTrait for S3Storage {
   /// Gets the actual s3 object as a buffered reader.
   #[instrument(level = "trace", skip(self))]
-  async fn get<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: GetOptions<'_>,
-  ) -> Result<Self::Streamable> {
-    let key = key.as_ref();
+  async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
-    self.create_stream_reader(key, options).await
+    Ok(Streamable::from_async_read(
+      self.create_stream_reader(key, options).await?,
+    ))
   }
 
   /// Return an S3 pre-signed htsget URL. This function does not check that the key exists, so this
   /// should be checked before calling it.
   #[instrument(level = "trace", skip(self))]
-  async fn range_url<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: RangeUrlOptions<'_>,
-  ) -> Result<Url> {
-    let key = key.as_ref();
+  async fn range_url(&self, key: &str, options: RangeUrlOptions<'_>) -> Result<Url> {
     let presigned_url = self.s3_presign_url(key, options.range()).await?;
     let url = options.apply(Url::new(presigned_url));
 
@@ -277,13 +267,7 @@ impl Storage for S3Storage {
 
   /// Returns the size of the S3 object in bytes.
   #[instrument(level = "trace", skip(self))]
-  async fn head<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    _options: HeadOptions<'_>,
-  ) -> Result<u64> {
-    let key = key.as_ref();
-
+  async fn head(&self, key: &str, _options: HeadOptions<'_>) -> Result<u64> {
     let head = self.s3_head(key).await?;
 
     let content_length = head
@@ -313,7 +297,7 @@ pub(crate) mod tests {
   use crate::local::tests::create_local_test_files;
   use crate::s3::S3Storage;
   use crate::Headers;
-  use crate::{BytesPosition, GetOptions, RangeUrlOptions, Storage};
+  use crate::{BytesPosition, GetOptions, RangeUrlOptions, StorageTrait};
   use crate::{HeadOptions, StorageError};
 
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)

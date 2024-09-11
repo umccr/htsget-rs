@@ -7,10 +7,11 @@ pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketSer
 pub use htsget_config::resolver::{
   IdResolver, QueryAllowed, ResolveResponse, Resolver, StorageResolver,
 };
-pub use htsget_config::storage::Storage;
+pub use htsget_config::storage::Storage as ConfigStorage;
 pub use htsget_config::types::{
   Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Result, Url,
 };
+pub use htsget_storage::Storage;
 
 pub use htsget_storage::local::LocalStorage;
 

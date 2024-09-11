@@ -92,7 +92,7 @@ mod tests {
   use htsget_search::from_storage::HtsGetFromStorage;
   use htsget_search::HtsGet;
   use htsget_search::LocalStorage;
-  use htsget_test::util::expected_bgzf_eof_data_url;
+  use htsget_search::Storage;
 
   use super::*;
 
@@ -125,7 +125,7 @@ mod tests {
     let request = HashMap::new();
 
     let mut expected_response_headers = Headers::default();
-    expected_response_headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+    expected_response_headers.insert("Range".to_string(), "bytes=0-2596798".to_string());
 
     let request = Request::new(
       "bam/htsnexus_test_NA12878".to_string(),
@@ -164,7 +164,7 @@ mod tests {
     request.insert("end".to_string(), "200".to_string());
 
     let mut expected_response_headers = Headers::default();
-    expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+    expected_response_headers.insert("Range".to_string(), "bytes=0-3493".to_string());
 
     let request = Request::new(
       "vcf/sample1-bcbio-cancer".to_string(),
@@ -191,7 +191,7 @@ mod tests {
     };
 
     let mut expected_response_headers = Headers::default();
-    expected_response_headers.insert("Range".to_string(), "bytes=0-2596770".to_string());
+    expected_response_headers.insert("Range".to_string(), "bytes=0-2596798".to_string());
 
     assert_eq!(
       post(get_searcher(), body, request, Endpoint::Reads).await,
@@ -234,7 +234,7 @@ mod tests {
     };
 
     let mut expected_response_headers = Headers::default();
-    expected_response_headers.insert("Range".to_string(), "bytes=0-3465".to_string());
+    expected_response_headers.insert("Range".to_string(), "bytes=0-3493".to_string());
 
     assert_eq!(
       post(get_searcher(), body, request, Endpoint::Variants).await,
@@ -248,7 +248,6 @@ mod tests {
       vec![
         Url::new("http://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
           .with_headers(headers),
-        Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
   }
@@ -259,7 +258,6 @@ mod tests {
       vec![
         Url::new("http://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
           .with_headers(headers),
-        Url::new(expected_bgzf_eof_data_url()),
       ],
     ))
   }
@@ -273,7 +271,7 @@ mod tests {
   }
 
   fn get_searcher() -> Arc<impl HtsGet> {
-    Arc::new(HtsGetFromStorage::new(
+    Arc::new(HtsGetFromStorage::new(Storage::new(
       LocalStorage::new(
         get_base_path(),
         ConfigLocalStorage::new(
@@ -281,9 +279,10 @@ mod tests {
           Authority::from_static("127.0.0.1:8081"),
           "data".to_string(),
           "/data".to_string(),
+          Default::default(),
         ),
       )
       .unwrap(),
-    ))
+    )))
   }
 }

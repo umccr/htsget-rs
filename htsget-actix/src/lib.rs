@@ -10,15 +10,11 @@ use tracing_actix_web::TracingLogger;
 use htsget_config::config::cors::CorsConfig;
 pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig, USAGE};
 pub use htsget_config::storage::Storage;
-use htsget_search::from_storage::HtsGetFromStorage;
 use htsget_search::HtsGet;
-use htsget_search::LocalStorage;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info, HttpVersionCompat};
 
 pub mod handlers;
-
-pub type HtsGetStorage<T> = HtsGetFromStorage<LocalStorage<T>>;
 
 /// Represents the actix app state.
 pub struct AppState<H: HtsGet> {

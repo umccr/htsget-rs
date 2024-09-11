@@ -36,11 +36,11 @@ This library is intended to be used as a [development dependency][dev-dependenci
 #### Feature flags
 
 This crate has the following features:
-* `http-tests`: used to enable common functionality for HTTP tests.
-* `cors-tests`: used to enable CORS tests.
-* `server-tests`: used to enable server tests.
+* `http`: used to enable common functionality for HTTP tests.
+* `aws-mocks`: used to enable AWS mocking for tests.
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `c4gh-experimental`: used to enable `C4GHStorage` functionality.
 
 [dev-dependencies]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies
 

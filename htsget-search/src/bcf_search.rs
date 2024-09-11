@@ -18,44 +18,33 @@ use tracing::{instrument, trace};
 
 use crate::search::{find_first, BgzfSearch, Search};
 use crate::{Format, Query, Result};
-use htsget_storage::{BytesPosition, Storage};
+use htsget_storage::{BytesPosition, Storage, Streamable};
 
-type AsyncReader<ReaderType> = bcf::AsyncReader<bgzf::AsyncReader<ReaderType>>;
+type AsyncReader = bcf::AsyncReader<bgzf::AsyncReader<Streamable>>;
 
 /// Allows searching through bcf files.
-pub struct BcfSearch<S> {
-  storage: Arc<S>,
+pub struct BcfSearch {
+  storage: Arc<Storage>,
 }
 
 #[async_trait]
-impl<S, ReaderType> BgzfSearch<S, BinnedIndex, ReaderType, AsyncReader<ReaderType>, Header>
-  for BcfSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
-  async fn read_bytes(reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+impl BgzfSearch<BinnedIndex, AsyncReader, Header> for BcfSearch {
+  async fn read_bytes(reader: &mut AsyncReader) -> Option<usize> {
     reader.read_record(&mut Default::default()).await.ok()
   }
 
-  fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
+  fn virtual_position(&self, reader: &AsyncReader) -> VirtualPosition {
     reader.get_ref().virtual_position()
   }
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  Search<S, ReaderType, ReferenceSequence<BinnedIndex>, Index, AsyncReader<ReaderType>, Header>
-  for BcfSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
-  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+impl Search<ReferenceSequence<BinnedIndex>, Index, AsyncReader, Header> for BcfSearch {
+  fn init_reader(inner: Streamable) -> AsyncReader {
     AsyncReader::new(inner)
   }
 
-  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
+  async fn read_header(reader: &mut AsyncReader) -> io::Result<Header> {
     reader.read_header().await
   }
 
@@ -98,7 +87,7 @@ where
     Ok(byte_ranges)
   }
 
-  fn get_storage(&self) -> Arc<S> {
+  fn get_storage(&self) -> Arc<Storage> {
     self.storage.clone()
   }
 
@@ -107,13 +96,9 @@ where
   }
 }
 
-impl<S, ReaderType> BcfSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
+impl BcfSearch {
   /// Create the bcf search.
-  pub fn new(storage: Arc<S>) -> Self {
+  pub fn new(storage: Arc<Storage>) -> Self {
     Self { storage }
   }
 }
@@ -125,16 +110,19 @@ mod tests {
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_config::types::Class::Body;
   use htsget_test::http::concat::ConcatResponse;
-  use htsget_test::util::expected_bgzf_eof_data_url;
 
+  use super::*;
   #[cfg(feature = "s3-storage")]
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::search::SearchAll;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use htsget_storage::local::LocalStorage;
-
-  use super::*;
+  #[cfg(feature = "c4gh-experimental")]
+  use {
+    crate::from_storage::tests::with_local_storage_c4gh,
+    htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
+  };
 
   const DATA_LOCATION: &str = "data/bcf";
   const INDEX_FILE_LOCATION: &str = "vcf-spec-v4.3.bcf.csi";
@@ -144,7 +132,7 @@ mod tests {
   #[tokio::test]
   async fn search_all_variants() {
     with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage.clone());
+      let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let filename = "sample1-bcbio-cancer";
       let query = Query::new_with_default_request(filename, Format::Bcf);
       let response = search.search(query).await;
@@ -164,7 +152,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage.clone());
+      let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let filename = "vcf-spec-v4.3";
       let query = Query::new_with_default_request(filename, Format::Bcf).with_reference_name("20");
       let response = search.search(query).await;
@@ -172,11 +160,8 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bcf,
-        vec![
-          Url::new(expected_url(filename))
-            .with_headers(Headers::default().with_header("Range", "bytes=0-949")),
-          Url::new(expected_bgzf_eof_data_url()),
-        ],
+        vec![Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-977"))],
       ));
       assert_eq!(response, expected_response);
 
@@ -199,7 +184,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_no_end_position() {
     with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage.clone());
+      let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let filename = "sample1-bcbio-cancer";
       let query = Query::new_with_default_request(filename, Format::Bcf)
         .with_reference_name("chrM")
@@ -231,7 +216,7 @@ mod tests {
   #[tokio::test]
   async fn search_header() {
     with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage.clone());
+      let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let filename = "vcf-spec-v4.3";
       let query = Query::new_with_default_request(filename, Format::Bcf).with_class(Header);
       let response = search.search(query).await;
@@ -257,7 +242,7 @@ mod tests {
   async fn search_non_existent_id_reference_name() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BcfSearch::new(storage.clone());
+        let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
@@ -274,7 +259,7 @@ mod tests {
   async fn search_non_existent_id_all_reads() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BcfSearch::new(storage.clone());
+        let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
@@ -292,7 +277,7 @@ mod tests {
   async fn search_non_existent_id_header() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BcfSearch::new(storage.clone());
+        let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
@@ -309,7 +294,7 @@ mod tests {
   #[tokio::test]
   async fn search_header_with_non_existent_reference_name() {
     with_local_storage(|storage| async move {
-      let search = BcfSearch::new(storage.clone());
+      let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query =
         Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chr1");
       let response = search.search(query).await;
@@ -326,7 +311,7 @@ mod tests {
   async fn get_header_end_offset() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BcfSearch::new(storage.clone());
+        let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
 
@@ -348,7 +333,7 @@ mod tests {
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = BcfSearch::new(storage);
+        let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
         assert!(response.is_err());
@@ -366,7 +351,7 @@ mod tests {
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = BcfSearch::new(storage);
+        let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
@@ -385,7 +370,7 @@ mod tests {
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = BcfSearch::new(storage);
+        let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
@@ -399,10 +384,51 @@ mod tests {
     .await
   }
 
+  #[cfg(feature = "c4gh-experimental")]
+  #[tokio::test]
+  async fn search_all_c4gh() {
+    with_local_storage_c4gh(|storage| async move {
+      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let search = BcfSearch::new(Arc::new(Storage::new(storage)));
+      let query = Query::new_with_default_request("sample1-bcbio-cancer", Format::Bcf);
+      let response = search.search(query).await.unwrap();
+
+      println!("{:#?}", response);
+
+      Some((
+        "sample1-bcbio-cancer.bcf.c4gh".to_string(),
+        (response, Body).into(),
+      ))
+    })
+    .await;
+  }
+
+  #[cfg(feature = "c4gh-experimental")]
+  #[tokio::test]
+  async fn search_range_c4gh() {
+    with_local_storage_c4gh(|storage| async move {
+      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let search = BcfSearch::new(Arc::new(Storage::new(storage)));
+      let query = Query::new_with_default_request("sample1-bcbio-cancer", Format::Bcf)
+        .with_reference_name("chrM")
+        .with_start(150)
+        .with_end(153);
+      let response = search.search(query).await.unwrap();
+
+      println!("{:#?}", response);
+
+      Some((
+        "sample1-bcbio-cancer.bcf.c4gh".to_string(),
+        (response, Body).into(),
+      ))
+    })
+    .await;
+  }
+
   async fn test_reference_sequence_with_seq_range(
     storage: Arc<LocalStorage<ConfigLocalStorage>>,
   ) -> Option<(String, ConcatResponse)> {
-    let search = BcfSearch::new(storage.clone());
+    let search = BcfSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
     let filename = "sample1-bcbio-cancer";
     let query = Query::new_with_default_request(filename, Format::Bcf)
       .with_reference_name("chrM")
@@ -423,11 +449,8 @@ mod tests {
   fn expected_bcf_response(filename: &str) -> Response {
     Response::new(
       Format::Bcf,
-      vec![
-        Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-3529")),
-        Url::new(expected_bgzf_eof_data_url()),
-      ],
+      vec![Url::new(expected_url(filename))
+        .with_headers(Headers::default().with_header("Range", "bytes=0-3557"))],
     )
   }
 

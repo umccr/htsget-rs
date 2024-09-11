@@ -27,7 +27,10 @@ use htsget_config::types::Class::Header;
 
 use crate::ConcurrencyError;
 use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
-use htsget_storage::{BytesPosition, HeadOptions, RangeUrlOptions, Storage};
+use htsget_storage::{
+  BytesPosition, BytesPositionOptions, HeadOptions, RangeUrlOptions, Storage, StorageTrait,
+  Streamable,
+};
 use htsget_storage::{DataBlock, GetOptions};
 
 // § 4.1.2 End-of-file marker <https://samtools.github.io/hts-specs/SAMv1.pdf>.
@@ -68,7 +71,7 @@ pub(crate) async fn find_first<T>(
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait SearchAll<ReferenceSequence, Index, Reader, Header>
 where
   Index: Send + Sync,
 {
@@ -91,6 +94,28 @@ where
 
   /// Get the eof data block for this format.
   fn get_eof_data_block(&self) -> Option<DataBlock>;
+
+  /// Get the eof bytes positions converting from a data block.
+  fn get_eof_byte_positions(&self, file_size: u64) -> Option<Result<BytesPosition>> {
+    if let Some(DataBlock::Data(data, class)) = self.get_eof_data_block() {
+      let data_len =
+        u64::try_from(data.len()).map_err(|err| HtsGetError::InvalidInput(err.to_string()));
+
+      return match data_len {
+        Ok(data_len) => {
+          let bytes_position = BytesPosition::default()
+            .with_start(file_size - data_len)
+            .with_end(file_size);
+          let bytes_position = bytes_position.set_class(class);
+
+          Some(Ok(bytes_position))
+        }
+        Err(err) => Some(Err(err)),
+      };
+    }
+
+    None
+  }
 }
 
 /// [SearchReads] represents searching bytes ranges for the reads endpoint.
@@ -102,11 +127,9 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait SearchReads<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait SearchReads<ReferenceSequence, Index, Reader, Header>:
+  Search<ReferenceSequence, Index, Reader, Header>
 where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send,
   Header: Send + Sync,
   Index: Send + Sync,
@@ -170,17 +193,15 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait Search<S, ReaderType, ReferenceSequence, Index, Reader, Header>:
-  SearchAll<S, ReaderType, ReferenceSequence, Index, Reader, Header>
+pub trait Search<ReferenceSequence, Index, Reader, Header>:
+  SearchAll<ReferenceSequence, Index, Reader, Header>
 where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
   Index: Send + Sync,
   Header: Send + Sync,
   Reader: Send,
   Self: Sync + Send,
 {
-  fn init_reader(inner: ReaderType) -> Reader;
+  fn init_reader(inner: Streamable) -> Reader;
   async fn read_header(reader: &mut Reader) -> io::Result<Header>;
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index>;
 
@@ -194,7 +215,7 @@ where
   ) -> Result<Vec<BytesPosition>>;
 
   /// Get the storage of this format.
-  fn get_storage(&self) -> Arc<S>;
+  fn get_storage(&self) -> Arc<Storage>;
 
   /// Get the format of this format.
   fn get_format(&self) -> Format;
@@ -205,7 +226,7 @@ where
     let file_size = self
       .get_storage()
       .head(
-        query.format().fmt_file(query.id()),
+        &query.format().fmt_file(query.id()),
         HeadOptions::new(query.request().headers()),
       )
       .await?;
@@ -223,7 +244,7 @@ where
     let storage = self
       .get_storage()
       .get(
-        query.format().fmt_index(query.id()),
+        &query.format().fmt_index(query.id()),
         GetOptions::new_with_default_range(query.request().headers()),
       )
       .await?;
@@ -245,7 +266,7 @@ where
           )));
         }
 
-        let byte_ranges = match query.reference_name().as_ref() {
+        let mut byte_ranges = match query.reference_name().as_ref() {
           None => self.get_byte_ranges_for_all(&query).await?,
           Some(reference_name) => {
             let index = self.read_index(&query).await?;
@@ -272,10 +293,24 @@ where
           }
         };
 
-        let mut blocks = DataBlock::from_bytes_positions(byte_ranges);
-        if let Some(eof) = self.get_eof_data_block() {
-          blocks.push(eof);
+        let file_size = self
+          .get_storage()
+          .head(
+            &query.format().fmt_file(query.id()),
+            HeadOptions::new(query.request().headers()),
+          )
+          .await?;
+        if let Some(eof) = self.get_eof_byte_positions(file_size) {
+          byte_ranges.push(eof?);
         }
+
+        let blocks = self
+          .get_storage()
+          .update_byte_positions(
+            &query.format().fmt_file(query.id()),
+            BytesPositionOptions::new(byte_ranges, query.request().headers()),
+          )
+          .await?;
 
         self.build_response(&query, blocks).await
       }
@@ -284,7 +319,7 @@ where
         self
           .get_storage()
           .head(
-            query.format().fmt_file(query.id()),
+            &query.format().fmt_file(query.id()),
             HeadOptions::new(query.request().headers()),
           )
           .await?;
@@ -298,12 +333,15 @@ where
           .get_byte_ranges_for_header(&index, &mut reader, &query)
           .await?;
 
-        self
-          .build_response(
-            &query,
-            DataBlock::from_bytes_positions(vec![header_byte_ranges]),
+        let blocks = self
+          .get_storage()
+          .update_byte_positions(
+            &query.format().fmt_file(query.id()),
+            BytesPositionOptions::new(vec![header_byte_ranges], query.request().headers()),
           )
-          .await
+          .await?;
+
+        self.build_response(&query, blocks).await
       }
     }
   }
@@ -323,14 +361,15 @@ where
           storage_futures.push_back(tokio::spawn(async move {
             storage
               .range_url(
-                query_owned.format().fmt_file(query_owned.id()),
+                &query_owned.format().fmt_file(query_owned.id()),
                 RangeUrlOptions::new(range, query_owned.request().headers()),
               )
               .await
           }));
         }
         DataBlock::Data(data, class) => {
-          storage_futures.push_back(tokio::spawn(async move { Ok(S::data_url(data, class)) }));
+          let data_url = self.get_storage().data_url(data, class);
+          storage_futures.push_back(tokio::spawn(async move { Ok(data_url) }));
         }
       }
     }
@@ -343,7 +382,7 @@ where
       }
     }
 
-    return Ok(Response::new(query.format(), urls));
+    Ok(Response::new(query.format(), urls))
   }
 
   /// Get the header from the file specified by the id and format.
@@ -357,7 +396,7 @@ where
 
     let reader_type = self
       .get_storage()
-      .get(query.format().fmt_file(query.id()), get_options)
+      .get(&query.format().fmt_file(query.id()), get_options)
       .await?;
     let mut reader = Self::init_reader(reader_type);
 
@@ -381,12 +420,10 @@ where
 /// [Reader] is the format's reader type.
 /// [Header] is the format's header type.
 #[async_trait]
-pub trait BgzfSearch<S, I, ReaderType, Reader, Header>:
-  Search<S, ReaderType, ReferenceSequence<I>, Index<I>, Reader, Header>
+pub trait BgzfSearch<I, Reader, Header>:
+  Search<ReferenceSequence<I>, Index<I>, Reader, Header>
 where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   I: reference_sequence::Index + Send + Sync,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
   Header: Send + Sync,
 {
@@ -444,7 +481,7 @@ where
     let gzi_data = self
       .get_storage()
       .get(
-        query.format().fmt_gzi(query.id())?,
+        &query.format().fmt_gzi(query.id())?,
         GetOptions::new_with_default_range(query.request().headers()),
       )
       .await;
@@ -554,15 +591,12 @@ where
 }
 
 #[async_trait]
-impl<S, I, ReaderType, Reader, Header, T>
-  SearchAll<S, ReaderType, ReferenceSequence<I>, Index<I>, Reader, Header> for T
+impl<I, Reader, Header, T> SearchAll<ReferenceSequence<I>, Index<I>, Reader, Header> for T
 where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
   I: reference_sequence::Index + Send + Sync,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
   Reader: Send + Sync,
   Header: Send + Sync,
-  T: BgzfSearch<S, I, ReaderType, Reader, Header> + Send + Sync,
+  T: BgzfSearch<I, Reader, Header> + Send + Sync,
 {
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {

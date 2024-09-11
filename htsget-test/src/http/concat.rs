@@ -182,6 +182,12 @@ impl ReadRecords {
     self.merged_bytes.as_slice()
   }
 
+  /// Set the merged byte data.
+  pub fn set_bytes(mut self, merged_bytes: Vec<u8>) -> Self {
+    self.merged_bytes = merged_bytes;
+    self
+  }
+
   /// Read records to confirm they are valid.
   pub async fn read_records(self) -> Result<()> {
     match self.format {

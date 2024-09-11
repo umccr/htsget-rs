@@ -15,7 +15,6 @@ s3-storage = [
     "dep:bytes",
     "dep:aws-sdk-s3",
     "dep:aws-config",
-    "dep:pin-project-lite",
     "htsget-config/s3-storage",
     "htsget-test/s3-storage",
     "htsget-test/aws-mocks"
@@ -23,10 +22,10 @@ s3-storage = [
 url-storage = [
     "dep:bytes",
     "dep:reqwest",
-    "dep:pin-project-lite",
     "htsget-config/url-storage",
     "htsget-test/url-storage"
 ]
+c4gh-experimental = ["dep:crypt4gh", "dep:bincode", "htsget-config/c4gh-experimental", "htsget-test/c4gh-experimental"]
 default = []
 
 [dependencies]
@@ -39,6 +38,7 @@ tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"
 async-trait = "0.1"
+pin-project-lite = { version = "0.2" }
 
 # Amazon S3
 bytes = { version = "1", optional = true }
@@ -47,7 +47,10 @@ aws-config = { version = "1", optional = true }
 
 # Url storage
 reqwest = { version = "0.12", features = ["rustls-tls", "stream"], default-features = false, optional = true }
-pin-project-lite = { version = "0.2", optional = true }
+
+# Crypt4GH
+crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
+bincode = { version = "1", optional = true }
 
 # Error control, tracing, config
 thiserror = "1"
