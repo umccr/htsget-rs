@@ -72,6 +72,15 @@ impl Format {
   pub fn fmt_gzi(&self, id: &str) -> io::Result<String> {
     Ok(format!("{id}{}", self.gzi_index_file_ending()?))
   }
+
+  /// Check if the id points at an index file.
+  pub fn is_index(id: &str) -> bool {
+    id.ends_with(".bai")
+      || id.ends_with(".crai")
+      || id.ends_with(".tbi")
+      || id.ends_with(".csi")
+      || id.ends_with(".gzi")
+  }
 }
 
 impl From<Format> for String {
@@ -520,6 +529,11 @@ impl Headers {
   /// Get a reference to the inner HashMap.
   pub fn as_ref_inner(&self) -> &HashMap<String, String> {
     &self.0
+  }
+
+  /// Get a mutable reference to the inner HashMap.
+  pub fn as_mut_inner(&mut self) -> &mut HashMap<String, String> {
+    &mut self.0
   }
 }
 

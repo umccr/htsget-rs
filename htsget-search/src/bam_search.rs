@@ -21,22 +21,17 @@ use crate::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::Class::Body;
 use crate::HtsGetError;
 use crate::{Format, Query, Result};
-use htsget_storage::{BytesPosition, Storage};
+use htsget_storage::{BytesPosition, Storage, Streamable};
 
-type AsyncReader<ReaderType> = bam::AsyncReader<bgzf::AsyncReader<ReaderType>>;
+type AsyncReader = bam::AsyncReader<bgzf::AsyncReader<Streamable>>;
 
 /// Allows searching through bam files.
-pub struct BamSearch<S> {
-  storage: Arc<S>,
+pub struct BamSearch {
+  storage: Arc<Storage>,
 }
 
 #[async_trait]
-impl<S, ReaderType> BgzfSearch<S, LinearIndex, ReaderType, AsyncReader<ReaderType>, Header>
-  for BamSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
+impl BgzfSearch<LinearIndex, AsyncReader, Header> for BamSearch {
   #[instrument(level = "trace", skip(self, index))]
   async fn get_byte_ranges_for_unmapped(
     &self,
@@ -62,28 +57,22 @@ where
       .with_class(Body)])
   }
 
-  async fn read_bytes(reader: &mut AsyncReader<ReaderType>) -> Option<usize> {
+  async fn read_bytes(reader: &mut AsyncReader) -> Option<usize> {
     reader.read_record(&mut Default::default()).await.ok()
   }
 
-  fn virtual_position(&self, reader: &AsyncReader<ReaderType>) -> VirtualPosition {
+  fn virtual_position(&self, reader: &AsyncReader) -> VirtualPosition {
     reader.get_ref().virtual_position()
   }
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  Search<S, ReaderType, ReferenceSequence<LinearIndex>, Index, AsyncReader<ReaderType>, Header>
-  for BamSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
-  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+impl Search<ReferenceSequence<LinearIndex>, Index, AsyncReader, Header> for BamSearch {
+  fn init_reader(inner: Streamable) -> AsyncReader {
     AsyncReader::new(inner)
   }
 
-  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
+  async fn read_header(reader: &mut AsyncReader) -> io::Result<Header> {
     reader.read_header().await
   }
 
@@ -106,7 +95,7 @@ where
       .await
   }
 
-  fn get_storage(&self) -> Arc<S> {
+  fn get_storage(&self) -> Arc<Storage> {
     Arc::clone(&self.storage)
   }
 
@@ -116,13 +105,7 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchReads<S, ReaderType, ReferenceSequence<LinearIndex>, Index, AsyncReader<ReaderType>, Header>
-  for BamSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
+impl SearchReads<ReferenceSequence<LinearIndex>, Index, AsyncReader, Header> for BamSearch {
   async fn get_reference_sequence_from_name<'a>(
     &self,
     header: &'a Header,
@@ -151,32 +134,30 @@ where
   }
 }
 
-impl<S, ReaderType> BamSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
+impl BamSearch {
   /// Create the bam search.
-  pub fn new(storage: Arc<S>) -> Self {
+  pub fn new(storage: Arc<Storage>) -> Self {
     Self { storage }
   }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-  use std::future::Future;
-
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::http::concat::ConcatResponse;
-  use htsget_test::util::expected_bgzf_eof_data_url;
+  use std::future::Future;
 
+  use super::*;
   #[cfg(feature = "s3-storage")]
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use htsget_storage::local::LocalStorage;
-
-  use super::*;
+  #[cfg(feature = "c4gh-experimental")]
+  use {
+    crate::from_storage::tests::with_local_storage_c4gh,
+    htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
+  };
 
   const DATA_LOCATION: &str = "data/bam";
   const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.bam.bai";
@@ -185,18 +166,15 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await;
       println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![
-          Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-2596770")),
-          Url::new(expected_bgzf_eof_data_url()),
-        ],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
       ));
       assert_eq!(response, expected_response);
 
@@ -208,7 +186,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("*");
       let response = search.search(query).await;
@@ -221,9 +199,8 @@ pub(crate) mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596770"))
+            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798"))
             .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -236,7 +213,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range_chr11() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11");
       let response = search.search(query).await;
@@ -247,7 +224,7 @@ pub(crate) mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-996014")),
-          Url::new(expected_bgzf_eof_data_url()),
+          expected_eof_url().set_class(None),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -260,7 +237,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("20");
       let response = search.search(query).await;
@@ -275,7 +252,7 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165"))
             .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          expected_eof_url(),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -288,7 +265,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000)
@@ -311,7 +288,7 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996014"))
             .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          expected_eof_url(),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -324,7 +301,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_no_end_position() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000);
@@ -340,7 +317,7 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=256721-996014"))
             .with_class(Body),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          expected_eof_url(),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -353,7 +330,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_many_response_urls() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(4999976)
@@ -374,7 +351,7 @@ pub(crate) mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=824361-842100")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-996014")),
-          Url::new(expected_bgzf_eof_data_url()),
+          expected_eof_url().set_class(None),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -388,7 +365,7 @@ pub(crate) mod tests {
   async fn search_no_gzi() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(storage.clone());
+        let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("11")
           .with_start(5015000)
@@ -405,7 +382,7 @@ pub(crate) mod tests {
             Url::new(expected_url())
               .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951"))
               .with_class(Body),
-            Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+            expected_eof_url(),
           ],
         ));
         assert_eq!(response, expected_response);
@@ -421,7 +398,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_header() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query =
         Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
       let response = search.search(query).await;
@@ -446,7 +423,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_header_with_no_mapped_reads() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("22");
       let response = search.search(query).await;
@@ -458,7 +435,7 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
             .with_class(Header),
-          Url::new(expected_bgzf_eof_data_url()).with_class(Body),
+          expected_eof_url(),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -471,7 +448,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_header_with_non_existent_reference_name() {
     with_local_storage(|storage| async move {
-      let search = BamSearch::new(storage.clone());
+      let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("25");
       let response = search.search(query).await;
@@ -488,7 +465,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_reference_name() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(storage.clone());
+        let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
@@ -505,7 +482,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_all_reads() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(storage.clone());
+        let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("20");
         let response = search.search(query).await;
@@ -523,7 +500,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_header() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(storage.clone());
+        let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
@@ -541,7 +518,7 @@ pub(crate) mod tests {
   async fn get_header_end_offset() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(storage.clone());
+        let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
 
@@ -563,7 +540,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(storage);
+        let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(response.is_err());
@@ -581,7 +558,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(storage);
+        let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("20");
         let response = search.search(query).await;
@@ -600,7 +577,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(storage);
+        let search = BamSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
@@ -614,6 +591,47 @@ pub(crate) mod tests {
     .await
   }
 
+  #[cfg(feature = "c4gh-experimental")]
+  #[tokio::test]
+  async fn search_all_c4gh() {
+    with_local_storage_c4gh(|storage| async move {
+      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let search = BamSearch::new(Arc::new(Storage::new(storage)));
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+      let response = search.search(query).await.unwrap();
+
+      println!("{:#?}", response);
+
+      Some((
+        "htsnexus_test_NA12878.bam.c4gh".to_string(),
+        (response, Body).into(),
+      ))
+    })
+    .await;
+  }
+
+  #[cfg(feature = "c4gh-experimental")]
+  #[tokio::test]
+  async fn search_all_range_c4gh() {
+    with_local_storage_c4gh(|storage| async move {
+      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let search = BamSearch::new(Arc::new(Storage::new(storage)));
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        .with_reference_name("11")
+        .with_start(5015000)
+        .with_end(5050000);
+      let response = search.search(query).await.unwrap();
+
+      println!("{:#?}", response);
+
+      Some((
+        "htsnexus_test_NA12878.bam.c4gh".to_string(),
+        (response, Body).into(),
+      ))
+    })
+    .await;
+  }
+
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
@@ -624,5 +642,11 @@ pub(crate) mod tests {
 
   pub(crate) fn expected_url() -> String {
     "http://127.0.0.1:8081/data/htsnexus_test_NA12878.bam".to_string()
+  }
+
+  pub(crate) fn expected_eof_url() -> Url {
+    Url::new(expected_url())
+      .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+      .with_class(Body)
   }
 }

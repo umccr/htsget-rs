@@ -23,7 +23,7 @@ use crate::search::{Search, SearchAll, SearchReads};
 use crate::Class::Body;
 use crate::{ConcurrencyError, ParsedHeader};
 use crate::{Format, HtsGetError, Query, Result};
-use htsget_storage::{BytesPosition, DataBlock, Storage};
+use htsget_storage::{BytesPosition, DataBlock, Storage, Streamable};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
 static CRAM_EOF: &[u8] = &[
@@ -32,21 +32,15 @@ static CRAM_EOF: &[u8] = &[
   0x01, 0x00, 0xee, 0x63, 0x01, 0x4b,
 ];
 
-type AsyncReader<ReaderType> = cram::AsyncReader<BufReader<ReaderType>>;
+type AsyncReader = cram::AsyncReader<BufReader<Streamable>>;
 
 /// Allows searching through cram files.
-pub struct CramSearch<S> {
-  storage: Arc<S>,
+pub struct CramSearch {
+  storage: Arc<Storage>,
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchAll<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
-  for CramSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
+impl SearchAll<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   #[instrument(level = "trace", skip_all, ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
@@ -72,7 +66,7 @@ where
   async fn get_byte_ranges_for_header(
     &self,
     index: &Index,
-    _reader: &mut AsyncReader<ReaderType>,
+    _reader: &mut AsyncReader,
     _query: &Query,
   ) -> Result<BytesPosition> {
     Ok(
@@ -95,13 +89,7 @@ where
 }
 
 #[async_trait]
-impl<S, ReaderType>
-  SearchReads<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
-  for CramSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
+impl SearchReads<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   async fn get_reference_sequence_from_name<'a>(
     &self,
     header: &'a Header,
@@ -142,17 +130,12 @@ where
 
 /// PhantomData is used because of a lack of reference sequence data for CRAM.
 #[async_trait]
-impl<S, ReaderType> Search<S, ReaderType, PhantomData<Self>, Index, AsyncReader<ReaderType>, Header>
-  for CramSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
-  fn init_reader(inner: ReaderType) -> AsyncReader<ReaderType> {
+impl Search<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
+  fn init_reader(inner: Streamable) -> AsyncReader {
     AsyncReader::new(BufReader::new(inner))
   }
 
-  async fn read_header(reader: &mut AsyncReader<ReaderType>) -> io::Result<Header> {
+  async fn read_header(reader: &mut AsyncReader) -> io::Result<Header> {
     reader.read_file_definition().await?;
 
     Ok(
@@ -180,7 +163,7 @@ where
       .await
   }
 
-  fn get_storage(&self) -> Arc<S> {
+  fn get_storage(&self) -> Arc<Storage> {
     self.storage.clone()
   }
 
@@ -189,13 +172,9 @@ where
   }
 }
 
-impl<S, ReaderType> CramSearch<S>
-where
-  S: Storage<Streamable = ReaderType> + Send + Sync + 'static,
-  ReaderType: AsyncRead + Unpin + Send + Sync,
-{
+impl CramSearch {
   /// Create the cram search.
-  pub fn new(storage: Arc<S>) -> Self {
+  pub fn new(storage: Arc<Storage>) -> Self {
     Self { storage }
   }
 
@@ -292,15 +271,18 @@ mod tests {
 
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_test::http::concat::ConcatResponse;
-  use htsget_test::util::expected_cram_eof_data_url;
 
+  use super::*;
   #[cfg(feature = "s3-storage")]
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use htsget_storage::local::LocalStorage;
-
-  use super::*;
+  #[cfg(feature = "c4gh-experimental")]
+  use {
+    crate::from_storage::tests::with_local_storage_c4gh,
+    htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
+  };
 
   const DATA_LOCATION: &str = "data/cram";
   const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.cram.crai";
@@ -309,18 +291,15 @@ mod tests {
   #[tokio::test]
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await;
       println!("{response:#?}");
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![
-          Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-1672409")),
-          Url::new(expected_cram_eof_data_url()),
-        ],
+        vec![Url::new(expected_url())
+          .with_headers(Headers::default().with_header("Range", "bytes=0-1672447"))],
       ));
       assert_eq!(response, expected_response);
 
@@ -332,7 +311,7 @@ mod tests {
   #[tokio::test]
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("*");
       let response = search.search(query).await;
@@ -345,9 +324,8 @@ mod tests {
             .with_headers(Headers::default().with_header("Range", "bytes=0-6133"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=1324614-1672409"))
+            .with_headers(Headers::default().with_header("Range", "bytes=1324614-1672447"))
             .with_class(Body),
-          Url::new(expected_cram_eof_data_url()).with_class(Body),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -360,7 +338,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range_chr11() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11");
       let response = search.search(query).await;
@@ -371,7 +349,7 @@ mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
-          Url::new(expected_cram_eof_data_url()),
+          expected_eof_url().set_class(None),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -384,7 +362,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("20");
       let response = search.search(query).await;
@@ -399,7 +377,7 @@ mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=625728-1324613"))
             .with_class(Body),
-          Url::new(expected_cram_eof_data_url()).with_class(Body),
+          expected_eof_url(),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -412,7 +390,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_with_seq_range_no_overlap() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
@@ -425,7 +403,7 @@ mod tests {
         vec![
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-480537")),
-          Url::new(expected_cram_eof_data_url()),
+          expected_eof_url().set_class(None),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -438,7 +416,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_with_seq_range_overlap() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
@@ -457,7 +435,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_with_no_end_position() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000);
@@ -478,7 +456,7 @@ mod tests {
       vec![
         Url::new(expected_url())
           .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
-        Url::new(expected_cram_eof_data_url()),
+        expected_eof_url().set_class(None),
       ],
     )
   }
@@ -486,7 +464,7 @@ mod tests {
   #[tokio::test]
   async fn search_header() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(storage.clone());
+      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
       let query =
         Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
       let response = search.search(query).await;
@@ -512,7 +490,7 @@ mod tests {
   async fn search_non_existent_id_reference_name() {
     with_local_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(storage.clone());
+        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
@@ -529,7 +507,7 @@ mod tests {
   async fn search_non_existent_id_all_reads() {
     with_local_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(storage.clone());
+        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
           .with_reference_name("20");
         let response = search.search(query).await;
@@ -547,7 +525,7 @@ mod tests {
   async fn search_non_existent_id_header() {
     with_local_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(storage.clone());
+        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
@@ -566,7 +544,7 @@ mod tests {
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(storage);
+        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(response.is_err());
@@ -584,7 +562,7 @@ mod tests {
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(storage);
+        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
           .with_reference_name("20");
         let response = search.search(query).await;
@@ -603,7 +581,7 @@ mod tests {
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(storage);
+        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
@@ -617,6 +595,47 @@ mod tests {
     .await
   }
 
+  #[cfg(feature = "c4gh-experimental")]
+  #[tokio::test]
+  async fn search_all_c4gh() {
+    with_local_storage_c4gh(|storage| async move {
+      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let search = CramSearch::new(Arc::new(Storage::new(storage)));
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+      let response = search.search(query).await.unwrap();
+
+      println!("{:#?}", response);
+
+      Some((
+        "htsnexus_test_NA12878.cram.c4gh".to_string(),
+        (response, Body).into(),
+      ))
+    })
+    .await;
+  }
+
+  #[cfg(feature = "c4gh-experimental")]
+  #[tokio::test]
+  async fn search_range_c4gh() {
+    with_local_storage_c4gh(|storage| async move {
+      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let search = CramSearch::new(Arc::new(Storage::new(storage)));
+      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+        .with_reference_name("11")
+        .with_start(5000000)
+        .with_end(5050000);
+      let response = search.search(query).await.unwrap();
+
+      println!("{:#?}", response);
+
+      Some((
+        "htsnexus_test_NA12878.cram.c4gh".to_string(),
+        (response, Body).into(),
+      ))
+    })
+    .await;
+  }
+
   async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
@@ -627,5 +646,11 @@ mod tests {
 
   fn expected_url() -> String {
     "http://127.0.0.1:8081/data/htsnexus_test_NA12878.cram".to_string()
+  }
+
+  pub(crate) fn expected_eof_url() -> Url {
+    Url::new(expected_url())
+      .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447"))
+      .with_class(Body)
   }
 }

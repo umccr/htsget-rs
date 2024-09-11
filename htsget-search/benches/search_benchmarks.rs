@@ -16,12 +16,13 @@ const BENCHMARK_DURATION_SECONDS: u64 = 30;
 const NUMBER_OF_SAMPLES: usize = 50;
 
 async fn perform_query(query: Query) -> Result<(), HtsGetError> {
-  HtsGetFromStorage::<()>::from_local(
+  HtsGetFromStorage::from_local(
     &ConfigLocalStorage::new(
       Scheme::Http,
       Authority::from_static("127.0.0.1:8081"),
       "../data".to_string(),
       "/data".to_string(),
+      Default::default(),
     ),
     &query,
   )

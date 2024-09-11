@@ -16,8 +16,8 @@ use tracing::{debug, instrument};
 use htsget_config::error;
 
 use crate::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
-use crate::Url as HtsGetUrl;
-use crate::{GetOptions, HeadOptions, RangeUrlOptions, Result, Storage, StorageError};
+use crate::{GetOptions, HeadOptions, RangeUrlOptions, Result, StorageError, StorageTrait};
+use crate::{Streamable, Url as HtsGetUrl};
 
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
@@ -192,35 +192,23 @@ impl Stream for UrlStream {
 }
 
 #[async_trait]
-impl Storage for UrlStorage {
-  type Streamable = StreamReader<UrlStream, Bytes>;
-
+impl StorageTrait for UrlStorage {
   #[instrument(level = "trace", skip(self))]
-  async fn get<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: GetOptions<'_>,
-  ) -> Result<Self::Streamable> {
-    let key = key.as_ref().to_string();
+  async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
     let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
     let response = self.get_key(key.to_string(), &request_headers).await?;
 
-    Ok(StreamReader::new(UrlStream::new(Box::new(
-      response
-        .bytes_stream()
-        .map_err(|err| ResponseError(format!("reading body from response: {}", err))),
-    ))))
+    Ok(Streamable::from_async_read(StreamReader::new(
+      UrlStream::new(Box::new(response.bytes_stream().map_err(|err| {
+        ResponseError(format!("reading body from response: {}", err))
+      }))),
+    )))
   }
 
   #[instrument(level = "trace", skip(self))]
-  async fn range_url<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: RangeUrlOptions<'_>,
-  ) -> Result<HtsGetUrl> {
-    let key = key.as_ref();
+  async fn range_url(&self, key: &str, options: RangeUrlOptions<'_>) -> Result<HtsGetUrl> {
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
     let response_headers = self.remove_blacklisted_headers(options.response_headers().clone());
@@ -230,13 +218,7 @@ impl Storage for UrlStorage {
   }
 
   #[instrument(level = "trace", skip(self))]
-  async fn head<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: HeadOptions<'_>,
-  ) -> Result<u64> {
-    let key = key.as_ref();
-
+  async fn head(&self, key: &str, options: HeadOptions<'_>) -> Result<u64> {
     let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
     let head = self.head_key(key, &request_headers).await?;
 

@@ -36,6 +36,7 @@ aws-mocks = [
 ]
 s3-storage = ["htsget-config?/s3-storage"]
 url-storage = ["htsget-config?/url-storage"]
+c4gh-experimental = ["dep:crypt4gh", "dep:htsget-config", "htsget-config/c4gh-experimental"]
 default = []
 
 [dependencies]
@@ -61,6 +62,9 @@ aws-credential-types = { version = "1", features = ["test-util"], optional = tru
 s3s = { version = "0.10", optional = true }
 s3s-fs = { version = "0.10", optional = true }
 s3s-aws = { version = "0.10", optional = true }
+
+# Crypt4GH
+crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
 
 # Default dependencies
 rcgen = "0.13"

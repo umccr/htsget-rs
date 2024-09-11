@@ -1,10 +1,12 @@
-//! Module providing an implementation for the [Storage] trait using the local file system.
+//! Module providing an implementation for the [StorageTrait] trait using the local file system.
 //!
 
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
+use crate::{HeadOptions, StorageTrait, UrlFormatter};
+use crate::{Streamable, Url as HtsGetUrl};
 use async_trait::async_trait;
 use tokio::fs;
 use tokio::fs::File;
@@ -12,12 +14,9 @@ use tracing::debug;
 use tracing::instrument;
 use url::Url;
 
-use crate::Url as HtsGetUrl;
-use crate::{HeadOptions, Storage, UrlFormatter};
-
 use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 
-/// Implementation for the [Storage] trait using the local file system. [T] is the type of the
+/// Implementation for the [StorageTrait] trait using the local file system. [T] is the type of the
 /// server struct, which is used for formatting urls.
 #[derive(Debug, Clone)]
 pub struct LocalStorage<T> {
@@ -79,28 +78,18 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
 }
 
 #[async_trait]
-impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
-  type Streamable = File;
-
+impl<T: UrlFormatter + Send + Sync + Debug> StorageTrait for LocalStorage<T> {
   /// Get the file at the location of the key.
   #[instrument(level = "debug", skip(self))]
-  async fn get<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    _options: GetOptions<'_>,
-  ) -> Result<File> {
-    debug!(calling_from = ?self, key = key.as_ref(), "getting file with key {:?}", key.as_ref());
-    self.get(key).await
+  async fn get(&self, key: &str, _options: GetOptions<'_>) -> Result<Streamable> {
+    debug!(calling_from = ?self, key = key, "getting file with key {:?}", key);
+    Ok(Streamable::from_async_read(self.get(key).await?))
   }
 
   /// Get a url for the file at key.
   #[instrument(level = "debug", skip(self))]
-  async fn range_url<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: RangeUrlOptions<'_>,
-  ) -> Result<HtsGetUrl> {
-    let path = self.get_path_from_key(&key)?;
+  async fn range_url(&self, key: &str, options: RangeUrlOptions<'_>) -> Result<HtsGetUrl> {
+    let path = self.get_path_from_key(key)?;
 
     let base_url = Url::from_file_path(&self.base_path)
       .map_err(|_| StorageError::UrlParseError("failed to parse base path as url".to_string()))?;
@@ -119,25 +108,21 @@ impl<T: UrlFormatter + Send + Sync + Debug> Storage for LocalStorage<T> {
     let url = HtsGetUrl::new(self.url_formatter.format_url(path)?);
     let url = options.apply(url);
 
-    debug!(calling_from = ?self, key = key.as_ref(), ?url, "getting url with key {:?}", key.as_ref());
+    debug!(calling_from = ?self, key = key, ?url, "getting url with key {:?}", key);
 
     Ok(url)
   }
 
   /// Get the size of the file.
   #[instrument(level = "debug", skip(self))]
-  async fn head<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    _options: HeadOptions<'_>,
-  ) -> Result<u64> {
-    let path = self.get_path_from_key(&key)?;
+  async fn head(&self, key: &str, _options: HeadOptions<'_>) -> Result<u64> {
+    let path = self.get_path_from_key(key)?;
     let len = fs::metadata(path)
       .await
       .map_err(|err| StorageError::KeyNotFound(err.to_string()))?
       .len();
 
-    debug!(calling_from = ?self, key = key.as_ref(), len, "size of key {:?} is {}", key.as_ref(), len);
+    debug!(calling_from = ?self, key = key, len, "size of key {:?} is {}", key, len);
     Ok(len)
   }
 }
@@ -172,7 +157,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_folder() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(
+      let result = StorageTrait::get(
         &storage,
         "folder",
         GetOptions::new_with_default_range(&Default::default()),
@@ -186,7 +171,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(
+      let result = StorageTrait::get(
         &storage,
         "folder/../../passwords",
         GetOptions::new_with_default_range(&Default::default()),
@@ -202,7 +187,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn get_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::get(
+      let result = StorageTrait::get(
         &storage,
         "folder/../key1",
         GetOptions::new_with_default_range(&Default::default()),
@@ -216,7 +201,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_non_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
+      let result = StorageTrait::range_url(
         &storage,
         "non-existing-key",
         RangeUrlOptions::new_with_default_range(&Default::default()),
@@ -230,7 +215,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_folder() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
+      let result = StorageTrait::range_url(
         &storage,
         "folder",
         RangeUrlOptions::new_with_default_range(&Default::default()),
@@ -244,7 +229,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_with_forbidden_path() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
+      let result = StorageTrait::range_url(
         &storage,
         "folder/../../passwords",
         RangeUrlOptions::new_with_default_range(&Default::default()),
@@ -260,7 +245,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
+      let result = StorageTrait::range_url(
         &storage,
         "folder/../key1",
         RangeUrlOptions::new_with_default_range(&Default::default()),
@@ -275,7 +260,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key_with_specified_range() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
+      let result = StorageTrait::range_url(
         &storage,
         "folder/../key1",
         RangeUrlOptions::new(
@@ -294,7 +279,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn url_of_existing_key_with_specified_open_ended_range() {
     with_local_storage(|storage| async move {
-      let result = Storage::range_url(
+      let result = StorageTrait::range_url(
         &storage,
         "folder/../key1",
         RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
@@ -310,7 +295,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn file_size() {
     with_local_storage(|storage| async move {
-      let result = Storage::head(
+      let result = StorageTrait::head(
         &storage,
         "folder/../key1",
         HeadOptions::new(&Default::default()),
@@ -349,24 +334,26 @@ pub(crate) mod tests {
     (folder_name.to_string(), base_path)
   }
 
-  async fn with_local_storage<F, Fut>(test: F)
+  pub(crate) fn test_local_storage(base_path: &Path) -> LocalStorage<ConfigLocalStorage> {
+    LocalStorage::new(
+      base_path,
+      ConfigLocalStorage::new(
+        Scheme::Http,
+        Authority::from_static("127.0.0.1:8081"),
+        "data".to_string(),
+        "/data".to_string(),
+        Default::default(),
+      ),
+    )
+    .unwrap()
+  }
+
+  pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(LocalStorage<ConfigLocalStorage>) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
-    test(
-      LocalStorage::new(
-        base_path.path(),
-        ConfigLocalStorage::new(
-          Scheme::Http,
-          Authority::from_static("127.0.0.1:8081"),
-          "data".to_string(),
-          "/data".to_string(),
-        ),
-      )
-      .unwrap(),
-    )
-    .await
+    test(test_local_storage(base_path.path())).await
   }
 }

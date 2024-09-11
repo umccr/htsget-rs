@@ -110,6 +110,7 @@ htsget-rs. It also contains the data block server which fetches data from a `Loc
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
+* `c4gh-experimental`: used to enable `C4GHStorage` functionality.
 
 ## License
 

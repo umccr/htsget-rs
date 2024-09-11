@@ -4,6 +4,7 @@ use http::uri::Authority;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{default_localstorage_addr, default_path, DataServerConfig};
+use crate::storage::object::ObjectType;
 use crate::tls::KeyPairScheme;
 use crate::types::Scheme;
 
@@ -23,6 +24,7 @@ pub struct LocalStorage {
   authority: Authority,
   local_path: String,
   path_prefix: String,
+  object_type: ObjectType,
 }
 
 impl LocalStorage {
@@ -32,12 +34,14 @@ impl LocalStorage {
     authority: Authority,
     local_path: String,
     path_prefix: String,
+    object_type: ObjectType,
   ) -> Self {
     Self {
       scheme,
       authority,
       local_path,
       path_prefix,
+      object_type,
     }
   }
 
@@ -60,6 +64,11 @@ impl LocalStorage {
   pub fn path_prefix(&self) -> &str {
     &self.path_prefix
   }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    &self.object_type
+  }
 }
 
 impl Default for LocalStorage {
@@ -69,6 +78,7 @@ impl Default for LocalStorage {
       authority: default_authority(),
       local_path: default_local_path(),
       path_prefix: Default::default(),
+      object_type: Default::default(),
     }
   }
 }
@@ -80,6 +90,7 @@ impl From<&DataServerConfig> for Option<LocalStorage> {
       Authority::from_str(&config.addr().to_string()).ok()?,
       config.local_path().to_str()?.to_string(),
       config.serve_at().to_string(),
+      Default::default(),
     ))
   }
 }
@@ -134,6 +145,7 @@ mod tests {
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
+      Default::default(),
     );
 
     assert_eq!(result.unwrap(), expected);

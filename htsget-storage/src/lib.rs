@@ -9,70 +9,196 @@ pub use htsget_config::types::{
   Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Url,
 };
 
-use std::cmp::Ordering;
-use std::fmt::{Debug, Display, Formatter};
-use std::io;
-use std::io::ErrorKind;
-use std::net::AddrParseError;
-
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
+use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
+#[cfg(feature = "s3-storage")]
+use htsget_config::storage::s3::S3Storage as S3StorageConfig;
+#[cfg(feature = "url-storage")]
+use htsget_config::storage::url::UrlStorageClient as UrlStorageConfig;
 use http::{uri, HeaderMap};
-use thiserror::Error;
-use tokio::io::AsyncRead;
+use pin_project_lite::pin_project;
+use std::cmp::Ordering;
+use std::fmt;
+use std::fmt::{Debug, Display, Formatter};
+use std::num::ParseIntError;
+use std::pin::Pin;
+use std::str::FromStr;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, ReadBuf};
 use tracing::instrument;
 
-use htsget_config::storage::local::LocalStorage;
+#[cfg(feature = "c4gh-experimental")]
+use crate::c4gh::storage::C4GHStorage;
+use crate::error::Result;
+use crate::error::StorageError;
+use crate::local::LocalStorage;
+#[cfg(feature = "s3-storage")]
+use crate::s3::S3Storage;
+#[cfg(feature = "url-storage")]
+use crate::url::UrlStorage;
+use htsget_config::storage::object::ObjectType;
 use htsget_config::types::Scheme;
 
+#[cfg(feature = "c4gh-experimental")]
+pub mod c4gh;
+pub mod error;
 pub mod local;
 #[cfg(feature = "s3-storage")]
 pub mod s3;
 #[cfg(feature = "url-storage")]
 pub mod url;
 
-type Result<T> = core::result::Result<T, StorageError>;
+pin_project! {
+  /// A Streamable type represents any AsyncRead data used by `StorageTrait`.
+  pub struct Streamable {
+    #[pin]
+    inner: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
+  }
+}
+
+impl Streamable {
+  /// Create a new Streamable from an AsyncRead.
+  pub fn from_async_read(inner: impl AsyncRead + Send + Sync + Unpin + 'static) -> Self {
+    Self {
+      inner: Box::new(inner),
+    }
+  }
+}
+
+impl AsyncRead for Streamable {
+  fn poll_read(
+    self: Pin<&mut Self>,
+    cx: &mut Context<'_>,
+    buf: &mut ReadBuf<'_>,
+  ) -> Poll<std::io::Result<()>> {
+    self.project().inner.poll_read(cx, buf)
+  }
+}
+
+/// The top-level storage type is created from any `StorageTrait`.
+pub struct Storage {
+  inner: Box<dyn StorageTrait + Send + Sync + 'static>,
+}
+
+impl Debug for Storage {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    write!(f, "Storage")
+  }
+}
+
+#[async_trait]
+impl StorageTrait for Storage {
+  async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
+    self.inner.get(key, options).await
+  }
+
+  async fn range_url(&self, key: &str, options: RangeUrlOptions<'_>) -> Result<Url> {
+    self.inner.range_url(key, options).await
+  }
+
+  async fn head(&self, key: &str, options: HeadOptions<'_>) -> Result<u64> {
+    self.inner.head(key, options).await
+  }
+
+  fn data_url(&self, data: Vec<u8>, class: Option<Class>) -> Url {
+    self.inner.data_url(data, class)
+  }
+
+  async fn update_byte_positions(
+    &self,
+    key: &str,
+    positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<DataBlock>> {
+    self
+      .inner
+      .update_byte_positions(key, positions_options)
+      .await
+  }
+}
+
+impl Storage {
+  /// Create from local storage config.
+  pub async fn from_local(config: &LocalStorageConfig) -> Result<Storage> {
+    let storage = LocalStorage::new(config.local_path(), config.clone())?;
+    match config.object_type() {
+      ObjectType::Regular => Ok(Storage::new(storage)),
+      #[cfg(feature = "c4gh-experimental")]
+      ObjectType::C4GH { keys } => Ok(Storage::new(C4GHStorage::new(
+        keys.clone().into_inner(),
+        storage,
+      ))),
+      _ => Err(StorageError::InternalError(
+        "invalid object type".to_string(),
+      )),
+    }
+  }
+
+  /// Create from s3 config.
+  #[cfg(feature = "s3-storage")]
+  pub async fn from_s3(s3_storage: &S3StorageConfig) -> Storage {
+    Storage::new(
+      S3Storage::new_with_default_config(
+        s3_storage.bucket().to_string(),
+        s3_storage.clone().endpoint(),
+        s3_storage.clone().path_style(),
+      )
+      .await,
+    )
+  }
+
+  /// Create from url config.
+  #[cfg(feature = "url-storage")]
+  pub async fn from_url(url_storage_config: &UrlStorageConfig) -> Storage {
+    Storage::new(UrlStorage::new(
+      url_storage_config.client_cloned(),
+      url_storage_config.url().clone(),
+      url_storage_config.response_url().clone(),
+      url_storage_config.forward_headers(),
+      url_storage_config.header_blacklist().to_vec(),
+    ))
+  }
+
+  pub fn new(inner: impl StorageTrait + Send + Sync + 'static) -> Self {
+    Self {
+      inner: Box::new(inner),
+    }
+  }
+}
 
 /// A Storage represents some kind of object based storage (either locally or in the cloud)
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
-pub trait Storage {
-  type Streamable: AsyncRead + Unpin + Send + Sync;
-
+pub trait StorageTrait {
   /// Get the object using the key.
-  async fn get<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: GetOptions<'_>,
-  ) -> Result<Self::Streamable>;
+  async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable>;
 
   /// Get the url of the object represented by the key using a bytes range. It is not required for
   /// this function to check for the existent of the key, so this should be ensured beforehand.
-  async fn range_url<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: RangeUrlOptions<'_>,
-  ) -> Result<Url>;
+  async fn range_url(&self, key: &str, options: RangeUrlOptions<'_>) -> Result<Url>;
 
   /// Get the size of the object represented by the key.
-  async fn head<K: AsRef<str> + Send + Debug>(
-    &self,
-    key: K,
-    options: HeadOptions<'_>,
-  ) -> Result<u64>;
+  async fn head(&self, key: &str, options: HeadOptions<'_>) -> Result<u64>;
 
   /// Get the url of the object using an inline data uri.
-  #[instrument(level = "trace", ret)]
-  fn data_url(data: Vec<u8>, class: Option<Class>) -> Url
-  where
-    Self: Sized,
-  {
+  fn data_url(&self, data: Vec<u8>, class: Option<Class>) -> Url {
     Url::new(format!(
       "data:;base64,{}",
       general_purpose::STANDARD.encode(data)
     ))
     .set_class(class)
+  }
+
+  /// Optionally update byte positions before they are passed to the other functions.
+  async fn update_byte_positions(
+    &self,
+    _key: &str,
+    positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<DataBlock>> {
+    Ok(DataBlock::from_bytes_positions(
+      positions_options.merge_all().into_inner(),
+    ))
   }
 }
 
@@ -82,63 +208,7 @@ pub trait UrlFormatter {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String>;
 }
 
-#[derive(Error, Debug)]
-pub enum StorageError {
-  #[error("wrong key derived from ID: `{0}`")]
-  InvalidKey(String),
-
-  #[error("key not found in storage: `{0}`")]
-  KeyNotFound(String),
-
-  #[error("{0}: {1}")]
-  IoError(String, io::Error),
-
-  #[error("server error: {0}")]
-  ServerError(String),
-
-  #[error("invalid input: {0}")]
-  InvalidInput(String),
-
-  #[error("invalid uri: {0}")]
-  InvalidUri(String),
-
-  #[error("invalid address: {0}")]
-  InvalidAddress(AddrParseError),
-
-  #[error("internal error: {0}")]
-  InternalError(String),
-
-  #[error("response error: {0}")]
-  ResponseError(String),
-
-  #[cfg(feature = "s3-storage")]
-  #[error("aws error: {0}, with key: `{1}`")]
-  AwsS3Error(String, String),
-
-  #[error("parsing url: {0}")]
-  UrlParseError(String),
-}
-
-impl From<StorageError> for HtsGetError {
-  fn from(err: StorageError) -> Self {
-    match err {
-      err @ StorageError::InvalidInput(_) => Self::InvalidInput(err.to_string()),
-      err @ (StorageError::KeyNotFound(_)
-      | StorageError::InvalidKey(_)
-      | StorageError::ResponseError(_)) => Self::NotFound(err.to_string()),
-      err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
-      err @ (StorageError::ServerError(_)
-      | StorageError::InvalidUri(_)
-      | StorageError::InvalidAddress(_)
-      | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
-      #[cfg(feature = "s3-storage")]
-      err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
-      err @ StorageError::UrlParseError(_) => Self::ParseError(err.to_string()),
-    }
-  }
-}
-
-impl UrlFormatter for LocalStorage {
+impl UrlFormatter for htsget_config::storage::local::LocalStorage {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     uri::Builder::new()
       .scheme(match self.scheme() {
@@ -150,21 +220,6 @@ impl UrlFormatter for LocalStorage {
       .build()
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
       .map(|value| value.to_string())
-  }
-}
-
-impl From<StorageError> for io::Error {
-  fn from(err: StorageError) -> Self {
-    match err {
-      StorageError::IoError(_, ref io_error) => Self::new(io_error.kind(), err),
-      err => Self::new(ErrorKind::Other, err),
-    }
-  }
-}
-
-impl From<io::Error> for StorageError {
-  fn from(error: io::Error) -> Self {
-    Self::IoError("io error".to_string(), error)
   }
 }
 
@@ -240,6 +295,38 @@ impl Display for BytesRange {
       .unwrap_or_else(|| "0".to_string());
     let end = self.end.map(|end| end.to_string()).unwrap_or_default();
     write!(f, "bytes={start}-{end}")
+  }
+}
+
+/// Convert from a http range to a bytes position.
+impl FromStr for BytesPosition {
+  type Err = StorageError;
+
+  fn from_str(range: &str) -> Result<Self> {
+    let range = range.replacen("bytes=", "", 1);
+
+    let split: Vec<&str> = range.splitn(2, '-').collect();
+    if split.len() > 2 {
+      return Err(StorageError::InternalError(
+        "failed to split range".to_string(),
+      ));
+    }
+
+    let parse_range = |range: Option<&str>| {
+      let range = range.unwrap_or_default();
+      if range.is_empty() {
+        Ok::<_, Self::Err>(None)
+      } else {
+        Ok(Some(range.parse().map_err(|err: ParseIntError| {
+          StorageError::InternalError(err.to_string())
+        })?))
+      }
+    };
+
+    let start = parse_range(split.first().copied())?;
+    let end = parse_range(split.last().copied())?.map(|value| value + 1);
+
+    Ok(Self::new(start, end, None))
   }
 }
 
@@ -400,6 +487,38 @@ impl<'a> GetOptions<'a> {
   }
 }
 
+#[derive(Debug, Clone)]
+pub struct BytesPositionOptions<'a> {
+  positions: Vec<BytesPosition>,
+  headers: &'a HeaderMap,
+}
+
+impl<'a> BytesPositionOptions<'a> {
+  pub fn new(positions: Vec<BytesPosition>, headers: &'a HeaderMap) -> Self {
+    Self { positions, headers }
+  }
+
+  /// Get the response headers.
+  pub fn headers(&self) -> &'a HeaderMap {
+    self.headers
+  }
+
+  pub fn positions(&self) -> &Vec<BytesPosition> {
+    &self.positions
+  }
+
+  /// Get the inner value.
+  pub fn into_inner(self) -> Vec<BytesPosition> {
+    self.positions
+  }
+
+  /// Merge all bytes positions
+  pub fn merge_all(mut self) -> Self {
+    self.positions = BytesPosition::merge_all(self.positions);
+    self
+  }
+}
+
 #[derive(Debug)]
 pub struct RangeUrlOptions<'a> {
   range: BytesPosition,
@@ -447,7 +566,7 @@ impl<'a> RangeUrlOptions<'a> {
 }
 
 /// A struct to represent options passed to a `Storage` head call.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HeadOptions<'a> {
   request_headers: &'a HeaderMap,
 }
@@ -470,9 +589,9 @@ mod tests {
 
   use http::uri::Authority;
 
-  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
-
   use crate::local::LocalStorage;
+  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_test::util::default_dir;
 
   use super::*;
 
@@ -811,8 +930,12 @@ mod tests {
 
   #[test]
   fn data_url() {
-    let result =
-      LocalStorage::<ConfigLocalStorage>::data_url(b"Hello World!".to_vec(), Some(Class::Header));
+    let result = LocalStorage::<ConfigLocalStorage>::new(
+      default_dir().join("data"),
+      ConfigLocalStorage::default(),
+    )
+    .unwrap()
+    .data_url(b"Hello World!".to_vec(), Some(Class::Header));
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
@@ -949,6 +1072,7 @@ mod tests {
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
+      Default::default(),
     );
     test_formatter_authority(formatter, "http");
   }
@@ -960,6 +1084,7 @@ mod tests {
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
+      Default::default(),
     );
     test_formatter_authority(formatter, "https");
   }

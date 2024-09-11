@@ -484,6 +484,7 @@ mod tests {
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
+      Default::default(),
     );
     let resolver = Resolver::new(
       Storage::Local { local_storage },
