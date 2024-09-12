@@ -100,6 +100,67 @@ curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": 
 curl '127.0.0.1:8080/variants/service-info'
 ```
 
+### Crypt4GH
+
+The htsget-rs server experimentally supports serving [Crypt4GH][c4gh] encrypted files to clients. See the [Crypt4GH section][config-c4gh] in the configuration
+for more details on how to configure this.
+
+Run the server with the following to enable Crypt4GH support using the [example config][example-config]:
+
+```sh
+cargo run -p htsget-axum --features c4gh-experimental -- --config htsget-config/examples/config-files/c4gh.toml
+```
+
+Crypt4GH encrypted byte ranges can be queried:
+
+```sh
+curl 'http://localhost:8080/reads/data/c4gh/htsnexus_test_NA12878?referenceName=11&start=5000000&end=5050000'
+```
+
+The output consists of the Crypt4GH header, which includes the original header, the edit lists, and the re-encrypted header that
+the recipient can use to decrypt bytes:
+```json
+{
+  "htsget": {
+    "format": "BAM",
+    "urls": [
+      {
+        "url": "data:;base64,Y3J5cHQ0Z2gBAAAAAwAAAA=="
+      },
+      {
+        "url": "http://127.0.0.1:8081/data/c4gh/htsnexus_test_NA12878.bam.c4gh",
+        "headers": {
+          "Range": "bytes=16-123"
+        }
+      },
+      {
+        "url": "data:;base64,bAAAAAAAAABPIoRdk+d+ifp2PWRFeXoe6Z9kPOj+HrREhzxZ3QiDa2SYh+0Gy8aKpFic4MtTa+ywMpkHziJgojVbcmbvBAr3G7o01lDubsBW98aQ/U1AcalIUCp0fGNkrtdTBN4NaVNIdtQmbAAAAAAAAABPIoRdk+d+ifp2PWRFeXoe6Z9kPOj+HrREhzxZ3QiDa+xJ+yh+52zHvw8qQXMyCtqT6jTFvaYhRPw/6ZzvOdt98YPQgCcTIut58VeTGmR3ien0TdcQFxmfE10MH4qapF2blgjX"
+      },
+      {
+        "url": "http://127.0.0.1:8081/data/c4gh/htsnexus_test_NA12878.bam.c4gh",
+        "headers": {
+          "Range": "bytes=124-1114711"
+        }
+      },
+      {
+        "url": "http://127.0.0.1:8081/data/c4gh/htsnexus_test_NA12878.bam.c4gh",
+        "headers": {
+          "Range": "bytes=2557120-2598042"
+        }
+      }
+    ]
+  }
+}                       
+```
+
+For example, using a [htsget client][htsget-client], the data can be concatenated, and then decrypted using the [Crypt4GH CLI][crypt4gh-cli]:
+
+```sh
+htsget 'http://localhost:8080/reads/data/c4gh/htsnexus_test_NA12878?referenceName=11&start=5000000&end=5050000' > out.c4gh
+crypt4gh decrypt --sk data/c4gh/keys/alice.sec < out.c4gh > out.bam
+samtools view out.bam
+```
+
 ### As a library
 
 This crates has some components which may be useful to other crates. Namely, in contains Axum routing functions for
@@ -117,3 +178,9 @@ This crate has the following features:
 This project is licensed under the [MIT license][license].
 
 [license]: LICENSE
+[config-c4gh]: ../htsget-config/README.md#crypt4gh
+[data-c4gh]: ../data/c4gh
+[c4gh]: https://samtools.github.io/hts-specs/crypt4gh.pdf
+[htsget-client]: https://htsget.readthedocs.io/en/stable/installation.html
+[crypt4gh-cli]: https://github.com/ega-archive/crypt4gh-rust
+[example-config]: ../htsget-config/examples/config-files/c4gh.toml
