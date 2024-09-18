@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 use tracing::instrument;
@@ -97,7 +95,7 @@ pub fn get_service_info_with(
 #[instrument(level = "debug", skip_all)]
 pub fn get_service_info_json(
   endpoint: Endpoint,
-  searcher: Arc<impl HtsGet + Send + Sync + 'static>,
+  searcher: impl HtsGet + Send + Sync + 'static,
   config: &ConfigServiceInfo,
 ) -> ServiceInfo {
   debug!(endpoint = ?endpoint,"getting service-info response for endpoint");

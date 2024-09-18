@@ -6,7 +6,6 @@
 //!
 
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -28,8 +27,8 @@ use htsget_config::types::Class::Header;
 use crate::ConcurrencyError;
 use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
 use htsget_storage::{
-  BytesPosition, BytesPositionOptions, HeadOptions, RangeUrlOptions, Storage, StorageTrait,
-  Streamable,
+  BytesPosition, BytesPositionOptions, HeadOptions, RangeUrlOptions, Storage, StorageMiddleware,
+  StorageTrait, Streamable,
 };
 use htsget_storage::{DataBlock, GetOptions};
 
@@ -215,7 +214,10 @@ where
   ) -> Result<Vec<BytesPosition>>;
 
   /// Get the storage of this format.
-  fn get_storage(&self) -> Arc<Storage>;
+  fn get_storage(&self) -> &Storage;
+
+  /// Get the mutable storage of this format.
+  fn mut_storage(&mut self) -> &mut Storage;
 
   /// Get the format of this format.
   fn get_format(&self) -> Format;
@@ -223,13 +225,7 @@ where
   /// Get the position at the end of file marker.
   #[instrument(level = "trace", skip(self), ret)]
   async fn position_at_eof(&self, query: &Query) -> Result<u64> {
-    let file_size = self
-      .get_storage()
-      .head(
-        &query.format().fmt_file(query.id()),
-        HeadOptions::new(query.request().headers()),
-      )
-      .await?;
+    let file_size = self.file_size(query).await?;
     Ok(
       file_size
         - u64::try_from(self.get_eof_marker().len())
@@ -254,7 +250,7 @@ where
   }
 
   /// Search based on the query.
-  async fn search(&self, query: Query) -> Result<Response> {
+  async fn search(&mut self, query: Query) -> Result<Response> {
     match query.class() {
       Body => {
         let format = self.get_format();
@@ -266,12 +262,14 @@ where
           )));
         }
 
+        let index = self.read_index(&query).await?;
+        let header_end = self.get_header_end_offset(&index).await?;
+
+        self.preprocess(&query, header_end).await?;
+
         let mut byte_ranges = match query.reference_name().as_ref() {
           None => self.get_byte_ranges_for_all(&query).await?,
           Some(reference_name) => {
-            let index = self.read_index(&query).await?;
-
-            let header_end = self.get_header_end_offset(&index).await?;
             let (header, mut reader) = self.get_header(&query, header_end).await?;
 
             let mut byte_ranges = self
@@ -293,20 +291,14 @@ where
           }
         };
 
-        let file_size = self
-          .get_storage()
-          .head(
-            &query.format().fmt_file(query.id()),
-            HeadOptions::new(query.request().headers()),
-          )
-          .await?;
+        let file_size = self.file_size(&query).await?;
         if let Some(eof) = self.get_eof_byte_positions(file_size) {
           byte_ranges.push(eof?);
         }
 
         let blocks = self
           .get_storage()
-          .update_byte_positions(
+          .postprocess(
             &query.format().fmt_file(query.id()),
             BytesPositionOptions::new(byte_ranges, query.request().headers()),
           )
@@ -315,18 +307,11 @@ where
         self.build_response(&query, blocks).await
       }
       Class::Header => {
-        // Check to see if the key exists.
-        self
-          .get_storage()
-          .head(
-            &query.format().fmt_file(query.id()),
-            HeadOptions::new(query.request().headers()),
-          )
-          .await?;
-
         let index = self.read_index(&query).await?;
-
         let header_end = self.get_header_end_offset(&index).await?;
+
+        self.preprocess(&query, header_end).await?;
+
         let (_, mut reader) = self.get_header(&query, header_end).await?;
 
         let header_byte_ranges = self
@@ -335,7 +320,7 @@ where
 
         let blocks = self
           .get_storage()
-          .update_byte_positions(
+          .postprocess(
             &query.format().fmt_file(query.id()),
             BytesPositionOptions::new(vec![header_byte_ranges], query.request().headers()),
           )
@@ -346,39 +331,59 @@ where
     }
   }
 
+  async fn preprocess(&mut self, query: &Query, header_end: u64) -> Result<()> {
+    Ok(
+      self
+        .mut_storage()
+        .preprocess(
+          &query.format().fmt_index(query.id()),
+          GetOptions::new(
+            BytesPosition::default().with_end(header_end),
+            query.request().headers(),
+          ),
+        )
+        .await?,
+    )
+  }
+
+  async fn file_size(&self, query: &Query) -> Result<u64> {
+    Ok(
+      self
+        .get_storage()
+        .head(
+          &query.format().fmt_file(query.id()),
+          HeadOptions::new(query.request().headers()),
+        )
+        .await?,
+    )
+  }
+
   /// Build the response from the query using urls.
   #[instrument(level = "trace", skip(self, byte_ranges))]
   async fn build_response(&self, query: &Query, byte_ranges: Vec<DataBlock>) -> Result<Response> {
     trace!("building response");
-    let mut storage_futures = FuturesOrdered::new();
+    let mut urls = vec![];
+    let storage = self.get_storage();
+
     for block in DataBlock::update_classes(byte_ranges) {
       match block {
         DataBlock::Range(range) => {
           trace!(range = ?range, "range");
-          let storage = self.get_storage();
           let query_owned = query.clone();
 
-          storage_futures.push_back(tokio::spawn(async move {
+          urls.push(
             storage
               .range_url(
                 &query_owned.format().fmt_file(query_owned.id()),
                 RangeUrlOptions::new(range, query_owned.request().headers()),
               )
-              .await
-          }));
+              .await?,
+          );
         }
         DataBlock::Data(data, class) => {
           let data_url = self.get_storage().data_url(data, class);
-          storage_futures.push_back(tokio::spawn(async move { Ok(data_url) }));
+          urls.push(data_url);
         }
-      }
-    }
-
-    let mut urls = Vec::new();
-    loop {
-      select! {
-        Some(next) = storage_futures.next() => urls.push(next.map_err(ConcurrencyError::new).map_err(HtsGetError::from)?.map_err(HtsGetError::from)?),
-        else => break
       }
     }
 

@@ -10,7 +10,7 @@ use crate::error::StorageError::{InternalError, IoError};
 use crate::error::{Result, StorageError};
 use crate::{
   BytesPosition, BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions,
-  StorageTrait, Streamable,
+  StorageMiddleware, StorageTrait, Streamable,
 };
 use async_trait::async_trait;
 use crypt4gh::error::Crypt4GHError;
@@ -44,6 +44,16 @@ pub struct C4GHStorage {
   // This is a bit lazy, the proper solution would be to pass around mutable state as a parameter
   // or make `StorageTrait` mutable, and synchronise somewhere else.
   state: Arc<Mutex<HashMap<String, C4GHState>>>,
+}
+
+impl Clone for C4GHStorage {
+  fn clone(&self) -> Self {
+    Self {
+      keys: self.keys.clone(),
+      inner: self.inner.clone_box(),
+      state: self.state.clone(),
+    }
+  }
 }
 
 impl Debug for C4GHStorage {
@@ -228,6 +238,17 @@ impl C4GHStorage {
 }
 
 #[async_trait]
+impl StorageMiddleware for C4GHStorage {
+  async fn postprocess(
+    &self,
+    key: &str,
+    positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<DataBlock>> {
+    self.compute_data_blocks(key, positions_options).await
+  }
+}
+
+#[async_trait]
 impl StorageTrait for C4GHStorage {
   /// Get the Crypt4GH file at the location of the key.
   async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
@@ -242,15 +263,6 @@ impl StorageTrait for C4GHStorage {
   /// Get the size of the underlying file and the encrypted file, updating any state.
   async fn head(&self, key: &str, options: HeadOptions<'_>) -> Result<u64> {
     self.head_object_with_state(key, options).await
-  }
-
-  /// Update encrypted positions.
-  async fn update_byte_positions(
-    &self,
-    key: &str,
-    positions_options: BytesPositionOptions<'_>,
-  ) -> Result<Vec<DataBlock>> {
-    self.compute_data_blocks(key, positions_options).await
   }
 }
 

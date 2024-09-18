@@ -82,9 +82,32 @@ pub struct Storage {
   inner: Box<dyn StorageTrait + Send + Sync + 'static>,
 }
 
+impl Clone for Storage {
+  fn clone(&self) -> Self {
+    Self {
+      inner: self.inner.clone_box(),
+    }
+  }
+}
+
 impl Debug for Storage {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "Storage")
+  }
+}
+
+#[async_trait]
+impl StorageMiddleware for Storage {
+  async fn preprocess(&mut self, _key: &str, _options: GetOptions<'_>) -> Result<()> {
+    self.inner.preprocess(_key, _options).await
+  }
+
+  async fn postprocess(
+    &self,
+    key: &str,
+    positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<DataBlock>> {
+    self.inner.postprocess(key, positions_options).await
   }
 }
 
@@ -104,17 +127,6 @@ impl StorageTrait for Storage {
 
   fn data_url(&self, data: Vec<u8>, class: Option<Class>) -> Url {
     self.inner.data_url(data, class)
-  }
-
-  async fn update_byte_positions(
-    &self,
-    key: &str,
-    positions_options: BytesPositionOptions<'_>,
-  ) -> Result<Vec<DataBlock>> {
-    self
-      .inner
-      .update_byte_positions(key, positions_options)
-      .await
   }
 }
 
@@ -170,7 +182,7 @@ impl Storage {
 /// A Storage represents some kind of object based storage (either locally or in the cloud)
 /// that can be used to retrieve files for alignments, variants or its respective indexes.
 #[async_trait]
-pub trait StorageTrait {
+pub trait StorageTrait: StorageMiddleware + StorageClone {
   /// Get the object using the key.
   async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable>;
 
@@ -189,9 +201,32 @@ pub trait StorageTrait {
     ))
     .set_class(class)
   }
+}
 
-  /// Optionally update byte positions before they are passed to the other functions.
-  async fn update_byte_positions(
+/// Clone the storage trait to be able to clone a Box dyn.
+pub trait StorageClone {
+  fn clone_box(&self) -> Box<dyn StorageTrait + Send + Sync>;
+}
+
+impl<T> StorageClone for T
+where
+  T: StorageTrait + Send + Sync + Clone + 'static,
+{
+  fn clone_box(&self) -> Box<dyn StorageTrait + Send + Sync> {
+    Box::new(self.clone())
+  }
+}
+
+/// A middleware trait which related to transforming or processing data returned from `StorageTrait`.
+#[async_trait]
+pub trait StorageMiddleware {
+  /// Preprocess any required state before it is requested by `StorageTrait`.
+  async fn preprocess(&mut self, _key: &str, _options: GetOptions<'_>) -> Result<()> {
+    Ok(())
+  }
+
+  /// Postprocess data blocks before they are returned to the client.
+  async fn postprocess(
     &self,
     _key: &str,
     positions_options: BytesPositionOptions<'_>,

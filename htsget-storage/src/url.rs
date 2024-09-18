@@ -16,7 +16,9 @@ use tracing::{debug, instrument};
 use htsget_config::error;
 
 use crate::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
-use crate::{GetOptions, HeadOptions, RangeUrlOptions, Result, StorageError, StorageTrait};
+use crate::{
+  GetOptions, HeadOptions, RangeUrlOptions, Result, StorageError, StorageMiddleware, StorageTrait,
+};
 use crate::{Streamable, Url as HtsGetUrl};
 
 /// A storage struct which derives data from HTTP URLs.
@@ -190,6 +192,9 @@ impl Stream for UrlStream {
     self.project().inner.poll_next(cx)
   }
 }
+
+#[async_trait]
+impl StorageMiddleware for UrlStorage {}
 
 #[async_trait]
 impl StorageTrait for UrlStorage {

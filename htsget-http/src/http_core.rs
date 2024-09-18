@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use futures::stream::FuturesOrdered;
 use futures::StreamExt;
 use tokio::select;
@@ -19,7 +17,7 @@ use crate::{
 /// consulted [here](https://samtools.github.io/hts-specs/htsget.html)
 #[instrument(level = "debug", skip_all, ret)]
 pub async fn get(
-  searcher: Arc<impl HtsGet + Send + Sync + 'static>,
+  searcher: impl HtsGet + Send + Sync + 'static,
   request: Request,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
@@ -39,7 +37,7 @@ pub async fn get(
 /// The parameters can be consulted [here](https://samtools.github.io/hts-specs/htsget.html)
 #[instrument(level = "debug", skip_all, ret)]
 pub async fn post(
-  searcher: Arc<impl HtsGet + Send + Sync + 'static>,
+  searcher: impl HtsGet + Clone + Send + Sync + 'static,
   body: PostRequest,
   request: Request,
   endpoint: Endpoint,

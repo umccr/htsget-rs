@@ -83,7 +83,6 @@ fn merge_responses(responses: Vec<Response>) -> Option<Response> {
 mod tests {
   use std::collections::HashMap;
   use std::path::PathBuf;
-  use std::sync::Arc;
 
   use http::uri::Authority;
 
@@ -270,8 +269,8 @@ mod tests {
       .join("data")
   }
 
-  fn get_searcher() -> Arc<impl HtsGet> {
-    Arc::new(HtsGetFromStorage::new(Storage::new(
+  fn get_searcher() -> impl HtsGet + Clone {
+    HtsGetFromStorage::new(Storage::new(
       LocalStorage::new(
         get_base_path(),
         ConfigLocalStorage::new(
@@ -283,6 +282,6 @@ mod tests {
         ),
       )
       .unwrap(),
-    )))
+    ))
   }
 }

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
@@ -18,19 +16,19 @@ pub mod handlers;
 
 /// Represents the actix app state.
 pub struct AppState<H: HtsGet> {
-  pub htsget: Arc<H>,
+  pub htsget: H,
   pub config_service_info: ServiceInfo,
 }
 
 /// Configure the query server.
-pub fn configure_server<H: HtsGet + Send + Sync + 'static>(
+pub fn configure_server<H: HtsGet + Clone + Send + Sync + 'static>(
   service_config: &mut web::ServiceConfig,
   htsget: H,
   config_service_info: ServiceInfo,
 ) {
   service_config
     .app_data(web::Data::new(AppState {
-      htsget: Arc::new(htsget),
+      htsget,
       config_service_info,
     }))
     .service(

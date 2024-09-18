@@ -14,7 +14,7 @@ use crate::server::AppState;
 use super::handle_response;
 
 /// POST request reads endpoint.
-pub async fn reads<H: HtsGet + Send + Sync + 'static>(
+pub async fn reads<H: HtsGet + Clone + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
   path: Path<String>,
   headers: HeaderMap,
@@ -27,7 +27,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 }
 
 /// POST request variants endpoint.
-pub async fn variants<H: HtsGet + Send + Sync + 'static>(
+pub async fn variants<H: HtsGet + Clone + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
   path: Path<String>,
   headers: HeaderMap,

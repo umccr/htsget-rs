@@ -36,13 +36,13 @@ use crate::server::ticket::TicketServer;
 /// Represents the axum app state.
 #[derive(Debug, Clone)]
 pub struct AppState<H: HtsGet> {
-  pub(crate) htsget: Arc<H>,
+  pub(crate) htsget: H,
   pub(crate) service_info: ServiceInfo,
 }
 
 impl<H: HtsGet> AppState<H> {
   /// Create a new app state.
-  pub fn new(htsget: Arc<H>, service_info: ServiceInfo) -> Self {
+  pub fn new(htsget: H, service_info: ServiceInfo) -> Self {
     Self {
       htsget,
       service_info,

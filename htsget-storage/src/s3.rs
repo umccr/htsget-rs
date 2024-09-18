@@ -27,7 +27,7 @@ use tracing::{debug, warn};
 
 use crate::s3::Retrieval::{Delayed, Immediate};
 use crate::StorageError::{AwsS3Error, IoError, KeyNotFound};
-use crate::{BytesPosition, HeadOptions, StorageError};
+use crate::{BytesPosition, HeadOptions, StorageError, StorageMiddleware};
 use crate::{BytesRange, StorageTrait};
 use crate::{Streamable, Url};
 
@@ -241,6 +241,9 @@ impl Stream for S3Stream {
       .map_err(|err| IoError("io error".to_string(), err.into()))
   }
 }
+
+#[async_trait]
+impl StorageMiddleware for S3Storage {}
 
 #[async_trait]
 impl StorageTrait for S3Storage {

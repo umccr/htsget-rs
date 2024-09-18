@@ -1,8 +1,6 @@
 //! Module providing an implementation of the [HtsGet] trait using a [StorageTrait].
 //!
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use tracing::debug;
 use tracing::instrument;
@@ -27,20 +25,21 @@ use crate::{Format, HtsGetError};
 use htsget_storage::Storage;
 
 /// Implementation of the [HtsGet] trait using a [StorageTrait].
+#[derive(Debug, Clone)]
 pub struct HtsGetFromStorage {
-  storage_ref: Arc<Storage>,
+  storage: Storage,
 }
 
 #[async_trait]
 impl HtsGet for Vec<Resolver> {
-  async fn search(&self, query: Query) -> Result<Response> {
+  async fn search(self, query: Query) -> Result<Response> {
     self.as_slice().search(query).await
   }
 }
 
 #[async_trait]
 impl HtsGet for &[Resolver] {
-  async fn search(&self, mut query: Query) -> Result<Response> {
+  async fn search(self, mut query: Query) -> Result<Response> {
     self
       .resolve_request::<HtsGetFromStorage>(&mut query)
       .await
@@ -51,13 +50,13 @@ impl HtsGet for &[Resolver] {
 #[async_trait]
 impl HtsGet for HtsGetFromStorage {
   #[instrument(level = "debug", skip(self))]
-  async fn search(&self, query: Query) -> Result<Response> {
+  async fn search(self, query: Query) -> Result<Response> {
     debug!(format = ?query.format(), ?query, "searching {:?}, with query {:?}", query.format(), query);
     match query.format() {
-      Format::Bam => BamSearch::new(self.storage()).search(query).await,
-      Format::Cram => CramSearch::new(self.storage()).search(query).await,
-      Format::Vcf => VcfSearch::new(self.storage()).search(query).await,
-      Format::Bcf => BcfSearch::new(self.storage()).search(query).await,
+      Format::Bam => BamSearch::new(self.into_inner()).search(query).await,
+      Format::Cram => CramSearch::new(self.into_inner()).search(query).await,
+      Format::Vcf => VcfSearch::new(self.into_inner()).search(query).await,
+      Format::Bcf => BcfSearch::new(self.into_inner()).search(query).await,
     }
   }
 }
@@ -90,13 +89,15 @@ impl ResolveResponse for HtsGetFromStorage {
 
 impl HtsGetFromStorage {
   pub fn new(storage: Storage) -> Self {
-    Self {
-      storage_ref: Arc::new(storage),
-    }
+    Self { storage }
   }
 
-  pub fn storage(&self) -> Arc<Storage> {
-    Arc::clone(&self.storage_ref)
+  pub fn storage(&self) -> &Storage {
+    &self.storage
+  }
+
+  pub fn into_inner(self) -> Storage {
+    self.storage
   }
 }
 
@@ -105,6 +106,7 @@ pub(crate) mod tests {
   use std::fs;
   use std::future::Future;
   use std::path::{Path, PathBuf};
+  use std::sync::Arc;
   #[cfg(feature = "s3-storage")]
   use {
     htsget_storage::s3::S3Storage, htsget_test::aws_mocks::with_s3_test_server, std::fs::create_dir,
