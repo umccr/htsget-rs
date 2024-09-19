@@ -277,3 +277,172 @@ impl From<Crypt4GHError> for StorageError {
     IoError("Crypt4GH".to_string(), io::Error::other(err))
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::local::tests::with_local_storage;
+  use htsget_config::types::Headers;
+  use htsget_test::c4gh::{encrypt_data, get_decryption_keys};
+  use std::future::Future;
+  use tokio::fs::File;
+  use tokio::io::AsyncWriteExt;
+
+  #[tokio::test]
+  async fn test_preprocess() {
+    with_c4gh_storage(|mut storage| async move {
+      storage
+        .preprocess(
+          "key",
+          GetOptions::new_with_default_range(&Default::default()),
+        )
+        .await
+        .unwrap();
+
+      let state = storage.state.get("key.c4gh").unwrap();
+
+      assert_eq!(state.unencrypted_file_size, 6);
+      assert_eq!(state.encrypted_file_size, 158);
+      assert_eq!(state.deserialized_header.header_info.packets_count, 1);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_get() {
+    with_c4gh_storage(|mut storage| async move {
+      let headers = Default::default();
+      let options = GetOptions::new_with_default_range(&headers);
+      storage.preprocess("key", options.clone()).await.unwrap();
+      let mut object = vec![];
+
+      storage
+        .get("key", options)
+        .await
+        .unwrap()
+        .read_to_end(&mut object)
+        .await
+        .unwrap();
+      assert_eq!(object, b"value1");
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_head() {
+    with_c4gh_storage(|mut storage| async move {
+      let headers = Default::default();
+      let options = GetOptions::new_with_default_range(&headers);
+      storage.preprocess("key", options.clone()).await.unwrap();
+
+      let size = storage
+        .head("key", HeadOptions::new(&headers))
+        .await
+        .unwrap();
+      assert_eq!(size, 6);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_postprocess() {
+    with_c4gh_storage(|mut storage| async move {
+      let headers = Default::default();
+      let options = GetOptions::new_with_default_range(&headers);
+      storage.preprocess("key", options.clone()).await.unwrap();
+
+      let blocks = storage
+        .postprocess(
+          "key",
+          BytesPositionOptions::new(
+            vec![BytesPosition::default().with_start(0).with_end(6)],
+            &headers,
+          ),
+        )
+        .await
+        .unwrap();
+
+      assert_eq!(
+        blocks[0],
+        DataBlock::Data(
+          vec![99, 114, 121, 112, 116, 52, 103, 104, 1, 0, 0, 0, 3, 0, 0, 0],
+          Some(Class::Header)
+        )
+      );
+      assert_eq!(
+        blocks[1],
+        DataBlock::Range(BytesPosition::new(Some(16), Some(124), None))
+      );
+      assert_eq!(
+        blocks[3],
+        DataBlock::Range(BytesPosition::new(Some(124), Some(158), None))
+      );
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_range_url() {
+    with_c4gh_storage(|mut storage| async move {
+      let headers = Default::default();
+      let options = GetOptions::new_with_default_range(&headers);
+      storage.preprocess("key", options.clone()).await.unwrap();
+
+      let blocks = storage
+        .postprocess(
+          "key",
+          BytesPositionOptions::new(
+            vec![BytesPosition::default().with_start(0).with_end(6)],
+            &headers,
+          ),
+        )
+        .await
+        .unwrap();
+
+      if let DataBlock::Range(range) = blocks.last().unwrap() {
+        let url = storage
+          .range_url("key", RangeUrlOptions::new(range.clone(), &headers))
+          .await
+          .unwrap();
+        let expected = Url::new("http://127.0.0.1:8081/data/key.c4gh")
+          .with_headers(Headers::default().with_header("Range", "bytes=124-157"));
+
+        assert_eq!(url, expected);
+      }
+    })
+    .await;
+  }
+
+  pub(crate) async fn with_c4gh_storage<F, Fut>(test: F)
+  where
+    F: FnOnce(C4GHStorage) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_local_storage(|storage| async move {
+      let mut data = vec![];
+      StorageTrait::get(
+        &storage,
+        "folder/../key1",
+        GetOptions::new_with_default_range(&Default::default()),
+      )
+      .await
+      .unwrap()
+      .read_to_end(&mut data)
+      .await
+      .unwrap();
+
+      let data = encrypt_data(&data);
+
+      let key = "key.c4gh";
+      File::create(storage.base_path().join(key))
+        .await
+        .unwrap()
+        .write_all(&data)
+        .await
+        .unwrap();
+
+      test(C4GHStorage::new(get_decryption_keys(), storage)).await;
+    })
+    .await;
+  }
+}
