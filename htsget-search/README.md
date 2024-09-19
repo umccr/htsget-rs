@@ -59,7 +59,7 @@ used to process requests.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `c4gh-experimental`: used to enable `C4GHStorage` functionality.
+* `experimental`: used to enable `C4GHStorage` functionality.
 
 ## Minimising Byte Ranges
 

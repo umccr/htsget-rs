@@ -10,7 +10,6 @@ use htsget_config::config::cors::CorsConfig;
 use htsget_config::config::{Config, ServiceInfo, TicketServerConfig};
 use htsget_search::HtsGet;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
@@ -79,7 +78,7 @@ where
           .layer(TraceLayer::new_for_http())
           .layer(configure_cors(cors)),
       )
-      .with_state(AppState::new(Arc::new(htsget), service_info))
+      .with_state(AppState::new(htsget, service_info))
   }
 
   /// Get the local address the server has bound to.

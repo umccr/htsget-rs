@@ -31,7 +31,7 @@ pub mod vcf_search;
 /// Trait representing a search for either `reads` or `variants` in the HtsGet specification.
 #[async_trait]
 pub trait HtsGet {
-  async fn search(&self, query: Query) -> Result<Response>;
+  async fn search(self, query: Query) -> Result<Response>;
 
   fn get_supported_formats(&self) -> Vec<Format> {
     vec![Format::Bam, Format::Cram, Format::Vcf, Format::Bcf]

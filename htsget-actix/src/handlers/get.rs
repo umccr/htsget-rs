@@ -17,7 +17,7 @@ use super::handle_response;
 
 /// GET request reads endpoint
 #[instrument(skip(app_state))]
-pub async fn reads<H: HtsGet + Send + Sync + 'static>(
+pub async fn reads<H: HtsGet + Clone + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
   path: Path<String>,
   http_request: HttpRequest,
@@ -32,7 +32,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 
 /// GET request variants endpoint
 #[instrument(skip(app_state))]
-pub async fn variants<H: HtsGet + Send + Sync + 'static>(
+pub async fn variants<H: HtsGet + Clone + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
   path: Path<String>,
   http_request: HttpRequest,

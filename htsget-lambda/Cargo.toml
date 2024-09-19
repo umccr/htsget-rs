@@ -13,12 +13,12 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 s3-storage = ["htsget-axum/s3-storage", "htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http/s3-storage", "htsget-test/s3-storage"]
 url-storage = ["htsget-axum/url-storage", "htsget-config/url-storage", "htsget-search/url-storage", "htsget-http/url-storage", "htsget-test/url-storage"]
-c4gh-experimental = [
-    "htsget-axum/c4gh-experimental",
-    "htsget-config/c4gh-experimental",
-    "htsget-search/c4gh-experimental",
-    "htsget-http/c4gh-experimental",
-    "htsget-test/c4gh-experimental"
+experimental = [
+    "htsget-axum/experimental",
+    "htsget-config/experimental",
+    "htsget-search/experimental",
+    "htsget-http/experimental",
+    "htsget-test/experimental"
 ]
 default = []
 

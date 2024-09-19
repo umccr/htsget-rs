@@ -23,7 +23,8 @@ use crate::search::{Search, SearchAll, SearchReads};
 use crate::Class::Body;
 use crate::{ConcurrencyError, ParsedHeader};
 use crate::{Format, HtsGetError, Query, Result};
-use htsget_storage::{BytesPosition, DataBlock, Storage, Streamable};
+use htsget_storage::types::{BytesPosition, DataBlock};
+use htsget_storage::{Storage, Streamable};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
 static CRAM_EOF: &[u8] = &[
@@ -36,7 +37,7 @@ type AsyncReader = cram::AsyncReader<BufReader<Streamable>>;
 
 /// Allows searching through cram files.
 pub struct CramSearch {
-  storage: Arc<Storage>,
+  storage: Storage,
 }
 
 #[async_trait]
@@ -163,8 +164,12 @@ impl Search<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
       .await
   }
 
-  fn get_storage(&self) -> Arc<Storage> {
-    self.storage.clone()
+  fn get_storage(&self) -> &Storage {
+    &self.storage
+  }
+
+  fn mut_storage(&mut self) -> &mut Storage {
+    &mut self.storage
   }
 
   fn get_format(&self) -> Format {
@@ -174,7 +179,7 @@ impl Search<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
 
 impl CramSearch {
   /// Create the cram search.
-  pub fn new(storage: Arc<Storage>) -> Self {
+  pub fn new(storage: Storage) -> Self {
     Self { storage }
   }
 
@@ -278,7 +283,7 @@ mod tests {
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
   use htsget_storage::local::LocalStorage;
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
     htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
@@ -291,7 +296,7 @@ mod tests {
   #[tokio::test]
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+      let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -311,7 +316,7 @@ mod tests {
   #[tokio::test]
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+      let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("*");
       let response = search.search(query).await;
@@ -338,7 +343,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range_chr11() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+      let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11");
       let response = search.search(query).await;
@@ -362,7 +367,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+      let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("20");
       let response = search.search(query).await;
@@ -390,7 +395,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_with_seq_range_no_overlap() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+      let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
@@ -416,7 +421,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_with_seq_range_overlap() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+      let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)
@@ -435,7 +440,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_with_no_end_position() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+      let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000);
@@ -464,7 +469,7 @@ mod tests {
   #[tokio::test]
   async fn search_header() {
     with_local_storage(|storage| async move {
-      let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+      let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
       let query =
         Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
       let response = search.search(query).await;
@@ -490,7 +495,7 @@ mod tests {
   async fn search_non_existent_id_reference_name() {
     with_local_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+        let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
@@ -507,7 +512,7 @@ mod tests {
   async fn search_non_existent_id_all_reads() {
     with_local_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+        let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
           .with_reference_name("20");
         let response = search.search(query).await;
@@ -525,7 +530,7 @@ mod tests {
   async fn search_non_existent_id_header() {
     with_local_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+        let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
@@ -544,7 +549,7 @@ mod tests {
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+        let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
         let response = search.search(query).await;
         assert!(response.is_err());
@@ -562,7 +567,7 @@ mod tests {
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+        let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
           .with_reference_name("20");
         let response = search.search(query).await;
@@ -581,7 +586,7 @@ mod tests {
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let search = CramSearch::new(Arc::new(Storage::new(Arc::try_unwrap(storage).unwrap())));
+        let mut search = CramSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
         let response = search.search(query).await;
@@ -595,12 +600,12 @@ mod tests {
     .await
   }
 
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   #[tokio::test]
   async fn search_all_c4gh() {
     with_local_storage_c4gh(|storage| async move {
       let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
-      let search = CramSearch::new(Arc::new(Storage::new(storage)));
+      let mut search = CramSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await.unwrap();
 
@@ -614,12 +619,12 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   #[tokio::test]
   async fn search_range_c4gh() {
     with_local_storage_c4gh(|storage| async move {
       let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
-      let search = CramSearch::new(Arc::new(Storage::new(storage)));
+      let mut search = CramSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")
         .with_start(5000000)

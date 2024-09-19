@@ -36,14 +36,14 @@ aws-mocks = [
 ]
 s3-storage = ["htsget-config?/s3-storage"]
 url-storage = ["htsget-config?/url-storage"]
-c4gh-experimental = ["dep:crypt4gh", "dep:htsget-config", "htsget-config/c4gh-experimental"]
+experimental = ["dep:crypt4gh", "dep:htsget-config", "htsget-config/experimental"]
 default = []
 
 [dependencies]
 # Server tests dependencies
 htsget-config = { version = "0.10.1", path = "../htsget-config", default-features = false, optional = true }
 
-noodles = { version = "0.80", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
+noodles = { version = "0.82", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "fs"], optional = true }

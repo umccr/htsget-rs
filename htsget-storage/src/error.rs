@@ -81,3 +81,21 @@ impl From<io::Error> for StorageError {
     Self::IoError("io error".to_string(), error)
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use htsget_config::types::HtsGetError;
+
+  #[test]
+  fn htsget_error_from_storage_not_found() {
+    let result = HtsGetError::from(StorageError::KeyNotFound("error".to_string()));
+    assert!(matches!(result, HtsGetError::NotFound(_)));
+  }
+
+  #[test]
+  fn htsget_error_from_storage_invalid_key() {
+    let result = HtsGetError::from(StorageError::InvalidKey("error".to_string()));
+    assert!(matches!(result, HtsGetError::NotFound(_)));
+  }
+}

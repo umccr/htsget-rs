@@ -22,10 +22,10 @@ url-storage = [
     "htsget-config/url-storage",
     "htsget-test/url-storage"
 ]
-c4gh-experimental = [
-    "htsget-storage/c4gh-experimental",
-    "htsget-config/c4gh-experimental",
-    "htsget-test/c4gh-experimental"
+experimental = [
+    "htsget-storage/experimental",
+    "htsget-config/experimental",
+    "htsget-test/experimental"
 ]
 default = []
 
@@ -37,7 +37,7 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.80", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.82", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Error control, tracing, config
 thiserror = "1"

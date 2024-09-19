@@ -8,19 +8,19 @@ use crate::c4gh::{
 };
 use crate::error::StorageError::{InternalError, IoError};
 use crate::error::{Result, StorageError};
+use crate::types::BytesPosition;
 use crate::{
-  BytesPosition, BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions,
+  BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, StorageMiddleware,
   StorageTrait, Streamable,
 };
 use async_trait::async_trait;
 use crypt4gh::error::Crypt4GHError;
-use crypt4gh::{decrypt, Keys};
+use crypt4gh::Keys;
 use htsget_config::types::{Class, Format, Url};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::io;
-use std::io::{BufReader, BufWriter, Cursor};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::io::{BufReader, Cursor};
 use tokio::io::AsyncReadExt;
 
 /// Max C4GH header size in bytes. Supports 50 regular sized encrypted packets. 16 + (108 * 50).
@@ -28,7 +28,7 @@ const MAX_C4GH_HEADER_SIZE: u64 = 5416;
 
 /// This represents the state that the C4GHStorage needs to save, like the file sizes and header
 /// sizes.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct C4GHState {
   encrypted_file_size: u64,
   unencrypted_file_size: u64,
@@ -40,10 +40,17 @@ pub struct C4GHState {
 pub struct C4GHStorage {
   keys: Vec<Keys>,
   inner: Box<dyn StorageTrait + Send + Sync + 'static>,
-  // Need to have a Mutex so that we can alter the state from a &self reference.
-  // This is a bit lazy, the proper solution would be to pass around mutable state as a parameter
-  // or make `StorageTrait` mutable, and synchronise somewhere else.
-  state: Arc<Mutex<HashMap<String, C4GHState>>>,
+  state: HashMap<String, C4GHState>,
+}
+
+impl Clone for C4GHStorage {
+  fn clone(&self) -> Self {
+    Self {
+      keys: self.keys.clone(),
+      inner: self.inner.clone_box(),
+      state: self.state.clone(),
+    }
+  }
 }
 
 impl Debug for C4GHStorage {
@@ -73,46 +80,45 @@ impl C4GHStorage {
       return self.inner.get(key, options).await;
     }
 
-    let mut buf = vec![];
-    self
-      .inner
-      .get(&Self::format_key(key), options)
-      .await?
-      .read_to_end(&mut buf)
-      .await?;
+    let data = self
+      .state
+      .get(&Self::format_key(key))
+      .ok_or_else(|| InternalError("missing key from state".to_string()))?
+      .clone();
 
-    let mut reader = BufReader::new(Cursor::new(buf));
-    let mut writer = BufWriter::new(Cursor::new(vec![]));
-
-    decrypt(&self.keys, &mut reader, &mut writer, 0, None, &None)
-      .map_err(|err| IoError("Crypt4GH".to_string(), io::Error::other(err)))?;
-
-    let data = writer
-      .into_inner()
-      .map_err(|err| IoError("Writer".to_string(), io::Error::other(err)))?
-      .into_inner();
-    Ok(Streamable::from_async_read(Cursor::new(data)))
+    Ok(Streamable::from_async_read(Cursor::new(
+      data.deserialized_header.decrypted_stream,
+    )))
   }
 
   /// Get the size of the unencrypted object and update state.
-  pub async fn head_object_with_state(&self, key: &str, options: HeadOptions<'_>) -> Result<u64> {
+  pub async fn preprocess_for_state(
+    &mut self,
+    key: &str,
+    mut options: GetOptions<'_>,
+  ) -> Result<u64> {
+    if Format::is_index(key) {
+      return self.inner.head(key, (&options).into()).await;
+    }
+
+    let key = Self::format_key(key);
+
     // Get the file size.
-    let encrypted_file_size = self
-      .inner
-      .head(&Self::format_key(key), options.clone())
-      .await?;
+    let encrypted_file_size = self.inner.head(&key, (&options).into()).await?;
+
+    let end = options
+      .range
+      .end
+      .unwrap_or_default()
+      .checked_add(MAX_C4GH_HEADER_SIZE)
+      .ok_or_else(|| InternalError("overflow getting header".to_string()))?;
+    options.range = options.range.with_end(end);
 
     // Also need to determine the header size.
     let mut buf = vec![];
     self
       .inner
-      .get(
-        &Self::format_key(key),
-        GetOptions::new(
-          BytesPosition::default().with_end(MAX_C4GH_HEADER_SIZE),
-          options.request_headers(),
-        ),
-      )
+      .get(&key, options)
       .await?
       .read_to_end(&mut buf)
       .await?;
@@ -128,8 +134,8 @@ impl C4GHStorage {
       unencrypted_file_size,
       deserialized_header,
     };
-    let mut header_sizes = self.state.lock()?;
-    header_sizes.insert(key.to_string(), state);
+
+    self.state.insert(key, state);
 
     Ok(unencrypted_file_size)
   }
@@ -140,9 +146,9 @@ impl C4GHStorage {
     key: &str,
     options: BytesPositionOptions<'_>,
   ) -> Result<Vec<DataBlock>> {
-    let mut state = self.state.lock()?;
-    let state = state
-      .get_mut(key)
+    let state = self
+      .state
+      .get(&Self::format_key(key))
       .ok_or_else(|| InternalError("missing key from state".to_string()))?;
 
     let default_start = |pos: &BytesPosition| pos.start.unwrap_or_default();
@@ -199,7 +205,7 @@ impl C4GHStorage {
       unencrypted_positions,
       clamped_positions,
       &self.keys,
-      &mut state.deserialized_header,
+      &state.deserialized_header,
     )
     .reencrypt_header()?
     .into_inner();
@@ -228,6 +234,22 @@ impl C4GHStorage {
 }
 
 #[async_trait]
+impl StorageMiddleware for C4GHStorage {
+  async fn preprocess(&mut self, key: &str, options: GetOptions<'_>) -> Result<()> {
+    self.preprocess_for_state(key, options).await?;
+    Ok(())
+  }
+
+  async fn postprocess(
+    &self,
+    key: &str,
+    positions_options: BytesPositionOptions<'_>,
+  ) -> Result<Vec<DataBlock>> {
+    self.compute_data_blocks(key, positions_options).await
+  }
+}
+
+#[async_trait]
 impl StorageTrait for C4GHStorage {
   /// Get the Crypt4GH file at the location of the key.
   async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
@@ -240,17 +262,14 @@ impl StorageTrait for C4GHStorage {
   }
 
   /// Get the size of the underlying file and the encrypted file, updating any state.
-  async fn head(&self, key: &str, options: HeadOptions<'_>) -> Result<u64> {
-    self.head_object_with_state(key, options).await
-  }
-
-  /// Update encrypted positions.
-  async fn update_byte_positions(
-    &self,
-    key: &str,
-    positions_options: BytesPositionOptions<'_>,
-  ) -> Result<Vec<DataBlock>> {
-    self.compute_data_blocks(key, positions_options).await
+  async fn head(&self, key: &str, _options: HeadOptions<'_>) -> Result<u64> {
+    Ok(
+      self
+        .state
+        .get(&Self::format_key(key))
+        .ok_or_else(|| InternalError("failed to call preprocess".to_string()))?
+        .unencrypted_file_size,
+    )
   }
 }
 
@@ -260,8 +279,171 @@ impl From<Crypt4GHError> for StorageError {
   }
 }
 
-impl<T> From<PoisonError<T>> for StorageError {
-  fn from(err: PoisonError<T>) -> Self {
-    InternalError(err.to_string())
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::local::tests::with_local_storage;
+  use htsget_config::types::Headers;
+  use htsget_test::c4gh::{encrypt_data, get_decryption_keys};
+  use std::future::Future;
+  use tokio::fs::File;
+  use tokio::io::AsyncWriteExt;
+
+  #[tokio::test]
+  async fn test_preprocess() {
+    with_c4gh_storage(|mut storage| async move {
+      storage
+        .preprocess(
+          "key",
+          GetOptions::new_with_default_range(&Default::default()),
+        )
+        .await
+        .unwrap();
+
+      let state = storage.state.get("key.c4gh").unwrap();
+
+      assert_eq!(state.unencrypted_file_size, 6);
+      assert_eq!(state.encrypted_file_size, 158);
+      assert_eq!(state.deserialized_header.header_info.packets_count, 1);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_get() {
+    with_c4gh_storage(|mut storage| async move {
+      let headers = Default::default();
+      let options = GetOptions::new_with_default_range(&headers);
+      storage.preprocess("key", options.clone()).await.unwrap();
+      let mut object = vec![];
+
+      storage
+        .get("key", options)
+        .await
+        .unwrap()
+        .read_to_end(&mut object)
+        .await
+        .unwrap();
+      assert_eq!(object, b"value1");
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_head() {
+    with_c4gh_storage(|mut storage| async move {
+      let headers = Default::default();
+      let options = GetOptions::new_with_default_range(&headers);
+      storage.preprocess("key", options.clone()).await.unwrap();
+
+      let size = storage
+        .head("key", HeadOptions::new(&headers))
+        .await
+        .unwrap();
+      assert_eq!(size, 6);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_postprocess() {
+    with_c4gh_storage(|mut storage| async move {
+      let headers = Default::default();
+      let options = GetOptions::new_with_default_range(&headers);
+      storage.preprocess("key", options.clone()).await.unwrap();
+
+      let blocks = storage
+        .postprocess(
+          "key",
+          BytesPositionOptions::new(
+            vec![BytesPosition::default().with_start(0).with_end(6)],
+            &headers,
+          ),
+        )
+        .await
+        .unwrap();
+
+      assert_eq!(
+        blocks[0],
+        DataBlock::Data(
+          vec![99, 114, 121, 112, 116, 52, 103, 104, 1, 0, 0, 0, 3, 0, 0, 0],
+          Some(Class::Header)
+        )
+      );
+      assert_eq!(
+        blocks[1],
+        DataBlock::Range(BytesPosition::new(Some(16), Some(124), None))
+      );
+      assert_eq!(
+        blocks[3],
+        DataBlock::Range(BytesPosition::new(Some(124), Some(158), None))
+      );
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_range_url() {
+    with_c4gh_storage(|mut storage| async move {
+      let headers = Default::default();
+      let options = GetOptions::new_with_default_range(&headers);
+      storage.preprocess("key", options.clone()).await.unwrap();
+
+      let blocks = storage
+        .postprocess(
+          "key",
+          BytesPositionOptions::new(
+            vec![BytesPosition::default().with_start(0).with_end(6)],
+            &headers,
+          ),
+        )
+        .await
+        .unwrap();
+
+      if let DataBlock::Range(range) = blocks.last().unwrap() {
+        let url = storage
+          .range_url("key", RangeUrlOptions::new(range.clone(), &headers))
+          .await
+          .unwrap();
+        let expected = Url::new("http://127.0.0.1:8081/data/key.c4gh")
+          .with_headers(Headers::default().with_header("Range", "bytes=124-157"));
+
+        assert_eq!(url, expected);
+      }
+    })
+    .await;
+  }
+
+  pub(crate) async fn with_c4gh_storage<F, Fut>(test: F)
+  where
+    F: FnOnce(C4GHStorage) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_local_storage(|storage| async move {
+      let mut data = vec![];
+      StorageTrait::get(
+        &storage,
+        "folder/../key1",
+        GetOptions::new_with_default_range(&Default::default()),
+      )
+      .await
+      .unwrap()
+      .read_to_end(&mut data)
+      .await
+      .unwrap();
+
+      let data = encrypt_data(&data);
+
+      let key = "key.c4gh";
+      File::create(storage.base_path().join(key))
+        .await
+        .unwrap()
+        .write_all(&data)
+        .await
+        .unwrap();
+
+      test(C4GHStorage::new(get_decryption_keys(), storage)).await;
+    })
+    .await;
   }
 }

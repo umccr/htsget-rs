@@ -25,13 +25,12 @@ use tokio_util::io::StreamReader;
 use tracing::instrument;
 use tracing::{debug, warn};
 
-use crate::s3::Retrieval::{Delayed, Immediate};
-use crate::StorageError::{AwsS3Error, IoError, KeyNotFound};
-use crate::{BytesPosition, HeadOptions, StorageError};
-use crate::{BytesRange, StorageTrait};
-use crate::{Streamable, Url};
-
 use super::{GetOptions, RangeUrlOptions, Result};
+use crate::s3::Retrieval::{Delayed, Immediate};
+use crate::types::{BytesPosition, BytesRange};
+use crate::StorageError::{AwsS3Error, IoError, KeyNotFound};
+use crate::{HeadOptions, StorageError, StorageMiddleware, StorageTrait};
+use crate::{Streamable, Url};
 
 /// Represents data classes that can be retrieved immediately or after a delay.
 /// Specifically, Glacier Flexible, Glacier Deep Archive, and Intelligent Tiering archive
@@ -243,6 +242,9 @@ impl Stream for S3Stream {
 }
 
 #[async_trait]
+impl StorageMiddleware for S3Storage {}
+
+#[async_trait]
 impl StorageTrait for S3Storage {
   /// Gets the actual s3 object as a buffered reader.
   #[instrument(level = "trace", skip(self))]
@@ -296,8 +298,9 @@ pub(crate) mod tests {
 
   use crate::local::tests::create_local_test_files;
   use crate::s3::S3Storage;
+  use crate::types::BytesPosition;
   use crate::Headers;
-  use crate::{BytesPosition, GetOptions, RangeUrlOptions, StorageTrait};
+  use crate::{GetOptions, RangeUrlOptions, StorageTrait};
   use crate::{HeadOptions, StorageError};
 
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)

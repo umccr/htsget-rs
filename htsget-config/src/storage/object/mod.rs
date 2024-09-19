@@ -1,10 +1,10 @@
 //! Defines the type of object used by storage.
 //!
 
-#[cfg(feature = "c4gh-experimental")]
+#[cfg(feature = "experimental")]
 pub mod c4gh;
 
-#[cfg(feature = "c4gh-experimental")]
+#[cfg(feature = "experimental")]
 use crate::storage::object::c4gh::C4GHKeys;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub enum ObjectType {
   #[default]
   Regular,
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   C4GH {
     #[serde(flatten, skip_serializing)]
     keys: C4GHKeys,

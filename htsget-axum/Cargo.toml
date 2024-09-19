@@ -24,11 +24,11 @@ url-storage = [
     "htsget-test/url-storage",
     "htsget-http/url-storage"
 ]
-c4gh-experimental = [
-    "htsget-config/c4gh-experimental",
-    "htsget-search/c4gh-experimental",
-    "htsget-test/c4gh-experimental",
-    "htsget-http/c4gh-experimental"
+experimental = [
+    "htsget-config/experimental",
+    "htsget-search/experimental",
+    "htsget-test/experimental",
+    "htsget-http/experimental"
 ]
 default = []
 
@@ -40,7 +40,7 @@ tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
 http = "1"
 axum = { version = "0.7", features = ["http2"] }
 axum-extra = { version = "0.9", features = ["erased-json"] }
-tower = { version = "0.4", features = ["make"] }
+tower = { version = "0.5", features = ["make", "util"] }
 
 # Async
 tokio-rustls = "0.26"

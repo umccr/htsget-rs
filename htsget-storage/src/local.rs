@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
-use crate::{HeadOptions, StorageTrait, UrlFormatter};
+use crate::{HeadOptions, StorageMiddleware, StorageTrait, UrlFormatter};
 use crate::{Streamable, Url as HtsGetUrl};
 use async_trait::async_trait;
 use tokio::fs;
@@ -78,7 +78,10 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
 }
 
 #[async_trait]
-impl<T: UrlFormatter + Send + Sync + Debug> StorageTrait for LocalStorage<T> {
+impl<T: UrlFormatter + Send + Sync + Debug> StorageMiddleware for LocalStorage<T> {}
+
+#[async_trait]
+impl<T: UrlFormatter + Send + Sync + Debug + Clone + 'static> StorageTrait for LocalStorage<T> {
   /// Get the file at the location of the key.
   #[instrument(level = "debug", skip(self))]
   async fn get(&self, key: &str, _options: GetOptions<'_>) -> Result<Streamable> {
@@ -140,10 +143,10 @@ pub(crate) mod tests {
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_config::types::Scheme;
 
-  use crate::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
-  use crate::{Headers, Url};
-
   use super::*;
+  use crate::types::BytesPosition;
+  use crate::{GetOptions, RangeUrlOptions, StorageError};
+  use crate::{Headers, Url};
 
   #[tokio::test]
   async fn get_non_existing_key() {
