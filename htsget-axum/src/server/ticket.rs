@@ -118,6 +118,7 @@ mod tests {
   };
   use http::header::HeaderName;
   use http::{Method, Request};
+  use rustls::crypto::aws_lc_rs;
   use tempfile::TempDir;
   use tower::ServiceExt;
 
@@ -208,6 +209,8 @@ mod tests {
 
   impl AxumTestServer {
     fn new_with_tls<P: AsRef<Path>>(path: P) -> Self {
+      let _ = aws_lc_rs::default_provider().install_default();
+
       Self {
         config: config_with_tls(path),
       }

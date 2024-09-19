@@ -90,6 +90,7 @@ mod tests {
   use http::header::HeaderName;
   use http::{HeaderMap, Method};
   use reqwest::{Client, ClientBuilder, RequestBuilder};
+  use rustls::crypto::aws_lc_rs;
   use tempfile::{tempdir, TempDir};
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
@@ -209,6 +210,8 @@ mod tests {
 
   #[tokio::test]
   async fn test_tls_server() {
+    let _ = aws_lc_rs::default_provider().install_default();
+
     let (_, base_path) = create_local_test_files().await;
     let config = config_with_tls(base_path.path()).data_server().clone();
     let server_config = config.into_tls().unwrap();
@@ -261,6 +264,8 @@ mod tests {
   }
 
   fn tls_formatter() -> BindServer {
+    let _ = aws_lc_rs::default_provider().install_default();
+
     let tmp_dir = tempdir().unwrap();
     let config = config_with_tls(tmp_dir.path()).data_server().clone();
     let server_config = config.into_tls().unwrap();

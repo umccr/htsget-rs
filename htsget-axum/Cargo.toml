@@ -35,6 +35,7 @@ default = []
 [dependencies]
 # Axum server
 hyper = { version = "1", features = ["http1", "http2", "server"] }
+rustls = "0.23"
 hyper-util = "0.1"
 tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
 http = "1"

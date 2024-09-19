@@ -1,3 +1,5 @@
+use rustls::crypto::aws_lc_rs;
+use std::io;
 use tokio::select;
 use tracing::debug;
 
@@ -7,7 +9,11 @@ use htsget_axum::server::data;
 use htsget_config::command;
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> io::Result<()> {
+  aws_lc_rs::default_provider()
+    .install_default()
+    .map_err(|_| io::Error::other("setting crypto provider"))?;
+
   if let Some(path) = Config::parse_args_with_command(command!())? {
     let config = Config::from_path(&path)?;
 
