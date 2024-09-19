@@ -4,9 +4,10 @@
 
 use crypt4gh::error::Crypt4GHError;
 use crypt4gh::header::{DecryptedHeaderPackets, HeaderInfo};
-use crypt4gh::{header, Keys};
+use crypt4gh::{body_decrypt, body_decrypt_parts, header, Keys, WriteInfo};
 use std::cmp::min;
-use std::io::Read;
+use std::io;
+use std::io::{BufWriter, Cursor, Read};
 
 mod edit;
 pub mod storage;
@@ -24,6 +25,23 @@ pub struct DeserializedHeader {
   pub(crate) session_keys: Vec<Vec<u8>>,
   pub(crate) header_size: u64,
   pub(crate) contains_edit_list: bool,
+  pub(crate) decrypted_stream: Vec<u8>,
+}
+
+impl Clone for DeserializedHeader {
+  fn clone(&self) -> Self {
+    Self {
+      header_info: HeaderInfo {
+        magic_number: self.header_info.magic_number,
+        version: self.header_info.version,
+        packets_count: self.header_info.packets_count,
+      },
+      session_keys: self.session_keys.clone(),
+      header_size: self.header_size,
+      contains_edit_list: self.contains_edit_list,
+      decrypted_stream: self.decrypted_stream.clone(),
+    }
+  }
 }
 
 impl DeserializedHeader {
@@ -33,12 +51,14 @@ impl DeserializedHeader {
     session_keys: Vec<Vec<u8>>,
     header_size: u64,
     contains_edit_list: bool,
+    decrypted_stream: Vec<u8>,
   ) -> Self {
     Self {
       header_info,
       session_keys,
       header_size,
       contains_edit_list,
+      decrypted_stream,
     }
   }
 
@@ -95,13 +115,35 @@ impl DeserializedHeader {
     let header_size = 16 + header_lengths;
     let contains_header = edit_list_packet.is_some();
 
+    let mut writer = BufWriter::new(Cursor::new(vec![]));
+    let mut write_info = WriteInfo::new(0, None, &mut writer);
+
+    match edit_list_packet {
+      None => body_decrypt(read_buffer, &session_keys, &mut write_info, 0)?,
+      Some(edit_list_content) => body_decrypt_parts(
+        read_buffer,
+        session_keys.clone(),
+        write_info,
+        edit_list_content,
+      )?,
+    }
+
+    let data = writer
+      .into_inner()
+      .map_err(|err| Crypt4GHError::IoError(io::Error::other(err)))?
+      .into_inner();
+
     Ok(DeserializedHeader::new(
       header_info,
       session_keys,
       header_size as u64,
       contains_header,
+      data,
     ))
   }
+
+  /// Decrypt the
+  pub fn decrypt_stream() {}
 }
 
 /// Convert an encrypted file position to an unencrypted position if the header length is known.

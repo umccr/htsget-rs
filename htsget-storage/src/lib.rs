@@ -203,7 +203,8 @@ pub trait StorageTrait: StorageMiddleware + StorageClone {
   }
 }
 
-/// Clone the storage trait to be able to clone a Box dyn.
+/// Allow the `StorageTrait` to be cloned. This allows cloning a dynamic trait inside a Box.
+/// See https://crates.io/crates/dyn-clone for a similar pattern.
 pub trait StorageClone {
   fn clone_box(&self) -> Box<dyn StorageTrait + Send + Sync>;
 }
@@ -483,7 +484,7 @@ impl BytesPosition {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetOptions<'a> {
   range: BytesPosition,
   request_headers: &'a HeaderMap,
@@ -554,7 +555,7 @@ impl<'a> BytesPositionOptions<'a> {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RangeUrlOptions<'a> {
   range: BytesPosition,
   response_headers: &'a HeaderMap,
@@ -615,6 +616,12 @@ impl<'a> HeadOptions<'a> {
   /// Get the request headers.
   pub fn request_headers(&self) -> &'a HeaderMap {
     self.request_headers
+  }
+}
+
+impl<'a> From<&'a GetOptions<'a>> for HeadOptions<'a> {
+  fn from(options: &'a GetOptions<'a>) -> Self {
+    Self::new(options.request_headers())
   }
 }
 

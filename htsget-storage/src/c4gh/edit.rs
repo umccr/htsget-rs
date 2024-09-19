@@ -5,7 +5,7 @@ use crate::c4gh::DeserializedHeader;
 use crate::error::{Result, StorageError};
 use crypt4gh::error::Crypt4GHError;
 use crypt4gh::error::Crypt4GHError::InvalidPacketType;
-use crypt4gh::header::{encrypt, make_packet_data_edit_list, make_packet_data_enc};
+use crypt4gh::header::{encrypt, make_packet_data_edit_list, make_packet_data_enc, HeaderInfo};
 use crypt4gh::Keys;
 use std::collections::HashSet;
 use tokio::io;
@@ -77,7 +77,7 @@ pub struct EditHeader<'a> {
   unencrypted_positions: Vec<UnencryptedPosition>,
   clamped_positions: Vec<ClampedPosition>,
   keys: &'a [Keys],
-  current_header: &'a mut DeserializedHeader,
+  current_header: &'a DeserializedHeader,
 }
 
 impl<'a> EditHeader<'a> {
@@ -86,7 +86,7 @@ impl<'a> EditHeader<'a> {
     unencrypted_positions: Vec<UnencryptedPosition>,
     clamped_positions: Vec<ClampedPosition>,
     keys: &'a [Keys],
-    current_header: &'a mut DeserializedHeader,
+    current_header: &'a DeserializedHeader,
   ) -> Self {
     Self {
       unencrypted_positions,
@@ -202,9 +202,18 @@ impl<'a> EditHeader<'a> {
       )
     }
 
-    self.current_header.header_info.packets_count += 1 + header_packets.len() as u32;
-    let header_info_bytes =
-      bincode::serialize(&self.current_header.header_info).map_err(|_| InvalidPacketType)?;
+    let header_info = &self.current_header.header_info;
+
+    let mut current_len = header_info.packets_count;
+    current_len += 1 + header_packets.len() as u32;
+
+    let header_info = HeaderInfo {
+      magic_number: header_info.magic_number,
+      version: header_info.version,
+      packets_count: current_len,
+    };
+
+    let header_info_bytes = bincode::serialize(&header_info).map_err(|_| InvalidPacketType)?;
 
     Ok(
       (
@@ -239,7 +248,7 @@ mod tests {
       test_unencrypted_positions(),
       test_clamped_positions(),
       &keys,
-      &mut DeserializedHeader::from_buffer(&mut buf, &keys).unwrap(),
+      &DeserializedHeader::from_buffer(&mut buf, &keys).unwrap(),
     )
     .create_edit_list();
 

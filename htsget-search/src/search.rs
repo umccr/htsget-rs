@@ -336,7 +336,7 @@ where
       self
         .mut_storage()
         .preprocess(
-          &query.format().fmt_index(query.id()),
+          &query.format().fmt_file(query.id()),
           GetOptions::new(
             BytesPosition::default().with_end(header_end),
             query.request().headers(),
