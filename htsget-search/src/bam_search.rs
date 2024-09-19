@@ -19,7 +19,8 @@ use crate::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::Class::Body;
 use crate::HtsGetError;
 use crate::{Format, Query, Result};
-use htsget_storage::{BytesPosition, Storage, Streamable};
+use htsget_storage::types::BytesPosition;
+use htsget_storage::{Storage, Streamable};
 
 type AsyncReader = bam::AsyncReader<bgzf::AsyncReader<Streamable>>;
 

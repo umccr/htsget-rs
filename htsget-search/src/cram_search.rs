@@ -23,7 +23,8 @@ use crate::search::{Search, SearchAll, SearchReads};
 use crate::Class::Body;
 use crate::{ConcurrencyError, ParsedHeader};
 use crate::{Format, HtsGetError, Query, Result};
-use htsget_storage::{BytesPosition, DataBlock, Storage, Streamable};
+use htsget_storage::types::{BytesPosition, DataBlock};
+use htsget_storage::{Storage, Streamable};
 
 // § 9 End of file container <https://samtools.github.io/hts-specs/CRAMv3.pdf>.
 static CRAM_EOF: &[u8] = &[

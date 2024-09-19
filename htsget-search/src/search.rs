@@ -26,11 +26,10 @@ use htsget_config::types::Class::Header;
 
 use crate::ConcurrencyError;
 use crate::{Class, Class::Body, Format, HtsGetError, Query, Response, Result};
-use htsget_storage::{
-  BytesPosition, BytesPositionOptions, HeadOptions, RangeUrlOptions, Storage, StorageMiddleware,
-  StorageTrait, Streamable,
+use htsget_storage::types::{
+  BytesPosition, BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions,
 };
-use htsget_storage::{DataBlock, GetOptions};
+use htsget_storage::{Storage, StorageMiddleware, StorageTrait, Streamable};
 
 // § 4.1.2 End-of-file marker <https://samtools.github.io/hts-specs/SAMv1.pdf>.
 pub(crate) static BGZF_EOF: &[u8] = &[

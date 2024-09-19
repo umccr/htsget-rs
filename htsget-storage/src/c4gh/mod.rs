@@ -73,7 +73,7 @@ impl DeserializedHeader {
     read_buffer
       .read_exact(&mut temp_buf)
       .map_err(|e| Crypt4GHError::ReadHeaderError(e.into()))?;
-    let header_info: header::HeaderInfo = header::deconstruct_header_info(&temp_buf)?;
+    let header_info: HeaderInfo = header::deconstruct_header_info(&temp_buf)?;
 
     let mut bytes = vec![];
     let mut header_lengths = 0;

@@ -143,10 +143,10 @@ pub(crate) mod tests {
   use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
   use htsget_config::types::Scheme;
 
-  use crate::{BytesPosition, GetOptions, RangeUrlOptions, StorageError};
-  use crate::{Headers, Url};
-
   use super::*;
+  use crate::types::BytesPosition;
+  use crate::{GetOptions, RangeUrlOptions, StorageError};
+  use crate::{Headers, Url};
 
   #[tokio::test]
   async fn get_non_existing_key() {

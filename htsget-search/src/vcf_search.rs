@@ -20,7 +20,8 @@ use htsget_config::types::HtsGetError;
 
 use crate::search::{find_first, BgzfSearch, Search};
 use crate::{Format, Query, Result};
-use htsget_storage::{BytesPosition, Storage, Streamable};
+use htsget_storage::types::BytesPosition;
+use htsget_storage::{Storage, Streamable};
 
 type AsyncReader = vcf::AsyncReader<bgzf::AsyncReader<Streamable>>;
 

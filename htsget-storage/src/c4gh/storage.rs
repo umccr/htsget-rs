@@ -8,9 +8,10 @@ use crate::c4gh::{
 };
 use crate::error::StorageError::{InternalError, IoError};
 use crate::error::{Result, StorageError};
+use crate::types::BytesPosition;
 use crate::{
-  BytesPosition, BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions,
-  StorageMiddleware, StorageTrait, Streamable,
+  BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions, StorageMiddleware,
+  StorageTrait, Streamable,
 };
 use async_trait::async_trait;
 use crypt4gh::error::Crypt4GHError;
