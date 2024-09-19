@@ -147,6 +147,7 @@ mod tests {
   use actix_web::dev::ServiceResponse;
   use actix_web::{test, web, App};
   use async_trait::async_trait;
+  use rustls::crypto::aws_lc_rs;
   use tempfile::TempDir;
 
   use htsget_axum::server::BindServer;
@@ -261,6 +262,8 @@ mod tests {
 
   impl ActixTestServer {
     fn new_with_tls<P: AsRef<Path>>(path: P) -> Self {
+      let _ = aws_lc_rs::default_provider().install_default();
+
       Self {
         config: config_with_tls(path),
       }

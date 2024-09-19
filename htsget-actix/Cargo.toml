@@ -24,6 +24,7 @@ default = []
 
 [dependencies]
 actix-web = { version = "4", features = ["rustls-0_23"] }
+rustls = "0.23"
 actix-cors = "0.7"
 http_1 = { package = "http", version = "1" }
 http = "0.2"

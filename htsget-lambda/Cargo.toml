@@ -25,6 +25,7 @@ default = []
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tower-http = { version = "0.5", features = ["cors"] }
+rustls = "0.23"
 lambda_http = { version = "0.13" }
 lambda_runtime = { version = "0.13" }
 serde = { version = "1" }

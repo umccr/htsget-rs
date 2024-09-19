@@ -203,6 +203,7 @@ pub(crate) mod tests {
   use std::path::Path;
 
   use rcgen::generate_simple_self_signed;
+  use rustls::crypto::aws_lc_rs;
   use rustls_pemfile::{certs, pkcs8_private_keys};
   use tempfile::TempDir;
 
@@ -245,6 +246,8 @@ pub(crate) mod tests {
   where
     F: FnOnce(&Path, PrivateKeyDer<'static>, CertificateDer<'static>),
   {
+    let _ = aws_lc_rs::default_provider().install_default();
+
     let tmp_dir = TempDir::new().unwrap();
 
     let key_path = tmp_dir.path().join("key.pem");

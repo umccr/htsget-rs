@@ -1,3 +1,4 @@
+use rustls::crypto::aws_lc_rs;
 use std::io;
 use tokio::select;
 use tracing::debug;
@@ -8,6 +9,10 @@ use htsget_config::config::Config;
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
+  aws_lc_rs::default_provider()
+    .install_default()
+    .map_err(|_| io::Error::other("setting crypto provider"))?;
+
   if let Some(path) =
     Config::parse_args_with_command(command!()).expect("expected valid command parsing")
   {
