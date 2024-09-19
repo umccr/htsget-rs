@@ -25,7 +25,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, ReadBuf};
 
-#[cfg(feature = "c4gh-experimental")]
+#[cfg(feature = "experimental")]
 use crate::c4gh::storage::C4GHStorage;
 use crate::error::Result;
 use crate::error::StorageError;
@@ -38,7 +38,7 @@ use crate::url::UrlStorage;
 use htsget_config::storage::object::ObjectType;
 use htsget_config::types::Scheme;
 
-#[cfg(feature = "c4gh-experimental")]
+#[cfg(feature = "experimental")]
 pub mod c4gh;
 pub mod error;
 pub mod local;
@@ -134,7 +134,7 @@ impl Storage {
     let storage = LocalStorage::new(config.local_path(), config.clone())?;
     match config.object_type() {
       ObjectType::Regular => Ok(Storage::new(storage)),
-      #[cfg(feature = "c4gh-experimental")]
+      #[cfg(feature = "experimental")]
       ObjectType::C4GH { keys } => Ok(Storage::new(C4GHStorage::new(
         keys.clone().into_inner(),
         storage,

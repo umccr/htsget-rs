@@ -38,7 +38,7 @@ These functions take query and endpoint information, and process it using [htsge
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `c4gh-experimental`: used to enable `C4GHStorage` functionality.
+* `experimental`: used to enable `C4GHStorage` functionality.
 
 [warp]: https://github.com/seanmonstar/warp
 [htsget-search]: ../htsget-search

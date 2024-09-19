@@ -13,7 +13,7 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 s3-storage = []
 url-storage = ["dep:reqwest"]
-c4gh-experimental = ["dep:crypt4gh"]
+experimental = ["dep:crypt4gh"]
 default = []
 
 [dependencies]

@@ -156,7 +156,7 @@ pub(crate) mod tests {
   use htsget_test::http::concat::ConcatResponse;
   use std::future::Future;
   use std::sync::Arc;
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
     htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
@@ -594,7 +594,7 @@ pub(crate) mod tests {
     .await
   }
 
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   #[tokio::test]
   async fn search_all_c4gh() {
     with_local_storage_c4gh(|storage| async move {
@@ -613,7 +613,7 @@ pub(crate) mod tests {
     .await;
   }
 
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   #[tokio::test]
   async fn search_all_range_c4gh() {
     with_local_storage_c4gh(|storage| async move {

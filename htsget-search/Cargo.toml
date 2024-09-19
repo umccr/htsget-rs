@@ -22,10 +22,10 @@ url-storage = [
     "htsget-config/url-storage",
     "htsget-test/url-storage"
 ]
-c4gh-experimental = [
-    "htsget-storage/c4gh-experimental",
-    "htsget-config/c4gh-experimental",
-    "htsget-test/c4gh-experimental"
+experimental = [
+    "htsget-storage/experimental",
+    "htsget-config/experimental",
+    "htsget-test/experimental"
 ]
 default = []
 

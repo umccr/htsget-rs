@@ -119,7 +119,7 @@ pub(crate) mod tests {
   use htsget_config::types::Class::Body;
   use htsget_config::types::Scheme::Http;
   use htsget_storage::local::LocalStorage;
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   use htsget_test::c4gh::decrypt_data;
   use htsget_test::http::concat::ConcatResponse;
 
@@ -321,7 +321,7 @@ pub(crate) mod tests {
     .await;
   }
 
-  #[cfg(feature = "c4gh-experimental")]
+  #[cfg(feature = "experimental")]
   pub(crate) async fn with_local_storage_c4gh<F, Fut>(test: F)
   where
     F: FnOnce(Arc<LocalStorage<LocalStorageConfig>>) -> Fut,

@@ -108,7 +108,7 @@ for more details on how to configure this.
 Run the server with the following to enable Crypt4GH support using the [example config][example-config]:
 
 ```sh
-cargo run -p htsget-axum --features c4gh-experimental -- --config htsget-config/examples/config-files/c4gh.toml
+cargo run -p htsget-axum --features experimental -- --config htsget-config/examples/config-files/c4gh.toml
 ```
 
 Crypt4GH encrypted byte ranges can be queried:
@@ -171,7 +171,7 @@ htsget-rs. It also contains the data block server which fetches data from a `Loc
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `c4gh-experimental`: used to enable `C4GHStorage` functionality.
+* `experimental`: used to enable `C4GHStorage` functionality.
 
 ## License
 

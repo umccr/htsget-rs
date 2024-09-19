@@ -491,7 +491,7 @@ See the MinIO deployment [example][minio-deployment] for more information on how
 ### Crypt4GH
 
 There is experimental support for serving [Crypt4GH][c4gh] encrypted files. This can be enabled by compiling with the 
-`c4gh-experimental` feature flag.
+`experimental` feature flag.
 
 This allows htsget-rs to read Crypt4GH files and serve them encrypted, directly to the client. In the process of
 serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and reencrypt them so that the client can read
@@ -535,7 +535,7 @@ regex, and changing it by using a substitution string.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `c4gh-experimental`: used to enable `C4GHStorage` functionality.
+* `experimental`: used to enable `C4GHStorage` functionality.
 
 ## License
 

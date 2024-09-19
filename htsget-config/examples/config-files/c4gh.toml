@@ -1,5 +1,5 @@
 # An example of running htsget-rs with Crypt4GH enabled.
-# Run with `cargo run -p htsget-axum --features c4gh-experimental -- --config htsget-config/examples/config-files/c4gh.toml`
+# Run with `cargo run -p htsget-axum --features experimental -- --config htsget-config/examples/config-files/c4gh.toml`
 
 ticket_server_addr = "127.0.0.1:8080"
 data_server_addr = "127.0.0.1:8081"

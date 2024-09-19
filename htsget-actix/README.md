@@ -31,7 +31,7 @@ This crate is used for running a local instance of htsget-rs. It is based on:
 
 ## Usage
 
-This application has the same functionality as [htsget-axum]. To use it, following the [htsget-axum][htsget-axum-usage] instructions, and
+This application has the same functionality as [htsget-axum]. To use it, following the [htsget-axum][htsget-axum] instructions, and
 replace any calls to `htsget-axum` with `htsget-actix`.
 
 It is recommended to use [htsget-axum] because it better fits with the rest of [htsget-rs]. For example [htsget-actix]
@@ -50,7 +50,7 @@ are exposed in the public API.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `c4gh-experimental`: used to enable `C4GHStorage` functionality.
+* `experimental`: used to enable `C4GHStorage` functionality.
 
 ## Benchmarks
 Benchmarks for this crate written using [Criterion.rs][criterion-rs], and aim to compare the performance of this crate with the
@@ -76,6 +76,7 @@ cargo bench -p htsget-axum -- HEAVY
 [criterion-rs]: https://github.com/bheisler/criterion.rs
 [htsget-refserver]: https://github.com/ga4gh/htsget-refserver
 [data-vcf]: ../data/vcf
+[htsget-axum]: ../htsget-axum/README.md#usage
 
 ## License
 
