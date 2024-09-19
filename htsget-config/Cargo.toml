@@ -19,7 +19,7 @@ default = []
 [dependencies]
 thiserror = "1"
 async-trait = "0.1"
-noodles = { version = "0.80", features = ["core"] }
+noodles = { version = "0.82", features = ["core"] }
 serde = { version = "1", features = ["derive"] }
 serde_with = "3"
 serde_regex = "1"
