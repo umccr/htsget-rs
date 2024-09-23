@@ -293,10 +293,16 @@ impl Resolver {
 
   /// Set the local resolvers from the data server config.
   pub fn resolvers_from_data_server_config(&mut self, config: &DataServerConfig) {
-    if let Storage::Local(local) = self.storage() {
-      if local.use_data_server_config() {
-        self.storage = Storage::Local(config.into());
+    match self.storage() {
+      Storage::Local(local) => {
+        if local.use_data_server_config() {
+          self.storage = Storage::Local(config.into());
+        }
       }
+      #[cfg(feature = "s3-storage")]
+      Storage::S3(_) => {}
+      #[cfg(feature = "url-storage")]
+      Storage::Url(_) => {}
     }
   }
 
@@ -384,29 +390,21 @@ impl StorageResolver for Resolver {
 
     query.set_id(resolved_id.into_inner());
 
-    if let Some(response) = self.storage().resolve_local_storage::<T>(query).await {
-      return Some(response);
-    }
+    match self.storage() {
+      Storage::Local(local_storage) => Some(T::from_local(local_storage, query).await),
+      #[cfg(feature = "s3-storage")]
+      Storage::S3(s3_storage) => {
+        let first_match = self.get_match(1, &_matched_id);
+        let mut s3_storage = s3_storage.clone();
+        if s3_storage.bucket.is_empty() {
+          s3_storage.bucket = first_match?.to_string();
+        }
 
-    #[cfg(feature = "s3-storage")]
-    {
-      let first_match = self.get_match(1, &_matched_id);
-
-      if let Some(response) = self
-        .storage()
-        .resolve_s3_storage::<T>(first_match, query)
-        .await
-      {
-        return Some(response);
+        Some(T::from_s3(&s3_storage, query).await)
       }
+      #[cfg(feature = "url-storage")]
+      Storage::Url(url_storage) => Some(T::from_url(url_storage, query).await),
     }
-
-    #[cfg(feature = "url-storage")]
-    if let Some(response) = self.storage().resolve_url_storage::<T>(query).await {
-      return Some(response);
-    }
-
-    None
   }
 }
 

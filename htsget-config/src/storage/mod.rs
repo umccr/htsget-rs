@@ -1,10 +1,8 @@
-use crate::resolver::ResolveResponse;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
 use crate::storage::s3::S3Storage;
 #[cfg(feature = "url-storage")]
 use crate::storage::url::UrlStorageClient;
-use crate::types::{Query, Response, Result};
 use serde::{Deserialize, Serialize};
 
 pub mod local;
@@ -43,55 +41,6 @@ pub enum Storage {
   #[cfg(feature = "url-storage")]
   #[serde(alias = "url", alias = "URL")]
   Url(#[serde(skip_serializing)] UrlStorageClient),
-  #[serde(skip)]
-  Unknown,
-}
-
-impl Storage {
-  /// Resolve the local component `Storage` into a type that implements `FromStorage`. Tagged
-  /// `Local` storage is not resolved because it is resolved into untagged `Local` storage when
-  /// `Config` is constructed.
-  pub async fn resolve_local_storage<T: ResolveResponse>(
-    &self,
-    query: &Query,
-  ) -> Option<Result<Response>> {
-    match self {
-      Storage::Local(local_storage) => Some(T::from_local(local_storage, query).await),
-      _ => None,
-    }
-  }
-
-  /// Resolve the s3 component of `Storage` into a type that implements `FromStorage`.
-  #[cfg(feature = "s3-storage")]
-  pub async fn resolve_s3_storage<T: ResolveResponse>(
-    &self,
-    first_match: Option<&str>,
-    query: &Query,
-  ) -> Option<Result<Response>> {
-    match self {
-      Storage::S3(s3_storage) => {
-        let mut s3_storage = s3_storage.clone();
-        if s3_storage.bucket.is_empty() {
-          s3_storage.bucket = first_match?.to_string();
-        }
-
-        Some(T::from_s3(&s3_storage, query).await)
-      }
-      _ => None,
-    }
-  }
-
-  /// Resolve the url component of `Storage` into a type that implements `FromStorage`.
-  #[cfg(feature = "url-storage")]
-  pub async fn resolve_url_storage<T: ResolveResponse>(
-    &self,
-    query: &Query,
-  ) -> Option<Result<Response>> {
-    match self {
-      Storage::Url(url_storage) => Some(T::from_url(url_storage, query).await),
-      _ => None,
-    }
-  }
 }
 
 impl Default for Storage {

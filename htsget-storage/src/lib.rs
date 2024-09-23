@@ -137,29 +137,28 @@ impl StorageTrait for Storage {
 }
 
 impl Storage {
-  #[cfg(feature = "experimental")]
-  /// Wrap an existing storage with C4GH storage.
-  pub fn c4gh_storage(object_type: &ObjectType, storage: Storage) -> Storage {
-    if let Some(keys) = object_type.keys() {
-      Storage::new(C4GHStorage::new_box(
-        keys.clone().into_inner(),
-        storage.into_inner(),
-      ))
-    } else {
-      storage
+  /// Wrap an existing storage with the object type storage.
+  pub fn from_object_type(object_type: &ObjectType, storage: Storage) -> Storage {
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        if let Some(keys) = object_type.keys() {
+          Storage::new(C4GHStorage::new_box(
+            keys.clone().into_inner(),
+            storage.into_inner(),
+          ))
+        } else {
+          storage
+        }
+      } else {
+        Ok(storage)
+      }
     }
   }
 
   /// Create from local storage config.
   pub async fn from_local(config: &LocalStorageConfig) -> Result<Storage> {
     let storage = Storage::new(LocalStorage::new(config.local_path(), config.clone())?);
-    cfg_if! {
-      if #[cfg(feature = "experimental")] {
-        Ok(Self::c4gh_storage(config.object_type(), storage))
-      } else {
-        Ok(storage)
-      }
-    }
+    Ok(Storage::from_object_type(config.object_type(), storage))
   }
 
   /// Create from s3 config.
