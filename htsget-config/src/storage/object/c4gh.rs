@@ -94,6 +94,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
+        type = "Local"
         private_key = "{}"
         recipient_public_key = "{}"
         "#,
@@ -104,7 +105,7 @@ mod tests {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
             config.resolvers().first().unwrap().storage(),
-            Storage::Local { local_storage } if local_storage.object_type().keys().is_some()
+            Storage::Local(local_storage) if local_storage.object_type().keys().is_some()
         ));
       },
     );

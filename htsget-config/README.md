@@ -151,33 +151,34 @@ For more information about regex options see the [regex crate](https://docs.rs/r
 Each resolver also maps to a certain storage backend. This storage backend can be used to set query IDs which are served from local storage, from S3-style bucket storage, or from HTTP URLs.
 To set the storage backend for a resolver, add a `[resolvers.storage]` table. Some storage backends require feature flags to be set when compiling htsget-rs.
 
-To use `LocalStorage`, set `storage = 'Local'`. This will derive the values for the fields below from the `data_server` config:
+To use `LocalStorage`, set `type = 'Local'` under `[resolvers.storage]`, and specify any additional options from below:
 
-| Option              | Description                                                                                                                         | When `storage = 'Local'`                                                                                                         | Type                         | Default            |
-|---------------------|-------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
-| `scheme`            | The scheme present on URL tickets.                                                                                                  | Derived from `data_server_key` and `data_server_cert`. If no key and cert are present, then uses `Http`, otherwise uses `Https`. | Either `'Http'` or `'Https'` | `'Http'`           |
-| `authority`         | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | Same as `data_server_addr`.                                                                                                      | URL authority                | `'127.0.0.1:8081'` |
-| `local_path`        | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Same as `data_server_local_path`.                                                                                                | Filesystem path              | `'./'`             |
-| `path_prefix`       | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | Same as `data_server_serve_at`.                                                                                                  | URL path                     | `''`               |
+| Option                   | Description                                                                                                                         | Type                         | Default            |
+|--------------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
+| `scheme`                 | The scheme present on URL tickets.                                                                                                  | Either `'Http'` or `'Https'` | `'Http'`           |
+| `authority`              | The authority present on URL tickets. This should likely match the `data_server_addr`.                                              | URL authority                | `'127.0.0.1:8081'` |
+| `local_path`             | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server_local_path`. | Filesystem path              | `'./'`             |
+| `path_prefix`            | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | URL path                     | `''`               |
+| `use_data_server_config` | Whether to use the data server config to fill in the above values. This overrides any other options specified from this table.      | Boolean                      | `false`            |
 
-To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, and set `storage = 'S3'`. This will derive the value for `bucket` from the `regex` component of the `resolvers`:
+To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, set `type = 'S3'` under `[resolvers.storage]`, and specify any additional options from below:
 
-| Option       | Description                                                                                                                                                                   | When `storage = 'S3'`                                                                                            | Type    | Default                                |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|---------|----------------------------------------|
-| `bucket`     | The AWS S3 bucket where resources can be retrieved from.                                                                                                                      | Derived from the `resolvers` `regex` property. This uses the first capture group in the `regex` as the `bucket`. | String  | `''`                                   |
-| `endpoint`   | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio).                | Not set, uses regular AWS S3 services.                                                                           | String  | Not set, uses regular AWS S3 services. |
-| `path_style` | The S3 path style to request from the storage backend. If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used.  | `false`                                                                                                          | Boolean | `false`                                |
+| Option       | Description                                                                                                                                                                   | Type    | Default                                                                                                                   |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------|
+| `bucket`     | The AWS S3 bucket where resources can be retrieved from.                                                                                                                      | String  | Derived from the `resolvers` `regex` property if empty. This uses the first capture group in the `regex` as the `bucket`. |
+| `endpoint`   | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio).                | String  | Not set, uses regular AWS S3 services.                                                                                    |
+| `path_style` | The S3 path style to request from the storage backend. If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used.  | Boolean | `false`                                                                                                                   |
 
 `UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
-To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, and set the following options under `[resolvers.storage]`:
+To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, set `type = 'Url'` under `[resolvers.storage]`, and specify any additional options from below:
 
-| Option                               | Description                                                                                                                  | Type                     | Default                                                                                                         |
-|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
-| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                  | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                        | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query.                                          | Boolean                  | `true`                                                                                                          |
-| `header_blacklist`                   | List of headers that should not be forwarded                                                                                 | Array of headers         | `[]`                                                                                                            |
-| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details.  | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| Option                               | Description                                                                                                                 | Type                     | Default                                                                                                         |
+|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
+| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                 | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                       | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query.                                         | Boolean                  | `true`                                                                                                          |
+| `header_blacklist`                   | List of headers that should not be forwarded.                                                                               | Array of headers         | `[]`                                                                                                            |
+| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS. See [TLS](#tls) for more details. | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
 When using `UrlStorage`, the following requests will be made to the `url`.
 * `GET` request to fetch only the headers of the data file (e.g. `GET /data.bam`, with `Range: bytes=0-<end_of_bam_header>`).
@@ -192,7 +193,9 @@ For example, a `resolvers` value of:
 [[resolvers]]
 regex = '^(example_bucket)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+[resolvers.storage]
+type = 'S3'
+# Uses the first capture group in the regex as the bucket.
 ```
 Will use "example_bucket" as the S3 bucket if that resolver matches, because this is the first capture group in the `regex`.
 Note, to use this feature, at least one capture group must be defined in the `regex`.
@@ -206,6 +209,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
+type = 'Local'
 scheme = 'Http'
 authority = '127.0.0.1:8081'
 local_path = './'
@@ -220,6 +224,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
+type = 'S3'
 bucket = 'bucket'
 ```
 
@@ -231,6 +236,7 @@ regex = ".*"
 substitution_string = "$0"
 
 [resolvers.storage]
+type = 'Url'
 url = "http://localhost:8080"
 response_url = "https://example.com"
 forward_headers = true

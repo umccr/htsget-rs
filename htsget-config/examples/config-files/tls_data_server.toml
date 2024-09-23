@@ -10,3 +10,7 @@ data_server_tls.key = "key.pem"
 [[resolvers]]
 regex = ".*"
 substitution_string = "$0"
+
+[resolvers.storage]
+type = 'Local'
+use_data_server_config = true

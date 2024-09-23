@@ -26,6 +26,7 @@ pub struct LocalStorage {
   path_prefix: String,
   #[serde(flatten)]
   object_type: ObjectType,
+  use_data_server_config: bool,
 }
 
 impl LocalStorage {
@@ -36,6 +37,7 @@ impl LocalStorage {
     local_path: String,
     path_prefix: String,
     object_type: ObjectType,
+    use_data_server_config: bool,
   ) -> Self {
     Self {
       scheme,
@@ -43,6 +45,7 @@ impl LocalStorage {
       local_path,
       path_prefix,
       object_type,
+      use_data_server_config,
     }
   }
 
@@ -70,6 +73,11 @@ impl LocalStorage {
   pub fn object_type(&self) -> &ObjectType {
     &self.object_type
   }
+
+  /// Get whether config should be inherited from the data server config.
+  pub fn use_data_server_config(&self) -> bool {
+    self.use_data_server_config
+  }
 }
 
 impl Default for LocalStorage {
@@ -80,19 +88,21 @@ impl Default for LocalStorage {
       local_path: default_local_path(),
       path_prefix: Default::default(),
       object_type: Default::default(),
+      use_data_server_config: false,
     }
   }
 }
 
-impl From<&DataServerConfig> for Option<LocalStorage> {
+impl From<&DataServerConfig> for LocalStorage {
   fn from(config: &DataServerConfig) -> Self {
-    Some(LocalStorage::new(
+    LocalStorage::new(
       config.tls().get_scheme(),
-      Authority::from_str(&config.addr().to_string()).ok()?,
-      config.local_path().to_str()?.to_string(),
+      Authority::from_str(&config.addr().to_string()).expect("expected valid authority"),
+      config.local_path().to_string_lossy().to_string(),
       config.serve_at().to_string(),
       Default::default(),
-    ))
+      true,
+    )
   }
 }
 
@@ -116,6 +126,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
+        type = "Local"
         local_path = "path"
         scheme = "HTTPS"
         path_prefix = "path"
@@ -124,7 +135,7 @@ mod tests {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
             config.resolvers().first().unwrap().storage(),
-            Storage::Local { local_storage } if local_storage.local_path() == "path" && local_storage.scheme() == Scheme::Https && local_storage.path_prefix() == "path"
+            Storage::Local(local_storage) if local_storage.local_path() == "path" && local_storage.scheme() == Scheme::Https && local_storage.path_prefix() == "path"
         ));
       },
     );
@@ -140,15 +151,16 @@ mod tests {
       None,
       CorsConfig::default(),
     );
-    let result: Option<LocalStorage> = (&data_server_config).into();
+    let result: LocalStorage = (&data_server_config).into();
     let expected = LocalStorage::new(
       Http,
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
       Default::default(),
+      true,
     );
 
-    assert_eq!(result.unwrap(), expected);
+    assert_eq!(result, expected);
   }
 }

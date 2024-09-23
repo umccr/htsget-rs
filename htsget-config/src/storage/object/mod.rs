@@ -17,6 +17,7 @@ pub struct ObjectType {
 }
 
 impl ObjectType {
+  #[cfg(feature = "experimental")]
   /// Get the C4GH keys.
   pub fn keys(&self) -> Option<&C4GHKeys> {
     self.keys.as_ref()

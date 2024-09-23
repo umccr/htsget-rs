@@ -774,13 +774,15 @@ pub(crate) mod tests {
     data_server_serve_at = "/path"
 
     [[resolvers]]
-    storage = "Local"
+    [resolvers.storage]
+    type = "Local"
+    use_data_server_config = true
     "#,
       |config| {
         assert_eq!(config.resolvers.len(), 1);
 
         assert!(matches!(config.resolvers.first().unwrap().storage(),
-      Storage::Local { local_storage } if local_storage.local_path() == "path" && local_storage.scheme() == Http && local_storage.authority() == &Authority::from_static("127.0.0.1:8080") && local_storage.path_prefix() == "/path"));
+      Storage::Local(local_storage) if local_storage.local_path() == "path" && local_storage.scheme() == Http && local_storage.authority() == &Authority::from_static("127.0.0.1:8080") && local_storage.path_prefix() == "/path"));
       },
     );
   }

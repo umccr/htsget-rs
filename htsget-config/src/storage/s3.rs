@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct S3Storage {
-  bucket: String,
-  endpoint: Option<String>,
-  path_style: bool,
+  pub(crate) bucket: String,
+  pub(crate) endpoint: Option<String>,
+  pub(crate) path_style: bool,
 }
 
 impl S3Storage {
@@ -47,13 +47,14 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
+        type = "S3"
         bucket = "bucket"
         "#,
       |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
             config.resolvers().first().unwrap().storage(),
-            Storage::S3 { s3_storage } if s3_storage.bucket() == "bucket"
+            Storage::S3(s3_storage) if s3_storage.bucket() == "bucket"
         ));
       },
     );

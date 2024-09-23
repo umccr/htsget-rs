@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::resolver::ResolveResponse;
 use crate::storage::local::LocalStorage;
 #[cfg(feature = "s3-storage")]
@@ -7,6 +5,7 @@ use crate::storage::s3::S3Storage;
 #[cfg(feature = "url-storage")]
 use crate::storage::url::UrlStorageClient;
 use crate::types::{Query, Response, Result};
+use serde::{Deserialize, Serialize};
 
 pub mod local;
 pub mod object;
@@ -14,22 +13,6 @@ pub mod object;
 pub mod s3;
 #[cfg(feature = "url-storage")]
 pub mod url;
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub enum TaggedStorageTypes {
-  #[serde(alias = "local", alias = "LOCAL")]
-  Local,
-  #[cfg(feature = "s3-storage")]
-  #[serde(alias = "s3")]
-  S3,
-}
-
-/// If s3-storage is enabled, then the default is `S3`, otherwise it is `Local`.
-impl Default for TaggedStorageTypes {
-  fn default() -> Self {
-    Self::Local
-  }
-}
 
 /// A new type representing a resolved id.
 #[derive(Debug)]
@@ -49,24 +32,19 @@ impl ResolvedId {
 
 /// Specify the storage backend to use as config values.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
+#[serde(tag = "type")]
 #[non_exhaustive]
 pub enum Storage {
-  Tagged(TaggedStorageTypes),
-  Local {
-    #[serde(flatten)]
-    local_storage: LocalStorage,
-  },
+  #[serde(alias = "local", alias = "LOCAL")]
+  Local(LocalStorage),
   #[cfg(feature = "s3-storage")]
-  S3 {
-    #[serde(flatten)]
-    s3_storage: S3Storage,
-  },
+  #[serde(alias = "s3")]
+  S3(S3Storage),
   #[cfg(feature = "url-storage")]
-  Url {
-    #[serde(flatten, skip_serializing)]
-    url_storage: UrlStorageClient,
-  },
+  #[serde(alias = "url", alias = "URL")]
+  Url(#[serde(skip_serializing)] UrlStorageClient),
+  #[serde(skip)]
+  Unknown,
 }
 
 impl Storage {
@@ -78,7 +56,7 @@ impl Storage {
     query: &Query,
   ) -> Option<Result<Response>> {
     match self {
-      Storage::Local { local_storage } => Some(T::from_local(local_storage, query).await),
+      Storage::Local(local_storage) => Some(T::from_local(local_storage, query).await),
       _ => None,
     }
   }
@@ -91,13 +69,14 @@ impl Storage {
     query: &Query,
   ) -> Option<Result<Response>> {
     match self {
-      Storage::Tagged(TaggedStorageTypes::S3) => {
-        let bucket = first_match?.to_string();
+      Storage::S3(s3_storage) => {
+        let mut s3_storage = s3_storage.clone();
+        if s3_storage.bucket.is_empty() {
+          s3_storage.bucket = first_match?.to_string();
+        }
 
-        let s3_storage = S3Storage::new(bucket, None, false);
         Some(T::from_s3(&s3_storage, query).await)
       }
-      Storage::S3 { s3_storage } => Some(T::from_s3(s3_storage, query).await),
       _ => None,
     }
   }
@@ -109,7 +88,7 @@ impl Storage {
     query: &Query,
   ) -> Option<Result<Response>> {
     match self {
-      Storage::Url { url_storage } => Some(T::from_url(url_storage, query).await),
+      Storage::Url(url_storage) => Some(T::from_url(url_storage, query).await),
       _ => None,
     }
   }
@@ -117,7 +96,7 @@ impl Storage {
 
 impl Default for Storage {
   fn default() -> Self {
-    Self::Tagged(TaggedStorageTypes::default())
+    Self::Local(Default::default())
   }
 }
 
@@ -132,8 +111,9 @@ pub(crate) mod tests {
     test_config_from_file(
       r#"
       [[resolvers]]
+      [resolvers.storage]
+      type = "Local"
       regex = "regex"
-      storage = "Local"
       "#,
       |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
@@ -147,17 +127,18 @@ pub(crate) mod tests {
 
   #[test]
   fn config_storage_tagged_local_env() {
-    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{storage=Local}]")], |config| {
-      assert!(matches!(
-        config.resolvers().first().unwrap().storage(),
-        Storage::Local { .. }
-      ));
-    });
-  }
-
-  #[test]
-  fn default_tagged_storage_type_local() {
-    assert_eq!(TaggedStorageTypes::default(), TaggedStorageTypes::Local);
+    test_config_from_env(
+      vec![(
+        "HTSGET_RESOLVERS",
+        "[{storage={ type=Local, use_data_server_config=true}}]",
+      )],
+      |config| {
+        assert!(matches!(
+          config.resolvers().first().unwrap().storage(),
+          Storage::Local { .. }
+        ));
+      },
+    );
   }
 
   #[cfg(feature = "s3-storage")]
@@ -166,14 +147,15 @@ pub(crate) mod tests {
     test_config_from_file(
       r#"
       [[resolvers]]
+      [resolvers.storage]
+      type = "S3"
       regex = "regex"
-      storage = "S3"
       "#,
       |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
         assert!(matches!(
           config.resolvers().first().unwrap().storage(),
-          Storage::Tagged(TaggedStorageTypes::S3)
+          Storage::S3(..)
         ));
       },
     );
@@ -182,11 +164,14 @@ pub(crate) mod tests {
   #[cfg(feature = "s3-storage")]
   #[test]
   fn config_storage_tagged_s3_env() {
-    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{storage=S3}]")], |config| {
-      assert!(matches!(
-        config.resolvers().first().unwrap().storage(),
-        Storage::Tagged(TaggedStorageTypes::S3)
-      ));
-    });
+    test_config_from_env(
+      vec![("HTSGET_RESOLVERS", "[{storage={ type=S3 }}]")],
+      |config| {
+        assert!(matches!(
+          config.resolvers().first().unwrap().storage(),
+          Storage::S3(..)
+        ));
+      },
+    );
   }
 }

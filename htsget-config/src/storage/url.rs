@@ -240,6 +240,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
+        type = "Url"
         url = "https://example.com/"
         response_url = "https://example.com/"
         forward_headers = false
@@ -255,7 +256,7 @@ mod tests {
           println!("{:?}", config.resolvers().first().unwrap().storage());
           assert!(matches!(
               config.resolvers().first().unwrap().storage(),
-              Storage::Url { url_storage } if *url_storage.url() == "https://example.com/"
+              Storage::Url(url_storage) if *url_storage.url() == "https://example.com/"
                 && !url_storage.forward_headers()
           ));
         },

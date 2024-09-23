@@ -101,19 +101,18 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Vec<Resolver> 
     default_dir_data().to_str().unwrap().to_string(),
     "/data".to_string(),
     Default::default(),
+    false,
   );
   vec![
     Resolver::new(
-      Storage::Local {
-        local_storage: local_storage.clone(),
-      },
+      Storage::Local(local_storage.clone()),
       "^1-(.*)$",
       "$1",
       Default::default(),
     )
     .unwrap(),
     Resolver::new(
-      Storage::Local { local_storage },
+      Storage::Local(local_storage),
       "^2-(.*)$",
       "$1",
       Default::default(),

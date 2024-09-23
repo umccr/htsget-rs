@@ -11,9 +11,9 @@ environment = 'public'
 [[resolvers]]
 regex = '^(org.umccr.demo.sbeacon-data)/CINECA_UK1/(?P<key>.*)$'
 substitution_string = 'CINECA_UK1/$key'
-storage = 'S3'
+storage.type = 'S3'
 
 [[resolvers]]
 regex = '^(org.umccr.demo.htsget-rs-data)/(?P<type>bam|cram|vcf|bcf|crypt4gh|mixed)/(?P<key>.*)$'
 substitution_string = '$type/$key'
-storage = 'S3'
+storage.type = 'S3'

@@ -13,7 +13,7 @@ use crate::storage::local::LocalStorage;
 use crate::storage::s3::S3Storage;
 #[cfg(feature = "url-storage")]
 use crate::storage::url::UrlStorageClient;
-use crate::storage::{ResolvedId, Storage, TaggedStorageTypes};
+use crate::storage::{ResolvedId, Storage};
 use crate::types::Format::{Bam, Bcf, Cram, Vcf};
 use crate::types::{Class, Fields, Format, Interval, Query, Response, Result, TaggedTypeAll, Tags};
 
@@ -293,9 +293,9 @@ impl Resolver {
 
   /// Set the local resolvers from the data server config.
   pub fn resolvers_from_data_server_config(&mut self, config: &DataServerConfig) {
-    if let Storage::Tagged(TaggedStorageTypes::Local) = self.storage() {
-      if let Some(local_storage) = config.into() {
-        self.storage = Storage::Local { local_storage };
+    if let Storage::Local(local) = self.storage() {
+      if local.use_data_server_config() {
+        self.storage = Storage::Local(config.into());
       }
     }
   }
@@ -485,9 +485,10 @@ mod tests {
       "data".to_string(),
       "/data".to_string(),
       Default::default(),
+      false,
     );
     let resolver = Resolver::new(
-      Storage::Local { local_storage },
+      Storage::Local(local_storage),
       "id",
       "$0-test",
       AllowGuard::default(),
@@ -502,7 +503,7 @@ mod tests {
   async fn resolver_resolve_s3_request_tagged() {
     let s3_storage = S3Storage::new("id".to_string(), None, false);
     let resolver = Resolver::new(
-      Storage::S3 { s3_storage },
+      Storage::S3(s3_storage),
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
@@ -516,7 +517,7 @@ mod tests {
   #[tokio::test]
   async fn resolver_resolve_s3_request() {
     let resolver = Resolver::new(
-      Storage::Tagged(TaggedStorageTypes::S3),
+      Storage::S3(S3Storage::default()),
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
@@ -543,7 +544,7 @@ mod tests {
     );
 
     let resolver = Resolver::new(
-      Storage::Url { url_storage },
+      Storage::Url(url_storage),
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
@@ -678,7 +679,7 @@ mod tests {
       vec![(
         "HTSGET_RESOLVERS",
         "[{ regex=regex, substitution_string=substitution_string, \
-        storage={ bucket=bucket }, \
+        storage={ type=S3, bucket=bucket }, \
         allow_guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
         allow_formats=[BAM], allow_classes=[body], allow_interval_start=100, \
         allow_interval_end=1000 } }]",
@@ -698,7 +699,7 @@ mod tests {
         assert_eq!(resolver.regex().to_string(), "regex");
         assert_eq!(resolver.substitution_string(), "substitution_string");
         assert!(
-          matches!(resolver.storage(), Storage::S3 { s3_storage } if s3_storage == &expected_storage)
+          matches!(resolver.storage(), Storage::S3(s3_storage) if s3_storage == &expected_storage)
         );
         assert_eq!(resolver.allow_guard(), &allow_guard);
       },

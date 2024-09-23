@@ -23,6 +23,7 @@ async fn perform_query(query: Query) -> Result<(), HtsGetError> {
       "../data".to_string(),
       "/data".to_string(),
       Default::default(),
+      false,
     ),
     &query,
   )

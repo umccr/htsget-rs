@@ -2370,6 +2370,7 @@ dependencies = [
  "base64 0.22.1",
  "bincode",
  "bytes",
+ "cfg-if",
  "criterion",
  "crypt4gh",
  "data-url",

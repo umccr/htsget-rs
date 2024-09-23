@@ -201,7 +201,7 @@ pub(crate) mod tests {
     with_config_local_storage(
       |_, local_storage| async {
         let resolvers = vec![Resolver::new(
-          storage::Storage::Local { local_storage },
+          storage::Storage::Local(local_storage),
           ".*",
           "$0",
           Default::default(),
@@ -272,6 +272,7 @@ pub(crate) mod tests {
         base_path.to_str().unwrap().to_string(),
         "/data".to_string(),
         Default::default(),
+        false,
       ),
     )
     .await;

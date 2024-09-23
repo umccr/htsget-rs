@@ -62,9 +62,14 @@ impl Debug for C4GHStorage {
 impl C4GHStorage {
   /// Create a new storage from a storage trait.
   pub fn new(keys: Vec<Keys>, inner: impl StorageTrait + Send + Sync + 'static) -> Self {
+    Self::new_box(keys, Box::new(inner))
+  }
+
+  /// Create a new value from a boxed storage trait.
+  pub fn new_box(keys: Vec<Keys>, inner: Box<dyn StorageTrait + Send + Sync + 'static>) -> Self {
     Self {
       keys,
-      inner: Box::new(inner),
+      inner,
       state: Default::default(),
     }
   }
