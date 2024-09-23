@@ -9,4 +9,5 @@ regex = ".*"
 substitution_string = "$0"
 
 [resolvers.storage]
-object_type = { private_key = "data/c4gh/keys/bob.sec", recipient_public_key = "data/c4gh/keys/alice.pub" } # pragma: allowlist secret
+private_key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+recipient_public_key = "data/c4gh/keys/alice.pub"

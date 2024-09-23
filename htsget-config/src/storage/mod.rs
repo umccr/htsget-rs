@@ -49,7 +49,7 @@ impl ResolvedId {
 
 /// Specify the storage backend to use as config values.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged, deny_unknown_fields)]
+#[serde(untagged)]
 #[non_exhaustive]
 pub enum Storage {
   Tagged(TaggedStorageTypes),

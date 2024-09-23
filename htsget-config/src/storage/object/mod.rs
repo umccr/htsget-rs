@@ -10,14 +10,15 @@ use serde::{Deserialize, Serialize};
 
 /// An object type, can be regular or Crypt4GH encrypted.
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
-#[serde(untagged, deny_unknown_fields)]
-#[non_exhaustive]
-pub enum ObjectType {
-  #[default]
-  Regular,
+pub struct ObjectType {
+  #[serde(skip_serializing, flatten)]
   #[cfg(feature = "experimental")]
-  C4GH {
-    #[serde(flatten, skip_serializing)]
-    keys: C4GHKeys,
-  },
+  keys: Option<C4GHKeys>,
+}
+
+impl ObjectType {
+  /// Get the C4GH keys.
+  pub fn keys(&self) -> Option<&C4GHKeys> {
+    self.keys.as_ref()
+  }
 }

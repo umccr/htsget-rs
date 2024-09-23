@@ -24,6 +24,7 @@ pub struct LocalStorage {
   authority: Authority,
   local_path: String,
   path_prefix: String,
+  #[serde(flatten)]
   object_type: ObjectType,
 }
 

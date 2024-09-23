@@ -35,7 +35,6 @@ use crate::s3::S3Storage;
 use crate::types::{BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions};
 #[cfg(feature = "url-storage")]
 use crate::url::UrlStorage;
-use htsget_config::storage::object::ObjectType;
 use htsget_config::types::Scheme;
 
 #[cfg(feature = "experimental")]
@@ -132,16 +131,14 @@ impl Storage {
   /// Create from local storage config.
   pub async fn from_local(config: &LocalStorageConfig) -> Result<Storage> {
     let storage = LocalStorage::new(config.local_path(), config.clone())?;
-    match config.object_type() {
-      ObjectType::Regular => Ok(Storage::new(storage)),
+
+    match config.object_type().keys() {
+      None => Ok(Storage::new(storage)),
       #[cfg(feature = "experimental")]
-      ObjectType::C4GH { keys } => Ok(Storage::new(C4GHStorage::new(
+      Some(keys) => Ok(Storage::new(C4GHStorage::new(
         keys.clone().into_inner(),
         storage,
       ))),
-      _ => Err(StorageError::InternalError(
-        "invalid object type".to_string(),
-      )),
     }
   }
 
