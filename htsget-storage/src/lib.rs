@@ -24,7 +24,6 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use cfg_if::cfg_if;
 use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
-#[cfg(feature = "experimental")]
 use htsget_config::storage::object::ObjectType;
 #[cfg(feature = "s3-storage")]
 use htsget_config::storage::s3::S3Storage as S3StorageConfig;
@@ -138,10 +137,10 @@ impl StorageTrait for Storage {
 
 impl Storage {
   /// Wrap an existing storage with the object type storage.
-  pub fn from_object_type(object_type: &ObjectType, storage: Storage) -> Storage {
+  pub fn from_object_type(_object_type: &ObjectType, storage: Storage) -> Storage {
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        if let Some(keys) = object_type.keys() {
+        if let Some(keys) = _object_type.keys() {
           Storage::new(C4GHStorage::new_box(
             keys.clone().into_inner(),
             storage.into_inner(),
@@ -150,7 +149,7 @@ impl Storage {
           storage
         }
       } else {
-        Ok(storage)
+        storage
       }
     }
   }
