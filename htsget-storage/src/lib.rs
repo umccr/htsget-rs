@@ -9,22 +9,6 @@ pub use htsget_config::types::{
   Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Url,
 };
 
-use async_trait::async_trait;
-use base64::engine::general_purpose;
-use base64::Engine;
-use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
-#[cfg(feature = "s3-storage")]
-use htsget_config::storage::s3::S3Storage as S3StorageConfig;
-#[cfg(feature = "url-storage")]
-use htsget_config::storage::url::UrlStorageClient as UrlStorageConfig;
-use http::uri;
-use pin_project_lite::pin_project;
-use std::fmt;
-use std::fmt::{Debug, Formatter};
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, ReadBuf};
-
 #[cfg(feature = "experimental")]
 use crate::c4gh::storage::C4GHStorage;
 use crate::error::Result;
@@ -35,8 +19,24 @@ use crate::s3::S3Storage;
 use crate::types::{BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions};
 #[cfg(feature = "url-storage")]
 use crate::url::UrlStorage;
+use async_trait::async_trait;
+use base64::engine::general_purpose;
+use base64::Engine;
+use cfg_if::cfg_if;
+use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
 use htsget_config::storage::object::ObjectType;
+#[cfg(feature = "s3-storage")]
+use htsget_config::storage::s3::S3Storage as S3StorageConfig;
+#[cfg(feature = "url-storage")]
+use htsget_config::storage::url::UrlStorageClient as UrlStorageConfig;
 use htsget_config::types::Scheme;
+use http::uri;
+use pin_project_lite::pin_project;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, ReadBuf};
 
 #[cfg(feature = "experimental")]
 pub mod c4gh;
@@ -78,6 +78,13 @@ impl AsyncRead for Streamable {
 /// The top-level storage type is created from any `StorageTrait`.
 pub struct Storage {
   inner: Box<dyn StorageTrait + Send + Sync + 'static>,
+}
+
+impl Storage {
+  /// Get the inner value.
+  pub fn into_inner(self) -> Box<dyn StorageTrait + Send + Sync> {
+    self.inner
+  }
 }
 
 impl Clone for Storage {
@@ -129,20 +136,28 @@ impl StorageTrait for Storage {
 }
 
 impl Storage {
+  /// Wrap an existing storage with the object type storage.
+  pub fn from_object_type(_object_type: &ObjectType, storage: Storage) -> Storage {
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        if let Some(keys) = _object_type.keys() {
+          Storage::new(C4GHStorage::new_box(
+            keys.clone().into_inner(),
+            storage.into_inner(),
+          ))
+        } else {
+          storage
+        }
+      } else {
+        storage
+      }
+    }
+  }
+
   /// Create from local storage config.
   pub async fn from_local(config: &LocalStorageConfig) -> Result<Storage> {
-    let storage = LocalStorage::new(config.local_path(), config.clone())?;
-    match config.object_type() {
-      ObjectType::Regular => Ok(Storage::new(storage)),
-      #[cfg(feature = "experimental")]
-      ObjectType::C4GH { keys } => Ok(Storage::new(C4GHStorage::new(
-        keys.clone().into_inner(),
-        storage,
-      ))),
-      _ => Err(StorageError::InternalError(
-        "invalid object type".to_string(),
-      )),
-    }
+    let storage = Storage::new(LocalStorage::new(config.local_path(), config.clone())?);
+    Ok(Storage::from_object_type(config.object_type(), storage))
   }
 
   /// Create from s3 config.
@@ -288,6 +303,7 @@ mod tests {
       "data".to_string(),
       "/data".to_string(),
       Default::default(),
+      false,
     );
     test_formatter_authority(formatter, "http");
   }
@@ -300,6 +316,7 @@ mod tests {
       "data".to_string(),
       "/data".to_string(),
       Default::default(),
+      false,
     );
     test_formatter_authority(formatter, "https");
   }

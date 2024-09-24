@@ -60,3 +60,54 @@ impl From<Crypt4GHError> for Error {
     ParseError(err.to_string())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use crate::config::tests::test_config_from_file;
+  use crate::storage::Storage;
+  use std::fs::copy;
+  use std::path::PathBuf;
+  use tempfile::TempDir;
+
+  #[test]
+  fn config_storage_c4gh() {
+    let tmp = TempDir::new().unwrap();
+    let private_key = tmp.path().join("bob.sec");
+    let recipient_public_key = tmp.path().join("alice.pub");
+
+    let parent = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+      .parent()
+      .unwrap()
+      .to_path_buf();
+
+    copy(parent.join("data/c4gh/keys/bob.sec"), &private_key).unwrap();
+    copy(
+      parent.join("data/c4gh/keys/alice.pub"),
+      &recipient_public_key,
+    )
+    .unwrap();
+
+    test_config_from_file(
+      &format!(
+        r#"
+        [[resolvers]]
+        regex = "regex"
+
+        [resolvers.storage]
+        type = "Local"
+        private_key = "{}"
+        recipient_public_key = "{}"
+        "#,
+        private_key.to_string_lossy(),
+        recipient_public_key.to_string_lossy()
+      ),
+      |config| {
+        println!("{:?}", config.resolvers().first().unwrap().storage());
+        assert!(matches!(
+            config.resolvers().first().unwrap().storage(),
+            Storage::Local(local_storage) if local_storage.object_type().keys().is_some()
+        ));
+      },
+    );
+  }
+}

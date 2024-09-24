@@ -26,39 +26,39 @@ environment = "dev"
 [[resolvers]]
 regex = '^(org.umccr.dev.htsget-rs-test-data)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+storage.type = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-10c-data-dev)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+storage.type = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-10f-data-dev)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+storage.type = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-10g-data-dev)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+storage.type = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-agha-test-dev)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+storage.type = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-research-dev)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+storage.type = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-primary-data-dev)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+storage.type = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-validation-prod)/(?P<key>.*)$'
 substitution_string = '$key'
-storage = 'S3'
+storage.type = 'S3'

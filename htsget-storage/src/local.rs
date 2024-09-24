@@ -346,6 +346,7 @@ pub(crate) mod tests {
         "data".to_string(),
         "/data".to_string(),
         Default::default(),
+        false,
       ),
     )
     .unwrap()

@@ -31,6 +31,7 @@ default = []
 [dependencies]
 url = "2"
 http = "1"
+cfg-if = "1"
 
 # Async
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
