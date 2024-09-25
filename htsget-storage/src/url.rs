@@ -99,6 +99,7 @@ impl UrlStorage {
     let key = key.as_ref();
     let url = self.get_url_from_key(key)?;
 
+    println!("url: {:?}", url);
     let request = Request::builder().method(method).uri(&url);
 
     let request = headers
@@ -245,9 +246,9 @@ impl StorageTrait for UrlStorage {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use std::future::Future;
-  use std::path::Path;
+  use std::path::{Path, PathBuf};
   use std::str::FromStr;
   use std::{result, vec};
 
@@ -326,15 +327,7 @@ mod tests {
 
   #[tokio::test]
   async fn send_request() {
-    with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        true,
-        vec![],
-      );
-
+    with_url_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
 
@@ -356,15 +349,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_key() {
-    with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        true,
-        vec![],
-      );
-
+    with_url_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
 
@@ -386,15 +371,7 @@ mod tests {
 
   #[tokio::test]
   async fn head_key() {
-    with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        true,
-        vec![],
-      );
-
+    with_url_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
 
@@ -416,15 +393,7 @@ mod tests {
 
   #[tokio::test]
   async fn get_storage() {
-    with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        true,
-        vec![],
-      );
-
+    with_url_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
       let options = GetOptions::new_with_default_range(headers);
@@ -441,7 +410,7 @@ mod tests {
 
   #[tokio::test]
   async fn range_url_storage() {
-    with_url_test_server(|url| async move {
+    with_url_test_server(|_, url, _| async move {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
@@ -449,7 +418,6 @@ mod tests {
         true,
         vec![],
       );
-
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
 
@@ -464,7 +432,7 @@ mod tests {
 
   #[tokio::test]
   async fn range_url_storage_blacklisted_headers() {
-    with_url_test_server(|url| async move {
+    with_url_test_server(|_, url, _| async move {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
@@ -492,15 +460,7 @@ mod tests {
 
   #[tokio::test]
   async fn head_storage() {
-    with_url_test_server(|url| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        true,
-        vec![],
-      );
-
+    with_url_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
       let options = HeadOptions::new(headers);
@@ -575,7 +535,7 @@ mod tests {
 
   pub(crate) async fn with_url_test_server<F, Fut>(test: F)
   where
-    F: FnOnce(String) -> Fut,
+    F: FnOnce(UrlStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
@@ -596,11 +556,12 @@ mod tests {
 
   pub(crate) async fn with_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
-    F: FnOnce(String) -> Fut,
+    F: FnOnce(UrlStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
+    let path = server_base_path.to_str().unwrap();
     let router = Router::new()
-      .nest_service("/assets", ServeDir::new(server_base_path.to_str().unwrap()))
+      .nest_service("/assets", ServeDir::new(path))
       .route_layer(middleware::from_fn(test_auth));
 
     // TODO fix this in htsget-test to bind and return tcp listener.
@@ -609,10 +570,22 @@ mod tests {
 
     tokio::spawn(async move { axum::serve(listener, router.into_make_service()).await });
 
-    test(format!("http://{}", addr)).await;
+    let url = format!("http://{}", addr);
+    test(
+      UrlStorage::new(
+        test_client(),
+        Uri::from_str(&url).unwrap(),
+        Uri::from_str(&url).unwrap(),
+        false,
+        vec![],
+      ),
+      url,
+      server_base_path.to_path_buf(),
+    )
+    .await;
   }
 
-  fn test_headers(headers: &mut HeaderMap) -> &HeaderMap {
+  pub(crate) fn test_headers(headers: &mut HeaderMap) -> &HeaderMap {
     headers.append(
       HeaderName::from_str(AUTHORIZATION.as_str()).unwrap(),
       HeaderValue::from_str("secret").unwrap(),

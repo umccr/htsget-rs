@@ -291,7 +291,7 @@ impl StorageTrait for S3Storage {
 #[cfg(test)]
 pub(crate) mod tests {
   use std::future::Future;
-  use std::path::Path;
+  use std::path::{Path, PathBuf};
   use std::sync::Arc;
 
   use htsget_test::aws_mocks::with_s3_test_server;
@@ -305,18 +305,22 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
   where
-    F: FnOnce(Arc<S3Storage>) -> Fut,
+    F: FnOnce(Arc<S3Storage>, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     with_s3_test_server(base_path, |client| async move {
-      test(Arc::new(S3Storage::new(client, folder_name))).await;
+      test(
+        Arc::new(S3Storage::new(client, folder_name)),
+        base_path.to_path_buf(),
+      )
+      .await;
     })
     .await;
   }
 
-  async fn with_aws_s3_storage<F, Fut>(test: F)
+  pub(crate) async fn with_aws_s3_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<S3Storage>) -> Fut,
+    F: FnOnce(Arc<S3Storage>, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (folder_name, base_path) = create_local_test_files().await;
@@ -325,7 +329,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn existing_key() {
-    with_aws_s3_storage(|storage| async move {
+    with_aws_s3_storage(|storage, _| async move {
       let result = storage
         .get(
           "key2",
@@ -339,7 +343,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn non_existing_key() {
-    with_aws_s3_storage(|storage| async move {
+    with_aws_s3_storage(|storage, _| async move {
       let result = storage
         .get(
           "non-existing-key",
@@ -353,7 +357,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_of_existing_key() {
-    with_aws_s3_storage(|storage| async move {
+    with_aws_s3_storage(|storage, _| async move {
       let result = storage
         .range_url(
           "key2",
@@ -372,7 +376,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_with_specified_range() {
-    with_aws_s3_storage(|storage| async move {
+    with_aws_s3_storage(|storage, _| async move {
       let result = storage
         .range_url(
           "key2",
@@ -399,7 +403,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_with_specified_open_ended_range() {
-    with_aws_s3_storage(|storage| async move {
+    with_aws_s3_storage(|storage, _| async move {
       let result = storage
         .range_url(
           "key2",
@@ -423,7 +427,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn file_size() {
-    with_aws_s3_storage(|storage| async move {
+    with_aws_s3_storage(|storage, _| async move {
       let result = storage
         .head("key2", HeadOptions::new(&Default::default()))
         .await;
@@ -435,7 +439,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn retrieval_type() {
-    with_aws_s3_storage(|storage| async move {
+    with_aws_s3_storage(|storage, _| async move {
       let result = storage.get_retrieval_type("key2").await;
       println!("{result:?}");
     })

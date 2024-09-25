@@ -155,34 +155,42 @@ impl Storage {
   }
 
   /// Create from local storage config.
-  pub async fn from_local(config: &LocalStorageConfig) -> Result<Storage> {
-    let storage = Storage::new(LocalStorage::new(config.local_path(), config.clone())?);
-    Ok(Storage::from_object_type(config.object_type(), storage))
+  pub async fn from_local(local_storage: &LocalStorageConfig) -> Result<Storage> {
+    let storage = Storage::new(LocalStorage::new(
+      local_storage.local_path(),
+      local_storage.clone(),
+    )?);
+    Ok(Storage::from_object_type(
+      local_storage.object_type(),
+      storage,
+    ))
   }
 
   /// Create from s3 config.
   #[cfg(feature = "s3-storage")]
   pub async fn from_s3(s3_storage: &S3StorageConfig) -> Storage {
-    Storage::new(
+    let storage = Storage::new(
       S3Storage::new_with_default_config(
         s3_storage.bucket().to_string(),
         s3_storage.clone().endpoint(),
         s3_storage.clone().path_style(),
       )
       .await,
-    )
+    );
+    Storage::from_object_type(s3_storage.object_type(), storage)
   }
 
   /// Create from url config.
   #[cfg(feature = "url-storage")]
-  pub async fn from_url(url_storage_config: &UrlStorageConfig) -> Storage {
-    Storage::new(UrlStorage::new(
-      url_storage_config.client_cloned(),
-      url_storage_config.url().clone(),
-      url_storage_config.response_url().clone(),
-      url_storage_config.forward_headers(),
-      url_storage_config.header_blacklist().to_vec(),
-    ))
+  pub async fn from_url(url_storage: &UrlStorageConfig) -> Storage {
+    let storage = Storage::new(UrlStorage::new(
+      url_storage.client_cloned(),
+      url_storage.url().clone(),
+      url_storage.response_url().clone(),
+      url_storage.forward_headers(),
+      url_storage.header_blacklist().to_vec(),
+    ));
+    Storage::from_object_type(url_storage.object_type(), storage)
   }
 
   pub fn new(inner: impl StorageTrait + Send + Sync + 'static) -> Self {
