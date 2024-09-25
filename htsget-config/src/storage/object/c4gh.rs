@@ -64,13 +64,16 @@ impl From<Crypt4GHError> for Error {
 #[cfg(test)]
 mod tests {
   use crate::config::tests::test_config_from_file;
+  use crate::config::Config;
   use crate::storage::Storage;
   use std::fs::copy;
   use std::path::PathBuf;
   use tempfile::TempDir;
 
-  #[test]
-  fn config_storage_c4gh() {
+  fn test_c4gh_storage_config<F>(storage_config: &str, test_fn: F)
+  where
+    F: Fn(Config),
+  {
     let tmp = TempDir::new().unwrap();
     let private_key = tmp.path().join("bob.sec");
     let recipient_public_key = tmp.path().join("alice.pub");
@@ -94,18 +97,62 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        type = "Local"
+        {}
         private_key = "{}"
         recipient_public_key = "{}"
         "#,
+        storage_config,
         private_key.to_string_lossy(),
         recipient_public_key.to_string_lossy()
       ),
       |config| {
         println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
+        test_fn(config);
+      },
+    );
+  }
+
+  #[test]
+  fn config_local_storage_c4gh() {
+    test_c4gh_storage_config(r#"type = "Local""#, |config| {
+      assert!(matches!(
             config.resolvers().first().unwrap().storage(),
             Storage::Local(local_storage) if local_storage.object_type().keys().is_some()
+      ));
+    });
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn config_s3_storage_c4gh() {
+    test_c4gh_storage_config(
+      r#"
+        type = "S3"
+        bucket = "bucket"
+        "#,
+      |config| {
+        assert!(matches!(
+              config.resolvers().first().unwrap().storage(),
+              Storage::S3(s3_storage) if s3_storage.object_type().keys().is_some()
+        ));
+      },
+    );
+  }
+
+  #[cfg(feature = "url-storage")]
+  #[test]
+  fn config_url_storage_c4gh() {
+    test_c4gh_storage_config(
+      r#"
+        type = "Url"
+        url = "https://example.com/"
+        response_url = "https://example.com/"
+        forward_headers = false
+        "#,
+      |config| {
+        assert!(matches!(
+              config.resolvers().first().unwrap().storage(),
+              Storage::Url(url_storage) if url_storage.object_type().keys().is_some()
         ));
       },
     );

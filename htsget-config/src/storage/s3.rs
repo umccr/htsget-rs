@@ -1,3 +1,4 @@
+use crate::storage::object::ObjectType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
@@ -6,15 +7,23 @@ pub struct S3Storage {
   pub(crate) bucket: String,
   pub(crate) endpoint: Option<String>,
   pub(crate) path_style: bool,
+  #[serde(flatten)]
+  pub(crate) object_type: ObjectType,
 }
 
 impl S3Storage {
   /// Create a new S3 storage.
-  pub fn new(bucket: String, endpoint: Option<String>, path_style: bool) -> Self {
+  pub fn new(
+    bucket: String,
+    endpoint: Option<String>,
+    path_style: bool,
+    object_type: ObjectType,
+  ) -> Self {
     Self {
       bucket,
       endpoint,
       path_style,
+      object_type,
     }
   }
 
@@ -31,6 +40,11 @@ impl S3Storage {
   /// Get the path style
   pub fn path_style(self) -> bool {
     self.path_style
+  }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    &self.object_type
   }
 }
 

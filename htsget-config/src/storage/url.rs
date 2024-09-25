@@ -8,6 +8,7 @@ use serde_with::with_prefix;
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::storage::local::default_authority;
+use crate::storage::object::ObjectType;
 use crate::tls::client::TlsClientConfig;
 
 fn default_url() -> ValidatedUrl {
@@ -28,6 +29,8 @@ pub struct UrlStorage {
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
+  #[serde(flatten)]
+  object_type: ObjectType,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -37,6 +40,7 @@ pub struct UrlStorageClient {
   response_url: ValidatedUrl,
   forward_headers: bool,
   header_blacklist: Vec<String>,
+  object_type: ObjectType,
   client: Client,
 }
 
@@ -66,6 +70,7 @@ impl TryFrom<UrlStorage> for UrlStorageClient {
       storage.response_url,
       storage.forward_headers,
       storage.header_blacklist,
+      storage.object_type,
       client,
     ))
   }
@@ -78,6 +83,7 @@ impl UrlStorageClient {
     response_url: ValidatedUrl,
     forward_headers: bool,
     header_blacklist: Vec<String>,
+    object_type: ObjectType,
     client: Client,
   ) -> Self {
     Self {
@@ -85,6 +91,7 @@ impl UrlStorageClient {
       response_url,
       forward_headers,
       header_blacklist,
+      object_type,
       client,
     }
   }
@@ -112,6 +119,11 @@ impl UrlStorageClient {
   /// Get an owned client by cloning.
   pub fn client_cloned(&self) -> Client {
     self.client.clone()
+  }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    &self.object_type
   }
 }
 
@@ -154,6 +166,7 @@ impl UrlStorage {
     forward_headers: bool,
     header_blacklist: Vec<String>,
     tls: TlsClientConfig,
+    object_type: ObjectType,
   ) -> Self {
     Self {
       url: ValidatedUrl(Url { inner: url }),
@@ -163,6 +176,7 @@ impl UrlStorage {
       forward_headers,
       header_blacklist,
       tls,
+      object_type,
     }
   }
 
@@ -186,6 +200,11 @@ impl UrlStorage {
   pub fn tls(&self) -> &TlsClientConfig {
     &self.tls
   }
+
+  /// Get the object type.
+  pub fn object_type(&self) -> &ObjectType {
+    &self.object_type
+  }
 }
 
 impl Default for UrlStorage {
@@ -196,6 +215,7 @@ impl Default for UrlStorage {
       forward_headers: true,
       header_blacklist: vec![],
       tls: TlsClientConfig::default(),
+      object_type: Default::default(),
     }
   }
 }
@@ -221,6 +241,7 @@ mod tests {
         true,
         vec![],
         client_config,
+        Default::default(),
       ));
 
       assert!(url_storage.is_ok());

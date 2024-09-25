@@ -193,6 +193,7 @@ For example, a `resolvers` value of:
 [[resolvers]]
 regex = '^(example_bucket)/(?P<key>.*)$'
 substitution_string = '$key'
+
 [resolvers.storage]
 type = 'S3'
 # Uses the first capture group in the regex as the bucket.
@@ -275,6 +276,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
+type = 'S3'
 bucket = 'bucket'
 
 [resolvers.allow_guard]
@@ -452,6 +454,7 @@ export HTSGET_RESOLVERS="[{
     regex=regex,
     substitution_string=substitution_string,
     storage={
+        type=S3,
         bucket=bucket
     },
     allow_guard={
@@ -483,6 +486,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
+type = 'S3'
 bucket = 'bucket'
 endpoint = 'http://127.0.0.1:9000'
 path_style = true
@@ -504,8 +508,7 @@ serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and r
 them. When the client receives byte ranges from htsget-rs and concatenates them, the output bytes will be Crypt4GH encrypted,
 and will need to be decrypted before they can be read. All file formats (BAM, CRAM, VCF, and BCF) are supported using Crypt4GH.
 
-To use this feature, an additional config option called `object_type` under `resolvers.storage` is required,
-which allows specifying the private and public keys:
+To use this feature, additional config under `resolvers.storage` is required to specify the private and public keys:
 
 | Option                 | Description                                                                                                                                                              | Type              | Default |
 |------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
@@ -516,17 +519,17 @@ For example:
 
 ```toml
 [[resolvers]]
-regex = ".*"
-substitution_string = "$0"
+regex = '.*'
+substitution_string = '$0'
 
 [resolvers.storage]
-object_type = { private_key = "data/c4gh/keys/bob.sec", recipient_public_key = "data/c4gh/keys/alice.pub" } # pragma: allowlist secret
+type = 'Local'
+private_key = 'data/c4gh/keys/bob.sec' # pragma: allowlist secret
+recipient_public_key = 'data/c4gh/keys/alice.pub'
 ```
 
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`, and the index file to be unencrypted. See the [`data/c4gh`][data-c4gh] for examples of file structure.
-
-> [!NOTE]  
-> This option is currently only supported for `LocalStorage`. The `object_type` will not have an effect if using `S3Storage` or `UrlStorage`.
+Any of the storage types are supported, i.e. `Local`, `S3`, or `Url`.
 
 ### As a library
 
@@ -541,7 +544,7 @@ regex, and changing it by using a substitution string.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `experimental`: used to enable `C4GHStorage` functionality.
+* `experimental`: used to enable experimental features like `C4GHStorage`.
 
 ## License
 

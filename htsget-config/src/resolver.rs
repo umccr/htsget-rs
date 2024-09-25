@@ -499,7 +499,7 @@ mod tests {
   #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn resolver_resolve_s3_request_tagged() {
-    let s3_storage = S3Storage::new("id".to_string(), None, false);
+    let s3_storage = S3Storage::new("id".to_string(), None, false, Default::default());
     let resolver = Resolver::new(
       Storage::S3(s3_storage),
       "(id)-1",
@@ -538,6 +538,7 @@ mod tests {
       }),
       true,
       vec![],
+      Default::default(),
       client,
     );
 
@@ -692,7 +693,8 @@ mod tests {
           Interval::new(Some(100), Some(1000)),
         );
         let resolver = config.resolvers().first().unwrap();
-        let expected_storage = S3Storage::new("bucket".to_string(), None, false);
+        let expected_storage =
+          S3Storage::new("bucket".to_string(), None, false, Default::default());
 
         assert_eq!(resolver.regex().to_string(), "regex");
         assert_eq!(resolver.substitution_string(), "substitution_string");
