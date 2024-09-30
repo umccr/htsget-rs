@@ -1,12 +1,13 @@
-use crate::storage::local::LocalStorage;
+use crate::storage::local::Local;
 #[cfg(feature = "s3-storage")]
-use crate::storage::s3::S3Storage;
+use crate::storage::s3::S3;
 #[cfg(feature = "url-storage")]
 use crate::storage::url::UrlStorageClient;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "experimental")]
+pub mod c4gh;
 pub mod local;
-pub mod object;
 #[cfg(feature = "s3-storage")]
 pub mod s3;
 #[cfg(feature = "url-storage")]
@@ -34,10 +35,10 @@ impl ResolvedId {
 #[non_exhaustive]
 pub enum Storage {
   #[serde(alias = "local", alias = "LOCAL")]
-  Local(LocalStorage),
+  Local(Local),
   #[cfg(feature = "s3-storage")]
   #[serde(alias = "s3")]
-  S3(S3Storage),
+  S3(S3),
   #[cfg(feature = "url-storage")]
   #[serde(alias = "url", alias = "URL")]
   Url(#[serde(skip_serializing)] UrlStorageClient),

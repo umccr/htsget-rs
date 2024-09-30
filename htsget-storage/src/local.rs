@@ -140,7 +140,7 @@ pub(crate) mod tests {
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
-  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::storage::local::Local as ConfigLocalStorage;
   use htsget_config::types::Scheme;
 
   use super::*;
@@ -345,7 +345,6 @@ pub(crate) mod tests {
         Authority::from_static("127.0.0.1:8081"),
         "data".to_string(),
         "/data".to_string(),
-        Default::default(),
         false,
       ),
     )

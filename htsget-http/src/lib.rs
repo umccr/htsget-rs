@@ -86,7 +86,7 @@ mod tests {
 
   use http::uri::Authority;
 
-  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::storage::local::Local as ConfigLocalStorage;
   use htsget_config::types::{Headers, JsonResponse, Request, Scheme, Url};
   use htsget_search::from_storage::HtsGetFromStorage;
   use htsget_search::HtsGet;
@@ -278,7 +278,6 @@ mod tests {
           Authority::from_static("127.0.0.1:8081"),
           "data".to_string(),
           "/data".to_string(),
-          Default::default(),
           false,
         ),
       )

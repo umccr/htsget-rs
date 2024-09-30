@@ -8,9 +8,9 @@ use serde_with::with_prefix;
 use tracing::instrument;
 
 use crate::config::DataServerConfig;
-use crate::storage::local::LocalStorage;
+use crate::storage::local::Local;
 #[cfg(feature = "s3-storage")]
-use crate::storage::s3::S3Storage;
+use crate::storage::s3::S3;
 #[cfg(feature = "url-storage")]
 use crate::storage::url::UrlStorageClient;
 use crate::storage::{ResolvedId, Storage};
@@ -27,11 +27,11 @@ pub trait IdResolver {
 #[async_trait]
 pub trait ResolveResponse {
   /// Convert from `LocalStorage`.
-  async fn from_local(local_storage: &LocalStorage, query: &Query) -> Result<Response>;
+  async fn from_local(local_storage: &Local, query: &Query) -> Result<Response>;
 
   /// Convert from `S3Storage`.
   #[cfg(feature = "s3-storage")]
-  async fn from_s3(s3_storage: &S3Storage, query: &Query) -> Result<Response>;
+  async fn from_s3(s3_storage: &S3, query: &Query) -> Result<Response>;
 
   /// Convert from `UrlStorage`.
   #[cfg(feature = "url-storage")]
@@ -444,7 +444,7 @@ mod tests {
 
   use crate::config::tests::{test_config_from_env, test_config_from_file};
   #[cfg(feature = "s3-storage")]
-  use crate::storage::s3::S3Storage;
+  use crate::storage::s3::S3;
   use crate::types::Scheme::Http;
   use crate::types::Url;
 
@@ -454,7 +454,7 @@ mod tests {
 
   #[async_trait]
   impl ResolveResponse for TestResolveResponse {
-    async fn from_local(local_storage: &LocalStorage, _: &Query) -> Result<Response> {
+    async fn from_local(local_storage: &Local, _: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
         vec![Url::new(local_storage.authority().to_string())],
@@ -462,7 +462,7 @@ mod tests {
     }
 
     #[cfg(feature = "s3-storage")]
-    async fn from_s3(s3_storage: &S3Storage, _: &Query) -> Result<Response> {
+    async fn from_s3(s3_storage: &S3, _: &Query) -> Result<Response> {
       Ok(Response::new(Bam, vec![Url::new(s3_storage.bucket())]))
     }
 
@@ -477,12 +477,11 @@ mod tests {
 
   #[tokio::test]
   async fn resolver_resolve_local_request() {
-    let local_storage = LocalStorage::new(
+    let local_storage = Local::new(
       Http,
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
-      Default::default(),
       false,
     );
     let resolver = Resolver::new(
@@ -499,7 +498,7 @@ mod tests {
   #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn resolver_resolve_s3_request_tagged() {
-    let s3_storage = S3Storage::new("id".to_string(), None, false, Default::default());
+    let s3_storage = S3::new("id".to_string(), None, false);
     let resolver = Resolver::new(
       Storage::S3(s3_storage),
       "(id)-1",
@@ -515,7 +514,7 @@ mod tests {
   #[tokio::test]
   async fn resolver_resolve_s3_request() {
     let resolver = Resolver::new(
-      Storage::S3(S3Storage::default()),
+      Storage::S3(S3::default()),
       "(id)-1",
       "$1-test",
       AllowGuard::default(),
@@ -538,7 +537,6 @@ mod tests {
       }),
       true,
       vec![],
-      Default::default(),
       client,
     );
 
@@ -693,8 +691,7 @@ mod tests {
           Interval::new(Some(100), Some(1000)),
         );
         let resolver = config.resolvers().first().unwrap();
-        let expected_storage =
-          S3Storage::new("bucket".to_string(), None, false, Default::default());
+        let expected_storage = S3::new("bucket".to_string(), None, false);
 
         assert_eq!(resolver.regex().to_string(), "regex");
         assert_eq!(resolver.substitution_string(), "substitution_string");

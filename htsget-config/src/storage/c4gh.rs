@@ -117,7 +117,7 @@ mod tests {
     test_c4gh_storage_config(r#"backend = "Local""#, |config| {
       assert!(matches!(
             config.resolvers().first().unwrap().storage(),
-            Storage::Local(local_storage) if local_storage.object_type().keys().is_some()
+            Storage::Local(local_storage) if local_storage.keys().is_some()
       ));
     });
   }
@@ -133,7 +133,7 @@ mod tests {
       |config| {
         assert!(matches!(
               config.resolvers().first().unwrap().storage(),
-              Storage::S3(s3_storage) if s3_storage.object_type().keys().is_some()
+              Storage::S3(s3_storage) if s3_storage.keys().is_some()
         ));
       },
     );
@@ -152,7 +152,7 @@ mod tests {
       |config| {
         assert!(matches!(
               config.resolvers().first().unwrap().storage(),
-              Storage::Url(url_storage) if url_storage.object_type().keys().is_some()
+              Storage::Url(url_storage) if url_storage.keys().is_some()
         ));
       },
     );

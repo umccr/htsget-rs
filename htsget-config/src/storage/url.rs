@@ -1,21 +1,19 @@
-use std::str::FromStr;
-
+use cfg_if::cfg_if;
 use http::Uri as InnerUrl;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
+use std::str::FromStr;
 
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
+#[cfg(feature = "experimental")]
+use crate::storage::c4gh::C4GHKeys;
 use crate::storage::local::default_authority;
-use crate::storage::object::ObjectType;
 use crate::tls::client::TlsClientConfig;
 
-fn default_url() -> ValidatedUrl {
-  ValidatedUrl(Url {
-    inner: InnerUrl::from_str(&format!("https://{}", default_authority()))
-      .expect("expected valid url"),
-  })
+fn default_url() -> InnerUrl {
+  InnerUrl::from_str(&format!("https://{}", default_authority())).expect("expected valid url")
 }
 
 with_prefix!(client_auth_prefix "client_");
@@ -29,8 +27,9 @@ pub struct UrlStorage {
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
-  #[serde(flatten)]
-  object_type: ObjectType,
+  #[serde(skip_serializing, flatten)]
+  #[cfg(feature = "experimental")]
+  keys: Option<C4GHKeys>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -40,8 +39,9 @@ pub struct UrlStorageClient {
   response_url: ValidatedUrl,
   forward_headers: bool,
   header_blacklist: Vec<String>,
-  object_type: ObjectType,
   client: Client,
+  #[cfg(feature = "experimental")]
+  keys: Option<C4GHKeys>,
 }
 
 impl TryFrom<UrlStorage> for UrlStorageClient {
@@ -65,14 +65,21 @@ impl TryFrom<UrlStorage> for UrlStorageClient {
       .build()
       .map_err(|err| ParseError(format!("building url storage client: {}", err)))?;
 
-    Ok(Self::new(
+    let url_storage = Self::new(
       storage.url,
       storage.response_url,
       storage.forward_headers,
       storage.header_blacklist,
-      storage.object_type,
       client,
-    ))
+    );
+
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        Ok(url_storage.set_keys(storage.keys))
+      } else {
+        Ok(url_storage)
+      }
+    }
   }
 }
 
@@ -83,7 +90,6 @@ impl UrlStorageClient {
     response_url: ValidatedUrl,
     forward_headers: bool,
     header_blacklist: Vec<String>,
-    object_type: ObjectType,
     client: Client,
   ) -> Self {
     Self {
@@ -91,8 +97,9 @@ impl UrlStorageClient {
       response_url,
       forward_headers,
       header_blacklist,
-      object_type,
       client,
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 
@@ -121,9 +128,17 @@ impl UrlStorageClient {
     self.client.clone()
   }
 
-  /// Get the object type.
-  pub fn object_type(&self) -> &ObjectType {
-    &self.object_type
+  #[cfg(feature = "experimental")]
+  /// Set the C4GH keys.
+  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+    self.keys = keys;
+    self
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Get the C4GH keys.
+  pub fn keys(&self) -> Option<&C4GHKeys> {
+    self.keys.as_ref()
   }
 }
 
@@ -166,7 +181,6 @@ impl UrlStorage {
     forward_headers: bool,
     header_blacklist: Vec<String>,
     tls: TlsClientConfig,
-    object_type: ObjectType,
   ) -> Self {
     Self {
       url: ValidatedUrl(Url { inner: url }),
@@ -176,7 +190,8 @@ impl UrlStorage {
       forward_headers,
       header_blacklist,
       tls,
-      object_type,
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 
@@ -201,22 +216,29 @@ impl UrlStorage {
     &self.tls
   }
 
-  /// Get the object type.
-  pub fn object_type(&self) -> &ObjectType {
-    &self.object_type
+  #[cfg(feature = "experimental")]
+  /// Set the C4GH keys.
+  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+    self.keys = keys;
+    self
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Get the C4GH keys.
+  pub fn keys(&self) -> Option<&C4GHKeys> {
+    self.keys.as_ref()
   }
 }
 
 impl Default for UrlStorage {
   fn default() -> Self {
-    Self {
-      url: default_url(),
-      response_url: default_url(),
-      forward_headers: true,
-      header_blacklist: vec![],
-      tls: TlsClientConfig::default(),
-      object_type: Default::default(),
-    }
+    Self::new(
+      default_url(),
+      default_url(),
+      true,
+      vec![],
+      TlsClientConfig::default(),
+    )
   }
 }
 
@@ -241,7 +263,6 @@ mod tests {
         true,
         vec![],
         client_config,
-        Default::default(),
       ));
 
       assert!(url_storage.is_ok());

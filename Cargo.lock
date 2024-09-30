@@ -2275,6 +2275,7 @@ name = "htsget-config"
 version = "0.10.1"
 dependencies = [
  "async-trait",
+ "cfg-if",
  "clap",
  "crypt4gh",
  "figment",

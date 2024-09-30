@@ -1,29 +1,27 @@
-use crate::storage::object::ObjectType;
+#[cfg(feature = "experimental")]
+use crate::storage::c4gh::C4GHKeys;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
 #[serde(default)]
-pub struct S3Storage {
+pub struct S3 {
   pub(crate) bucket: String,
   pub(crate) endpoint: Option<String>,
   pub(crate) path_style: bool,
-  #[serde(flatten)]
-  pub(crate) object_type: ObjectType,
+  #[serde(skip_serializing, flatten)]
+  #[cfg(feature = "experimental")]
+  pub(crate) keys: Option<C4GHKeys>,
 }
 
-impl S3Storage {
+impl S3 {
   /// Create a new S3 storage.
-  pub fn new(
-    bucket: String,
-    endpoint: Option<String>,
-    path_style: bool,
-    object_type: ObjectType,
-  ) -> Self {
+  pub fn new(bucket: String, endpoint: Option<String>, path_style: bool) -> Self {
     Self {
       bucket,
       endpoint,
       path_style,
-      object_type,
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 
@@ -42,9 +40,17 @@ impl S3Storage {
     self.path_style
   }
 
-  /// Get the object type.
-  pub fn object_type(&self) -> &ObjectType {
-    &self.object_type
+  #[cfg(feature = "experimental")]
+  /// Set the C4GH keys.
+  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+    self.keys = keys;
+    self
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Get the C4GH keys.
+  pub fn keys(&self) -> Option<&C4GHKeys> {
+    self.keys.as_ref()
   }
 }
 

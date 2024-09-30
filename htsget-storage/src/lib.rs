@@ -23,10 +23,11 @@ use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
 use cfg_if::cfg_if;
-use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
-use htsget_config::storage::object::ObjectType;
+#[cfg(feature = "experimental")]
+use htsget_config::storage::c4gh::C4GHKeys;
+use htsget_config::storage::local::Local as LocalStorageConfig;
 #[cfg(feature = "s3-storage")]
-use htsget_config::storage::s3::S3Storage as S3StorageConfig;
+use htsget_config::storage::s3::S3 as S3StorageConfig;
 #[cfg(feature = "url-storage")]
 use htsget_config::storage::url::UrlStorageClient as UrlStorageConfig;
 use htsget_config::types::Scheme;
@@ -136,21 +137,16 @@ impl StorageTrait for Storage {
 }
 
 impl Storage {
-  /// Wrap an existing storage with the object type storage.
-  pub fn from_object_type(_object_type: &ObjectType, storage: Storage) -> Storage {
-    cfg_if! {
-      if #[cfg(feature = "experimental")] {
-        if let Some(keys) = _object_type.keys() {
-          Storage::new(C4GHStorage::new_box(
-            keys.clone().into_inner(),
-            storage.into_inner(),
-          ))
-        } else {
-          storage
-        }
-      } else {
-        storage
-      }
+  #[cfg(feature = "experimental")]
+  /// Wrap an existing storage with C4GH storage
+  pub fn from_c4gh_keys(keys: Option<&C4GHKeys>, storage: Storage) -> Storage {
+    if let Some(keys) = keys {
+      Storage::new(C4GHStorage::new_box(
+        keys.clone().into_inner(),
+        storage.into_inner(),
+      ))
+    } else {
+      storage
     }
   }
 
@@ -160,10 +156,14 @@ impl Storage {
       local_storage.local_path(),
       local_storage.clone(),
     )?);
-    Ok(Storage::from_object_type(
-      local_storage.object_type(),
-      storage,
-    ))
+
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        Ok(Self::from_c4gh_keys(local_storage.keys(), storage))
+      } else {
+        Ok(storage)
+      }
+    }
   }
 
   /// Create from s3 config.
@@ -177,7 +177,14 @@ impl Storage {
       )
       .await,
     );
-    Storage::from_object_type(s3_storage.object_type(), storage)
+
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        Self::from_c4gh_keys(s3_storage.keys(), storage)
+      } else {
+        storage
+      }
+    }
   }
 
   /// Create from url config.
@@ -190,7 +197,14 @@ impl Storage {
       url_storage.forward_headers(),
       url_storage.header_blacklist().to_vec(),
     ));
-    Storage::from_object_type(url_storage.object_type(), storage)
+
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        Self::from_c4gh_keys(url_storage.keys(), storage)
+      } else {
+        storage
+      }
+    }
   }
 
   pub fn new(inner: impl StorageTrait + Send + Sync + 'static) -> Self {
@@ -265,7 +279,7 @@ pub trait UrlFormatter {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String>;
 }
 
-impl UrlFormatter for htsget_config::storage::local::LocalStorage {
+impl UrlFormatter for htsget_config::storage::local::Local {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
     uri::Builder::new()
       .scheme(match self.scheme() {
@@ -285,7 +299,7 @@ mod tests {
   use http::uri::Authority;
 
   use crate::local::LocalStorage;
-  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::storage::local::Local as ConfigLocalStorage;
   use htsget_test::util::default_dir;
 
   use super::*;
@@ -310,7 +324,6 @@ mod tests {
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
-      Default::default(),
       false,
     );
     test_formatter_authority(formatter, "http");
@@ -323,7 +336,6 @@ mod tests {
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
-      Default::default(),
       false,
     );
     test_formatter_authority(formatter, "https");

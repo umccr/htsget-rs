@@ -1,7 +1,7 @@
 use crate::util::default_dir;
 use crypt4gh::keys::{get_private_key, get_public_key};
 use crypt4gh::{decrypt, encrypt, Keys};
-use htsget_config::storage::object::c4gh::{C4GHKeys, C4GHPath};
+use htsget_config::storage::c4gh::{C4GHKeys, C4GHPath};
 use std::collections::HashSet;
 use std::io::{BufReader, BufWriter, Cursor};
 
