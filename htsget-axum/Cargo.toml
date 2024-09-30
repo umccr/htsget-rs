@@ -37,7 +37,7 @@ default = []
 hyper = { version = "1", features = ["http1", "http2", "server"] }
 rustls = "0.23"
 hyper-util = "0.1"
-tower-http = { version = "0.5", features = ["trace", "cors", "fs"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "fs"] }
 http = "1"
 axum = { version = "0.7", features = ["http2"] }
 axum-extra = { version = "0.9", features = ["erased-json"] }

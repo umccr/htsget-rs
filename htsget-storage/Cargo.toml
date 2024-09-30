@@ -62,7 +62,7 @@ htsget-config = { version = "0.10.1", path = "../htsget-config", default-feature
 htsget-test = { version = "0.6.2", path = "../htsget-test", features = ["http"], default-features = false }
 
 [dev-dependencies]
-tower-http = { version = "0.5", features = ["fs"] }
+tower-http = { version = "0.6", features = ["fs"] }
 axum = "0.7"
 tempfile = "3"
 data-url = "0.3"
