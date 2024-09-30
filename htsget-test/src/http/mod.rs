@@ -18,7 +18,7 @@ use serde::de;
 use htsget_config::config::cors::{AllowType, CorsConfig};
 use htsget_config::config::{DataServerConfig, TicketServerConfig};
 use htsget_config::resolver::Resolver;
-use htsget_config::storage::{local::LocalStorage, Storage};
+use htsget_config::storage::{local::Local, Storage};
 use htsget_config::tls::{
   load_certs, load_key, tls_server_config, CertificateKeyPair, TlsServerConfig,
 };
@@ -95,12 +95,11 @@ pub trait TestServer<T: TestRequest> {
 
 /// Get the default test storage.
 pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Vec<Resolver> {
-  let local_storage = LocalStorage::new(
+  let local_storage = Local::new(
     scheme,
     Authority::from_str(&addr.to_string()).unwrap(),
     default_dir_data().to_str().unwrap().to_string(),
     "/data".to_string(),
-    Default::default(),
     false,
   );
   vec![

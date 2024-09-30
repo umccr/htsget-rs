@@ -1,20 +1,19 @@
-use std::str::FromStr;
-
+use cfg_if::cfg_if;
 use http::Uri as InnerUrl;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
+use std::str::FromStr;
 
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
+#[cfg(feature = "experimental")]
+use crate::storage::c4gh::C4GHKeys;
 use crate::storage::local::default_authority;
 use crate::tls::client::TlsClientConfig;
 
-fn default_url() -> ValidatedUrl {
-  ValidatedUrl(Url {
-    inner: InnerUrl::from_str(&format!("https://{}", default_authority()))
-      .expect("expected valid url"),
-  })
+fn default_url() -> InnerUrl {
+  InnerUrl::from_str(&format!("https://{}", default_authority())).expect("expected valid url")
 }
 
 with_prefix!(client_auth_prefix "client_");
@@ -28,6 +27,9 @@ pub struct UrlStorage {
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
+  #[serde(skip_serializing, flatten)]
+  #[cfg(feature = "experimental")]
+  keys: Option<C4GHKeys>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -38,6 +40,8 @@ pub struct UrlStorageClient {
   forward_headers: bool,
   header_blacklist: Vec<String>,
   client: Client,
+  #[cfg(feature = "experimental")]
+  keys: Option<C4GHKeys>,
 }
 
 impl TryFrom<UrlStorage> for UrlStorageClient {
@@ -61,13 +65,21 @@ impl TryFrom<UrlStorage> for UrlStorageClient {
       .build()
       .map_err(|err| ParseError(format!("building url storage client: {}", err)))?;
 
-    Ok(Self::new(
+    let url_storage = Self::new(
       storage.url,
       storage.response_url,
       storage.forward_headers,
       storage.header_blacklist,
       client,
-    ))
+    );
+
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        Ok(url_storage.set_keys(storage.keys))
+      } else {
+        Ok(url_storage)
+      }
+    }
   }
 }
 
@@ -86,6 +98,8 @@ impl UrlStorageClient {
       forward_headers,
       header_blacklist,
       client,
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 
@@ -112,6 +126,19 @@ impl UrlStorageClient {
   /// Get an owned client by cloning.
   pub fn client_cloned(&self) -> Client {
     self.client.clone()
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Set the C4GH keys.
+  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+    self.keys = keys;
+    self
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Get the C4GH keys.
+  pub fn keys(&self) -> Option<&C4GHKeys> {
+    self.keys.as_ref()
   }
 }
 
@@ -163,6 +190,8 @@ impl UrlStorage {
       forward_headers,
       header_blacklist,
       tls,
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 
@@ -186,17 +215,30 @@ impl UrlStorage {
   pub fn tls(&self) -> &TlsClientConfig {
     &self.tls
   }
+
+  #[cfg(feature = "experimental")]
+  /// Set the C4GH keys.
+  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+    self.keys = keys;
+    self
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Get the C4GH keys.
+  pub fn keys(&self) -> Option<&C4GHKeys> {
+    self.keys.as_ref()
+  }
 }
 
 impl Default for UrlStorage {
   fn default() -> Self {
-    Self {
-      url: default_url(),
-      response_url: default_url(),
-      forward_headers: true,
-      header_blacklist: vec![],
-      tls: TlsClientConfig::default(),
-    }
+    Self::new(
+      default_url(),
+      default_url(),
+      true,
+      vec![],
+      TlsClientConfig::default(),
+    )
   }
 }
 
@@ -240,7 +282,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        type = "Url"
+        backend = "Url"
         url = "https://example.com/"
         response_url = "https://example.com/"
         forward_headers = false

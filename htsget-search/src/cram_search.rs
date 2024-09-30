@@ -274,7 +274,7 @@ impl CramSearch {
 mod tests {
   use std::future::Future;
 
-  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::storage::local::Local as ConfigLocalStorage;
   use htsget_test::http::concat::ConcatResponse;
 
   use super::*;

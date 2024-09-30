@@ -12,5 +12,5 @@ regex = ".*"
 substitution_string = "$0"
 
 [resolvers.storage]
-type = 'Local'
+backend = 'Local'
 use_data_server_config = true

@@ -6,7 +6,7 @@ use http::uri::Authority;
 use tokio::runtime::Runtime;
 
 use htsget_config::resolver::ResolveResponse;
-use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+use htsget_config::storage::local::Local as ConfigLocalStorage;
 use htsget_config::types::Class::Header;
 use htsget_config::types::Format::{Bam, Bcf, Cram, Vcf};
 use htsget_config::types::{HtsGetError, Query, Scheme};
@@ -22,7 +22,6 @@ async fn perform_query(query: Query) -> Result<(), HtsGetError> {
       Authority::from_static("127.0.0.1:8081"),
       "../data".to_string(),
       "/data".to_string(),
-      Default::default(),
       false,
     ),
     &query,

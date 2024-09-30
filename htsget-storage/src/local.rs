@@ -140,7 +140,7 @@ pub(crate) mod tests {
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
 
-  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::storage::local::Local as ConfigLocalStorage;
   use htsget_config::types::Scheme;
 
   use super::*;
@@ -150,7 +150,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn get_non_existing_key() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = storage.get("non-existing-key").await;
       assert!(matches!(result, Err(StorageError::KeyNotFound(msg)) if msg == "non-existing-key"));
     })
@@ -159,7 +159,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn get_folder() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::get(
         &storage,
         "folder",
@@ -173,7 +173,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn get_forbidden_path() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::get(
         &storage,
         "folder/../../passwords",
@@ -189,7 +189,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn get_existing_key() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::get(
         &storage,
         "folder/../key1",
@@ -203,7 +203,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_of_non_existing_key() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::range_url(
         &storage,
         "non-existing-key",
@@ -217,7 +217,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_of_folder() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::range_url(
         &storage,
         "folder",
@@ -231,7 +231,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_with_forbidden_path() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::range_url(
         &storage,
         "folder/../../passwords",
@@ -247,7 +247,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_of_existing_key() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::range_url(
         &storage,
         "folder/../key1",
@@ -262,7 +262,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_of_existing_key_with_specified_range() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::range_url(
         &storage,
         "folder/../key1",
@@ -281,7 +281,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn url_of_existing_key_with_specified_open_ended_range() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::range_url(
         &storage,
         "folder/../key1",
@@ -297,7 +297,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn file_size() {
-    with_local_storage(|storage| async move {
+    with_local_storage(|storage, _| async move {
       let result = StorageTrait::head(
         &storage,
         "folder/../key1",
@@ -345,7 +345,6 @@ pub(crate) mod tests {
         Authority::from_static("127.0.0.1:8081"),
         "data".to_string(),
         "/data".to_string(),
-        Default::default(),
         false,
       ),
     )
@@ -354,10 +353,14 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(LocalStorage<ConfigLocalStorage>) -> Fut,
+    F: FnOnce(LocalStorage<ConfigLocalStorage>, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
-    test(test_local_storage(base_path.path())).await
+    test(
+      test_local_storage(base_path.path()),
+      base_path.path().to_path_buf(),
+    )
+    .await
   }
 }

@@ -119,7 +119,7 @@ impl VcfSearch {
 
 #[cfg(test)]
 pub(crate) mod tests {
-  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::storage::local::Local as ConfigLocalStorage;
   use htsget_config::types::Class::Body;
   use htsget_test::http::concat::ConcatResponse;
   use std::future::Future;

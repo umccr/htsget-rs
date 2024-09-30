@@ -1,20 +1,27 @@
+#[cfg(feature = "experimental")]
+use crate::storage::c4gh::C4GHKeys;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
 #[serde(default)]
-pub struct S3Storage {
+pub struct S3 {
   pub(crate) bucket: String,
   pub(crate) endpoint: Option<String>,
   pub(crate) path_style: bool,
+  #[serde(skip_serializing, flatten)]
+  #[cfg(feature = "experimental")]
+  pub(crate) keys: Option<C4GHKeys>,
 }
 
-impl S3Storage {
+impl S3 {
   /// Create a new S3 storage.
   pub fn new(bucket: String, endpoint: Option<String>, path_style: bool) -> Self {
     Self {
       bucket,
       endpoint,
       path_style,
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 
@@ -32,6 +39,19 @@ impl S3Storage {
   pub fn path_style(self) -> bool {
     self.path_style
   }
+
+  #[cfg(feature = "experimental")]
+  /// Set the C4GH keys.
+  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+    self.keys = keys;
+    self
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Get the C4GH keys.
+  pub fn keys(&self) -> Option<&C4GHKeys> {
+    self.keys.as_ref()
+  }
 }
 
 #[cfg(test)]
@@ -47,7 +67,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        type = "S3"
+        backend = "S3"
         bucket = "bucket"
         "#,
       |config| {

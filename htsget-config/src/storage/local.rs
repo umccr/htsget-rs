@@ -4,7 +4,8 @@ use http::uri::Authority;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{default_localstorage_addr, default_path, DataServerConfig};
-use crate::storage::object::ObjectType;
+#[cfg(feature = "experimental")]
+use crate::storage::c4gh::C4GHKeys;
 use crate::tls::KeyPairScheme;
 use crate::types::Scheme;
 
@@ -18,25 +19,25 @@ fn default_local_path() -> String {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(default)]
-pub struct LocalStorage {
+pub struct Local {
   scheme: Scheme,
   #[serde(with = "http_serde::authority")]
   authority: Authority,
   local_path: String,
   path_prefix: String,
-  #[serde(flatten)]
-  object_type: ObjectType,
   use_data_server_config: bool,
+  #[serde(skip_serializing, flatten)]
+  #[cfg(feature = "experimental")]
+  keys: Option<C4GHKeys>,
 }
 
-impl LocalStorage {
+impl Local {
   /// Create a new local storage.
   pub fn new(
     scheme: Scheme,
     authority: Authority,
     local_path: String,
     path_prefix: String,
-    object_type: ObjectType,
     use_data_server_config: bool,
   ) -> Self {
     Self {
@@ -44,8 +45,9 @@ impl LocalStorage {
       authority,
       local_path,
       path_prefix,
-      object_type,
       use_data_server_config,
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 
@@ -69,38 +71,44 @@ impl LocalStorage {
     &self.path_prefix
   }
 
-  /// Get the object type.
-  pub fn object_type(&self) -> &ObjectType {
-    &self.object_type
-  }
-
   /// Get whether config should be inherited from the data server config.
   pub fn use_data_server_config(&self) -> bool {
     self.use_data_server_config
   }
-}
 
-impl Default for LocalStorage {
-  fn default() -> Self {
-    Self {
-      scheme: Scheme::Http,
-      authority: default_authority(),
-      local_path: default_local_path(),
-      path_prefix: Default::default(),
-      object_type: Default::default(),
-      use_data_server_config: false,
-    }
+  #[cfg(feature = "experimental")]
+  /// Set the C4GH keys.
+  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+    self.keys = keys;
+    self
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Get the C4GH keys.
+  pub fn keys(&self) -> Option<&C4GHKeys> {
+    self.keys.as_ref()
   }
 }
 
-impl From<&DataServerConfig> for LocalStorage {
+impl Default for Local {
+  fn default() -> Self {
+    Self::new(
+      Scheme::Http,
+      default_authority(),
+      default_local_path(),
+      Default::default(),
+      false,
+    )
+  }
+}
+
+impl From<&DataServerConfig> for Local {
   fn from(config: &DataServerConfig) -> Self {
-    LocalStorage::new(
+    Self::new(
       config.tls().get_scheme(),
       Authority::from_str(&config.addr().to_string()).expect("expected valid authority"),
       config.local_path().to_string_lossy().to_string(),
       config.serve_at().to_string(),
-      Default::default(),
       true,
     )
   }
@@ -126,7 +134,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        type = "Local"
+        backend = "Local"
         local_path = "path"
         scheme = "HTTPS"
         path_prefix = "path"
@@ -151,13 +159,12 @@ mod tests {
       None,
       CorsConfig::default(),
     );
-    let result: LocalStorage = (&data_server_config).into();
-    let expected = LocalStorage::new(
+    let result: Local = (&data_server_config).into();
+    let expected = Local::new(
       Http,
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
       "/data".to_string(),
-      Default::default(),
       true,
     );
 

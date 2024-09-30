@@ -12,5 +12,5 @@ regex = ".*"
 substitution_string = "$0"
 
 [resolvers.storage]
-type = 'S3'
+backend = 'S3'
 bucket = "bucket"

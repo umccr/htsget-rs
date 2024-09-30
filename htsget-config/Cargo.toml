@@ -12,14 +12,14 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 s3-storage = []
-url-storage = ["dep:reqwest"]
+url-storage = ["dep:reqwest", "dep:cfg-if"]
 experimental = ["dep:crypt4gh"]
 default = []
 
 [dependencies]
 thiserror = "1"
 async-trait = "0.1"
-noodles = { version = "0.82", features = ["core"] }
+noodles = { version = "0.83", features = ["core"] }
 serde = { version = "1", features = ["derive"] }
 serde_with = "3"
 serde_regex = "1"
@@ -37,6 +37,7 @@ rustls-pki-types = "1"
 
 # url-storage
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false, optional = true }
+cfg-if = { version = "1", optional = true }
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }

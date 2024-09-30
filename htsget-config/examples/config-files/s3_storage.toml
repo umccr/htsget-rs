@@ -11,9 +11,9 @@ data_server_enabled = false
 [[resolvers]]
 regex = '^(bucket)/(?P<key>.*)$'
 substitution_string = '$key'
-storage.type = 'S3'
+storage.backend = 'S3'
 
 # Or, set the bucket manually
 #[resolvers.storage]
-#type = 'S3'
+#backend = 'S3'
 #bucket = 'bucket'

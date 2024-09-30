@@ -151,7 +151,7 @@ pub(crate) mod tests {
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-  use htsget_config::storage::local::LocalStorage as ConfigLocalStorage;
+  use htsget_config::storage::local::Local as ConfigLocalStorage;
   use htsget_storage::local::LocalStorage;
   use htsget_test::http::concat::ConcatResponse;
   use std::future::Future;

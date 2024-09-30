@@ -6,9 +6,9 @@ use tracing::debug;
 use tracing::instrument;
 
 use htsget_config::resolver::{ResolveResponse, StorageResolver};
-use htsget_config::storage::local::LocalStorage as LocalStorageConfig;
+use htsget_config::storage::local::Local as LocalStorageConfig;
 #[cfg(feature = "s3-storage")]
-use htsget_config::storage::s3::S3Storage as S3StorageConfig;
+use htsget_config::storage::s3::S3 as S3StorageConfig;
 #[cfg(feature = "url-storage")]
 use htsget_config::storage::url::UrlStorageClient as UrlStorageConfig;
 
@@ -271,7 +271,6 @@ pub(crate) mod tests {
         Authority::from_static("127.0.0.1:8081"),
         base_path.to_str().unwrap().to_string(),
         "/data".to_string(),
-        Default::default(),
         false,
       ),
     )

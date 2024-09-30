@@ -40,7 +40,7 @@ This crate has the following features:
 * `aws-mocks`: used to enable AWS mocking for tests.
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `experimental`: used to enable `C4GHStorage` functionality.
+* `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 [dev-dependencies]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies
 

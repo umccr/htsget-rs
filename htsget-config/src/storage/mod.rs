@@ -1,12 +1,13 @@
-use crate::storage::local::LocalStorage;
+use crate::storage::local::Local;
 #[cfg(feature = "s3-storage")]
-use crate::storage::s3::S3Storage;
+use crate::storage::s3::S3;
 #[cfg(feature = "url-storage")]
 use crate::storage::url::UrlStorageClient;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "experimental")]
+pub mod c4gh;
 pub mod local;
-pub mod object;
 #[cfg(feature = "s3-storage")]
 pub mod s3;
 #[cfg(feature = "url-storage")]
@@ -30,14 +31,14 @@ impl ResolvedId {
 
 /// Specify the storage backend to use as config values.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type")]
+#[serde(tag = "backend")]
 #[non_exhaustive]
 pub enum Storage {
   #[serde(alias = "local", alias = "LOCAL")]
-  Local(LocalStorage),
+  Local(Local),
   #[cfg(feature = "s3-storage")]
   #[serde(alias = "s3")]
-  S3(S3Storage),
+  S3(S3),
   #[cfg(feature = "url-storage")]
   #[serde(alias = "url", alias = "URL")]
   Url(#[serde(skip_serializing)] UrlStorageClient),
@@ -61,7 +62,7 @@ pub(crate) mod tests {
       r#"
       [[resolvers]]
       [resolvers.storage]
-      type = "Local"
+      backend = "Local"
       regex = "regex"
       "#,
       |config| {
@@ -79,7 +80,7 @@ pub(crate) mod tests {
     test_config_from_env(
       vec![(
         "HTSGET_RESOLVERS",
-        "[{storage={ type=Local, use_data_server_config=true}}]",
+        "[{storage={ backend=Local, use_data_server_config=true}}]",
       )],
       |config| {
         assert!(matches!(
@@ -97,7 +98,7 @@ pub(crate) mod tests {
       r#"
       [[resolvers]]
       [resolvers.storage]
-      type = "S3"
+      backend = "S3"
       regex = "regex"
       "#,
       |config| {
@@ -114,7 +115,7 @@ pub(crate) mod tests {
   #[test]
   fn config_storage_tagged_s3_env() {
     test_config_from_env(
-      vec![("HTSGET_RESOLVERS", "[{storage={ type=S3 }}]")],
+      vec![("HTSGET_RESOLVERS", "[{storage={ backend=S3 }}]")],
       |config| {
         assert!(matches!(
           config.resolvers().first().unwrap().storage(),

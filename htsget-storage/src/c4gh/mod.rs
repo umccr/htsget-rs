@@ -141,13 +141,14 @@ impl DeserializedHeader {
       data,
     ))
   }
-
-  /// Decrypt the
-  pub fn decrypt_stream() {}
 }
 
 /// Convert an encrypted file position to an unencrypted position if the header length is known.
 pub fn to_unencrypted(encrypted_position: u64, header_length: u64) -> u64 {
+  if encrypted_position < header_length + NONCE_SIZE {
+    return 0;
+  }
+
   let number_data_blocks = encrypted_position / DATA_BLOCK_SIZE;
   let mut additional_bytes = number_data_blocks * (NONCE_SIZE + MAC_SIZE);
 
@@ -161,6 +162,10 @@ pub fn to_unencrypted(encrypted_position: u64, header_length: u64) -> u64 {
 
 /// Convert an encrypted file size to an unencrypted file size if the header length is known.
 pub fn to_unencrypted_file_size(encrypted_file_size: u64, header_length: u64) -> u64 {
+  if encrypted_file_size < header_length + NONCE_SIZE + MAC_SIZE {
+    return 0;
+  }
+
   to_unencrypted(encrypted_file_size, header_length) - MAC_SIZE
 }
 
@@ -270,6 +275,26 @@ mod tests {
     let expected = 100176;
     let result = unencrypted_to_next_data_block(pos, 120, to_encrypted_file_size(100000, 120));
     assert_eq!(result, expected);
+  }
+
+  #[test]
+  fn test_to_unencrypted() {
+    let result = to_unencrypted(124, 124);
+    assert_eq!(result, 0);
+    let result = to_unencrypted(124 + 12, 124);
+    assert_eq!(result, 0);
+    let result = to_unencrypted(124 + 12 + 12, 124);
+    assert_eq!(result, 12);
+  }
+
+  #[test]
+  fn test_to_unencrypted_file_size() {
+    let result = to_unencrypted_file_size(124, 124);
+    assert_eq!(result, 0);
+    let result = to_unencrypted_file_size(124 + 12 + 16, 124);
+    assert_eq!(result, 0);
+    let result = to_unencrypted_file_size(124 + 12 + 16 + 12, 124);
+    assert_eq!(result, 12);
   }
 
   #[test]
