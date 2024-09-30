@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.17...htsget-lambda-v0.5.0) - 2024-09-30
+
+### Added
+
+- *(config)* add configuration values for C4GH S3 and Url storage
+- Crypt4GH support using LocalStorage
+
+### Fixed
+
+- explicitly choose aws_lc_rs as the crypto provider
+
+### Other
+
+- *(deps)* bump noodles and tower
+- rename type to backend and clarify experimental feature flag
+- [**breaking**] rename c4gh-experimental to experimental
+- Merge pull request [#259](https://github.com/umccr/htsget-rs/pull/259) from umccr/release-plz-2024-09-03T01-36-36Z
+- add more server tests and fix Dockerfile.dockerignore
+- [**breaking**] remove htsget-lambda library code and replace with axum router
+
 ## [0.4.17](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.4.16...htsget-lambda-v0.4.17) - 2024-08-04
 
 ### Other

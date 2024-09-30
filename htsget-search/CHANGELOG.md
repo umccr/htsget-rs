@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.8.1...htsget-search-v0.9.0) - 2024-09-30
+
+### Added
+
+- *(config)* add configuration values for C4GH S3 and Url storage
+- Crypt4GH support using LocalStorage
+
+### Other
+
+- *(deps)* bump noodles and tower
+- remove `ObjectType` in favour of a more flattened config hierarchy
+- rename type to backend and clarify experimental feature flag
+- [**breaking**] make storage config more explicit
+- bump noodles and other dependencies
+- [**breaking**] rename c4gh-experimental to experimental
+- [**breaking**] split out storage lib.rs into another types.rs module
+- *(storage)* use preprocess and postprocess for C4GH storage instead of Arc<Mutex<..>>
+- [**breaking**] allow mutable search trait, use way less Arcs and clones
+
 ## [0.8.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.8.0...htsget-search-v0.8.1) - 2024-09-03
 
 ### Other

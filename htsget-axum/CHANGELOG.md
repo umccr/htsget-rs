@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.1.1...htsget-axum-v0.2.0) - 2024-09-30
+
+### Added
+
+- *(config)* add configuration values for C4GH S3 and Url storage
+- Crypt4GH support using LocalStorage
+
+### Fixed
+
+- explicitly choose aws_lc_rs as the crypto provider
+
+### Other
+
+- *(deps)* bump noodles and tower
+- rename type to backend and clarify experimental feature flag
+- bump noodles and other dependencies
+- [**breaking**] rename c4gh-experimental to experimental
+- [**breaking**] allow mutable search trait, use way less Arcs and clones
+- add example on how to use Crypt4GH with the htsget-rs server
+
 ## [0.1.1](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.1.0...htsget-axum-v0.1.1) - 2024-09-03
 
 ### Other

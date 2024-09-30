@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.16...htsget-http-v0.5.0) - 2024-09-30
+
+### Added
+
+- *(config)* add configuration values for C4GH S3 and Url storage
+- Crypt4GH support using LocalStorage
+
+### Other
+
+- remove `ObjectType` in favour of a more flattened config hierarchy
+- rename type to backend and clarify experimental feature flag
+- [**breaking**] make storage config more explicit
+- [**breaking**] rename c4gh-experimental to experimental
+- [**breaking**] allow mutable search trait, use way less Arcs and clones
+
 ## [0.4.16](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.4.15...htsget-http-v0.4.16) - 2024-09-03
 
 ### Other
