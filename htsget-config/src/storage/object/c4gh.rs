@@ -114,7 +114,7 @@ mod tests {
 
   #[test]
   fn config_local_storage_c4gh() {
-    test_c4gh_storage_config(r#"type = "Local""#, |config| {
+    test_c4gh_storage_config(r#"backend = "Local""#, |config| {
       assert!(matches!(
             config.resolvers().first().unwrap().storage(),
             Storage::Local(local_storage) if local_storage.object_type().keys().is_some()
@@ -127,7 +127,7 @@ mod tests {
   fn config_s3_storage_c4gh() {
     test_c4gh_storage_config(
       r#"
-        type = "S3"
+        backend = "S3"
         bucket = "bucket"
         "#,
       |config| {
@@ -144,7 +144,7 @@ mod tests {
   fn config_url_storage_c4gh() {
     test_c4gh_storage_config(
       r#"
-        type = "Url"
+        backend = "Url"
         url = "https://example.com/"
         response_url = "https://example.com/"
         forward_headers = false

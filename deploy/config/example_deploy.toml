@@ -17,4 +17,4 @@ environment = "dev"
 [[resolvers]]
 regex = '^(?P<bucket>.*?)/(?P<key>.*)$'
 substitution_string = '$key'
-storage.type = 'S3'
+storage.backend = 'S3'

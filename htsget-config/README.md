@@ -151,7 +151,7 @@ For more information about regex options see the [regex crate](https://docs.rs/r
 Each resolver also maps to a certain storage backend. This storage backend can be used to set query IDs which are served from local storage, from S3-style bucket storage, or from HTTP URLs.
 To set the storage backend for a resolver, add a `[resolvers.storage]` table. Some storage backends require feature flags to be set when compiling htsget-rs.
 
-To use `LocalStorage`, set `type = 'Local'` under `[resolvers.storage]`, and specify any additional options from below:
+To use `LocalStorage`, set `backend = 'Local'` under `[resolvers.storage]`, and specify any additional options from below:
 
 | Option                   | Description                                                                                                                         | Type                         | Default            |
 |--------------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
@@ -161,7 +161,7 @@ To use `LocalStorage`, set `type = 'Local'` under `[resolvers.storage]`, and spe
 | `path_prefix`            | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | URL path                     | `''`               |
 | `use_data_server_config` | Whether to use the data server config to fill in the above values. This overrides any other options specified from this table.      | Boolean                      | `false`            |
 
-To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, set `type = 'S3'` under `[resolvers.storage]`, and specify any additional options from below:
+To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, set `backend = 'S3'` under `[resolvers.storage]`, and specify any additional options from below:
 
 | Option       | Description                                                                                                                                                                   | Type    | Default                                                                                                                   |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------|
@@ -170,7 +170,7 @@ To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, set `
 | `path_style` | The S3 path style to request from the storage backend. If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used.  | Boolean | `false`                                                                                                                   |
 
 `UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
-To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, set `type = 'Url'` under `[resolvers.storage]`, and specify any additional options from below:
+To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, set `backend = 'Url'` under `[resolvers.storage]`, and specify any additional options from below:
 
 | Option                               | Description                                                                                                                 | Type                     | Default                                                                                                         |
 |--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
@@ -195,7 +195,7 @@ regex = '^(example_bucket)/(?P<key>.*)$'
 substitution_string = '$key'
 
 [resolvers.storage]
-type = 'S3'
+backend = 'S3'
 # Uses the first capture group in the regex as the bucket.
 ```
 Will use "example_bucket" as the S3 bucket if that resolver matches, because this is the first capture group in the `regex`.
@@ -210,7 +210,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
-type = 'Local'
+backend = 'Local'
 scheme = 'Http'
 authority = '127.0.0.1:8081'
 local_path = './'
@@ -225,7 +225,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
-type = 'S3'
+backend = 'S3'
 bucket = 'bucket'
 ```
 
@@ -237,7 +237,7 @@ regex = ".*"
 substitution_string = "$0"
 
 [resolvers.storage]
-type = 'Url'
+backend = 'Url'
 url = "http://localhost:8080"
 response_url = "https://example.com"
 forward_headers = true
@@ -276,7 +276,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
-type = 'S3'
+backend = 'S3'
 bucket = 'bucket'
 
 [resolvers.allow_guard]
@@ -486,7 +486,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
-type = 'S3'
+backend = 'S3'
 bucket = 'bucket'
 endpoint = 'http://127.0.0.1:9000'
 path_style = true
@@ -523,7 +523,7 @@ regex = '.*'
 substitution_string = '$0'
 
 [resolvers.storage]
-type = 'Local'
+backend = 'Local'
 private_key = 'data/c4gh/keys/bob.sec' # pragma: allowlist secret
 recipient_public_key = 'data/c4gh/keys/alice.pub'
 ```
@@ -544,7 +544,7 @@ regex, and changing it by using a substitution string.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `experimental`: used to enable experimental features like `C4GHStorage`.
+* `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 ## License
 

@@ -775,7 +775,7 @@ pub(crate) mod tests {
 
     [[resolvers]]
     [resolvers.storage]
-    type = "Local"
+    backend = "Local"
     use_data_server_config = true
     "#,
       |config| {

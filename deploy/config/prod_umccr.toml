@@ -22,14 +22,14 @@ environment = "prod"
 [[resolvers]]
 regex = '^(umccr-research-dev)/(?P<key>.*)$'
 substitution_string = '$key'
-storage.type = 'S3'
+storage.backend = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-validation-prod)/(?P<key>.*)$'
 substitution_string = '$key'
-storage.type = 'S3'
+storage.backend = 'S3'
 
 [[resolvers]]
 regex = '^(umccr-primary-data-prod)/(?P<key>.*)$'
 substitution_string = '$key'
-storage.type = 'S3'
+storage.backend = 'S3'

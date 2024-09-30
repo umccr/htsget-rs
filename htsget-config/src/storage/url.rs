@@ -261,7 +261,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        type = "Url"
+        backend = "Url"
         url = "https://example.com/"
         response_url = "https://example.com/"
         forward_headers = false

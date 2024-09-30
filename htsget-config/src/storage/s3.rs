@@ -61,7 +61,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        type = "S3"
+        backend = "S3"
         bucket = "bucket"
         "#,
       |config| {

@@ -126,7 +126,7 @@ mod tests {
         regex = "regex"
 
         [resolvers.storage]
-        type = "Local"
+        backend = "Local"
         local_path = "path"
         scheme = "HTTPS"
         path_prefix = "path"

@@ -49,7 +49,7 @@ and [url] modules implement the `Storage` functionality.
 This crate has the following features:
 * `s3-storage`: used to enable `S3Storage` functionality.
 * `url-storage`: used to enable `UrlStorage` functionality.
-* `experimental`: used to enable experimental features like `C4GHStorage`.
+* `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 [local]: src/local.rs
 [s3]: src/s3.rs

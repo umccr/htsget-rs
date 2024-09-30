@@ -30,7 +30,7 @@ impl ResolvedId {
 
 /// Specify the storage backend to use as config values.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type")]
+#[serde(tag = "backend")]
 #[non_exhaustive]
 pub enum Storage {
   #[serde(alias = "local", alias = "LOCAL")]
@@ -61,7 +61,7 @@ pub(crate) mod tests {
       r#"
       [[resolvers]]
       [resolvers.storage]
-      type = "Local"
+      backend = "Local"
       regex = "regex"
       "#,
       |config| {
@@ -79,7 +79,7 @@ pub(crate) mod tests {
     test_config_from_env(
       vec![(
         "HTSGET_RESOLVERS",
-        "[{storage={ type=Local, use_data_server_config=true}}]",
+        "[{storage={ backend=Local, use_data_server_config=true}}]",
       )],
       |config| {
         assert!(matches!(
@@ -97,7 +97,7 @@ pub(crate) mod tests {
       r#"
       [[resolvers]]
       [resolvers.storage]
-      type = "S3"
+      backend = "S3"
       regex = "regex"
       "#,
       |config| {
@@ -114,7 +114,7 @@ pub(crate) mod tests {
   #[test]
   fn config_storage_tagged_s3_env() {
     test_config_from_env(
-      vec![("HTSGET_RESOLVERS", "[{storage={ type=S3 }}]")],
+      vec![("HTSGET_RESOLVERS", "[{storage={ backend=S3 }}]")],
       |config| {
         assert!(matches!(
           config.resolvers().first().unwrap().storage(),

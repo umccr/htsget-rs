@@ -678,7 +678,7 @@ mod tests {
       vec![(
         "HTSGET_RESOLVERS",
         "[{ regex=regex, substitution_string=substitution_string, \
-        storage={ type=S3, bucket=bucket }, \
+        storage={ backend=S3, bucket=bucket }, \
         allow_guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
         allow_formats=[BAM], allow_classes=[body], allow_interval_start=100, \
         allow_interval_end=1000 } }]",
