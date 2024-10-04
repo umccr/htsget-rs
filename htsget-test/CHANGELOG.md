@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.6.2...htsget-test-v0.7.0) - 2024-09-30
+
+### Added
+
+- *(config)* add configuration values for C4GH S3 and Url storage
+- Crypt4GH support using LocalStorage
+
+### Other
+
+- *(deps)* bump noodles and tower
+- remove `ObjectType` in favour of a more flattened config hierarchy
+- rename type to backend and clarify experimental feature flag
+- [**breaking**] make storage config more explicit
+- bump noodles and other dependencies
+- [**breaking**] rename c4gh-experimental to experimental
+- *(storage)* add c4gh storage tests
+- add more server tests and fix Dockerfile.dockerignore
+- [**breaking**] remove htsget-lambda library code and replace with axum router
+
 ## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.6.1...htsget-test-v0.6.2) - 2024-08-04
 
 ### Other

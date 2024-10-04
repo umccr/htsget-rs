@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.6.2...htsget-actix-v0.7.0) - 2024-09-30
+
+### Added
+
+- *(config)* add configuration values for C4GH S3 and Url storage
+- Crypt4GH support using LocalStorage
+
+### Fixed
+
+- explicitly choose aws_lc_rs as the crypto provider
+
+### Other
+
+- rename type to backend and clarify experimental feature flag
+- [**breaking**] rename c4gh-experimental to experimental
+- [**breaking**] allow mutable search trait, use way less Arcs and clones
+- Merge pull request [#259](https://github.com/umccr/htsget-rs/pull/259) from umccr/release-plz-2024-09-03T01-36-36Z
+- [**breaking**] remove htsget-lambda library code and replace with axum router
+
 ## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.6.1...htsget-actix-v0.6.2) - 2024-08-04
 
 ### Added

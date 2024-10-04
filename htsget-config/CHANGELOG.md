@@ -6,6 +6,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.10.1...htsget-config-v0.11.0) - 2024-09-30
+
+### Added
+
+- *(config)* add configuration values for C4GH S3 and Url storage
+- Crypt4GH support using LocalStorage
+
+### Fixed
+
+- explicitly choose aws_lc_rs as the crypto provider
+
+### Other
+
+- *(deps)* bump noodles and tower
+- remove `ObjectType` in favour of a more flattened config hierarchy
+- rename type to backend and clarify experimental feature flag
+- *(config)* slight adjustment to reduce conditionally compiled code branches
+- [**breaking**] make storage config more explicit
+- *(config)* [**breaking**] remove object type and specify keys directly
+- bump noodles and other dependencies
+- [**breaking**] rename c4gh-experimental to experimental
+- add more server tests and fix Dockerfile.dockerignore
+
 ## [0.10.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.10.0...htsget-config-v0.10.1) - 2024-08-04
 
 ### Fixed
