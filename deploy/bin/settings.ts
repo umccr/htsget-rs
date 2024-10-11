@@ -1,4 +1,4 @@
-import { HtsgetSettings } from "../lib/htsget-lambda-stack";
+import { HtsgetSettings } from "../lib/htsget-lambda-construct";
 
 /**
  * Settings to use for the htsget deployment.

@@ -7,7 +7,6 @@ import {
   Duration,
   RemovalPolicy,
   Stack,
-  StackProps,
   Tags,
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
@@ -44,7 +43,7 @@ import {
 import { BucketDeployment, Source } from "aws-cdk-lib/aws-s3-deployment";
 
 /**
- * Settings related to the htsget lambda stack.
+ * Settings related to the htsget lambda construct props.
  */
 export type HtsgetSettings = {
   /**
@@ -67,7 +66,7 @@ export type HtsgetSettings = {
    * This affects which buckets are allowed to be accessed by the policy actions which are `["s3:List*", "s3:Get*"]`.
    * Note that this option does not create buckets, it only gives permission to access them, see the `createS3Buckets`
    * option. This option must be specified to allow `htsget-rs` to access data in buckets that are not created in
-   * this stack.
+   * this construct.
    */
   s3BucketResources: string[];
 
@@ -164,16 +163,15 @@ export type Config = {
 };
 
 /**
- * Stack used to deploy htsget-lambda.
+ * Construct used to deploy htsget-lambda.
  */
-export class HtsgetLambdaStack extends Stack {
+export class HtsgetLambdaConstruct extends Construct {
   constructor(
     scope: Construct,
     id: string,
-    props: StackProps,
     settings: HtsgetSettings,
   ) {
-    super(scope, id, props);
+    super(scope, id);
 
     Tags.of(this).add("Stack", STACK_NAME);
 
@@ -258,7 +256,7 @@ export class HtsgetLambdaStack extends Stack {
 
       authorizer = new HttpJwtAuthorizer(
         id + "HtsgetAuthorizer",
-        `https://cognito-idp.${this.region}.amazonaws.com/${settings.jwtAuthorizer.cogUserPoolId}`,
+        `https://cognito-idp.${Stack.of(this).region}.amazonaws.com/${settings.jwtAuthorizer.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
           jwtAudience: settings.jwtAuthorizer.jwtAudience ?? [],
@@ -379,24 +377,24 @@ export class HtsgetLambdaStack extends Stack {
     const configToml = TOML.parse(readFileSync(config).toString());
 
     return {
-      htsgetConfig: HtsgetLambdaStack.configToEnv(configToml),
+      htsgetConfig: HtsgetLambdaConstruct.configToEnv(configToml),
       allowCredentials:
         configToml.ticket_server_cors_allow_credentials as boolean,
-      allowHeaders: HtsgetLambdaStack.convertCors(
+      allowHeaders: HtsgetLambdaConstruct.convertCors(
         configToml,
         "ticket_server_cors_allow_headers",
       ),
-      allowMethods: HtsgetLambdaStack.corsAllowMethodToHttpMethod(
-        HtsgetLambdaStack.convertCors(
+      allowMethods: HtsgetLambdaConstruct.corsAllowMethodToHttpMethod(
+        HtsgetLambdaConstruct.convertCors(
           configToml,
           "ticket_server_cors_allow_methods",
         ),
       ),
-      allowOrigins: HtsgetLambdaStack.convertCors(
+      allowOrigins: HtsgetLambdaConstruct.convertCors(
         configToml,
         "ticket_server_cors_allow_origins",
       ),
-      exposeHeaders: HtsgetLambdaStack.convertCors(
+      exposeHeaders: HtsgetLambdaConstruct.convertCors(
         configToml,
         "ticket_server_cors_expose_headers",
       ),
