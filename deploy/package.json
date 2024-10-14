@@ -1,6 +1,6 @@
 {
   "name": "htsget-lambda",
-  "version": "1.0",
+  "version": "1.0.0",
   "bin": {
     "htsget_app": "bin/htsget-lambda.js"
   },
