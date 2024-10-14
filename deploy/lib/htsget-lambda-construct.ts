@@ -5,7 +5,6 @@ import {
   CfnOutput,
   Duration,
   RemovalPolicy,
-  Stack,
   Tags,
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
@@ -172,6 +171,7 @@ export class HtsgetLambdaConstruct extends Construct {
   ) {
     super(scope, id);
 
+    const region = process.env.CDK_DEFAULT_REGION || "us-east-1";
     const config = this.getConfig(settings.config);
 
     const lambdaRole = new Role(this, id + "Role", {
@@ -253,7 +253,7 @@ export class HtsgetLambdaConstruct extends Construct {
 
       authorizer = new HttpJwtAuthorizer(
         id + "HtsgetAuthorizer",
-        `https://cognito-idp.${Stack.of(this).region}.amazonaws.com/${settings.jwtAuthorizer.cogUserPoolId}`,
+        `https://cognito-idp.${region}.amazonaws.com/${settings.jwtAuthorizer.cogUserPoolId}`,
         {
           identitySource: ["$request.header.Authorization"],
           jwtAudience: settings.jwtAuthorizer.jwtAudience ?? [],
