@@ -1,4 +1,3 @@
-import { STACK_NAME } from "../bin/htsget-lambda";
 import * as TOML from "@iarna/toml";
 import { readFileSync } from "fs";
 
@@ -172,8 +171,6 @@ export class HtsgetLambdaConstruct extends Construct {
     settings: HtsgetSettings,
   ) {
     super(scope, id);
-
-    Tags.of(this).add("Stack", STACK_NAME);
 
     const config = this.getConfig(settings.config);
 
