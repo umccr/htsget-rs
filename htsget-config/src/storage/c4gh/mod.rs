@@ -4,6 +4,7 @@
 use crate::error::Error::{IoError, ParseError};
 use crate::error::{Error, Result};
 use crate::storage::c4gh::local::C4GHLocal;
+#[cfg(feature = "s3-storage")]
 use crate::storage::c4gh::secrets_manager::C4GHSecretsManager;
 use crypt4gh::error::Crypt4GHError;
 use futures_util::future::{BoxFuture, Shared};

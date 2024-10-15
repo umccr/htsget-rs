@@ -11,5 +11,13 @@ substitution_string = "$0"
 [resolvers.storage]
 backend = 'Local'
 
+[resolvers.storage.keys]
+location = "Local"
 private_key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
 recipient_public_key = "data/c4gh/keys/alice.pub"
+
+# Or, use AWS secrets manager to store keys.
+#[resolvers.storage.keys]
+#location = "SecretsManager"
+#private_key = "htsget/test_c4gh_private_key" # pragma: allowlist secret
+#recipient_public_key = "htsget/test_c4gh_public_key"
