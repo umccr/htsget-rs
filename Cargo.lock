@@ -594,6 +594,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "aws-sdk-secretsmanager"
+version = "1.49.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca2ac19e43e100834e7b9e6f838af7506a5cb8ee7531d1104cb207b3d927e0c2"
+dependencies = [
+ "aws-credential-types",
+ "aws-runtime",
+ "aws-smithy-async",
+ "aws-smithy-http",
+ "aws-smithy-json",
+ "aws-smithy-runtime",
+ "aws-smithy-runtime-api",
+ "aws-smithy-types",
+ "aws-types",
+ "bytes",
+ "fastrand",
+ "http 0.2.12",
+ "once_cell",
+ "regex-lite",
+ "tracing",
+]
+
+[[package]]
 name = "aws-sdk-sso"
 version = "1.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -759,6 +782,16 @@ version = "0.60.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4683df9469ef09468dad3473d129960119a0d3593617542b7d52086c8486f2d6"
 dependencies = [
+ "aws-smithy-types",
+]
+
+[[package]]
+name = "aws-smithy-mocks-experimental"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e1069164f54cd37cdcf67e30f77ed996ccd71ad85344b9bb0412a1ca224617b"
+dependencies = [
+ "aws-smithy-runtime-api",
  "aws-smithy-types",
 ]
 
@@ -2275,10 +2308,14 @@ name = "htsget-config"
 version = "0.11.0"
 dependencies = [
  "async-trait",
+ "aws-config",
+ "aws-sdk-secretsmanager",
+ "aws-smithy-mocks-experimental",
  "cfg-if",
  "clap",
  "crypt4gh",
  "figment",
+ "futures-util",
  "http 1.1.0",
  "http-serde",
  "noodles",

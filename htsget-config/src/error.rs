@@ -6,7 +6,7 @@ use thiserror::Error;
 pub type Result<T> = result::Result<T, Error>;
 
 /// The error type for config.
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
   #[error("io found: {0}")]
   IoError(String),

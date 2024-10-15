@@ -604,7 +604,10 @@ mod tests {
   #[tokio::test]
   async fn search_all_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let storage = C4GHStorage::new(
+        get_decryption_keys().await,
+        Arc::try_unwrap(storage).unwrap(),
+      );
       let mut search = CramSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await.unwrap();
@@ -623,7 +626,10 @@ mod tests {
   #[tokio::test]
   async fn search_range_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let storage = C4GHStorage::new(
+        get_decryption_keys().await,
+        Arc::try_unwrap(storage).unwrap(),
+      );
       let mut search = CramSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")

@@ -2,13 +2,13 @@
 use crate::storage::c4gh::C4GHKeys;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(default)]
 pub struct S3 {
   pub(crate) bucket: String,
   pub(crate) endpoint: Option<String>,
   pub(crate) path_style: bool,
-  #[serde(skip_serializing, flatten)]
+  #[serde(skip_serializing)]
   #[cfg(feature = "experimental")]
   pub(crate) keys: Option<C4GHKeys>,
 }
@@ -31,12 +31,12 @@ impl S3 {
   }
 
   /// Get the endpoint
-  pub fn endpoint(self) -> Option<String> {
-    self.endpoint
+  pub fn endpoint(&self) -> Option<&str> {
+    self.endpoint.as_deref()
   }
 
   /// Get the path style
-  pub fn path_style(self) -> bool {
+  pub fn path_style(&self) -> bool {
     self.path_style
   }
 

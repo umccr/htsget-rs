@@ -692,12 +692,17 @@ mod tests {
         );
         let resolver = config.resolvers().first().unwrap();
         let expected_storage = S3::new("bucket".to_string(), None, false);
+        let Storage::S3(storage) = resolver.storage() else {
+          panic!();
+        };
+
+        assert_eq!(storage.bucket(), expected_storage.bucket());
+        assert_eq!(storage.endpoint(), expected_storage.endpoint());
+        assert_eq!(storage.path_style(), expected_storage.path_style());
+        assert!(storage.keys().is_none());
 
         assert_eq!(resolver.regex().to_string(), "regex");
         assert_eq!(resolver.substitution_string(), "substitution_string");
-        assert!(
-          matches!(resolver.storage(), Storage::S3(s3_storage) if s3_storage == &expected_storage)
-        );
         assert_eq!(resolver.allow_guard(), &allow_guard);
       },
     );

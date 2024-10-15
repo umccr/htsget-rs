@@ -1,35 +1,21 @@
-//! Crypt4GH key parsing.
+//! Local C4GH key storage.
 //!
 
-use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
-use crypt4gh::error::Crypt4GHError;
+use crate::storage::c4gh::C4GHKeys;
 use crypt4gh::keys::{get_private_key, get_public_key};
-use crypt4gh::Keys;
 use serde::Deserialize;
 use std::path::PathBuf;
 
-/// Config for Crypt4GH keys.
+/// Local C4GH key storage.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(try_from = "C4GHPath")]
-pub struct C4GHKeys {
-  keys: Vec<Keys>,
-}
-
-impl C4GHKeys {
-  /// Get the inner value.
-  pub fn into_inner(self) -> Vec<Keys> {
-    self.keys
-  }
-}
-
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct C4GHPath {
+pub struct C4GHLocal {
   private_key: PathBuf,
   recipient_public_key: PathBuf,
 }
 
-impl C4GHPath {
+impl C4GHLocal {
+  /// Create a new local C4GH key storage.
   pub fn new(private_key: PathBuf, recipient_public_key: PathBuf) -> Self {
     Self {
       private_key,
@@ -38,26 +24,17 @@ impl C4GHPath {
   }
 }
 
-impl TryFrom<C4GHPath> for C4GHKeys {
+impl TryFrom<C4GHLocal> for C4GHKeys {
   type Error = Error;
 
-  fn try_from(path: C4GHPath) -> Result<Self> {
-    let private_key = get_private_key(path.private_key, Ok("".to_string()))?;
-    let recipient_public_key = get_public_key(path.recipient_public_key)?;
+  fn try_from(local: C4GHLocal) -> Result<Self> {
+    let private_key = get_private_key(local.private_key, Ok("".to_string()))?;
+    let recipient_public_key = get_public_key(local.recipient_public_key)?;
 
-    Ok(C4GHKeys {
-      keys: vec![Keys {
-        method: 0,
-        privkey: private_key,
-        recipient_pubkey: recipient_public_key,
-      }],
-    })
-  }
-}
+    let handle =
+      tokio::spawn(async move { Ok(C4GHKeys::from_key_pair(private_key, recipient_public_key)) });
 
-impl From<Crypt4GHError> for Error {
-  fn from(err: Crypt4GHError) -> Self {
-    ParseError(err.to_string())
+    Ok(C4GHKeys::from_join_handle(handle))
   }
 }
 
@@ -98,6 +75,9 @@ mod tests {
 
         [resolvers.storage]
         {}
+
+        [resolvers.storage.keys]
+        location = "Local"
         private_key = "{}"
         recipient_public_key = "{}"
         "#,
@@ -111,9 +91,8 @@ mod tests {
       },
     );
   }
-
-  #[test]
-  fn config_local_storage_c4gh() {
+  #[tokio::test]
+  async fn config_local_storage_c4gh() {
     test_c4gh_storage_config(r#"backend = "Local""#, |config| {
       assert!(matches!(
             config.resolvers().first().unwrap().storage(),
@@ -123,8 +102,8 @@ mod tests {
   }
 
   #[cfg(feature = "s3-storage")]
-  #[test]
-  fn config_s3_storage_c4gh() {
+  #[tokio::test]
+  async fn config_s3_storage_c4gh() {
     test_c4gh_storage_config(
       r#"
         backend = "S3"
@@ -140,8 +119,8 @@ mod tests {
   }
 
   #[cfg(feature = "url-storage")]
-  #[test]
-  fn config_url_storage_c4gh() {
+  #[tokio::test]
+  async fn config_url_storage_c4gh() {
     test_c4gh_storage_config(
       r#"
         backend = "Url"

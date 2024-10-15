@@ -434,7 +434,7 @@ mod tests {
     with_s3_c4gh_storage(|mut storage| async move {
       test_range_url(
         &mut storage,
-        "http://folder.localhost:8014/key.c4gh",
+        "http://folder.localhost:0/key.c4gh",
         "key",
         &Default::default(),
       )
@@ -578,7 +578,7 @@ mod tests {
   {
     with_local_storage(|storage, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(get_decryption_keys(), storage)).await;
+      test(C4GHStorage::new(get_decryption_keys().await, storage)).await;
     })
     .await;
   }
@@ -592,7 +592,7 @@ mod tests {
     with_aws_s3_storage(|storage, base_path| async move {
       create_encrypted_files(&base_path).await;
       test(C4GHStorage::new(
-        get_decryption_keys(),
+        get_decryption_keys().await,
         Arc::try_unwrap(storage).unwrap(),
       ))
       .await;
@@ -608,7 +608,7 @@ mod tests {
   {
     with_url_test_server(|storage, url, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(get_decryption_keys(), storage), url).await;
+      test(C4GHStorage::new(get_decryption_keys().await, storage), url).await;
     })
     .await;
   }

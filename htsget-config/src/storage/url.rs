@@ -27,7 +27,7 @@ pub struct UrlStorage {
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
   tls: TlsClientConfig,
-  #[serde(skip_serializing, flatten)]
+  #[serde(skip_serializing)]
   #[cfg(feature = "experimental")]
   keys: Option<C4GHKeys>,
 }

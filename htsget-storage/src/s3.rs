@@ -365,7 +365,7 @@ pub(crate) mod tests {
         )
         .await
         .unwrap();
-      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
+      assert!(result.url.starts_with("http://folder.localhost:0/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
         S3Storage::PRESIGNED_REQUEST_EXPIRY
@@ -387,7 +387,7 @@ pub(crate) mod tests {
         )
         .await
         .unwrap();
-      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
+      assert!(result.url.starts_with("http://folder.localhost:0/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
         S3Storage::PRESIGNED_REQUEST_EXPIRY
@@ -411,7 +411,7 @@ pub(crate) mod tests {
         )
         .await
         .unwrap();
-      assert!(result.url.starts_with("http://folder.localhost:8014/key2"));
+      assert!(result.url.starts_with("http://folder.localhost:0/key2"));
       assert!(result.url.contains(&format!(
         "Amz-Expires={}",
         S3Storage::PRESIGNED_REQUEST_EXPIRY

@@ -75,14 +75,14 @@ impl ResolveResponse for HtsGetFromStorage {
   #[cfg(feature = "s3-storage")]
   async fn from_s3(s3_storage: &S3StorageConfig, query: &Query) -> Result<Response> {
     let storage = Storage::from_s3(s3_storage).await;
-    let searcher = HtsGetFromStorage::new(storage);
+    let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
   }
 
   #[cfg(feature = "url-storage")]
   async fn from_url(url_storage_config: &UrlStorageConfig, query: &Query) -> Result<Response> {
     let storage = Storage::from_url(url_storage_config).await;
-    let searcher = HtsGetFromStorage::new(storage);
+    let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
   }
 }

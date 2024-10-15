@@ -242,7 +242,7 @@ mod tests {
     src.read_to_end(&mut buf).unwrap();
 
     let mut buf = BufReader::new(Cursor::new(buf));
-    let keys = get_decryption_keys();
+    let keys = get_decryption_keys().await;
 
     let edit = EditHeader::new(
       test_unencrypted_positions(),
