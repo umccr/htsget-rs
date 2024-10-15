@@ -528,7 +528,7 @@ private_key = 'data/c4gh/keys/bob.sec' # pragma: allowlist secret
 recipient_public_key = 'data/c4gh/keys/alice.pub'
 ```
 
-Keys can also be retrieved from AWS Secrets Manager. Compile with the `s3-storage` feature flag and specify `location = 'SecretsManager'` under
+Keys can also be retrieved from [AWS Secrets Manager][secrets-manager]. Compile with the `s3-storage` feature flag and specify `location = 'SecretsManager'` under
 `resolvers.storage.keys` to fetch keys from Secrets Manager. When using Secrets Manager, the `private_key` and `recipient_public_key`
 correspond to ARNs or secret names in Secrets Manager storing PEM formatted keys.
 
@@ -575,3 +575,4 @@ This project is licensed under the [MIT license][license].
 [minio]: https://min.io/
 [c4gh]: https://samtools.github.io/hts-specs/crypt4gh.pdf
 [data-c4gh]: ../data/c4gh
+[secrets-manager]: https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html

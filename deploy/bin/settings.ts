@@ -22,4 +22,5 @@ export const SETTINGS: HtsgetSettings = {
   },
   // Enable additional features for compiling htsget-rs. `s3-storage` is always enabled.
   features: ["experimental"],
+  copyExampleKeys: true,
 };

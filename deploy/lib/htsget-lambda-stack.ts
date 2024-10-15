@@ -6,6 +6,7 @@ import {
   CfnOutput,
   Duration,
   RemovalPolicy,
+  SecretValue,
   Stack,
   StackProps,
   Tags,
@@ -42,6 +43,7 @@ import {
   BucketEncryption,
 } from "aws-cdk-lib/aws-s3";
 import { BucketDeployment, Source } from "aws-cdk-lib/aws-s3-deployment";
+import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 
 /**
  * Settings related to the htsget lambda stack.
@@ -101,6 +103,15 @@ export type HtsgetSettings = {
    * directory to those buckets. This option only has an affect is `createS3Buckets` is true.
    */
   copyTestData?: boolean;
+
+  /**
+   * Whether to create secrets corresponding to C4GH public and private keys that can be used with C4GH storage.
+   * This copies the private and public keys in the data directory. Note that private keys copied here are
+   * visible in the CDK template. This is not considered secure and should only be used for test data. Real secrets
+   * should be manually provisioned or created outside the CDK template. Defaults to false. Secrets are created
+   * with [`RemovalPolicy.RETAIN`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.RemovalPolicy.html).
+   */
+  copyExampleKeys?: boolean;
 
   /**
    * Additional features to compile htsget-rs with. Defaults to `[]`. `s3-storage` is always enabled.
@@ -214,6 +225,31 @@ export class HtsgetLambdaStack extends Stack {
       s3BucketPolicy.addResources(`arn:aws:s3:::${bucket.bucketName}/*`);
 
       new CfnOutput(this, "HtsgetBucketName", { value: bucket.bucketName });
+    }
+
+    if (settings.copyExampleKeys) {
+      const dataDir = path.join(__dirname, "..", "..", "data", "c4gh", "keys");
+      const private_key = new Secret(this, "SecretPrivateKey", {
+        secretName: "htsget-rs/c4gh-private-key", // pragma: allowlist secret
+        secretStringValue: SecretValue.unsafePlainText(
+          readFileSync(path.join(dataDir, "bob.sec")).toString(),
+        ),
+        removalPolicy: RemovalPolicy.RETAIN,
+      });
+      const public_key = new Secret(this, "SecretPublicKey", {
+        secretName: "htsget-rs/c4gh-recipient-public-key", // pragma: allowlist secret
+        secretStringValue: SecretValue.unsafePlainText(
+          readFileSync(path.join(dataDir, "alice.pub")).toString(),
+        ),
+        removalPolicy: RemovalPolicy.RETAIN,
+      });
+
+      lambdaRole.addToPolicy(
+        new PolicyStatement({
+          actions: ["secretsmanager:GetSecretValue"],
+          resources: [private_key.secretArn, public_key.secretArn],
+        }),
+      );
     }
 
     lambdaRole.addManagedPolicy(
