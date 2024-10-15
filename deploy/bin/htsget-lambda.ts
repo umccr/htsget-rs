@@ -1,26 +1,19 @@
-#!/usr/bin/env node
-import "source-map-support/register";
-import * as cdk from "aws-cdk-lib";
-import { HtsgetLambdaStack } from "../lib/htsget-lambda-stack";
-import { SETTINGS } from "./settings";
+import * as cdk from 'aws-cdk-lib';
+import { Construct } from 'constructs';
+import {HtsgetLambdaConstruct} from "../../deploy/lib/htsget-lambda-construct";
 
-export const STACK_NAME = "HtsgetLambdaStack";
-const STACK_DESCRIPTION = "A stack deploying htsget-lambda with API gateway.";
+export class HtsgetTestStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
 
-const app = new cdk.App();
-new HtsgetLambdaStack(
-  app,
-  STACK_NAME,
-  {
-    stackName: STACK_NAME,
-    description: STACK_DESCRIPTION,
-    tags: {
-      Stack: STACK_NAME,
-    },
-    env: {
-      account: process.env.CDK_DEFAULT_ACCOUNT,
-      region: process.env.CDK_DEFAULT_REGION,
-    },
-  },
-  SETTINGS,
-);
+    new HtsgetLambdaConstruct(this, 'Id', {
+      config: "",
+      domain: "",
+      s3BucketResources: [],
+      jwtAuthorizer: {
+        issuer: "your-issuer",
+        audience: ["your-audience"],
+      },
+    });
+  }
+}
