@@ -101,6 +101,11 @@ export type HtsgetSettings = {
    * directory to those buckets. This option only has an affect is `createS3Buckets` is true.
    */
   copyTestData?: boolean;
+
+  /**
+   * Additional features to compile htsget-rs with. Defaults to `[]`. `s3-storage` is always enabled.
+   */
+  features?: string[];
 };
 
 /**
@@ -218,6 +223,11 @@ export class HtsgetLambdaStack extends Stack {
     );
     lambdaRole.addToPolicy(s3BucketPolicy);
 
+    let features = settings.features ?? [];
+    features = features
+      .filter((f) => f !== "s3-storage")
+      .concat(["s3-storage"]);
+
     let htsgetLambda = new RustFunction(this, id + "Function", {
       manifestPath: path.join(__dirname, "..", ".."),
       binaryName: "htsget-lambda",
@@ -227,7 +237,7 @@ export class HtsgetLambdaStack extends Stack {
           CARGO_PROFILE_RELEASE_LTO: "true",
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1",
         },
-        cargoLambdaFlags: ["--features", "s3-storage"],
+        cargoLambdaFlags: ["--features", features.join(",")],
       },
       memorySize: 128,
       timeout: Duration.seconds(28),
