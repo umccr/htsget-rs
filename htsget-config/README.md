@@ -508,12 +508,12 @@ serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and r
 them. When the client receives byte ranges from htsget-rs and concatenates them, the output bytes will be Crypt4GH encrypted,
 and will need to be decrypted before they can be read. All file formats (BAM, CRAM, VCF, and BCF) are supported using Crypt4GH.
 
-To use this feature, additional config under `resolvers.storage` is required to specify the private and public keys:
+To use this feature, set `location = 'Local'` under `resolvers.storage.keys` to specify the private and public keys:
 
-| Option                 | Description                                                                                                                                                              | Type              | Default |
-|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
-| `private_key`          | The path to private key which htsget-rs uses to decrypt Crypt4GH data.                                                                                                   | Filesystem path   | Not Set | 
-| `recipient_public_key` | The path to the public key which the recipient of the data will use. This is what the client will use to decrypt the returned data, using the corresponding private key. | Filesystem path   | Not Set |
+| Option                 | Description                                                                                                                                                                            | Type              | Default |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
+| `private_key`          | The path to PEM formatted private key which htsget-rs uses to decrypt Crypt4GH data.                                                                                                   | Filesystem path   | Not Set | 
+| `recipient_public_key` | The path to the PEM formatted public key which the recipient of the data will use. This is what the client will use to decrypt the returned data, using the corresponding private key. | Filesystem path   | Not Set |
 
 For example:
 
@@ -522,10 +522,27 @@ For example:
 regex = '.*'
 substitution_string = '$0'
 
-[resolvers.storage]
-backend = 'Local'
+[resolvers.storage.keys]
+location = 'Local'
 private_key = 'data/c4gh/keys/bob.sec' # pragma: allowlist secret
 recipient_public_key = 'data/c4gh/keys/alice.pub'
+```
+
+Keys can also be retrieved from AWS Secrets Manager. Compile with the `s3-storage` feature flag and specify `location = 'SecretsManager'` under
+`resolvers.storage.keys` to fetch keys from Secrets Manager. When using Secrets Manager, the `private_key` and `recipient_public_key`
+correspond to ARNs or secret names in Secrets Manager storing PEM formatted keys.
+
+For example:
+
+```toml
+[[resolvers]]
+regex = '.*'
+substitution_string = '$0'
+
+[resolvers.storage.keys]
+location = 'SecretsManager'
+private_key = 'private_key_secret_name' # pragma: allowlist secret
+recipient_public_key = 'public_key_secret_name'
 ```
 
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`, and the index file to be unencrypted. See the [`data/c4gh`][data-c4gh] for examples of file structure.
