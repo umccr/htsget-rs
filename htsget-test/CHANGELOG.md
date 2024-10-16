@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.7.0...htsget-test-v0.7.1) - 2024-10-16
+
+### Added
+
+- allow retrieving c4gh keys from secrets manager
+
 ## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.6.2...htsget-test-v0.7.0) - 2024-09-30
 
 ### Added

@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.9.0...htsget-search-v0.9.1) - 2024-10-16
+
+### Added
+
+- allow retrieving c4gh keys from secrets manager
+
+### Other
+
+- *(search)* remove unnecessary Arcs and unwraps in test code
+
 ## [0.9.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.8.1...htsget-search-v0.9.0) - 2024-09-30
 
 ### Added

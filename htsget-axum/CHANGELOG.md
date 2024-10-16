@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.2.0...htsget-axum-v0.2.1) - 2024-10-16
+
+### Other
+
+- update Cargo.lock dependencies
+
 ## [0.2.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.1.1...htsget-axum-v0.2.0) - 2024-09-30
 
 ### Added
