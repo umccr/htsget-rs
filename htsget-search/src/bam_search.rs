@@ -151,11 +151,8 @@ pub(crate) mod tests {
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-  use htsget_config::storage::local::Local as ConfigLocalStorage;
-  use htsget_storage::local::LocalStorage;
   use htsget_test::http::concat::ConcatResponse;
   use std::future::Future;
-  use std::sync::Arc;
   #[cfg(feature = "experimental")]
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
@@ -169,7 +166,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -189,7 +186,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("*");
       let response = search.search(query).await;
@@ -216,7 +213,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range_chr11() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11");
       let response = search.search(query).await;
@@ -240,7 +237,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("20");
       let response = search.search(query).await;
@@ -268,7 +265,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000)
@@ -304,7 +301,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_reference_name_no_end_position() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(5015000);
@@ -333,7 +330,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_many_response_urls() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
         .with_start(4999976)
@@ -368,7 +365,7 @@ pub(crate) mod tests {
   async fn search_no_gzi() {
     with_local_storage_fn(
       |storage| async move {
-        let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BamSearch::new(storage);
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("11")
           .with_start(5015000)
@@ -401,7 +398,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_header() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query =
         Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
       let response = search.search(query).await;
@@ -426,7 +423,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_header_with_no_mapped_reads() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("22");
       let response = search.search(query).await;
@@ -451,7 +448,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_header_with_non_existent_reference_name() {
     with_local_storage(|storage| async move {
-      let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BamSearch::new(storage);
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("25");
       let response = search.search(query).await;
@@ -468,7 +465,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_reference_name() {
     with_local_storage_fn(
       |storage| async move {
-        let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BamSearch::new(storage);
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
@@ -485,7 +482,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_all_reads() {
     with_local_storage_fn(
       |storage| async move {
-        let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BamSearch::new(storage);
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("20");
         let response = search.search(query).await;
@@ -503,7 +500,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_header() {
     with_local_storage_fn(
       |storage| async move {
-        let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BamSearch::new(storage);
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
@@ -521,7 +518,7 @@ pub(crate) mod tests {
   async fn get_header_end_offset() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let search = BamSearch::new(storage);
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
 
@@ -543,7 +540,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BamSearch::new(storage);
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
         let response = search.search(query).await;
         assert!(response.is_err());
@@ -561,7 +558,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BamSearch::new(storage);
         let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
           .with_reference_name("20");
         let response = search.search(query).await;
@@ -580,7 +577,7 @@ pub(crate) mod tests {
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let mut search = BamSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BamSearch::new(storage);
         let query =
           Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
         let response = search.search(query).await;
@@ -598,10 +595,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_all_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(
-        get_decryption_keys().await,
-        Arc::try_unwrap(storage).unwrap(),
-      );
+      let storage = C4GHStorage::new(get_decryption_keys().await, storage);
       let mut search = BamSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await.unwrap();
@@ -620,10 +614,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_all_range_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(
-        get_decryption_keys().await,
-        Arc::try_unwrap(storage).unwrap(),
-      );
+      let storage = C4GHStorage::new(get_decryption_keys().await, storage);
       let mut search = BamSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
         .with_reference_name("11")
@@ -643,7 +634,7 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
+    F: FnOnce(Storage) -> Fut,
     Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_local_storage_fn(test, DATA_LOCATION, &[]).await

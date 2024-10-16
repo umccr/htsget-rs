@@ -324,8 +324,6 @@ mod tests {
   use http::HeaderMap;
   use std::future::Future;
   use std::path::Path;
-  #[cfg(feature = "s3-storage")]
-  use std::sync::Arc;
   use tokio::fs::{read, File};
   use tokio::io::AsyncWriteExt;
 
@@ -618,11 +616,7 @@ mod tests {
   {
     with_aws_s3_storage(|storage, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(
-        get_decryption_keys().await,
-        Arc::try_unwrap(storage).unwrap(),
-      ))
-      .await;
+      test(C4GHStorage::new(get_decryption_keys().await, storage)).await;
     })
     .await;
   }

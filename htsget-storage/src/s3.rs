@@ -292,7 +292,6 @@ impl StorageTrait for S3Storage {
 pub(crate) mod tests {
   use std::future::Future;
   use std::path::{Path, PathBuf};
-  use std::sync::Arc;
 
   use htsget_test::aws_mocks::with_s3_test_server;
 
@@ -305,22 +304,18 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
   where
-    F: FnOnce(Arc<S3Storage>, PathBuf) -> Fut,
+    F: FnOnce(S3Storage, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     with_s3_test_server(base_path, |client| async move {
-      test(
-        Arc::new(S3Storage::new(client, folder_name)),
-        base_path.to_path_buf(),
-      )
-      .await;
+      test(S3Storage::new(client, folder_name), base_path.to_path_buf()).await;
     })
     .await;
   }
 
   pub(crate) async fn with_aws_s3_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<S3Storage>, PathBuf) -> Fut,
+    F: FnOnce(S3Storage, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (folder_name, base_path) = create_local_test_files().await;
