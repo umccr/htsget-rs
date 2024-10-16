@@ -206,7 +206,7 @@ impl Storage {
       if #[cfg(feature = "experimental")] {
         Self::from_c4gh_keys(url_storage.keys(), storage).await
       } else {
-        storage
+        Ok(storage)
       }
     }
   }

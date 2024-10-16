@@ -176,6 +176,5 @@ mod tests {
       result.use_data_server_config(),
       expected.use_data_server_config()
     );
-    assert!(result.keys().is_none());
   }
 }

@@ -34,7 +34,7 @@ http = "1"
 cfg-if = "1"
 
 # Async
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-util"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = { version = "0.3" }
 futures-util = "0.3"

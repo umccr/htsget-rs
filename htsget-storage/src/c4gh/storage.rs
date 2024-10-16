@@ -4,7 +4,7 @@
 use crate::c4gh::edit::{ClampedPosition, EditHeader, UnencryptedPosition};
 use crate::c4gh::{
   to_unencrypted_file_size, unencrypted_clamp, unencrypted_clamp_next, unencrypted_to_data_block,
-  unencrypted_to_next_data_block, DeserializedHeader,
+  unencrypted_to_next_data_block, DecryptedData, DeserializedHeader,
 };
 use crate::error::StorageError::{InternalError, IoError};
 use crate::error::{Result, StorageError};
@@ -17,10 +17,11 @@ use async_trait::async_trait;
 use crypt4gh::error::Crypt4GHError;
 use crypt4gh::Keys;
 use htsget_config::types::{Class, Format, Url};
+use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::io;
-use std::io::{BufReader, Cursor};
+use std::io::{BufReader, Cursor, Read};
 use tokio::io::AsyncReadExt;
 
 /// Max C4GH header size in bytes. Supports 50 regular sized encrypted packets. 16 + (108 * 50).
@@ -33,6 +34,7 @@ pub struct C4GHState {
   encrypted_file_size: u64,
   unencrypted_file_size: u64,
   deserialized_header: DeserializedHeader,
+  decrypted_data: DecryptedData,
 }
 
 /// Implementation for the [StorageTrait] trait using the local file system for accessing Crypt4GH
@@ -92,7 +94,7 @@ impl C4GHStorage {
       .clone();
 
     Ok(Streamable::from_async_read(Cursor::new(
-      data.deserialized_header.decrypted_stream,
+      data.decrypted_data.into_inner(),
     )))
   }
 
@@ -111,33 +113,58 @@ impl C4GHStorage {
     // Get the file size.
     let encrypted_file_size = self.inner.head(&key, (&options).into()).await?;
 
-    let end = options
-      .range
-      .end
-      .unwrap_or_default()
-      .checked_add(MAX_C4GH_HEADER_SIZE)
-      .ok_or_else(|| InternalError("overflow getting header".to_string()))?;
-    options.range = options.range.with_end(end);
+    let mut c4gh_header_options = options.clone();
+    c4gh_header_options.range.end = Some(min(MAX_C4GH_HEADER_SIZE, encrypted_file_size));
 
     // Also need to determine the header size.
     let mut buf = vec![];
     self
       .inner
-      .get(&key, options)
+      .get(&key, c4gh_header_options)
       .await?
+      .take(MAX_C4GH_HEADER_SIZE)
       .read_to_end(&mut buf)
       .await?;
 
-    let mut reader = BufReader::new(Cursor::new(buf));
+    let mut reader = BufReader::new(buf.as_slice());
 
     let deserialized_header = DeserializedHeader::from_buffer(&mut reader, &self.keys)?;
     let unencrypted_file_size =
       to_unencrypted_file_size(encrypted_file_size, deserialized_header.header_size);
 
+    // Grab remaining bytes after knowing the header size.
+    let mut remaining = vec![];
+
+    if encrypted_file_size > MAX_C4GH_HEADER_SIZE {
+      let end = unencrypted_to_next_data_block(
+        options.range.end.unwrap_or(encrypted_file_size),
+        deserialized_header.header_size,
+        encrypted_file_size,
+      );
+      options.range.start = Some(MAX_C4GH_HEADER_SIZE);
+
+      if end < MAX_C4GH_HEADER_SIZE {
+        options.range.end = None;
+      } else {
+        options.range.end = Some(min(end, encrypted_file_size));
+      }
+
+      self
+        .inner
+        .get(&key, options)
+        .await?
+        .read_to_end(&mut remaining)
+        .await?;
+    }
+
+    let mut reader = reader.chain(BufReader::new(remaining.as_slice()));
+
+    let decrypted_data = DecryptedData::from_header(&mut reader, deserialized_header.clone())?;
     let state = C4GHState {
       encrypted_file_size,
       unencrypted_file_size,
       deserialized_header,
+      decrypted_data,
     };
 
     self.state.insert(key, state);

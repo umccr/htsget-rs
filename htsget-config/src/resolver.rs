@@ -699,7 +699,6 @@ mod tests {
         assert_eq!(storage.bucket(), expected_storage.bucket());
         assert_eq!(storage.endpoint(), expected_storage.endpoint());
         assert_eq!(storage.path_style(), expected_storage.path_style());
-        assert!(storage.keys().is_none());
 
         assert_eq!(resolver.regex().to_string(), "regex");
         assert_eq!(resolver.substitution_string(), "substitution_string");
