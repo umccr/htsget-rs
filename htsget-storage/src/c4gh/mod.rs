@@ -24,8 +24,7 @@ pub struct DeserializedHeader {
   pub(crate) header_info: HeaderInfo,
   pub(crate) session_keys: Vec<Vec<u8>>,
   pub(crate) header_size: u64,
-  pub(crate) contains_edit_list: bool,
-  pub(crate) decrypted_stream: Vec<u8>,
+  pub(crate) edit_list: Option<Vec<u64>>,
 }
 
 impl Clone for DeserializedHeader {
@@ -38,8 +37,7 @@ impl Clone for DeserializedHeader {
       },
       session_keys: self.session_keys.clone(),
       header_size: self.header_size,
-      contains_edit_list: self.contains_edit_list,
-      decrypted_stream: self.decrypted_stream.clone(),
+      edit_list: self.edit_list.clone(),
     }
   }
 }
@@ -50,24 +48,19 @@ impl DeserializedHeader {
     header_info: HeaderInfo,
     session_keys: Vec<Vec<u8>>,
     header_size: u64,
-    contains_edit_list: bool,
-    decrypted_stream: Vec<u8>,
+    edit_list: Option<Vec<u64>>,
   ) -> Self {
     Self {
       header_info,
       session_keys,
       header_size,
-      contains_edit_list,
-      decrypted_stream,
+      edit_list,
     }
   }
 
   /// Grab all the required information from the header.
   /// This is more or less directly copied from https://github.com/EGA-archive/crypt4gh-rust/blob/2d41a1770067003bc67ab499841e0def186ed218/src/lib.rs#L283-L314
-  pub fn from_buffer<R: Read>(
-    read_buffer: &mut R,
-    keys: &[Keys],
-  ) -> Result<DeserializedHeader, Crypt4GHError> {
+  pub fn from_buffer<R: Read>(read_buffer: &mut R, keys: &[Keys]) -> Result<Self, Crypt4GHError> {
     // Get header info
     let mut temp_buf = [0_u8; 16]; // Size of the header
     read_buffer
@@ -113,16 +106,40 @@ impl DeserializedHeader {
     } = header::deconstruct_header_body(encrypted_packets, keys, &None)?;
 
     let header_size = 16 + header_lengths;
-    let contains_header = edit_list_packet.is_some();
 
+    Ok(DeserializedHeader::new(
+      header_info,
+      session_keys,
+      header_size as u64,
+      edit_list_packet,
+    ))
+  }
+
+  /// Check if an edit list is present.
+  pub fn contains_edit_list(&self) -> bool {
+    self.edit_list.is_some()
+  }
+}
+
+/// Represents the decrypted data from a C4GH file.
+#[derive(Debug, Clone)]
+pub struct DecryptedData(Vec<u8>);
+
+impl DecryptedData {
+  /// Decrypt the data from the header and read buffer. The read buffer is expected to be
+  /// positioned at the start of the encrypted data.
+  pub fn from_header<R: Read>(
+    read_buffer: &mut R,
+    header: DeserializedHeader,
+  ) -> Result<Self, Crypt4GHError> {
     let mut writer = BufWriter::new(Cursor::new(vec![]));
     let mut write_info = WriteInfo::new(0, None, &mut writer);
 
-    match edit_list_packet {
-      None => body_decrypt(read_buffer, &session_keys, &mut write_info, 0)?,
+    match header.edit_list {
+      None => body_decrypt(read_buffer, &header.session_keys, &mut write_info, 0)?,
       Some(edit_list_content) => body_decrypt_parts(
         read_buffer,
-        session_keys.clone(),
+        header.session_keys,
         write_info,
         edit_list_content,
       )?,
@@ -133,13 +150,12 @@ impl DeserializedHeader {
       .map_err(|err| Crypt4GHError::IoError(io::Error::other(err)))?
       .into_inner();
 
-    Ok(DeserializedHeader::new(
-      header_info,
-      session_keys,
-      header_size as u64,
-      contains_header,
-      data,
-    ))
+    Ok(Self(data))
+  }
+
+  /// Get the inner data.
+  pub fn into_inner(self) -> Vec<u8> {
+    self.0
   }
 }
 

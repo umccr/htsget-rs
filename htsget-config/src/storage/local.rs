@@ -17,7 +17,7 @@ fn default_local_path() -> String {
   default_path().into()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Local {
   scheme: Scheme,
@@ -26,7 +26,7 @@ pub struct Local {
   local_path: String,
   path_prefix: String,
   use_data_server_config: bool,
-  #[serde(skip_serializing, flatten)]
+  #[serde(skip_serializing)]
   #[cfg(feature = "experimental")]
   keys: Option<C4GHKeys>,
 }
@@ -168,6 +168,13 @@ mod tests {
       true,
     );
 
-    assert_eq!(result, expected);
+    assert_eq!(result.scheme(), expected.scheme());
+    assert_eq!(result.authority(), expected.authority());
+    assert_eq!(result.local_path(), expected.local_path());
+    assert_eq!(result.path_prefix(), expected.path_prefix());
+    assert_eq!(
+      result.use_data_server_config(),
+      expected.use_data_server_config()
+    );
   }
 }

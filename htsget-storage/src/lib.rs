@@ -139,14 +139,18 @@ impl StorageTrait for Storage {
 impl Storage {
   #[cfg(feature = "experimental")]
   /// Wrap an existing storage with C4GH storage
-  pub fn from_c4gh_keys(keys: Option<&C4GHKeys>, storage: Storage) -> Storage {
+  pub async fn from_c4gh_keys(keys: Option<&C4GHKeys>, storage: Storage) -> Result<Storage> {
     if let Some(keys) = keys {
-      Storage::new(C4GHStorage::new_box(
-        keys.clone().into_inner(),
+      Ok(Storage::new(C4GHStorage::new_box(
+        keys
+          .clone()
+          .keys()
+          .await
+          .map_err(|err| StorageError::InternalError(err.to_string()))?,
         storage.into_inner(),
-      ))
+      )))
     } else {
-      storage
+      Ok(storage)
     }
   }
 
@@ -159,7 +163,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Ok(Self::from_c4gh_keys(local_storage.keys(), storage))
+        Self::from_c4gh_keys(local_storage.keys(), storage).await
       } else {
         Ok(storage)
       }
@@ -168,28 +172,28 @@ impl Storage {
 
   /// Create from s3 config.
   #[cfg(feature = "s3-storage")]
-  pub async fn from_s3(s3_storage: &S3StorageConfig) -> Storage {
+  pub async fn from_s3(s3_storage: &S3StorageConfig) -> Result<Storage> {
     let storage = Storage::new(
       S3Storage::new_with_default_config(
         s3_storage.bucket().to_string(),
-        s3_storage.clone().endpoint(),
-        s3_storage.clone().path_style(),
+        s3_storage.endpoint().map(str::to_string),
+        s3_storage.path_style(),
       )
       .await,
     );
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(s3_storage.keys(), storage)
+        Self::from_c4gh_keys(s3_storage.keys(), storage).await
       } else {
-        storage
+        Ok(storage)
       }
     }
   }
 
   /// Create from url config.
   #[cfg(feature = "url-storage")]
-  pub async fn from_url(url_storage: &UrlStorageConfig) -> Storage {
+  pub async fn from_url(url_storage: &UrlStorageConfig) -> Result<Storage> {
     let storage = Storage::new(UrlStorage::new(
       url_storage.client_cloned(),
       url_storage.url().clone(),
@@ -200,9 +204,9 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(url_storage.keys(), storage)
+        Self::from_c4gh_keys(url_storage.keys(), storage).await
       } else {
-        storage
+        Ok(storage)
       }
     }
   }

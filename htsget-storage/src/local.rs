@@ -2,7 +2,7 @@
 //!
 
 use std::fmt::Debug;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use crate::{HeadOptions, StorageMiddleware, StorageTrait, UrlFormatter};
@@ -10,6 +10,7 @@ use crate::{Streamable, Url as HtsGetUrl};
 use async_trait::async_trait;
 use tokio::fs;
 use tokio::fs::File;
+use tokio::io::AsyncSeekExt;
 use tracing::debug;
 use tracing::instrument;
 use url::Url;
@@ -84,9 +85,16 @@ impl<T: UrlFormatter + Send + Sync + Debug> StorageMiddleware for LocalStorage<T
 impl<T: UrlFormatter + Send + Sync + Debug + Clone + 'static> StorageTrait for LocalStorage<T> {
   /// Get the file at the location of the key.
   #[instrument(level = "debug", skip(self))]
-  async fn get(&self, key: &str, _options: GetOptions<'_>) -> Result<Streamable> {
+  async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
     debug!(calling_from = ?self, key = key, "getting file with key {:?}", key);
-    Ok(Streamable::from_async_read(self.get(key).await?))
+
+    // Need to ensure range options are considered for local files.
+    let mut file = self.get(key).await?;
+    file
+      .seek(SeekFrom::Start(options.range.start.unwrap_or(0)))
+      .await?;
+
+    Ok(Streamable::from_async_read(file))
   }
 
   /// Get a url for the file at key.

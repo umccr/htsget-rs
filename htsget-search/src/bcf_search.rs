@@ -108,11 +108,9 @@ impl BcfSearch {
 
 #[cfg(test)]
 mod tests {
-  use htsget_config::storage::local::Local as ConfigLocalStorage;
   use htsget_config::types::Class::Body;
   use htsget_test::http::concat::ConcatResponse;
   use std::future::Future;
-  use std::sync::Arc;
 
   use super::*;
   #[cfg(feature = "s3-storage")]
@@ -120,7 +118,6 @@ mod tests {
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::search::SearchAll;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-  use htsget_storage::local::LocalStorage;
   #[cfg(feature = "experimental")]
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
@@ -135,7 +132,7 @@ mod tests {
   #[tokio::test]
   async fn search_all_variants() {
     with_local_storage(|storage| async move {
-      let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BcfSearch::new(storage);
       let filename = "sample1-bcbio-cancer";
       let query = Query::new_with_default_request(filename, Format::Bcf);
       let response = search.search(query).await;
@@ -155,7 +152,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| async move {
-      let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BcfSearch::new(storage);
       let filename = "vcf-spec-v4.3";
       let query = Query::new_with_default_request(filename, Format::Bcf).with_reference_name("20");
       let response = search.search(query).await;
@@ -187,7 +184,7 @@ mod tests {
   #[tokio::test]
   async fn search_reference_name_no_end_position() {
     with_local_storage(|storage| async move {
-      let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BcfSearch::new(storage);
       let filename = "sample1-bcbio-cancer";
       let query = Query::new_with_default_request(filename, Format::Bcf)
         .with_reference_name("chrM")
@@ -219,7 +216,7 @@ mod tests {
   #[tokio::test]
   async fn search_header() {
     with_local_storage(|storage| async move {
-      let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BcfSearch::new(storage);
       let filename = "vcf-spec-v4.3";
       let query = Query::new_with_default_request(filename, Format::Bcf).with_class(Header);
       let response = search.search(query).await;
@@ -245,7 +242,7 @@ mod tests {
   async fn search_non_existent_id_reference_name() {
     with_local_storage_fn(
       |storage| async move {
-        let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BcfSearch::new(storage);
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
@@ -262,7 +259,7 @@ mod tests {
   async fn search_non_existent_id_all_reads() {
     with_local_storage_fn(
       |storage| async move {
-        let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BcfSearch::new(storage);
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
@@ -280,7 +277,7 @@ mod tests {
   async fn search_non_existent_id_header() {
     with_local_storage_fn(
       |storage| async move {
-        let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BcfSearch::new(storage);
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
@@ -297,7 +294,7 @@ mod tests {
   #[tokio::test]
   async fn search_header_with_non_existent_reference_name() {
     with_local_storage(|storage| async move {
-      let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+      let mut search = BcfSearch::new(storage);
       let query =
         Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chr1");
       let response = search.search(query).await;
@@ -314,7 +311,7 @@ mod tests {
   async fn get_header_end_offset() {
     with_local_storage_fn(
       |storage| async move {
-        let search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let search = BcfSearch::new(storage);
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
 
@@ -336,7 +333,7 @@ mod tests {
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BcfSearch::new(storage);
         let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
         assert!(response.is_err());
@@ -354,7 +351,7 @@ mod tests {
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BcfSearch::new(storage);
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
@@ -373,7 +370,7 @@ mod tests {
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(
       |storage| async move {
-        let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+        let mut search = BcfSearch::new(storage);
         let query =
           Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
@@ -391,7 +388,7 @@ mod tests {
   #[tokio::test]
   async fn search_all_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let storage = C4GHStorage::new(get_decryption_keys().await, storage);
       let mut search = BcfSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("sample1-bcbio-cancer", Format::Bcf);
       let response = search.search(query).await.unwrap();
@@ -410,7 +407,7 @@ mod tests {
   #[tokio::test]
   async fn search_range_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(get_decryption_keys(), Arc::try_unwrap(storage).unwrap());
+      let storage = C4GHStorage::new(get_decryption_keys().await, storage);
       let mut search = BcfSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("sample1-bcbio-cancer", Format::Bcf)
         .with_reference_name("chrM")
@@ -429,9 +426,9 @@ mod tests {
   }
 
   async fn test_reference_sequence_with_seq_range(
-    storage: Arc<LocalStorage<ConfigLocalStorage>>,
+    storage: Storage,
   ) -> Option<(String, ConcatResponse)> {
-    let mut search = BcfSearch::new(Storage::new(Arc::try_unwrap(storage).unwrap()));
+    let mut search = BcfSearch::new(storage);
     let filename = "sample1-bcbio-cancer";
     let query = Query::new_with_default_request(filename, Format::Bcf)
       .with_reference_name("chrM")
@@ -459,7 +456,7 @@ mod tests {
 
   async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(Arc<LocalStorage<ConfigLocalStorage>>) -> Fut,
+    F: FnOnce(Storage) -> Fut,
     Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_local_storage_fn(test, "data/bcf", &[]).await

@@ -165,7 +165,7 @@ impl<'a> EditHeader<'a> {
 
   /// Add edit lists and return a header packet.
   pub fn reencrypt_header(self) -> Result<Header> {
-    if self.current_header.contains_edit_list {
+    if self.current_header.contains_edit_list() {
       return Err(StorageError::IoError(
         "edit lists already exist".to_string(),
         io::Error::other(Crypt4GHError::TooManyEditListPackets),
@@ -242,7 +242,7 @@ mod tests {
     src.read_to_end(&mut buf).unwrap();
 
     let mut buf = BufReader::new(Cursor::new(buf));
-    let keys = get_decryption_keys();
+    let keys = get_decryption_keys().await;
 
     let edit = EditHeader::new(
       test_unencrypted_positions(),

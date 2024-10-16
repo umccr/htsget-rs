@@ -18,3 +18,8 @@ environment = "dev"
 regex = '^(?P<bucket>.*?)/(?P<key>.*)$'
 substitution_string = '$key'
 storage.backend = 'S3'
+
+[resolvers.storage.keys]
+location = "SecretsManager"
+private_key = "htsget-rs/c4gh-private-key" # pragma: allowlist secret
+recipient_public_key = "htsget-rs/c4gh-recipient-public-key"

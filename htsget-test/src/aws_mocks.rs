@@ -10,9 +10,10 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-/// Default domain to use for mock s3 server
-pub const DEFAULT_DOMAIN_NAME: &str = "localhost:8014";
-/// Default region to use for mock s3 server
+/// Default domain to use for mock s3 server.
+pub const DEFAULT_DOMAIN_NAME: &str = "localhost:0";
+
+/// Default region to use for mock s3 server.
 pub const DEFAULT_REGION: &str = "ap-southeast-2";
 
 /// Run a mock s3 server using the `server_base_path` and a test function. Specify the domain name and region to use for the mock server.
