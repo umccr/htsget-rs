@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.2.0...htsget-storage-v0.2.1) - 2024-10-16
+
+### Added
+
+- allow retrieving c4gh keys from secrets manager
+
+### Fixed
+
+- *(storage)* ensure c4gh data is read after determining the header size
+
+### Other
+
+- *(search)* remove unnecessary Arcs and unwraps in test code
+
 ## [0.2.0](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.1.1...htsget-storage-v0.2.0) - 2024-09-30
 
 ### Added

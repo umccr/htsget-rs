@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.11.0...htsget-config-v0.12.0) - 2024-10-16
+
+### Added
+
+- *(config)* allow retrieving secret from binary or string
+- allow retrieving c4gh keys from secrets manager
+
+### Fixed
+
+- *(storage)* ensure c4gh data is read after determining the header size
+
+### Other
+
+- *(deploy)* add options to deploy C4GH keys to secrets manager
+- *(config)* add section on using Secrets Manager to fetch keys
+
 ## [0.11.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.10.1...htsget-config-v0.11.0) - 2024-09-30
 
 ### Added
