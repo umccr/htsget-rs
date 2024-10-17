@@ -6,13 +6,13 @@ export class HtsgetTestStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    new HtsgetLambdaConstruct(this, 'Id', {
+    new HtsgetLambdaConstruct(this, 'Htsget-rs', {
       config: "",
       domain: "",
+      lookupHostedZone: true,
       s3BucketResources: [],
       jwtAuthorizer: {
-        issuer: "your-issuer",
-        audience: ["your-audience"],
+        public: false,
       },
     });
   }
