@@ -105,6 +105,12 @@ export type HtsgetSettings = {
  */
 export type HtsgetJwtAuthSettings = {
   /**
+   *  Issuer
+   */
+
+  issuer?: string;
+
+  /**
    * Whether this deployment is public.
    */
   public: boolean;
@@ -251,9 +257,16 @@ export class HtsgetLambdaConstruct extends Construct {
         settings.jwtAuthorizer.cogUserPoolId = pool.userPoolId;
       }
 
+      let issuer;
+      if (settings.jwtAuthorizer.issuer === undefined) {
+        issuer = `https://cognito-idp.${region}.amazonaws.com/${settings.jwtAuthorizer.cogUserPoolId}`;
+      } else {
+        issuer = settings.jwtAuthorizer.issuer;
+      }
+
       authorizer = new HttpJwtAuthorizer(
         id + "HtsgetAuthorizer",
-        `https://cognito-idp.${region}.amazonaws.com/${settings.jwtAuthorizer.cogUserPoolId}`,
+        issuer,
         {
           identitySource: ["$request.header.Authorization"],
           jwtAudience: settings.jwtAuthorizer.jwtAudience ?? [],
