@@ -7,7 +7,7 @@ export const SETTINGS: HtsgetSettings = {
   config: "config/example_deploy.toml",
   // Specify the domain to serve htsget-rs under.
   domain: "dev.umccr.org",
-  subDomain: "htsget",
+  subDomain: "htsget-c4gh",
   s3BucketResources: [],
   lookupHostedZone: false,
   createS3Bucket: true,
@@ -18,7 +18,8 @@ export const SETTINGS: HtsgetSettings = {
     // Set this to false if you want a private instance.
     public: false,
     cogUserPoolId: "ap-southeast-2_iWOHnsurL",
-    // issuer: "",
+    jwtAudience: ["..."],
+    //issuer: "Amazon",
     // jwtAudience: ["audience"],
     // cogUserPoolId: "user-pool-id",
   },

@@ -118,7 +118,7 @@ export type HtsgetJwtAuthSettings = {
   /**
    * The JWT audience.
    */
-  jwtAudience?: string[];
+  jwtAudience: string[];
 
   /**
    * The cognito user pool id for the authorizer. If this is not set, then a new user pool is created.
