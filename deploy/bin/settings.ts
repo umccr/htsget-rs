@@ -9,7 +9,7 @@ export const SETTINGS: HtsgetSettings = {
   domain: "dev.umccr.org",
   subDomain: "htsget-c4gh",
   s3BucketResources: [],
-  lookupHostedZone: false,
+  lookupHostedZone: true,
   createS3Bucket: true,
   copyTestData: true,
   // Override the bucket name.
