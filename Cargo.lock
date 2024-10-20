@@ -2250,7 +2250,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-actix"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -2278,7 +2278,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-axum"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "axum",
@@ -2354,7 +2354,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-lambda"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-trait",
  "bytes",
