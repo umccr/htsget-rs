@@ -14,8 +14,9 @@ contact_url = "https://umccr.org/"
 documentation_url = "https://github.com/umccr/htsget-rs"
 environment = "dev"
 
+# C4GH prefix indicates Crypt4GH files.
 [[resolvers]]
-regex = '^(?P<bucket>.*?)/(?P<key>.*)$'
+regex = '^(?P<bucket>.*?)/(?P<key>c4gh/.*)$'
 substitution_string = '$key'
 storage.backend = 'S3'
 
@@ -23,3 +24,9 @@ storage.backend = 'S3'
 location = "SecretsManager"
 private_key = "htsget-rs/c4gh-private-key" # pragma: allowlist secret
 recipient_public_key = "htsget-rs/c4gh-recipient-public-key"
+
+# Everything else is a regular file.
+[[resolvers]]
+regex = '^(?P<bucket>.*?)/(?P<key>.*)$'
+substitution_string = '$key'
+storage.backend = 'S3'
