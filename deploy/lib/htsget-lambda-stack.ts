@@ -114,6 +114,14 @@ export type HtsgetSettings = {
   copyExampleKeys?: boolean;
 
   /**
+   * The Secrets Manager secrets which htsget-rs needs access to. This affects the permissions that get added to the
+   * Lambda role by policy actions target `secretsmanager:GetSecretValue`. Secrets specified here get added as resources
+   * in the policy statement. Defaults to `[]`. Permissions are automatically added if `copyExampleKeys` is specified,
+   * even if this option is set to `[]`.
+   */
+  secretArns?: string[];
+
+  /**
    * Additional features to compile htsget-rs with. Defaults to `[]`. `s3-storage` is always enabled.
    */
   features?: string[];
@@ -227,6 +235,11 @@ export class HtsgetLambdaStack extends Stack {
       new CfnOutput(this, "HtsgetBucketName", { value: bucket.bucketName });
     }
 
+    const secretPolicy = new PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: settings.secretArns ?? [],
+    });
+
     if (settings.copyExampleKeys) {
       const dataDir = path.join(__dirname, "..", "..", "data", "c4gh", "keys");
       const private_key = new Secret(this, "SecretPrivateKey", {
@@ -244,12 +257,7 @@ export class HtsgetLambdaStack extends Stack {
         removalPolicy: RemovalPolicy.RETAIN,
       });
 
-      lambdaRole.addToPolicy(
-        new PolicyStatement({
-          actions: ["secretsmanager:GetSecretValue"],
-          resources: [private_key.secretArn, public_key.secretArn],
-        }),
-      );
+      secretPolicy.addResources(private_key.secretArn, public_key.secretArn);
     }
 
     lambdaRole.addManagedPolicy(
@@ -257,7 +265,12 @@ export class HtsgetLambdaStack extends Stack {
         "service-role/AWSLambdaBasicExecutionRole",
       ),
     );
-    lambdaRole.addToPolicy(s3BucketPolicy);
+    if (s3BucketPolicy.resources.length !== 0) {
+      lambdaRole.addToPolicy(s3BucketPolicy);
+    }
+    if (secretPolicy.resources.length !== 0) {
+      lambdaRole.addToPolicy(secretPolicy);
+    }
 
     let features = settings.features ?? [];
     features = features
