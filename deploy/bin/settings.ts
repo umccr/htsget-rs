@@ -12,13 +12,14 @@ export const SETTINGS: HtsgetSettings = {
   lookupHostedZone: true,
   createS3Bucket: true,
   copyTestData: true,
+  copyExampleKeys: true,
   // Override the bucket name.
   // bucketName: "bucket",
   jwtAuthorizer: {
     // Set this to false if you want a private instance.
     public: false,
     cogUserPoolId: "ap-southeast-2_iWOHnsurL",
-    jwtAudience: ["..."],
+    jwtAudience: [""], // Should match your cognito client id
     //issuer: "Amazon",
     // jwtAudience: ["audience"],
     // cogUserPoolId: "user-pool-id",
