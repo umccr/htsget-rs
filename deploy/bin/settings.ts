@@ -21,11 +21,6 @@ export const SETTINGS: HtsgetSettings = {
     cogUserPoolId: "ap-southeast-2_iWOHnsurL",
     jwtAudience: [""], // Should match your cognito client id
     //issuer: "Amazon",
-    cogUserPoolId: "ap-southeast-2_iWOHnsurL",
-    jwtAudience: ["..."],
-    //issuer: "Amazon",
-    // jwtAudience: ["audience"],
-    // cogUserPoolId: "user-pool-id",
   },
   // Enable additional features for compiling htsget-rs. `s3-storage` is always enabled.
   features: ["experimental"],
