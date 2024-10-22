@@ -21,6 +21,9 @@ export const SETTINGS: HtsgetSettings = {
     cogUserPoolId: "ap-southeast-2_iWOHnsurL",
     jwtAudience: [""], // Should match your cognito client id
     //issuer: "Amazon",
+    cogUserPoolId: "ap-southeast-2_iWOHnsurL",
+    jwtAudience: ["..."],
+    //issuer: "Amazon",
     // jwtAudience: ["audience"],
     // cogUserPoolId: "user-pool-id",
   },
