@@ -43,14 +43,10 @@ import { BucketDeployment, Source } from "aws-cdk-lib/aws-s3-deployment";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 
 /**
- * Settings related to the htsget lambda construct props.
+ * These options are related to creating stateful resources. Some of these might conflict with existing resources
+ * in the AWS account.
  */
-export type HtsgetSettings = {
-  /**
-   * The location of the htsget-rs config file.
-   */
-  config: string;
-
+export type HtsgetStatefulSettings = {
   /**
    * The domain name for the htsget server.
    */
@@ -60,6 +56,51 @@ export type HtsgetSettings = {
    * The domain name prefix to use for the htsget-rs server. Defaults to `"htsget"`.
    */
   subDomain?: string;
+
+  /**
+   * Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an
+   * existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone under the
+   * domain name.
+   */
+  lookupHostedZone?: boolean;
+
+    /**
+   * Whether to create a test bucket. Defaults to true. Buckets are created with
+   * [`RemovalPolicy.RETAIN`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.RemovalPolicy.html).
+   * The correct access permissions are automatically added.
+   */
+  createS3Bucket?: boolean;
+
+  /**
+   * The name of the bucket created using `createS3Bucket`. The name defaults to an automatically generated CDK name,
+   * use this option to override that. This option only has an affect is `createS3Buckets` is true.
+   */
+  bucketName?: string;
+
+      /**
+   * Whether to copy test data into the bucket. Defaults to true. This copies the example data under the `data`
+   * directory to those buckets. This option only has an affect is `createS3Buckets` is true.
+   */
+  copyTestData?: boolean;
+
+  /**
+   * Whether to create secrets corresponding to C4GH public and private keys that can be used with C4GH storage.
+   * This copies the private and public keys in the data directory. Note that private keys copied here are
+   * visible in the CDK template. This is not considered secure and should only be used for test data. Real secrets
+   * should be manually provisioned or created outside the CDK template. Defaults to false. Secrets are created
+   * with [`RemovalPolicy.RETAIN`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.RemovalPolicy.html).
+   */
+  copyExampleKeys?: boolean;
+};
+
+/**
+ * Settings related to the htsget lambda construct props.
+ */
+export type HtsgetStatelessSettings = {
+  /**
+   * The location of the htsget-rs config file.
+   */
+  config: string;
 
   /**
    * The buckets to serve data from. If this is not specified, this defaults to `[]`.
@@ -74,41 +115,6 @@ export type HtsgetSettings = {
    * Whether this deployment is gated behind a JWT authorizer, or if its public.
    */
   jwtAuthorizer: HtsgetJwtAuthSettings;
-
-  /**
-   * Whether to lookup the hosted zone with the domain name. Defaults to `true`. If `true`, attempts to lookup an
-   * existing hosted zone using the domain name. Set this to `false` if you want to create a new hosted zone under the
-   * domain name.
-   */
-  lookupHostedZone?: boolean;
-
-  /**
-   * Whether to create a test bucket. Defaults to true. Buckets are created with
-   * [`RemovalPolicy.RETAIN`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.RemovalPolicy.html).
-   * The correct access permissions are automatically added.
-   */
-  createS3Bucket?: boolean;
-
-  /**
-   * The name of the bucket created using `createS3Bucket`. The name defaults to an automatically generated CDK name,
-   * use this option to override that. This option only has an affect is `createS3Buckets` is true.
-   */
-  bucketName?: string;
-
-  /**
-   * Whether to copy test data into the bucket. Defaults to true. This copies the example data under the `data`
-   * directory to those buckets. This option only has an affect is `createS3Buckets` is true.
-   */
-  copyTestData?: boolean;
-
-  /**
-   * Whether to create secrets corresponding to C4GH public and private keys that can be used with C4GH storage.
-   * This copies the private and public keys in the data directory. Note that private keys copied here are
-   * visible in the CDK template. This is not considered secure and should only be used for test data. Real secrets
-   * should be manually provisioned or created outside the CDK template. Defaults to false. Secrets are created
-   * with [`RemovalPolicy.RETAIN`](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.RemovalPolicy.html).
-   */
-  copyExampleKeys?: boolean;
 
   /**
    * The Secrets Manager secrets which htsget-rs needs access to. This affects the permissions that get added to the
@@ -184,6 +190,68 @@ export type Config = {
   maxAge?: Duration;
 };
 
+// export class HtsgetStatelessConstruct extends Construct {
+//   constructor(
+//     scope: Construct,
+//     id: string,
+//     settings: HtsgetStatelessSettings
+//   ) {
+//     super(scope, id);
+
+//     const config = this.getConfig(settings.config);
+
+//     const lambdaRole = new Role(this, id + "Role", {
+//       assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+//       description: "Lambda execution role for " + id,
+//     });
+
+//     const s3BucketPolicy = new PolicyStatement({
+//       actions: ["s3:List*", "s3:Get*"],
+//       resources: settings.s3BucketResources ?? [],
+//     });
+
+//     const secretPolicy = new PolicyStatement({
+//       actions: ["secretsmanager:GetSecretValue"],
+//       resources: settings.secretArns ?? [],
+//     });
+//   }
+
+//   /**
+//    * Get the environment from config.toml
+//    */
+//   getConfig(config: string): Config {
+//     const configToml = TOML.parse(readFileSync(config).toString());
+
+//     return {
+//       htsgetConfig: HtsgetLambdaConstruct.configToEnv(configToml),
+//       allowCredentials:
+//         configToml.ticket_server_cors_allow_credentials as boolean,
+//       allowHeaders: HtsgetLambdaConstruct.convertCors(
+//         configToml,
+//         "ticket_server_cors_allow_headers",
+//       ),
+//       allowMethods: HtsgetLambdaConstruct.corsAllowMethodToHttpMethod(
+//         HtsgetLambdaConstruct.convertCors(
+//           configToml,
+//           "ticket_server_cors_allow_methods",
+//         ),
+//       ),
+//       allowOrigins: HtsgetLambdaConstruct.convertCors(
+//         configToml,
+//         "ticket_server_cors_allow_origins",
+//       ),
+//       exposeHeaders: HtsgetLambdaConstruct.convertCors(
+//         configToml,
+//         "ticket_server_cors_expose_headers",
+//       ),
+//       maxAge:
+//         configToml.ticket_server_cors_max_age !== undefined
+//           ? Duration.seconds(configToml.ticket_server_cors_max_age as number)
+//           : undefined,
+//     };
+//   }
+// }
+
 /**
  * Construct used to deploy htsget-lambda.
  */
@@ -191,7 +259,7 @@ export class HtsgetLambdaConstruct extends Construct {
   constructor(
     scope: Construct,
     id: string,
-    settings: HtsgetSettings,
+    settings: HtsgetStatelessSettings & HtsgetStatefulSettings,
   ) {
     super(scope, id);
 
