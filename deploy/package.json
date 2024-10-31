@@ -1,9 +1,15 @@
 {
   "name": "htsget-lambda",
-  "version": "1.0.0",
+  "version": "0.5.1",
   "bin": {
     "htsget_app": "bin/htsget-lambda.js"
   },
+  "files": [
+    "bin/htsget-lambda.ts",
+    "bin/settings.ts",
+    "lib/htsget-lambda-construct.ts",
+    "config/example_deploy.toml"
+  ],
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
