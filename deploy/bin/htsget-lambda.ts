@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { HtsgetLambdaConstruct } from "../../deploy/lib/htsget-lambda-construct";
-import { SETTINGS } from "../../deploy/bin/settings"
+import { HtsgetLambdaConstruct } from "htsget-lambda-construct/lib/htsget-lambda-construct";
+import { SETTINGS } from "htsget-lambda-construct/bin/settings"
 import { HtsgetStatefulSettings } from "../../deploy/lib/htsget-lambda-construct"
 import { HtsgetStatelessSettings } from "../../deploy/lib/htsget-lambda-construct"
 

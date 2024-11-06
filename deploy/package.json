@@ -1,5 +1,5 @@
 {
-  "name": "htsget-lambda",
+  "name": "htsget-lambda-construct",
   "version": "0.5.1",
   "bin": {
     "htsget_app": "bin/htsget-lambda.js"
@@ -11,13 +11,14 @@
     "config/example_deploy.toml"
   ],
   "scripts": {
+    "run": "cdk deploy",
     "build": "tsc",
     "watch": "tsc -w",
     "cdk": "cdk"
   },
   "devDependencies": {
-    "@types/node": "22.7.5",
-    "aws-cdk": "2.162.1",
+    "@types/node": "22.8.4",
+    "aws-cdk": "2.164.1",
     "prettier": "^3.3.3",
     "typescript": "5.6.3"
   },
