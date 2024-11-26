@@ -243,14 +243,14 @@ export class HtsgetLambdaStack extends Stack {
     if (settings.copyExampleKeys) {
       const dataDir = path.join(__dirname, "..", "..", "data", "c4gh", "keys");
       const private_key = new Secret(this, "SecretPrivateKey", {
-        secretName: "htsget-rs/c4gh-private-key", // pragma: allowlist secret
+        secretName: "htsget-rs/private-key-c4gh", // pragma: allowlist secret
         secretStringValue: SecretValue.unsafePlainText(
           readFileSync(path.join(dataDir, "bob.sec")).toString(),
         ),
         removalPolicy: RemovalPolicy.RETAIN,
       });
       const public_key = new Secret(this, "SecretPublicKey", {
-        secretName: "htsget-rs/c4gh-recipient-public-key", // pragma: allowlist secret
+        secretName: "htsget-rs/recipient-public-key-c4gh", // pragma: allowlist secret
         secretStringValue: SecretValue.unsafePlainText(
           readFileSync(path.join(dataDir, "alice.pub")).toString(),
         ),
