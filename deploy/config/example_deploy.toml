@@ -22,8 +22,8 @@ storage.backend = 'S3'
 
 [resolvers.storage.keys]
 location = "SecretsManager"
-private_key = "htsget-rs/c4gh-private-key" # pragma: allowlist secret
-recipient_public_key = "htsget-rs/c4gh-recipient-public-key"
+private_key = "htsget-rs/private-key-c4gh" # pragma: allowlist secret
+recipient_public_key = "htsget-rs/ecipient-public-key-c4gh"
 
 # Everything else is a regular file.
 [[resolvers]]
