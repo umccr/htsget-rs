@@ -17,9 +17,9 @@ Have a look at existing [issues] to see if an issue has already been discussed.
 
 ## Pull Requests
  
-We welcome you to open up a pull request 
-to suggest a change, even if it's a small one line change. If the change is large, it is a good idea to first open an 
-issue to discuss the change in order gain feedback and guidance.
+We welcome you to open up a pull request to suggest a change, even if it's a small one line change.
+If the change is large, it is a good idea to first open an issue to discuss the change in order gain feedback and
+guidance.
 
 ### Tests and formatting
 

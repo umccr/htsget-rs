@@ -23,8 +23,6 @@ This crate is used for running a cloud-based instance of htsget-rs. It:
 
 ## Usage
 
-### For running htsget-rs as an application
-
 This crate can be deployed to AWS as a Lambda function, or interacted with locally using [cargo-lambda]. See [deploy] 
 for more details. Note, this crate does not use any configuration relating to the local data server. CORS configuration
 uses values from the ticket server config. See [htsget-config] for more information about configuration.

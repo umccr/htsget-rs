@@ -21,16 +21,24 @@ This crate is used for running a server instance of htsget-rs. It is based on:
 
 [htsget-http]: ../htsget-http
 
-## Usage
+## Quick start
 
-### For running htsget-rs as an application
+Launch a server instance:
 
-This crate uses [htsget-config] for configuration. See [htsget-config] for details on how to configure this crate.
-
-To run an instance of this crate, execute the following command:
 ```sh
 cargo run -p htsget-axum
 ```
+
+And fetch tickets from `localhost:8080`:
+
+```sh
+curl 'http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer'
+```
+
+This crate uses [htsget-config] for configuration.
+
+### Storage backends
+
 Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
 with data accessible from the [`data`][data] directory. This application supports storage backends defined in [htsget-storage].
 
@@ -38,6 +46,7 @@ To use `S3Storage`, compile with the `s3-storage` feature:
 ```sh
 cargo run -p htsget-axum --features s3-storage
 ```
+
 This will start a ticket server with `S3Storage` using a bucket called `"data"`.
 
 To use `UrlStorage`, compile with the `url-storage` feature.
@@ -51,19 +60,18 @@ See [htsget-search] for details on how to structure files.
 
 #### Using TLS
 
-There two server instances that are launched when running this crate. The ticket server, which returns a list of ticket URLs that a client must fetch.
-And the data block server, which responds to the URLs in the tickets. By default, the data block server runs without TLS. 
-To run the data block server with TLS, pem formatted X.509 certificates are required.
+By default, htsget-rs runs without TLS. To use TLS, pem formatted X.509 certificates are required.
 
-For development and testing purposes, self-signed certificates can be used.
-For example, to generate self-signed certificates run:
+For development and testing purposes, self-signed certificates can be used. For example, to generate self-signed certificates run:
 
 ```sh
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj '/CN=localhost'
 ```
 
-It is not recommended to use self-signed certificates in a production environment 
-as this is considered insecure.
+It is not recommended to use self-signed certificates in a production environment as this is considered insecure.
+
+There two server instances that are launched when running this crate, the ticket server and data block server. TLS
+is specified separately for both servers.
 
 #### Example requests
 
@@ -73,39 +81,39 @@ Some example requests using `curl` are shown below:
 * GET
 
 ```sh
-curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+curl 'http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 * POST
 
 ```sh
-curl --header "Content-Type: application/json" -d '{}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+curl --header "Content-Type: application/json" -d '{}' 'http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 * Parametrised GET
 
 ```sh
-curl '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header'
+curl 'http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer?format=VCF&class=header'
 ```
 
 * Parametrised POST
 
 ```sh
-curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' '127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+curl --header "Content-Type: application/json" -d '{"format": "VCF", "regions": [{"referenceName": "chrM"}]}' 'http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer'
 ```
 
 * Service info
 
 ```sh
-curl '127.0.0.1:8080/variants/service-info'
+curl 'http://localhost:8080/variants/service-info'
 ```
 
 ### Crypt4GH
 
-The htsget-rs server experimentally supports serving [Crypt4GH][c4gh] encrypted files to clients. See the [Crypt4GH section][config-c4gh] in the configuration
-for more details on how to configure this.
+The htsget-rs server experimentally supports serving [Crypt4GH][c4gh] encrypted files to clients. See the [Crypt4GH section][config-c4gh]
+in the configuration for more details on how to configure this.
 
-Run the server with the following to enable Crypt4GH support using the [example config][example-config]:
+To use Crypt4GH run the server using the [example config][example-config] and the `experimental` flag:
 
 ```sh
 cargo run -p htsget-axum --features experimental -- --config htsget-config/examples/config-files/c4gh.toml
@@ -119,6 +127,7 @@ curl 'http://localhost:8080/reads/data/c4gh/htsnexus_test_NA12878?referenceName=
 
 The output consists of the Crypt4GH header, which includes the original header, the edit lists, and the re-encrypted header that
 the recipient can use to decrypt bytes:
+
 ```json
 {
   "htsget": {
