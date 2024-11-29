@@ -19,13 +19,11 @@ Creates URL tickets for [htsget-rs] by processing bioinformatics files. It:
 This crate is the primary mechanism by which htsget-rs interacts with, and processes
 bioinformatics files. It does this by using [noodles] to query files and their indices.
 This crate contains abstractions that remove commonalities between file formats. Together with file format 
-specific code, this defines an interface that handles the core logic of a htsget request. ht
+specific code, this defines an interface that handles the core logic of a htsget request.
 
 [noodles]: https://github.com/zaeleus/noodles
 
-## Usage
-
-### For running htsget-rs as an application
+## File structure
 
 This crate is responsible for handling bioinformatics file data. It supports BAM, CRAM, VCF and BCF files.
 For htsget-rs to function, files need to be organised in the following way:
@@ -40,8 +38,6 @@ For htsget-rs to function, files need to be organised in the following way:
     * GZI files must end with `.gzi`.
     * See [minimising byte ranges][minimising-byte-ranges] for more details on GZI.
 
-This is quite inflexible, and is likely to change in the future to allow arbitrary mappings of files and indices.
-
 [gzi]: http://www.htslib.org/doc/bgzip.html#GZI_FORMAT
 [minimising-byte-ranges]: #minimising-byte-ranges
 
@@ -53,7 +49,7 @@ This crate has the following features:
 The htsget trait comes with a basic model to represent components needed to perform a search: `Query`, `Format`, 
 `Class`, `Tags`, `Headers`, `Url`, `Response`. `HtsGetFromStorage` is the struct which is 
 used to process requests.
-* 
+
 #### Feature flags
 
 This crate has the following features:
@@ -63,16 +59,20 @@ This crate has the following features:
 
 ## Minimising Byte Ranges
 
-One challenge involved with implementing htsget is meaningfully minimising the size of byte ranges returned in response
+One challenge involved with implementing htsget is  minimising the size of byte ranges returned in response
 tickets. Since htsget is used to reduce the amount of data a client needs to fetch by querying specific parts of a file, 
 the data returned by htsget should ideally be as minimal as possible. This is done by reading the index file or
-the underlying target file, to determine the required byte ranges. However, this is complicated when considering 
-BGZF compressed files. 
+the underlying target file, to determine the required byte ranges.
+
+For BGZF files, [GZI][gzi] files are supported, which enable the smallest possible byte ranges.
+
+### BGZF file example
 
 For BGZF compressed files, htsget-rs needs to return compressed byte positions. Also, after concatenating data from URL tickets,
 the resulting file must be valid. This means that byte ranges must start and finish on BGZF blocks, otherwise the concatenation
-would not result in a valid file. However, index files (BAI, TBI, CSI) do not contain all the information required to
+would not result in a valid file. Index files (BAI, TBI, CSI) do not contain all the information required to
 produce minimal byte ranges. For example, consider this [file][example-file]:
+
 * There are 14 BGZF blocks positions using all available data in the corresponding [index file][example-index] (chunk start positions, chunk end positions, linear index positions, and metadata positions):
     * `4668`, `256721`, `499249`, `555224`, `627987`, `824361`, `977196`, `1065952`, `1350270`, `1454565`, `1590681`, `1912645`, `2060795` and `2112141`.
 * Using just this data, the following query with: 
@@ -86,31 +86,22 @@ produce minimal byte ranges. For example, consider this [file][example-file]:
   * `bytes=824361-842100`
   * `bytes=977196-996014`
 
-To produce the smallest byte ranges, htsget-rs needs to find this data somewhere else. There are two ways to accomplish this:
-* Get the data from the underlying target file, by seeking to the start of a BGZF, and reading until the end of the block is found.
-* Get the data from an auxiliary index file, such as GZI.
-
-Currently, htsget-rs takes the latter approach, and uses GZI files, which contain information on all BGZF start and
-end positions. However, this is not ideal, as GZI contains more information than required by htsget-rs. The former
-approach also has issues when considering cloud-based storage, which in the case of S3, does not have seek operations.
-
-The way htsget-rs finds the information needed for minimal byte ranges is very likely to change in the future, as more efficient
-approaches are implemented. For example, a database could be used to further index files. Queries to a database could be
-as targeted as possible, retrieving only the required information.
+To produce the smallest byte ranges, htsget-rs needs can search through GZI files and regular index files. It does not
+read data from the underlying target file.
 
 [example-file]: ../data/bam/htsnexus_test_NA12878.bam
 [example-index]: ../data/bam/htsnexus_test_NA12878.bam.bai
 
-## Benchmarks 
+## Benchmarks
 
 Since this crate is used to query file data, it is the most performance critical component of htsget-rs. Benchmarks, using 
-[Criterion.rs][criterion-rs], are therefore written to test performance. Run benchmarks by executing:
+[Criterion.rs][criterion-rs] are written to test performance. Run benchmarks by executing:
 
 ```sh
 cargo bench -p htsget-search --all-features
 ```
 
-Alternatively if you are using `cargo-criterion` and want a machine readable JSON output, run:
+Alternatively if you are using `cargo-criterion` and want a machine-readable JSON output, run:
 
 ```sh
 cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks.json

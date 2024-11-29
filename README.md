@@ -12,18 +12,35 @@
 A **server** implementation of the [htsget protocol][htsget-protocol] for bioinformatics in Rust. It is:
 * **Fully-featured**: supports BAM and CRAM for reads, and VCF and BCF for variants, as well as other aspects of the protocol such as TLS, and CORS.
 * **Serverless**: supports local server instances using [Axum][axum] and [Actix Web][actix-web], and serverless instances using [AWS Lambda Rust Runtime][aws-lambda-rust-runtime].
-* **Storage interchangeable**: supports local filesystem storage as well as objects via [Minio][minio] and AWS S3.
+* **Storage interchangeable**: supports local filesystem storage as well as objects via [Minio][minio] and [AWS S3][aws-s3].
 * **Thoroughly tested and benchmarked**: tested using a purpose-built [test suite][htsget-test] and benchmarked using [criterion-rs].
-
-To get started, see [Usage].
-
-**Note**: htsget-rs is still experimental, and subject to change.
 
 [actix-web]: https://github.com/actix/actix-web
 [criterion-rs]: https://github.com/bheisler/criterion.rs
-[Usage]: #usage
 
-## Overview
+## Quickstart
+
+To run a local instance htsget-rs, run [htsget-axum]:
+
+```sh
+cargo run -p htsget-axum
+```
+
+And fetch tickets from `127.0.0.1:8080`, which serves data from [data]:
+
+```sh
+curl 'http://127.0.0.1:8080/variants/data/vcf/sample1-bcbio-cancer'
+```
+
+### Configuration
+
+Htsget-rs is configured using environment variables or config files, see [htsget-config] for details.
+
+### Cloud
+
+Cloud-based htsget-rs uses [htsget-lambda]. For an example deployment of this crate see [deploy].
+
+## Protocol
 
 Htsget-rs implements the [htsget protocol][htsget-protocol], which is an HTTP-based protocol for querying bioinformatics files. 
 The htsget protocol outlines how a htsget server should behave, and it is an effective way to fetch regions of large bioinformatics files. 
@@ -51,22 +68,6 @@ htsget-rs implements the following components of the protocol:
 [htsget-diagram-png]: https://samtools.github.io/hts-specs/pub/htsget-ticket.png
 [tokio]: https://github.com/tokio-rs/tokio
 
-## Usage
-
-Htsget-rs is configured using environment variables, for details on how to set them, see [htsget-config].
-
-### Local
-To run a local instance htsget-rs, run [htsget-axum] by executing the following:
-```sh
-cargo run -p htsget-axum
-```
-Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
-with data accessible from the [data] directory. See [htsget-axum] for more information.
-
-### Cloud
-Cloud based htsget-rs uses [htsget-lambda]. For more information and an example deployment of this crate see 
-[deploy].
-
 ### Tests
 
 Tests can be run tests by executing:
@@ -77,33 +78,26 @@ cargo test --all-features
 
 To run benchmarks, see the benchmark sections of [htsget-actix][htsget-actix-benches] and [htsget-search][htsget-search-benches].
 
-[htsget-actix-benches]: htsget-actix/README.md#Benchmarks
-[htsget-search-benches]: htsget-search/README.md#Benchmarks
+[htsget-actix-benches]: htsget-actix/README.md#benchmarks
+[htsget-search-benches]: htsget-search/README.md#benchmarks
 
 ## Project Layout
 
-This repository consists of a workspace composed of the following crates:
+This repository is a workspace of crates:
 
 - [htsget-config]: Configuration of the server.
 - [htsget-actix]: Local instance of the htsget server. Contains framework dependent code using [Actix Web][actix-web].
 - [htsget-axum]: Local instance of the htsget server. Contains framework dependent code using [Axum][axum].
 - [htsget-http]: Handling of htsget HTTP requests. Framework independent code.
-- [htsget-lambda]: Cloud based instance of the htsget server. Contains framework dependent
+- [htsget-lambda]: Cloud-based instance of the htsget server. Contains framework dependent
 code using the [Rust Runtime for AWS Lambda][aws-lambda-rust-runtime].
 - [htsget-search]: Core logic needed to search bioinformatics files based on htsget queries.
+- [htsget-storage]: Storage interfaces for local and cloud-based files.
 - [htsget-test]: Test suite used by other crates in the project.
 
 Other directories contain further applications or data:
-- [data]: Contains example data files which can be used by htsget-rs, in folders denoting the file type.
-This directory also contains example events used by a cloud instance of htsget-rs in the [`events`][data-events] subdirectory.
-- [deploy]: An example deployment of [htsget-lambda].
-
-In htsget-rs the ticket server handled by [htsget-axum], [htsget-actix] or [htsget-lambda], and the data
-block server is handled by the [storage backend][storage-backend], either [locally][local-storage], or using [AWS S3][s3-storage].
-This project layout is structured to allow for extensibility and modularity. For example, a new ticket server and data server could 
-be implemented using Cloudflare Workers in a `htsget-http-workers` crate and Cloudflare R2 in [htsget-search].
-
-See the [htsget-search overview][htsget-search-overview] for more information on the storage backend.
+- [data]: Contains example data files used by htsget-rs and in tests.
+- [deploy]: Deployments for htsget-rs.
 
 [axum]: https://github.com/tokio-rs/axum
 [htsget-config]: htsget-config
@@ -111,19 +105,14 @@ See the [htsget-search overview][htsget-search-overview] for more information on
 [htsget-http]: htsget-http
 [htsget-lambda]: htsget-lambda
 [htsget-search]: htsget-search
-[htsget-search-overview]: htsget-search/README.md#Overview
+[htsget-storage]: htsget-storage
 [htsget-test]: htsget-test
-
-[storage-backend]: htsget-search/src/storage
-[local-storage]: htsget-search/src/storage/local.rs
-[s3-storage]: htsget-search/src/storage/s3.rs
 
 [data]: data
 [deploy]: deploy
 
 [actix-web]: https://actix.rs/
 [aws-lambda-rust-runtime]: https://github.com/awslabs/aws-lambda-rust-runtime
-[data-events]: data/events
 
 ## Contributing
 
@@ -140,4 +129,5 @@ This project is licensed under the [MIT license][license].
 [htsget-lambda]: htsget-lambda
 [license]: LICENSE
 [aws-lambda-rust-runtime]: https://github.com/awslabs/aws-lambda-rust-runtime
+[aws-s3]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html
 [minio]: https://min.io/

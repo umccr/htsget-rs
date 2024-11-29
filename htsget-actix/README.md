@@ -9,7 +9,7 @@
 [actions-url]: https://github.com/umccr/htsget-rs/actions?query=workflow%3Atests+branch%3Amain
 
 > [!IMPORTANT]  
-> The functionality of [htsget-axum] is identical to this crate and it is recommended for all
+> The functionality of [htsget-axum] is identical to this crate, and it is recommended for all
 > projects to use [htsget-axum] instead.
 > 
 > This crate will be maintained to preserve backwards compatibility, however [htsget-axum] is
@@ -29,16 +29,21 @@ This crate is used for running a local instance of htsget-rs. It is based on:
 
 [htsget-http]: ../htsget-http
 
-## Usage
+## Quickstart
 
-This application has the same functionality as [htsget-axum]. To use it, following the [htsget-axum][htsget-axum] instructions, and
-replace any calls to `htsget-axum` with `htsget-actix`.
+Launch a server instance:
 
-It is recommended to use [htsget-axum] because it better fits with the rest of [htsget-rs]. For example [htsget-actix]
-uses the actix-web framework for the ticket server, however it depends on [htsget-axum] for the data server. Also, components
-in [htsget-lambda] use Axum dependencies.
+```sh
+cargo run -p htsget-actix
+```
 
-[htsget-lambda]: ../htsget-lambda
+And fetch tickets from `localhost:8080`:
+
+```sh
+curl 'http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer'
+```
+
+This crate uses [htsget-config] for configuration. All options supported in [htsget-axum] are also supported here.
 
 ### As a library
 
@@ -53,12 +58,13 @@ This crate has the following features:
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 ## Benchmarks
+
 Benchmarks for this crate written using [Criterion.rs][criterion-rs], and aim to compare the performance of this crate with the
 [htsget Reference Server][htsget-refserver].
-There are a set of light benchmarks, and one heavy benchmark. Light benchmarks can be performed by executing:
+There are a set of light benchmarks, and one heavy benchmark. For light benchmarks run:
 
 ```
-cargo bench -p htsget-axum -- LIGHT
+cargo bench -p htsget-actix -- LIGHT
 ```
 
 To run the heavy benchmark, an additional vcf file needs to be downloaded, and placed in the [`data/vcf`][data-vcf] directory:
@@ -67,16 +73,17 @@ To run the heavy benchmark, an additional vcf file needs to be downloaded, and p
 curl ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000_genomes_project/release/20190312_biallelic_SNV_and_INDEL/ALL.chr14.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.vcf.gz > data/vcf/internationalgenomesample.vcf.gz
 ```
 
-Then to run the heavy benchmark:
+Then run the heavy benchmark:
 
 ```
-cargo bench -p htsget-axum -- HEAVY
+cargo bench -p htsget-actix -- HEAVY
 ```
 
 [criterion-rs]: https://github.com/bheisler/criterion.rs
 [htsget-refserver]: https://github.com/ga4gh/htsget-refserver
 [data-vcf]: ../data/vcf
-[htsget-axum]: ../htsget-axum/README.md#usage
+[htsget-axum]: ../htsget-axum/README.md
+[htsget-config]: ../htsget-config/README.md
 
 ## License
 

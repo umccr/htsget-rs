@@ -17,11 +17,7 @@ Common test functions and utilities used by [htsget-rs].
 This crate contains shared code used for testing by other htsget-rs crates. It has common server tests, as well as other
 utility functions.
 
-[noodles]: https://github.com/zaeleus/noodles
-
 ## Usage
-
-### For running htsget-rs as an application
 
 There is no need to interact with this crate for running htsget-rs.
 

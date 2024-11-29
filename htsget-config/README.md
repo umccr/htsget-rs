@@ -8,25 +8,25 @@
 [actions-badge]: https://github.com/umccr/htsget-rs/actions/workflows/action.yml/badge.svg
 [actions-url]: https://github.com/umccr/htsget-rs/actions?query=workflow%3Atests+branch%3Amain
 
-Configuration for [htsget-rs] and relevant crates.
+Configuration for [htsget-rs].
 
 [htsget-rs]: https://github.com/umccr/htsget-rs
 
 ## Overview
 
-This crate is used to configure htsget-rs by using a config file or reading environment variables.
+This crate is used to configure htsget-rs using a config file or environment variables.
 
 ## Usage
 
-### For running htsget-rs as an application
+To configure htsget-rs, a TOML config file can be defined. There is also support for reading config from environment variables. 
+Any config options set by environment variables override values in the config file.
 
-To configure htsget-rs, a TOML config file can be used. It also supports reading config from environment variables. 
-Any config options set by environment variables override values in the config file. For some of
-the more deeply nested config options, it may be more ergonomic to use a config file rather than environment variables.
+The configuration consists of TOML tables, such as config for the ticket server, data server, service-info, or resolvers.
 
-The configuration consists of multiple parts, config for the ticket server, config for the data server, service-info config, and config for the resolvers.
+As a starting point, see the [basic TOML][basic] example file which should work for many use-cases.
 
 #### Ticket server config
+
 The ticket server responds to htsget requests by returning a set of URL tickets that the client must fetch and concatenate.
 To configure the ticket server, set the following options:
 
@@ -52,7 +52,8 @@ ticket_server_cors_max_age = 86400
 ticket_server_cors_expose_headers = []
 ```
 
-#### Local data server config
+#### Data server config
+
 The local data server responds to tickets produced by the ticket server by serving local filesystem data. 
 To configure the data server, set the following options:
 
@@ -126,9 +127,21 @@ environment = 'dev'
 
 #### Resolvers
 
-The resolvers component of htsget-rs is used to map query IDs to the location of the resource. Each query that htsget-rs receives is
-'resolved' to a location, which a data server can respond with. A query ID is matched with a regex, and is then mapped with a substitution string that
-has access to the regex capture groups. Resolvers are configured in an array, where the first matching resolver is resolver used to map the ID.
+The resolvers component of htsget-rs is used to map query IDs to the location of the resource. This is the component of the
+code that takes the [`id`][id], which is everything after `reads/` or `variants/` in the http path, and maps it to a data location.
+
+For example, if the request to htsget-rs is:
+
+```sh
+curl 'http://localhost:8080/reads/some_id/file'
+```
+
+Then the resolvers controls how the server finds `some_id/file`, which may be stored locally, in the cloud, or at an arbitrary URL location.
+The resolvers maps `some_id/file` to a location using regexes and substitution strings. The location of the file does not
+need to have the same name as the id.
+
+A query ID is matched with a regex, and is then mapped with a substitution string that has access to the regex capture groups.
+Resolvers are configured in an array, where the first matching resolver is resolver used to map the ID.
 
 To create a resolver, add a `[[resolvers]]` array of tables, and set the following options:
 
@@ -138,13 +151,15 @@ To create a resolver, add a `[[resolvers]]` array of tables, and set the followi
 | `substitution_string` | The replacement expression used to map the matched query ID. This has access to the match groups in the `regex` option. | String with access to capture groups  | `'$0'`  |
 
 For example, below is a `regex` option which matches a `/` between two groups, and inserts an additional `data`
-inbetween the groups with the `substitution_string`.
+in between the groups with the `substitution_string`.
 
 ```toml
 [[resolvers]]
 regex = '(?P<group1>.*?)/(?P<group2>.*)'
 substitution_string = '$group1/data/$group2'
 ```
+
+This would mean that a request to `http://localhost:8080/reads/some_id/file` would search for files at `some_id/data/file.bam` and `some_id/data/file.bam.bai`.
 
 For more information about regex options see the [regex crate](https://docs.rs/regex/).
 
@@ -161,7 +176,19 @@ To use `LocalStorage`, set `backend = 'Local'` under `[resolvers.storage]`, and 
 | `path_prefix`            | The path prefix which the URL tickets will have. This should likely match the `data_server_serve_at` path.                          | URL path                     | `''`               |
 | `use_data_server_config` | Whether to use the data server config to fill in the above values. This overrides any other options specified from this table.      | Boolean                      | `false`            |
 
-To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, set `backend = 'S3'` under `[resolvers.storage]`, and specify any additional options from below:
+By default, if the above options are left unspecified, they inherit values from the [`data_server`][data-server] config.
+For example, the following sets the `scheme`, `authority`, `local_path` and `path_prefix` to values used by the `data_server`.
+
+```toml
+[[resolvers]]
+regex = '.*'
+substitution_string = '$0'
+
+[resolvers.storage]
+backend = 'Local'
+```
+
+To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, set `backend = 'S3'` under `[resolvers.storage]`, and specify:
 
 | Option       | Description                                                                                                                                                                   | Type    | Default                                                                                                                   |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------|
@@ -169,7 +196,21 @@ To use `S3Storage`, build htsget-rs with the `s3-storage` feature enabled, set `
 | `endpoint`   | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio).                | String  | Not set, uses regular AWS S3 services.                                                                                    |
 | `path_style` | The S3 path style to request from the storage backend. If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used.  | Boolean | `false`                                                                                                                   |
 
-`UrlStorage` is another storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
+For example, a `resolvers` value of:
+```toml
+[[resolvers]]
+regex = '^(example_bucket)/(?P<key>.*)$'
+substitution_string = '$key'
+
+[resolvers.storage]
+backend = 'S3'
+# Uses the first capture group in the regex as the bucket.
+```
+
+Will use "example_bucket" as the S3 bucket if that resolver matches, because this is the first capture group in the `regex`.
+Note, to use this feature, at least one capture group must be defined in the `regex`.
+
+`UrlStorage` is a storage backend which can be used to serve data from a remote HTTP URL. When using this storage backend, htsget-rs will fetch data from a `url` which is set in the config. It will also forward any headers received with the initial query, which is useful for authentication. 
 To use `UrlStorage`, build htsget-rs with the `url-storage` feature enabled, set `backend = 'Url'` under `[resolvers.storage]`, and specify any additional options from below:
 
 | Option                               | Description                                                                                                                 | Type                     | Default                                                                                                         |
@@ -187,50 +228,8 @@ When using `UrlStorage`, the following requests will be made to the `url`.
 
 By default, all headers received in the initial query will be included when making these requests. To exclude certain headers from being forwarded, set the `header_blacklist` option. Note that the blacklisted headers are removed from the requests made to `url` and from the URL tickets as well.
 
-
-For example, a `resolvers` value of:
-```toml
-[[resolvers]]
-regex = '^(example_bucket)/(?P<key>.*)$'
-substitution_string = '$key'
-
-[resolvers.storage]
-backend = 'S3'
-# Uses the first capture group in the regex as the bucket.
-```
-Will use "example_bucket" as the S3 bucket if that resolver matches, because this is the first capture group in the `regex`.
-Note, to use this feature, at least one capture group must be defined in the `regex`.
-
-Note, all the values for `S3Storage` or `LocalStorage` can be also be set manually by adding a
-`[resolvers.storage]` table. For example, to manually set the config for `LocalStorage`:
-
-```toml
-[[resolvers]]
-regex = '.*'
-substitution_string = '$0'
-
-[resolvers.storage]
-backend = 'Local'
-scheme = 'Http'
-authority = '127.0.0.1:8081'
-local_path = './'
-path_prefix = ''
-```
-
-or, to manually set the config for `S3Storage`:
-
-```toml
-[[resolvers]]
-regex = '.*'
-substitution_string = '$0'
-
-[resolvers.storage]
-backend = 'S3'
-bucket = 'bucket'
-```
-
-`UrlStorage` can only be specified manually.
 Example of a resolver with `UrlStorage`:
+
 ```toml
 [[resolvers]]
 regex = ".*"
@@ -246,14 +245,9 @@ header_blacklist = ["Host"]
 
 There are additional examples of config files located under [`examples/config-files`][examples-config-files].
 
-#### Note
-By default, when htsget-rs is compiled with the `s3-storage` feature flag, `storage = 'S3'` is used when no `storage` options
-are specified. Otherwise, `storage = 'Local'` is used when no storage options are specified. Compilation includes the `s3-storage` 
-feature flag by default, so in order to have `storage = 'Local'` as the default, `--no-default-features` can be passed to `cargo`.
-
 #### Allow guard
 Additionally, the resolver component has a feature, which allows resolving IDs based on the other fields present in a query.
-This is useful as allows the resolver to match an ID, if a particular set of query parameters are also present. For example, 
+This is useful as it allows the resolver to match an ID only if a particular set of query parameters are also present. For example, 
 a resolver can be set to only resolve IDs if the format is also BAM.
 
 This component can be configured by setting the `[resolver.allow_guard]` table with. The following options are available to restrict which queries are resolved by a resolver:
@@ -314,8 +308,7 @@ ticket_server_tls.key = "key.pem"
 ```
 
 This project uses [rustls] for all TLS logic, and it does not depend on OpenSSL. The rustls library can be more
-strict when accepting certificates and keys. For example, it does not accept self-signed certificates that have
-a CA used as an end-entity. If generating certificates for `root_store` using OpenSSL, the correct extensions,
+strict when accepting certificates and keys. If generating certificates for `root_store` using OpenSSL, the correct extensions,
 such as `subjectAltName` should be included.
 
 An example of generating a custom root CA and certificates for a `UrlStorage` backend:
@@ -363,6 +356,7 @@ The config can also be read from an environment variable:
 ```shell
 export HTSGET_CONFIG="config.toml"
 ```
+
 If no config file is specified, the default configuration is used. Further, the default configuration file can be printed to stdout by passing
 the `--print-default-config` flag:
 
@@ -378,7 +372,7 @@ Use the `--help` flag to see more details on command line options.
 
 #### Log formatting
 
-The [Tracing][tracing] crate is used extensively by htsget-rs is for logging functionality. The `RUST_LOG` variable is
+The [Tracing][tracing] crate is used by htsget-rs is for logging functionality. The `RUST_LOG` variable is
 read to configure the level that trace logs are emitted.
 
 For example, the following indicates trace level for all htsget crates, and info level for all other crates:
@@ -401,9 +395,9 @@ See [here][formatting-style] for more information on how these values look.
 [rust-log]: https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
 [formatting-style]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html#formatters
 
-#### Configuring htsget-rs with environment variables
+#### Environment variables
 
-All the htsget-rs config options can be set by environment variables, which is convenient for runtimes such as AWS Lambda.
+All the htsget-rs config options can be set using environment variables, which is convenient for runtimes such as AWS Lambda.
 The ticket server, data server and service info options are flattened and can be set directly using 
 environment variable. It is not recommended to set the resolvers using environment variables, however it can be done by setting a single environment variable which 
 contains a list of structures, where a key name and value pair is used to set the nested options.
@@ -504,7 +498,7 @@ There is experimental support for serving [Crypt4GH][c4gh] encrypted files. This
 `experimental` feature flag.
 
 This allows htsget-rs to read Crypt4GH files and serve them encrypted, directly to the client. In the process of
-serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and reencrypt them so that the client can read
+serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and re-encrypt them so that the client can read
 them. When the client receives byte ranges from htsget-rs and concatenates them, the output bytes will be Crypt4GH encrypted,
 and will need to be decrypted before they can be read. All file formats (BAM, CRAM, VCF, and BCF) are supported using Crypt4GH.
 
@@ -576,3 +570,6 @@ This project is licensed under the [MIT license][license].
 [c4gh]: https://samtools.github.io/hts-specs/crypt4gh.pdf
 [data-c4gh]: ../data/c4gh
 [secrets-manager]: https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html
+[id]: https://samtools.github.io/hts-specs/htsget.html#url-parameters
+[basic]: examples/config-files/basic.toml
+[data-server]: README.md#data-server-config

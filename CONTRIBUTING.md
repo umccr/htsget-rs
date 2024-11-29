@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing. We greatly value feedback and contributions, whether that's
 an issue, bug fix, new feature or document change. All contributions are welcome, and no change is too small, even if
-its just a typo fix.
+it's just a typo fix.
 
 To get familiar with the project, have a look at the READMEs of each crate.
 
@@ -17,13 +17,13 @@ Have a look at existing [issues] to see if an issue has already been discussed.
 
 ## Pull Requests
  
-We welcome you to open up a pull request 
-to suggest a change, even if it's a small one line change. If the change is large, it is a good idea to first open an 
-issue to discuss the change in order gain feedback and guidance.
+We welcome you to open up a pull request to suggest a change, even if it's a small one line change.
+If the change is large, it is a good idea to first open an issue to discuss the change in order gain feedback and
+guidance.
 
 ### Tests and formatting
 
-If the proposed change alters the code, tests should updated to ensure that no regressions are made. Any new features 
+If the proposed change alters the code, tests should update to ensure that no regressions are made. Any new features 
 need to have thorough testing before they are merged. 
 
 We also use [clippy] and [rustfmt] for code style, linting and formatting.
