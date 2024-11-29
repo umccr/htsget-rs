@@ -121,12 +121,12 @@ pub struct Interval {
 impl Interval {
   /// Check if this interval contains the value.
   pub fn contains(&self, value: u32) -> bool {
-    return match (self.start.as_ref(), self.end.as_ref()) {
+    match (self.start.as_ref(), self.end.as_ref()) {
       (None, None) => true,
       (None, Some(end)) => value < *end,
       (Some(start), None) => value >= *start,
       (Some(start), Some(end)) => value >= *start && value < *end,
-    };
+    }
   }
 
   /// Convert this interval into a one-based noodles `Interval`.

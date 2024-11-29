@@ -17,7 +17,7 @@ pub enum Parser<'a> {
   Path(&'a Path),
 }
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
   /// Deserialize a string or path into a config value using Figment.
   #[instrument]
   pub fn deserialize_config_into<T>(&self) -> io::Result<T>
