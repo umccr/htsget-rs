@@ -21,7 +21,7 @@ This crate is used for running a server instance of htsget-rs. It is based on:
 
 [htsget-http]: ../htsget-http
 
-## Quick start
+## Quickstart
 
 Launch a server instance:
 

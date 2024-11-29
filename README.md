@@ -18,7 +18,7 @@ A **server** implementation of the [htsget protocol][htsget-protocol] for bioinf
 [actix-web]: https://github.com/actix/actix-web
 [criterion-rs]: https://github.com/bheisler/criterion.rs
 
-## Quick start
+## Quickstart
 
 To run a local instance htsget-rs, run [htsget-axum]:
 

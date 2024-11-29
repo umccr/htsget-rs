@@ -23,7 +23,7 @@ Any config options set by environment variables override values in the config fi
 
 The configuration consists of TOML tables, such as config for the ticket server, data server, service-info, or resolvers.
 
-As a starting point, see the [basic TOML][basic] example file which should work for many use cases.
+As a starting point, see the [basic TOML][basic] example file which should work for many use-cases.
 
 #### Ticket server config
 
@@ -151,7 +151,7 @@ To create a resolver, add a `[[resolvers]]` array of tables, and set the followi
 | `substitution_string` | The replacement expression used to map the matched query ID. This has access to the match groups in the `regex` option. | String with access to capture groups  | `'$0'`  |
 
 For example, below is a `regex` option which matches a `/` between two groups, and inserts an additional `data`
-inbetween the groups with the `substitution_string`.
+in between the groups with the `substitution_string`.
 
 ```toml
 [[resolvers]]
@@ -498,7 +498,7 @@ There is experimental support for serving [Crypt4GH][c4gh] encrypted files. This
 `experimental` feature flag.
 
 This allows htsget-rs to read Crypt4GH files and serve them encrypted, directly to the client. In the process of
-serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and reencrypt them so that the client can read
+serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and re-encrypt them so that the client can read
 them. When the client receives byte ranges from htsget-rs and concatenates them, the output bytes will be Crypt4GH encrypted,
 and will need to be decrypted before they can be read. All file formats (BAM, CRAM, VCF, and BCF) are supported using Crypt4GH.
 

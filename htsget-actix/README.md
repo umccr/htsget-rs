@@ -9,7 +9,7 @@
 [actions-url]: https://github.com/umccr/htsget-rs/actions?query=workflow%3Atests+branch%3Amain
 
 > [!IMPORTANT]  
-> The functionality of [htsget-axum] is identical to this crate and it is recommended for all
+> The functionality of [htsget-axum] is identical to this crate, and it is recommended for all
 > projects to use [htsget-axum] instead.
 > 
 > This crate will be maintained to preserve backwards compatibility, however [htsget-axum] is
@@ -29,7 +29,7 @@ This crate is used for running a local instance of htsget-rs. It is based on:
 
 [htsget-http]: ../htsget-http
 
-## Quick start
+## Quickstart
 
 Launch a server instance:
 
