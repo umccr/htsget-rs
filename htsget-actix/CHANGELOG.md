@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.7.2...htsget-actix-v0.7.3) - 2024-11-29
+
+### Other
+
+- grammar and typos
+- re-word and simplify, add quick starts where applicable
+
 ## [0.7.2](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.7.1...htsget-actix-v0.7.2) - 2024-10-22
 
 ### Other

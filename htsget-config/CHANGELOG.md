@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.12.0...htsget-config-v0.12.1) - 2024-11-29
+
+### Other
+
+- grammar and typos
+- fix new clippy warnings
+- re-word and simplify, add quick starts where applicable
+
 ## [0.12.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.11.0...htsget-config-v0.12.0) - 2024-10-16
 
 ### Added
