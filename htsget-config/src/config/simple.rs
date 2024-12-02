@@ -2,7 +2,7 @@
 //!
 
 use crate::config::data_server::DataServerConfig;
-use crate::config::location::Location;
+use crate::config::location::LocationEither;
 use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ pub struct Config {
   ticket_server: TicketServerConfig,
   data_server: Option<DataServerConfig>,
   service_info: Option<ServiceInfo>,
-  location: Option<Location>,
+  location: LocationEither,
 }
 
 impl Config {
@@ -23,7 +23,7 @@ impl Config {
     ticket_server: TicketServerConfig,
     data_server: Option<DataServerConfig>,
     service_info: Option<ServiceInfo>,
-    location: Option<Location>,
+    location: LocationEither,
   ) -> Self {
     Self {
       ticket_server,
@@ -49,7 +49,7 @@ impl Config {
   }
 
   /// Get the location.
-  pub fn location(&self) -> Option<&Location> {
-    self.location.as_ref()
+  pub fn location(&self) -> &LocationEither {
+    &self.location
   }
 }

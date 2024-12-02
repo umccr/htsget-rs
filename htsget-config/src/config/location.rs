@@ -1,9 +1,24 @@
 //! Location configuration.
 //!
 
+use crate::config::advanced::regex_location::RegexLocation;
 use crate::config::location::Endpoint::{File, Url, S3};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
+
+/// Either simple or regex based location
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum LocationEither {
+  Simple(Location),
+  Regex(RegexLocation),
+}
+
+impl Default for LocationEither {
+  fn default() -> Self {
+    Self::Simple(Default::default())
+  }
+}
 
 /// Location config.
 #[derive(Serialize, Debug, Clone, Default)]
