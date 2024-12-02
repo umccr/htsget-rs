@@ -22,6 +22,7 @@ async-trait = "0.1"
 noodles = { version = "0.83", features = ["core"] }
 serde = { version = "1", features = ["derive"] }
 serde_with = "3"
+serde_json = "1"
 serde_regex = "1"
 regex = "1"
 figment = { version = "0.10", features = ["env", "toml"] }
@@ -50,7 +51,6 @@ aws-config = { version = "1", optional = true }
 tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
-serde_json = "1"
 figment = { version = "0.10", features = ["test"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tempfile = "3"

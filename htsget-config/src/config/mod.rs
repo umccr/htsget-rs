@@ -23,7 +23,12 @@ use crate::resolver::Resolver;
 use crate::tls::TlsServerConfig;
 
 pub mod cors;
+pub mod data_server;
+mod location;
 pub mod parser;
+pub mod service_info;
+pub mod simple;
+pub mod ticket_server;
 
 /// Represents a usage string for htsget-rs.
 pub const USAGE: &str = "To configure htsget-rs use a config file or environment variables. \
