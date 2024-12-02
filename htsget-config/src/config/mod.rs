@@ -22,9 +22,10 @@ use crate::error::Result;
 use crate::resolver::Resolver;
 use crate::tls::TlsServerConfig;
 
+pub mod advanced;
 pub mod cors;
 pub mod data_server;
-mod location;
+pub mod location;
 pub mod parser;
 pub mod service_info;
 pub mod simple;

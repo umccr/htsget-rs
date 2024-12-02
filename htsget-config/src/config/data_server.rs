@@ -1,6 +1,7 @@
 //! Data server configuration.
 //!
 
+use crate::config::advanced::cors::CorsConfig;
 use crate::config::{default_localstorage_addr, default_path};
 use crate::tls::TlsServerConfig;
 use serde::{Deserialize, Serialize};
@@ -15,15 +16,22 @@ pub struct DataServerConfig {
   local_path: PathBuf,
   #[serde(skip_serializing)]
   tls: Option<TlsServerConfig>,
+  cors: CorsConfig,
 }
 
 impl DataServerConfig {
   /// Create the ticket server config.
-  pub fn new(addr: SocketAddr, local_path: PathBuf, tls: Option<TlsServerConfig>) -> Self {
+  pub fn new(
+    addr: SocketAddr,
+    local_path: PathBuf,
+    tls: Option<TlsServerConfig>,
+    cors: CorsConfig,
+  ) -> Self {
     Self {
       addr,
       local_path,
       tls,
+      cors,
     }
   }
 
@@ -41,6 +49,11 @@ impl DataServerConfig {
   pub fn tls(&self) -> Option<&TlsServerConfig> {
     self.tls.as_ref()
   }
+
+  /// Get the CORS config.
+  pub fn cors(&self) -> &CorsConfig {
+    &self.cors
+  }
 }
 
 impl Default for DataServerConfig {
@@ -50,7 +63,8 @@ impl Default for DataServerConfig {
         .parse()
         .expect("expected valid address"),
       local_path: default_path().into(),
-      tls: None,
+      tls: Default::default(),
+      cors: Default::default(),
     }
   }
 }
