@@ -2,7 +2,7 @@
 //!
 
 use crate::config::advanced::regex_location::RegexLocation;
-use crate::config::location::Endpoint::{File, Url, S3};
+use crate::config::location::Backend::{File, Url, S3};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -24,19 +24,19 @@ impl Default for LocationEither {
 #[derive(Serialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct Location {
-  endpoint: Endpoint,
+  backend: Backend,
   prefix: String,
 }
 
 impl Location {
   /// Create a new location.
-  pub fn new(endpoint: Endpoint, prefix: String) -> Self {
-    Self { endpoint, prefix }
+  pub fn new(backend: Backend, prefix: String) -> Self {
+    Self { backend, prefix }
   }
 
-  /// Get the endpoint.
-  pub fn endpoint(&self) -> Endpoint {
-    self.endpoint
+  /// Get the storage backend.
+  pub fn backend(&self) -> Backend {
+    self.backend
   }
 
   /// Get the prefix.
@@ -46,7 +46,7 @@ impl Location {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Copy)]
-pub enum Endpoint {
+pub enum Backend {
   #[default]
   File,
   S3,
