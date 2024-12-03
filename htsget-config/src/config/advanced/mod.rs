@@ -1,6 +1,7 @@
 //! Advanced configuration.
 //!
 
+pub mod allow_guard;
 pub mod cors;
 pub mod file;
 pub mod regex_location;

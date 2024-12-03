@@ -1,6 +1,7 @@
 //! Set the location using a regex and substitution values.
 //!
 
+use crate::config::advanced::allow_guard::AllowGuard;
 use crate::config::advanced::file::File;
 #[cfg(feature = "s3-storage")]
 use crate::config::advanced::s3::S3;
@@ -37,16 +38,23 @@ pub struct RegexLocation {
   #[serde(with = "serde_regex")]
   regex: Regex,
   substitution_string: String,
-  storage: Backend,
+  backend: Backend,
+  guard: Option<AllowGuard>,
 }
 
 impl RegexLocation {
   /// Create a new regex location.
-  pub fn new(regex: Regex, substitution_string: String, storage: Backend) -> Self {
+  pub fn new(
+    regex: Regex,
+    substitution_string: String,
+    backend: Backend,
+    guard: Option<AllowGuard>,
+  ) -> Self {
     Self {
       regex,
       substitution_string,
-      storage,
+      backend,
+      guard,
     }
   }
 
@@ -62,7 +70,7 @@ impl RegexLocation {
 
   /// Get the storage backend.
   pub fn backend(&self) -> &Backend {
-    &self.storage
+    &self.backend
   }
 }
 
@@ -71,6 +79,7 @@ impl Default for RegexLocation {
     Self::new(
       ".*".parse().expect("expected valid regex"),
       "$0".to_string(),
+      Default::default(),
       Default::default(),
     )
   }
