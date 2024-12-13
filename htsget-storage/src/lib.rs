@@ -1,10 +1,7 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 
-pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
-pub use htsget_config::resolver::{
-  IdResolver, QueryAllowed, ResolveResponse, Resolver, StorageResolver,
-};
+pub use htsget_config::resolver::{IdResolver, QueryAllowed, ResolveResponse, StorageResolver};
 pub use htsget_config::types::{
   Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Url,
 };
@@ -13,7 +10,8 @@ pub use htsget_config::types::{
 use crate::c4gh::storage::C4GHStorage;
 use crate::error::Result;
 use crate::error::StorageError;
-use crate::local::LocalStorage;
+use crate::error::StorageError::InvalidKey;
+use crate::local::FileStorage;
 #[cfg(feature = "s3-storage")]
 use crate::s3::S3Storage;
 use crate::types::{BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions};
@@ -23,18 +21,16 @@ use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
 use cfg_if::cfg_if;
+use htsget_config::storage;
 #[cfg(feature = "experimental")]
 use htsget_config::storage::c4gh::C4GHKeys;
-use htsget_config::storage::local::Local as LocalStorageConfig;
-#[cfg(feature = "s3-storage")]
-use htsget_config::storage::s3::S3 as S3StorageConfig;
-#[cfg(feature = "url-storage")]
-use htsget_config::storage::url::UrlStorageClient as UrlStorageConfig;
+use htsget_config::storage::file::PATH_PREFIX;
 use htsget_config::types::Scheme;
 use http::uri;
 use pin_project_lite::pin_project;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, ReadBuf};
@@ -155,15 +151,12 @@ impl Storage {
   }
 
   /// Create from local storage config.
-  pub async fn from_local(local_storage: &LocalStorageConfig) -> Result<Storage> {
-    let storage = Storage::new(LocalStorage::new(
-      local_storage.local_path(),
-      local_storage.clone(),
-    )?);
+  pub async fn from_file(file: &storage::file::File) -> Result<Storage> {
+    let storage = Storage::new(FileStorage::new(file.local_path(), file.clone())?);
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(local_storage.keys(), storage).await
+        Self::from_c4gh_keys(file.keys(), storage).await
       } else {
         Ok(storage)
       }
@@ -172,19 +165,19 @@ impl Storage {
 
   /// Create from s3 config.
   #[cfg(feature = "s3-storage")]
-  pub async fn from_s3(s3_storage: &S3StorageConfig) -> Result<Storage> {
+  pub async fn from_s3(s3: &storage::s3::S3) -> Result<Storage> {
     let storage = Storage::new(
       S3Storage::new_with_default_config(
-        s3_storage.bucket().to_string(),
-        s3_storage.endpoint().map(str::to_string),
-        s3_storage.path_style(),
+        s3.bucket().to_string(),
+        s3.endpoint().map(str::to_string),
+        s3.path_style(),
       )
       .await,
     );
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(s3_storage.keys(), storage).await
+        Self::from_c4gh_keys(s3.keys(), storage).await
       } else {
         Ok(storage)
       }
@@ -193,18 +186,18 @@ impl Storage {
 
   /// Create from url config.
   #[cfg(feature = "url-storage")]
-  pub async fn from_url(url_storage: &UrlStorageConfig) -> Result<Storage> {
+  pub async fn from_url(url: &storage::url::Url) -> Result<Storage> {
     let storage = Storage::new(UrlStorage::new(
-      url_storage.client_cloned(),
-      url_storage.url().clone(),
-      url_storage.response_url().clone(),
-      url_storage.forward_headers(),
-      url_storage.header_blacklist().to_vec(),
+      url.client_cloned(),
+      url.url().clone(),
+      url.response_url().clone(),
+      url.forward_headers(),
+      url.header_blacklist().to_vec(),
     ));
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(url_storage.keys(), storage).await
+        Self::from_c4gh_keys(url.keys(), storage).await
       } else {
         Ok(storage)
       }
@@ -283,15 +276,20 @@ pub trait UrlFormatter {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String>;
 }
 
-impl UrlFormatter for htsget_config::storage::local::Local {
+impl UrlFormatter for storage::file::File {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
+    let path = Path::new("/").join(PATH_PREFIX).join(key.as_ref());
     uri::Builder::new()
       .scheme(match self.scheme() {
         Scheme::Http => uri::Scheme::HTTP,
         Scheme::Https => uri::Scheme::HTTPS,
       })
       .authority(self.authority().to_string())
-      .path_and_query(format!("{}/{}", self.path_prefix(), key.as_ref()))
+      .path_and_query(
+        path
+          .to_str()
+          .ok_or_else(|| InvalidKey("constructing url".to_string()))?,
+      )
       .build()
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
       .map(|value| value.to_string())
@@ -302,17 +300,16 @@ impl UrlFormatter for htsget_config::storage::local::Local {
 mod tests {
   use http::uri::Authority;
 
-  use crate::local::LocalStorage;
-  use htsget_config::storage::local::Local as ConfigLocalStorage;
+  use crate::local::FileStorage;
   use htsget_test::util::default_dir;
 
   use super::*;
 
   #[test]
   fn data_url() {
-    let result = LocalStorage::<ConfigLocalStorage>::new(
+    let result = FileStorage::<storage::file::File>::new(
       default_dir().join("data"),
-      ConfigLocalStorage::default(),
+      storage::file::File::default(),
     )
     .unwrap()
     .data_url(b"Hello World!".to_vec(), Some(Class::Header));
@@ -323,29 +320,25 @@ mod tests {
 
   #[test]
   fn http_formatter_authority() {
-    let formatter = ConfigLocalStorage::new(
+    let formatter = storage::file::File::new(
       Scheme::Http,
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
-      "/data".to_string(),
-      false,
     );
     test_formatter_authority(formatter, "http");
   }
 
   #[test]
   fn https_formatter_authority() {
-    let formatter = ConfigLocalStorage::new(
+    let formatter = storage::file::File::new(
       Scheme::Https,
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
-      "/data".to_string(),
-      false,
     );
     test_formatter_authority(formatter, "https");
   }
 
-  fn test_formatter_authority(formatter: ConfigLocalStorage, scheme: &str) {
+  fn test_formatter_authority(formatter: storage::file::File, scheme: &str) {
     assert_eq!(
       formatter.format_url("path").unwrap(),
       format!("{}://127.0.0.1:8080{}/path", scheme, "/data")

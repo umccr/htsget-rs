@@ -1,17 +1,17 @@
 use std::fmt::Debug;
 use std::net::SocketAddr;
 
+use crate::http::concat::ConcatResponse;
+use htsget_config::config::data_server::DataServerEnabled;
+use htsget_config::config::Config;
+use htsget_config::types::Class;
+use htsget_config::types::Format;
 use http::{HeaderValue, Method, StatusCode};
 use reqwest::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::http::concat::ConcatResponse;
-use htsget_config::types::Class;
-use htsget_config::types::Format;
-
 use crate::http::{Header, Response, TestRequest, TestServer};
-use crate::Config;
 
 /// Test response with with class.
 pub async fn test_response<R>(response: Response, class: Class)
@@ -51,27 +51,22 @@ where
 
 /// Get the expected url path from the formatter.
 pub fn expected_url_path(config: &Config, local_addr: SocketAddr) -> String {
-  let scheme = match config.data_server().tls() {
-    None => "http",
-    Some(_) => "https",
-  };
+  let mut scheme = "http";
+  if let DataServerEnabled::Some(server) = config.data_server() {
+    if server.tls().is_some() {
+      scheme = "https";
+    }
+  }
   format!("{}://{}", scheme, local_addr)
 }
 
 /// Test response with with service info.
 pub fn test_response_service_info(response: &Response) {
   let expected = json!({
-    "id": "",
-    "name": "",
-    "version": "",
-    "organization": {
-      "name": "",
-      "url": "",
-    },
     "type": {
-      "group": "",
-      "artifact": "",
-      "version": "",
+      "group": "org.ga4gh",
+      "artifact": "htsget",
+      "version": "1.3.0",
     },
     "htsget": {
       "datatype": "variants",
@@ -82,11 +77,6 @@ pub fn test_response_service_info(response: &Response) {
       "fieldsParametersEffective": false,
       "tagsParametersEffective": false,
     },
-    "contactUrl": "",
-    "documentationUrl": "",
-    "createdAt": "",
-    "updatedAt": "",
-    "environment": "",
   });
 
   println!("{:#?}", expected);

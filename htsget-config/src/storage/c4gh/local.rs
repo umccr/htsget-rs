@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 /// Local C4GH key storage.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct C4GHLocal {
   private_key: PathBuf,
   recipient_public_key: PathBuf,
@@ -42,7 +43,7 @@ impl TryFrom<C4GHLocal> for C4GHKeys {
 mod tests {
   use crate::config::tests::test_config_from_file;
   use crate::config::Config;
-  use crate::storage::Storage;
+  use crate::storage::Backend;
   use std::fs::copy;
   use std::path::PathBuf;
   use tempfile::TempDir;
@@ -70,14 +71,14 @@ mod tests {
     test_config_from_file(
       &format!(
         r#"
-        [[resolvers]]
+        [[locations]]
         regex = "regex"
 
-        [resolvers.storage]
+        [locations.location]
         {}
 
-        [resolvers.storage.keys]
-        location = "Local"
+        [locations.location.keys]
+        key_location = "File"
         private_key = "{}"
         recipient_public_key = "{}"
         "#,
@@ -86,17 +87,16 @@ mod tests {
         recipient_public_key.to_string_lossy()
       ),
       |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
         test_fn(config);
       },
     );
   }
   #[tokio::test]
   async fn config_local_storage_c4gh() {
-    test_c4gh_storage_config(r#"backend = "Local""#, |config| {
+    test_c4gh_storage_config(r#"backend = "File""#, |config| {
       assert!(matches!(
-            config.resolvers().first().unwrap().storage(),
-            Storage::Local(local_storage) if local_storage.keys().is_some()
+            config.locations().first().unwrap().backend(),
+            Backend::File(file) if file.keys().is_some()
       ));
     });
   }
@@ -111,8 +111,8 @@ mod tests {
         "#,
       |config| {
         assert!(matches!(
-              config.resolvers().first().unwrap().storage(),
-              Storage::S3(s3_storage) if s3_storage.keys().is_some()
+              config.locations().first().unwrap().backend(),
+              Backend::S3(s3) if s3.keys().is_some()
         ));
       },
     );
@@ -130,8 +130,8 @@ mod tests {
         "#,
       |config| {
         assert!(matches!(
-              config.resolvers().first().unwrap().storage(),
-              Storage::Url(url_storage) if url_storage.keys().is_some()
+              config.locations().first().unwrap().backend(),
+              Backend::Url(url) if url.keys().is_some()
         ));
       },
     );

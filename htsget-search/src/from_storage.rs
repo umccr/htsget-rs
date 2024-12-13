@@ -1,19 +1,7 @@
 //! Module providing an implementation of the [HtsGet] trait using a [StorageTrait].
 //!
 
-use async_trait::async_trait;
-use tracing::debug;
-use tracing::instrument;
-
-use htsget_config::resolver::{ResolveResponse, StorageResolver};
-use htsget_config::storage::local::Local as LocalStorageConfig;
-#[cfg(feature = "s3-storage")]
-use htsget_config::storage::s3::S3 as S3StorageConfig;
-#[cfg(feature = "url-storage")]
-use htsget_config::storage::url::UrlStorageClient as UrlStorageConfig;
-
 use crate::search::Search;
-use crate::Resolver;
 use crate::{
   bam_search::BamSearch,
   bcf_search::BcfSearch,
@@ -22,7 +10,13 @@ use crate::{
   {HtsGet, Query, Response, Result},
 };
 use crate::{Format, HtsGetError};
+use async_trait::async_trait;
+use htsget_config::config::location::Locations;
+use htsget_config::resolver::{ResolveResponse, StorageResolver};
+use htsget_config::storage;
 use htsget_storage::Storage;
+use tracing::debug;
+use tracing::instrument;
 
 /// Implementation of the [HtsGet] trait using a [StorageTrait].
 #[derive(Debug, Clone)]
@@ -31,14 +25,7 @@ pub struct HtsGetFromStorage {
 }
 
 #[async_trait]
-impl HtsGet for Vec<Resolver> {
-  async fn search(self, query: Query) -> Result<Response> {
-    self.as_slice().search(query).await
-  }
-}
-
-#[async_trait]
-impl HtsGet for &[Resolver] {
+impl HtsGet for Locations {
   async fn search(self, mut query: Query) -> Result<Response> {
     self
       .resolve_request::<HtsGetFromStorage>(&mut query)
@@ -63,24 +50,21 @@ impl HtsGet for HtsGetFromStorage {
 
 #[async_trait]
 impl ResolveResponse for HtsGetFromStorage {
-  async fn from_local(
-    local_storage_config: &LocalStorageConfig,
-    query: &Query,
-  ) -> Result<Response> {
-    let storage = Storage::from_local(local_storage_config).await?;
+  async fn from_file(file_storage: &storage::file::File, query: &Query) -> Result<Response> {
+    let storage = Storage::from_file(file_storage).await?;
     let searcher = HtsGetFromStorage::new(storage);
     searcher.search(query.clone()).await
   }
 
   #[cfg(feature = "s3-storage")]
-  async fn from_s3(s3_storage: &S3StorageConfig, query: &Query) -> Result<Response> {
+  async fn from_s3(s3_storage: &storage::s3::S3, query: &Query) -> Result<Response> {
     let storage = Storage::from_s3(s3_storage).await;
     let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
   }
 
   #[cfg(feature = "url-storage")]
-  async fn from_url(url_storage_config: &UrlStorageConfig, query: &Query) -> Result<Response> {
+  async fn from_url(url_storage_config: &storage::url::Url, query: &Query) -> Result<Response> {
     let storage = Storage::from_url(url_storage_config).await;
     let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
@@ -111,16 +95,17 @@ pub(crate) mod tests {
     htsget_storage::s3::S3Storage, htsget_test::aws_mocks::with_s3_test_server, std::fs::create_dir,
   };
 
-  use http::uri::Authority;
-  use tempfile::TempDir;
-
+  use htsget_config::config::location::{Location, LocationEither};
   use htsget_config::storage;
+  use htsget_config::storage::Backend;
   use htsget_config::types::Class::Body;
   use htsget_config::types::Scheme::Http;
-  use htsget_storage::local::LocalStorage;
+  use htsget_storage::local::FileStorage;
   #[cfg(feature = "experimental")]
   use htsget_test::c4gh::decrypt_data;
   use htsget_test::http::concat::ConcatResponse;
+  use http::uri::Authority;
+  use tempfile::TempDir;
 
   use crate::bam_search::tests::{
     expected_url as bam_expected_url, with_local_storage as with_bam_local_storage, BAM_FILE_NAME,
@@ -178,7 +163,7 @@ pub(crate) mod tests {
       |_, local_storage| async move {
         let filename = "spec-v4.3";
         let query = Query::new_with_default_request(filename, Format::Vcf);
-        let response = HtsGetFromStorage::from_local(&local_storage, &query).await;
+        let response = HtsGetFromStorage::from_file(&local_storage, &query).await;
 
         assert_eq!(response, expected_vcf_response(filename));
 
@@ -197,17 +182,14 @@ pub(crate) mod tests {
   async fn search_resolvers() {
     with_config_local_storage(
       |_, local_storage| async {
-        let resolvers = vec![Resolver::new(
-          storage::Storage::Local(local_storage),
-          ".*",
-          "$0",
-          Default::default(),
-        )
-        .unwrap()];
+        let locations = Locations::new(vec![LocationEither::Simple(Location::new(
+          Backend::File(local_storage),
+          "".to_string(),
+        ))]);
 
         let filename = "spec-v4.3";
         let query = Query::new_with_default_request(filename, Format::Vcf);
-        let response = resolvers.search(query).await;
+        let response = locations.search(query).await;
 
         assert_eq!(response, expected_vcf_response(filename));
 
@@ -253,7 +235,7 @@ pub(crate) mod tests {
     copy_files: &[&str],
     map: M,
   ) where
-    F: FnOnce(PathBuf, LocalStorageConfig) -> Fut,
+    F: FnOnce(PathBuf, storage::file::File) -> Fut,
     Fut: Future<Output = Option<(String, ConcatResponse)>>,
     M: FnOnce(&[u8]) -> Vec<u8>,
   {
@@ -263,12 +245,10 @@ pub(crate) mod tests {
     println!("{:#?}", base_path);
     let response = test(
       base_path.clone(),
-      LocalStorageConfig::new(
+      storage::file::File::new(
         Http,
         Authority::from_static("127.0.0.1:8081"),
         base_path.to_str().unwrap().to_string(),
-        "/data".to_string(),
-        false,
       ),
     )
     .await;
@@ -278,7 +258,7 @@ pub(crate) mod tests {
 
   async fn with_config_local_storage<F, Fut>(test: F, path: &str, copy_files: &[&str])
   where
-    F: FnOnce(PathBuf, LocalStorageConfig) -> Fut,
+    F: FnOnce(PathBuf, storage::file::File) -> Fut,
     Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     with_config_local_storage_map(test, path, copy_files, |b| b.to_vec()).await;
@@ -308,7 +288,7 @@ pub(crate) mod tests {
     with_config_local_storage(
       |base_path, local_storage| async {
         test(Storage::new(
-          LocalStorage::new(base_path, local_storage).unwrap(),
+          FileStorage::new(base_path, local_storage).unwrap(),
         ))
         .await
       },
@@ -327,7 +307,7 @@ pub(crate) mod tests {
     with_config_local_storage_map(
       |base_path, local_storage| async {
         test(Storage::new(
-          LocalStorage::new(base_path, local_storage).unwrap(),
+          FileStorage::new(base_path, local_storage).unwrap(),
         ))
         .await
       },

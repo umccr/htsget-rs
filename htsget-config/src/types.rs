@@ -17,7 +17,7 @@ pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "UPPERCASE"))]
+#[serde(rename_all(serialize = "UPPERCASE"), deny_unknown_fields)]
 pub enum Format {
   #[serde(alias = "bam", alias = "BAM")]
   Bam,
@@ -102,7 +102,7 @@ impl Display for Format {
 
 /// Class component of htsget response.
 #[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "lowercase"))]
+#[serde(rename_all(serialize = "lowercase"), deny_unknown_fields)]
 pub enum Class {
   #[serde(alias = "header", alias = "HEADER")]
   Header,
@@ -113,6 +113,7 @@ pub enum Class {
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Interval {
   start: Option<u32>,
   end: Option<u32>,
@@ -220,7 +221,7 @@ pub enum TaggedTypeAll {
 
 /// Possible values for the fields parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Fields {
   /// Include all fields
   Tagged(TaggedTypeAll),
@@ -230,7 +231,7 @@ pub enum Fields {
 
 /// Possible values for the tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Tags {
   /// Include all tags
   Tagged(TaggedTypeAll),

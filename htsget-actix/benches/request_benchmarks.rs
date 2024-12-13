@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use htsget_config::types::{Headers, JsonResponse};
 use htsget_http::{PostRequest, Region};
 use htsget_test::http::default_config_fixed_port;
-use htsget_test::util::{default_dir, default_dir_data};
+use htsget_test::util::default_dir;
 
 const REFSERVER_DOCKER_IMAGE: &str = "ga4gh/htsget-refserver:1.5.0";
 const BENCHMARK_DURATION_SECONDS: u64 = 30;
@@ -144,14 +144,14 @@ fn start_htsget_rs() -> (DropGuard, String) {
     .arg("-p")
     .arg("htsget-actix")
     .arg("--no-default-features")
-    .env("HTSGET_PATH", default_dir_data())
-    .env("RUST_LOG", "warn")
     .spawn()
     .unwrap();
 
   let htsget_rs_url = format!("http://{}", config.ticket_server().addr());
   query_server_until_response(&format_url(&htsget_rs_url, "reads/service-info"));
-  let htsget_rs_ticket_url = format!("http://{}", config.data_server().addr());
+
+  let data_server = config.data_server().clone().unwrap();
+  let htsget_rs_ticket_url = format!("http://{}", data_server.addr());
   query_server_until_response(&format_url(&htsget_rs_ticket_url, ""));
 
   (DropGuard(child), htsget_rs_url)

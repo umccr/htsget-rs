@@ -4,8 +4,9 @@
 use crate::error::Result;
 use crate::server::{configure_cors, BindServer, Server};
 use axum::Router;
-use htsget_config::config::cors::CorsConfig;
-use htsget_config::config::DataServerConfig;
+use htsget_config::config::advanced::cors::CorsConfig;
+use htsget_config::config::data_server::DataServerConfig;
+use htsget_config::storage::file::PATH_PREFIX;
 use std::net::SocketAddr;
 use std::path::Path;
 use tokio::task::JoinHandle;
@@ -17,32 +18,24 @@ use tracing::info;
 #[derive(Debug)]
 pub struct DataServer {
   server: Server,
-  serve_at: String,
   cors: CorsConfig,
 }
 
 impl DataServer {
   /// Create a new data server.
-  pub fn new(server: Server, serve_at: String, cors: CorsConfig) -> Self {
-    Self {
-      server,
-      serve_at,
-      cors,
-    }
+  pub fn new(server: Server, cors: CorsConfig) -> Self {
+    Self { server, cors }
   }
 
   /// Run the data server, using the provided path, key and certificate.
   pub async fn serve<P: AsRef<Path>>(self, path: P) -> Result<()> {
-    self
-      .server
-      .serve(Self::router(self.cors, &self.serve_at, path))
-      .await
+    self.server.serve(Self::router(self.cors, path)).await
   }
 
   /// Create the router for the data server.
-  pub fn router<P: AsRef<Path>>(cors: CorsConfig, serve_at: &str, path: P) -> Router {
+  pub fn router<P: AsRef<Path>>(cors: CorsConfig, path: P) -> Router {
     Router::new()
-      .nest_service(serve_at, ServeDir::new(path))
+      .nest_service(PATH_PREFIX, ServeDir::new(path))
       .layer(configure_cors(cors))
       .layer(TraceLayer::new_for_http())
   }
@@ -69,11 +62,8 @@ impl From<DataServerConfig> for BindServer {
 
 /// Spawn a task to run the data server.
 pub async fn join_handle(config: DataServerConfig) -> Result<JoinHandle<Result<()>>> {
-  let serve_at = config.serve_at().to_string();
   let local_path = config.local_path().to_path_buf();
-  let data_server = BindServer::from(config.clone())
-    .bind_data_server(serve_at)
-    .await?;
+  let data_server = BindServer::from(config.clone()).bind_data_server().await?;
 
   info!(address = ?data_server.local_addr()?, "data server address bound to");
 
@@ -213,8 +203,11 @@ mod tests {
     let _ = aws_lc_rs::default_provider().install_default();
 
     let (_, base_path) = create_local_test_files().await;
-    let config = config_with_tls(base_path.path()).data_server().clone();
-    let server_config = config.into_tls().unwrap();
+    let data_server = config_with_tls(base_path.path())
+      .data_server()
+      .clone()
+      .unwrap();
+    let server_config = data_server.into_tls().unwrap();
 
     test_server("https", Some(server_config), base_path.path().to_path_buf()).await;
   }
@@ -267,8 +260,11 @@ mod tests {
     let _ = aws_lc_rs::default_provider().install_default();
 
     let tmp_dir = tempdir().unwrap();
-    let config = config_with_tls(tmp_dir.path()).data_server().clone();
-    let server_config = config.into_tls().unwrap();
+    let data_server = config_with_tls(tmp_dir.path())
+      .data_server()
+      .clone()
+      .unwrap();
+    let server_config = data_server.into_tls().unwrap();
 
     BindServer::new_with_tls(
       "127.0.0.1:8080".parse().unwrap(),
@@ -285,7 +281,7 @@ mod tests {
     let server = Server::bind_addr(addr, cert_key_pair).await.unwrap();
     let port = server.local_addr().unwrap().port();
 
-    let data_server = DataServer::new(server, "/data".to_string(), default_cors_config());
+    let data_server = DataServer::new(server, default_cors_config());
     tokio::spawn(async move { data_server.serve(path).await.unwrap() });
 
     port

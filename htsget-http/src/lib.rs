@@ -2,18 +2,14 @@ use std::result;
 use std::str::FromStr;
 
 pub use error::{HtsGetError, Result};
-pub use htsget_config::config::{
-  Config, DataServerConfig, ServiceInfo as ConfigServiceInfo, TicketServerConfig,
-};
-pub use htsget_config::storage::Storage;
+pub use htsget_config::config::Config;
 use htsget_config::types::Format::{Bam, Bcf, Cram, Vcf};
 use htsget_config::types::{Format, Query, Request, Response};
 pub use http_core::{get, post};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
-pub use service_info::get_service_info_with;
-pub use service_info::{Htsget, Organisation, ServiceInfo, Type};
+pub use service_info::{Htsget, ServiceInfo, Type};
 
 mod error;
 mod http_core;
@@ -84,14 +80,13 @@ mod tests {
   use std::collections::HashMap;
   use std::path::PathBuf;
 
-  use http::uri::Authority;
-
-  use htsget_config::storage::local::Local as ConfigLocalStorage;
+  use htsget_config::storage;
   use htsget_config::types::{Headers, JsonResponse, Request, Scheme, Url};
   use htsget_search::from_storage::HtsGetFromStorage;
+  use htsget_search::FileStorage;
   use htsget_search::HtsGet;
-  use htsget_search::LocalStorage;
   use htsget_search::Storage;
+  use http::uri::Authority;
 
   use super::*;
 
@@ -271,14 +266,12 @@ mod tests {
 
   fn get_searcher() -> impl HtsGet + Clone {
     HtsGetFromStorage::new(Storage::new(
-      LocalStorage::new(
+      FileStorage::new(
         get_base_path(),
-        ConfigLocalStorage::new(
+        storage::file::File::new(
           Scheme::Http,
           Authority::from_static("127.0.0.1:8081"),
           "data".to_string(),
-          "/data".to_string(),
-          false,
         ),
       )
       .unwrap(),

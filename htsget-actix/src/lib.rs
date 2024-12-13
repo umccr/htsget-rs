@@ -5,9 +5,10 @@ use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
-use htsget_config::config::cors::CorsConfig;
-pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig, USAGE};
-pub use htsget_config::storage::Storage;
+use htsget_config::config::advanced::cors::CorsConfig;
+use htsget_config::config::service_info::ServiceInfo;
+use htsget_config::config::ticket_server::TicketServerConfig;
+pub use htsget_config::config::{Config, USAGE};
 use htsget_search::HtsGet;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info, HttpVersionCompat};
@@ -214,14 +215,13 @@ mod tests {
   #[async_trait(?Send)]
   impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
     async fn get_expected_path(&self) -> String {
-      let mut bind_data_server = BindServer::from(self.get_config().data_server().clone());
-      let server = bind_data_server
-        .bind_data_server("/data".to_string())
-        .await
-        .unwrap();
+      let data_server = self.get_config().data_server().clone().unwrap();
+
+      let path = data_server.local_path().to_path_buf();
+      let mut bind_data_server = BindServer::from(data_server);
+      let server = bind_data_server.bind_data_server().await.unwrap();
       let addr = server.local_addr();
 
-      let path = self.get_config().data_server().local_path().to_path_buf();
       tokio::spawn(async move { server.serve(path).await.unwrap() });
 
       expected_url_path(self.get_config(), addr.unwrap())
@@ -278,7 +278,7 @@ mod tests {
           .configure(|service_config: &mut web::ServiceConfig| {
             configure_server(
               service_config,
-              self.config.clone().owned_resolvers(),
+              self.config.clone().into_locations(),
               self.config.service_info().clone(),
             );
           })

@@ -154,15 +154,15 @@ impl Display for HeaderValue {
 }
 
 /// Cors configuration for the htsget server.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
 pub struct CorsConfig {
   allow_credentials: bool,
   allow_origins: AllowType<HeaderValue>,
   allow_headers: AllowType<HeaderName>,
   allow_methods: AllowType<Method>,
   max_age: usize,
-  expose_headers: AllowType<HeaderName>,
+  expose_headers: AllowType<HeaderName, TaggedTypeAll>,
 }
 
 impl CorsConfig {
@@ -173,7 +173,7 @@ impl CorsConfig {
     allow_headers: AllowType<HeaderName>,
     allow_methods: AllowType<Method>,
     max_age: usize,
-    expose_headers: AllowType<HeaderName>,
+    expose_headers: AllowType<HeaderName, TaggedTypeAll>,
   ) -> Self {
     Self {
       allow_credentials,
@@ -211,7 +211,7 @@ impl CorsConfig {
   }
 
   /// Get expose headers.
-  pub fn expose_headers(&self) -> &AllowType<HeaderName> {
+  pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedTypeAll> {
     &self.expose_headers
   }
 }
@@ -224,66 +224,63 @@ impl Default for CorsConfig {
       allow_headers: AllowType::Tagged(TaggedAllowTypes::Mirror),
       allow_methods: AllowType::Tagged(TaggedAllowTypes::Mirror),
       max_age: CORS_MAX_AGE,
-      expose_headers: AllowType::Tagged(TaggedAllowTypes::Mirror),
+      expose_headers: AllowType::Tagged(TaggedTypeAll::All),
     }
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use std::fmt::Debug;
-
+  use super::*;
+  use crate::config::tests::test_serialize_and_deserialize;
   use http::Method;
   use toml::de::Error;
 
-  use super::*;
-
-  fn test_cors_config<T, F>(input: &str, expected: &T, get_result: F)
-  where
-    F: Fn(&CorsConfig) -> &T,
-    T: Debug + Eq,
-  {
-    let config: CorsConfig = toml::from_str(input).unwrap();
-    assert_eq!(expected, get_result(&config));
-
-    let serialized = toml::to_string(&config).unwrap();
-    let deserialized = toml::from_str(&serialized).unwrap();
-    assert_eq!(expected, get_result(&deserialized));
-  }
-
   #[test]
   fn unit_variant_any_allow_type() {
-    test_cors_config(
+    test_serialize_and_deserialize(
       "allow_methods = \"All\"",
-      &AllowType::Tagged(TaggedAllowTypes::All),
-      |config| config.allow_methods(),
+      CorsConfig {
+        allow_methods: AllowType::Tagged(TaggedAllowTypes::All),
+        ..Default::default()
+      },
+      |result| result,
     );
   }
 
   #[test]
   fn unit_variant_mirror_allow_type() {
-    test_cors_config(
+    test_serialize_and_deserialize(
       "allow_origins = \"Mirror\"",
-      &AllowType::Tagged(TaggedAllowTypes::Mirror),
-      |config| config.allow_origins(),
+      CorsConfig {
+        allow_origins: AllowType::Tagged(TaggedAllowTypes::Mirror),
+        ..Default::default()
+      },
+      |result| result,
     );
   }
 
   #[test]
   fn list_allow_type() {
-    test_cors_config(
+    test_serialize_and_deserialize(
       "allow_methods = [\"GET\"]",
-      &AllowType::List(vec![Method::GET]),
-      |config| config.allow_methods(),
+      CorsConfig {
+        allow_methods: AllowType::List(vec![Method::GET]),
+        ..Default::default()
+      },
+      |result| result,
     );
   }
 
   #[test]
   fn tagged_any_allow_type() {
-    test_cors_config(
+    test_serialize_and_deserialize(
       "expose_headers = \"All\"",
-      &AllowType::Tagged(TaggedAllowTypes::All),
-      |config| config.expose_headers(),
+      CorsConfig {
+        expose_headers: AllowType::Tagged(TaggedTypeAll::All),
+        ..Default::default()
+      },
+      |result| result,
     );
   }
 

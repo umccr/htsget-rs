@@ -7,21 +7,25 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 /// Service info config.
-#[derive(Serialize, Debug, Clone, Default)]
-#[serde(default)]
-pub struct ServiceInfo {
-  fields: HashMap<String, Value>,
-}
+#[derive(Serialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+pub struct ServiceInfo(HashMap<String, Value>);
 
 impl ServiceInfo {
   /// Create a service info.
   pub fn new(fields: HashMap<String, Value>) -> Self {
-    Self { fields }
+    Self(fields)
   }
 
   /// Get the inner value.
   pub fn into_inner(self) -> HashMap<String, Value> {
-    self.fields
+    self.0
+  }
+}
+
+impl AsRef<HashMap<String, Value>> for ServiceInfo {
+  fn as_ref(&self) -> &HashMap<String, Value> {
+    &self.0
   }
 }
 
@@ -46,5 +50,26 @@ impl<'de> Deserialize<'de> for ServiceInfo {
     }
 
     Ok(ServiceInfo::new(fields))
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::config::tests::test_serialize_and_deserialize;
+  use serde_json::json;
+
+  #[test]
+  fn service_info() {
+    test_serialize_and_deserialize(
+      r#"
+      id = { "id" = "1" }
+      "#,
+      ServiceInfo::new(HashMap::from_iter(vec![(
+        "id".to_string(),
+        json!({"id": "1"}),
+      )])),
+      |result| result,
+    );
   }
 }
