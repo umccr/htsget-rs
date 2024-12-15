@@ -14,6 +14,28 @@ Configuration for [htsget-rs].
 
 ## Overview
 
+The simplest way to use htsget-rs is to create a [toml] config file and specify a storage location:
+
+```toml
+locations = "file://data"
+```
+
+Then launch the server using the config file:
+
+```sh
+cargo run -p htsget-axum -- --config <your_config_file.toml>
+```
+
+This will serve files under the [`data`][data] directory:
+
+```sh
+curl 'http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer'
+```
+
+Locations allow htsget-rs access to bioinformatics files and indexes. In this example, htsget-rs can read For example, to give htsget-rs access to the data directory, configure
+a file location:
+
+
 This crate is used to configure htsget-rs using a config file or environment variables.
 
 ## Usage
@@ -573,3 +595,5 @@ This project is licensed under the [MIT license][license].
 [id]: https://samtools.github.io/hts-specs/htsget.html#url-parameters
 [basic]: examples/config-files/basic.toml
 [data-server]: README.md#data-server-config
+[toml]: https://toml.io/en/
+[data]: ../data

@@ -2,12 +2,14 @@
 //!
 
 use crate::config::advanced::regex_location::RegexLocation;
+use crate::error::{Error::ParseError, Result};
 use crate::storage;
 use crate::storage::file::default_authority;
 use crate::storage::Backend;
 use crate::types::Scheme;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::result;
 #[cfg(feature = "url-storage")]
 use {crate::config::advanced::url::Url, crate::error, http::Uri};
 
@@ -54,6 +56,24 @@ impl LocationEither {
     match self {
       LocationEither::Simple(location) => location.backend(),
       LocationEither::Regex(regex_location) => regex_location.backend(),
+    }
+  }
+
+  /// Get the simple location variant, returning an error otherwise.
+  pub fn as_simple(&self) -> Result<&Location> {
+    if let LocationEither::Simple(simple) = self {
+      Ok(simple)
+    } else {
+      Err(ParseError("not a `Simple` variant".to_string()))
+    }
+  }
+
+  /// Get the regex location variant, returning an error otherwise.
+  pub fn as_regex(&self) -> Result<&RegexLocation> {
+    if let LocationEither::Regex(regex) = self {
+      Ok(regex)
+    } else {
+      Err(ParseError("not a `Regex` variant".to_string()))
     }
   }
 }
@@ -153,7 +173,7 @@ impl From<Location> for LocationEither {
 }
 
 impl<'de> Deserialize<'de> for StringLocation {
-  fn deserialize<D>(deserializer: D) -> Result<StringLocation, D::Error>
+  fn deserialize<D>(deserializer: D) -> result::Result<StringLocation, D::Error>
   where
     D: Deserializer<'de>,
   {

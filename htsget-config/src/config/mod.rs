@@ -8,8 +8,9 @@ use crate::config::location::{Location, LocationEither, Locations};
 use crate::config::parser::from_path;
 use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
-use crate::error::Error::{ArgParseError, TracingError};
+use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
+use crate::storage::file::{default_path, File};
 use crate::storage::Backend;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
 use serde::{Deserialize, Serialize};
@@ -105,10 +106,14 @@ impl Config {
   /// Parse the command line arguments. Returns the config path, or prints the default config.
   /// Augment the `Command` args from the `clap` parser. Returns an error if the
   pub fn parse_args_with_command(augment_args: Command) -> Result<Option<PathBuf>> {
-    Ok(Self::parse_with_args(
-      Args::from_arg_matches(&Args::augment_args(augment_args).get_matches())
-        .map_err(|err| ArgParseError(err.to_string()))?,
-    ))
+    let args = Args::from_arg_matches(&Args::augment_args(augment_args).get_matches())
+      .map_err(|err| ArgParseError(err.to_string()))?;
+
+    if !args.config.as_ref().is_some_and(|path| path.exists()) {
+      return Err(ParseError("config file not found".to_string()));
+    }
+
+    Ok(Self::parse_with_args(args))
   }
 
   /// Parse the command line arguments. Returns the config path, or prints the default config.
@@ -165,17 +170,21 @@ impl Config {
       .iter_mut()
       .map(|location| {
         if let LocationEither::Simple(simple) = location {
-          // Fall through only if the backend is File.
-          if simple.backend().as_file().is_err() {
+          // Fall through only if the backend is File and default
+          let file_location = if let Ok(location) = simple.backend().as_file() {
+            location
+          } else {
             return Ok(());
-          }
+          };
 
           if let DataServerEnabled::Some(ref data_server) = self.data_server {
             let prefix = simple.prefix().to_string();
-            *location = LocationEither::Simple(Location::new(
-              Backend::File(data_server.try_into()?),
-              prefix,
-            ));
+
+            // Don't update the local path as that comes in from the config.
+            let file: File = data_server.try_into()?;
+            let file = file.set_local_path(file_location.local_path().to_string());
+
+            *location = LocationEither::Simple(Location::new(Backend::File(file), prefix));
           }
         }
 
@@ -488,13 +497,30 @@ pub(crate) mod tests {
     "#,
       |config| {
         assert_eq!(config.locations().len(), 1);
-        if let LocationEither::Simple(regex) = config.locations.into_inner().first().unwrap() {
-          println!("{:#?}", regex);
-          assert!(matches!(regex.backend(),
+        let config = config.locations.into_inner();
+        let regex = config[0].as_regex().unwrap();
+        assert!(matches!(regex.backend(),
             Backend::File(file) if file.local_path() == "path" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
-        } else {
-          panic!();
-        }
+      },
+    );
+  }
+
+  #[test]
+  fn simple_locations() {
+    test_config_from_file(
+      r#"
+    data_server.addr = "127.0.0.1:8080"
+    data_server.local_path = "path"
+    
+    locations = "file://data"
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 1);
+        let config = config.locations.into_inner();
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "");
+        assert!(matches!(location.backend(),
+            Backend::File(file) if file.local_path() == "data" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
       },
     );
   }

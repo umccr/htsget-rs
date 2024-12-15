@@ -67,6 +67,12 @@ impl File {
   pub fn keys(&self) -> Option<&C4GHKeys> {
     self.keys.as_ref()
   }
+
+  /// Set the local path.
+  pub fn set_local_path(mut self, local_path: String) -> Self {
+    self.local_path = local_path;
+    self
+  }
 }
 
 impl Default for File {
