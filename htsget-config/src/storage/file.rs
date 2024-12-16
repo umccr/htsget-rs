@@ -13,8 +13,6 @@ use http::uri::Authority;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-pub const PATH_PREFIX: &str = "/data";
-
 /// Local file based storage.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]

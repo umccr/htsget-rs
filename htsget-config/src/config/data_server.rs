@@ -2,6 +2,7 @@
 //!
 
 use crate::config::advanced::cors::CorsConfig;
+use crate::error::{Error::ParseError, Result};
 use crate::storage::file::{default_localstorage_addr, default_path};
 use crate::tls::TlsServerConfig;
 use serde::{Deserialize, Serialize};
@@ -25,11 +26,12 @@ pub enum DataServerEnabled {
 }
 
 impl DataServerEnabled {
-  pub fn unwrap(self) -> DataServerConfig {
+  /// Get the data server config, or an error if `None`.
+  pub fn as_data_server_config(&self) -> Result<&DataServerConfig> {
     if let Self::Some(config) = self {
-      config
+      Ok(config)
     } else {
-      panic!("called `DataServerEnabled::unwrap()` on a `None` value")
+      Err(ParseError("expected `None` variant".to_string()))
     }
   }
 }

@@ -24,7 +24,6 @@ use cfg_if::cfg_if;
 use htsget_config::storage;
 #[cfg(feature = "experimental")]
 use htsget_config::storage::c4gh::C4GHKeys;
-use htsget_config::storage::file::PATH_PREFIX;
 use htsget_config::types::Scheme;
 use http::uri;
 use pin_project_lite::pin_project;
@@ -278,7 +277,7 @@ pub trait UrlFormatter {
 
 impl UrlFormatter for storage::file::File {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
-    let path = Path::new("/").join(PATH_PREFIX).join(key.as_ref());
+    let path = Path::new("/").join(self.local_path()).join(key.as_ref());
     uri::Builder::new()
       .scheme(match self.scheme() {
         Scheme::Http => uri::Scheme::HTTP,

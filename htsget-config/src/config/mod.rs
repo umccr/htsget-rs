@@ -10,7 +10,7 @@ use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
 use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
-use crate::storage::file::{default_path, File};
+use crate::storage::file::File;
 use crate::storage::Backend;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
 use serde::{Deserialize, Serialize};
@@ -324,7 +324,12 @@ pub(crate) mod tests {
       vec![("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8082")],
       |config| {
         assert_eq!(
-          config.data_server().clone().unwrap().addr(),
+          config
+            .data_server()
+            .clone()
+            .as_data_server_config()
+            .unwrap()
+            .addr(),
           "127.0.0.1:8082".parse().unwrap()
         );
       },
@@ -359,7 +364,12 @@ pub(crate) mod tests {
   fn config_data_server_addr_file() {
     test_config_from_file(r#"data_server.addr = "127.0.0.1:8082""#, |config| {
       assert_eq!(
-        config.data_server().clone().unwrap().addr(),
+        config
+          .data_server()
+          .clone()
+          .as_data_server_config()
+          .unwrap()
+          .addr(),
         "127.0.0.1:8082".parse().unwrap()
       );
     });
@@ -379,7 +389,13 @@ pub(crate) mod tests {
           key_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert!(config.data_server().clone().unwrap().tls().is_none());
+          assert!(config
+            .data_server()
+            .clone()
+            .as_data_server_config()
+            .unwrap()
+            .tls()
+            .is_none());
         },
       );
     });
@@ -401,7 +417,13 @@ pub(crate) mod tests {
           cert_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert!(config.data_server().clone().unwrap().tls().is_some());
+          assert!(config
+            .data_server()
+            .clone()
+            .as_data_server_config()
+            .unwrap()
+            .tls()
+            .is_some());
         },
       );
     });
@@ -419,7 +441,13 @@ pub(crate) mod tests {
           ("HTSGET_DATA_SERVER_TLS_CERT", cert_path.to_string_lossy()),
         ],
         |config| {
-          assert!(config.data_server().clone().unwrap().tls().is_some());
+          assert!(config
+            .data_server()
+            .clone()
+            .as_data_server_config()
+            .unwrap()
+            .tls()
+            .is_some());
         },
       );
     });
@@ -519,9 +547,113 @@ pub(crate) mod tests {
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
         assert_eq!(location.prefix(), "");
-        assert!(matches!(location.backend(),
-            Backend::File(file) if file.local_path() == "data" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
+        assert_file_location(location, "data");
       },
     );
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn simple_locations_s3() {
+    test_config_from_file(
+      r#"
+    locations = "s3://bucket"
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 1);
+        let config = config.locations.into_inner();
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "");
+        assert!(matches!(location.backend(),
+            Backend::S3(s3) if s3.bucket() == "bucket"));
+      },
+    );
+  }
+
+  #[cfg(feature = "url-storage")]
+  #[test]
+  fn simple_locations_url() {
+    test_config_from_file(
+      r#"
+    locations = "https://example.com"
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 1);
+        let config = config.locations.into_inner();
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "");
+        assert!(matches!(location.backend(),
+            Backend::Url(url) if url.url() == &"https://example.com".parse::<Uri>().unwrap()));
+      },
+    );
+  }
+
+  #[test]
+  fn simple_locations_multiple() {
+    test_config_from_file(
+      r#"
+    locations = ["file://data/bam", "file://data/cram"]
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 2);
+        let config = config.locations.into_inner();
+
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "bam");
+        assert_file_location(location, "data");
+
+        let location = config[1].as_simple().unwrap();
+        assert_eq!(location.prefix(), "cram");
+        assert_file_location(location, "data");
+      },
+    );
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn simple_locations_multiple_mixed() {
+    test_config_from_file(
+      r#"
+    data_server.local_path = "root"
+    locations = ["file://dir_one/bam", "file://dir_two/cram", "s3://bucket/vcf"]
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 2);
+        let config = config.locations.into_inner();
+
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "bam");
+        assert_file_location(location, "dir_one");
+
+        let location = config[1].as_simple().unwrap();
+        assert_eq!(location.prefix(), "cram");
+        assert_file_location(location, "dir_two");
+
+        let location = config[2].as_simple().unwrap();
+        assert_eq!(location.prefix(), "vcf");
+        assert!(matches!(location.backend(),
+            Backend::S3(s3) if s3.bucket() == "bucket"));
+      },
+    );
+  }
+
+  #[test]
+  fn no_data_server() {
+    test_config_from_file(
+      r#"
+      data_server = "None"
+    "#,
+      |config| {
+        assert!(matches!(
+          config.data_server().as_data_server_config(),
+          Err(_)
+        ));
+      },
+    );
+  }
+
+  fn assert_file_location(location: &Location, local_path: &str) {
+    assert!(matches!(location.backend(),
+            Backend::File(file) if file.local_path() == local_path && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
   }
 }

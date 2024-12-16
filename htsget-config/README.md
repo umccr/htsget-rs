@@ -29,14 +29,88 @@ cargo run -p htsget-axum -- --config <your_config_file.toml>
 This will serve files under the [`data`][data] directory:
 
 ```sh
-curl 'http://localhost:8080/variants/data/vcf/sample1-bcbio-cancer'
+curl 'http://localhost:8080/reads/bam/htsnexus_test_NA12878'
 ```
 
-Locations allow htsget-rs access to bioinformatics files and indexes. In this example, htsget-rs can read For example, to give htsget-rs access to the data directory, configure
-a file location:
+Locations allow htsget-rs access to bioinformatics files and indexes. Instead of local files, htsget-rs can access
+files on s3, which returns pre-signed URLs for tickets:
 
+```toml
+locations = "s3://bucket"
+```
 
-This crate is used to configure htsget-rs using a config file or environment variables.
+or on a remote HTTP server:
+
+```toml
+locations = "https://example.com"
+```
+
+Multiple locations can be specified by providing a list and an id prefix after the location:
+
+```toml
+locations = ["file://data/bam", "file://data/cram"]
+```
+
+This allows htsget-rs to serve data only when the request also contains the prefix:
+
+```sh
+curl 'http://localhost:8080/reads/bam/htsnexus_test_NA12878'
+curl 'http://localhost:8080/reads/cram/htsnexus_test_NA12878?format=CRAM'
+```
+
+Locations can be mixed, and don't all need to have the same directory or resource:
+
+```toml
+data_server.local_path = "root"
+locations = ["file://dir_two/bam", "file://dir_one/cram", "s3://bucket/vcf"]
+```
+
+htsget-rs spawns a separate server process to respond to htsget tickets for file locations,
+so setting `data_server.local_path` to the root directory which contains all subdirectories is
+required to give this server access to the local directory.
+
+The data server process can be disabled by setting it to `None` if no file locations are being used:
+
+```toml
+data_server = "None"
+```
+
+## Server config
+
+htsget-rs spawn up to two server instances - the ticket server responds to the initial htsget request, and optionally,
+the data server, which responds to the htsget tickets.
+
+The socket address of the servers can be changed by specifying `addr`:
+
+```toml
+ticket_server.addr = "127.0.0.1:8000"
+data_server.addr = "127.0.0.1:8001"
+```
+
+TLS can be configured to enabled HTTPS support by providing a certificate and private key:
+
+```toml
+ticket_server.tls.key = "key.pem"
+ticket_server.tls.cert = "cert.pem"
+
+data_server.tls.key = "key.pem"
+data_server.tls.cert = "cert.pem"
+```
+
+CORS can also be configured:
+
+```toml
+data_server.cors.allow_credentials = false
+data_server.cors.allow_origins = "Mirror"
+data_server.cors.allow_headers = "All"
+data_server.cors.allow_methods = ['GET', 'POST']
+data_server.cors.max_age = 86400
+data_server.cors.expose_headers = []
+```
+
+Use `"Mirror"` to mirror CORS requests, and `"All"` to allow all methods, headers, or origins.
+
+## Advanced config
 
 ## Usage
 

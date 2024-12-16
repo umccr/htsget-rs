@@ -6,7 +6,6 @@ use crate::server::{configure_cors, BindServer, Server};
 use axum::Router;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::data_server::DataServerConfig;
-use htsget_config::storage::file::PATH_PREFIX;
 use std::net::SocketAddr;
 use std::path::Path;
 use tokio::task::JoinHandle;
@@ -35,7 +34,7 @@ impl DataServer {
   /// Create the router for the data server.
   pub fn router<P: AsRef<Path>>(cors: CorsConfig, path: P) -> Router {
     Router::new()
-      .nest_service(PATH_PREFIX, ServeDir::new(path))
+      .nest_service("/", ServeDir::new(path))
       .layer(configure_cors(cors))
       .layer(TraceLayer::new_for_http())
   }
@@ -205,8 +204,9 @@ mod tests {
     let (_, base_path) = create_local_test_files().await;
     let data_server = config_with_tls(base_path.path())
       .data_server()
-      .clone()
-      .unwrap();
+      .as_data_server_config()
+      .unwrap()
+      .clone();
     let server_config = data_server.into_tls().unwrap();
 
     test_server("https", Some(server_config), base_path.path().to_path_buf()).await;
@@ -262,9 +262,10 @@ mod tests {
     let tmp_dir = tempdir().unwrap();
     let data_server = config_with_tls(tmp_dir.path())
       .data_server()
-      .clone()
-      .unwrap();
-    let server_config = data_server.into_tls().unwrap();
+      .as_data_server_config()
+      .unwrap()
+      .clone();
+    let server_config = data_server.clone().into_tls().unwrap();
 
     BindServer::new_with_tls(
       "127.0.0.1:8080".parse().unwrap(),

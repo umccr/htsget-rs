@@ -215,10 +215,14 @@ mod tests {
   #[async_trait(?Send)]
   impl TestServer<ActixTestRequest<test::TestRequest>> for ActixTestServer {
     async fn get_expected_path(&self) -> String {
-      let data_server = self.get_config().data_server().clone().unwrap();
+      let data_server = self
+        .get_config()
+        .data_server()
+        .as_data_server_config()
+        .unwrap();
 
       let path = data_server.local_path().to_path_buf();
-      let mut bind_data_server = BindServer::from(data_server);
+      let mut bind_data_server = BindServer::from(data_server.clone());
       let server = bind_data_server.bind_data_server().await.unwrap();
       let addr = server.local_addr();
 
