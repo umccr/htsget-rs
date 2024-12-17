@@ -12,10 +12,10 @@ use crate::error::Result;
 use crate::error::StorageError;
 use crate::error::StorageError::InvalidKey;
 use crate::local::FileStorage;
-#[cfg(feature = "s3")]
+#[cfg(feature = "s3-storage")]
 use crate::s3::S3Storage;
 use crate::types::{BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions};
-#[cfg(feature = "url")]
+#[cfg(feature = "url-storage")]
 use crate::url::UrlStorage;
 use async_trait::async_trait;
 use base64::engine::general_purpose;
@@ -38,10 +38,10 @@ use tokio::io::{AsyncRead, ReadBuf};
 pub mod c4gh;
 pub mod error;
 pub mod local;
-#[cfg(feature = "s3")]
+#[cfg(feature = "s3-storage")]
 pub mod s3;
 pub mod types;
-#[cfg(feature = "url")]
+#[cfg(feature = "url-storage")]
 pub mod url;
 
 pin_project! {
@@ -163,7 +163,7 @@ impl Storage {
   }
 
   /// Create from s3 config.
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   pub async fn from_s3(s3: &storage::s3::S3) -> Result<Storage> {
     let storage = Storage::new(
       S3Storage::new_with_default_config(
@@ -184,7 +184,7 @@ impl Storage {
   }
 
   /// Create from url config.
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   pub async fn from_url(url: &storage::url::Url) -> Result<Storage> {
     let storage = Storage::new(UrlStorage::new(
       url.client_cloned(),

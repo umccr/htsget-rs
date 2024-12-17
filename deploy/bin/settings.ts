@@ -1,4 +1,4 @@
-import {HtsgetSettings} from "../lib/htsget-lambda-stack";
+import { HtsgetSettings } from "../lib/htsget-lambda-stack";
 
 /**
  * Settings to use for the htsget deployment.
@@ -20,7 +20,7 @@ export const SETTINGS: HtsgetSettings = {
     // jwtAudience: ["audience"],
     // cogUserPoolId: "user-pool-id",
   },
-  // Enable additional features for compiling htsget-rs. `s3` is always enabled.
+  // Enable additional features for compiling htsget-rs. `s3-storage` is always enabled.
   features: ["experimental"],
   copyExampleKeys: true,
 };

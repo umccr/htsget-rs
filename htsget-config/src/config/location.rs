@@ -10,7 +10,7 @@ use crate::types::Scheme;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::result;
-#[cfg(feature = "url")]
+#[cfg(feature = "url-storage")]
 use {crate::config::advanced::url::Url, crate::error, http::Uri};
 
 /// The locations of data.
@@ -214,7 +214,7 @@ impl<'de> Deserialize<'de> for StringLocation {
       });
     }
 
-    #[cfg(feature = "s3")]
+    #[cfg(feature = "s3-storage")]
     if let Some(s) = s.strip_prefix("s3://") {
       let (bucket, prefix) = split(s)?;
       return Ok(StringLocation {
@@ -223,7 +223,7 @@ impl<'de> Deserialize<'de> for StringLocation {
       });
     }
 
-    #[cfg(feature = "url")]
+    #[cfg(feature = "url-storage")]
     if let Some(s_stripped) = s
       .strip_prefix("http://")
       .or_else(|| s.strip_prefix("https://"))
@@ -330,7 +330,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[test]
   fn location_s3() {
     test_serialize_and_deserialize(
@@ -364,7 +364,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   #[test]
   fn location_url() {
     test_serialize_and_deserialize(

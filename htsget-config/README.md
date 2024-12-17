@@ -82,7 +82,7 @@ data_server = "None"
  
 > [!IMPORTANT]  
 > Some parts of htsget-rs require extra feature flags for conditional compilation, that's why the examples specify
-> using `--all-features`. Notably, `--features s3` enables the `S3` location type, and `--features url`
+> using `--all-features`. Notably, `--features s3-storage` enables the `S3` location type, and `--features url-storage`
 > enabled the remote HTTP server location type. If using a subset of features, for example S3 locations only, then
 > a single feature can be enabled instead of using `--all-features`.
 
@@ -384,7 +384,7 @@ location.keys.private = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
 location.keys.public = "data/c4gh/keys/alice.pub"
 ```
 
-Keys can also be retrieved from [AWS Secrets Manager][secrets-manager]. Compile with the `s3` feature flag and specify `keys.kind = "SecretsManager"` under
+Keys can also be retrieved from [AWS Secrets Manager][secrets-manager]. Compile with the `s3-storage` feature flag and specify `keys.kind = "SecretsManager"` under
 `location` to fetch keys from Secrets Manager. When using Secrets Manager, the `private` and `public`
 correspond to ARNs or secret names in Secrets Manager storing PEM formatted keys.
 
@@ -442,8 +442,8 @@ regex, and changing it by using a substitution string. Advanced configuration op
 ### Feature flags
 
 This crate has the following features:
-* `s3`: used to enable `S3` location functionality.
-* `url`: used to enable `Url` location functionality.
+* `s3-storage`: used to enable `S3` location functionality.
+* `url-storage`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 ## License

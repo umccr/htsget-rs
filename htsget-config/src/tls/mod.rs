@@ -1,7 +1,7 @@
 //! Configuration related to TLS.
 //!
 
-#[cfg(feature = "url")]
+#[cfg(feature = "url-storage")]
 pub mod client;
 
 use std::fs::File;

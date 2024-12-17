@@ -221,7 +221,7 @@ pub(crate) mod tests {
   use crate::types::Scheme;
   use figment::Jail;
   use http::uri::Authority;
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   use http::Uri;
   use serde::de::DeserializeOwned;
   use serde_json::json;
@@ -572,7 +572,7 @@ pub(crate) mod tests {
     );
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[test]
   fn simple_locations_s3() {
     test_config_from_file(
@@ -590,7 +590,7 @@ pub(crate) mod tests {
     );
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   #[test]
   fn simple_locations_url() {
     test_config_from_file(
@@ -621,7 +621,7 @@ pub(crate) mod tests {
     );
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[test]
   fn simple_locations_multiple_mixed() {
     test_config_from_file(

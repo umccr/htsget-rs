@@ -40,7 +40,7 @@ pub enum StorageError {
   #[error("response error: {0}")]
   ResponseError(String),
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[error("aws error: {0}, with key: `{1}`")]
   AwsS3Error(String, String),
 
@@ -60,7 +60,7 @@ impl From<StorageError> for HtsGetError {
       | StorageError::InvalidUri(_)
       | StorageError::InvalidAddress(_)
       | StorageError::InternalError(_)) => Self::InternalError(err.to_string()),
-      #[cfg(feature = "s3")]
+      #[cfg(feature = "s3-storage")]
       err @ StorageError::AwsS3Error(_, _) => Self::IoError(err.to_string()),
       err @ StorageError::UrlParseError(_) => Self::ParseError(err.to_string()),
     }

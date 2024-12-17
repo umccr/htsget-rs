@@ -315,9 +315,9 @@ impl From<Crypt4GHError> for StorageError {
 mod tests {
   use super::*;
   use crate::local::tests::with_local_storage;
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   use crate::s3::tests::with_aws_s3_storage;
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   use crate::url::tests::{test_headers, with_url_test_server};
   use htsget_config::types::Headers;
   use htsget_test::c4gh::{encrypt_data, get_decryption_keys};
@@ -335,7 +335,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn test_preprocess_s3_storage() {
     with_s3_c4gh_storage(|mut storage| async move {
@@ -344,7 +344,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn test_preprocess_url_storage() {
     with_url_c4gh_storage(|mut storage, _| async move {
@@ -363,7 +363,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn test_get_s3_storage() {
     with_s3_c4gh_storage(|mut storage| async move {
@@ -372,7 +372,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn test_get_url_storage() {
     with_url_c4gh_storage(|mut storage, _| async move {
@@ -391,7 +391,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn test_head_s3_storage() {
     with_s3_c4gh_storage(|mut storage| async move {
@@ -400,7 +400,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn test_head_url_storage() {
     with_url_c4gh_storage(|mut storage, _| async move {
@@ -419,7 +419,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn test_postprocess_s3_storage() {
     with_s3_c4gh_storage(|mut storage| async move {
@@ -428,7 +428,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn test_postprocess_url_storage() {
     with_url_c4gh_storage(|mut storage, _| async move {
@@ -453,7 +453,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn test_range_s3_storage() {
     with_s3_c4gh_storage(|mut storage| async move {
@@ -468,7 +468,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn test_range_url_storage() {
     with_url_c4gh_storage(|mut storage, url| async move {
@@ -608,7 +608,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   pub(crate) async fn with_s3_c4gh_storage<F, Fut>(test: F)
   where
     F: FnOnce(C4GHStorage) -> Fut,
@@ -621,7 +621,7 @@ mod tests {
     .await;
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   pub(crate) async fn with_url_c4gh_storage<F, Fut>(test: F)
   where
     F: FnOnce(C4GHStorage, String) -> Fut,

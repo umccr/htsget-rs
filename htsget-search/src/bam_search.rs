@@ -147,7 +147,7 @@ impl BamSearch {
 #[cfg(test)]
 pub(crate) mod tests {
   use super::*;
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
@@ -535,7 +535,7 @@ pub(crate) mod tests {
     .await
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
@@ -553,7 +553,7 @@ pub(crate) mod tests {
     .await
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
@@ -572,7 +572,7 @@ pub(crate) mod tests {
     .await
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(

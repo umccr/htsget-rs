@@ -98,7 +98,7 @@ mod tests {
     });
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn config_s3_storage_c4gh() {
     test_c4gh_storage_config(
@@ -115,7 +115,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "url")]
+  #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn config_url_storage_c4gh() {
     test_c4gh_storage_config(

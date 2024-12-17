@@ -150,7 +150,7 @@ impl QueryAllowed for AllowGuard {
 mod tests {
   use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   use crate::config::Config;
   use crate::types::Class::Header;
 
@@ -265,7 +265,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "s3")]
+  #[cfg(feature = "s3-storage")]
   #[test]
   fn allow_guard() {
     test_serialize_and_deserialize(

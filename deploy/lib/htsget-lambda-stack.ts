@@ -1,24 +1,49 @@
-import {STACK_NAME} from "../bin/htsget-lambda";
+import { STACK_NAME } from "../bin/htsget-lambda";
 import * as TOML from "@iarna/toml";
-import {readFileSync} from "fs";
+import { readFileSync } from "fs";
 
-import {CfnOutput, Duration, RemovalPolicy, SecretValue, Stack, StackProps, Tags,} from "aws-cdk-lib";
-import {Construct} from "constructs";
+import {
+  CfnOutput,
+  Duration,
+  RemovalPolicy,
+  SecretValue,
+  Stack,
+  StackProps,
+  Tags,
+} from "aws-cdk-lib";
+import { Construct } from "constructs";
 
-import {UserPool} from "aws-cdk-lib/aws-cognito";
-import {ManagedPolicy, PolicyStatement, Role, ServicePrincipal,} from "aws-cdk-lib/aws-iam";
-import {Architecture} from "aws-cdk-lib/aws-lambda";
-import {Certificate, CertificateValidation,} from "aws-cdk-lib/aws-certificatemanager";
-import {ARecord, HostedZone, RecordTarget} from "aws-cdk-lib/aws-route53";
-import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
-import {RustFunction} from "cargo-lambda-cdk";
+import { UserPool } from "aws-cdk-lib/aws-cognito";
+import {
+  ManagedPolicy,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from "aws-cdk-lib/aws-iam";
+import { Architecture } from "aws-cdk-lib/aws-lambda";
+import {
+  Certificate,
+  CertificateValidation,
+} from "aws-cdk-lib/aws-certificatemanager";
+import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
+import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
+import { RustFunction } from "cargo-lambda-cdk";
 import path from "path";
-import {HttpLambdaIntegration} from "aws-cdk-lib/aws-apigatewayv2-integrations";
-import {CorsHttpMethod, DomainName, HttpApi, HttpMethod,} from "aws-cdk-lib/aws-apigatewayv2";
-import {HttpJwtAuthorizer} from "aws-cdk-lib/aws-apigatewayv2-authorizers";
-import {BlockPublicAccess, Bucket, BucketEncryption,} from "aws-cdk-lib/aws-s3";
-import {BucketDeployment, Source} from "aws-cdk-lib/aws-s3-deployment";
-import {Secret} from "aws-cdk-lib/aws-secretsmanager";
+import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import {
+  CorsHttpMethod,
+  DomainName,
+  HttpApi,
+  HttpMethod,
+} from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
+import {
+  BlockPublicAccess,
+  Bucket,
+  BucketEncryption,
+} from "aws-cdk-lib/aws-s3";
+import { BucketDeployment, Source } from "aws-cdk-lib/aws-s3-deployment";
+import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 
 /**
  * Settings related to the htsget lambda stack.
@@ -97,7 +122,7 @@ export type HtsgetSettings = {
   secretArns?: string[];
 
   /**
-   * Additional features to compile htsget-rs with. Defaults to `[]`. `s3` is always enabled.
+   * Additional features to compile htsget-rs with. Defaults to `[]`. `s3-storage` is always enabled.
    */
   features?: string[];
 };
@@ -249,8 +274,8 @@ export class HtsgetLambdaStack extends Stack {
 
     let features = settings.features ?? [];
     features = features
-      .filter((f) => f !== "s3")
-      .concat(["s3"]);
+      .filter((f) => f !== "s3-storage")
+      .concat(["s3-storage"]);
 
     let htsgetLambda = new RustFunction(this, id + "Function", {
       manifestPath: path.join(__dirname, "..", ".."),
