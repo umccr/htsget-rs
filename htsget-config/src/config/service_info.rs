@@ -63,7 +63,7 @@ mod tests {
   fn service_info() {
     test_serialize_and_deserialize(
       r#"
-      id = { "id" = "1" }
+      id = { id = "1" }
       "#,
       ServiceInfo::new(HashMap::from_iter(vec![(
         "id".to_string(),

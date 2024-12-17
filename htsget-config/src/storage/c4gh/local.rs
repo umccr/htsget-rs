@@ -11,17 +11,14 @@ use std::path::PathBuf;
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct C4GHLocal {
-  private_key: PathBuf,
-  recipient_public_key: PathBuf,
+  private: PathBuf,
+  public: PathBuf,
 }
 
 impl C4GHLocal {
   /// Create a new local C4GH key storage.
-  pub fn new(private_key: PathBuf, recipient_public_key: PathBuf) -> Self {
-    Self {
-      private_key,
-      recipient_public_key,
-    }
+  pub fn new(private: PathBuf, public: PathBuf) -> Self {
+    Self { private, public }
   }
 }
 
@@ -29,8 +26,8 @@ impl TryFrom<C4GHLocal> for C4GHKeys {
   type Error = Error;
 
   fn try_from(local: C4GHLocal) -> Result<Self> {
-    let private_key = get_private_key(local.private_key, Ok("".to_string()))?;
-    let recipient_public_key = get_public_key(local.recipient_public_key)?;
+    let private_key = get_private_key(local.private, Ok("".to_string()))?;
+    let recipient_public_key = get_public_key(local.public)?;
 
     let handle =
       tokio::spawn(async move { Ok(C4GHKeys::from_key_pair(private_key, recipient_public_key)) });

@@ -73,7 +73,7 @@ impl TryFrom<C4GHKeyLocation> for C4GHKeys {
 
 /// The location of C4GH keys.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(tag = "key_location", deny_unknown_fields)]
+#[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum C4GHKeyLocation {
   #[serde(alias = "file", alias = "FILE")]

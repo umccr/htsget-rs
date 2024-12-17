@@ -34,7 +34,7 @@ impl ResolvedId {
 
 /// Specify the storage backend to use as config values.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "backend", deny_unknown_fields)]
+#[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum Backend {
   #[serde(alias = "file", alias = "FILE")]
@@ -129,8 +129,7 @@ pub(crate) mod tests {
       r#"
       [[locations]]
       regex = "regex"
-      [locations.location]
-      backend = "S3"
+      backend.kind = "S3"
       "#,
       |config| {
         assert!(matches!(

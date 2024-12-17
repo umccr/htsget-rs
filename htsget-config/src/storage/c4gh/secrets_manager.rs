@@ -18,18 +18,18 @@ use tempfile::TempDir;
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct C4GHSecretsManager {
-  private_key: String,
-  recipient_public_key: String,
+  private: String,
+  public: String,
   #[serde(skip)]
   client: Option<Client>,
 }
 
 impl C4GHSecretsManager {
   /// Create a new C4GH secrets manager key storage.
-  pub fn new(private_key: String, recipient_public_key: String) -> Self {
+  pub fn new(private: String, public: String) -> Self {
     Self {
-      private_key,
-      recipient_public_key,
+      private,
+      public,
       client: None,
     }
   }
@@ -69,10 +69,10 @@ impl C4GHSecretsManager {
     // Should not have to do this, but the Crypt4GH library expects a path.
     let tmp = TempDir::new()?;
     let private_key = tmp.path().join("private_key");
-    Self::write_to_file(&private_key, self.private_key, &client).await?;
+    Self::write_to_file(&private_key, self.private, &client).await?;
 
     let recipient_public_key = tmp.path().join("public_key");
-    Self::write_to_file(&recipient_public_key, self.recipient_public_key, &client).await?;
+    Self::write_to_file(&recipient_public_key, self.public, &client).await?;
 
     let private_key = get_private_key(private_key, Ok("".to_string()))?;
     let recipient_public_key = get_public_key(recipient_public_key)?;

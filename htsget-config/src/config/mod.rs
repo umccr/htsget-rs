@@ -218,6 +218,7 @@ pub(crate) mod tests {
   use crate::types::Scheme;
   use figment::Jail;
   use http::uri::Authority;
+  use http::Uri;
   use serde::de::DeserializeOwned;
   use serde_json::json;
 

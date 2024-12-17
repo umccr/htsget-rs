@@ -14,7 +14,7 @@ pub struct RegexLocation {
   #[serde(with = "serde_regex")]
   regex: Regex,
   substitution_string: String,
-  location: Backend,
+  backend: Backend,
   guard: Option<AllowGuard>,
 }
 
@@ -23,13 +23,13 @@ impl RegexLocation {
   pub fn new(
     regex: Regex,
     substitution_string: String,
-    location: Backend,
+    backend: Backend,
     guard: Option<AllowGuard>,
   ) -> Self {
     Self {
       regex,
       substitution_string,
-      location,
+      backend,
       guard,
     }
   }
@@ -46,7 +46,7 @@ impl RegexLocation {
 
   /// Get the storage backend.
   pub fn backend(&self) -> &Backend {
-    &self.location
+    &self.backend
   }
 
   /// Get the allow guard.
