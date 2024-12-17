@@ -11,8 +11,8 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
-url-storage = ["dep:reqwest", "dep:cfg-if"]
+s3 = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
+url = ["dep:reqwest", "dep:cfg-if"]
 experimental = ["dep:crypt4gh", "dep:tokio", "dep:futures-util"]
 default = []
 
@@ -36,7 +36,7 @@ rustls-pemfile = "2"
 rustls = "0.23"
 rustls-pki-types = "1"
 
-# url-storage
+# url
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false, optional = true }
 cfg-if = { version = "1", optional = true }
 

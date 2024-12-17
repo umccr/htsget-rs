@@ -1,5 +1,5 @@
 # An example for a server which uses s3 storage with data located in "bucket".
-# Run with `cargo run -p htsget-axum --features s3-storage -- --config htsget-config/examples/config-files/s3_storage.toml`
+# Run with `cargo run -p htsget-axum --features s3 -- --config htsget-config/examples/config-files/s3_storage.toml`
 
 ticket_server.cors.allow_headers = "All"
 ticket_server.cors.allow_methods = "All"

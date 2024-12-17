@@ -1,4 +1,4 @@
-//! Location configuration.
+//! Storage location configuration.
 //!
 
 use crate::config::advanced::regex_location::RegexLocation;
@@ -10,7 +10,7 @@ use crate::types::Scheme;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::result;
-#[cfg(feature = "url-storage")]
+#[cfg(feature = "url")]
 use {crate::config::advanced::url::Url, crate::error, http::Uri};
 
 /// The locations of data.
@@ -19,18 +19,22 @@ use {crate::config::advanced::url::Url, crate::error, http::Uri};
 pub struct Locations(Vec<LocationEither>);
 
 impl Locations {
+  /// Create new locations.
   pub fn new(locations: Vec<LocationEither>) -> Self {
     Self(locations)
   }
 
+  /// Get locations as a slice of `LocationEither`.
   pub fn as_slice(&self) -> &[LocationEither] {
     self.0.as_slice()
   }
 
+  /// Get locations as an owned vector of `LocationEither`.
   pub fn into_inner(self) -> Vec<LocationEither> {
     self.0
   }
 
+  /// Get locations as a mutable slice of `LocationEither`.
   pub fn as_mut_slice(&mut self) -> &mut [LocationEither] {
     self.0.as_mut_slice()
   }
@@ -210,7 +214,7 @@ impl<'de> Deserialize<'de> for StringLocation {
       });
     }
 
-    #[cfg(feature = "s3-storage")]
+    #[cfg(feature = "s3")]
     if let Some(s) = s.strip_prefix("s3://") {
       let (bucket, prefix) = split(s)?;
       return Ok(StringLocation {
@@ -219,7 +223,7 @@ impl<'de> Deserialize<'de> for StringLocation {
       });
     }
 
-    #[cfg(feature = "url-storage")]
+    #[cfg(feature = "url")]
     if let Some(s_stripped) = s
       .strip_prefix("http://")
       .or_else(|| s.strip_prefix("https://"))
@@ -326,7 +330,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[test]
   fn location_s3() {
     test_serialize_and_deserialize(
@@ -360,7 +364,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   #[test]
   fn location_url() {
     test_serialize_and_deserialize(

@@ -33,7 +33,7 @@ jobs:
         run: cargo build --all-targets --all-features
       - name: Build no default features
         run: cargo build --all-targets --no-default-features
-      - name: Build s3-storage
-        run: cargo build --all-targets --features s3-storage
-      - name: Build url-storage
-        run: cargo build --all-targets --features url-storage
+      - name: Build s3
+        run: cargo build --all-targets --features s3
+      - name: Build url
+        run: cargo build --all-targets --features url

@@ -4,7 +4,7 @@
 //!
 
 pub use htsget_config::config::Config;
-pub use htsget_config::resolver::{IdResolver, QueryAllowed, ResolveResponse, StorageResolver};
+pub use htsget_config::resolver::{IdResolver, ResolveResponse, StorageResolver};
 pub use htsget_config::types::{
   Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Result, Url,
 };

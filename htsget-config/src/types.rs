@@ -1,3 +1,6 @@
+//! Types related to htsget like formats, reference names, classes or intervals.
+//!
+
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::io::ErrorKind::Other;
@@ -13,6 +16,7 @@ use tracing::instrument;
 use crate::error::Error;
 use crate::error::Error::ParseError;
 
+/// The result type returning a `HtsGetError`.
 pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
@@ -31,6 +35,7 @@ pub enum Format {
 
 /// Todo allow these to be configurable.
 impl Format {
+  /// Get the file ending for the format.
   pub fn file_ending(&self) -> &str {
     match self {
       Format::Bam => ".bam",
@@ -40,10 +45,12 @@ impl Format {
     }
   }
 
+  /// Get the file name including its ending.
   pub fn fmt_file(&self, id: &str) -> String {
     format!("{id}{}", self.file_ending())
   }
 
+  /// Get the index file ending for this format.
   pub fn index_file_ending(&self) -> &str {
     match self {
       Format::Bam => ".bam.bai",
@@ -53,10 +60,12 @@ impl Format {
     }
   }
 
+  /// Get the index file name including its ending.
   pub fn fmt_index(&self, id: &str) -> String {
     format!("{id}{}", self.index_file_ending())
   }
 
+  /// Get the GZI index file ending for this format.
   pub fn gzi_index_file_ending(&self) -> io::Result<&str> {
     match self {
       Format::Bam => Ok(".bam.gzi"),
@@ -69,6 +78,7 @@ impl Format {
     }
   }
 
+  /// Get the GZI index file name including its ending.
   pub fn fmt_gzi(&self, id: &str) -> io::Result<String> {
     Ok(format!("{id}{}", self.gzi_index_file_ending()?))
   }
@@ -178,10 +188,12 @@ impl Interval {
     })
   }
 
+  /// Start position.
   pub fn start(&self) -> Option<u32> {
     self.start
   }
 
+  /// End position.
   pub fn end(&self) -> Option<u32> {
     self.end
   }
@@ -383,43 +395,53 @@ impl Query {
     self
   }
 
+  /// Id.
   pub fn id(&self) -> &str {
     &self.id
   }
 
+  /// Format.
   pub fn format(&self) -> Format {
     self.format
   }
 
+  /// Class.
   pub fn class(&self) -> Class {
     self.class
   }
 
+  /// Reference name.
   pub fn reference_name(&self) -> Option<&str> {
     self.reference_name.as_deref()
   }
 
+  /// Interval.
   pub fn interval(&self) -> Interval {
     self.interval
   }
 
+  /// Fields.
   pub fn fields(&self) -> &Fields {
     &self.fields
   }
 
+  /// Tags.
   pub fn tags(&self) -> &Tags {
     &self.tags
   }
 
+  /// No tags.
   pub fn no_tags(&self) -> &NoTags {
     &self.no_tags
   }
 
+  /// Request.
   pub fn request(&self) -> &Request {
     &self.request
   }
 }
 
+/// Htsget specific errors.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum HtsGetError {
   #[error("not found: {0}")]
@@ -445,30 +467,37 @@ pub enum HtsGetError {
 }
 
 impl HtsGetError {
+  /// Create a `NotFound` error.
   pub fn not_found<S: Into<String>>(message: S) -> Self {
     Self::NotFound(message.into())
   }
 
+  /// Create an `UnsupportedFormat` error.
   pub fn unsupported_format<S: Into<String>>(format: S) -> Self {
     Self::UnsupportedFormat(format.into())
   }
 
+  /// Create an `InvalidInput` error.
   pub fn invalid_input<S: Into<String>>(message: S) -> Self {
     Self::InvalidInput(message.into())
   }
 
+  /// Create an `InvalidRange` error.
   pub fn invalid_range<S: Into<String>>(message: S) -> Self {
     Self::InvalidRange(message.into())
   }
 
+  /// Create an `IoError` error.
   pub fn io_error<S: Into<String>>(message: S) -> Self {
     Self::IoError(message.into())
   }
 
+  /// Create a `ParseError` error.
   pub fn parse_error<S: Into<String>>(message: S) -> Self {
     Self::ParseError(message.into())
   }
 
+  /// Create an `InternalError` error.
   pub fn internal_error<S: Into<String>>(message: S) -> Self {
     Self::InternalError(message.into())
   }
@@ -612,6 +641,7 @@ pub struct JsonResponse {
 }
 
 impl JsonResponse {
+  /// Create a new `JsonResponse`.
   pub fn new(htsget: Response) -> Self {
     Self { htsget }
   }
@@ -631,6 +661,7 @@ pub struct Response {
 }
 
 impl Response {
+  /// Create a new `Response`.
   pub fn new(format: Format, urls: Vec<Url>) -> Self {
     Self { format, urls }
   }

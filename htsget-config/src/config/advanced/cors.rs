@@ -1,3 +1,6 @@
+//! Configuration related to CORS.
+//!
+
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
@@ -134,6 +137,7 @@ where
 pub struct HeaderValue(HeaderValueInner);
 
 impl HeaderValue {
+  /// Get the inner header value.
   pub fn into_inner(self) -> HeaderValueInner {
     self.0
   }

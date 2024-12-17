@@ -1,3 +1,6 @@
+//! Resolvers map ids to storage locations.
+
+use crate::config::advanced::allow_guard::QueryAllowed;
 use crate::config::advanced::regex_location::RegexLocation;
 use crate::config::location::{LocationEither, Locations};
 use crate::storage;
@@ -20,11 +23,11 @@ pub trait ResolveResponse {
   async fn from_file(file_storage: &storage::file::File, query: &Query) -> Result<Response>;
 
   /// Convert from `S3`.
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   async fn from_s3(s3_storage: &storage::s3::S3, query: &Query) -> Result<Response>;
 
   /// Convert from `Url`.
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   async fn from_url(url_storage: &storage::url::Url, query: &Query) -> Result<Response>;
 }
 
@@ -36,12 +39,6 @@ pub trait StorageResolver {
     &self,
     query: &mut Query,
   ) -> Option<Result<Response>>;
-}
-
-/// Determines whether the query matches for use with the storage.
-pub trait QueryAllowed {
-  /// Does this query match.
-  fn query_allowed(&self, query: &Query) -> bool;
 }
 
 /// A type which holds a resolved storage and an resolved id.
@@ -125,7 +122,7 @@ impl StorageResolver for LocationEither {
 
     match self.backend() {
       Backend::File(file) => Some(T::from_file(file, query).await),
-      #[cfg(feature = "s3-storage")]
+      #[cfg(feature = "s3")]
       Backend::S3(s3) => {
         let s3 = if let Self::Regex(regex_location) = self {
           if s3.bucket().is_empty() {
@@ -145,7 +142,7 @@ impl StorageResolver for LocationEither {
 
         Some(T::from_s3(s3, query).await)
       }
-      #[cfg(feature = "url-storage")]
+      #[cfg(feature = "url")]
       Backend::Url(url_storage) => Some(T::from_url(url_storage, query).await),
     }
   }
@@ -203,9 +200,9 @@ mod tests {
   use crate::types::Scheme::Http;
   use crate::types::Url;
   use http::uri::Authority;
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   use reqwest::ClientBuilder;
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   use {
     crate::config::advanced::allow_guard::{AllowGuard, ReferenceNames},
     crate::types::{Class, Fields, Interval, Tags},
@@ -223,7 +220,7 @@ mod tests {
       ))
     }
 
-    #[cfg(feature = "s3-storage")]
+    #[cfg(feature = "s3")]
     async fn from_s3(s3_storage: &storage::s3::S3, query: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
@@ -231,7 +228,7 @@ mod tests {
       ))
     }
 
-    #[cfg(feature = "url-storage")]
+    #[cfg(feature = "url")]
     async fn from_url(url: &storage::url::Url, query: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
@@ -266,7 +263,7 @@ mod tests {
     expected_resolved_request(vec![location.into()], "127.0.0.1:8080/id-1").await;
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[tokio::test]
   async fn resolver_resolve_s3_request_tagged() {
     let s3_storage = storage::s3::S3::new("id2".to_string(), None, false);
@@ -282,7 +279,7 @@ mod tests {
     expected_resolved_request(vec![location.into()], "id2/id-1").await;
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[tokio::test]
   async fn resolver_resolve_s3_request() {
     let regex_location = RegexLocation::new(
@@ -308,7 +305,7 @@ mod tests {
     expected_resolved_request(vec![location.into()], "bucket/id-1").await;
   }
 
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   #[tokio::test]
   async fn resolver_resolve_url_request() {
     let client = ClientBuilder::new().build().unwrap();
@@ -443,7 +440,7 @@ mod tests {
     });
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[test]
   fn config_resolvers_all_options_env() {
     test_config_from_env(

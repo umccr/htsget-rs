@@ -25,7 +25,7 @@ http = [
     "dep:base64"
 ]
 aws-mocks = [
-    "s3-storage",
+    "s3",
     "dep:tempfile",
     "dep:aws-sdk-s3",
     "dep:aws-config",
@@ -34,8 +34,8 @@ aws-mocks = [
     "dep:s3s-fs",
     "dep:s3s-aws"
 ]
-s3-storage = ["htsget-config?/s3-storage"]
-url-storage = ["htsget-config?/url-storage"]
+s3 = ["htsget-config?/s3"]
+url = ["htsget-config?/url"]
 experimental = ["dep:crypt4gh", "dep:htsget-config", "htsget-config/experimental"]
 default = []
 

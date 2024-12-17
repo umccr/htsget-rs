@@ -1,3 +1,6 @@
+//! Configuration for remote URL server storage.
+//!
+
 use crate::config::advanced;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
@@ -5,6 +8,7 @@ use http::Uri;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
+/// Remote URL server storage struct.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(try_from = "advanced::url::Url", deny_unknown_fields)]
 pub struct Url {

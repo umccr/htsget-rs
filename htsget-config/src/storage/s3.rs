@@ -1,7 +1,11 @@
+//! Configuration for storage on AWS S3.
+//!
+
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
 use serde::{Deserialize, Serialize};
 
+/// Configuration struct for S3 storage.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 pub struct S3 {

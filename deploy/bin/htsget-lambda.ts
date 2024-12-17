@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
-import { HtsgetLambdaStack } from "../lib/htsget-lambda-stack";
-import { SETTINGS } from "./settings";
+import {HtsgetLambdaStack} from "../lib/htsget-lambda-stack";
+import {SETTINGS} from "./settings";
 
 export const STACK_NAME = "HtsgetLambdaStack";
 const STACK_DESCRIPTION = "A stack deploying htsget-lambda with API gateway.";

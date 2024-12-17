@@ -42,14 +42,14 @@ This crate uses [htsget-config] for configuration.
 Using the default configuration, this will start a ticket server on `127.0.0.1:8080` and a data block server on `127.0.0.1:8081`
 with data accessible from the [`data`][data] directory. This application supports storage backends defined in [htsget-storage].
 
-To use `S3Storage`, compile with the `s3-storage` feature:
+To use `S3` locations, compile with the `s3` feature:
 ```sh
-cargo run -p htsget-axum --features s3-storage
+cargo run -p htsget-axum --features s3
 ```
 
-This will start a ticket server with `S3Storage` using a bucket called `"data"`.
+This will start a ticket server with `S3` locations and a bucket called `"data"`.
 
-To use `UrlStorage`, compile with the `url-storage` feature.
+To use `Url` locations, compile with the `url` feature.
 
 See [htsget-search] for details on how to structure files.
 
@@ -178,8 +178,8 @@ htsget-rs. It also contains the data block server which fetches data from a `Loc
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `S3Storage` functionality.
-* `url-storage`: used to enable `UrlStorage` functionality.
+* `s3`: used to enable `S3` location functionality.
+* `url`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 ## License

@@ -56,14 +56,14 @@ impl ResolveResponse for HtsGetFromStorage {
     searcher.search(query.clone()).await
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   async fn from_s3(s3_storage: &storage::s3::S3, query: &Query) -> Result<Response> {
     let storage = Storage::from_s3(s3_storage).await;
     let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
   }
 
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   async fn from_url(url_storage_config: &storage::url::Url, query: &Query) -> Result<Response> {
     let storage = Storage::from_url(url_storage_config).await;
     let searcher = HtsGetFromStorage::new(storage?);
@@ -90,7 +90,7 @@ pub(crate) mod tests {
   use std::fs;
   use std::future::Future;
   use std::path::{Path, PathBuf};
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   use {
     htsget_storage::s3::S3Storage, htsget_test::aws_mocks::with_s3_test_server, std::fs::create_dir,
   };
@@ -318,7 +318,7 @@ pub(crate) mod tests {
     .await;
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   pub(crate) async fn with_aws_storage_fn<F, Fut>(test: F, path: &str, copy_files: &[&str])
   where
     F: FnOnce(Storage) -> Fut,
@@ -341,7 +341,7 @@ pub(crate) mod tests {
     .await;
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   pub(crate) async fn with_aws_s3_storage_fn<F, Fut>(test: F, folder_name: String, base_path: &Path)
   where
     F: FnOnce(Storage) -> Fut,

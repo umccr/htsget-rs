@@ -1,3 +1,6 @@
+//! Structs to serialize and deserialize the htsget-rs config options.
+//!
+
 use std::fmt::Debug;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -26,7 +29,7 @@ pub mod parser;
 pub mod service_info;
 pub mod ticket_server;
 
-/// Represents a usage string for htsget-rs.
+/// The usage string for htsget-rs.
 pub const USAGE: &str = "To configure htsget-rs use a config file or environment variables. \
 See the documentation of the htsget-config crate for more information.";
 
@@ -218,7 +221,7 @@ pub(crate) mod tests {
   use crate::types::Scheme;
   use figment::Jail;
   use http::uri::Authority;
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   use http::Uri;
   use serde::de::DeserializeOwned;
   use serde_json::json;
@@ -569,7 +572,7 @@ pub(crate) mod tests {
     );
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[test]
   fn simple_locations_s3() {
     test_config_from_file(
@@ -587,7 +590,7 @@ pub(crate) mod tests {
     );
   }
 
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   #[test]
   fn simple_locations_url() {
     test_config_from_file(
@@ -618,7 +621,7 @@ pub(crate) mod tests {
     );
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[test]
   fn simple_locations_multiple_mixed() {
     test_config_from_file(

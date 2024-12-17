@@ -34,8 +34,8 @@ This library is intended to be used as a [development dependency][dev-dependenci
 This crate has the following features:
 * `http`: used to enable common functionality for HTTP tests.
 * `aws-mocks`: used to enable AWS mocking for tests.
-* `s3-storage`: used to enable `S3Storage` functionality.
-* `url-storage`: used to enable `UrlStorage` functionality.
+* `s3`: used to enable `S3` location functionality.
+* `url`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 [dev-dependencies]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies

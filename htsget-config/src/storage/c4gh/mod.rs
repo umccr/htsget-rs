@@ -4,7 +4,7 @@
 use crate::error::Error::{IoError, ParseError};
 use crate::error::{Error, Result};
 use crate::storage::c4gh::local::C4GHLocal;
-#[cfg(feature = "s3-storage")]
+#[cfg(feature = "s3")]
 use crate::storage::c4gh::secrets_manager::C4GHSecretsManager;
 use crypt4gh::error::Crypt4GHError;
 use futures_util::future::{BoxFuture, Shared};
@@ -14,7 +14,7 @@ use tokio::task::{JoinError, JoinHandle};
 
 pub mod local;
 
-#[cfg(feature = "s3-storage")]
+#[cfg(feature = "s3")]
 pub mod secrets_manager;
 
 /// Config for Crypt4GH keys.
@@ -40,6 +40,7 @@ impl C4GHKeys {
     }]
   }
 
+  /// Construct from an existing join handle.
   pub fn from_join_handle(handle: JoinHandle<Result<Vec<crypt4gh::Keys>>>) -> Self {
     Self {
       keys: handle.map(|value| value?).boxed().shared(),
@@ -65,7 +66,7 @@ impl TryFrom<C4GHKeyLocation> for C4GHKeys {
   fn try_from(location: C4GHKeyLocation) -> Result<Self> {
     match location {
       C4GHKeyLocation::File(file) => file.try_into(),
-      #[cfg(feature = "s3-storage")]
+      #[cfg(feature = "s3")]
       C4GHKeyLocation::SecretsManager(secrets_manager) => secrets_manager.try_into(),
     }
   }
@@ -78,7 +79,7 @@ impl TryFrom<C4GHKeyLocation> for C4GHKeys {
 pub enum C4GHKeyLocation {
   #[serde(alias = "file", alias = "FILE")]
   File(C4GHLocal),
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[serde(alias = "secretsmanager", alias = "SECRETSMANAGER")]
   SecretsManager(C4GHSecretsManager),
 }

@@ -83,6 +83,7 @@ impl DataServerConfig {
     &self.cors
   }
 
+  /// Get the owned TLS config.
   pub fn into_tls(self) -> Option<TlsServerConfig> {
     self.tls
   }

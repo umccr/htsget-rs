@@ -11,8 +11,8 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-lambda/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["htsget-axum/s3-storage", "htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http/s3-storage", "htsget-test/s3-storage"]
-url-storage = ["htsget-axum/url-storage", "htsget-config/url-storage", "htsget-search/url-storage", "htsget-http/url-storage", "htsget-test/url-storage"]
+s3 = ["htsget-axum/s3", "htsget-config/s3", "htsget-search/s3", "htsget-http/s3", "htsget-test/s3"]
+url = ["htsget-axum/url", "htsget-config/url", "htsget-search/url", "htsget-http/url", "htsget-test/url"]
 experimental = [
     "htsget-axum/experimental",
     "htsget-config/experimental",

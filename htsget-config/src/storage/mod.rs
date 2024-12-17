@@ -1,19 +1,22 @@
-#[cfg(any(feature = "url-storage", feature = "s3-storage"))]
+//! Storage backends.
+//!
+
+#[cfg(any(feature = "url", feature = "s3"))]
 use crate::error::Error;
 use crate::error::Result;
 use crate::storage::file::File;
-#[cfg(feature = "s3-storage")]
+#[cfg(feature = "s3")]
 use crate::storage::s3::S3;
-#[cfg(feature = "url-storage")]
+#[cfg(feature = "url")]
 use crate::storage::url::Url;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "experimental")]
 pub mod c4gh;
 pub mod file;
-#[cfg(feature = "s3-storage")]
+#[cfg(feature = "s3")]
 pub mod s3;
-#[cfg(feature = "url-storage")]
+#[cfg(feature = "url")]
 pub mod url;
 
 /// A new type representing a resolved id.
@@ -39,10 +42,10 @@ impl ResolvedId {
 pub enum Backend {
   #[serde(alias = "file", alias = "FILE")]
   File(File),
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[serde(alias = "s3")]
   S3(S3),
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   #[serde(alias = "url", alias = "URL")]
   Url(Url),
 }
@@ -52,15 +55,15 @@ impl Backend {
   pub fn as_file(&self) -> Result<&File> {
     match self {
       Backend::File(file) => Ok(file),
-      #[cfg(feature = "s3-storage")]
+      #[cfg(feature = "s3")]
       Backend::S3(_) => Err(Error::ParseError("not a `File` variant".to_string())),
-      #[cfg(feature = "url-storage")]
+      #[cfg(feature = "url")]
       Backend::Url(_) => Err(Error::ParseError("not a `File` variant".to_string())),
     }
   }
 
   /// Get the file variant and error if it is not `S3`.
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   pub fn as_s3(&self) -> Result<&S3> {
     if let Backend::S3(s3) = self {
       Ok(s3)
@@ -70,7 +73,7 @@ impl Backend {
   }
 
   /// Get the url variant and error if it is not `Url`.
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   pub fn as_url(&self) -> Result<&Url> {
     if let Backend::Url(url) = self {
       Ok(url)
@@ -121,7 +124,7 @@ pub(crate) mod tests {
     );
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[test]
   fn config_storage_tagged_s3_file() {
     test_config_from_file(
@@ -139,7 +142,7 @@ pub(crate) mod tests {
     );
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[test]
   fn config_storage_tagged_s3_env() {
     test_config_from_env(

@@ -1,11 +1,16 @@
 //! Allow guard configuration.
 //!
 
-use crate::resolver::QueryAllowed;
 use crate::types::Format::{Bam, Bcf, Cram, Vcf};
 use crate::types::{Class, Fields, Format, Interval, Query, TaggedTypeAll, Tags};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+
+/// Determines whether the query matches for use with the storage.
+pub trait QueryAllowed {
+  /// Does this query match.
+  fn query_allowed(&self, query: &Query) -> bool;
+}
 
 /// A query guard represents query parameters that can be allowed to storage for a given query.
 #[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -145,7 +150,7 @@ impl QueryAllowed for AllowGuard {
 mod tests {
   use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   use crate::config::Config;
   use crate::types::Class::Header;
 
@@ -260,7 +265,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   #[test]
   fn allow_guard() {
     test_serialize_and_deserialize(

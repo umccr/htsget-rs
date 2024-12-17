@@ -1,7 +1,7 @@
 //! Module providing the abstractions needed to read files from an storage
 //!
 
-pub use htsget_config::resolver::{IdResolver, QueryAllowed, ResolveResponse, StorageResolver};
+pub use htsget_config::resolver::{IdResolver, ResolveResponse, StorageResolver};
 pub use htsget_config::types::{
   Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Url,
 };
@@ -12,10 +12,10 @@ use crate::error::Result;
 use crate::error::StorageError;
 use crate::error::StorageError::InvalidKey;
 use crate::local::FileStorage;
-#[cfg(feature = "s3-storage")]
+#[cfg(feature = "s3")]
 use crate::s3::S3Storage;
 use crate::types::{BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions};
-#[cfg(feature = "url-storage")]
+#[cfg(feature = "url")]
 use crate::url::UrlStorage;
 use async_trait::async_trait;
 use base64::engine::general_purpose;
@@ -38,10 +38,10 @@ use tokio::io::{AsyncRead, ReadBuf};
 pub mod c4gh;
 pub mod error;
 pub mod local;
-#[cfg(feature = "s3-storage")]
+#[cfg(feature = "s3")]
 pub mod s3;
 pub mod types;
-#[cfg(feature = "url-storage")]
+#[cfg(feature = "url")]
 pub mod url;
 
 pin_project! {
@@ -163,7 +163,7 @@ impl Storage {
   }
 
   /// Create from s3 config.
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "s3")]
   pub async fn from_s3(s3: &storage::s3::S3) -> Result<Storage> {
     let storage = Storage::new(
       S3Storage::new_with_default_config(
@@ -184,7 +184,7 @@ impl Storage {
   }
 
   /// Create from url config.
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   pub async fn from_url(url: &storage::url::Url) -> Result<Storage> {
     let storage = Storage::new(UrlStorage::new(
       url.client_cloned(),

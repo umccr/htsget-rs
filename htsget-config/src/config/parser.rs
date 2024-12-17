@@ -1,3 +1,6 @@
+//! Parse config for a file and environment variables.
+//!
+
 use crate::config::Config;
 use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
