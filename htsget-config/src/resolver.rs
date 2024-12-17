@@ -4,6 +4,7 @@ use crate::storage;
 use crate::storage::{Backend, ResolvedId};
 use crate::types::{Query, Response, Result};
 use async_trait::async_trait;
+use std::path::PathBuf;
 use tracing::instrument;
 
 /// A trait which matches the query id, replacing the match in the substitution text.
@@ -85,7 +86,12 @@ impl IdResolver for LocationEither {
     match self {
       LocationEither::Simple(location) => {
         if query.id().starts_with(location.prefix()) {
-          return Some(ResolvedId::new(query.id().to_string()));
+          return Some(ResolvedId::new(
+            PathBuf::from(location.prefix())
+              .join(query.id())
+              .to_str()?
+              .to_string(),
+          ));
         }
       }
       LocationEither::Regex(regex_location) => {
@@ -377,7 +383,7 @@ mod tests {
         .resolve_id(&Query::new_with_default_request("id-1", Bam))
         .unwrap()
         .into_inner(),
-      "id-1"
+      "id-1/id-1"
     );
     assert_eq!(
       resolver
@@ -385,7 +391,7 @@ mod tests {
         .resolve_id(&Query::new_with_default_request("id-2", Bam))
         .unwrap()
         .into_inner(),
-      "id-2"
+      "id-2/id-2"
     );
   }
 
@@ -444,7 +450,7 @@ mod tests {
       vec![(
         "HTSGET_LOCATIONS",
         "[{ regex=regex, substitution_string=substitution_string, \
-        location={ backend=S3, bucket=bucket }, \
+        backend={ kind=S3, bucket=bucket }, \
         guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
         allow_formats=[BAM], allow_classes=[body], allow_interval={ start=100, \
         end=1000 } } }]",

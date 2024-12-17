@@ -261,7 +261,7 @@ pub(crate) mod tests {
         RangeUrlOptions::new_with_default_range(&Default::default()),
       )
       .await;
-      let expected = Url::new("http://127.0.0.1:8081/data/key1");
+      let expected = Url::new("http://127.0.0.1:8081/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
@@ -279,7 +279,7 @@ pub(crate) mod tests {
         ),
       )
       .await;
-      let expected = Url::new("http://127.0.0.1:8081/data/key1")
+      let expected = Url::new("http://127.0.0.1:8081/key1")
         .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -295,7 +295,7 @@ pub(crate) mod tests {
         RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
       )
       .await;
-      let expected = Url::new("http://127.0.0.1:8081/data/key1")
+      let expected = Url::new("http://127.0.0.1:8081/key1")
         .with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));
     })

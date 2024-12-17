@@ -233,6 +233,7 @@ impl Default for CorsConfig {
 mod tests {
   use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
+  use crate::config::Config;
   use http::Method;
   use toml::de::Error;
 
@@ -281,6 +282,41 @@ mod tests {
         ..Default::default()
       },
       |result| result,
+    );
+  }
+
+  #[test]
+  fn cors_config() {
+    test_serialize_and_deserialize(
+      r#"
+      ticket_server.cors.allow_credentials = false
+      ticket_server.cors.allow_origins = "Mirror"
+      ticket_server.cors.allow_headers = "All"
+      data_server.cors.allow_methods = ["GET", "POST"]
+      data_server.cors.max_age = 86400
+      data_server.cors.expose_headers = []
+      "#,
+      (
+        false,
+        AllowType::Tagged(TaggedAllowTypes::Mirror),
+        AllowType::Tagged(TaggedAllowTypes::All),
+        AllowType::List(vec!["GET".parse().unwrap(), "POST".parse().unwrap()]),
+        86400,
+        AllowType::List(vec![]),
+      ),
+      |result: Config| {
+        let ticket_cors = result.ticket_server().cors();
+        let data_cors = result.data_server().as_data_server_config().unwrap().cors();
+
+        (
+          ticket_cors.allow_credentials,
+          ticket_cors.allow_origins.clone(),
+          ticket_cors.allow_headers.clone(),
+          data_cors.allow_methods.clone(),
+          data_cors.max_age,
+          data_cors.expose_headers.clone(),
+        )
+      },
     );
   }
 

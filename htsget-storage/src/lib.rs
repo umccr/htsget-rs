@@ -277,7 +277,7 @@ pub trait UrlFormatter {
 
 impl UrlFormatter for storage::file::File {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
-    let path = Path::new("/").join(self.local_path()).join(key.as_ref());
+    let path = Path::new("/").join(key.as_ref());
     uri::Builder::new()
       .scheme(match self.scheme() {
         Scheme::Http => uri::Scheme::HTTP,
@@ -340,7 +340,7 @@ mod tests {
   fn test_formatter_authority(formatter: storage::file::File, scheme: &str) {
     assert_eq!(
       formatter.format_url("path").unwrap(),
-      format!("{}://127.0.0.1:8080{}/path", scheme, "/data")
+      format!("{}://127.0.0.1:8080/path", scheme)
     )
   }
 }

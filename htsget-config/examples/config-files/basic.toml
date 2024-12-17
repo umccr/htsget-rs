@@ -1,5 +1,0 @@
-# An example of running htsget-rs.
-# Run with `cargo run --all-features -- --config htsget-config/examples/config-files/basic.toml`
-locations = ["file://data/bam", "file://data/cram"]
-
-# Uses the first capture group in the regex as the bucket.

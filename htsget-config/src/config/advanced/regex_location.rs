@@ -74,22 +74,25 @@ impl From<RegexLocation> for LocationEither {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
+  use crate::config::Config;
 
   #[test]
   fn regex_location_file() {
     test_serialize_and_deserialize(
       r#"
+      [[locations]]
       regex = "123-.*"
       substitution_string = "123"
       "#,
       ("123-.*".to_string(), "123".to_string()),
-      |result: RegexLocation| {
-        result.backend().as_file().unwrap();
+      |result: Config| {
+        let location = result.locations.into_inner();
+        let location = location[0].as_regex().unwrap();
+        location.backend().as_file().unwrap();
         (
-          result.regex().as_str().to_string(),
-          result.substitution_string().to_string(),
+          location.regex().as_str().to_string(),
+          location.substitution_string().to_string(),
         )
       },
     );
@@ -100,16 +103,25 @@ mod tests {
   fn regex_location_s3() {
     test_serialize_and_deserialize(
       r#"
+      [[locations]]
       regex = "123-.*"
       substitution_string = "123"
-      location.backend = "S3"
+      backend.kind = "S3"
+      backend.bucket = "bucket"
       "#,
-      ("123-.*".to_string(), "123".to_string()),
-      |result: RegexLocation| {
-        result.backend().as_s3().unwrap();
+      (
+        "123-.*".to_string(),
+        "123".to_string(),
+        "bucket".to_string(),
+      ),
+      |result: Config| {
+        let location = result.locations.into_inner();
+        let location = location[0].as_regex().unwrap();
+        let backend = location.backend().as_s3().unwrap();
         (
-          result.regex().as_str().to_string(),
-          result.substitution_string().to_string(),
+          location.regex().as_str().to_string(),
+          location.substitution_string().to_string(),
+          backend.bucket().to_string(),
         )
       },
     );
@@ -120,24 +132,72 @@ mod tests {
   fn regex_location_url() {
     test_serialize_and_deserialize(
       r#"
+      [[locations]]
       regex = "123-.*"
       substitution_string = "123"
 
-      [location]
-      backend = "Url"
-      url = "https://example.com"
+      backend.kind = "Url"
+      backend.url = "https://example.com"
       "#,
       (
         "123-.*".to_string(),
         "123".to_string(),
         "https://example.com/".to_string(),
       ),
-      |result: RegexLocation| {
-        let url = result.backend().as_url().unwrap();
+      |result: Config| {
+        let location = result.locations.into_inner();
+        let location = location[0].as_regex().unwrap();
+        let url = location.backend().as_url().unwrap();
 
         (
-          result.regex().as_str().to_string(),
-          result.substitution_string().to_string(),
+          location.regex().as_str().to_string(),
+          location.substitution_string().to_string(),
+          url.url().to_string(),
+        )
+      },
+    );
+  }
+
+  #[cfg(all(feature = "url-storage", feature = "s3-storage"))]
+  #[test]
+  fn regex_location_multiple() {
+    test_serialize_and_deserialize(
+      r#"
+      [[locations]]
+      regex = "prefix/(?P<key>.*)$"
+      substitution_string = "$key"
+      backend.kind = "S3"
+      backend.bucket = "bucket"
+      backend.path_style = true
+      
+      [[locations]]
+      regex = ".*"
+      substitution_string = "$0"
+      backend.kind = "Url"
+      backend.url = "http://localhost:8080"
+      backend.forward_headers = false
+    "#,
+      (
+        "prefix/(?P<key>.*)$".to_string(),
+        "$key".to_string(),
+        "bucket".to_string(),
+        ".*".to_string(),
+        "$0".to_string(),
+        "http://localhost:8080/".to_string(),
+      ),
+      |result: Config| {
+        let location = result.locations.into_inner();
+        let location_one = location[0].as_regex().unwrap();
+        let s3 = location_one.backend().as_s3().unwrap();
+        let location_two = location[1].as_regex().unwrap();
+        let url = location_two.backend().as_url().unwrap();
+
+        (
+          location_one.regex().as_str().to_string(),
+          location_one.substitution_string().to_string(),
+          s3.bucket().to_string(),
+          location_two.regex().as_str().to_string(),
+          location_two.substitution_string().to_string(),
           url.url().to_string(),
         )
       },

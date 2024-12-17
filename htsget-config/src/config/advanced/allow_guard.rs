@@ -145,6 +145,8 @@ impl QueryAllowed for AllowGuard {
 mod tests {
   use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
+  #[cfg(feature = "s3-storage")]
+  use crate::config::Config;
   use crate::types::Class::Header;
 
   #[test]
@@ -255,6 +257,40 @@ mod tests {
         ..Default::default()
       },
       |result| result,
+    );
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn allow_guard() {
+    test_serialize_and_deserialize(
+      r#"
+      [[locations]]
+      regex = ".*"
+      substitution_string = "$0"
+
+      backend.kind = "S3"
+      backend.bucket = "bucket"
+
+      guard.allow_reference_names = ["chr1"]
+      guard.allow_interval.start = 100
+      guard.allow_interval.end = 1000
+      "#,
+      AllowGuard {
+        allow_reference_names: ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),
+        allow_interval: Interval::new(Some(100), Some(1000)),
+        ..Default::default()
+      },
+      |result: Config| {
+        let location = result.locations.into_inner();
+        let location = location[0].as_regex().unwrap();
+
+        AllowGuard {
+          allow_reference_names: location.guard().unwrap().allow_reference_names.clone(),
+          allow_interval: location.guard().unwrap().allow_interval,
+          ..Default::default()
+        }
+      },
     );
   }
 

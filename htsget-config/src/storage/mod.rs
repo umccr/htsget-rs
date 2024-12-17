@@ -97,8 +97,7 @@ pub(crate) mod tests {
       r#"
       [[locations]]
       regex = "regex"
-      [locations.location]
-      backend = "File"
+      backend.kind = "File"
       "#,
       |config| {
         assert!(matches!(
@@ -112,7 +111,7 @@ pub(crate) mod tests {
   #[test]
   fn config_storage_tagged_local_env() {
     test_config_from_env(
-      vec![("HTSGET_LOCATIONS", "[{location={ backend=File }}]")],
+      vec![("HTSGET_LOCATIONS", "[{backend={ kind=File }}]")],
       |config| {
         assert!(matches!(
           config.locations().first().unwrap().backend(),
@@ -144,7 +143,7 @@ pub(crate) mod tests {
   #[test]
   fn config_storage_tagged_s3_env() {
     test_config_from_env(
-      vec![("HTSGET_LOCATIONS", "[{location={ backend=S3 }}]")],
+      vec![("HTSGET_LOCATIONS", "[{backend={ kind=S3 }}]")],
       |config| {
         assert!(matches!(
           config.locations().first().unwrap().backend(),

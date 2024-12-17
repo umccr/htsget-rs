@@ -100,6 +100,7 @@ Other directories contain further applications or data:
 - [deploy]: Deployments for htsget-rs.
 
 [axum]: https://github.com/tokio-rs/axum
+[htsget-axum]: htsget-axum
 [htsget-config]: htsget-config
 [htsget-actix]: htsget-actix
 [htsget-http]: htsget-http

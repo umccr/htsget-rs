@@ -24,7 +24,7 @@ locations = "file://data"
 Then launch the server using the config file:
 
 ```sh
-cargo run -p htsget-axum -- --config <your_config_file.toml>
+cargo run --all-features -p htsget-axum -- --config <your_config_file.toml>
 ```
 
 This will serve files under the [`data`][data] directory:
@@ -40,7 +40,7 @@ files on s3, which returns pre-signed URLs for tickets:
 locations = "s3://bucket"
 ```
 
-or on a remote HTTP server:
+or on a remote HTTP server (either `http://` or `https://`):
 
 ```toml
 locations = "https://example.com"
@@ -75,6 +75,16 @@ The data server process can be disabled by setting it to `None` if no file locat
 ```toml
 data_server = "None"
 ```
+
+> [!NOTE]  
+> For S3 locations, the bucket is not included in the request to htsget-rs. To include the bucket as well, 
+> see deriving the bucket from the first capture group in [advanced config](#bucket).
+ 
+> [!IMPORTANT]  
+> Some parts of htsget-rs require extra feature flags for conditional compilation, that's why the examples specify
+> using `--all-features`. Notably, `--features s3-storage` enables the `S3` location type, and `--features url-storage`
+> enabled the remote HTTP server location type. If using a subset of features, for example S3 locations only, then
+> a single feature can be enabled instead of using `--all-features`.
 
 ### Server config
 
@@ -133,7 +143,7 @@ The following section describes advanced configuration which is more flexible, b
 ### Regex-based location
 
 Instead of the simple path-based locations described above, htsget-rs supports arbitrary regex-based id resolution.
-This allows matching an [`id`][id] using, which is everything after `reads/` or `variants/` in the http path, and mapping
+This allows matching an [`id`][id], which is everything after `reads/` or `variants/` in the http path, and mapping
 it to a location using regex substitution.
 
 To create a regex location, add a `[[locations]]` array of tables, and set the following options:
@@ -147,27 +157,29 @@ For example, below is a `regex` option which matches a `/` between two groups, a
 in between the groups with the `substitution_string`:
 
 ```toml
-[[resolvers]]
+[[locations]]
 regex = '(?P<group1>.*?)/(?P<group2>.*)'
 substitution_string = '$group1/data/$group2'
 ```
 
-This would mean that a request to `http://localhost:8080/reads/some_id/file` would search for files at `some_id/data/file.bam` and `some_id/data/file.bam.bai`.
+This would mean that a request to `http://localhost:8080/reads/some_id/file` would search for files at `some_id/data/file.bam`.
 
 The regex locations also have access to further configuration of storage locations for `file://`, `s3://`, or `http://`
 locations. These are called `File`, `S3`, and `Url` respectively.
 
 To manually configure `File` locations, set `backend.kind = "File"`, and specify any additional options from below the `backend` table:
 
-| Option                   | Description                                                                                                                         | Type                         | Default            |
-|--------------------------|-------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
-| `scheme`                 | The scheme present on URL tickets.                                                                                                  | Either `'Http'` or `'Https'` | `'Http'`           |
-| `authority`              | The authority present on URL tickets. This should likely match the `data_server.addr`.                                              | URL authority                | `'127.0.0.1:8081'` |
-| `local_path`             | The local filesystem path which the data server uses to respond to tickets.  This should likely match the `data_server.local_path`. | Filesystem path              | `'./'`             |
+| Option                   | Description                                                                                                                        | Type                         | Default            |
+|--------------------------|------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
+| `scheme`                 | The scheme present on URL tickets.                                                                                                 | Either `'Http'` or `'Https'` | `'Http'`           |
+| `authority`              | The authority present on URL tickets. This should likely match the `data_server.addr`.                                             | URL authority                | `'127.0.0.1:8081'` |
+| `local_path`             | The local filesystem path which the data server uses to respond to tickets. This should likely match the `data_server.local_path`. | Filesystem path              | `'./'`             |
 
 For example:
 
 ```toml
+data_server.addr = "127.0.0.1:8000"
+
 [[locations]]
 regex = ".*"
 substitution_string = "$0"
@@ -180,11 +192,11 @@ backend.local_path = "path"
 
 To manually configure `S3` locations, set `backend.kind = "S3"`, and specify options from below under the `backend` table:
 
-| Option       | Description                                                                                                                                                                   | Type    | Default                                                                                                                  |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|--------------------------------------------------------------------------------------------------------------------------|
-| `bucket`     | The AWS S3 bucket where resources can be retrieved from.                                                                                                                      | String  | Derived from the `location` `regex` property if empty. This uses the first capture group in the `regex` as the `bucket`. |
-| `endpoint`   | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio).                | String  | Not set, uses regular AWS S3 services.                                                                                   |
-| `path_style` | The S3 path style to request from the storage backend. If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used.  | Boolean | `false`                                                                                                                  |
+| Option                             | Description                                                                                                                                                                   | Type    | Default                                                                                                                  |
+|------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|--------------------------------------------------------------------------------------------------------------------------|
+| <span id="bucket">`bucket`</span>  | The AWS S3 bucket where resources can be retrieved from.                                                                                                                      | String  | Derived from the `location` `regex` property if empty. This uses the first capture group in the `regex` as the `bucket`. |
+| `endpoint`                         | A custom endpoint to override the default S3 service address. This is useful for using S3 locally or with storage backends such as MinIO. See [MinIO](#minio).                | String  | Not set, uses regular AWS S3 services.                                                                                   |
+| `path_style`                       | The S3 path style to request from the storage backend. If `true`, "path style" is used, e.g. `host.com/bucket/object.bam`, otherwise `bucket.host.com/object` style is used.  | Boolean | `false`                                                                                                                  |
 
 For example, the following backend manually sets the `bucket` and uses path style requests:
 
@@ -242,6 +254,8 @@ forward_headers = false
 
 If there is an overlap in regex matches, the first location specified will be the one used.
 
+Additional config file examples are available under [`example/config-files`][examples-config-files].
+
 ### Allow guard
 
 Additionally, locations support resolving IDs based on the other fields present in a query.
@@ -256,8 +270,8 @@ This component can be configured by setting the `guard` table with:
 | `allow_tags`            | Resolve the query ID if the query also contains the tags set by this option.            | Array of tags or `'All'`                                              | `'All'`                             |
 | `allow_formats`         | Resolve the query ID if the query is one of the formats specified by this option.       | An array of formats containing `'BAM'`, `'CRAM'`, `'VCF'`, or `'BCF'` | `['BAM', 'CRAM', 'VCF', 'BCF']`     |
 | `allow_classes`         | Resolve the query ID if the query is one of the classes specified by this option.       | An array of classes containing eithr `'body'` or `'header'`           | `['body', 'header']`                |
-| `allow_interval_start`  | Resolve the query ID if the query reference start position is at least this option.     | Unsigned 32-bit integer start position, 0-based, inclusive            | Not set, allows all start positions |
-| `allow_interval_end`    | Resolve the query ID if the query reference end position is at most this option.        | Unsigned 32-bit integer end position, 0-based exclusive               | Not set, allows all end positions   |
+| `allow_interval.start`  | Resolve the query ID if the query reference start position is at least this option.     | Unsigned 32-bit integer start position, 0-based, inclusive            | Not set, allows all start positions |
+| `allow_interval.end`    | Resolve the query ID if the query reference end position is at most this option.        | Unsigned 32-bit integer end position, 0-based exclusive               | Not set, allows all end positions   |
 
 For example, match only if the request queries `chr1` with positions between `100` and `1000`:
 
@@ -270,8 +284,8 @@ backend.kind = "S3"
 backend.bucket = "bucket"
 
 guard.allow_reference_names = ["chr1"]
-guard.allow_interval_start = 100
-guard.allow_interval_end = 1000
+guard.allow_interval.start = 100
+guard.allow_interval.end = 1000
 ```
 
 ### Server configuration
@@ -313,7 +327,7 @@ CORS can also be configured for the data and ticket servers by specifying the `c
 ticket_server.cors.allow_credentials = false
 ticket_server.cors.allow_origins = "Mirror"
 ticket_server.cors.allow_headers = "All"
-ticket_server.cors.allow_methods = ['GET', 'POST']
+ticket_server.cors.allow_methods = ["GET", "POST"]
 ticket_server.cors.max_age = 86400
 ticket_server.cors.expose_headers = []
 ```
@@ -381,9 +395,9 @@ For example:
 regex = ".*"
 substitution_string = "$0"
 
-location.keys.key_location = "SecretsManager"
-location.keys.private_key = "private_key_secret_name" # pragma: allowlist secret
-location.keys.recipient_public_key = "public_key_secret_name"
+location.keys.kind = "SecretsManager"
+location.keys.private = "private_key_secret_name" # pragma: allowlist secret
+location.keys.public = "public_key_secret_name"
 ```
 
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`, and the index file to be unencrypted. See the [`data/c4gh`][data-c4gh] for examples of file structure.
@@ -414,21 +428,22 @@ See [here][formatting-style] for more information on how these values look.
 Advanced configuration options also support environment variables. Generally, options separated by `.` in a config file
 are separated by `_` in the corresponding environment variable. For example, to set the ticket server allow origins,
 use `HTSGET_TICKET_SERVER_CORS_ALLOW_ORIGINS`. It is not recommended to set regex-based locations using environment
-variables because the variables needs to contain the nested array structure of regex locations.
+variables because the variables needs to contain the nested array structure of storage backends.
 
 ### As a library
 
 This crate reads config files and environment variables using [figment], and accepts command-line arguments using clap. The main function for this is `from_config`,
-which is used to obtain the `Config` struct. The crate also contains the `regex_resolver` abstraction, which is used for matching a query ID with
-regex, and changing it by using a substitution string.
+which is used to obtain the `Config` struct. The crate also contains the `resolver` abstraction, which is used for matching a query ID with
+regex, and changing it by using a substitution string. Advanced configuration options are specified in the [`advanced.rs`][advanced] submodule.
 
+[advanced]: src/config/advanced/mod.rs
 [figment]: https://github.com/SergioBenitez/Figment
 
 ### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `S3Storage` functionality.
-* `url-storage`: used to enable `UrlStorage` functionality.
+* `s3-storage`: used to enable `S3` functionality.
+* `url-storage`: used to enable `Url` functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 ## License
@@ -440,7 +455,6 @@ This project is licensed under the [MIT license][license].
 [formatting-style]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html#formatters
 [examples-config-files]: examples/config-files
 [rustls]: https://github.com/rustls/rustls
-[mkcert]: https://github.com/FiloSottile/mkcert
 [htsget-actix]: ../htsget-actix
 [htsget-axum]: ../htsget-axum
 [htsget-lambda]: ../htsget-lambda
@@ -458,7 +472,5 @@ This project is licensed under the [MIT license][license].
 [data-c4gh]: ../data/c4gh
 [secrets-manager]: https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html
 [id]: https://samtools.github.io/hts-specs/htsget.html#url-parameters
-[basic]: examples/config-files/basic.toml
-[data-server]: README.md#data-server-config
 [toml]: https://toml.io/en/
 [data]: ../data

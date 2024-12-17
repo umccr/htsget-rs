@@ -109,7 +109,7 @@ impl Config {
     let args = Args::from_arg_matches(&Args::augment_args(augment_args).get_matches())
       .map_err(|err| ArgParseError(err.to_string()))?;
 
-    if !args.config.as_ref().is_some_and(|path| path.exists()) {
+    if args.config.as_ref().is_some_and(|path| !path.exists()) {
       return Err(ParseError("config file not found".to_string()));
     }
 
@@ -218,6 +218,7 @@ pub(crate) mod tests {
   use crate::types::Scheme;
   use figment::Jail;
   use http::uri::Authority;
+  #[cfg(feature = "url-storage")]
   use http::Uri;
   use serde::de::DeserializeOwned;
   use serde_json::json;
@@ -522,14 +523,29 @@ pub(crate) mod tests {
     data_server.local_path = "path"
 
     [[locations]]
-    backend = "File"
+    regex = "123"
+    backend.kind = "File"
+    backend.local_path = "path"
     "#,
       |config| {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let regex = config[0].as_regex().unwrap();
         assert!(matches!(regex.backend(),
-            Backend::File(file) if file.local_path() == "path" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
+            Backend::File(file) if file.local_path() == "path" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8081")));
+      },
+    );
+  }
+
+  #[test]
+  fn simple_locations_env() {
+    test_config_from_env(
+      vec![
+        ("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8080"),
+        ("HTSGET_LOCATIONS", "[file://data/bam, file://data/cram]"),
+      ],
+      |config| {
+        assert_multiple(config);
       },
     );
   }
@@ -593,19 +609,11 @@ pub(crate) mod tests {
   fn simple_locations_multiple() {
     test_config_from_file(
       r#"
+    data_server.addr = "127.0.0.1:8080"
     locations = ["file://data/bam", "file://data/cram"]
     "#,
       |config| {
-        assert_eq!(config.locations().len(), 2);
-        let config = config.locations.into_inner();
-
-        let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "bam");
-        assert_file_location(location, "data");
-
-        let location = config[1].as_simple().unwrap();
-        assert_eq!(location.prefix(), "cram");
-        assert_file_location(location, "data");
+        assert_multiple(config);
       },
     );
   }
@@ -615,11 +623,12 @@ pub(crate) mod tests {
   fn simple_locations_multiple_mixed() {
     test_config_from_file(
       r#"
+    data_server.addr = "127.0.0.1:8080"
     data_server.local_path = "root"
     locations = ["file://dir_one/bam", "file://dir_two/cram", "s3://bucket/vcf"]
     "#,
       |config| {
-        assert_eq!(config.locations().len(), 2);
+        assert_eq!(config.locations().len(), 3);
         let config = config.locations.into_inner();
 
         let location = config[0].as_simple().unwrap();
@@ -645,12 +654,24 @@ pub(crate) mod tests {
       data_server = "None"
     "#,
       |config| {
-        assert!(matches!(
-          config.data_server().as_data_server_config(),
-          Err(_)
-        ));
+        assert!(config.data_server().as_data_server_config().is_err());
       },
     );
+  }
+
+  fn assert_multiple(config: Config) {
+    assert_eq!(config.locations().len(), 2);
+    let config = config.locations.into_inner();
+
+    println!("{:#?}", config);
+
+    let location = config[0].as_simple().unwrap();
+    assert_eq!(location.prefix(), "bam");
+    assert_file_location(location, "data");
+
+    let location = config[1].as_simple().unwrap();
+    assert_eq!(location.prefix(), "cram");
+    assert_file_location(location, "data");
   }
 
   fn assert_file_location(location: &Location, local_path: &str) {

@@ -444,7 +444,7 @@ mod tests {
     with_local_c4gh_storage(|mut storage| async move {
       test_range_url(
         &mut storage,
-        "http://127.0.0.1:8081/data/folder/key.c4gh",
+        "http://127.0.0.1:8081/folder/key.c4gh",
         "folder/key",
         &Default::default(),
       )

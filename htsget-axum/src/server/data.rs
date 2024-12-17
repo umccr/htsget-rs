@@ -238,7 +238,7 @@ mod tests {
 
     test_cors_simple_request_uri(
       &DataTestServer::default(),
-      &format!("http://localhost:{port}/data/key1"),
+      &format!("http://localhost:{port}/key1"),
     )
     .await;
   }
@@ -251,7 +251,7 @@ mod tests {
 
     test_cors_preflight_request_uri(
       &DataTestServer::default(),
-      &format!("http://localhost:{port}/data/key1"),
+      &format!("http://localhost:{port}/key1"),
     )
     .await;
   }
@@ -298,7 +298,7 @@ mod tests {
     let request = test_server
       .request()
       .method(Method::GET)
-      .uri(format!("{scheme}://localhost:{port}/data/key1"));
+      .uri(format!("{scheme}://localhost:{port}/key1"));
     let response = test_server.test_server(request, "".to_string()).await;
 
     assert!(response.is_success());

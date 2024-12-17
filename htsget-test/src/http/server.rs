@@ -329,7 +329,7 @@ where
 
 /// An example VCF search response.
 pub fn expected_response(class: Class, url_path: String) -> Value {
-  let url = format!("{url_path}/data/vcf/sample1-bcbio-cancer.vcf.gz");
+  let url = format!("{url_path}/vcf/sample1-bcbio-cancer.vcf.gz");
 
   let urls = match class {
     Class::Header => json!([{

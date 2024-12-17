@@ -57,19 +57,24 @@ impl<'de> Deserialize<'de> for ServiceInfo {
 mod tests {
   use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
+  use crate::config::Config;
   use serde_json::json;
 
   #[test]
   fn service_info() {
     test_serialize_and_deserialize(
       r#"
-      id = { id = "1" }
+      service_info.environment = "dev"
+      service_info.organization = { name = "name", url = "https://example.com/" }
       "#,
-      ServiceInfo::new(HashMap::from_iter(vec![(
-        "id".to_string(),
-        json!({"id": "1"}),
-      )])),
-      |result| result,
+      HashMap::from_iter(vec![
+        ("environment".to_string(), json!("dev")),
+        (
+          "organization".to_string(),
+          json!({ "name": "name", "url": "https://example.com/" }),
+        ),
+      ]),
+      |result: Config| result.service_info.0,
     );
   }
 }

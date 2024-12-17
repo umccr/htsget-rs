@@ -240,7 +240,7 @@ mod tests {
     JsonResponse::from(Response::new(
       Vcf,
       vec![
-        Url::new("http://127.0.0.1:8081/data/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
+        Url::new("http://127.0.0.1:8081/vcf/sample1-bcbio-cancer.vcf.gz".to_string())
           .with_headers(headers),
       ],
     ))
@@ -250,7 +250,7 @@ mod tests {
     JsonResponse::from(Response::new(
       Bam,
       vec![
-        Url::new("http://127.0.0.1:8081/data/bam/htsnexus_test_NA12878.bam".to_string())
+        Url::new("http://127.0.0.1:8081/bam/htsnexus_test_NA12878.bam".to_string())
           .with_headers(headers),
       ],
     ))

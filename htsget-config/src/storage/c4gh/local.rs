@@ -71,13 +71,13 @@ mod tests {
         [[locations]]
         regex = "regex"
 
-        [locations.location]
+        [locations.backend]
         {}
 
-        [locations.location.keys]
-        key_location = "File"
-        private_key = "{}"
-        recipient_public_key = "{}"
+        [locations.backend.keys]
+        kind = "File"
+        private = "{}"
+        public = "{}"
         "#,
         storage_config,
         private_key.to_string_lossy(),
@@ -90,7 +90,7 @@ mod tests {
   }
   #[tokio::test]
   async fn config_local_storage_c4gh() {
-    test_c4gh_storage_config(r#"backend = "File""#, |config| {
+    test_c4gh_storage_config(r#"kind = "File""#, |config| {
       assert!(matches!(
             config.locations().first().unwrap().backend(),
             Backend::File(file) if file.keys().is_some()
@@ -103,7 +103,7 @@ mod tests {
   async fn config_s3_storage_c4gh() {
     test_c4gh_storage_config(
       r#"
-        backend = "S3"
+        kind = "S3"
         bucket = "bucket"
         "#,
       |config| {
@@ -120,7 +120,7 @@ mod tests {
   async fn config_url_storage_c4gh() {
     test_c4gh_storage_config(
       r#"
-        backend = "Url"
+        kind = "Url"
         url = "https://example.com/"
         response_url = "https://example.com/"
         forward_headers = false

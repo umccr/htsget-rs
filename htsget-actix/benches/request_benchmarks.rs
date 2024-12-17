@@ -150,7 +150,7 @@ fn start_htsget_rs() -> (DropGuard, String) {
   let htsget_rs_url = format!("http://{}", config.ticket_server().addr());
   query_server_until_response(&format_url(&htsget_rs_url, "reads/service-info"));
 
-  let data_server = config.data_server().clone().as_data_server_config();
+  let data_server = config.data_server().as_data_server_config().unwrap();
   let htsget_rs_ticket_url = format!("http://{}", data_server.addr());
   query_server_until_response(&format_url(&htsget_rs_ticket_url, ""));
 
