@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 /// Service info config.
 #[derive(Serialize, Debug, Clone, Default, PartialEq, Eq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ServiceInfo(HashMap<String, Value>);
 
 impl ServiceInfo {

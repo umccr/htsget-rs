@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 /// Local C4GH key storage.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct C4GHLocal {
   private: PathBuf,
   public: PathBuf,

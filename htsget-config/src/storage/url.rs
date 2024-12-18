@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 /// Remote URL server storage struct.
 #[derive(Deserialize, Serialize, Debug, Clone)]
-#[serde(try_from = "advanced::url::Url")]
+#[serde(try_from = "advanced::url::Url", deny_unknown_fields)]
 pub struct Url {
   #[serde(with = "http_serde::uri")]
   url: Uri,

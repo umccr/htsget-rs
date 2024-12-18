@@ -16,6 +16,7 @@ use tempfile::TempDir;
 
 /// C4GH secrets manager key storage.
 #[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct C4GHSecretsManager {
   private: String,
   public: String,
