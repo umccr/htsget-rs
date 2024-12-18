@@ -18,6 +18,7 @@ const CORS_MAX_AGE: usize = 2592000;
 
 /// Tagged allow headers for cors config, either Mirror or Any.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub enum TaggedAllowTypes {
   #[serde(alias = "mirror", alias = "MIRROR")]
   Mirror,
@@ -27,7 +28,7 @@ pub enum TaggedAllowTypes {
 
 /// Allowed type for cors config which is used to configure cors behaviour.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum AllowType<T, Tagged = TaggedAllowTypes> {
   Tagged(Tagged),
   #[serde(bound(serialize = "T: Display", deserialize = "T: FromStr, T::Err: Display"))]
@@ -159,7 +160,7 @@ impl Display for HeaderValue {
 
 /// Cors configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CorsConfig {
   allow_credentials: bool,
   allow_origins: AllowType<HeaderValue>,

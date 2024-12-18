@@ -19,7 +19,7 @@ pub mod secrets_manager;
 
 /// Config for Crypt4GH keys.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "C4GHKeyLocation")]
+#[serde(try_from = "C4GHKeyLocation", deny_unknown_fields)]
 pub struct C4GHKeys {
   // Store a cloneable future so that it can be resolved outside serde.
   keys: Shared<BoxFuture<'static, Result<Vec<crypt4gh::Keys>>>>,
@@ -74,7 +74,7 @@ impl TryFrom<C4GHKeyLocation> for C4GHKeys {
 
 /// The location of C4GH keys.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(tag = "kind")]
+#[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum C4GHKeyLocation {
   #[serde(alias = "file", alias = "FILE")]

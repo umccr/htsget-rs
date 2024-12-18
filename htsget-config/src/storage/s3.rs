@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Configuration struct for S3 storage.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct S3 {
   bucket: String,
   endpoint: Option<String>,

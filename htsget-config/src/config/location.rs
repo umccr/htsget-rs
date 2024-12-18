@@ -15,7 +15,7 @@ use {crate::config::advanced::url::Url, crate::error, http::Uri};
 
 /// The locations of data.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, from = "LocationsOneOrMany")]
+#[serde(default, deny_unknown_fields, from = "LocationsOneOrMany")]
 pub struct Locations(Vec<LocationEither>);
 
 impl Locations {
@@ -48,7 +48,7 @@ impl Default for Locations {
 
 /// Either simple or regex based location
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum LocationEither {
   Simple(Location),
   Regex(RegexLocation),

@@ -14,7 +14,7 @@ pub trait QueryAllowed {
 
 /// A query guard represents query parameters that can be allowed to storage for a given query.
 #[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct AllowGuard {
   allow_reference_names: ReferenceNames,
   allow_fields: Fields,
@@ -39,7 +39,7 @@ impl Default for AllowGuard {
 
 /// Reference names that can be matched.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum ReferenceNames {
   Tagged(TaggedTypeAll),
   List(HashSet<String>),
