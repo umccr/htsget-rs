@@ -7,12 +7,14 @@ use std::path::{Path, PathBuf};
 
 use crate::config::advanced::FormattingStyle;
 use crate::config::data_server::DataServerEnabled;
-use crate::config::location::{LocationEither, Locations};
+use crate::config::location::{Location, LocationEither, Locations};
 use crate::config::parser::from_path;
 use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
 use crate::error::Error::{ArgParseError, TracingError};
 use crate::error::Result;
+use crate::storage::file::File;
+use crate::storage::Backend;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
 use serde::{Deserialize, Serialize};
 use tracing::subscriber::set_global_default;
@@ -159,7 +161,35 @@ impl Config {
   }
 
   /// Set the local resolvers from the data server config.
-  pub fn resolvers_from_data_server_config(self) -> Result<Self> {
+  pub fn resolvers_from_data_server_config(mut self) -> Result<Self> {
+    self
+      .locations
+      .as_mut_slice()
+      .iter_mut()
+      .map(|location| {
+        if let LocationEither::Simple(simple) = location {
+          // Fall through only if the backend is File and default
+          let file_location = if let Ok(location) = simple.backend().as_file() {
+            location
+          } else {
+            return Ok(());
+          };
+
+          if let DataServerEnabled::Some(ref data_server) = self.data_server {
+            let prefix = simple.prefix().to_string();
+
+            // Don't update the local path as that comes in from the config.
+            let file: File = data_server.try_into()?;
+            let file = file.set_local_path(file_location.local_path().to_string());
+
+            *location = LocationEither::Simple(Location::new(Backend::File(file), prefix));
+          }
+        }
+
+        Ok(())
+      })
+      .collect::<Result<Vec<()>>>()?;
+
     Ok(self)
   }
 }
@@ -182,11 +212,12 @@ pub(crate) mod tests {
 
   use super::*;
   use crate::config::parser::from_str;
-  use crate::storage::Backend;
   use crate::tls::tests::with_test_certificates;
   use crate::types::Scheme;
   use figment::Jail;
   use http::uri::Authority;
+  #[cfg(feature = "url-storage")]
+  use http::Uri;
   use serde::de::DeserializeOwned;
   use serde_json::json;
 
@@ -502,5 +533,147 @@ pub(crate) mod tests {
             Backend::File(file) if file.local_path() == "path" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8081")));
       },
     );
+  }
+
+  #[test]
+  fn simple_locations_env() {
+    test_config_from_env(
+      vec![
+        ("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8080"),
+        ("HTSGET_LOCATIONS", "[file://data/bam, file://data/cram]"),
+      ],
+      |config| {
+        assert_multiple(config);
+      },
+    );
+  }
+
+  #[test]
+  fn simple_locations() {
+    test_config_from_file(
+      r#"
+    data_server.addr = "127.0.0.1:8080"
+    data_server.local_path = "path"
+    
+    locations = "file://data"
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 1);
+        let config = config.locations.into_inner();
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "");
+        assert_file_location(location, "data");
+      },
+    );
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn simple_locations_s3() {
+    test_config_from_file(
+      r#"
+    locations = "s3://bucket"
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 1);
+        let config = config.locations.into_inner();
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "");
+        assert!(matches!(location.backend(),
+            Backend::S3(s3) if s3.bucket() == "bucket"));
+      },
+    );
+  }
+
+  #[cfg(feature = "url-storage")]
+  #[test]
+  fn simple_locations_url() {
+    test_config_from_file(
+      r#"
+    locations = "https://example.com"
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 1);
+        let config = config.locations.into_inner();
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "");
+        assert!(matches!(location.backend(),
+            Backend::Url(url) if url.url() == &"https://example.com".parse::<Uri>().unwrap()));
+      },
+    );
+  }
+
+  #[test]
+  fn simple_locations_multiple() {
+    test_config_from_file(
+      r#"
+    data_server.addr = "127.0.0.1:8080"
+    locations = ["file://data/bam", "file://data/cram"]
+    "#,
+      |config| {
+        assert_multiple(config);
+      },
+    );
+  }
+
+  #[cfg(feature = "s3-storage")]
+  #[test]
+  fn simple_locations_multiple_mixed() {
+    test_config_from_file(
+      r#"
+    data_server.addr = "127.0.0.1:8080"
+    data_server.local_path = "root"
+    locations = ["file://dir_one/bam", "file://dir_two/cram", "s3://bucket/vcf"]
+    "#,
+      |config| {
+        assert_eq!(config.locations().len(), 3);
+        let config = config.locations.into_inner();
+
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix(), "bam");
+        assert_file_location(location, "dir_one");
+
+        let location = config[1].as_simple().unwrap();
+        assert_eq!(location.prefix(), "cram");
+        assert_file_location(location, "dir_two");
+
+        let location = config[2].as_simple().unwrap();
+        assert_eq!(location.prefix(), "vcf");
+        assert!(matches!(location.backend(),
+            Backend::S3(s3) if s3.bucket() == "bucket"));
+      },
+    );
+  }
+
+  #[test]
+  fn no_data_server() {
+    test_config_from_file(
+      r#"
+      data_server = "None"
+    "#,
+      |config| {
+        assert!(config.data_server().as_data_server_config().is_err());
+      },
+    );
+  }
+
+  fn assert_multiple(config: Config) {
+    assert_eq!(config.locations().len(), 2);
+    let config = config.locations.into_inner();
+
+    println!("{:#?}", config);
+
+    let location = config[0].as_simple().unwrap();
+    assert_eq!(location.prefix(), "bam");
+    assert_file_location(location, "data");
+
+    let location = config[1].as_simple().unwrap();
+    assert_eq!(location.prefix(), "cram");
+    assert_file_location(location, "data");
+  }
+
+  fn assert_file_location(location: &Location, local_path: &str) {
+    assert!(matches!(location.backend(),
+            Backend::File(file) if file.local_path() == local_path && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
   }
 }

@@ -95,7 +95,9 @@ pub(crate) mod tests {
     htsget_storage::s3::S3Storage, htsget_test::aws_mocks::with_s3_test_server, std::fs::create_dir,
   };
 
+  use htsget_config::config::location::{Location, LocationEither};
   use htsget_config::storage;
+  use htsget_config::storage::Backend;
   use htsget_config::types::Class::Body;
   use htsget_config::types::Scheme::Http;
   use htsget_storage::local::FileStorage;
@@ -162,6 +164,32 @@ pub(crate) mod tests {
         let filename = "spec-v4.3";
         let query = Query::new_with_default_request(filename, Format::Vcf);
         let response = HtsGetFromStorage::from_file(&local_storage, &query).await;
+
+        assert_eq!(response, expected_vcf_response(filename));
+
+        Some((
+          VCF_FILE_NAME_SPEC.to_string(),
+          (response.unwrap(), Body).into(),
+        ))
+      },
+      "data/vcf",
+      &[],
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn search_resolvers() {
+    with_config_local_storage(
+      |_, local_storage| async {
+        let locations = Locations::new(vec![LocationEither::Simple(Location::new(
+          Backend::File(local_storage),
+          "".to_string(),
+        ))]);
+
+        let filename = "spec-v4.3";
+        let query = Query::new_with_default_request(filename, Format::Vcf);
+        let response = locations.search(query).await;
 
         assert_eq!(response, expected_vcf_response(filename));
 

@@ -7,6 +7,7 @@ use crate::storage;
 use crate::storage::{Backend, ResolvedId};
 use crate::types::{Query, Response, Result};
 use async_trait::async_trait;
+use std::path::PathBuf;
 use tracing::instrument;
 
 /// A trait which matches the query id, replacing the match in the substitution text.
@@ -80,6 +81,16 @@ impl IdResolver for LocationEither {
     };
 
     match self {
+      LocationEither::Simple(location) => {
+        if query.id().starts_with(location.prefix()) {
+          return Some(ResolvedId::new(
+            PathBuf::from(location.prefix())
+              .join(query.id())
+              .to_str()?
+              .to_string(),
+          ));
+        }
+      }
       LocationEither::Regex(regex_location) => {
         if regex_location.regex().is_match(query.id()) {
           if let Some(guard) = regex_location.guard() {
@@ -113,16 +124,18 @@ impl StorageResolver for LocationEither {
       Backend::File(file) => Some(T::from_file(file, query).await),
       #[cfg(feature = "s3-storage")]
       Backend::S3(s3) => {
-        let Self::Regex(regex_location) = self;
-
-        let s3 = if s3.bucket().is_empty() {
-          let first_match = regex_location
-            .regex()
-            .captures(&_matched_id)?
-            .get(1)?
-            .as_str()
-            .to_string();
-          &s3.clone().with_bucket(first_match)
+        let s3 = if let Self::Regex(regex_location) = self {
+          if s3.bucket().is_empty() {
+            let first_match = regex_location
+              .regex()
+              .captures(&_matched_id)?
+              .get(1)?
+              .as_str()
+              .to_string();
+            &s3.clone().with_bucket(first_match)
+          } else {
+            s3
+          }
         } else {
           s3
         };
@@ -180,6 +193,7 @@ impl StorageResolver for Locations {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::config::location::Location;
   use crate::config::tests::{test_config_from_env, test_config_from_file};
   use crate::storage;
   use crate::types::Format::Bam;
@@ -244,6 +258,9 @@ mod tests {
       Default::default(),
     );
     expected_resolved_request(vec![regex_location.into()], "127.0.0.1:8080/id-test-1").await;
+
+    let location = Location::new(Backend::File(file), "".to_string());
+    expected_resolved_request(vec![location.into()], "127.0.0.1:8080/id-1").await;
   }
 
   #[cfg(feature = "s3-storage")]
@@ -257,6 +274,9 @@ mod tests {
       Default::default(),
     );
     expected_resolved_request(vec![regex_location.into()], "id2/id-test").await;
+
+    let location = Location::new(Backend::S3(s3_storage), "".to_string());
+    expected_resolved_request(vec![location.into()], "id2/id-1").await;
   }
 
   #[cfg(feature = "s3-storage")]
@@ -277,6 +297,12 @@ mod tests {
       Default::default(),
     );
     expected_resolved_request(vec![regex_location.clone().into()], "id/1").await;
+
+    let location = Location::new(
+      Backend::S3(storage::s3::S3::new("bucket".to_string(), None, false)),
+      "".to_string(),
+    );
+    expected_resolved_request(vec![location.into()], "bucket/id-1").await;
   }
 
   #[cfg(feature = "url-storage")]
@@ -302,6 +328,9 @@ mod tests {
       "https://example.com/id-test",
     )
     .await;
+
+    let location = Location::new(Backend::Url(url_storage), "".to_string());
+    expected_resolved_request(vec![location.into()], "https://example.com/id-1").await;
   }
 
   #[test]
@@ -339,6 +368,28 @@ mod tests {
         .into_inner(),
       "id-2-test-2"
     );
+
+    let resolver = Locations::new(vec![
+      Location::new(Default::default(), "id-1".to_string()).into(),
+      Location::new(Default::default(), "id-2".to_string()).into(),
+    ]);
+
+    assert_eq!(
+      resolver
+        .as_slice()
+        .resolve_id(&Query::new_with_default_request("id-1", Bam))
+        .unwrap()
+        .into_inner(),
+      "id-1/id-1"
+    );
+    assert_eq!(
+      resolver
+        .as_slice()
+        .resolve_id(&Query::new_with_default_request("id-2", Bam))
+        .unwrap()
+        .into_inner(),
+      "id-2/id-2"
+    );
   }
 
   #[test]
@@ -349,7 +400,7 @@ mod tests {
         regex = "regex"
         "#,
       |config| {
-        let LocationEither::Regex(regex) = config.locations().first().unwrap();
+        let regex = config.locations().first().unwrap().as_regex().unwrap();
         assert_eq!(regex.regex().as_str(), "regex");
       },
     );
@@ -366,7 +417,7 @@ mod tests {
       allow_formats = ["BAM"]
       "#,
       |config| {
-        let LocationEither::Regex(regex) = config.locations().first().unwrap();
+        let regex = config.locations().first().unwrap().as_regex().unwrap();
         assert_eq!(regex.guard().unwrap().allow_formats(), &vec![Bam]);
       },
     );
@@ -375,7 +426,7 @@ mod tests {
   #[test]
   fn config_resolvers_env() {
     test_config_from_env(vec![("HTSGET_LOCATIONS", "[{regex=regex}]")], |config| {
-      let LocationEither::Regex(regex) = config.locations().first().unwrap();
+      let regex = config.locations().first().unwrap().as_regex().unwrap();
       assert_eq!(regex.regex().as_str(), "regex");
     });
   }
@@ -411,7 +462,7 @@ mod tests {
         assert_eq!(storage.endpoint(), expected_storage.endpoint());
         assert_eq!(storage.path_style(), expected_storage.path_style());
 
-        let LocationEither::Regex(regex) = config.locations().first().unwrap();
+        let regex = config.locations().first().unwrap().as_regex().unwrap();
         assert_eq!(regex.regex().to_string(), "regex");
         assert_eq!(regex.substitution_string(), "substitution_string");
         assert_eq!(regex.guard().unwrap(), &allow_guard);
