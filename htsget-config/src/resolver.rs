@@ -1,21 +1,13 @@
-use std::collections::HashSet;
-use std::result;
+//! Resolvers map ids to storage locations.
 
+use crate::config::advanced::allow_guard::QueryAllowed;
+use crate::config::advanced::regex_location::RegexLocation;
+use crate::config::location::{LocationEither, Locations};
+use crate::storage;
+use crate::storage::{Backend, ResolvedId};
+use crate::types::{Query, Response, Result};
 use async_trait::async_trait;
-use regex::{Error, Regex};
-use serde::{Deserialize, Serialize};
-use serde_with::with_prefix;
 use tracing::instrument;
-
-use crate::config::DataServerConfig;
-use crate::storage::local::Local;
-#[cfg(feature = "s3-storage")]
-use crate::storage::s3::S3;
-#[cfg(feature = "url-storage")]
-use crate::storage::url::UrlStorageClient;
-use crate::storage::{ResolvedId, Storage};
-use crate::types::Format::{Bam, Bcf, Cram, Vcf};
-use crate::types::{Class, Fields, Format, Interval, Query, Response, Result, TaggedTypeAll, Tags};
 
 /// A trait which matches the query id, replacing the match in the substitution text.
 pub trait IdResolver {
@@ -26,16 +18,16 @@ pub trait IdResolver {
 /// A trait for determining the response from `Storage`.
 #[async_trait]
 pub trait ResolveResponse {
-  /// Convert from `LocalStorage`.
-  async fn from_local(local_storage: &Local, query: &Query) -> Result<Response>;
+  /// Convert from `File`.
+  async fn from_file(file_storage: &storage::file::File, query: &Query) -> Result<Response>;
 
-  /// Convert from `S3Storage`.
+  /// Convert from `S3`.
   #[cfg(feature = "s3-storage")]
-  async fn from_s3(s3_storage: &S3, query: &Query) -> Result<Response>;
+  async fn from_s3(s3_storage: &storage::s3::S3, query: &Query) -> Result<Response>;
 
-  /// Convert from `UrlStorage`.
+  /// Convert from `Url`.
   #[cfg(feature = "url-storage")]
-  async fn from_url(url_storage: &UrlStorageClient, query: &Query) -> Result<Response>;
+  async fn from_url(url_storage: &storage::url::Url, query: &Query) -> Result<Response>;
 }
 
 /// A trait which uses storage to resolve requests into responses.
@@ -46,24 +38,6 @@ pub trait StorageResolver {
     &self,
     query: &mut Query,
   ) -> Option<Result<Response>>;
-}
-
-/// Determines whether the query matches for use with the storage.
-pub trait QueryAllowed {
-  /// Does this query match.
-  fn query_allowed(&self, query: &Query) -> bool;
-}
-
-/// A regex storage is a storage that matches ids using Regex.
-#[derive(Serialize, Debug, Clone, Deserialize)]
-#[serde(default)]
-pub struct Resolver {
-  #[serde(with = "serde_regex")]
-  regex: Regex,
-  // Todo: should match guard be allowed as variables inside the substitution string?
-  substitution_string: String,
-  storage: Storage,
-  allow_guard: AllowGuard,
 }
 
 /// A type which holds a resolved storage and an resolved id.
@@ -93,293 +67,38 @@ impl<T> ResolvedStorage<T> {
   }
 }
 
-impl ResolvedId {}
-
-with_prefix!(allow_interval_prefix "allow_interval_");
-
-/// A query guard represents query parameters that can be allowed to storage for a given query.
-#[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
-#[serde(default)]
-pub struct AllowGuard {
-  allow_reference_names: ReferenceNames,
-  allow_fields: Fields,
-  allow_tags: Tags,
-  allow_formats: Vec<Format>,
-  allow_classes: Vec<Class>,
-  #[serde(flatten, with = "allow_interval_prefix")]
-  allow_interval: Interval,
-}
-
-/// Reference names that can be matched.
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(untagged)]
-pub enum ReferenceNames {
-  Tagged(TaggedTypeAll),
-  List(HashSet<String>),
-}
-
-impl AllowGuard {
-  /// Create a new allow guard.
-  pub fn new(
-    allow_reference_names: ReferenceNames,
-    allow_fields: Fields,
-    allow_tags: Tags,
-    allow_formats: Vec<Format>,
-    allow_classes: Vec<Class>,
-    allow_interval: Interval,
-  ) -> Self {
-    Self {
-      allow_reference_names,
-      allow_fields,
-      allow_tags,
-      allow_formats,
-      allow_classes,
-      allow_interval,
-    }
-  }
-
-  /// Get allow formats.
-  pub fn allow_formats(&self) -> &[Format] {
-    &self.allow_formats
-  }
-
-  /// Get allow classes.
-  pub fn allow_classes(&self) -> &[Class] {
-    &self.allow_classes
-  }
-
-  /// Get allow interval.
-  pub fn allow_interval(&self) -> Interval {
-    self.allow_interval
-  }
-
-  /// Get allow reference names.
-  pub fn allow_reference_names(&self) -> &ReferenceNames {
-    &self.allow_reference_names
-  }
-
-  /// Get allow fields.
-  pub fn allow_fields(&self) -> &Fields {
-    &self.allow_fields
-  }
-
-  /// Get allow tags.
-  pub fn allow_tags(&self) -> &Tags {
-    &self.allow_tags
-  }
-
-  /// Set the allow reference names.
-  pub fn with_allow_reference_names(mut self, allow_reference_names: ReferenceNames) -> Self {
-    self.allow_reference_names = allow_reference_names;
-    self
-  }
-
-  /// Set the allow fields.
-  pub fn with_allow_fields(mut self, allow_fields: Fields) -> Self {
-    self.allow_fields = allow_fields;
-    self
-  }
-
-  /// Set the allow tags.
-  pub fn with_allow_tags(mut self, allow_tags: Tags) -> Self {
-    self.allow_tags = allow_tags;
-    self
-  }
-
-  /// Set the allow formats.
-  pub fn with_allow_formats(mut self, allow_formats: Vec<Format>) -> Self {
-    self.allow_formats = allow_formats;
-    self
-  }
-
-  /// Set the allow classes.
-  pub fn with_allow_classes(mut self, allow_classes: Vec<Class>) -> Self {
-    self.allow_classes = allow_classes;
-    self
-  }
-
-  /// Set the allow interval.
-  pub fn with_allow_interval(mut self, allow_interval: Interval) -> Self {
-    self.allow_interval = allow_interval;
-    self
-  }
-}
-
-impl Default for AllowGuard {
-  fn default() -> Self {
-    Self {
-      allow_formats: vec![Bam, Cram, Vcf, Bcf],
-      allow_classes: vec![Class::Body, Class::Header],
-      allow_interval: Default::default(),
-      allow_reference_names: ReferenceNames::Tagged(TaggedTypeAll::All),
-      allow_fields: Fields::Tagged(TaggedTypeAll::All),
-      allow_tags: Tags::Tagged(TaggedTypeAll::All),
-    }
-  }
-}
-
-impl QueryAllowed for ReferenceNames {
-  fn query_allowed(&self, query: &Query) -> bool {
-    match (self, &query.reference_name()) {
-      (ReferenceNames::Tagged(TaggedTypeAll::All), _) => true,
-      (ReferenceNames::List(reference_names), Some(reference_name)) => {
-        reference_names.contains(*reference_name)
-      }
-      (ReferenceNames::List(_), None) => false,
-    }
-  }
-}
-
-impl QueryAllowed for Fields {
-  fn query_allowed(&self, query: &Query) -> bool {
-    match (self, &query.fields()) {
-      (Fields::Tagged(TaggedTypeAll::All), _) => true,
-      (Fields::List(self_fields), Fields::List(query_fields)) => {
-        self_fields.is_subset(query_fields)
-      }
-      (Fields::List(_), Fields::Tagged(TaggedTypeAll::All)) => false,
-    }
-  }
-}
-
-impl QueryAllowed for Tags {
-  fn query_allowed(&self, query: &Query) -> bool {
-    match (self, &query.tags()) {
-      (Tags::Tagged(TaggedTypeAll::All), _) => true,
-      (Tags::List(self_tags), Tags::List(query_tags)) => self_tags.is_subset(query_tags),
-      (Tags::List(_), Tags::Tagged(TaggedTypeAll::All)) => false,
-    }
-  }
-}
-
-impl QueryAllowed for AllowGuard {
-  fn query_allowed(&self, query: &Query) -> bool {
-    self.allow_formats.contains(&query.format())
-      && self.allow_classes.contains(&query.class())
-      && self
-        .allow_interval
-        .contains(query.interval().start().unwrap_or(u32::MIN))
-      && self
-        .allow_interval
-        .contains(query.interval().end().unwrap_or(u32::MAX))
-      && self.allow_reference_names.query_allowed(query)
-      && self.allow_fields.query_allowed(query)
-      && self.allow_tags.query_allowed(query)
-  }
-}
-
-impl Default for Resolver {
-  fn default() -> Self {
-    Self::new(Storage::default(), ".*", "$0", AllowGuard::default())
-      .expect("expected valid storage")
-  }
-}
-
-impl Resolver {
-  /// Create a new regex storage.
-  pub fn new(
-    storage: Storage,
-    regex: &str,
-    replacement_string: &str,
-    allow_guard: AllowGuard,
-  ) -> result::Result<Self, Error> {
-    Ok(Self {
-      regex: Regex::new(regex)?,
-      substitution_string: replacement_string.to_string(),
-      storage,
-      allow_guard,
-    })
-  }
-
-  /// Set the local resolvers from the data server config.
-  pub fn resolvers_from_data_server_config(&mut self, config: &DataServerConfig) {
-    match self.storage() {
-      Storage::Local(local) => {
-        if local.use_data_server_config() {
-          self.storage = Storage::Local(config.into());
-        }
-      }
-      #[cfg(feature = "s3-storage")]
-      Storage::S3(_) => {}
-      #[cfg(feature = "url-storage")]
-      Storage::Url(_) => {}
-    }
-  }
-
-  /// Get the match associated with the capture group at index `i` using the `regex_match`.
-  pub fn get_match<'a>(&'a self, i: usize, regex_match: &'a str) -> Option<&'a str> {
-    Some(self.regex().captures(regex_match)?.get(i)?.as_str())
-  }
-
-  /// Get the regex.
-  pub fn regex(&self) -> &Regex {
-    &self.regex
-  }
-
-  /// Get the substitution string.
-  pub fn substitution_string(&self) -> &str {
-    &self.substitution_string
-  }
-
-  /// Get the query guard.
-  pub fn allow_guard(&self) -> &AllowGuard {
-    &self.allow_guard
-  }
-
-  /// Get the storage backend.
-  pub fn storage(&self) -> &Storage {
-    &self.storage
-  }
-
-  /// Get allow formats.
-  pub fn allow_formats(&self) -> &[Format] {
-    self.allow_guard.allow_formats()
-  }
-
-  /// Get allow classes.
-  pub fn allow_classes(&self) -> &[Class] {
-    self.allow_guard.allow_classes()
-  }
-
-  /// Get allow interval.
-  pub fn allow_interval(&self) -> Interval {
-    self.allow_guard.allow_interval
-  }
-
-  /// Get allow reference names.
-  pub fn allow_reference_names(&self) -> &ReferenceNames {
-    &self.allow_guard.allow_reference_names
-  }
-
-  /// Get allow fields.
-  pub fn allow_fields(&self) -> &Fields {
-    &self.allow_guard.allow_fields
-  }
-
-  /// Get allow tags.
-  pub fn allow_tags(&self) -> &Tags {
-    &self.allow_guard.allow_tags
-  }
-}
-
-impl IdResolver for Resolver {
+impl IdResolver for LocationEither {
   #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, query: &Query) -> Option<ResolvedId> {
-    if self.regex.is_match(query.id()) && self.allow_guard.query_allowed(query) {
+    let replace = |regex_location: &RegexLocation| {
       Some(ResolvedId::new(
-        self
-          .regex
-          .replace(query.id(), &self.substitution_string)
+        regex_location
+          .regex()
+          .replace(query.id(), regex_location.substitution_string())
           .to_string(),
       ))
-    } else {
-      None
+    };
+
+    match self {
+      LocationEither::Regex(regex_location) => {
+        if regex_location.regex().is_match(query.id()) {
+          if let Some(guard) = regex_location.guard() {
+            if guard.query_allowed(query) {
+              return replace(regex_location);
+            }
+          }
+
+          return replace(regex_location);
+        }
+      }
     }
+
+    None
   }
 }
 
 #[async_trait]
-impl StorageResolver for Resolver {
+impl StorageResolver for LocationEither {
   #[instrument(level = "trace", skip(self), ret)]
   async fn resolve_request<T: ResolveResponse>(
     &self,
@@ -390,41 +109,49 @@ impl StorageResolver for Resolver {
 
     query.set_id(resolved_id.into_inner());
 
-    match self.storage() {
-      Storage::Local(local_storage) => Some(T::from_local(local_storage, query).await),
+    match self.backend() {
+      Backend::File(file) => Some(T::from_file(file, query).await),
       #[cfg(feature = "s3-storage")]
-      Storage::S3(s3_storage) => {
-        let first_match = self.get_match(1, &_matched_id);
-        let mut s3_storage = s3_storage.clone();
-        if s3_storage.bucket.is_empty() {
-          s3_storage.bucket = first_match?.to_string();
-        }
+      Backend::S3(s3) => {
+        let Self::Regex(regex_location) = self;
 
-        Some(T::from_s3(&s3_storage, query).await)
+        let s3 = if s3.bucket().is_empty() {
+          let first_match = regex_location
+            .regex()
+            .captures(&_matched_id)?
+            .get(1)?
+            .as_str()
+            .to_string();
+          &s3.clone().with_bucket(first_match)
+        } else {
+          s3
+        };
+
+        Some(T::from_s3(s3, query).await)
       }
       #[cfg(feature = "url-storage")]
-      Storage::Url(url_storage) => Some(T::from_url(url_storage, query).await),
+      Backend::Url(url_storage) => Some(T::from_url(url_storage, query).await),
     }
   }
 }
 
-impl IdResolver for &[Resolver] {
+impl IdResolver for &[LocationEither] {
   #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, query: &Query) -> Option<ResolvedId> {
-    self.iter().find_map(|resolver| resolver.resolve_id(query))
+    self.iter().find_map(|location| location.resolve_id(query))
   }
 }
 
 #[async_trait]
-impl StorageResolver for &[Resolver] {
+impl StorageResolver for &[LocationEither] {
   #[instrument(level = "trace", skip(self), ret)]
   async fn resolve_request<T: ResolveResponse>(
     &self,
     query: &mut Query,
   ) -> Option<Result<Response>> {
-    for resolver in self.iter() {
-      if let Some(resolved_storage) = resolver.resolve_request::<T>(query).await {
-        return Some(resolved_storage);
+    for location in self.iter() {
+      if let Some(location) = location.resolve_request::<T>(query).await {
+        return Some(location);
       }
     }
 
@@ -432,179 +159,169 @@ impl StorageResolver for &[Resolver] {
   }
 }
 
+impl IdResolver for Locations {
+  #[instrument(level = "trace", skip(self), ret)]
+  fn resolve_id(&self, query: &Query) -> Option<ResolvedId> {
+    self.as_slice().resolve_id(query)
+  }
+}
+
+#[async_trait]
+impl StorageResolver for Locations {
+  #[instrument(level = "trace", skip(self), ret)]
+  async fn resolve_request<T: ResolveResponse>(
+    &self,
+    query: &mut Query,
+  ) -> Option<Result<Response>> {
+    self.as_slice().resolve_request::<T>(query).await
+  }
+}
+
 #[cfg(test)]
 mod tests {
-  use http::uri::Authority;
-
-  #[cfg(feature = "url-storage")]
-  use {
-    crate::storage::url, crate::storage::url::ValidatedUrl, http::Uri as InnerUrl,
-    reqwest::ClientBuilder, std::str::FromStr,
-  };
-
+  use super::*;
   use crate::config::tests::{test_config_from_env, test_config_from_file};
-  #[cfg(feature = "s3-storage")]
-  use crate::storage::s3::S3;
+  use crate::storage;
+  use crate::types::Format::Bam;
   use crate::types::Scheme::Http;
   use crate::types::Url;
-
-  use super::*;
+  use http::uri::Authority;
+  #[cfg(feature = "url-storage")]
+  use reqwest::ClientBuilder;
+  #[cfg(feature = "s3-storage")]
+  use {
+    crate::config::advanced::allow_guard::{AllowGuard, ReferenceNames},
+    crate::types::{Class, Fields, Interval, Tags},
+    std::collections::HashSet,
+  };
 
   struct TestResolveResponse;
 
   #[async_trait]
   impl ResolveResponse for TestResolveResponse {
-    async fn from_local(local_storage: &Local, _: &Query) -> Result<Response> {
+    async fn from_file(file: &storage::file::File, query: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
-        vec![Url::new(local_storage.authority().to_string())],
+        Self::format_url(file.authority().as_ref(), query.id()),
       ))
     }
 
     #[cfg(feature = "s3-storage")]
-    async fn from_s3(s3_storage: &S3, _: &Query) -> Result<Response> {
-      Ok(Response::new(Bam, vec![Url::new(s3_storage.bucket())]))
+    async fn from_s3(s3_storage: &storage::s3::S3, query: &Query) -> Result<Response> {
+      Ok(Response::new(
+        Bam,
+        Self::format_url(s3_storage.bucket(), query.id()),
+      ))
     }
 
     #[cfg(feature = "url-storage")]
-    async fn from_url(url_storage: &UrlStorageClient, _: &Query) -> Result<Response> {
+    async fn from_url(url: &storage::url::Url, query: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
-        vec![Url::new(url_storage.url().to_string())],
+        Self::format_url(url.url().to_string().strip_suffix('/').unwrap(), query.id()),
       ))
+    }
+  }
+
+  impl TestResolveResponse {
+    fn format_url(prefix: &str, id: &str) -> Vec<Url> {
+      vec![Url::new(format!("{}/{}", prefix, id))]
     }
   }
 
   #[tokio::test]
   async fn resolver_resolve_local_request() {
-    let local_storage = Local::new(
+    let file = storage::file::File::new(
       Http,
       Authority::from_static("127.0.0.1:8080"),
       "data".to_string(),
-      "/data".to_string(),
-      false,
     );
-    let resolver = Resolver::new(
-      Storage::Local(local_storage),
-      "id",
-      "$0-test",
-      AllowGuard::default(),
-    )
-    .unwrap();
 
-    expected_resolved_request(resolver, "127.0.0.1:8080").await;
+    let regex_location = RegexLocation::new(
+      "id".parse().unwrap(),
+      "$0-test".to_string(),
+      Backend::File(file.clone()),
+      Default::default(),
+    );
+    expected_resolved_request(vec![regex_location.into()], "127.0.0.1:8080/id-test-1").await;
   }
 
   #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn resolver_resolve_s3_request_tagged() {
-    let s3_storage = S3::new("id".to_string(), None, false);
-    let resolver = Resolver::new(
-      Storage::S3(s3_storage),
-      "(id)-1",
-      "$1-test",
-      AllowGuard::default(),
-    )
-    .unwrap();
-
-    expected_resolved_request(resolver, "id").await;
+    let s3_storage = storage::s3::S3::new("id2".to_string(), None, false);
+    let regex_location = RegexLocation::new(
+      "(id)-1".parse().unwrap(),
+      "$1-test".to_string(),
+      Backend::S3(s3_storage.clone()),
+      Default::default(),
+    );
+    expected_resolved_request(vec![regex_location.into()], "id2/id-test").await;
   }
 
   #[cfg(feature = "s3-storage")]
   #[tokio::test]
   async fn resolver_resolve_s3_request() {
-    let resolver = Resolver::new(
-      Storage::S3(S3::default()),
-      "(id)-1",
-      "$1-test",
-      AllowGuard::default(),
-    )
-    .unwrap();
+    let regex_location = RegexLocation::new(
+      "(id)-1".parse().unwrap(),
+      "$1-test".to_string(),
+      Backend::S3(storage::s3::S3::default()),
+      Default::default(),
+    );
+    expected_resolved_request(vec![regex_location.clone().into()], "id/id-test").await;
 
-    expected_resolved_request(resolver, "id").await;
+    let regex_location = RegexLocation::new(
+      "^(id)-(?P<key>.*)$".parse().unwrap(),
+      "$key".to_string(),
+      Backend::S3(storage::s3::S3::default()),
+      Default::default(),
+    );
+    expected_resolved_request(vec![regex_location.clone().into()], "id/1").await;
   }
 
   #[cfg(feature = "url-storage")]
   #[tokio::test]
   async fn resolver_resolve_url_request() {
     let client = ClientBuilder::new().build().unwrap();
-    let url_storage = UrlStorageClient::new(
-      ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
-      }),
-      ValidatedUrl(url::Url {
-        inner: InnerUrl::from_str("https://example.com/").unwrap(),
-      }),
+    let url_storage = storage::url::Url::new(
+      "https://example.com/".parse().unwrap(),
+      "https://example.com/".parse().unwrap(),
       true,
       vec![],
       client,
     );
 
-    let resolver = Resolver::new(
-      Storage::Url(url_storage),
-      "(id)-1",
-      "$1-test",
-      AllowGuard::default(),
-    )
-    .unwrap();
-
-    expected_resolved_request(resolver, "https://example.com/").await;
-  }
-
-  #[test]
-  fn resolver_get_matches() {
-    let resolver = Resolver::new(
-      Storage::default(),
-      "^(id)/(?P<key>.*)$",
-      "$0",
-      AllowGuard::default(),
-    )
-    .unwrap();
-    let first_match = resolver.get_match(1, "id/key").unwrap();
-
-    assert_eq!(first_match, "id");
-  }
-
-  #[test]
-  fn resolver_get_matches_no_captures() {
-    let resolver =
-      Resolver::new(Storage::default(), "^id/id$", "$0", AllowGuard::default()).unwrap();
-    let first_match = resolver.get_match(1, "/id/key");
-
-    assert_eq!(first_match, None);
-  }
-
-  #[test]
-  fn resolver_resolve_id() {
-    let resolver =
-      Resolver::new(Storage::default(), "id", "$0-test", AllowGuard::default()).unwrap();
-    assert_eq!(
-      resolver
-        .resolve_id(&Query::new_with_default_request("id", Bam))
-        .unwrap()
-        .into_inner(),
-      "id-test"
+    let regex_location = RegexLocation::new(
+      "(id)-1".parse().unwrap(),
+      "$1-test".to_string(),
+      Backend::Url(url_storage.clone()),
+      Default::default(),
     );
+    expected_resolved_request(
+      vec![regex_location.clone().into()],
+      "https://example.com/id-test",
+    )
+    .await;
   }
 
   #[test]
   fn resolver_array_resolve_id() {
-    let resolver = vec![
-      Resolver::new(
-        Storage::default(),
-        "^(id-1)(.*)$",
-        "$1-test-1",
-        AllowGuard::default(),
+    let resolver = Locations::new(vec![
+      RegexLocation::new(
+        "^(id-1)(.*)$".parse().unwrap(),
+        "$1-test-1".to_string(),
+        Default::default(),
+        Default::default(),
       )
-      .unwrap(),
-      Resolver::new(
-        Storage::default(),
-        "^(id-2)(.*)$",
-        "$1-test-2",
-        AllowGuard::default(),
+      .into(),
+      RegexLocation::new(
+        "^(id-2)(.*)$".parse().unwrap(),
+        "$1-test-2".to_string(),
+        Default::default(),
+        Default::default(),
       )
-      .unwrap(),
-    ];
+      .into(),
+    ]);
 
     assert_eq!(
       resolver
@@ -628,14 +345,12 @@ mod tests {
   fn config_resolvers_file() {
     test_config_from_file(
       r#"
-        [[resolvers]]
+        [[locations]]
         regex = "regex"
         "#,
       |config| {
-        assert_eq!(
-          config.resolvers().first().unwrap().regex().as_str(),
-          "regex"
-        );
+        let LocationEither::Regex(regex) = config.locations().first().unwrap();
+        assert_eq!(regex.regex().as_str(), "regex");
       },
     );
   }
@@ -644,28 +359,24 @@ mod tests {
   fn config_resolvers_guard_file() {
     test_config_from_file(
       r#"
-      [[resolvers]]
+      [[locations]]
       regex = "regex"
 
-      [resolvers.allow_guard]
+      [locations.guard]
       allow_formats = ["BAM"]
       "#,
       |config| {
-        assert_eq!(
-          config.resolvers().first().unwrap().allow_formats(),
-          &vec![Bam]
-        );
+        let LocationEither::Regex(regex) = config.locations().first().unwrap();
+        assert_eq!(regex.guard().unwrap().allow_formats(), &vec![Bam]);
       },
     );
   }
 
   #[test]
   fn config_resolvers_env() {
-    test_config_from_env(vec![("HTSGET_RESOLVERS", "[{regex=regex}]")], |config| {
-      assert_eq!(
-        config.resolvers().first().unwrap().regex().as_str(),
-        "regex"
-      );
+    test_config_from_env(vec![("HTSGET_LOCATIONS", "[{regex=regex}]")], |config| {
+      let LocationEither::Regex(regex) = config.locations().first().unwrap();
+      assert_eq!(regex.regex().as_str(), "regex");
     });
   }
 
@@ -674,12 +385,12 @@ mod tests {
   fn config_resolvers_all_options_env() {
     test_config_from_env(
       vec![(
-        "HTSGET_RESOLVERS",
+        "HTSGET_LOCATIONS",
         "[{ regex=regex, substitution_string=substitution_string, \
-        storage={ backend=S3, bucket=bucket }, \
-        allow_guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
-        allow_formats=[BAM], allow_classes=[body], allow_interval_start=100, \
-        allow_interval_end=1000 } }]",
+        backend={ kind=S3, bucket=bucket }, \
+        guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
+        allow_formats=[BAM], allow_classes=[body], allow_interval={ start=100, \
+        end=1000 } } }]",
       )],
       |config| {
         let allow_guard = AllowGuard::new(
@@ -690,9 +401,9 @@ mod tests {
           vec![Class::Body],
           Interval::new(Some(100), Some(1000)),
         );
-        let resolver = config.resolvers().first().unwrap();
-        let expected_storage = S3::new("bucket".to_string(), None, false);
-        let Storage::S3(storage) = resolver.storage() else {
+        let resolver = config.locations().first().unwrap();
+        let expected_storage = storage::s3::S3::new("bucket".to_string(), None, false);
+        let Backend::S3(storage) = resolver.backend() else {
           panic!();
         };
 
@@ -700,16 +411,17 @@ mod tests {
         assert_eq!(storage.endpoint(), expected_storage.endpoint());
         assert_eq!(storage.path_style(), expected_storage.path_style());
 
-        assert_eq!(resolver.regex().to_string(), "regex");
-        assert_eq!(resolver.substitution_string(), "substitution_string");
-        assert_eq!(resolver.allow_guard(), &allow_guard);
+        let LocationEither::Regex(regex) = config.locations().first().unwrap();
+        assert_eq!(regex.regex().to_string(), "regex");
+        assert_eq!(regex.substitution_string(), "substitution_string");
+        assert_eq!(regex.guard().unwrap(), &allow_guard);
       },
     );
   }
 
-  async fn expected_resolved_request(resolver: Resolver, expected_id: &str) {
+  async fn expected_resolved_request(resolver: Vec<LocationEither>, expected_id: &str) {
     assert_eq!(
-      resolver
+      Locations::new(resolver)
         .resolve_request::<TestResolveResponse>(&mut Query::new_with_default_request("id-1", Bam))
         .await
         .unwrap()

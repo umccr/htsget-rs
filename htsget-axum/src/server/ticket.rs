@@ -6,8 +6,10 @@ use crate::handlers::{get, post, reads_service_info, variants_service_info};
 use crate::server::{configure_cors, AppState, BindServer, Server};
 use axum::routing::get;
 use axum::Router;
-use htsget_config::config::cors::CorsConfig;
-use htsget_config::config::{Config, ServiceInfo, TicketServerConfig};
+use htsget_config::config::advanced::cors::CorsConfig;
+use htsget_config::config::service_info::ServiceInfo;
+use htsget_config::config::ticket_server::TicketServerConfig;
+use htsget_config::config::Config;
 use htsget_search::HtsGet;
 use std::net::SocketAddr;
 use tokio::task::JoinHandle;
@@ -91,7 +93,7 @@ where
 pub async fn join_handle(config: Config) -> Result<JoinHandle<Result<()>>> {
   let service_info = config.service_info().clone();
   let ticket_server = BindServer::from(config.ticket_server().clone())
-    .bind_ticket_server(config.owned_resolvers(), service_info)
+    .bind_ticket_server(config.into_locations(), service_info)
     .await?;
 
   info!(address = ?ticket_server.local_addr()?, "ticket server address bound to");
@@ -168,14 +170,17 @@ mod tests {
   #[async_trait(?Send)]
   impl TestServer<AxumTestRequest<Request<Body>>> for AxumTestServer {
     async fn get_expected_path(&self) -> String {
-      let mut bind_data_server = BindServer::from(self.get_config().data_server().clone());
-      let server = bind_data_server
-        .bind_data_server("/data".to_string())
-        .await
+      let data_server = self
+        .get_config()
+        .data_server()
+        .as_data_server_config()
         .unwrap();
+
+      let path = data_server.local_path().to_path_buf();
+      let mut bind_data_server = BindServer::from(data_server.clone());
+      let server = bind_data_server.bind_data_server().await.unwrap();
       let addr = server.local_addr();
 
-      let path = self.get_config().data_server().local_path().to_path_buf();
       tokio::spawn(async move { server.serve(path).await.unwrap() });
 
       expected_url_path(self.get_config(), addr.unwrap())
@@ -218,7 +223,7 @@ mod tests {
 
     async fn get_response(&self, request: Request<Body>) -> result::Result<Response, Infallible> {
       let app = TicketServer::router(
-        self.config.clone().owned_resolvers(),
+        self.config.clone().into_locations(),
         self.config.service_info().clone(),
         self.config.ticket_server().cors().clone(),
       );

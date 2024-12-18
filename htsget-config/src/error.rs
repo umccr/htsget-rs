@@ -1,3 +1,6 @@
+//! Error types used by this crate.
+//!
+
 use std::{io, result};
 
 use thiserror::Error;

@@ -16,7 +16,7 @@ pub fn get_service_info_json<H: HtsGet + Send + Sync + 'static>(
   ErasedJson::pretty(get_base_service_info_json(
     endpoint,
     app_state.htsget,
-    &app_state.service_info,
+    app_state.service_info,
   ))
 }
 

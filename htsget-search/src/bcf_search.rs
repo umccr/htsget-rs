@@ -463,6 +463,6 @@ mod tests {
   }
 
   fn expected_url(name: &str) -> String {
-    format!("http://127.0.0.1:8081/data/{name}.bcf")
+    format!("http://127.0.0.1:8081/{name}.bcf")
   }
 }

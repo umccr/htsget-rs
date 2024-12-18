@@ -11,21 +11,23 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
+use htsget_config::config::advanced::cors::{AllowType, CorsConfig, TaggedAllowTypes};
+use htsget_config::config::advanced::regex_location::RegexLocation;
+use htsget_config::config::data_server::{DataServerConfig, DataServerEnabled};
+use htsget_config::config::location::{LocationEither, Locations};
+use htsget_config::config::ticket_server::TicketServerConfig;
+use htsget_config::config::Config;
+use htsget_config::storage::file::File;
+use htsget_config::storage::Backend;
+use htsget_config::tls::{
+  load_certs, load_key, tls_server_config, CertificateKeyPair, TlsServerConfig,
+};
+use htsget_config::types::Scheme;
 use http::uri::Authority;
 use http::{HeaderMap, HeaderName, Method};
 use serde::de;
 
-use htsget_config::config::cors::{AllowType, CorsConfig};
-use htsget_config::config::{DataServerConfig, TicketServerConfig};
-use htsget_config::resolver::Resolver;
-use htsget_config::storage::{local::Local, Storage};
-use htsget_config::tls::{
-  load_certs, load_key, tls_server_config, CertificateKeyPair, TlsServerConfig,
-};
-use htsget_config::types::{Scheme, TaggedTypeAll};
-
 use crate::util::{default_dir, default_dir_data, generate_test_certificates};
-use crate::Config;
 
 /// Represents a http header.
 #[derive(Debug)]
@@ -94,30 +96,27 @@ pub trait TestServer<T: TestRequest> {
 }
 
 /// Get the default test storage.
-pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Vec<Resolver> {
-  let local_storage = Local::new(
+pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Locations {
+  let local_storage = File::new(
     scheme,
     Authority::from_str(&addr.to_string()).unwrap(),
     default_dir_data().to_str().unwrap().to_string(),
-    "/data".to_string(),
-    false,
   );
-  vec![
-    Resolver::new(
-      Storage::Local(local_storage.clone()),
-      "^1-(.*)$",
-      "$1",
+
+  Locations::new(vec![
+    LocationEither::Regex(RegexLocation::new(
+      "^1-(.*)$".parse().unwrap(),
+      "$1".to_string(),
+      Backend::File(local_storage.clone()),
       Default::default(),
-    )
-    .unwrap(),
-    Resolver::new(
-      Storage::Local(local_storage),
-      "^2-(.*)$",
-      "$1",
+    )),
+    LocationEither::Regex(RegexLocation::new(
+      "^2-(.*)$".parse().unwrap(),
+      "$1".to_string(),
+      Backend::File(local_storage.clone()),
       Default::default(),
-    )
-    .unwrap(),
-  ]
+    )),
+  ])
 }
 
 /// Default config with fixed port.
@@ -137,8 +136,8 @@ pub fn default_cors_config() -> CorsConfig {
   CorsConfig::new(
     false,
     AllowType::List(vec!["http://example.com".parse().unwrap()]),
-    AllowType::Tagged(TaggedTypeAll::All),
-    AllowType::Tagged(TaggedTypeAll::All),
+    AllowType::Tagged(TaggedAllowTypes::All),
+    AllowType::Tagged(TaggedAllowTypes::All),
     1000,
     AllowType::List(vec![]),
   )
@@ -150,19 +149,12 @@ fn default_test_config_params(
   scheme: Scheme,
 ) -> Config {
   let cors = default_cors_config();
-  let server_config = DataServerConfig::new(
-    true,
-    addr,
-    default_dir_data(),
-    "/data".to_string(),
-    tls.clone(),
-    cors.clone(),
-  );
+  let server_config = DataServerConfig::new(addr, default_dir_data(), tls.clone(), cors.clone());
 
   Config::new(
     Default::default(),
     TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), tls, cors),
-    server_config,
+    DataServerEnabled::Some(server_config),
     Default::default(),
     default_test_resolver(addr, scheme),
   )

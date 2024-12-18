@@ -1,16 +1,20 @@
+//! Configuration for storage on AWS S3.
+//!
+
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+/// Configuration struct for S3 storage.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct S3 {
-  pub(crate) bucket: String,
-  pub(crate) endpoint: Option<String>,
-  pub(crate) path_style: bool,
-  #[serde(skip_serializing)]
+  bucket: String,
+  endpoint: Option<String>,
+  path_style: bool,
   #[cfg(feature = "experimental")]
-  pub(crate) keys: Option<C4GHKeys>,
+  #[serde(skip_serializing)]
+  keys: Option<C4GHKeys>,
 }
 
 impl S3 {
@@ -30,9 +34,21 @@ impl S3 {
     &self.bucket
   }
 
+  /// Set the bucket.
+  pub fn with_bucket(mut self, bucket: String) -> Self {
+    self.bucket = bucket;
+    self
+  }
+
   /// Get the endpoint
   pub fn endpoint(&self) -> Option<&str> {
     self.endpoint.as_deref()
+  }
+
+  /// Set the endpoint.
+  pub fn with_endpoint(mut self, endpoint: String) -> Self {
+    self.endpoint = Some(endpoint);
+    self
   }
 
   /// Get the path style
@@ -40,9 +56,15 @@ impl S3 {
     self.path_style
   }
 
+  /// Set the path style.
+  pub fn with_path_style(mut self, path_style: bool) -> Self {
+    self.path_style = path_style;
+    self
+  }
+
   #[cfg(feature = "experimental")]
   /// Set the C4GH keys.
-  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+  pub fn with_keys(mut self, keys: Option<C4GHKeys>) -> Self {
     self.keys = keys;
     self
   }
@@ -56,26 +78,24 @@ impl S3 {
 
 #[cfg(test)]
 mod tests {
-  use crate::config::tests::test_config_from_file;
-  use crate::storage::Storage;
+  use super::*;
+  use crate::config::tests::test_serialize_and_deserialize;
 
   #[test]
-  fn config_storage_s3_file() {
-    test_config_from_file(
+  fn s3_backend() {
+    test_serialize_and_deserialize(
       r#"
-        [[resolvers]]
-        regex = "regex"
-
-        [resolvers.storage]
-        backend = "S3"
-        bucket = "bucket"
-        "#,
-      |config| {
-        println!("{:?}", config.resolvers().first().unwrap().storage());
-        assert!(matches!(
-            config.resolvers().first().unwrap().storage(),
-            Storage::S3(s3_storage) if s3_storage.bucket() == "bucket"
-        ));
+      bucket = "bucket"
+      endpoint = "127.0.0.1:8083"
+      path_style = true
+      "#,
+      ("127.0.0.1:8083".to_string(), "bucket".to_string(), true),
+      |result: S3| {
+        (
+          result.endpoint.unwrap().to_string(),
+          result.bucket.to_string(),
+          result.path_style,
+        )
       },
     );
   }

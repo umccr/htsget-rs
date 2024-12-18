@@ -3,17 +3,14 @@
 //! Based on the [HtsGet Specification](https://samtools.github.io/hts-specs/htsget.html).
 //!
 
-pub use htsget_config::config::{Config, DataServerConfig, ServiceInfo, TicketServerConfig};
-pub use htsget_config::resolver::{
-  IdResolver, QueryAllowed, ResolveResponse, Resolver, StorageResolver,
-};
-pub use htsget_config::storage::Storage as ConfigStorage;
+pub use htsget_config::config::Config;
+pub use htsget_config::resolver::{IdResolver, ResolveResponse, StorageResolver};
 pub use htsget_config::types::{
   Class, Format, Headers, HtsGetError, JsonResponse, Query, Response, Result, Url,
 };
 pub use htsget_storage::Storage;
 
-pub use htsget_storage::local::LocalStorage;
+pub use htsget_storage::local::FileStorage;
 
 use std::fmt::Display;
 use std::str::FromStr;

@@ -34,7 +34,7 @@ pub fn default_dir() -> PathBuf {
     .to_path_buf()
 }
 
-/// Get the default directory where data is present..
+/// Get the default directory where data is present.
 pub fn default_dir_data() -> PathBuf {
   default_dir().join("data")
 }

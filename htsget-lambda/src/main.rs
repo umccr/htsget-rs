@@ -26,7 +26,7 @@ async fn main() -> Result<(), Error> {
 
     let service_info = config.service_info().clone();
     let cors = config.ticket_server().cors().clone();
-    let router = TicketServer::router(config.owned_resolvers(), service_info, cors);
+    let router = TicketServer::router(config.into_locations(), service_info, cors);
 
     run(router).await
   } else {
