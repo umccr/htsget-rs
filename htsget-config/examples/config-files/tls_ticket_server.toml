@@ -1,16 +1,14 @@
 # An example config file for a TLS ticket server that uses S3 as a storage backend.
 # Run with `cargo run -p htsget-axum --features s3-storage -- --config htsget-config/examples/config-files/tls_ticket_server.toml`
 
-ticket_server_addr = "0.0.0.0:8080"
-ticket_server_cors_allow_origins = "All"
-ticket_server_tls.cert = "cert.pem"
-ticket_server_tls.key = "key.pem"
-data_server_addr = "0.0.0.0:8081"
+ticket_server.addr = "0.0.0.0:8080"
+ticket_server.cors_allow_origins = "All"
+ticket_server.tls.cert = "cert.pem"
+ticket_server.tls.key = "key.pem"
+data_server.addr = "0.0.0.0:8081"
 
-[[resolvers]]
+[[locations]]
 regex = ".*"
 substitution_string = "$0"
-
-[resolvers.storage]
-backend = 'S3'
-bucket = "bucket"
+backend.kind = "S3"
+backend.bucket = "bucket"
