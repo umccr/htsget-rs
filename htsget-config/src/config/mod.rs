@@ -11,7 +11,7 @@ use crate::config::location::{Location, LocationEither, Locations};
 use crate::config::parser::from_path;
 use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
-use crate::error::Error::{ArgParseError, TracingError};
+use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
 use crate::storage::file::File;
 use crate::storage::Backend;
@@ -111,6 +111,11 @@ impl Config {
   pub fn parse_args_with_command(augment_args: Command) -> Result<Option<PathBuf>> {
     let args = Args::from_arg_matches(&Args::augment_args(augment_args).get_matches())
       .map_err(|err| ArgParseError(err.to_string()))?;
+
+    if args.config.as_ref().is_some_and(|path| !path.exists()) {
+      return Err(ParseError("config file not found".to_string()));
+    }
+
     Ok(Self::parse_with_args(args))
   }
 
