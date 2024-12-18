@@ -10,6 +10,11 @@ use std::time::Duration;
 
 use axum::extract::Request;
 use axum::Router;
+use htsget_config::config::advanced::cors::CorsConfig;
+use htsget_config::config::service_info::ServiceInfo;
+use htsget_config::tls::TlsServerConfig;
+use htsget_config::types::Scheme;
+use htsget_search::HtsGet;
 use http::HeaderValue;
 use hyper::body::Incoming;
 use hyper::service::service_fn;
@@ -21,12 +26,6 @@ use tower::Service;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::trace;
 use tracing::{error, warn};
-
-use htsget_config::config::cors::CorsConfig;
-use htsget_config::config::ServiceInfo;
-use htsget_config::tls::TlsServerConfig;
-use htsget_config::types::Scheme;
-use htsget_search::HtsGet;
 
 use crate::error::Error::ServerError;
 use crate::error::Result;
@@ -79,12 +78,20 @@ pub fn configure_cors(cors: CorsConfig) -> CorsLayer {
     |cors_layer| cors_layer.allow_headers(AllowHeaders::mirror_request()),
     cors_layer,
   );
+  cors_layer = cors.allow_origins().apply_mirror(
+    |cors_layer| cors_layer.allow_headers(AllowHeaders::mirror_request()),
+    cors_layer,
+  );
   cors_layer = cors.allow_headers().apply_list(
     |cors_layer, headers| cors_layer.allow_headers(headers.clone()),
     cors_layer,
   );
 
   cors_layer = cors.allow_methods().apply_any(
+    |cors_layer| cors_layer.allow_methods(AllowMethods::mirror_request()),
+    cors_layer,
+  );
+  cors_layer = cors.allow_origins().apply_mirror(
     |cors_layer| cors_layer.allow_methods(AllowMethods::mirror_request()),
     cors_layer,
   );
@@ -150,10 +157,10 @@ impl BindServer {
   }
 
   /// Eagerly bind the address by returning a `DataServer`.
-  pub async fn bind_data_server(&mut self, serve_at: String) -> Result<DataServer> {
+  pub async fn bind_data_server(&mut self) -> Result<DataServer> {
     let server = self.bind_server().await?;
 
-    Ok(DataServer::new(server, serve_at, self.cors.clone()))
+    Ok(DataServer::new(server, self.cors.clone()))
   }
 
   /// Eagerly bind the address by returning a `TicketServer`.
@@ -216,7 +223,7 @@ impl Server {
           let tls_acceptor = tls_acceptor.clone();
 
           trace!("accepting connection");
-          let (cnx, addr) = self.listener.accept().await.unwrap();
+          let (cnx, addr) = self.listener.accept().await?;
 
           tokio::spawn(async move {
             let Ok(stream) = tls_acceptor.accept(cnx).await else {

@@ -648,7 +648,7 @@ mod tests {
   }
 
   fn expected_url() -> String {
-    "http://127.0.0.1:8081/data/htsnexus_test_NA12878.cram".to_string()
+    "http://127.0.0.1:8081/htsnexus_test_NA12878.cram".to_string()
   }
 
   pub(crate) fn expected_eof_url() -> Url {

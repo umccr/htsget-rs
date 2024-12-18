@@ -5,6 +5,7 @@ use tracing::debug;
 
 use htsget_axum::server::{data, ticket};
 use htsget_config::command;
+use htsget_config::config::data_server::DataServerEnabled;
 use htsget_config::config::Config;
 
 #[tokio::main]
@@ -22,8 +23,8 @@ async fn main() -> io::Result<()> {
 
     debug!(config = ?config, "config parsed");
 
-    if config.data_server().enabled() {
-      let local_server = data::join_handle(config.data_server().clone()).await?;
+    if let DataServerEnabled::Some(data_server) = config.data_server() {
+      let local_server = data::join_handle(data_server.clone()).await?;
       let ticket_server = ticket::join_handle(config).await?;
 
       select! {

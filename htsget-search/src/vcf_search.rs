@@ -467,6 +467,6 @@ pub(crate) mod tests {
   }
 
   pub(crate) fn expected_url(name: &str) -> String {
-    format!("http://127.0.0.1:8081/data/{name}.vcf.gz")
+    format!("http://127.0.0.1:8081/{name}.vcf.gz")
   }
 }

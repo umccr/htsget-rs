@@ -35,8 +35,8 @@ and process it using [htsget-search] to return JSON HTTP responses.
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `S3Storage` functionality.
-* `url-storage`: used to enable `UrlStorage` functionality.
+* `s3-storage`: used to enable `S3` location functionality.
+* `url-storage`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 [warp]: https://github.com/seanmonstar/warp
