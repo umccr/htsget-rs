@@ -7,7 +7,6 @@ use crate::storage;
 use crate::storage::{Backend, ResolvedId};
 use crate::types::{Query, Response, Result};
 use async_trait::async_trait;
-use std::path::PathBuf;
 use tracing::instrument;
 
 /// A trait which matches the query id, replacing the match in the substitution text.
@@ -83,12 +82,7 @@ impl IdResolver for LocationEither {
     match self {
       LocationEither::Simple(location) => {
         if query.id().starts_with(location.prefix()) {
-          return Some(ResolvedId::new(
-            PathBuf::from(location.prefix())
-              .join(query.id())
-              .to_str()?
-              .to_string(),
-          ));
+          return Some(ResolvedId::new(query.id().to_string()));
         }
       }
       LocationEither::Regex(regex_location) => {
@@ -380,7 +374,7 @@ mod tests {
         .resolve_id(&Query::new_with_default_request("id-1", Bam))
         .unwrap()
         .into_inner(),
-      "id-1/id-1"
+      "id-1"
     );
     assert_eq!(
       resolver
@@ -388,7 +382,7 @@ mod tests {
         .resolve_id(&Query::new_with_default_request("id-2", Bam))
         .unwrap()
         .into_inner(),
-      "id-2/id-2"
+      "id-2"
     );
   }
 
