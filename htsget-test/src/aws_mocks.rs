@@ -4,6 +4,7 @@ use aws_credential_types::Credentials;
 use aws_sdk_s3::config::{BehaviorVersion, Region};
 use aws_sdk_s3::Client;
 use s3s::auth::SimpleAuth;
+use s3s::host::SingleDomain;
 use s3s::service::S3ServiceBuilder;
 use s3s_fs::FileSystem;
 use std::future::Future;
@@ -32,10 +33,11 @@ pub async fn run_s3_test_server<F, Fut>(
     let fs = FileSystem::new(server_base_path).unwrap();
 
     let auth = SimpleAuth::from_single(cred.access_key_id(), cred.secret_access_key());
+    let host = SingleDomain::new(domain_name).unwrap();
 
     let mut service = S3ServiceBuilder::new(fs);
     service.set_auth(auth);
-    service.set_base_domain(domain_name);
+    service.set_host(host);
 
     s3s_aws::Client::from(service.build().into_shared())
   };

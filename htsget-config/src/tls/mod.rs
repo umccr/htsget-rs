@@ -202,12 +202,11 @@ pub(crate) mod tests {
   use std::io::Cursor;
   use std::path::Path;
 
+  use super::*;
   use rcgen::generate_simple_self_signed;
   use rustls::crypto::aws_lc_rs;
   use rustls_pemfile::{certs, pkcs8_private_keys};
   use tempfile::TempDir;
-
-  use super::*;
 
   #[test]
   fn test_load_key() {

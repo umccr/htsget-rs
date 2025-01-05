@@ -59,9 +59,9 @@ tempfile = { version = "3", optional = true }
 aws-sdk-s3 = { version = "1", features = ["test-util"], optional = true }
 aws-config = { version = "1", optional = true }
 aws-credential-types = { version = "1", features = ["test-util"], optional = true }
-s3s = { version = "0.10", optional = true }
-s3s-fs = { version = "0.10", optional = true }
-s3s-aws = { version = "0.10", optional = true }
+s3s = { version = "0.11.0-dev", git = "https://github.com/Nugine/s3s", optional = true }
+s3s-fs = { version = "0.11.0-dev", git = "https://github.com/Nugine/s3s", optional = true }
+s3s-aws = { version = "0.11.0-dev", git = "https://github.com/Nugine/s3s", optional = true }
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
