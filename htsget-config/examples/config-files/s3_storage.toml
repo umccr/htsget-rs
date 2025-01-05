@@ -3,16 +3,16 @@
 
 ticket_server.cors.allow_headers = "All"
 ticket_server.cors.allow_methods = "All"
-ticket_server.cors.allow_credentials = true
+ticket_server.cors.allow_credentials = false
 ticket_server.cors.max_age = 300
 
 data_server = "None"
 
-[[locations]]
-regex = "^(bucket)/(?P<key>.*)$"
-substitution_string = "$key"
-backend.kind = "S3"
+locations = "s3://bucket"
 
-# Or, set the bucket manually
+## Or, set using regex locations
+#[[locations]]
+#regex = "^(bucket)/(?P<key>.*)$"
+#substitution_string = "$key"
 #backend.kind = "S3"
 #backend.bucket = "bucket"

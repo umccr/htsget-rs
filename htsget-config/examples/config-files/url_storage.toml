@@ -6,23 +6,26 @@
 ticket_server.addr = "127.0.0.1:8082"
 ticket_server.cors.allow_origins = "All"
 
-ticket_server.cert = "cert.pem"
-ticket_server.key = "key.pem"
+ticket_server.tls.cert = "cert.pem"
+ticket_server.tls.key = "key.pem"
 
 data_server = "None"
 
-[[locations]]
-regex = ".*"
-substitution_string = "$0"
+locations = "https://127.0.0.1:8081"
 
-backend.kind = "Url"
-backend.url = "http://127.0.0.1:8081"
-backend.response_url = "https://127.0.0.1:8081"
-backend.forward_headers = true
-
-# Set client authentication
+## Or, set using regex locations
+#[[locations]]
+#regex = ".*"
+#substitution_string = "$0"
+#
+#backend.kind = "Url"
+#backend.url = "http://127.0.0.1:8081"
+#backend.response_url = "https://127.0.0.1:8081"
+#backend.forward_headers = true
+#
+## Set client authentication
 #backend.tls.key = "key.pem"
 #backend.tls.cert = "cert.pem"
-
-# Set root certificates
-#backend.tls.root_store = "cert.pem"
+#
+## Set root certificates
+#backend.tls.root_store = "root.crt"

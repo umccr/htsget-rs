@@ -49,7 +49,7 @@ locations = "https://example.com"
 Multiple locations can be specified by providing a list and an id prefix after the location:
 
 ```toml
-locations = ["file://data/bam", "file://data/cram"]
+locations = [ "file://data/bam", "file://data/cram" ]
 ```
 
 This allows htsget-rs to serve data only when the request also contains the prefix:
@@ -63,7 +63,7 @@ Locations can be mixed, and don't all need to have the same directory or resourc
 
 ```toml
 data_server.local_path = "root"
-locations = ["file://dir_two/bam", "file://dir_one/cram", "s3://bucket/vcf"]
+locations = [ "file://dir_two/bam", "file://dir_one/cram", "s3://bucket/vcf" ]
 ```
 
 htsget-rs spawns a separate server process to respond to htsget tickets for file locations,
@@ -184,7 +184,7 @@ data_server.addr = "127.0.0.1:8000"
 regex = ".*"
 substitution_string = "$0"
 
-backend.kind = "Local"
+backend.kind = "File"
 backend.scheme = "Http"
 backend.authority = "127.0.0.1:8000"
 backend.local_path = "path"
@@ -298,6 +298,7 @@ regex = ".*"
 substitution_string = "$0"
 
 backend.kind = "Url"
+backend.url = "https://example.com"
 backend.tls.root_store = "root.crt"
 ```
 
@@ -312,10 +313,10 @@ An example of generating a custom root CA and certificates for a `Url` backend:
 openssl req -x509 -noenc -subj '/CN=localhost' -newkey rsa -keyout root.key -out root.crt
 
 # Create a certificate signing request
-openssl req -noenc -newkey rsa -keyout server.key -out server.csr -subj '/CN=localhost' -addext subjectAltName=DNS:localhost
+openssl req -noenc -newkey rsa -keyout key.pem -out server.csr -subj '/CN=localhost' -addext subjectAltName=DNS:localhost
 
 # Create the `Url` server's certificate
-openssl x509 -req -in server.csr -CA root.crt -CAkey root.key -days 365 -out server.crt -copy_extensions copy
+openssl x509 -req -in server.csr -CA root.crt -CAkey root.key -days 365 -out cert.pem -copy_extensions copy
 
 # An additional client certificate signing request and certificate can be created in the same way as the server
 # certificate if using client authentication.
@@ -375,13 +376,15 @@ To use this feature, set `keys.kind = "File"` under the `location` table to spec
 For example:
 
 ```toml
-[[resolvers]]
+[[locations]]
 regex = ".*"
 substitution_string = "$0"
 
-location.keys.kind = "File"
-location.keys.private = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
-location.keys.public = "data/c4gh/keys/alice.pub"
+backend.kind = "File"
+
+backend.keys.kind = "File"
+backend.keys.private = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.keys.public = "data/c4gh/keys/alice.pub"
 ```
 
 Keys can also be retrieved from [AWS Secrets Manager][secrets-manager]. Compile with the `s3-storage` feature flag and specify `keys.kind = "SecretsManager"` under
@@ -395,9 +398,11 @@ For example:
 regex = ".*"
 substitution_string = "$0"
 
-location.keys.kind = "SecretsManager"
-location.keys.private = "private_key_secret_name" # pragma: allowlist secret
-location.keys.public = "public_key_secret_name"
+backend.kind = "File"
+
+backend.keys.kind = "SecretsManager"
+backend.keys.private = "private_key_secret_name" # pragma: allowlist secret
+backend.keys.public = "public_key_secret_name"
 ```
 
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`, and the index file to be unencrypted. See the [`data/c4gh`][data-c4gh] for examples of file structure.

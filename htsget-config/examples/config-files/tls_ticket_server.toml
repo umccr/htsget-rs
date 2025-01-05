@@ -7,8 +7,11 @@ ticket_server.tls.cert = "cert.pem"
 ticket_server.tls.key = "key.pem"
 data_server.addr = "0.0.0.0:8081"
 
-[[locations]]
-regex = ".*"
-substitution_string = "$0"
-backend.kind = "S3"
-backend.bucket = "bucket"
+locations = "s3://bucket"
+
+## Or, set using regex locations
+#[[locations]]
+#regex = ".*"
+#substitution_string = "$0"
+#backend.kind = "S3"
+#backend.bucket = "bucket"
