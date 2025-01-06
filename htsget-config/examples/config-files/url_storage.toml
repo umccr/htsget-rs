@@ -3,27 +3,29 @@
 # `cargo run -p htsget-axum --features url-storage -- --config htsget-config/examples/config-files/url_storage.toml`
 # in the project directory.
 
-ticket_server_addr = "127.0.0.1:8082"
-ticket_server_cors_allow_origins = "All"
+ticket_server.addr = "127.0.0.1:8082"
+ticket_server.cors.allow_origins = "All"
 
-ticket_server_cert = "cert.pem"
-ticket_server_key = "key.pem"
+ticket_server.tls.cert = "cert.pem"
+ticket_server.tls.key = "key.pem"
 
-data_server_enabled = false
+data_server = "None"
 
-[[resolvers]]
-regex = ".*"
-substitution_string = "$0"
+locations = "https://127.0.0.1:8081"
 
-[resolvers.storage]
-backend = 'Url'
-url = "http://127.0.0.1:8081"
-response_url = "https://127.0.0.1:8081"
-forward_headers = true
-
-# Set client authentication
-#tls.key = "key.pem"
-#tls.cert = "cert.pem"
-
-# Set root certificates
-#tls.root_store = "cert.pem"
+## Or, set using regex locations
+#[[locations]]
+#regex = ".*"
+#substitution_string = "$0"
+#
+#backend.kind = "Url"
+#backend.url = "http://127.0.0.1:8081"
+#backend.response_url = "https://127.0.0.1:8081"
+#backend.forward_headers = true
+#
+## Set client authentication
+#backend.tls.key = "key.pem"
+#backend.tls.cert = "cert.pem"
+#
+## Set root certificates
+#backend.tls.root_store = "root.crt"

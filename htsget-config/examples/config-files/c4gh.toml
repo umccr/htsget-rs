@@ -1,23 +1,19 @@
 # An example of running htsget-rs with Crypt4GH enabled.
-# Run with `cargo run -p htsget-axum --features experimental -- --config htsget-config/examples/config-files/c4gh.toml`
+# Run with `cargo run -p htsget-axum --features experimental,s3-storage -- --config htsget-config/examples/config-files/c4gh.toml`
 
-ticket_server_addr = "127.0.0.1:8080"
-data_server_addr = "127.0.0.1:8081"
+ticket_server.addr = "127.0.0.1:8080"
+data_server.addr = "127.0.0.1:8081"
 
-[[resolvers]]
+[[locations]]
 regex = ".*"
 substitution_string = "$0"
+backend.kind = "File"
 
-[resolvers.storage]
-backend = 'Local'
+backend.keys.kind = "File"
+backend.keys.private = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.keys.public = "data/c4gh/keys/alice.pub"
 
-[resolvers.storage.keys]
-location = "Local"
-private_key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
-recipient_public_key = "data/c4gh/keys/alice.pub"
-
-# Or, use AWS secrets manager to store keys.
-#[resolvers.storage.keys]
-#location = "SecretsManager"
-#private_key = "htsget/test_c4gh_private_key" # pragma: allowlist secret
-#recipient_public_key = "htsget/test_c4gh_public_key"
+## Or, use AWS secrets manager to store keys.
+#backend.keys.kind = "SecretsManager"
+#backend.keys.private = "htsget/test_c4gh_private_key" # pragma: allowlist secret
+#backend.keys.public = "htsget/test_c4gh_public_key"
