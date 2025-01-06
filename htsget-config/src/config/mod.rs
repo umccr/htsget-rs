@@ -97,6 +97,11 @@ impl Config {
     &self.service_info
   }
 
+  /// Get a mutable instance of the service info config.
+  pub fn service_info_mut(&mut self) -> &mut ServiceInfo {
+    &mut self.service_info
+  }
+
   /// Get the location.
   pub fn locations(&self) -> &[LocationEither] {
     self.locations.as_slice()

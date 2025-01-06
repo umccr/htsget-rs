@@ -6,8 +6,8 @@ use tracing::debug;
 use htsget_actix::run_server;
 use htsget_actix::Config;
 use htsget_axum::server::data;
-use htsget_config::command;
 use htsget_config::config::data_server::DataServerEnabled;
+use htsget_config::{command, description, package_info, repository};
 
 #[actix_web::main]
 async fn main() -> io::Result<()> {
@@ -16,9 +16,14 @@ async fn main() -> io::Result<()> {
     .map_err(|_| io::Error::other("setting crypto provider"))?;
 
   if let Some(path) = Config::parse_args_with_command(command!())? {
-    let config = Config::from_path(&path)?;
+    let mut config = Config::from_path(&path)?;
 
     config.setup_tracing()?;
+
+    let service_info = config.service_info_mut();
+    service_info.insert_package_info(package_info!());
+    service_info.insert_repository(repository!());
+    service_info.insert_description(description!());
 
     debug!(config = ?config, "config parsed");
 

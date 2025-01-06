@@ -4,9 +4,9 @@ use tokio::select;
 use tracing::debug;
 
 use htsget_axum::server::{data, ticket};
-use htsget_config::command;
 use htsget_config::config::data_server::DataServerEnabled;
 use htsget_config::config::Config;
+use htsget_config::{command, description, package_info, repository};
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
@@ -17,9 +17,14 @@ async fn main() -> io::Result<()> {
   if let Some(path) =
     Config::parse_args_with_command(command!()).expect("expected valid command parsing")
   {
-    let config = Config::from_path(&path)?;
+    let mut config = Config::from_path(&path)?;
 
     config.setup_tracing()?;
+
+    let service_info = config.service_info_mut();
+    service_info.insert_package_info(package_info!());
+    service_info.insert_repository(repository!());
+    service_info.insert_description(description!());
 
     debug!(config = ?config, "config parsed");
 
