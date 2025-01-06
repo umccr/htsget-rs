@@ -277,7 +277,7 @@ mod tests {
   use htsget_test::http::concat::ConcatResponse;
 
   use super::*;
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
@@ -542,7 +542,7 @@ mod tests {
     .await
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   #[tokio::test]
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
@@ -560,7 +560,7 @@ mod tests {
     .await
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   #[tokio::test]
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
@@ -579,7 +579,7 @@ mod tests {
     .await
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   #[tokio::test]
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(

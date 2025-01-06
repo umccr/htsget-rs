@@ -11,19 +11,19 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-storage/README.m
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = [
+aws = [
     "dep:bytes",
     "dep:aws-sdk-s3",
     "dep:aws-config",
-    "htsget-config/s3-storage",
-    "htsget-test/s3-storage",
-    "htsget-test/aws-mocks"
+    "htsget-config/aws",
+    "htsget-test/aws",
+    "htsget-test/aws"
 ]
-url-storage = [
+url = [
     "dep:bytes",
     "dep:reqwest",
-    "htsget-config/url-storage",
-    "htsget-test/url-storage"
+    "htsget-config/url",
+    "htsget-test/url"
 ]
 experimental = ["dep:crypt4gh", "dep:bincode", "htsget-config/experimental", "htsget-test/experimental"]
 default = []

@@ -11,18 +11,18 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-axum/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = [
-    "htsget-config/s3-storage",
-    "htsget-search/s3-storage",
-    "htsget-test/s3-storage",
-    "htsget-test/aws-mocks",
-    "htsget-http/s3-storage"
+aws = [
+    "htsget-config/aws",
+    "htsget-search/aws",
+    "htsget-test/aws",
+    "htsget-test/aws",
+    "htsget-http/aws"
 ]
-url-storage = [
-    "htsget-config/url-storage",
-    "htsget-search/url-storage",
-    "htsget-test/url-storage",
-    "htsget-http/url-storage"
+url = [
+    "htsget-config/url",
+    "htsget-search/url",
+    "htsget-test/url",
+    "htsget-http/url"
 ]
 experimental = [
     "htsget-config/experimental",

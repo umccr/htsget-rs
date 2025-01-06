@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub mod allow_guard;
 pub mod cors;
 pub mod regex_location;
-#[cfg(feature = "url-storage")]
+#[cfg(feature = "url")]
 pub mod url;
 
 /// Determines which tracing formatting style to use.

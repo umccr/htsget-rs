@@ -42,7 +42,7 @@ library code, and it instead uses `htsget-axum`. Please use that crate for funct
 #### Feature flags
 
 This crate has the following features:
-* `s3`: used to enable `S3` location functionality.
+* `s3`: used to enable `S3` location functionality and any other AWS features.
 * `url`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
