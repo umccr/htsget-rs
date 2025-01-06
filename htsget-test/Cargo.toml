@@ -24,18 +24,17 @@ http = [
     "dep:mime",
     "dep:base64"
 ]
-aws-mocks = [
-    "s3-storage",
+aws = [
     "dep:tempfile",
     "dep:aws-sdk-s3",
     "dep:aws-config",
     "dep:aws-credential-types",
     "dep:s3s",
     "dep:s3s-fs",
-    "dep:s3s-aws"
+    "dep:s3s-aws",
+    "htsget-config?/aws"
 ]
-s3-storage = ["htsget-config?/s3-storage"]
-url-storage = ["htsget-config?/url-storage"]
+url = ["htsget-config?/url"]
 experimental = ["dep:crypt4gh", "dep:htsget-config", "htsget-config/experimental"]
 default = []
 

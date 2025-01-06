@@ -98,7 +98,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   #[test]
   fn regex_location_s3() {
     test_serialize_and_deserialize(
@@ -127,7 +127,7 @@ mod tests {
     );
   }
 
-  #[cfg(feature = "url-storage")]
+  #[cfg(feature = "url")]
   #[test]
   fn regex_location_url() {
     test_serialize_and_deserialize(
@@ -158,7 +158,7 @@ mod tests {
     );
   }
 
-  #[cfg(all(feature = "url-storage", feature = "s3-storage"))]
+  #[cfg(all(feature = "url", feature = "aws"))]
   #[test]
   fn regex_location_multiple() {
     test_serialize_and_deserialize(

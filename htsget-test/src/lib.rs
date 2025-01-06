@@ -1,4 +1,4 @@
-#[cfg(feature = "aws-mocks")]
+#[cfg(feature = "aws")]
 pub mod aws_mocks;
 #[cfg(feature = "experimental")]
 pub mod c4gh;

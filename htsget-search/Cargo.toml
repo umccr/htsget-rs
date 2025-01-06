@@ -11,16 +11,16 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = [
-    "htsget-storage/s3-storage",
-    "htsget-config/s3-storage",
-    "htsget-test/s3-storage",
-    "htsget-test/aws-mocks"
+aws = [
+    "htsget-storage/aws",
+    "htsget-config/aws",
+    "htsget-test/aws",
+    "htsget-test/aws"
 ]
-url-storage = [
-    "htsget-storage/url-storage",
-    "htsget-config/url-storage",
-    "htsget-test/url-storage"
+url = [
+    "htsget-storage/url",
+    "htsget-config/url",
+    "htsget-test/url"
 ]
 experimental = [
     "htsget-storage/experimental",

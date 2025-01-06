@@ -11,8 +11,8 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
-url-storage = ["dep:reqwest", "dep:cfg-if"]
+aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
+url = ["dep:reqwest", "dep:cfg-if"]
 experimental = ["dep:crypt4gh", "dep:tokio", "dep:futures-util"]
 default = []
 
