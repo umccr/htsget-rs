@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 
 /// Tagged allow headers for cors config, either Mirror or Any.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
 pub enum DataServerTagged {
   #[serde(alias = "none", alias = "NONE", alias = "null")]
   None,
@@ -19,7 +18,7 @@ pub enum DataServerTagged {
 
 /// Whether the data server is enabled or not.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged, deny_unknown_fields)]
+#[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum DataServerEnabled {
   None(DataServerTagged),
@@ -39,7 +38,7 @@ impl DataServerEnabled {
 
 /// Configuration for the htsget server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct DataServerConfig {
   addr: SocketAddr,
   local_path: PathBuf,

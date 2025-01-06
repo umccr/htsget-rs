@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 
 /// Configuration for the htsget ticket server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct TicketServerConfig {
   addr: SocketAddr,
   #[serde(skip_serializing)]

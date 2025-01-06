@@ -11,7 +11,7 @@ use serde::Deserialize;
 /// A certificate and key pair used for TLS. Serialization is not implemented because there
 /// is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone, Default)]
-#[serde(try_from = "RootCertStorePair", deny_unknown_fields)]
+#[serde(try_from = "RootCertStorePair")]
 pub struct TlsClientConfig {
   cert: Option<Vec<Certificate>>,
   identity: Option<Identity>,

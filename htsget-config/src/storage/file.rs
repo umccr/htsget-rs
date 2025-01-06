@@ -15,7 +15,7 @@ use std::str::FromStr;
 
 /// Local file based storage.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct File {
   scheme: Scheme,
   #[serde(with = "http_serde::authority")]

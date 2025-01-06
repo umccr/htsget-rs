@@ -50,7 +50,7 @@ struct Args {
 
 /// Simplified config.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct Config {
   ticket_server: TicketServerConfig,
   data_server: DataServerEnabled,

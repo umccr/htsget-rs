@@ -37,7 +37,7 @@ impl ResolvedId {
 
 /// Specify the storage backend to use as config values.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "kind", deny_unknown_fields)]
+#[serde(tag = "kind")]
 #[non_exhaustive]
 pub enum Backend {
   #[serde(alias = "file", alias = "FILE")]

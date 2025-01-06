@@ -11,7 +11,6 @@ pub mod url;
 
 /// Determines which tracing formatting style to use.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default)]
-#[serde(deny_unknown_fields)]
 pub enum FormattingStyle {
   #[default]
   Full,
