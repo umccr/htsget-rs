@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// A regex storage is a storage that matches ids using Regex.
 #[derive(Serialize, Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct RegexLocation {
   #[serde(with = "serde_regex")]
   regex: Regex,
