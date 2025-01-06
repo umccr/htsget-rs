@@ -1,16 +1,17 @@
 # An example config file for a TLS data server that uses a local storage backend.
 # Run with `cargo run -p htsget-axum -- --config htsget-config/examples/config-files/tls_data_server.toml`
 
-ticket_server_addr = "0.0.0.0:8080"
-data_server_addr = "0.0.0.0:8081"
-data_server_cors_allow_origins = "All"
-data_server_tls.cert = "cert.pem"
-data_server_tls.key = "key.pem"
+ticket_server.addr = "0.0.0.0:8080"
+data_server.addr = "0.0.0.0:8081"
+data_server.cors.allow_origins = "All"
+data_server.tls.cert = "cert.pem"
+data_server.tls.key = "key.pem"
 
-[[resolvers]]
-regex = ".*"
-substitution_string = "$0"
+locations = "file://data"
 
-[resolvers.storage]
-backend = 'Local'
-use_data_server_config = true
+## Or, set using regex locations
+#[[locations]]
+#regex = ".*"
+#substitution_string = "$0"
+#backend.kind = "File"
+#backend.local_path = "data"

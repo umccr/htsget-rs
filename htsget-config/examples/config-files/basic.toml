@@ -1,18 +1,8 @@
 # An example of running htsget-rs.
-# Run with `cargo run --all-features -- --config htsget-config/examples/config-files/basic.toml`
+# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/examples/config-files/basic.toml`
 
 ticket_server_addr = "127.0.0.1:8080"
 data_server_addr = "127.0.0.1:8081"
 
-# Serve data locally from the `data` directory.
-[[resolvers]]
-regex = '.*'
-substitution_string = '$0'
-storage.backend = 'Local'
-
-# Serve data from S3 if the id is prefixed with `example_bucket`.
-[[resolvers]]
-regex = '^(example_bucket)/(?P<key>.*)$'
-substitution_string = '$key'
-storage.backend = 'S3'
-# Uses the first capture group in the regex as the bucket.
+# Serve data locally from the `data` directory or from an S3 bucket called `bucket` depending on the prefix.
+locations = [ "file://data/file_prefix", "s3://bucket/s3_prefix" ]
