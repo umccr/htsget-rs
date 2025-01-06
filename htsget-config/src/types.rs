@@ -21,7 +21,7 @@ pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "UPPERCASE"))]
+#[serde(rename_all(serialize = "UPPERCASE"), deny_unknown_fields)]
 pub enum Format {
   #[serde(alias = "bam", alias = "BAM")]
   Bam,
@@ -112,7 +112,7 @@ impl Display for Format {
 
 /// Class component of htsget response.
 #[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "lowercase"))]
+#[serde(rename_all(serialize = "lowercase"), deny_unknown_fields)]
 pub enum Class {
   #[serde(alias = "header", alias = "HEADER")]
   Header,
@@ -123,6 +123,7 @@ pub enum Class {
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Interval {
   start: Option<u32>,
   end: Option<u32>,
@@ -205,7 +206,7 @@ impl Interval {
 
 /// Schemes that can be used with htsget.
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all = "UPPERCASE", deny_unknown_fields)]
 pub enum Scheme {
   #[default]
   #[serde(alias = "Http", alias = "http")]
@@ -225,6 +226,7 @@ impl Display for Scheme {
 
 /// Tagged Any allow type for cors config.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub enum TaggedTypeAll {
   #[serde(alias = "all", alias = "ALL")]
   All,
@@ -232,7 +234,7 @@ pub enum TaggedTypeAll {
 
 /// Possible values for the fields parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Fields {
   /// Include all fields
   Tagged(TaggedTypeAll),
@@ -242,7 +244,7 @@ pub enum Fields {
 
 /// Possible values for the tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Tags {
   /// Include all tags
   Tagged(TaggedTypeAll),
@@ -252,6 +254,7 @@ pub enum Tags {
 
 /// The no tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct NoTags(pub Option<HashSet<String>>);
 
 /// A struct containing the information from the HTTP request.
@@ -516,6 +519,7 @@ impl From<io::Error> for HtsGetError {
 
 /// The headers that need to be supplied when requesting data from a url.
 #[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
@@ -585,6 +589,7 @@ impl TryFrom<&HeaderMap> for Headers {
 
 /// A url from which raw data can be retrieved.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Url {
   pub url: String,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -635,6 +640,7 @@ impl Url {
 
 /// Wrapped json response for htsget.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct JsonResponse {
   pub htsget: Response,
 }
@@ -654,6 +660,7 @@ impl From<Response> for JsonResponse {
 
 /// The response for a HtsGet query.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
