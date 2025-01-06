@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.7.1...htsget-test-v0.7.2) - 2025-01-06
+
+### Other
+
+- add location concept and move advanced config to its own module
+- re-word and simplify, add quick starts where applicable
+
 ## [0.7.1](https://github.com/umccr/htsget-rs/compare/htsget-test-v0.7.0...htsget-test-v0.7.1) - 2024-10-16
 
 ### Added

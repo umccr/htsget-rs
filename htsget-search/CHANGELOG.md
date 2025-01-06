@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.9.1...htsget-search-v0.9.2) - 2025-01-06
+
+### Added
+
+- *(config)* implement path-based locations
+
+### Other
+
+- add location concept and move advanced config to its own module
+- grammar and typos
+- re-word and simplify, add quick starts where applicable
+
 ## [0.9.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.9.0...htsget-search-v0.9.1) - 2024-10-16
 
 ### Added
