@@ -1,7 +1,7 @@
 [package]
 name = "htsget-config"
 version = "0.12.0"
-rust-version = "1.75"
+rust-version = "1.83"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "Used to configure htsget-rs by using a config file or reading environment variables."
@@ -35,6 +35,7 @@ http-serde = "2"
 rustls-pemfile = "2"
 rustls = "0.23"
 rustls-pki-types = "1"
+chrono = { version = "0.4", features = ["now"], default-features = false }
 
 # url
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false, optional = true }

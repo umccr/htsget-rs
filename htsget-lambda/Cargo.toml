@@ -1,11 +1,11 @@
 [package]
 name = "htsget-lambda"
 version = "0.5.2"
-rust-version = "1.75"
+rust-version = "1.83"
 authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 license = "MIT"
-description = "A cloud-based instance of htsget-rs, using AWS Lambda, which can be configured using htsget-config."
+description = "A cloud-based instance of htsget-rs using AWS Lambda, which serves data according to the htsget protocol."
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-lambda/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-lambda/README.md"
 repository = "https://github.com/umccr/htsget-rs"

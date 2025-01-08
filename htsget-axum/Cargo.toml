@@ -1,11 +1,11 @@
 [package]
 name = "htsget-axum"
 version = "0.2.2"
-rust-version = "1.75"
+rust-version = "1.83"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
 license = "MIT"
-description = "A webserver instance of htsget-rs using Axum."
+description = "A webserver instance of htsget-rs using Axum, which serves data according to the htsget protocol."
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-axum/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-axum/README.md"
 repository = "https://github.com/umccr/htsget-rs"

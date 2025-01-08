@@ -1,11 +1,11 @@
 [package]
 name = "htsget-actix"
 version = "0.7.2"
-rust-version = "1.75"
+rust-version = "1.83"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 license = "MIT"
-description = "A webserver instance of htsget-rs using actix-web."
+description = "A webserver instance of htsget-rs using actix-web, which serves data according to the htsget protocol."
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-actix/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-actix/README.md"
 repository = "https://github.com/umccr/htsget-rs"

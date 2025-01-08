@@ -1,6 +1,6 @@
 use htsget_axum::server::ticket::TicketServer;
-use htsget_config::command;
 use htsget_config::config::Config;
+use htsget_config::{command, package_info};
 use lambda_http::{run, Error};
 use rustls::crypto::aws_lc_rs;
 use std::env::set_var;
@@ -18,9 +18,12 @@ async fn main() -> Result<(), Error> {
   set_var("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH", "true");
 
   if let Some(path) = Config::parse_args_with_command(command!())? {
-    let config = Config::from_path(&path)?;
+    let mut config = Config::from_path(&path)?;
 
     config.setup_tracing()?;
+
+    let service_info = config.service_info_mut();
+    service_info.set_from_package_info(package_info!())?;
 
     debug!(config = ?config, "config parsed");
 

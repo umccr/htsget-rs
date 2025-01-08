@@ -111,12 +111,23 @@ data_server.tls.cert = "cert.pem"
 ### Service info config
 
 The service info config controls what is returned when the [`service-info`][service-info] path is queried. The following
-option accepts any nested value, which gets converted to a JSON response:
+option accepts [GA4GH service info][service-info] values or any [custom nested value][service-info-custom], which get
+converted to a JSON response:
 
 ```toml
+service_info.id = "org.ga4gh.htsget"
 service_info.environment = "dev"
 service_info.organization = { name = "name", url = "https://example.com/" }
+service_info.custom = { data = "data", number = "123" }
 ```
+
+The `service_info` option does not have to be specified. Any required fields that are part of the [service info][service-info]
+spec and some optional ones are pre-filled from the Rust package info. For example, the `version` field is set to the current
+crate version and `id` is set to `<package_name>/<package_version`. It is recommended to set the `service_info.id` field
+to a custom value as the package name and version are not globally unique.
+
+[service-info]: https://github.com/ga4gh-discovery/ga4gh-service-info/blob/develop/service-info.yaml
+[service-info-custom]: https://github.com/ga4gh-discovery/ga4gh-service-info/blob/develop/service-info.yaml
 
 ### Environment variables
 
