@@ -158,15 +158,21 @@ mod tests {
       service_info.environment = "dev"
       service_info.organization = { name = "name", url = "https://example.com/" }
       "#,
-      (json!("dev"), json!({ "name": "name", "url": "https://example.com/" })),
+      (
+        json!("dev"),
+        json!({ "name": "name", "url": "https://example.com/" }),
+      ),
       |mut result: Config| {
         update_service_info(&mut result);
 
-        (result.service_info.0.get("environment").unwrap().clone(), result.service_info.0.get("organization").unwrap().clone())
+        (
+          result.service_info.0.get("environment").unwrap().clone(),
+          result.service_info.0.get("organization").unwrap().clone(),
+        )
       },
     );
   }
-  
+
   fn update_service_info(result: &mut Config) {
     let info = result.service_info_mut();
     info.set_from_package_info(package_info!()).unwrap();
@@ -190,16 +196,22 @@ mod tests {
       service_info.createdAt = "2025-01-01T00:00:00Z"
       service_info.updatedAt = "2025-02-01T00:00:00Z"
       "#,
-      (json!("123"), json!("name"), json!("id"), json!("2025-01-01T00:00:00Z"), json!("2025-02-01T00:00:00Z")),
+      (
+        json!("123"),
+        json!("name"),
+        json!("id"),
+        json!("2025-01-01T00:00:00Z"),
+        json!("2025-02-01T00:00:00Z"),
+      ),
       |mut result: Config| {
         update_service_info(&mut result);
-        
+
         (
           result.service_info.0.get("version").unwrap().clone(),
           result.service_info.0.get("name").unwrap().clone(),
           result.service_info.0.get("id").unwrap().clone(),
           result.service_info.0.get("createdAt").unwrap().clone(),
-          result.service_info.0.get("updatedAt").unwrap().clone()
+          result.service_info.0.get("updatedAt").unwrap().clone(),
         )
       },
     );
@@ -210,7 +222,7 @@ mod tests {
     test_serialize_and_deserialize(
       r#"
       service_info.custom = "123"
-      "#, 
+      "#,
       json!("123"),
       |mut result: Config| {
         update_service_info(&mut result);
