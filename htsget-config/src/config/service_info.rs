@@ -4,7 +4,7 @@
 use crate::error::{Error, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_value, json, to_value, Value};
+use serde_json::{from_value, to_value, Value};
 use std::collections::HashMap;
 
 /// Create the package info used to populate the service info. This uses the `CARGO_PKG_*` environment
@@ -22,7 +22,8 @@ macro_rules! package_info {
   };
 }
 
-/// Package info used to create the service info.
+/// Package info used to create the service info. This contains the rest of the required
+/// fields missing in `ServiceInfoFields` and some optional ones.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PackageInfo {
@@ -146,7 +147,6 @@ impl AsRef<HashMap<String, Value>> for ServiceInfo {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
   use crate::config::Config;
   use serde_json::json;
@@ -158,14 +158,65 @@ mod tests {
       service_info.environment = "dev"
       service_info.organization = { name = "name", url = "https://example.com/" }
       "#,
-      HashMap::from_iter(vec![
-        ("environment".to_string(), json!("dev")),
+      (json!("dev"), json!({ "name": "name", "url": "https://example.com/" })),
+      |mut result: Config| {
+        update_service_info(&mut result);
+
+        (result.service_info.0.get("environment").unwrap().clone(), result.service_info.0.get("organization").unwrap().clone())
+      },
+    );
+  }
+  
+  fn update_service_info(result: &mut Config) {
+    let info = result.service_info_mut();
+    info.set_from_package_info(package_info!()).unwrap();
+
+    assert!(result.service_info.0.contains_key("createdAt"));
+    assert!(result.service_info.0.contains_key("updatedAt"));
+    assert!(result.service_info.0.contains_key("version"));
+    assert!(result.service_info.0.contains_key("name"));
+    assert!(result.service_info.0.contains_key("organization"));
+    assert!(result.service_info.0.contains_key("description"));
+    assert!(result.service_info.0.contains_key("documentationUrl"));
+  }
+
+  #[test]
+  fn service_info_override() {
+    test_serialize_and_deserialize(
+      r#"
+      service_info.version = "123"
+      service_info.name = "name"
+      service_info.id = "id"
+      service_info.createdAt = "2025-01-01T00:00:00Z"
+      service_info.updatedAt = "2025-02-01T00:00:00Z"
+      "#,
+      (json!("123"), json!("name"), json!("id"), json!("2025-01-01T00:00:00Z"), json!("2025-02-01T00:00:00Z")),
+      |mut result: Config| {
+        update_service_info(&mut result);
+        
         (
-          "organization".to_string(),
-          json!({ "name": "name", "url": "https://example.com/" }),
-        ),
-      ]),
-      |result: Config| result.service_info.0,
+          result.service_info.0.get("version").unwrap().clone(),
+          result.service_info.0.get("name").unwrap().clone(),
+          result.service_info.0.get("id").unwrap().clone(),
+          result.service_info.0.get("createdAt").unwrap().clone(),
+          result.service_info.0.get("updatedAt").unwrap().clone()
+        )
+      },
+    );
+  }
+
+  #[test]
+  fn service_info_custom() {
+    test_serialize_and_deserialize(
+      r#"
+      service_info.custom = "123"
+      "#, 
+      json!("123"),
+      |mut result: Config| {
+        update_service_info(&mut result);
+
+        result.service_info.0.get("custom").unwrap().clone()
+      },
     );
   }
 }
