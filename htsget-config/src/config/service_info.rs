@@ -1,43 +1,114 @@
 //! Service info configuration.
 //!
 
-use serde::de::Error;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::{json, Value};
+use crate::error::{Error, Result};
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
+use serde_json::{from_value, json, to_value, Value};
 use std::collections::HashMap;
 
-/// Formats the package info. This uses `CARGO_PKG_VERSION` and `CARGO_PKG_NAME` to
-/// format the package info of the dependent crate. A macro allows the calling code
-/// to use its own version and name. For example, instead of printing
-/// `htsget-config/x.y.z`, this allows printing `htsget-axum/x.y.z.`.
+/// Create the package info used to populate the service info. This uses the `CARGO_PKG_*` environment
+/// variables for information. A macro allows dependent code to use its own package information.
 #[macro_export]
 macro_rules! package_info {
   () => {
-    format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+    $crate::config::service_info::PackageInfo::new(
+      format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")),
+      format!(env!("CARGO_PKG_NAME")),
+      format!(env!("CARGO_PKG_VERSION")),
+      format!(env!("CARGO_PKG_DESCRIPTION")),
+      format!(env!("CARGO_PKG_REPOSITORY")),
+    )
   };
 }
 
-/// Formats the repository url using `CARGO_PKG_REPOSITORY`. A macro allows calling
-/// code to use its own repository url.
-#[macro_export]
-macro_rules! repository {
-  () => {
-    format!(env!("CARGO_PKG_REPOSITORY"))
-  };
+/// Package info used to create the service info.
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PackageInfo {
+  id: String,
+  name: String,
+  version: String,
+  description: String,
+  documentation_url: String,
 }
 
-/// Formats the description using `CARGO_PKG_DESCRIPTION`. A macro allows calling
-/// code to use its own description.
-#[macro_export]
-macro_rules! description {
-  () => {
-    format!(env!("CARGO_PKG_DESCRIPTION"))
-  };
+impl PackageInfo {
+  /// Create a new package info.
+  pub fn new(
+    id: String,
+    name: String,
+    version: String,
+    description: String,
+    documentation_url: String,
+  ) -> Self {
+    Self {
+      id,
+      name,
+      version,
+      description,
+      documentation_url,
+    }
+  }
+}
+
+/// Fields that can be captured in the service info. These are optional
+/// to be able to distinguish between user-specified values and defaults.
+/// Required fields like `id` get filled in later when converting to
+/// `ServiceInfo`. Any custom fields are captured in `fields`.
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServiceInfoFields {
+  organization: Organization,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  created_at: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  updated_at: Option<String>,
+  #[serde(flatten)]
+  fields: HashMap<String, Value>,
+}
+
+/// Organization info for the service info.
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Organization {
+  name: Option<String>,
+  url: Option<String>,
+}
+
+impl TryFrom<ServiceInfoFields> for ServiceInfo {
+  type Error = Error;
+
+  fn try_from(mut fields: ServiceInfoFields) -> Result<Self> {
+    // Set the required fields, except version, name and id, which gets set later by dependent code.
+    fields.organization.name.get_or_insert_default();
+    fields.organization.url.get_or_insert_default();
+
+    // These are optional but nice to default to current time.
+    fields
+      .created_at
+      .get_or_insert_with(|| Utc::now().to_rfc3339());
+    fields
+      .updated_at
+      .get_or_insert_with(|| Utc::now().to_rfc3339());
+
+    let fields: HashMap<String, Value> = from_value(to_value(fields)?)?;
+
+    let err_msg = |invalid_key| format!("reserved service info field `{}`", invalid_key);
+    if fields.contains_key("type") {
+      return Err(Error::ParseError(err_msg("type")));
+    }
+    if fields.contains_key("htsget") {
+      return Err(Error::ParseError(err_msg("htsget")));
+    }
+
+    Ok(Self::new(fields))
+  }
 }
 
 /// Service info config.
-#[derive(Serialize, Debug, Clone, Default, PartialEq, Eq)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields, try_from = "ServiceInfoFields")]
 pub struct ServiceInfo(HashMap<String, Value>);
 
 impl ServiceInfo {
@@ -51,19 +122,14 @@ impl ServiceInfo {
     self.0.entry(key).or_insert(value)
   }
 
-  /// Insert the package info if it doesn't already exist.
-  pub fn insert_package_info(&mut self, info: String) {
-    self.entry_or_insert("packageInfo".to_string(), json!(info));
-  }
+  /// Set the fields from the package info if they have not already been set.
+  pub fn set_from_package_info(&mut self, info: PackageInfo) -> Result<()> {
+    let mut package_info: HashMap<String, Value> = from_value(to_value(info)?)?;
 
-  /// Insert the description if it doesn't already exist.
-  pub fn insert_description(&mut self, description: String) {
-    self.entry_or_insert("description".to_string(), json!(description));
-  }
+    package_info.extend(self.0.drain());
+    self.0 = package_info;
 
-  /// Insert the repository if it doesn't already exist.
-  pub fn insert_repository(&mut self, repository: String) {
-    self.entry_or_insert("repository".to_string(), json!(repository));
+    Ok(())
   }
 
   /// Get the inner value.
@@ -75,30 +141,6 @@ impl ServiceInfo {
 impl AsRef<HashMap<String, Value>> for ServiceInfo {
   fn as_ref(&self) -> &HashMap<String, Value> {
     &self.0
-  }
-}
-
-impl<'de> Deserialize<'de> for ServiceInfo {
-  fn deserialize<D>(deserializer: D) -> Result<ServiceInfo, D::Error>
-  where
-    D: Deserializer<'de>,
-  {
-    let fields: HashMap<String, Value> = HashMap::<String, Value>::deserialize(deserializer)?
-      .into_iter()
-      .map(|(key, value)| (key.to_lowercase(), value))
-      .collect();
-
-    let err_msg = |invalid_key| format!("reserved service info field `{}`", invalid_key);
-
-    if fields.contains_key("type") {
-      return Err(Error::custom(err_msg("type")));
-    }
-
-    if fields.contains_key("htsget") {
-      return Err(Error::custom(err_msg("htsget")));
-    }
-
-    Ok(ServiceInfo::new(fields))
   }
 }
 

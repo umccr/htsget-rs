@@ -35,3 +35,9 @@ impl From<io::Error> for Error {
     Error::IoError(error.to_string())
   }
 }
+
+impl From<serde_json::Error> for Error {
+  fn from(err: serde_json::Error) -> Self {
+    Error::ParseError(err.to_string())
+  }
+}

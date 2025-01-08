@@ -7,7 +7,7 @@ use htsget_actix::run_server;
 use htsget_actix::Config;
 use htsget_axum::server::data;
 use htsget_config::config::data_server::DataServerEnabled;
-use htsget_config::{command, description, package_info, repository};
+use htsget_config::{command, package_info};
 
 #[actix_web::main]
 async fn main() -> io::Result<()> {
@@ -21,9 +21,7 @@ async fn main() -> io::Result<()> {
     config.setup_tracing()?;
 
     let service_info = config.service_info_mut();
-    service_info.insert_package_info(package_info!());
-    service_info.insert_repository(repository!());
-    service_info.insert_description(description!());
+    service_info.set_from_package_info(package_info!())?;
 
     debug!(config = ?config, "config parsed");
 

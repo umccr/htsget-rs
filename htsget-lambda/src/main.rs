@@ -1,6 +1,6 @@
 use htsget_axum::server::ticket::TicketServer;
 use htsget_config::config::Config;
-use htsget_config::{command, description, package_info, repository};
+use htsget_config::{command, package_info};
 use lambda_http::{run, Error};
 use rustls::crypto::aws_lc_rs;
 use std::env::set_var;
@@ -23,9 +23,7 @@ async fn main() -> Result<(), Error> {
     config.setup_tracing()?;
 
     let service_info = config.service_info_mut();
-    service_info.insert_package_info(package_info!());
-    service_info.insert_repository(repository!());
-    service_info.insert_description(description!());
+    service_info.set_from_package_info(package_info!())?;
 
     debug!(config = ?config, "config parsed");
 
