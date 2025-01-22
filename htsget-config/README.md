@@ -481,7 +481,7 @@ This project is licensed under the [MIT license][license].
 [path-addressing]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#path-style-access
 [env-variables]: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 [virtual-addressing]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#virtual-hosted-style-access
-[minio-deployment]: ../deploy/examples/minio/README.md
+[minio-deployment]: ../docker/examples/minio/README.md
 [license]: LICENSE
 [minio]: https://min.io/
 [c4gh]: https://samtools.github.io/hts-specs/crypt4gh.pdf

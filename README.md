@@ -38,7 +38,7 @@ Htsget-rs is configured using environment variables or config files, see [htsget
 
 ### Cloud
 
-Cloud-based htsget-rs uses [htsget-lambda]. For an example deployment of this crate see [deploy].
+Cloud-based htsget-rs uses [htsget-lambda]. For an example deployment of this crate using CDK see [htsget-deploy].
 
 ## Protocol
 
@@ -97,7 +97,7 @@ code using the [Rust Runtime for AWS Lambda][aws-lambda-rust-runtime].
 
 Other directories contain further applications or data:
 - [data]: Contains example data files used by htsget-rs and in tests.
-- [deploy]: Deployments for htsget-rs.
+- [docker]: Docker for htsget-rs.
 
 [axum]: https://github.com/tokio-rs/axum
 [htsget-axum]: htsget-axum
@@ -108,9 +108,10 @@ Other directories contain further applications or data:
 [htsget-search]: htsget-search
 [htsget-storage]: htsget-storage
 [htsget-test]: htsget-test
+[htsget-deploy]: https://github.com/umccr/htsget-deploy
 
 [data]: data
-[deploy]: deploy
+[docker]: docker
 
 [actix-web]: https://actix.rs/
 [aws-lambda-rust-runtime]: https://github.com/awslabs/aws-lambda-rust-runtime

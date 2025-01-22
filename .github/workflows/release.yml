@@ -42,7 +42,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: deploy/Dockerfile
+          file: docker/Dockerfile
           platforms: ${{ matrix.platforms }}
           push: true
           tags: |
