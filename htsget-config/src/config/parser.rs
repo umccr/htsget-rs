@@ -31,17 +31,21 @@ impl Parser<'_> {
         Parser::String(string) => Toml::string(string),
         Parser::Path(path) => Toml::file(path),
       })
-      .merge(Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX).map(|k| {
-        // This has to list all possible nested values to resolve issues with ambiguity when
-        // deserializing. E.g. see https://github.com/SergioBenitez/Figment/issues/12
-        k.as_str()
-          .to_lowercase()
-          .replace("ticket_server_", "ticket_server.")
-          .replace("data_server_", "data_server.")
-          .replace("cors_", "cors.")
-          .replace("tls_", "tls.")
-          .into()
-      }))
+      .merge(
+        Env::prefixed(ENVIRONMENT_VARIABLE_PREFIX)
+          .filter(|k| k != "config")
+          .map(|k| {
+            // This has to list all possible nested values to resolve issues with ambiguity when
+            // deserializing. E.g. see https://github.com/SergioBenitez/Figment/issues/12
+            k.as_str()
+              .to_lowercase()
+              .replace("ticket_server_", "ticket_server.")
+              .replace("data_server_", "data_server.")
+              .replace("cors_", "cors.")
+              .replace("tls_", "tls.")
+              .into()
+          }),
+      )
       .extract()
       .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;
 

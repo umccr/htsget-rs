@@ -1,6 +1,6 @@
-# LocalStorage deployment
+# File-based deployment
 
-A simple [`LocalStorage`][local] deployment using default settings is available under the [`compose.yml`][compose] file in this directory.
+A [`File`][local] deployment using default settings is available under the [`compose.yml`][compose] file in this directory.
 
 To run, use:
 
@@ -8,7 +8,7 @@ To run, use:
 docker compose up
 ```
 
-This launches a `LocalStorage` htsget-actix server serving data from the [`data`][data] directory.
+This launches a `File` htsget-actix server serving data from the [`data`][data] directory.
 
 The htsget-rs server can then be queried:
 
@@ -39,6 +39,6 @@ Which outputs:
 The volumes of the [`compose.yml`][compose] can be changed to any directory to serve data from it using
 default settings, and `curl http://127.0.0.1:8080/reads/data/<id>`, noting the extra `data` prefix.
 
-[local]: ../../../htsget-config/README.md#resolvers
+[local]: ../../../htsget-config/README.md
 [compose]: compose.yml
 [data]: ../../../data

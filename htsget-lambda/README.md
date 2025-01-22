@@ -23,14 +23,14 @@ This crate is used for running a cloud-based instance of htsget-rs. It:
 
 ## Usage
 
-This crate can be deployed to AWS as a Lambda function, or interacted with locally using [cargo-lambda]. See [deploy] 
+This crate can be deployed to AWS as a Lambda function, or interacted with locally using [cargo-lambda]. See the [htsget-deploy] 
 for more details. Note, this crate does not use any configuration relating to the local data server. CORS configuration
 uses values from the ticket server config. See [htsget-config] for more information about configuration.
 
 See [htsget-search] for details on how to structure files.
 
 [cargo-lambda]: https://github.com/cargo-lambda/cargo-lambda
-[deploy]: ../deploy
+[htsget-deploy]: https://github.com/umccr/htsget-deploy
 [htsget-search]: ../htsget-search
 [htsget-config]: ../htsget-config
 
