@@ -10,10 +10,9 @@ jobs:
     name: Release-plz
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout htsget-rs repository
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          show-progress: false
           fetch-depth: 0
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -32,12 +31,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Checkout htsget-deploy repository
-        uses: actions/checkout@v4
-        with:
-          repository: https://github.com/umccr/htsget-deploy
-          path: deploy
-          fetch-depth: 1
       - name: Docker GitHub release
         uses: docker/build-push-action@v6
         with:
