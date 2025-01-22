@@ -4,9 +4,12 @@
 use crate::config::advanced::regex_location::RegexLocation;
 use crate::error::{Error::ParseError, Result};
 use crate::storage;
+#[cfg(feature = "experimental")]
+use crate::storage::c4gh::C4GHKeys;
 use crate::storage::file::default_authority;
 use crate::storage::Backend;
 use crate::types::Scheme;
+use cfg_if::cfg_if;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::result;
@@ -130,6 +133,17 @@ impl From<LocationsOneOrMany> for Locations {
   }
 }
 
+/// Deserialize into a string location that also supports setting additional fields
+/// for the backend.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(default, deny_unknown_fields)]
+struct ExtendedLocation {
+  location: StringLocation,
+  #[cfg(feature = "experimental")]
+  #[serde(skip_serializing)]
+  keys: Option<C4GHKeys>,
+}
+
 /// Deserialize the location from a string with a protocol.
 #[derive(Serialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
@@ -159,6 +173,7 @@ struct MapLocation {
 enum LocationWrapper {
   String(StringLocation),
   Map(MapLocation),
+  Extended(ExtendedLocation),
 }
 
 impl From<LocationWrapper> for Location {
@@ -166,6 +181,17 @@ impl From<LocationWrapper> for Location {
     match location {
       LocationWrapper::String(location) => Location::new(location.backend, location.prefix),
       LocationWrapper::Map(location) => Location::new(location.backend, location.prefix),
+      LocationWrapper::Extended(location) => {
+        cfg_if! {
+          if #[cfg(feature = "experimental")] {
+            let mut location = location;
+            location.location.backend.set_keys(location.keys);
+            Location::new(location.location.backend, location.location.prefix)
+          } else {
+            Location::new(location.location.backend, location.location.prefix)
+          }
+        }
+      }
     }
   }
 }

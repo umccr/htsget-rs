@@ -4,6 +4,8 @@
 #[cfg(any(feature = "url", feature = "aws"))]
 use crate::error::Error;
 use crate::error::Result;
+#[cfg(feature = "experimental")]
+use crate::storage::c4gh::C4GHKeys;
 use crate::storage::file::File;
 #[cfg(feature = "aws")]
 use crate::storage::s3::S3;
@@ -79,6 +81,18 @@ impl Backend {
       Ok(url)
     } else {
       Err(Error::ParseError("not a `File` variant".to_string()))
+    }
+  }
+
+  /// Set the C4GH keys.
+  #[cfg(feature = "experimental")]
+  pub fn set_keys(&mut self, keys: Option<C4GHKeys>) {
+    match self {
+      Backend::File(file) => file.set_keys(keys),
+      #[cfg(feature = "aws")]
+      Backend::S3(s3) => s3.set_keys(keys),
+      #[cfg(feature = "url")]
+      Backend::Url(url) => url.set_keys(keys),
     }
   }
 }

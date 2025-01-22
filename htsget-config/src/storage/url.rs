@@ -72,9 +72,8 @@ impl Url {
 
   #[cfg(feature = "experimental")]
   /// Set the C4GH keys.
-  pub fn set_keys(mut self, keys: Option<C4GHKeys>) -> Self {
+  pub fn set_keys(&mut self, keys: Option<C4GHKeys>) {
     self.keys = keys;
-    self
   }
 
   #[cfg(feature = "experimental")]
