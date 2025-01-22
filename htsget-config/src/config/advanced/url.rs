@@ -118,7 +118,9 @@ impl TryFrom<Url> for storage::url::Url {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Ok(url_storage.set_keys(storage.keys))
+        let mut url_storage = url_storage;
+        url_storage.set_keys(storage.keys);
+        Ok(url_storage)
       } else {
         Ok(url_storage)
       }
