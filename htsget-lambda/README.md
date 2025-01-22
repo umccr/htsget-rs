@@ -23,8 +23,6 @@ This crate is used for running a cloud-based instance of htsget-rs. It:
 
 ## Usage
 
-### For running htsget-rs as an application
-
 This crate can be deployed to AWS as a Lambda function, or interacted with locally using [cargo-lambda]. See [deploy] 
 for more details. Note, this crate does not use any configuration relating to the local data server. CORS configuration
 uses values from the ticket server config. See [htsget-config] for more information about configuration.
@@ -44,8 +42,8 @@ library code, and it instead uses `htsget-axum`. Please use that crate for funct
 #### Feature flags
 
 This crate has the following features:
-* `s3-storage`: used to enable `S3Storage` functionality.
-* `url-storage`: used to enable `UrlStorage` functionality.
+* `s3`: used to enable `S3` location functionality and any other AWS features.
+* `url`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 ## License

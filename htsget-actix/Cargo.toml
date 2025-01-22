@@ -1,18 +1,18 @@
 [package]
 name = "htsget-actix"
-version = "0.7.1"
-rust-version = "1.75"
+version = "0.7.2"
+rust-version = "1.83"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 license = "MIT"
-description = "A webserver instance of htsget-rs using actix-web."
+description = "A webserver instance of htsget-rs using actix-web, which serves data according to the htsget protocol."
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-actix/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-actix/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["htsget-config/s3-storage", "htsget-search/s3-storage", "htsget-http/s3-storage", "htsget-axum/s3-storage", "htsget-test/s3-storage"]
-url-storage = ["htsget-config/url-storage", "htsget-search/url-storage", "htsget-http/url-storage", "htsget-axum/url-storage", "htsget-test/url-storage"]
+aws = ["htsget-config/aws", "htsget-search/aws", "htsget-http/aws", "htsget-axum/aws", "htsget-test/aws"]
+url = ["htsget-config/url", "htsget-search/url", "htsget-http/url", "htsget-axum/url", "htsget-test/url"]
 experimental = [
     "htsget-config/experimental",
     "htsget-search/experimental",
@@ -42,7 +42,7 @@ htsget-http = { version = "0.5.1", path = "../htsget-http", default-features = f
 htsget-search = { version = "0.9.1", path = "../htsget-search", default-features = false }
 htsget-config = { version = "0.12.0", path = "../htsget-config", default-features = false }
 htsget-test = { version = "0.7.1", path = "../htsget-test", features = ["http"], default-features = false }
-htsget-axum = { version = "0.2.1", path = "../htsget-axum", default-features = false }
+htsget-axum = { version = "0.2.2", path = "../htsget-axum", default-features = false }
 
 [dev-dependencies]
 async-trait = "0.1"

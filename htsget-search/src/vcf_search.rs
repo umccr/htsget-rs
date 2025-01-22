@@ -124,7 +124,7 @@ pub(crate) mod tests {
   use std::future::Future;
 
   use super::*;
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::search::SearchAll;
@@ -339,7 +339,7 @@ pub(crate) mod tests {
     .await
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   #[tokio::test]
   async fn search_non_existent_id_reference_name_aws() {
     with_aws_storage_fn(
@@ -357,7 +357,7 @@ pub(crate) mod tests {
     .await
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   #[tokio::test]
   async fn search_non_existent_id_all_reads_aws() {
     with_aws_storage_fn(
@@ -376,7 +376,7 @@ pub(crate) mod tests {
     .await
   }
 
-  #[cfg(feature = "s3-storage")]
+  #[cfg(feature = "aws")]
   #[tokio::test]
   async fn search_non_existent_id_header_aws() {
     with_aws_storage_fn(
@@ -467,6 +467,6 @@ pub(crate) mod tests {
   }
 
   pub(crate) fn expected_url(name: &str) -> String {
-    format!("http://127.0.0.1:8081/data/{name}.vcf.gz")
+    format!("http://127.0.0.1:8081/{name}.vcf.gz")
   }
 }

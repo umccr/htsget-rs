@@ -1,7 +1,7 @@
 //! Configuration related to TLS.
 //!
 
-#[cfg(feature = "url-storage")]
+#[cfg(feature = "url")]
 pub mod client;
 
 use std::fs::File;
@@ -29,7 +29,7 @@ pub trait KeyPairScheme {
 /// A certificate and key pair used for TLS. Serialization is not implemented because there
 /// is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "CertificateKeyPairPath")]
+#[serde(try_from = "CertificateKeyPairPath", deny_unknown_fields)]
 pub struct TlsServerConfig {
   server_config: ServerConfig,
 }
@@ -49,6 +49,7 @@ impl TlsServerConfig {
 /// The location of a certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CertificateKeyPairPath {
   cert: PathBuf,
   key: PathBuf,
@@ -76,6 +77,7 @@ impl CertificateKeyPair {
 /// The location of a certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct RootCertStorePair {
   #[serde(flatten)]
   key_pair: Option<CertificateKeyPairPath>,
@@ -202,12 +204,11 @@ pub(crate) mod tests {
   use std::io::Cursor;
   use std::path::Path;
 
+  use super::*;
   use rcgen::generate_simple_self_signed;
   use rustls::crypto::aws_lc_rs;
   use rustls_pemfile::{certs, pkcs8_private_keys};
   use tempfile::TempDir;
-
-  use super::*;
 
   #[test]
   fn test_load_key() {

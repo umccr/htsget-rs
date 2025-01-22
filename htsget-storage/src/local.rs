@@ -20,12 +20,12 @@ use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 /// Implementation for the [StorageTrait] trait using the local file system. [T] is the type of the
 /// server struct, which is used for formatting urls.
 #[derive(Debug, Clone)]
-pub struct LocalStorage<T> {
+pub struct FileStorage<T> {
   base_path: PathBuf,
   url_formatter: T,
 }
 
-impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
+impl<T: UrlFormatter + Send + Sync> FileStorage<T> {
   pub fn new<P: AsRef<Path>>(base_path: P, url_formatter: T) -> Result<Self> {
     base_path
       .as_ref()
@@ -79,10 +79,10 @@ impl<T: UrlFormatter + Send + Sync> LocalStorage<T> {
 }
 
 #[async_trait]
-impl<T: UrlFormatter + Send + Sync + Debug> StorageMiddleware for LocalStorage<T> {}
+impl<T: UrlFormatter + Send + Sync + Debug> StorageMiddleware for FileStorage<T> {}
 
 #[async_trait]
-impl<T: UrlFormatter + Send + Sync + Debug + Clone + 'static> StorageTrait for LocalStorage<T> {
+impl<T: UrlFormatter + Send + Sync + Debug + Clone + 'static> StorageTrait for FileStorage<T> {
   /// Get the file at the location of the key.
   #[instrument(level = "debug", skip(self))]
   async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
@@ -143,13 +143,12 @@ pub(crate) mod tests {
   use std::future::Future;
   use std::matches;
 
+  use htsget_config::storage;
+  use htsget_config::types::Scheme;
   use http::uri::Authority;
   use tempfile::TempDir;
   use tokio::fs::{create_dir, File};
   use tokio::io::AsyncWriteExt;
-
-  use htsget_config::storage::local::Local as ConfigLocalStorage;
-  use htsget_config::types::Scheme;
 
   use super::*;
   use crate::types::BytesPosition;
@@ -262,7 +261,7 @@ pub(crate) mod tests {
         RangeUrlOptions::new_with_default_range(&Default::default()),
       )
       .await;
-      let expected = Url::new("http://127.0.0.1:8081/data/key1");
+      let expected = Url::new("http://127.0.0.1:8081/key1");
       assert!(matches!(result, Ok(url) if url == expected));
     })
     .await;
@@ -280,7 +279,7 @@ pub(crate) mod tests {
         ),
       )
       .await;
-      let expected = Url::new("http://127.0.0.1:8081/data/key1")
+      let expected = Url::new("http://127.0.0.1:8081/key1")
         .with_headers(Headers::default().with_header("Range", "bytes=7-9"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -296,7 +295,7 @@ pub(crate) mod tests {
         RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
       )
       .await;
-      let expected = Url::new("http://127.0.0.1:8081/data/key1")
+      let expected = Url::new("http://127.0.0.1:8081/key1")
         .with_headers(Headers::default().with_header("Range", "bytes=7-"));
       assert!(matches!(result, Ok(url) if url == expected));
     })
@@ -345,15 +344,13 @@ pub(crate) mod tests {
     (folder_name.to_string(), base_path)
   }
 
-  pub(crate) fn test_local_storage(base_path: &Path) -> LocalStorage<ConfigLocalStorage> {
-    LocalStorage::new(
+  pub(crate) fn test_local_storage(base_path: &Path) -> FileStorage<storage::file::File> {
+    FileStorage::new(
       base_path,
-      ConfigLocalStorage::new(
+      storage::file::File::new(
         Scheme::Http,
         Authority::from_static("127.0.0.1:8081"),
         "data".to_string(),
-        "/data".to_string(),
-        false,
       ),
     )
     .unwrap()
@@ -361,7 +358,7 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_local_storage<F, Fut>(test: F)
   where
-    F: FnOnce(LocalStorage<ConfigLocalStorage>, PathBuf) -> Fut,
+    F: FnOnce(FileStorage<storage::file::File>, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;

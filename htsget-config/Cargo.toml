@@ -1,7 +1,7 @@
 [package]
 name = "htsget-config"
 version = "0.12.0"
-rust-version = "1.75"
+rust-version = "1.83"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "Used to configure htsget-rs by using a config file or reading environment variables."
@@ -11,8 +11,8 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
-url-storage = ["dep:reqwest", "dep:cfg-if"]
+aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
+url = ["dep:reqwest", "dep:cfg-if"]
 experimental = ["dep:crypt4gh", "dep:tokio", "dep:futures-util"]
 default = []
 
@@ -22,6 +22,7 @@ async-trait = "0.1"
 noodles = { version = "0.83", features = ["core"] }
 serde = { version = "1", features = ["derive"] }
 serde_with = "3"
+serde_json = "1"
 serde_regex = "1"
 regex = "1"
 figment = { version = "0.10", features = ["env", "toml"] }
@@ -34,8 +35,9 @@ http-serde = "2"
 rustls-pemfile = "2"
 rustls = "0.23"
 rustls-pki-types = "1"
+chrono = { version = "0.4", features = ["now"], default-features = false }
 
-# url-storage
+# url
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false, optional = true }
 cfg-if = { version = "1", optional = true }
 
@@ -50,7 +52,6 @@ aws-config = { version = "1", optional = true }
 tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
-serde_json = "1"
 figment = { version = "0.10", features = ["test"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tempfile = "3"

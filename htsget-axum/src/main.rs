@@ -4,8 +4,9 @@ use tokio::select;
 use tracing::debug;
 
 use htsget_axum::server::{data, ticket};
-use htsget_config::command;
+use htsget_config::config::data_server::DataServerEnabled;
 use htsget_config::config::Config;
+use htsget_config::{command, package_info};
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
@@ -16,14 +17,17 @@ async fn main() -> io::Result<()> {
   if let Some(path) =
     Config::parse_args_with_command(command!()).expect("expected valid command parsing")
   {
-    let config = Config::from_path(&path)?;
+    let mut config = Config::from_path(&path)?;
 
     config.setup_tracing()?;
 
+    let service_info = config.service_info_mut();
+    service_info.set_from_package_info(package_info!())?;
+
     debug!(config = ?config, "config parsed");
 
-    if config.data_server().enabled() {
-      let local_server = data::join_handle(config.data_server().clone()).await?;
+    if let DataServerEnabled::Some(data_server) = config.data_server() {
+      let local_server = data::join_handle(data_server.clone()).await?;
       let ticket_server = ticket::join_handle(config).await?;
 
       select! {

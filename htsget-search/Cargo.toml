@@ -1,7 +1,7 @@
 [package]
 name = "htsget-search"
 version = "0.9.1"
-rust-version = "1.75"
+rust-version = "1.83"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 description = "The primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using noodles to query files and their indices."
@@ -11,16 +11,16 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-s3-storage = [
-    "htsget-storage/s3-storage",
-    "htsget-config/s3-storage",
-    "htsget-test/s3-storage",
-    "htsget-test/aws-mocks"
+aws = [
+    "htsget-storage/aws",
+    "htsget-config/aws",
+    "htsget-test/aws",
+    "htsget-test/aws"
 ]
-url-storage = [
-    "htsget-storage/url-storage",
-    "htsget-config/url-storage",
-    "htsget-test/url-storage"
+url = [
+    "htsget-storage/url",
+    "htsget-config/url",
+    "htsget-test/url"
 ]
 experimental = [
     "htsget-storage/experimental",

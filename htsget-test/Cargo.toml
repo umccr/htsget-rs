@@ -1,7 +1,7 @@
 [package]
 name = "htsget-test"
 version = "0.7.1"
-rust-version = "1.75"
+rust-version = "1.83"
 authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
 license = "MIT"
@@ -24,18 +24,17 @@ http = [
     "dep:mime",
     "dep:base64"
 ]
-aws-mocks = [
-    "s3-storage",
+aws = [
     "dep:tempfile",
     "dep:aws-sdk-s3",
     "dep:aws-config",
     "dep:aws-credential-types",
     "dep:s3s",
     "dep:s3s-fs",
-    "dep:s3s-aws"
+    "dep:s3s-aws",
+    "htsget-config?/aws"
 ]
-s3-storage = ["htsget-config?/s3-storage"]
-url-storage = ["htsget-config?/url-storage"]
+url = ["htsget-config?/url"]
 experimental = ["dep:crypt4gh", "dep:htsget-config", "htsget-config/experimental"]
 default = []
 
@@ -59,9 +58,9 @@ tempfile = { version = "3", optional = true }
 aws-sdk-s3 = { version = "1", features = ["test-util"], optional = true }
 aws-config = { version = "1", optional = true }
 aws-credential-types = { version = "1", features = ["test-util"], optional = true }
-s3s = { version = "0.10", optional = true }
-s3s-fs = { version = "0.10", optional = true }
-s3s-aws = { version = "0.10", optional = true }
+s3s = { version = "0.11.0-dev", git = "https://github.com/Nugine/s3s", optional = true }
+s3s-fs = { version = "0.11.0-dev", git = "https://github.com/Nugine/s3s", optional = true }
+s3s-aws = { version = "0.11.0-dev", git = "https://github.com/Nugine/s3s", optional = true }
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }

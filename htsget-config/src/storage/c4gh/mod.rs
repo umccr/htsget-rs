@@ -4,7 +4,7 @@
 use crate::error::Error::{IoError, ParseError};
 use crate::error::{Error, Result};
 use crate::storage::c4gh::local::C4GHLocal;
-#[cfg(feature = "s3-storage")]
+#[cfg(feature = "aws")]
 use crate::storage::c4gh::secrets_manager::C4GHSecretsManager;
 use crypt4gh::error::Crypt4GHError;
 use futures_util::future::{BoxFuture, Shared};
@@ -14,12 +14,12 @@ use tokio::task::{JoinError, JoinHandle};
 
 pub mod local;
 
-#[cfg(feature = "s3-storage")]
+#[cfg(feature = "aws")]
 pub mod secrets_manager;
 
 /// Config for Crypt4GH keys.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "Location")]
+#[serde(try_from = "C4GHKeyLocation", deny_unknown_fields)]
 pub struct C4GHKeys {
   // Store a cloneable future so that it can be resolved outside serde.
   keys: Shared<BoxFuture<'static, Result<Vec<crypt4gh::Keys>>>>,
@@ -40,6 +40,7 @@ impl C4GHKeys {
     }]
   }
 
+  /// Construct from an existing join handle.
   pub fn from_join_handle(handle: JoinHandle<Result<Vec<crypt4gh::Keys>>>) -> Self {
     Self {
       keys: handle.map(|value| value?).boxed().shared(),
@@ -59,26 +60,26 @@ impl From<Crypt4GHError> for Error {
   }
 }
 
-impl TryFrom<Location> for C4GHKeys {
+impl TryFrom<C4GHKeyLocation> for C4GHKeys {
   type Error = Error;
 
-  fn try_from(location: Location) -> Result<Self> {
+  fn try_from(location: C4GHKeyLocation) -> Result<Self> {
     match location {
-      Location::Local(local) => local.try_into(),
-      #[cfg(feature = "s3-storage")]
-      Location::SecretsManager(secrets_manager) => secrets_manager.try_into(),
+      C4GHKeyLocation::File(file) => file.try_into(),
+      #[cfg(feature = "aws")]
+      C4GHKeyLocation::SecretsManager(secrets_manager) => secrets_manager.try_into(),
     }
   }
 }
 
 /// The location of C4GH keys.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(tag = "location", deny_unknown_fields)]
+#[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
-pub enum Location {
-  #[serde(alias = "local", alias = "LOCAL")]
-  Local(C4GHLocal),
-  #[cfg(feature = "s3-storage")]
+pub enum C4GHKeyLocation {
+  #[serde(alias = "file", alias = "FILE")]
+  File(C4GHLocal),
+  #[cfg(feature = "aws")]
   #[serde(alias = "secretsmanager", alias = "SECRETSMANAGER")]
   SecretsManager(C4GHSecretsManager),
 }

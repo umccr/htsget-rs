@@ -1,3 +1,6 @@
+//! Types related to htsget like formats, reference names, classes or intervals.
+//!
+
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::io::ErrorKind::Other;
@@ -13,11 +16,12 @@ use tracing::instrument;
 use crate::error::Error;
 use crate::error::Error::ParseError;
 
+/// The result type returning a `HtsGetError`.
 pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "UPPERCASE"))]
+#[serde(rename_all(serialize = "UPPERCASE"), deny_unknown_fields)]
 pub enum Format {
   #[serde(alias = "bam", alias = "BAM")]
   Bam,
@@ -31,6 +35,7 @@ pub enum Format {
 
 /// Todo allow these to be configurable.
 impl Format {
+  /// Get the file ending for the format.
   pub fn file_ending(&self) -> &str {
     match self {
       Format::Bam => ".bam",
@@ -40,10 +45,12 @@ impl Format {
     }
   }
 
+  /// Get the file name including its ending.
   pub fn fmt_file(&self, id: &str) -> String {
     format!("{id}{}", self.file_ending())
   }
 
+  /// Get the index file ending for this format.
   pub fn index_file_ending(&self) -> &str {
     match self {
       Format::Bam => ".bam.bai",
@@ -53,10 +60,12 @@ impl Format {
     }
   }
 
+  /// Get the index file name including its ending.
   pub fn fmt_index(&self, id: &str) -> String {
     format!("{id}{}", self.index_file_ending())
   }
 
+  /// Get the GZI index file ending for this format.
   pub fn gzi_index_file_ending(&self) -> io::Result<&str> {
     match self {
       Format::Bam => Ok(".bam.gzi"),
@@ -69,6 +78,7 @@ impl Format {
     }
   }
 
+  /// Get the GZI index file name including its ending.
   pub fn fmt_gzi(&self, id: &str) -> io::Result<String> {
     Ok(format!("{id}{}", self.gzi_index_file_ending()?))
   }
@@ -102,7 +112,7 @@ impl Display for Format {
 
 /// Class component of htsget response.
 #[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "lowercase"))]
+#[serde(rename_all(serialize = "lowercase"), deny_unknown_fields)]
 pub enum Class {
   #[serde(alias = "header", alias = "HEADER")]
   Header,
@@ -113,6 +123,7 @@ pub enum Class {
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Interval {
   start: Option<u32>,
   end: Option<u32>,
@@ -121,12 +132,12 @@ pub struct Interval {
 impl Interval {
   /// Check if this interval contains the value.
   pub fn contains(&self, value: u32) -> bool {
-    return match (self.start.as_ref(), self.end.as_ref()) {
+    match (self.start.as_ref(), self.end.as_ref()) {
       (None, None) => true,
       (None, Some(end)) => value < *end,
       (Some(start), None) => value >= *start,
       (Some(start), Some(end)) => value >= *start && value < *end,
-    };
+    }
   }
 
   /// Convert this interval into a one-based noodles `Interval`.
@@ -177,10 +188,12 @@ impl Interval {
     })
   }
 
+  /// Start position.
   pub fn start(&self) -> Option<u32> {
     self.start
   }
 
+  /// End position.
   pub fn end(&self) -> Option<u32> {
     self.end
   }
@@ -193,7 +206,7 @@ impl Interval {
 
 /// Schemes that can be used with htsget.
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all = "UPPERCASE", deny_unknown_fields)]
 pub enum Scheme {
   #[default]
   #[serde(alias = "Http", alias = "http")]
@@ -213,6 +226,7 @@ impl Display for Scheme {
 
 /// Tagged Any allow type for cors config.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub enum TaggedTypeAll {
   #[serde(alias = "all", alias = "ALL")]
   All,
@@ -220,7 +234,7 @@ pub enum TaggedTypeAll {
 
 /// Possible values for the fields parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Fields {
   /// Include all fields
   Tagged(TaggedTypeAll),
@@ -230,7 +244,7 @@ pub enum Fields {
 
 /// Possible values for the tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Tags {
   /// Include all tags
   Tagged(TaggedTypeAll),
@@ -240,6 +254,7 @@ pub enum Tags {
 
 /// The no tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct NoTags(pub Option<HashSet<String>>);
 
 /// A struct containing the information from the HTTP request.
@@ -382,43 +397,53 @@ impl Query {
     self
   }
 
+  /// Id.
   pub fn id(&self) -> &str {
     &self.id
   }
 
+  /// Format.
   pub fn format(&self) -> Format {
     self.format
   }
 
+  /// Class.
   pub fn class(&self) -> Class {
     self.class
   }
 
+  /// Reference name.
   pub fn reference_name(&self) -> Option<&str> {
     self.reference_name.as_deref()
   }
 
+  /// Interval.
   pub fn interval(&self) -> Interval {
     self.interval
   }
 
+  /// Fields.
   pub fn fields(&self) -> &Fields {
     &self.fields
   }
 
+  /// Tags.
   pub fn tags(&self) -> &Tags {
     &self.tags
   }
 
+  /// No tags.
   pub fn no_tags(&self) -> &NoTags {
     &self.no_tags
   }
 
+  /// Request.
   pub fn request(&self) -> &Request {
     &self.request
   }
 }
 
+/// Htsget specific errors.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum HtsGetError {
   #[error("not found: {0}")]
@@ -444,30 +469,37 @@ pub enum HtsGetError {
 }
 
 impl HtsGetError {
+  /// Create a `NotFound` error.
   pub fn not_found<S: Into<String>>(message: S) -> Self {
     Self::NotFound(message.into())
   }
 
+  /// Create an `UnsupportedFormat` error.
   pub fn unsupported_format<S: Into<String>>(format: S) -> Self {
     Self::UnsupportedFormat(format.into())
   }
 
+  /// Create an `InvalidInput` error.
   pub fn invalid_input<S: Into<String>>(message: S) -> Self {
     Self::InvalidInput(message.into())
   }
 
+  /// Create an `InvalidRange` error.
   pub fn invalid_range<S: Into<String>>(message: S) -> Self {
     Self::InvalidRange(message.into())
   }
 
+  /// Create an `IoError` error.
   pub fn io_error<S: Into<String>>(message: S) -> Self {
     Self::IoError(message.into())
   }
 
+  /// Create a `ParseError` error.
   pub fn parse_error<S: Into<String>>(message: S) -> Self {
     Self::ParseError(message.into())
   }
 
+  /// Create an `InternalError` error.
   pub fn internal_error<S: Into<String>>(message: S) -> Self {
     Self::InternalError(message.into())
   }
@@ -487,6 +519,7 @@ impl From<io::Error> for HtsGetError {
 
 /// The headers that need to be supplied when requesting data from a url.
 #[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Headers(HashMap<String, String>);
 
 impl Headers {
@@ -556,6 +589,7 @@ impl TryFrom<&HeaderMap> for Headers {
 
 /// A url from which raw data can be retrieved.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Url {
   pub url: String,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -606,11 +640,13 @@ impl Url {
 
 /// Wrapped json response for htsget.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct JsonResponse {
   pub htsget: Response,
 }
 
 impl JsonResponse {
+  /// Create a new `JsonResponse`.
   pub fn new(htsget: Response) -> Self {
     Self { htsget }
   }
@@ -624,12 +660,14 @@ impl From<Response> for JsonResponse {
 
 /// The response for a HtsGet query.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
 }
 
 impl Response {
+  /// Create a new `Response`.
   pub fn new(format: Format, urls: Vec<Url>) -> Self {
     Self { format, urls }
   }

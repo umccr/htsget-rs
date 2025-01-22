@@ -1,3 +1,6 @@
+//! Configuration related to CORS.
+//!
+
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
@@ -7,14 +10,15 @@ use serde::de::Error;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::config::default_server_origin;
 use crate::types::TaggedTypeAll;
 
 /// The maximum default amount of time a CORS request can be cached for in seconds.
-const CORS_MAX_AGE: usize = 86400;
+/// Defaults to 30 days.
+const CORS_MAX_AGE: usize = 2592000;
 
 /// Tagged allow headers for cors config, either Mirror or Any.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub enum TaggedAllowTypes {
   #[serde(alias = "mirror", alias = "MIRROR")]
   Mirror,
@@ -24,8 +28,8 @@ pub enum TaggedAllowTypes {
 
 /// Allowed type for cors config which is used to configure cors behaviour.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(untagged)]
-pub enum AllowType<T, Tagged = TaggedTypeAll> {
+#[serde(untagged, deny_unknown_fields)]
+pub enum AllowType<T, Tagged = TaggedAllowTypes> {
   Tagged(Tagged),
   #[serde(bound(serialize = "T: Display", deserialize = "T: FromStr, T::Err: Display"))]
   #[serde(
@@ -134,6 +138,7 @@ where
 pub struct HeaderValue(HeaderValueInner);
 
 impl HeaderValue {
+  /// Get the inner header value.
   pub fn into_inner(self) -> HeaderValueInner {
     self.0
   }
@@ -154,15 +159,15 @@ impl Display for HeaderValue {
 }
 
 /// Cors configuration for the htsget server.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
 pub struct CorsConfig {
   allow_credentials: bool,
-  allow_origins: AllowType<HeaderValue, TaggedAllowTypes>,
+  allow_origins: AllowType<HeaderValue>,
   allow_headers: AllowType<HeaderName>,
   allow_methods: AllowType<Method>,
   max_age: usize,
-  expose_headers: AllowType<HeaderName>,
+  expose_headers: AllowType<HeaderName, TaggedTypeAll>,
 }
 
 impl CorsConfig {
@@ -173,7 +178,7 @@ impl CorsConfig {
     allow_headers: AllowType<HeaderName>,
     allow_methods: AllowType<Method>,
     max_age: usize,
-    expose_headers: AllowType<HeaderName>,
+    expose_headers: AllowType<HeaderName, TaggedTypeAll>,
   ) -> Self {
     Self {
       allow_credentials,
@@ -211,7 +216,7 @@ impl CorsConfig {
   }
 
   /// Get expose headers.
-  pub fn expose_headers(&self) -> &AllowType<HeaderName> {
+  pub fn expose_headers(&self) -> &AllowType<HeaderName, TaggedTypeAll> {
     &self.expose_headers
   }
 }
@@ -220,72 +225,103 @@ impl Default for CorsConfig {
   fn default() -> Self {
     Self {
       allow_credentials: false,
-      allow_origins: AllowType::List(vec![HeaderValue(HeaderValueInner::from_static(
-        default_server_origin(),
-      ))]),
-      allow_headers: AllowType::Tagged(TaggedTypeAll::All),
-      allow_methods: AllowType::Tagged(TaggedTypeAll::All),
+      allow_origins: AllowType::Tagged(TaggedAllowTypes::Mirror),
+      allow_headers: AllowType::Tagged(TaggedAllowTypes::Mirror),
+      allow_methods: AllowType::Tagged(TaggedAllowTypes::Mirror),
       max_age: CORS_MAX_AGE,
-      expose_headers: AllowType::List(vec![]),
+      expose_headers: AllowType::Tagged(TaggedTypeAll::All),
     }
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use std::fmt::Debug;
-
+  use super::*;
+  use crate::config::tests::test_serialize_and_deserialize;
+  use crate::config::Config;
   use http::Method;
   use toml::de::Error;
 
-  use super::*;
-
-  fn test_cors_config<T, F>(input: &str, expected: &T, get_result: F)
-  where
-    F: Fn(&CorsConfig) -> &T,
-    T: Debug + Eq,
-  {
-    let config: CorsConfig = toml::from_str(input).unwrap();
-    assert_eq!(expected, get_result(&config));
-
-    let serialized = toml::to_string(&config).unwrap();
-    let deserialized = toml::from_str(&serialized).unwrap();
-    assert_eq!(expected, get_result(&deserialized));
-  }
-
   #[test]
   fn unit_variant_any_allow_type() {
-    test_cors_config(
+    test_serialize_and_deserialize(
       "allow_methods = \"All\"",
-      &AllowType::Tagged(TaggedTypeAll::All),
-      |config| config.allow_methods(),
+      CorsConfig {
+        allow_methods: AllowType::Tagged(TaggedAllowTypes::All),
+        ..Default::default()
+      },
+      |result| result,
     );
   }
 
   #[test]
   fn unit_variant_mirror_allow_type() {
-    test_cors_config(
+    test_serialize_and_deserialize(
       "allow_origins = \"Mirror\"",
-      &AllowType::Tagged(TaggedAllowTypes::Mirror),
-      |config| config.allow_origins(),
+      CorsConfig {
+        allow_origins: AllowType::Tagged(TaggedAllowTypes::Mirror),
+        ..Default::default()
+      },
+      |result| result,
     );
   }
 
   #[test]
   fn list_allow_type() {
-    test_cors_config(
+    test_serialize_and_deserialize(
       "allow_methods = [\"GET\"]",
-      &AllowType::List(vec![Method::GET]),
-      |config| config.allow_methods(),
+      CorsConfig {
+        allow_methods: AllowType::List(vec![Method::GET]),
+        ..Default::default()
+      },
+      |result| result,
     );
   }
 
   #[test]
   fn tagged_any_allow_type() {
-    test_cors_config(
+    test_serialize_and_deserialize(
       "expose_headers = \"All\"",
-      &AllowType::Tagged(TaggedTypeAll::All),
-      |config| config.expose_headers(),
+      CorsConfig {
+        expose_headers: AllowType::Tagged(TaggedTypeAll::All),
+        ..Default::default()
+      },
+      |result| result,
+    );
+  }
+
+  #[test]
+  fn cors_config() {
+    test_serialize_and_deserialize(
+      r#"
+      ticket_server.cors.allow_credentials = false
+      ticket_server.cors.allow_origins = "Mirror"
+      ticket_server.cors.allow_headers = "All"
+      data_server.cors.allow_methods = ["GET", "POST"]
+      data_server.cors.max_age = 86400
+      data_server.cors.expose_headers = []
+      "#,
+      (
+        false,
+        AllowType::Tagged(TaggedAllowTypes::Mirror),
+        AllowType::Tagged(TaggedAllowTypes::All),
+        AllowType::List(vec!["GET".parse().unwrap(), "POST".parse().unwrap()]),
+        86400,
+        AllowType::List(vec![]),
+      ),
+      |result: Config| {
+        let ticket_cors = result.ticket_server().cors();
+        let data_cors = result.data_server().as_data_server_config().unwrap().cors();
+
+        (
+          ticket_cors.allow_credentials,
+          ticket_cors.allow_origins.clone(),
+          ticket_cors.allow_headers.clone(),
+          data_cors.allow_methods.clone(),
+          data_cors.max_age,
+          data_cors.expose_headers.clone(),
+        )
+      },
     );
   }
 

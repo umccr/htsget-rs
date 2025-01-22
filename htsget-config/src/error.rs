@@ -1,3 +1,6 @@
+//! Error types used by this crate.
+//!
+
 use std::{io, result};
 
 use thiserror::Error;
@@ -30,5 +33,11 @@ impl From<Error> for io::Error {
 impl From<io::Error> for Error {
   fn from(error: io::Error) -> Self {
     Error::IoError(error.to_string())
+  }
+}
+
+impl From<serde_json::Error> for Error {
+  fn from(err: serde_json::Error) -> Self {
+    Error::ParseError(err.to_string())
   }
 }

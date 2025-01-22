@@ -17,11 +17,7 @@ Common test functions and utilities used by [htsget-rs].
 This crate contains shared code used for testing by other htsget-rs crates. It has common server tests, as well as other
 utility functions.
 
-[noodles]: https://github.com/zaeleus/noodles
-
 ## Usage
-
-### For running htsget-rs as an application
 
 There is no need to interact with this crate for running htsget-rs.
 
@@ -37,9 +33,8 @@ This library is intended to be used as a [development dependency][dev-dependenci
 
 This crate has the following features:
 * `http`: used to enable common functionality for HTTP tests.
-* `aws-mocks`: used to enable AWS mocking for tests.
-* `s3-storage`: used to enable `S3Storage` functionality.
-* `url-storage`: used to enable `UrlStorage` functionality.
+* `aws`: used to enable AWS mocking for tests, `S3` location functionality and any other AWS features.
+* `url`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
 [dev-dependencies]: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#development-dependencies
