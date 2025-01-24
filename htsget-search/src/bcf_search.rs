@@ -125,8 +125,8 @@ mod tests {
   };
 
   const DATA_LOCATION: &str = "data/bcf";
-  const INDEX_FILE_LOCATION: &str = "vcf-spec-v4.3.bcf.csi";
-  const BCF_FILE_NAME_SPEC: &str = "vcf-spec-v4.3.bcf";
+  const INDEX_FILE_LOCATION: &str = "spec-v4.3.bcf.csi";
+  const BCF_FILE_NAME_SPEC: &str = "spec-v4.3.bcf";
   const BCF_FILE_NAME_SAMPLE: &str = "sample1-bcbio-cancer.bcf";
 
   #[tokio::test]
@@ -153,7 +153,7 @@ mod tests {
   async fn search_reference_name_without_seq_range() {
     with_local_storage(|storage| async move {
       let mut search = BcfSearch::new(storage);
-      let filename = "vcf-spec-v4.3";
+      let filename = "spec-v4.3";
       let query = Query::new_with_default_request(filename, Format::Bcf).with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -217,7 +217,7 @@ mod tests {
   async fn search_header() {
     with_local_storage(|storage| async move {
       let mut search = BcfSearch::new(storage);
-      let filename = "vcf-spec-v4.3";
+      let filename = "spec-v4.3";
       let query = Query::new_with_default_request(filename, Format::Bcf).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -243,7 +243,7 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let mut search = BcfSearch::new(storage);
-        let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -261,7 +261,7 @@ mod tests {
       |storage| async move {
         let mut search = BcfSearch::new(storage);
         let query =
-          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
+          Query::new_with_default_request("spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -278,8 +278,7 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let mut search = BcfSearch::new(storage);
-        let query =
-          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -296,7 +295,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let mut search = BcfSearch::new(storage);
       let query =
-        Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chr1");
+        Query::new_with_default_request("spec-v4.3", Format::Bcf).with_reference_name("chr1");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -312,8 +311,7 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let search = BcfSearch::new(storage);
-        let query =
-          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Bcf).with_class(Header);
 
         let index = search.read_index(&query).await.unwrap();
         let response = search.get_header_end_offset(&index).await;
@@ -334,7 +332,7 @@ mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let mut search = BcfSearch::new(storage);
-        let query = Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Bcf);
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -353,7 +351,7 @@ mod tests {
       |storage| async move {
         let mut search = BcfSearch::new(storage);
         let query =
-          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_reference_name("chrM");
+          Query::new_with_default_request("spec-v4.3", Format::Bcf).with_reference_name("chrM");
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -371,8 +369,7 @@ mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let mut search = BcfSearch::new(storage);
-        let query =
-          Query::new_with_default_request("vcf-spec-v4.3", Format::Bcf).with_class(Header);
+        let query = Query::new_with_default_request("spec-v4.3", Format::Bcf).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
 
