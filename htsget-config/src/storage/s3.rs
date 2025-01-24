@@ -24,7 +24,8 @@ impl S3 {
       bucket,
       endpoint,
       path_style,
-      ..Default::default()
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 

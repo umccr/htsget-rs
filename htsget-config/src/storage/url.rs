@@ -40,7 +40,8 @@ impl Url {
       forward_headers,
       header_blacklist,
       client,
-      ..Default::default()
+      #[cfg(feature = "experimental")]
+      keys: None,
     }
   }
 
