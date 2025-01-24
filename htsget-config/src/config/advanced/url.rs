@@ -14,7 +14,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 /// Options for the remote URL server config.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Url {
   #[serde(with = "http_serde::uri")]
@@ -47,8 +47,7 @@ impl Url {
       forward_headers,
       header_blacklist,
       tls,
-      #[cfg(feature = "experimental")]
-      keys: None,
+      ..Default::default()
     }
   }
 

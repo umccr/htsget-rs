@@ -33,8 +33,7 @@ impl File {
       scheme,
       authority,
       local_path,
-      #[cfg(feature = "experimental")]
-      keys: None,
+      ..Default::default()
     }
   }
 
