@@ -2412,6 +2412,7 @@ dependencies = [
 name = "htsget-http"
 version = "0.5.1"
 dependencies = [
+ "cfg-if",
  "futures",
  "htsget-config",
  "htsget-search",

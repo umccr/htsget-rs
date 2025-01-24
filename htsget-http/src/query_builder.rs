@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
-use tracing::instrument;
-
+#[cfg(feature = "experimental")]
+use htsget_config::encryption_scheme::EncryptionScheme;
 use htsget_config::types::{Class, Fields, Format, Query, Request, Tags};
+use tracing::instrument;
 
 use crate::error::{HtsGetError, Result};
 
@@ -159,6 +160,26 @@ impl QueryBuilder {
 
     if !notags.is_empty() {
       self.query = self.query.with_no_tags(notags);
+    }
+
+    Ok(self)
+  }
+
+  /// Set the encryption scheme.
+  #[cfg(feature = "experimental")]
+  pub fn with_encryption_scheme(
+    mut self,
+    encryption_scheme: Option<impl Into<String>>,
+  ) -> Result<Self> {
+    if let Some(scheme) = encryption_scheme {
+      let scheme = match scheme.into().as_str() {
+        "c4gh" => Ok(EncryptionScheme::C4GH),
+        scheme => Err(HtsGetError::UnsupportedFormat(format!(
+          "invalid encryption scheme `{scheme}`"
+        ))),
+      }?;
+
+      self.query = self.query.with_encryption_scheme(scheme);
     }
 
     Ok(self)
