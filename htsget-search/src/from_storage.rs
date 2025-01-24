@@ -51,21 +51,21 @@ impl HtsGet for HtsGetFromStorage {
 #[async_trait]
 impl ResolveResponse for HtsGetFromStorage {
   async fn from_file(file_storage: &storage::file::File, query: &Query) -> Result<Response> {
-    let storage = Storage::from_file(file_storage).await?;
+    let storage = Storage::from_file(file_storage, query).await?;
     let searcher = HtsGetFromStorage::new(storage);
     searcher.search(query.clone()).await
   }
 
   #[cfg(feature = "aws")]
   async fn from_s3(s3_storage: &storage::s3::S3, query: &Query) -> Result<Response> {
-    let storage = Storage::from_s3(s3_storage).await;
+    let storage = Storage::from_s3(s3_storage, query).await;
     let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
   }
 
   #[cfg(feature = "url")]
   async fn from_url(url_storage_config: &storage::url::Url, query: &Query) -> Result<Response> {
-    let storage = Storage::from_url(url_storage_config).await;
+    let storage = Storage::from_url(url_storage_config, query).await;
     let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
   }

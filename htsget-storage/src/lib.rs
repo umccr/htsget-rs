@@ -21,6 +21,8 @@ use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
 use cfg_if::cfg_if;
+#[cfg(feature = "experimental")]
+use htsget_config::encryption_scheme::EncryptionScheme;
 use htsget_config::storage;
 #[cfg(feature = "experimental")]
 use htsget_config::storage::c4gh::C4GHKeys;
@@ -134,28 +136,34 @@ impl StorageTrait for Storage {
 impl Storage {
   #[cfg(feature = "experimental")]
   /// Wrap an existing storage with C4GH storage
-  pub async fn from_c4gh_keys(keys: Option<&C4GHKeys>, storage: Storage) -> Result<Storage> {
-    if let Some(keys) = keys {
-      Ok(Storage::new(C4GHStorage::new_box(
+  pub async fn from_c4gh_keys(
+    keys: Option<&C4GHKeys>,
+    encryption_scheme: Option<EncryptionScheme>,
+    storage: Storage,
+  ) -> Result<Storage> {
+    match (keys, encryption_scheme) {
+      (Some(keys), Some(EncryptionScheme::C4GH)) => Ok(Storage::new(C4GHStorage::new_box(
         keys
           .clone()
           .keys()
           .await
           .map_err(|err| StorageError::InternalError(err.to_string()))?,
         storage.into_inner(),
-      )))
-    } else {
-      Ok(storage)
+      ))),
+      (None, Some(EncryptionScheme::C4GH)) => Err(StorageError::UnsupportedFormat(
+        "C4GH keys have not been configured for this id".to_string(),
+      )),
+      _ => Ok(storage),
     }
   }
 
   /// Create from local storage config.
-  pub async fn from_file(file: &storage::file::File) -> Result<Storage> {
+  pub async fn from_file(file: &storage::file::File, _query: &Query) -> Result<Storage> {
     let storage = Storage::new(FileStorage::new(file.local_path(), file.clone())?);
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(file.keys(), storage).await
+        Self::from_c4gh_keys(file.keys(), _query.encryption_scheme(), storage).await
       } else {
         Ok(storage)
       }
@@ -164,7 +172,7 @@ impl Storage {
 
   /// Create from s3 config.
   #[cfg(feature = "aws")]
-  pub async fn from_s3(s3: &storage::s3::S3) -> Result<Storage> {
+  pub async fn from_s3(s3: &storage::s3::S3, _query: &Query) -> Result<Storage> {
     let storage = Storage::new(
       S3Storage::new_with_default_config(
         s3.bucket().to_string(),
@@ -176,7 +184,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(s3.keys(), storage).await
+        Self::from_c4gh_keys(s3.keys(), _query.encryption_scheme(), storage).await
       } else {
         Ok(storage)
       }
@@ -185,7 +193,7 @@ impl Storage {
 
   /// Create from url config.
   #[cfg(feature = "url")]
-  pub async fn from_url(url: &storage::url::Url) -> Result<Storage> {
+  pub async fn from_url(url: &storage::url::Url, _query: &Query) -> Result<Storage> {
     let storage = Storage::new(UrlStorage::new(
       url.client_cloned(),
       url.url().clone(),
@@ -196,7 +204,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(url.keys(), storage).await
+        Self::from_c4gh_keys(url.keys(), _query.encryption_scheme(), storage).await
       } else {
         Ok(storage)
       }
@@ -300,18 +308,16 @@ mod tests {
   use http::uri::Authority;
 
   use crate::local::FileStorage;
-  use htsget_test::util::default_dir;
+  use htsget_test::util::default_dir_data;
 
   use super::*;
 
   #[test]
   fn data_url() {
-    let result = FileStorage::<storage::file::File>::new(
-      default_dir().join("data"),
-      storage::file::File::default(),
-    )
-    .unwrap()
-    .data_url(b"Hello World!".to_vec(), Some(Class::Header));
+    let result =
+      FileStorage::<storage::file::File>::new(default_dir_data(), storage::file::File::default())
+        .unwrap()
+        .data_url(b"Hello World!".to_vec(), Some(Class::Header));
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
@@ -335,6 +341,28 @@ mod tests {
       "data".to_string(),
     );
     test_formatter_authority(formatter, "https");
+  }
+
+  #[cfg(feature = "experimental")]
+  #[tokio::test]
+  async fn from_c4gh_keys() {
+    let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let storage =
+      Storage::new(FileStorage::new(default_dir_data(), storage::file::File::default()).unwrap());
+
+    let result = Storage::from_c4gh_keys(
+      Some(&C4GHKeys::from_join_handle(keys)),
+      Some(EncryptionScheme::C4GH),
+      storage.clone(),
+    )
+    .await;
+    assert!(result.is_ok());
+
+    let result = Storage::from_c4gh_keys(None, None, storage.clone()).await;
+    assert!(result.is_ok());
+
+    let result = Storage::from_c4gh_keys(None, Some(EncryptionScheme::C4GH), storage).await;
+    assert!(matches!(result, Err(StorageError::UnsupportedFormat(_))));
   }
 
   fn test_formatter_authority(formatter: storage::file::File, scheme: &str) {

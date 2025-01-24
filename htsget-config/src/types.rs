@@ -6,6 +6,10 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io::ErrorKind::Other;
 use std::{fmt, io, result};
 
+#[cfg(feature = "experimental")]
+use crate::encryption_scheme::EncryptionScheme;
+use crate::error::Error;
+use crate::error::Error::ParseError;
 use http::HeaderMap;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
@@ -13,16 +17,14 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::instrument;
 
-use crate::error::Error;
-use crate::error::Error::ParseError;
-
 /// The result type returning a `HtsGetError`.
 pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all(serialize = "UPPERCASE"), deny_unknown_fields)]
 pub enum Format {
+  #[default]
   #[serde(alias = "bam", alias = "BAM")]
   Bam,
   #[serde(alias = "cram", alias = "CRAM")]
@@ -111,11 +113,12 @@ impl Display for Format {
 }
 
 /// Class component of htsget response.
-#[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all(serialize = "lowercase"), deny_unknown_fields)]
 pub enum Class {
   #[serde(alias = "header", alias = "HEADER")]
   Header,
+  #[default]
   #[serde(alias = "body", alias = "BODY")]
   Body,
 }
@@ -242,6 +245,12 @@ pub enum Fields {
   List(HashSet<String>),
 }
 
+impl Default for Fields {
+  fn default() -> Self {
+    Self::Tagged(TaggedTypeAll::All)
+  }
+}
+
 /// Possible values for the tags parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(untagged, deny_unknown_fields)]
@@ -252,13 +261,19 @@ pub enum Tags {
   List(HashSet<String>),
 }
 
+impl Default for Tags {
+  fn default() -> Self {
+    Self::Tagged(TaggedTypeAll::All)
+  }
+}
+
 /// The no tags parameter.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct NoTags(pub Option<HashSet<String>>);
 
 /// A struct containing the information from the HTTP request.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Request {
   path: String,
   query: HashMap<String, String>,
@@ -298,7 +313,7 @@ impl Request {
 
 /// A query contains all the parameters that can be used when requesting
 /// a search for either of `reads` or `variants`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Query {
   id: String,
   format: Format,
@@ -312,6 +327,8 @@ pub struct Query {
   no_tags: NoTags,
   /// The raw HTTP request information.
   request: Request,
+  #[cfg(feature = "experimental")]
+  encryption_scheme: Option<EncryptionScheme>,
 }
 
 impl Query {
@@ -320,13 +337,8 @@ impl Query {
     Self {
       id: id.into(),
       format,
-      class: Class::Body,
-      reference_name: None,
-      interval: Interval::default(),
-      fields: Fields::Tagged(TaggedTypeAll::All),
-      tags: Tags::Tagged(TaggedTypeAll::All),
-      no_tags: NoTags(None),
       request,
+      ..Default::default()
     }
   }
 
@@ -440,6 +452,19 @@ impl Query {
   /// Request.
   pub fn request(&self) -> &Request {
     &self.request
+  }
+
+  /// Set the encryption scheme.
+  #[cfg(feature = "experimental")]
+  pub fn with_encryption_scheme(mut self, encryption_scheme: EncryptionScheme) -> Self {
+    self.encryption_scheme = Some(encryption_scheme);
+    self
+  }
+
+  /// Get the encryption scheme
+  #[cfg(feature = "experimental")]
+  pub fn encryption_scheme(&self) -> Option<EncryptionScheme> {
+    self.encryption_scheme
   }
 }
 

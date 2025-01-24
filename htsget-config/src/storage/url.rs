@@ -9,7 +9,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 /// Remote URL server storage struct.
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(try_from = "advanced::url::Url", deny_unknown_fields)]
 pub struct Url {
   #[serde(with = "http_serde::uri")]

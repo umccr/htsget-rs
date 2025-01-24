@@ -1,6 +1,4 @@
-use std::result;
-use std::str::FromStr;
-
+use cfg_if::cfg_if;
 pub use error::{HtsGetError, Result};
 pub use htsget_config::config::Config;
 use htsget_config::types::Format::{Bam, Bcf, Cram, Vcf};
@@ -10,6 +8,8 @@ pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
 pub use service_info::{Htsget, ServiceInfo, Type};
+use std::result;
+use std::str::FromStr;
 
 mod error;
 mod http_core;
@@ -57,15 +57,20 @@ pub fn match_format(endpoint: &Endpoint, format: Option<impl Into<String>>) -> R
 fn convert_to_query(request: Request, format: Format) -> Result<Query> {
   let query = request.query().clone();
 
-  Ok(
-    QueryBuilder::new(request, format)
-      .with_class(query.get("class"))?
-      .with_reference_name(query.get("referenceName"))
-      .with_range(query.get("start"), query.get("end"))?
-      .with_fields(query.get("fields"))
-      .with_tags(query.get("tags"), query.get("notags"))?
-      .build(),
-  )
+  let builder = QueryBuilder::new(request, format)
+    .with_class(query.get("class"))?
+    .with_reference_name(query.get("referenceName"))
+    .with_range(query.get("start"), query.get("end"))?
+    .with_fields(query.get("fields"))
+    .with_tags(query.get("tags"), query.get("notags"))?;
+
+  cfg_if! {
+    if #[cfg(feature = "experimental")] {
+      Ok(builder.with_encryption_scheme(query.get("encryptionScheme"))?.build())
+    } else {
+      Ok(builder.build())
+    }
+  }
 }
 
 fn merge_responses(responses: Vec<Response>) -> Option<Response> {

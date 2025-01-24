@@ -13,10 +13,10 @@ pub type Result<T> = core::result::Result<T, StorageError>;
 /// Storage error type.
 #[derive(Error, Debug)]
 pub enum StorageError {
-  #[error("wrong key derived from ID: `{0}`")]
+  #[error("wrong key derived from ID: {0}")]
   InvalidKey(String),
 
-  #[error("key not found in storage: `{0}`")]
+  #[error("key not found in storage: {0}")]
   KeyNotFound(String),
 
   #[error("{0}: {1}")]
@@ -34,6 +34,9 @@ pub enum StorageError {
   #[error("invalid address: {0}")]
   InvalidAddress(AddrParseError),
 
+  #[error("unsupported format: {0}")]
+  UnsupportedFormat(String),
+
   #[error("internal error: {0}")]
   InternalError(String),
 
@@ -41,7 +44,7 @@ pub enum StorageError {
   ResponseError(String),
 
   #[cfg(feature = "aws")]
-  #[error("aws error: {0}, with key: `{1}`")]
+  #[error("aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
 
   #[error("parsing url: {0}")]
@@ -56,6 +59,7 @@ impl From<StorageError> for HtsGetError {
       | StorageError::InvalidKey(_)
       | StorageError::ResponseError(_)) => Self::NotFound(err.to_string()),
       err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
+      err @ StorageError::UnsupportedFormat(_) => Self::UnsupportedFormat(err.to_string()),
       err @ (StorageError::ServerError(_)
       | StorageError::InvalidUri(_)
       | StorageError::InvalidAddress(_)
