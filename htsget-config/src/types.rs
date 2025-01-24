@@ -409,13 +409,6 @@ impl Query {
     self
   }
 
-  /// Set the encryption scheme.
-  #[cfg(feature = "experimental")]
-  pub fn with_encryption_scheme(mut self, encryption_scheme: EncryptionScheme) -> Self {
-    self.encryption_scheme = Some(encryption_scheme);
-    self
-  }
-
   /// Id.
   pub fn id(&self) -> &str {
     &self.id
@@ -459,6 +452,19 @@ impl Query {
   /// Request.
   pub fn request(&self) -> &Request {
     &self.request
+  }
+
+  /// Set the encryption scheme.
+  #[cfg(feature = "experimental")]
+  pub fn with_encryption_scheme(mut self, encryption_scheme: EncryptionScheme) -> Self {
+    self.encryption_scheme = Some(encryption_scheme);
+    self
+  }
+
+  /// Get the encryption scheme
+  #[cfg(feature = "experimental")]
+  pub fn encryption_scheme(&self) -> Option<EncryptionScheme> {
+    self.encryption_scheme
   }
 }
 

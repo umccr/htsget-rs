@@ -33,7 +33,7 @@ pub enum StorageError {
 
   #[error("invalid address: `{0}`")]
   InvalidAddress(AddrParseError),
-  
+
   #[error("`{0}`")]
   UnsupportedFormat(String),
 
