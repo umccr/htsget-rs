@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.9.1...htsget-search-v0.10.0) - 2025-01-24
+
+### Added
+
+- [**breaking**] implement encryption scheme logic in storage
+- *(config)* add cargo package filled service info fields
+- *(config)* implement path-based locations
+
+### Other
+
+- *(data)* rename vcf-spec-v4.3.bcf to spec.v4.3.bcf to match the VCF version
+- rename s3-storage to aws and url-storage to url
+- add location concept and move advanced config to its own module
+- grammar and typos
+- re-word and simplify, add quick starts where applicable
+
 ## [0.9.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.9.0...htsget-search-v0.9.1) - 2024-10-16
 
 ### Added

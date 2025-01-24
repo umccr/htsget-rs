@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.2.1...htsget-storage-v0.3.0) - 2025-01-24
+
+### Added
+
+- [**breaking**] implement encryption scheme logic in storage
+- *(storage)* add unsupported format to storage error and tidy message
+- *(config)* add cargo package filled service info fields
+
+### Other
+
+- *(storage)* reword error message
+- add test for encryption scheme flag
+- rename s3-storage to aws and url-storage to url
+- add location concept and move advanced config to its own module
+- re-word and simplify, add quick starts where applicable
+
 ## [0.2.1](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.2.0...htsget-storage-v0.2.1) - 2024-10-16
 
 ### Added
