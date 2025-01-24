@@ -13,41 +13,41 @@ pub type Result<T> = core::result::Result<T, StorageError>;
 /// Storage error type.
 #[derive(Error, Debug)]
 pub enum StorageError {
-  #[error("wrong key derived from ID: `{0}`")]
+  #[error("wrong key derived from ID: {0}")]
   InvalidKey(String),
 
-  #[error("key not found in storage: `{0}`")]
+  #[error("key not found in storage: {0}")]
   KeyNotFound(String),
 
-  #[error("`{0}`: `{1}`")]
+  #[error("{0}: {1}")]
   IoError(String, io::Error),
 
-  #[error("server error: `{0}`")]
+  #[error("server error: {0}")]
   ServerError(String),
 
-  #[error("`{0}`")]
+  #[error("invalid input: {0}")]
   InvalidInput(String),
 
-  #[error("invalid uri: `{0}`")]
+  #[error("invalid uri: {0}")]
   InvalidUri(String),
 
-  #[error("invalid address: `{0}`")]
+  #[error("invalid address: {0}")]
   InvalidAddress(AddrParseError),
 
-  #[error("`{0}`")]
+  #[error("unsupported format: {0}")]
   UnsupportedFormat(String),
 
-  #[error("internal error: `{0}`")]
+  #[error("internal error: {0}")]
   InternalError(String),
 
-  #[error("response error: `{0}`")]
+  #[error("response error: {0}")]
   ResponseError(String),
 
   #[cfg(feature = "aws")]
-  #[error("aws error: `{0}`, with key: `{1}`")]
+  #[error("aws error: {0}, with key: {1}")]
   AwsS3Error(String, String),
 
-  #[error("parsing url: `{0}`")]
+  #[error("parsing url: {0}")]
   UrlParseError(String),
 }
 
