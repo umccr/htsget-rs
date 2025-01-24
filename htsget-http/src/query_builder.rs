@@ -172,7 +172,7 @@ impl QueryBuilder {
     encryption_scheme: Option<impl Into<String>>,
   ) -> Result<Self> {
     if let Some(scheme) = encryption_scheme {
-      let scheme = match scheme.into().as_str() {
+      let scheme = match scheme.into().to_lowercase().as_str() {
         "c4gh" => Ok(EncryptionScheme::C4GH),
         scheme => Err(HtsGetError::UnsupportedFormat(format!(
           "invalid encryption scheme `{scheme}`"
