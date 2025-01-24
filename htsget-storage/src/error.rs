@@ -19,32 +19,35 @@ pub enum StorageError {
   #[error("key not found in storage: `{0}`")]
   KeyNotFound(String),
 
-  #[error("{0}: {1}")]
+  #[error("`{0}`: `{1}`")]
   IoError(String, io::Error),
 
-  #[error("server error: {0}")]
+  #[error("server error: `{0}`")]
   ServerError(String),
 
-  #[error("invalid input: {0}")]
+  #[error("`{0}`")]
   InvalidInput(String),
 
-  #[error("invalid uri: {0}")]
+  #[error("invalid uri: `{0}`")]
   InvalidUri(String),
 
-  #[error("invalid address: {0}")]
+  #[error("invalid address: `{0}`")]
   InvalidAddress(AddrParseError),
+  
+  #[error("`{0}`")]
+  UnsupportedFormat(String),
 
-  #[error("internal error: {0}")]
+  #[error("internal error: `{0}`")]
   InternalError(String),
 
-  #[error("response error: {0}")]
+  #[error("response error: `{0}`")]
   ResponseError(String),
 
   #[cfg(feature = "aws")]
-  #[error("aws error: {0}, with key: `{1}`")]
+  #[error("aws error: `{0}`, with key: `{1}`")]
   AwsS3Error(String, String),
 
-  #[error("parsing url: {0}")]
+  #[error("parsing url: `{0}`")]
   UrlParseError(String),
 }
 
@@ -56,6 +59,7 @@ impl From<StorageError> for HtsGetError {
       | StorageError::InvalidKey(_)
       | StorageError::ResponseError(_)) => Self::NotFound(err.to_string()),
       err @ StorageError::IoError(_, _) => Self::IoError(err.to_string()),
+      err @ StorageError::UnsupportedFormat(_) => Self::UnsupportedFormat(err.to_string()),
       err @ (StorageError::ServerError(_)
       | StorageError::InvalidUri(_)
       | StorageError::InvalidAddress(_)
