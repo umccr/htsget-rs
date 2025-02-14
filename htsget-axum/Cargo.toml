@@ -54,11 +54,12 @@ thiserror = "1"
 tracing = "0.1"
 
 htsget-config = { version = "0.13.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
 htsget-search = { version = "0.10.0", path = "../htsget-search", default-features = false }
 htsget-http = { version = "0.5.2", path = "../htsget-http", default-features = false }
 
 [dev-dependencies]
+htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
+
 tempfile = "3"
 data-url = "0.3"
 

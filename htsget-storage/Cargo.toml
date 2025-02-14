@@ -59,7 +59,6 @@ tracing = "0.1"
 base64 = "0.22"
 
 htsget-config = { version = "0.13.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
 
 [dev-dependencies]
 tower-http = { version = "0.6", features = ["fs"] }
@@ -69,5 +68,6 @@ data-url = "0.3"
 
 # Axum server
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
 
 criterion = { version = "0.5", features = ["async_tokio"] }
