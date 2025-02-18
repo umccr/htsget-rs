@@ -11,6 +11,7 @@ use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::config::ticket_server::TicketServerConfig;
 use htsget_config::config::Config;
 use htsget_search::HtsGet;
+use http::{StatusCode, Uri};
 use std::net::SocketAddr;
 use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
@@ -69,12 +70,13 @@ where
         "/reads/service-info",
         get(reads_service_info::<H>).post(reads_service_info::<H>),
       )
-      .route("/reads/*id", get(get::reads).post(post::reads))
+      .route("/reads/{*id}", get(get::reads).post(post::reads))
       .route(
         "/variants/service-info",
         get(variants_service_info::<H>).post(variants_service_info::<H>),
       )
-      .route("/variants/*id", get(get::variants).post(post::variants))
+      .route("/variants/{*id}", get(get::variants).post(post::variants))
+      .fallback(Self::fallback)
       .layer(
         ServiceBuilder::new()
           .layer(TraceLayer::new_for_http())
@@ -86,6 +88,11 @@ where
   /// Get the local address the server has bound to.
   pub fn local_addr(&self) -> Result<SocketAddr> {
     self.server.local_addr()
+  }
+
+  /// A handler for when a route is not found.
+  async fn fallback(uri: Uri) -> (StatusCode, String) {
+    (StatusCode::NOT_FOUND, format!("No route for {uri}"))
   }
 }
 
