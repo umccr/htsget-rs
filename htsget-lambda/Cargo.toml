@@ -1,6 +1,6 @@
 [package]
 name = "htsget-lambda"
-version = "0.6.0"
+version = "0.6.1"
 rust-version = "1.83"
 authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
@@ -27,5 +27,5 @@ lambda_http = { version = "0.14" }
 tracing = "0.1"
 
 htsget-config = { version = "0.14.0", path = "../htsget-config", default-features = false }
-htsget-http = { version = "0.5.2", path = "../htsget-http", default-features = false }
-htsget-axum = { version = "0.3.0", path = "../htsget-axum", default-features = false }
+htsget-http = { version = "0.5.3", path = "../htsget-http", default-features = false }
+htsget-axum = { version = "0.3.1", path = "../htsget-axum", default-features = false }
