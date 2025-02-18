@@ -11,12 +11,11 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-lambda/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-aws = ["htsget-axum/aws", "htsget-config/aws", "htsget-search/aws", "htsget-http/aws"]
-url = ["htsget-axum/url", "htsget-config/url", "htsget-search/url", "htsget-http/url"]
+aws = ["htsget-axum/aws", "htsget-config/aws", "htsget-http/aws"]
+url = ["htsget-axum/url", "htsget-config/url", "htsget-http/url"]
 experimental = [
     "htsget-axum/experimental",
     "htsget-config/experimental",
-    "htsget-search/experimental",
     "htsget-http/experimental"
 ]
 default = []
@@ -28,6 +27,5 @@ lambda_http = { version = "0.14" }
 tracing = "0.1"
 
 htsget-config = { version = "0.13.0", path = "../htsget-config", default-features = false }
-htsget-search = { version = "0.10.0", path = "../htsget-search", default-features = false }
 htsget-http = { version = "0.5.2", path = "../htsget-http", default-features = false }
 htsget-axum = { version = "0.3.0", path = "../htsget-axum", default-features = false }
