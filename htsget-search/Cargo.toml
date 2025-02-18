@@ -1,6 +1,6 @@
 [package]
 name = "htsget-search"
-version = "0.10.0"
+version = "0.10.1"
 rust-version = "1.83"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
@@ -44,7 +44,7 @@ http = "1"
 tracing = "0.1"
 
 htsget-config = { version = "0.14.0", path = "../htsget-config", default-features = false }
-htsget-storage = { version = "0.3.0", path = "../htsget-storage", default-features = false }
+htsget-storage = { version = "0.3.1", path = "../htsget-storage", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"
