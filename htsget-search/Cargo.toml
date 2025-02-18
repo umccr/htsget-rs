@@ -37,21 +37,20 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.83", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.87", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Error control, tracing, config
-thiserror = "1"
+http = "1"
 tracing = "0.1"
 
 htsget-config = { version = "0.13.0", path = "../htsget-config", default-features = false }
 htsget-storage = { version = "0.3.0", path = "../htsget-storage", default-features = false }
-htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
 
 [dev-dependencies]
 tempfile = "3"
-http = "1"
 
 criterion = { version = "0.5", features = ["async_tokio"] }
+htsget-test = { path = "../htsget-test", features = ["http"], default-features = false }
 
 [[bench]]
 name = "search-benchmarks"

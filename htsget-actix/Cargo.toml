@@ -28,11 +28,8 @@ rustls = "0.23"
 actix-cors = "0.7"
 http_1 = { package = "http", version = "1" }
 http = "0.2"
-rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-futures-util = { version = "0.3" }
-futures = { version = "0.3" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 tracing-actix-web = "0.7"
@@ -41,10 +38,11 @@ tracing = "0.1"
 htsget-http = { version = "0.5.2", path = "../htsget-http", default-features = false }
 htsget-search = { version = "0.10.0", path = "../htsget-search", default-features = false }
 htsget-config = { version = "0.13.0", path = "../htsget-config", default-features = false }
-htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
 htsget-axum = { version = "0.3.0", path = "../htsget-axum", default-features = false }
 
 [dev-dependencies]
+htsget-test = { path = "../htsget-test", features = ["http"], default-features = false }
+
 async-trait = "0.1"
 
 criterion = { version = "0.5", features = ["async_tokio"] }

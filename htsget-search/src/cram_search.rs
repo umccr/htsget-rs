@@ -21,7 +21,7 @@ use htsget_config::types::Interval;
 
 use crate::search::{Search, SearchAll, SearchReads};
 use crate::Class::Body;
-use crate::{ConcurrencyError, ParsedHeader};
+use crate::ConcurrencyError;
 use crate::{Format, HtsGetError, Query, Result};
 use htsget_storage::types::{BytesPosition, DataBlock};
 use htsget_storage::{Storage, Streamable};
@@ -137,15 +137,7 @@ impl Search<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   }
 
   async fn read_header(reader: &mut AsyncReader) -> io::Result<Header> {
-    reader.read_file_definition().await?;
-
-    Ok(
-      reader
-        .read_file_header()
-        .await?
-        .parse::<ParsedHeader<Header>>()?
-        .into_inner(),
-    )
+    reader.read_header().await
   }
 
   async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {

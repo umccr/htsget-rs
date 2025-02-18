@@ -34,7 +34,7 @@ impl DataServer {
   /// Create the router for the data server.
   pub fn router<P: AsRef<Path>>(cors: CorsConfig, path: P) -> Router {
     Router::new()
-      .nest_service("/", ServeDir::new(path))
+      .fallback_service(ServeDir::new(path))
       .layer(configure_cors(cors))
       .layer(TraceLayer::new_for_http())
   }
