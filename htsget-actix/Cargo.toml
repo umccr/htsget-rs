@@ -41,7 +41,7 @@ htsget-config = { version = "0.13.0", path = "../htsget-config", default-feature
 htsget-axum = { version = "0.3.0", path = "../htsget-axum", default-features = false }
 
 [dev-dependencies]
-htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
+htsget-test = { path = "../htsget-test", features = ["http"], default-features = false }
 
 async-trait = "0.1"
 

@@ -50,7 +50,7 @@ htsget-storage = { version = "0.3.0", path = "../htsget-storage", default-featur
 tempfile = "3"
 
 criterion = { version = "0.5", features = ["async_tokio"] }
-htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
+htsget-test = { path = "../htsget-test", features = ["http"], default-features = false }
 
 [[bench]]
 name = "search-benchmarks"

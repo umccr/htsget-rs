@@ -29,4 +29,4 @@ tracing = "0.1"
 cfg-if = "1"
 
 [dev-dependencies]
-htsget-test = { version = "0.7.2", path = "../htsget-test", default-features = false }
+htsget-test = { path = "../htsget-test", default-features = false }

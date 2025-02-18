@@ -57,7 +57,7 @@ htsget-search = { version = "0.10.0", path = "../htsget-search", default-feature
 htsget-http = { version = "0.5.2", path = "../htsget-http", default-features = false }
 
 [dev-dependencies]
-htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
+htsget-test = { path = "../htsget-test", features = ["http"], default-features = false }
 
 tempfile = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
