@@ -39,18 +39,17 @@ rustls = "0.23"
 hyper-util = "0.1"
 tower-http = { version = "0.6", features = ["trace", "cors", "fs"] }
 http = "1"
-axum = { version = "0.7", features = ["http2"] }
-axum-extra = { version = "0.9", features = ["erased-json"] }
+axum = { version = "0.8", features = ["http2"] }
+axum-extra = { version = "0.10", features = ["erased-json"] }
 tower = { version = "0.5", features = ["make", "util"] }
 
 # Async
 tokio-rustls = "0.26"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-futures = { version = "0.3" }
 async-trait = "0.1"
 
 # Tracing and error
-thiserror = "1"
+thiserror = "2"
 tracing = "0.1"
 
 htsget-config = { version = "0.13.0", path = "../htsget-config", default-features = false }
@@ -61,6 +60,4 @@ htsget-http = { version = "0.5.2", path = "../htsget-http", default-features = f
 htsget-test = { version = "0.7.2", path = "../htsget-test", features = ["http"], default-features = false }
 
 tempfile = "3"
-data-url = "0.3"
-
 reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }

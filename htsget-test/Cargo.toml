@@ -42,7 +42,7 @@ default = []
 # Server tests dependencies
 htsget-config = { version = "0.13.0", path = "../htsget-config", default-features = false, optional = true }
 
-noodles = { version = "0.83", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
+noodles = { version = "0.87", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "fs"], optional = true }
@@ -67,4 +67,4 @@ crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rus
 
 # Default dependencies
 rcgen = "0.13"
-thiserror = "1"
+thiserror = "2"
