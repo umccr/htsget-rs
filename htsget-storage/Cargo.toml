@@ -58,7 +58,7 @@ thiserror = "2"
 tracing = "0.1"
 base64 = "0.22"
 
-htsget-config = { version = "0.13.0", path = "../htsget-config", default-features = false }
+htsget-config = { version = "0.14.0", path = "../htsget-config", default-features = false }
 
 [dev-dependencies]
 tower-http = { version = "0.6", features = ["fs"] }
