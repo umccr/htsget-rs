@@ -1,6 +1,6 @@
 [package]
 name = "htsget-axum"
-version = "0.3.0"
+version = "0.3.1"
 rust-version = "1.83"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2021"
@@ -53,8 +53,8 @@ thiserror = "2"
 tracing = "0.1"
 
 htsget-config = { version = "0.14.0", path = "../htsget-config", default-features = false }
-htsget-search = { version = "0.10.0", path = "../htsget-search", default-features = false }
-htsget-http = { version = "0.5.2", path = "../htsget-http", default-features = false }
+htsget-search = { version = "0.10.1", path = "../htsget-search", default-features = false }
+htsget-http = { version = "0.5.3", path = "../htsget-http", default-features = false }
 
 [dev-dependencies]
 htsget-test = { path = "../htsget-test", features = ["http"], default-features = false }
