@@ -36,6 +36,7 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile
+          provenance: false
           platforms: ${{ matrix.platforms }}
           push: true
           tags: |
