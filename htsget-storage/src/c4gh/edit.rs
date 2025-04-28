@@ -101,7 +101,7 @@ impl<'a> EditHeader<'a> {
     Ok(
       encrypt(&header_packet, &HashSet::from_iter(self.keys.to_vec()))?
         .into_iter()
-        .last()
+        .next_back()
         .ok_or_else(|| {
           Crypt4GHError::UnableToEncryptPacket("could not encrypt header packet".to_string())
         })?,

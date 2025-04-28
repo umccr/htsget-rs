@@ -494,11 +494,13 @@ where
         let span = trace_span!("reading gzi");
         let gzi: Result<Vec<u64>> = async {
           trace!(id = ?query.id(), "reading gzi");
-          let mut gzi: Vec<u64> = gzi::AsyncReader::new(BufReader::new(gzi_data))
+          let gzi_index = gzi::AsyncReader::new(BufReader::new(gzi_data))
             .read_index()
-            .await?
-            .into_iter()
-            .map(|(compressed, _)| compressed)
+            .await?;
+          let mut gzi: Vec<u64> = gzi_index
+            .as_ref()
+            .iter()
+            .map(|(compressed, _)| *compressed)
             .collect();
 
           trace!(id = ?query.id(), "sorting gzi");

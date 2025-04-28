@@ -208,8 +208,6 @@ impl ReadRecords {
         let header = reader
           .read_file_header()
           .await
-          .map_err(TestError::read_record)?
-          .parse()
           .map_err(TestError::read_record)?;
         println!("{:#?}", header);
 
