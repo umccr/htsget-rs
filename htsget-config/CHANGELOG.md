@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.14.0...htsget-config-v0.14.1) - 2025-04-28
+
+### Other
+
+- *(deps)* Noodles 0.97
+
 ## [0.14.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.13.0...htsget-config-v0.14.0) - 2025-02-18
 
 ### Other
