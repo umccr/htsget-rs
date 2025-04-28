@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.3.1...htsget-storage-v0.3.2) - 2025-04-28
+
+### Other
+
+- *(deps)* Back pedal on bincode version bump 1->2 due to ::serialize conflicts with crypt4gh... that method is contested on the crypt4gh-rust crate implementation anyway, so we might not even use that serialization approach in the (near?) future anyway.
+- *(deps)* Noodles 0.97
+- *(fix)* Apply iterator optimization according to clippy: 'error: called Iterator::last on a DoubleEndedIterator; this will needlessly iterate the entire iterator'
+
 ## [0.3.1](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.3.0...htsget-storage-v0.3.1) - 2025-02-18
 
 ### Other

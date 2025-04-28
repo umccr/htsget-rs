@@ -1,6 +1,6 @@
 [package]
 name = "htsget-actix"
-version = "0.8.1"
+version = "0.8.2"
 rust-version = "1.83"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2021"
@@ -35,10 +35,10 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing-actix-web = "0.7"
 tracing = "0.1"
 
-htsget-http = { version = "0.5.3", path = "../htsget-http", default-features = false }
-htsget-search = { version = "0.10.1", path = "../htsget-search", default-features = false }
-htsget-config = { version = "0.14.0", path = "../htsget-config", default-features = false }
-htsget-axum = { version = "0.3.1", path = "../htsget-axum", default-features = false }
+htsget-http = { version = "0.5.4", path = "../htsget-http", default-features = false }
+htsget-search = { version = "0.10.2", path = "../htsget-search", default-features = false }
+htsget-config = { version = "0.14.1", path = "../htsget-config", default-features = false }
+htsget-axum = { version = "0.3.2", path = "../htsget-axum", default-features = false }
 
 [dev-dependencies]
 htsget-test = { path = "../htsget-test", features = ["http"], default-features = false }
