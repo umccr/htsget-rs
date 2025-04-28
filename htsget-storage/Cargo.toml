@@ -51,7 +51,7 @@ reqwest = { version = "0.12", features = ["rustls-tls", "stream"], default-featu
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
-bincode = { version = "2", optional = true }
+bincode = { version = "1", optional = true }
 
 # Error control, tracing, config
 thiserror = "2"
