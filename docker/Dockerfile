@@ -1,4 +1,4 @@
-FROM rust:1.84-slim AS builder
+FROM rust:1.88-slim AS builder
 
 LABEL org.opencontainers.image.source=https://github.com/umccr/htsget-rs
 LABEL org.opencontainers.image.url=https://github.com/umccr/htsget-rs/pkgs/container/htsget-rs
@@ -21,5 +21,8 @@ COPY --from=builder /build/target/release/htsget-axum /usr/local/bin/htsget-axum
 
 ENV HTSGET_TICKET_SERVER_ADDR=0.0.0.0:8080
 ENV HTSGET_DATA_SERVER_ADDR=0.0.0.0:8081
+
+EXPOSE 8080
+EXPOSE 8081
 
 CMD [ "htsget-axum" ]
