@@ -14,4 +14,4 @@ members = [
 
 [workspace.package]
 license = "MIT"
-edition = "2021"
+edition = "2024"
