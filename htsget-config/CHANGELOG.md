@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.14.1...htsget-config-v0.14.2) - 2025-07-22
+
+### Added
+
+- box large enums
+
+### Other
+
+- update pre-commit versions
+- update dependencies and format
+
 ## [0.14.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.14.0...htsget-config-v0.14.1) - 2025-04-28
 
 ### Other
