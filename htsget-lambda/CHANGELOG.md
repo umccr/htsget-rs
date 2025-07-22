@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.6.2...htsget-lambda-v0.6.3) - 2025-07-22
+
+### Other
+
+- update dependencies and format
+
 ## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.6.1...htsget-lambda-v0.6.2) - 2025-04-28
 
 ### Other
