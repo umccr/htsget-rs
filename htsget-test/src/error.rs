@@ -40,6 +40,6 @@ impl From<io::Error> for TestError {
 
 impl From<TestError> for io::Error {
   fn from(error: TestError) -> Self {
-    Error::new(io::ErrorKind::Other, error)
+    Error::other(error)
   }
 }

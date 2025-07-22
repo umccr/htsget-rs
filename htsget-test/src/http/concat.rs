@@ -192,14 +192,14 @@ impl ReadRecords {
   pub async fn read_records(self) -> Result<()> {
     match self.format {
       Format::Bam => {
-        let mut reader = bam::AsyncReader::new(self.merged_bytes.as_slice());
+        let mut reader = bam::r#async::io::Reader::new(self.merged_bytes.as_slice());
         let header = reader.read_header().await.map_err(TestError::read_record)?;
-        println!("{:#?}", header);
+        println!("{header:#?}");
 
         self.iterate_records(reader.records()).await
       }
       Format::Cram => {
-        let mut reader = cram::AsyncReader::new(self.merged_bytes.as_slice());
+        let mut reader = cram::r#async::io::Reader::new(self.merged_bytes.as_slice());
 
         reader
           .read_file_definition()
@@ -209,15 +209,15 @@ impl ReadRecords {
           .read_file_header()
           .await
           .map_err(TestError::read_record)?;
-        println!("{:#?}", header);
+        println!("{header:#?}");
 
         self.iterate_records(reader.records(&header)).await
       }
       Format::Vcf => {
         let mut reader =
-          vcf::AsyncReader::new(bgzf::AsyncReader::new(self.merged_bytes.as_slice()));
+          vcf::AsyncReader::new(bgzf::r#async::io::Reader::new(self.merged_bytes.as_slice()));
         let header = reader.read_header().await.map_err(TestError::read_record)?;
-        println!("{:#?}", header);
+        println!("{header:#?}");
 
         self.iterate_records(reader.records()).await
       }
@@ -247,7 +247,7 @@ impl ReadRecords {
         continue;
       }
 
-      println!("total records read: {}", total_records);
+      println!("total records read: {total_records}");
     }
 
     Ok(())

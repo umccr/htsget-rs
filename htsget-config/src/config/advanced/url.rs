@@ -106,7 +106,7 @@ impl TryFrom<Url> for storage::url::Url {
 
     let client = builder
       .build()
-      .map_err(|err| ParseError(format!("building url storage client: {}", err)))?;
+      .map_err(|err| ParseError(format!("building url storage client: {err}")))?;
 
     let url_storage = Self::new(
       storage.url.clone(),

@@ -182,10 +182,9 @@ pub(crate) mod tests {
   async fn search_resolvers() {
     with_config_local_storage(
       |_, local_storage| async {
-        let locations = Locations::new(vec![LocationEither::Simple(Location::new(
-          Backend::File(local_storage),
-          "".to_string(),
-        ))]);
+        let locations = Locations::new(vec![LocationEither::Simple(
+          Location::new(Backend::File(local_storage), "".to_string()).into(),
+        )]);
 
         let filename = "spec-v4.3";
         let query = Query::new_with_default_request(filename, Format::Vcf);
@@ -242,7 +241,7 @@ pub(crate) mod tests {
     let tmp_dir = TempDir::new().unwrap();
     let base_path = copy_files_from(path, tmp_dir.path(), copy_files).await;
 
-    println!("{:#?}", base_path);
+    println!("{base_path:#?}");
     let response = test(
       base_path.clone(),
       storage::file::File::new(

@@ -213,7 +213,8 @@ impl<'a> EditHeader<'a> {
       packets_count: current_len,
     };
 
-    let header_info_bytes = bincode::serialize(&header_info).map_err(|_| InvalidPacketType)?;
+    let header_info_bytes = bincode::serde::encode_to_vec(&header_info, bincode::config::legacy())
+      .map_err(|_| InvalidPacketType)?;
 
     Ok(
       (

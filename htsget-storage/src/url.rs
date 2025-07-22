@@ -59,7 +59,7 @@ impl UrlStorage {
     Ok(Self {
       client: ClientBuilder::new()
         .build()
-        .map_err(|err| InternalError(format!("failed to build reqwest client: {}", err)))?,
+        .map_err(|err| InternalError(format!("failed to build reqwest client: {err}")))?,
       url,
       response_url,
       forward_headers,
@@ -99,7 +99,7 @@ impl UrlStorage {
     let key = key.as_ref();
     let url = self.get_url_from_key(key)?;
 
-    println!("url: {:?}", url);
+    println!("url: {url:?}");
     let request = Request::builder().method(method).uri(&url);
 
     let request = headers
@@ -113,17 +113,14 @@ impl UrlStorage {
       .execute(
         request
           .try_into()
-          .map_err(|err| InternalError(format!("failed to create http request: {}", err)))?,
+          .map_err(|err| InternalError(format!("failed to create http request: {err}")))?,
       )
       .await
-      .map_err(|err| KeyNotFound(format!("{} with key {}", err, key)))?;
+      .map_err(|err| KeyNotFound(format!("{err} with key {key}")))?;
 
     let status = response.status();
     if status.is_client_error() || status.is_server_error() {
-      Err(KeyNotFound(format!(
-        "url returned {} for key {}",
-        status, key
-      )))
+      Err(KeyNotFound(format!("url returned {status} for key {key}")))
     } else {
       Ok(response)
     }
@@ -137,7 +134,7 @@ impl UrlStorage {
   ) -> Result<HtsGetUrl> {
     let url = self.get_response_url_from_key(key)?.into_parts();
     let url = Uri::from_parts(url)
-      .map_err(|err| InternalError(format!("failed to convert to uri from parts: {}", err)))?;
+      .map_err(|err| InternalError(format!("failed to convert to uri from parts: {err}")))?;
 
     let mut url = HtsGetUrl::new(url.to_string());
     if self.forward_headers {
@@ -208,7 +205,7 @@ impl StorageTrait for UrlStorage {
 
     Ok(Streamable::from_async_read(StreamReader::new(
       UrlStream::new(Box::new(response.bytes_stream().map_err(|err| {
-        ResponseError(format!("reading body from response: {}", err))
+        ResponseError(format!("reading body from response: {err}"))
       }))),
     )))
   }
@@ -235,8 +232,7 @@ impl StorageTrait for UrlStorage {
       .and_then(|content_length| content_length.parse().ok())
       .ok_or_else(|| {
         ResponseError(format!(
-          "failed to get content length from head response for key: {}",
-          key
+          "failed to get content length from head response for key: {key}"
         ))
       })?;
 
@@ -423,7 +419,7 @@ pub(crate) mod tests {
 
       assert_eq!(
         storage.range_url("assets/key1", options).await.unwrap(),
-        HtsGetUrl::new(format!("{}/assets/key1", url))
+        HtsGetUrl::new(format!("{url}/assets/key1"))
           .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
       );
     })
@@ -451,7 +447,7 @@ pub(crate) mod tests {
 
       assert_eq!(
         storage.range_url("assets/key1", options).await.unwrap(),
-        HtsGetUrl::new(format!("{}/assets/key1", url))
+        HtsGetUrl::new(format!("{url}/assets/key1"))
           .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
       );
     })
@@ -570,7 +566,7 @@ pub(crate) mod tests {
 
     tokio::spawn(async move { axum::serve(listener, router.into_make_service()).await });
 
-    let url = format!("http://{}", addr);
+    let url = format!("http://{addr}");
     test(
       UrlStorage::new(
         test_client(),

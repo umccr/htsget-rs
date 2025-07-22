@@ -233,7 +233,7 @@ mod tests {
 
   impl TestResolveResponse {
     fn format_url(prefix: &str, id: &str) -> Vec<Url> {
-      vec![Url::new(format!("{}/{}", prefix, id))]
+      vec![Url::new(format!("{prefix}/{id}"))]
     }
   }
 

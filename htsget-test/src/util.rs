@@ -12,7 +12,7 @@ pub fn generate_test_certificates<P: AsRef<Path>>(
   let cert_path = in_path.as_ref().join(cert_name);
 
   let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
-  fs::write(&key_path, cert.key_pair.serialize_pem()).unwrap();
+  fs::write(&key_path, cert.signing_key.serialize_pem()).unwrap();
   fs::write(&cert_path, cert.cert.pem()).unwrap();
 
   (key_path, cert_path)

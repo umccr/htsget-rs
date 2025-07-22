@@ -7,7 +7,6 @@ use figment::Figment;
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::io;
-use std::io::ErrorKind;
 use std::path::Path;
 use tracing::info;
 
@@ -47,7 +46,7 @@ impl Parser<'_> {
           }),
       )
       .extract()
-      .map_err(|err| io::Error::new(ErrorKind::Other, format!("failed to parse config: {err}")))?;
+      .map_err(|err| io::Error::other(format!("failed to parse config: {err}")))?;
 
     info!(config = ?config, "config created");
 

@@ -22,7 +22,7 @@ use crate::{Format, Query, Result};
 use htsget_storage::types::BytesPosition;
 use htsget_storage::{Storage, Streamable};
 
-type AsyncReader = bam::AsyncReader<bgzf::AsyncReader<Streamable>>;
+type AsyncReader = bam::r#async::io::Reader<bgzf::r#async::io::Reader<Streamable>>;
 
 /// Allows searching through bam files.
 pub struct BamSearch {
@@ -76,7 +76,7 @@ impl Search<ReferenceSequence<LinearIndex>, Index, AsyncReader, Header> for BamS
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
-    let mut reader = bai::AsyncReader::new(BufReader::new(inner));
+    let mut reader = bai::r#async::io::Reader::new(BufReader::new(inner));
     reader.read_index().await
   }
 
@@ -600,7 +600,7 @@ pub(crate) mod tests {
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
       let response = search.search(query).await.unwrap();
 
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       Some((
         "htsnexus_test_NA12878.bam.c4gh".to_string(),
@@ -622,7 +622,7 @@ pub(crate) mod tests {
         .with_end(5050000);
       let response = search.search(query).await.unwrap();
 
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       Some((
         "htsnexus_test_NA12878.bam.c4gh".to_string(),

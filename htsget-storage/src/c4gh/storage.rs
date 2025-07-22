@@ -78,7 +78,7 @@ impl C4GHStorage {
 
   /// Format a C4GH key.
   pub fn format_key(key: &str) -> String {
-    format!("{}.c4gh", key)
+    format!("{key}.c4gh")
   }
 
   /// Get a C4GH object and decrypt it if it is not an index.
@@ -476,7 +476,7 @@ mod tests {
       let headers = test_headers(&mut headers);
       test_range_url(
         &mut storage,
-        &format!("{}/assets/folder/key.c4gh", url),
+        &format!("{url}/assets/folder/key.c4gh"),
         "assets/folder/key",
         headers,
       )
@@ -491,7 +491,7 @@ mod tests {
       .await
       .unwrap();
 
-    let state = storage.state.get(&format!("{}.c4gh", key)).unwrap();
+    let state = storage.state.get(&format!("{key}.c4gh")).unwrap();
 
     assert_eq!(state.unencrypted_file_size, 6);
     assert_eq!(state.encrypted_file_size, 158);
@@ -574,7 +574,7 @@ mod tests {
         .await
         .unwrap();
 
-      println!("{:?}", range);
+      println!("{range:?}");
       assert!(range.url.starts_with(url));
       assert_eq!(
         range.headers,

@@ -3,7 +3,6 @@
 
 use htsget_config::types::HtsGetError;
 use std::io;
-use std::io::ErrorKind;
 use std::net::AddrParseError;
 use thiserror::Error;
 
@@ -75,7 +74,7 @@ impl From<StorageError> for io::Error {
   fn from(err: StorageError) -> Self {
     match err {
       StorageError::IoError(_, ref io_error) => Self::new(io_error.kind(), err),
-      err => Self::new(ErrorKind::Other, err),
+      err => Self::other(err),
     }
   }
 }
