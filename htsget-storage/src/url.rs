@@ -120,9 +120,7 @@ impl UrlStorage {
 
     let status = response.status();
     if status.is_client_error() || status.is_server_error() {
-      Err(KeyNotFound(format!(
-        "url returned {status} for key {key}"
-      )))
+      Err(KeyNotFound(format!("url returned {status} for key {key}")))
     } else {
       Ok(response)
     }
