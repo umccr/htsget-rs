@@ -257,10 +257,10 @@ impl<'de> Deserialize<'de> for StringLocation {
       let (mut uri, prefix) = split(s_stripped)?;
 
       if s.starts_with("http://") {
-        uri = format!("http://{}", uri);
+        uri = format!("http://{uri}");
       }
       if s.starts_with("https://") {
-        uri = format!("https://{}", uri);
+        uri = format!("https://{uri}");
       }
 
       let uri: Uri = uri.parse().map_err(Error::custom)?;

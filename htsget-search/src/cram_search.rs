@@ -33,7 +33,7 @@ static CRAM_EOF: &[u8] = &[
   0x01, 0x00, 0xee, 0x63, 0x01, 0x4b,
 ];
 
-type AsyncReader = cram::AsyncReader<BufReader<Streamable>>;
+type AsyncReader = cram::r#async::io::Reader<BufReader<Streamable>>;
 
 /// Allows searching through cram files.
 pub struct CramSearch {
@@ -141,7 +141,7 @@ impl Search<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   }
 
   async fn read_index_inner<T: AsyncRead + Send + Unpin>(inner: T) -> io::Result<Index> {
-    crai::AsyncReader::new(inner).read_index().await
+    crai::r#async::io::Reader::new(inner).read_index().await
   }
 
   async fn get_byte_ranges_for_reference_name(
@@ -599,7 +599,7 @@ mod tests {
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await.unwrap();
 
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       Some((
         "htsnexus_test_NA12878.cram.c4gh".to_string(),
@@ -621,7 +621,7 @@ mod tests {
         .with_end(5050000);
       let response = search.search(query).await.unwrap();
 
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       Some((
         "htsnexus_test_NA12878.cram.c4gh".to_string(),

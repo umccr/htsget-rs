@@ -3,7 +3,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
-use std::io::ErrorKind::Other;
 use std::{fmt, io, result};
 
 #[cfg(feature = "experimental")]
@@ -71,8 +70,7 @@ impl Format {
   pub fn gzi_index_file_ending(&self) -> io::Result<&str> {
     match self {
       Format::Bam => Ok(".bam.gzi"),
-      Format::Cram => Err(io::Error::new(
-        Other,
+      Format::Cram => Err(io::Error::other(
         "CRAM does not support GZI".to_string(),
       )),
       Format::Vcf => Ok(".vcf.gz.gzi"),
@@ -160,8 +158,7 @@ impl Interval {
   pub fn convert_start(start: u32) -> io::Result<Position> {
     Self::convert_position(start, |value| {
       value.checked_add(1).ok_or_else(|| {
-        io::Error::new(
-          Other,
+        io::Error::other(
           format!("could not convert {value} to 1-based position."),
         )
       })
@@ -180,12 +177,11 @@ impl Interval {
   {
     let value = convert_fn(value).map(|value| {
       usize::try_from(value)
-        .map_err(|err| io::Error::new(Other, format!("could not convert `u32` to `usize`: {err}")))
+        .map_err(|err| io::Error::other(format!("could not convert `u32` to `usize`: {err}")))
     })??;
 
     Position::try_from(value).map_err(|err| {
-      io::Error::new(
-        Other,
+      io::Error::other(
         format!("could not convert `{value}` into `Position`: {err}"),
       )
     })
@@ -532,7 +528,7 @@ impl HtsGetError {
 
 impl From<HtsGetError> for io::Error {
   fn from(error: HtsGetError) -> Self {
-    Self::new(Other, error)
+    Self::other(error)
   }
 }
 
@@ -605,7 +601,7 @@ impl TryFrom<&HeaderMap> for Headers {
         Ok(acc.with_header(
           key.to_string(),
           value.to_str().map_err(|err| {
-            ParseError(format!("failed to convert header value to string: {}", err))
+            ParseError(format!("failed to convert header value to string: {err}"))
           })?,
         ))
       })

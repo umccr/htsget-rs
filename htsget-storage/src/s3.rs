@@ -3,7 +3,6 @@
 
 use std::fmt::Debug;
 use std::io;
-use std::io::ErrorKind::Other;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -279,7 +278,7 @@ impl StorageTrait for S3Storage {
     let len = u64::try_from(content_length).map_err(|err| {
       IoError(
         "failed to convert file length to `u64`".to_string(),
-        io::Error::new(Other, err),
+        io::Error::other(err),
       )
     })?;
 

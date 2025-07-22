@@ -23,7 +23,7 @@ use crate::{Format, Query, Result};
 use htsget_storage::types::BytesPosition;
 use htsget_storage::{Storage, Streamable};
 
-type AsyncReader = vcf::AsyncReader<bgzf::AsyncReader<Streamable>>;
+type AsyncReader = vcf::AsyncReader<bgzf::r#async::io::Reader<Streamable>>;
 
 /// Allows searching through vcf files.
 pub struct VcfSearch {
@@ -44,7 +44,7 @@ impl BgzfSearch<LinearIndex, AsyncReader, Header> for VcfSearch {
 #[async_trait]
 impl Search<ReferenceSequence<LinearIndex>, Index, AsyncReader, Header> for VcfSearch {
   fn init_reader(inner: Streamable) -> AsyncReader {
-    AsyncReader::new(bgzf::AsyncReader::new(inner))
+    AsyncReader::new(bgzf::r#async::io::Reader::new(inner))
   }
 
   async fn read_header(reader: &mut AsyncReader) -> io::Result<Header> {
@@ -52,7 +52,7 @@ impl Search<ReferenceSequence<LinearIndex>, Index, AsyncReader, Header> for VcfS
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
-    tabix::AsyncReader::new(inner).read_index().await
+    tabix::r#async::io::Reader::new(inner).read_index().await
   }
 
   #[instrument(level = "trace", skip(self, index, query))]
@@ -403,7 +403,7 @@ pub(crate) mod tests {
       let query = Query::new_with_default_request("spec-v4.3", Format::Vcf);
       let response = search.search(query).await.unwrap();
 
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       Some(("spec-v4.3.vcf.gz.c4gh".to_string(), (response, Body).into()))
     })
@@ -422,7 +422,7 @@ pub(crate) mod tests {
         .with_end(153);
       let response = search.search(query).await.unwrap();
 
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       Some(("spec-v4.3.vcf.gz.c4gh".to_string(), (response, Body).into()))
     })

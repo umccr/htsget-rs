@@ -44,7 +44,7 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
           .into_iter()
           .map(|cert| {
             Certificate::from_der(&cert)
-              .map_err(|err| IoError(format!("failed to read certificate from pem: {}", err)))
+              .map_err(|err| IoError(format!("failed to read certificate from pem: {err}")))
           })
           .collect::<Result<Vec<_>>>()
       })
@@ -57,7 +57,7 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
         let certs = read_bytes(pair.cert)?;
 
         Identity::from_pem(&[certs, key].concat())
-          .map_err(|err| IoError(format!("failed to pkcs8 pem identity: {}", err)))
+          .map_err(|err| IoError(format!("failed to pkcs8 pem identity: {err}")))
       })
       .transpose()?;
 

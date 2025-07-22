@@ -57,7 +57,7 @@ pub fn expected_url_path(config: &Config, local_addr: SocketAddr) -> String {
       scheme = "https";
     }
   }
-  format!("{}://{}", scheme, local_addr)
+  format!("{scheme}://{local_addr}")
 }
 
 /// Test response with with service info.
@@ -79,7 +79,7 @@ pub fn test_response_service_info(response: &Response) {
     },
   });
 
-  println!("{:#?}", expected);
+  println!("{expected:#?}");
   assert!(response.is_success());
   assert_eq!(expected, response.deserialize_body::<Value>().unwrap());
 }

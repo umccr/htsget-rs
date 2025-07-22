@@ -19,7 +19,7 @@ use crate::{Format, Query, Result};
 use htsget_storage::types::BytesPosition;
 use htsget_storage::{Storage, Streamable};
 
-type AsyncReader = bcf::AsyncReader<bgzf::AsyncReader<Streamable>>;
+type AsyncReader = bcf::AsyncReader<bgzf::r#async::io::Reader<Streamable>>;
 
 /// Allows searching through bcf files.
 pub struct BcfSearch {
@@ -48,7 +48,7 @@ impl Search<ReferenceSequence<BinnedIndex>, Index, AsyncReader, Header> for BcfS
   }
 
   async fn read_index_inner<T: AsyncRead + Unpin + Send>(inner: T) -> io::Result<Index> {
-    csi::AsyncReader::new(inner).read_index().await
+    csi::r#async::io::Reader::new(inner).read_index().await
   }
 
   #[instrument(level = "trace", skip(self, index, header, query))]
@@ -390,7 +390,7 @@ mod tests {
       let query = Query::new_with_default_request("sample1-bcbio-cancer", Format::Bcf);
       let response = search.search(query).await.unwrap();
 
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       Some((
         "sample1-bcbio-cancer.bcf.c4gh".to_string(),
@@ -412,7 +412,7 @@ mod tests {
         .with_end(153);
       let response = search.search(query).await.unwrap();
 
-      println!("{:#?}", response);
+      println!("{response:#?}");
 
       Some((
         "sample1-bcbio-cancer.bcf.c4gh".to_string(),

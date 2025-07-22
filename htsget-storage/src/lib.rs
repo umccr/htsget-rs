@@ -368,7 +368,7 @@ mod tests {
   fn test_formatter_authority(formatter: storage::file::File, scheme: &str) {
     assert_eq!(
       formatter.format_url("path").unwrap(),
-      format!("{}://127.0.0.1:8080/path", scheme)
+      format!("{scheme}://127.0.0.1:8080/path")
     )
   }
 }

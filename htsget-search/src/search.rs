@@ -494,7 +494,7 @@ where
         let span = trace_span!("reading gzi");
         let gzi: Result<Vec<u64>> = async {
           trace!(id = ?query.id(), "reading gzi");
-          let gzi_index = gzi::AsyncReader::new(BufReader::new(gzi_data))
+          let gzi_index = gzi::r#async::io::Reader::new(BufReader::new(gzi_data))
             .read_index()
             .await?;
           let mut gzi: Vec<u64> = gzi_index

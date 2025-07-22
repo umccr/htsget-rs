@@ -1,5 +1,5 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 
 members = [
     "htsget-config",
@@ -14,4 +14,4 @@ members = [
 
 [workspace.package]
 license = "MIT"
-edition = "2021"
+edition = "2024"

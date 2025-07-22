@@ -256,7 +256,7 @@ pub(crate) mod tests {
 
     let cert = generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
 
-    let key = cert.key_pair.serialize_pem();
+    let key = cert.signing_key.serialize_pem();
     let cert = cert.cert.pem();
 
     write(key_path, &key).unwrap();

@@ -95,7 +95,7 @@ impl TryFrom<ServiceInfoFields> for ServiceInfo {
 
     let fields: HashMap<String, Value> = from_value(to_value(fields)?)?;
 
-    let err_msg = |invalid_key| format!("reserved service info field `{}`", invalid_key);
+    let err_msg = |invalid_key| format!("reserved service info field `{invalid_key}`");
     if fields.contains_key("type") {
       return Err(Error::ParseError(err_msg("type")));
     }

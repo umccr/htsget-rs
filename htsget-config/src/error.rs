@@ -26,7 +26,7 @@ pub enum Error {
 
 impl From<Error> for io::Error {
   fn from(error: Error) -> Self {
-    io::Error::new(io::ErrorKind::Other, error.to_string())
+    io::Error::other(error.to_string())
   }
 }
 

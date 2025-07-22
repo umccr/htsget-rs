@@ -242,7 +242,7 @@ pub(crate) mod tests {
     let tmp_dir = TempDir::new().unwrap();
     let base_path = copy_files_from(path, tmp_dir.path(), copy_files).await;
 
-    println!("{:#?}", base_path);
+    println!("{base_path:#?}");
     let response = test(
       base_path.clone(),
       storage::file::File::new(

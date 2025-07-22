@@ -671,7 +671,7 @@ pub(crate) mod tests {
     assert_eq!(config.locations().len(), 2);
     let config = config.locations.into_inner();
 
-    println!("{:#?}", config);
+    println!("{config:#?}");
 
     let location = config[0].as_simple().unwrap();
     assert_eq!(location.prefix(), "bam");

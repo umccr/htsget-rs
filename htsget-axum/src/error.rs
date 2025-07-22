@@ -28,7 +28,7 @@ impl From<Error> for io::Error {
     if let Error::IoError(io) = error {
       io
     } else {
-      io::Error::new(io::ErrorKind::Other, error)
+      io::Error::other(error)
     }
   }
 }
