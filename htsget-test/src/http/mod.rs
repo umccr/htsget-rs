@@ -104,18 +104,24 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Locations {
   );
 
   Locations::new(vec![
-    LocationEither::Regex(RegexLocation::new(
-      "^1-(.*)$".parse().unwrap(),
-      "$1".to_string(),
-      Backend::File(local_storage.clone()),
-      Default::default(),
-    )),
-    LocationEither::Regex(RegexLocation::new(
-      "^2-(.*)$".parse().unwrap(),
-      "$1".to_string(),
-      Backend::File(local_storage.clone()),
-      Default::default(),
-    )),
+    LocationEither::Regex(
+      RegexLocation::new(
+        "^1-(.*)$".parse().unwrap(),
+        "$1".to_string(),
+        Backend::File(local_storage.clone()),
+        Default::default(),
+      )
+      .into(),
+    ),
+    LocationEither::Regex(
+      RegexLocation::new(
+        "^2-(.*)$".parse().unwrap(),
+        "$1".to_string(),
+        Backend::File(local_storage.clone()),
+        Default::default(),
+      )
+      .into(),
+    ),
   ])
 }
 

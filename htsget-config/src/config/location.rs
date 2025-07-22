@@ -53,8 +53,8 @@ impl Default for Locations {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum LocationEither {
-  Simple(Location),
-  Regex(RegexLocation),
+  Simple(Box<Location>),
+  Regex(Box<RegexLocation>),
 }
 
 impl LocationEither {
@@ -121,13 +121,13 @@ impl Location {
 #[serde(untagged, deny_unknown_fields)]
 enum LocationsOneOrMany {
   Many(Vec<LocationEither>),
-  One(LocationEither),
+  One(Box<LocationEither>),
 }
 
 impl From<LocationsOneOrMany> for Locations {
   fn from(locations: LocationsOneOrMany) -> Self {
     match locations {
-      LocationsOneOrMany::One(location) => Self(vec![location]),
+      LocationsOneOrMany::One(location) => Self(vec![*location]),
       LocationsOneOrMany::Many(locations) => Self(locations),
     }
   }
@@ -198,7 +198,7 @@ impl From<LocationWrapper> for Location {
 
 impl From<Location> for LocationEither {
   fn from(location: Location) -> Self {
-    Self::Simple(location)
+    Self::Simple(Box::new(location))
   }
 }
 

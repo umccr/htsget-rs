@@ -68,7 +68,7 @@ impl Default for RegexLocation {
 
 impl From<RegexLocation> for LocationEither {
   fn from(location: RegexLocation) -> Self {
-    Self::Regex(location)
+    Self::Regex(Box::new(location))
   }
 }
 

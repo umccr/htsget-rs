@@ -192,7 +192,8 @@ impl Config {
             let file: File = data_server.try_into()?;
             let file = file.set_local_path(file_location.local_path().to_string());
 
-            *location = LocationEither::Simple(Location::new(Backend::File(file), prefix));
+            *location =
+              LocationEither::Simple(Box::new(Location::new(Backend::File(file), prefix)));
           }
         }
 
