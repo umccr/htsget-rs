@@ -42,6 +42,7 @@ http = "1"
 axum = { version = "0.8", features = ["http2"] }
 axum-extra = { version = "0.10", features = ["erased-json"] }
 tower = { version = "0.5", features = ["make", "util"] }
+futures = { version = "0.3" }
 
 # Async
 tokio-rustls = "0.26"

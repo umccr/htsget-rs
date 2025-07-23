@@ -1,6 +1,7 @@
+use axum::response::{IntoResponse, Response};
+use axum_extra::response::ErasedJson;
 use std::net::AddrParseError;
 use std::{io, result};
-
 use thiserror::Error;
 
 pub type Result<T> = result::Result<T, Error>;
@@ -30,5 +31,16 @@ impl From<Error> for io::Error {
     } else {
       io::Error::other(error)
     }
+  }
+}
+
+/// A wrapper around the http HtsGetError.
+#[derive(Debug)]
+pub struct HtsGetError(pub htsget_http::HtsGetError);
+
+impl IntoResponse for HtsGetError {
+  fn into_response(self) -> Response {
+    let (json, status_code) = self.0.to_json_representation();
+    (status_code, ErasedJson::pretty(json)).into_response()
   }
 }
