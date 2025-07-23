@@ -34,13 +34,61 @@ impl From<Error> for io::Error {
   }
 }
 
-/// A wrapper around the http HtsGetError.
+/// A wrapper around the http HtsGetError for implementing Axum response traits.
 #[derive(Debug)]
 pub struct HtsGetError(pub htsget_http::HtsGetError);
+
+impl HtsGetError {
+  /// Create a permission denied error.
+  pub fn permission_denied(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::PermissionDenied(err).into()
+  }
+
+  /// Create an invalid authentication error.
+  pub fn invalid_authentication(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::InvalidAuthentication(err).into()
+  }
+
+  /// Create a not found error.
+  pub fn not_found(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::NotFound(err).into()
+  }
+
+  /// Create a payload too large error.
+  pub fn payload_too_large(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::PayloadTooLarge(err).into()
+  }
+
+  /// Create an unsupported format error.
+  pub fn unsupported_format(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::UnsupportedFormat(err).into()
+  }
+
+  /// Create an invalid input error.
+  pub fn invalid_input(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::InvalidInput(err).into()
+  }
+
+  /// Create an invalid range error.
+  pub fn invalid_range(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::InvalidRange(err).into()
+  }
+
+  /// Create an internal error.
+  pub fn internal_error(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::InternalError(err).into()
+  }
+}
 
 impl IntoResponse for HtsGetError {
   fn into_response(self) -> Response {
     let (json, status_code) = self.0.to_json_representation();
     (status_code, ErasedJson::pretty(json)).into_response()
+  }
+}
+
+impl From<htsget_http::HtsGetError> for HtsGetError {
+  fn from(err: htsget_http::HtsGetError) -> Self {
+    Self(err)
   }
 }
