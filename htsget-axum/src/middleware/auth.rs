@@ -2,14 +2,17 @@
 //!
 
 use crate::error::HtsGetError;
+use crate::error::HtsGetResult;
 use axum::extract::Request;
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::RequestExt;
 use axum_extra::headers::authorization::Bearer;
 use axum_extra::headers::Authorization;
 use axum_extra::TypedHeader;
 use futures::future::BoxFuture;
-use http::header::AUTHORIZATION;
+use jsonwebtoken::jwk::JwkSet;
+use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, TokenData, Validation};
+use reqwest;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
@@ -20,36 +23,72 @@ impl<S> Layer<S> for AuthLayer {
   type Service = AuthMiddleware<S>;
 
   fn layer(&self, inner: S) -> Self::Service {
-    AuthMiddleware { inner }
+    AuthMiddleware::new(inner)
   }
 }
 
 #[derive(Clone)]
 pub struct AuthMiddleware<S> {
   inner: S,
-}
-
-impl<S> AuthMiddleware<S>
-where
-  S: Service<Request, Response = Response> + Send + 'static,
-  S::Future: Send + 'static,
-{
-  fn pin_future(response: Response) -> BoxFuture<'static, Result<S::Response, S::Error>> {
-    Box::pin(async move { Ok(response) })
-  }
+  client: reqwest::Client,
 }
 
 impl<S> AuthMiddleware<S> {
-  pub async fn validate_authorization(request: &mut Request) -> Result<(), impl IntoResponse> {
+  /// New function with default client.
+  pub fn new(inner: S) -> Self {
+    Self {
+      inner,
+      client: reqwest::Client::new(),
+    }
+  }
+
+  /// Fetch JWKS from the authorization server.
+  pub async fn fetch_jwks(&self, jwks_url: &str) -> HtsGetResult<JwkSet> {
+    let err = || {
+      HtsGetError::internal_error("failed to fetch jwks.json from authorization server".to_string())
+    };
+    let response = self.client.get(jwks_url).send().await.map_err(|_| err())?;
+
+    response.json().await.map_err(|_| err())
+  }
+
+  pub async fn validate_authorization(
+    &self,
+    request: &mut Request,
+  ) -> HtsGetResult<TokenData<serde_json::Value>> {
     let auth_token = request
       .extract_parts::<TypedHeader<Authorization<Bearer>>>()
       .await
-      .map_err(|err| HtsGetError::permission_denied(err.to_string()).into_response())?
-      .token();
+      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
 
-    // let mut validation = Validation::new(Algorithm::HS256);
+    // Placeholder authorization server.
+    let jwks_url = "/.well-known/jwks.json".to_string();
 
-    Ok::<_, Response>(())
+    // Decode header and get the key id.
+    let header = decode_header(auth_token.token())?;
+    let kid = header
+      .kid
+      .ok_or_else(|| HtsGetError::permission_denied("JWT missing key ID".to_string()))?;
+
+    // Fetch JWKS from the authorization server and find matching JWK.
+    let jwks = self.fetch_jwks(&jwks_url).await?;
+    let matched_jwk = jwks
+      .find(&kid)
+      .ok_or_else(|| HtsGetError::permission_denied("matching JWK not found".to_string()))?;
+
+    // Decode and validate the JWT
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.validate_exp = true;
+    match decode(
+      auth_token.token(),
+      &DecodingKey::from_jwk(matched_jwk)?,
+      &validation,
+    ) {
+      Ok(claims) => Ok(claims),
+      Err(err) => Err(HtsGetError::permission_denied(format!(
+        "invalid JWT: {err}"
+      ))),
+    }
   }
 }
 

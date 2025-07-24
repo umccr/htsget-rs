@@ -55,4 +55,4 @@ figment = { version = "0.10", features = ["test"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tempfile = "3"
 rcgen = { version = "0.14", features = ["pem"] }
-aws-smithy-mocks-experimental = "0.2"
+aws-smithy-mocks = "0.1"

@@ -101,7 +101,7 @@ impl TryFrom<C4GHSecretsManager> for C4GHKeys {
 mod tests {
   use aws_sdk_secretsmanager::operation::get_secret_value::GetSecretValueOutput;
   use aws_sdk_secretsmanager::primitives::Blob;
-  use aws_smithy_mocks_experimental::{mock, mock_client, Rule, RuleMode};
+  use aws_smithy_mocks::{mock, mock_client, Rule, RuleMode};
   use std::fs::read;
   use std::path::PathBuf;
 

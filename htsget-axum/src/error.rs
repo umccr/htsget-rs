@@ -34,6 +34,8 @@ impl From<Error> for io::Error {
   }
 }
 
+pub type HtsGetResult<T> = result::Result<T, HtsGetError>;
+
 /// A wrapper around the http HtsGetError for implementing Axum response traits.
 #[derive(Debug)]
 pub struct HtsGetError(pub htsget_http::HtsGetError);
@@ -90,5 +92,11 @@ impl IntoResponse for HtsGetError {
 impl From<htsget_http::HtsGetError> for HtsGetError {
   fn from(err: htsget_http::HtsGetError) -> Self {
     Self(err)
+  }
+}
+
+impl From<jsonwebtoken::errors::Error> for HtsGetError {
+  fn from(err: jsonwebtoken::errors::Error) -> Self {
+    Self::invalid_authentication(format!("invalid JWT: {err}"))
   }
 }
