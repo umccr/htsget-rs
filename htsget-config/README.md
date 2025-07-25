@@ -126,7 +126,7 @@ spec and some optional ones are pre-filled from the Rust package info. For examp
 crate version and `id` is set to `<package_name>/<package_version`. It is recommended to set the `service_info.id` field
 to a custom value as the package name and version are not globally unique.
 
-[service-info]: https://github.com/ga4gh-discovery/ga4gh-service-info/blob/develop/service-info.yaml
+[service-info]: https://github.com/ga4gh-discovery/ga4gh-service-info
 [service-info-custom]: https://github.com/ga4gh-discovery/ga4gh-service-info/blob/develop/service-info.yaml
 
 ### Environment variables
@@ -346,6 +346,56 @@ ticket_server.cors.expose_headers = []
 
 Use `"Mirror"` to mirror CORS requests, and `"All"` to allow all methods, headers, or origins. The `ticket_server` table
 above can be replaced with `data_server` to configure CORS for the data server.
+
+### JWT Authorization
+
+Custom JWT authorization can be configured to make dynamic decisions about a user's access to files and regions. Since 
+htsget-rs is a primarily stateless service (except for caching), authorization is configured to call out to an arbitrary
+url to make decisions about a user. If this feature is configured, when a JWT is sent in the authorization header as a
+bearer token, htsget-rs finds a configurable key in the claims and sends a GET request to the URL contained in the key
+value to ask for authorization information about the user. The authorization server should then respond approving or
+denying the user access.
+
+The following options can be configured under the `auth` table to enable this:
+
+| Option                       | Description                                                                                                                                                                                                                                                                                                                          | Type             | Default                                                                          |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|----------------------------------------------------------------------------------|
+| `jwks_url`                   | The JSON web key sets url to fetch a `.well-known/jwks.json` file that validates the JWT token.                                                                                                                                                                                                                                      | URL              | Not set, either this option or `decode_public_key` must be set to validate JWTs. | 
+| `decode_public_key`          | The path to PEM formatted public key used to decode the JWT token.                                                                                                                                                                                                                                                                   | Filesystem path  | Not set, either this option `jwks_url` must be set to validate JWTs.             |
+| `validate_audience`          | Validate that the JWT token has the specified audience field.                                                                                                                                                                                                                                                                        | Array of strings | Not set, does not validate the audience.                                         |
+| `validate_issuer`            | Validate that the JWT token has the specified issuer field.                                                                                                                                                                                                                                                                          | Array of strings | Not set, does not validate the issuer.                                           |
+| `trusted_authorization_urls` | The URLs which can be called to authorize the user. If `authorization_path` is not set, the first URL in the array will be called with a GET request and the forwarded JWT. If `authorization_path` is set, then the list of URLs will be trusted as authorization sources if they are found in the JWT.                             | Array of URLs    | Not set, must be set with at least one URL.                                      |
+| `authorization_path`         | The JSON path that finds the authorization URL in the JWT. The path should find a URL value inside the JWT claims. This allows dynamically resolving the authorization url based on the content of the JWT. This URL will be called with a GET request and the forwarded JWT and should return the htsget authorization information. | JSON path        | Not set.                                                                         |
+
+When calling the authorization service configured using `authorization_url` or `authorization_path`, htsget-rs will
+forward the JWT inside an authorization bearer header and use a GET request. The service should respond with the
+following JSON structure, indicating whether the request is allowed, and any region restrictions (similar to the 
+[allow guard logic](#allow-guard)):
+
+```json
+{
+  "version": 1,
+  "htsgetAuth": [
+    {
+      "allowPath": "dataset/001/id",
+      "allowReferenceNames": [
+        {
+          "referenceName": "chr1",
+          "start": 100,
+          "end": 1000,
+          "format": "BAM"
+        }
+      ]
+    }
+  ]
+}
+```
+
+The authorization server is allowed to respond with multiple paths that the user is allowed to access. Each path can 
+also be a regex that matches ids like the [regex resolvers](#regex-based-location). A full JSON schema defining this
+format is available under [auth.json][auth-json].
+
+[auth-json]: schemas/auth.json
 
 ### MinIO
 

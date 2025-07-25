@@ -79,6 +79,7 @@ impl<S> AuthMiddleware<S> {
     // Decode and validate the JWT
     let mut validation = Validation::new(Algorithm::RS256);
     validation.validate_exp = true;
+
     match decode(
       auth_token.token(),
       &DecodingKey::from_jwk(matched_jwk)?,
