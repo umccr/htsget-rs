@@ -1,10 +1,6 @@
 //! Structs to serialize and deserialize the htsget-rs config options.
 //!
 
-use std::fmt::Debug;
-use std::io;
-use std::path::{Path, PathBuf};
-
 use crate::config::advanced::FormattingStyle;
 use crate::config::data_server::DataServerEnabled;
 use crate::config::location::{Location, LocationEither, Locations};
@@ -16,7 +12,13 @@ use crate::error::Result;
 use crate::storage::file::File;
 use crate::storage::Backend;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
-use serde::{Deserialize, Serialize};
+use serde::de::Error;
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt::{Debug, Display};
+use std::io;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use tracing::subscriber::set_global_default;
 use tracing_subscriber::fmt::{format, layer};
 use tracing_subscriber::layer::SubscriberExt;
@@ -215,6 +217,36 @@ impl Default for Config {
       locations: Default::default(),
     }
   }
+}
+
+pub(crate) fn serialize_array_display<S, T>(
+  names: &[T],
+  serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+  T: Display,
+  S: Serializer,
+{
+  let mut sequence = serializer.serialize_seq(Some(names.len()))?;
+  for element in names.iter().map(|name| format!("{name}")) {
+    sequence.serialize_element(&element)?;
+  }
+  sequence.end()
+}
+
+pub(crate) fn deserialize_vec_from_str<'de, D, T>(
+  deserializer: D,
+) -> std::result::Result<Vec<T>, D::Error>
+where
+  T: FromStr,
+  T::Err: Display,
+  D: Deserializer<'de>,
+{
+  let names: Vec<String> = Deserialize::deserialize(deserializer)?;
+  names
+    .into_iter()
+    .map(|name| T::from_str(&name).map_err(Error::custom))
+    .collect()
 }
 
 #[cfg(test)]

@@ -57,7 +57,7 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
         let certs = read_bytes(pair.cert)?;
 
         Identity::from_pem(&[certs, key].concat())
-          .map_err(|err| IoError(format!("failed to pkcs8 pem identity: {err}")))
+          .map_err(|err| IoError(format!("failed to load pkcs8 pem identity: {err}")))
       })
       .transpose()?;
 

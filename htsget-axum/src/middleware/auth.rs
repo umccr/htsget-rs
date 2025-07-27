@@ -1,8 +1,7 @@
 //! Authentication middleware for htsget-axum.
 //!
 
-use crate::error::HtsGetError;
-use crate::error::HtsGetResult;
+use crate::error::{HtsGetError, HtsGetResult};
 use axum::extract::Request;
 use axum::response::Response;
 use axum::RequestExt;

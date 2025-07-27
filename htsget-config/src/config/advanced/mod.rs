@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod allow_guard;
+pub mod auth;
 pub mod cors;
 pub mod regex_location;
 #[cfg(feature = "url")]

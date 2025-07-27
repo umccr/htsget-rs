@@ -1,11 +1,16 @@
+//! This module contains error and result types for htsget-axum.
+//!
+
 use axum::response::{IntoResponse, Response};
 use axum_extra::response::ErasedJson;
 use std::net::AddrParseError;
 use std::{io, result};
 use thiserror::Error;
 
+/// The result type for htsget-axum.
 pub type Result<T> = result::Result<T, Error>;
 
+/// The error type for htsget-axum
 #[derive(Error, Debug)]
 pub enum Error {
   #[error("{0}")]
@@ -34,6 +39,7 @@ impl From<Error> for io::Error {
   }
 }
 
+/// The result type for htsget errors.
 pub type HtsGetResult<T> = result::Result<T, HtsGetError>;
 
 /// A wrapper around the http HtsGetError for implementing Axum response traits.

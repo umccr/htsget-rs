@@ -4,11 +4,10 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
+use crate::config::{deserialize_vec_from_str, serialize_array_display};
 use http::header::{HeaderName, HeaderValue as HeaderValueInner, InvalidHeaderValue};
 use http::Method;
-use serde::de::Error;
-use serde::ser::SerializeSeq;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::types::TaggedTypeAll;
 
@@ -33,8 +32,8 @@ pub enum AllowType<T, Tagged = TaggedAllowTypes> {
   Tagged(Tagged),
   #[serde(bound(serialize = "T: Display", deserialize = "T: FromStr, T::Err: Display"))]
   #[serde(
-    serialize_with = "serialize_allow_types",
-    deserialize_with = "deserialize_allow_types"
+    serialize_with = "serialize_array_display",
+    deserialize_with = "deserialize_vec_from_str"
   )]
   List(Vec<T>),
 }
@@ -106,31 +105,6 @@ impl<T> AllowType<T, TaggedTypeAll> {
   {
     self.apply_tagged(func, builder, &TaggedTypeAll::All)
   }
-}
-
-fn serialize_allow_types<S, T>(names: &[T], serializer: S) -> Result<S::Ok, S::Error>
-where
-  T: Display,
-  S: Serializer,
-{
-  let mut sequence = serializer.serialize_seq(Some(names.len()))?;
-  for element in names.iter().map(|name| format!("{name}")) {
-    sequence.serialize_element(&element)?;
-  }
-  sequence.end()
-}
-
-fn deserialize_allow_types<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-where
-  T: FromStr,
-  T::Err: Display,
-  D: Deserializer<'de>,
-{
-  let names: Vec<String> = Deserialize::deserialize(deserializer)?;
-  names
-    .into_iter()
-    .map(|name| T::from_str(&name).map_err(Error::custom))
-    .collect()
 }
 
 /// A wrapper around a http HeaderValue which is used to implement FromStr and Display.

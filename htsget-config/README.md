@@ -349,8 +349,11 @@ above can be replaced with `data_server` to configure CORS for the data server.
 
 ### JWT Authorization
 
-Custom JWT authorization can be configured to make dynamic decisions about a user's access to files and regions. Since 
-htsget-rs is a primarily stateless service (except for caching), authorization is configured to call out to an arbitrary
+One advantage of the htsget protocol is that it is possible to make decisions about which regions of files a user is allowed
+to access, as the protocol is able to return a subset of a genomic file in the URL tickets. Custom JWT authorization can be
+configured to enable this.
+
+Since htsget-rs is a primarily stateless service (except for caching), authorization is configured to call out to an arbitrary
 url to make decisions about a user. If this feature is configured, when a JWT is sent in the authorization header as a
 bearer token, htsget-rs finds a configurable key in the claims and sends a GET request to the URL contained in the key
 value to ask for authorization information about the user. The authorization server should then respond approving or
@@ -360,7 +363,7 @@ The following options can be configured under the `auth` table to enable this:
 
 | Option                       | Description                                                                                                                                                                                                                                                                                                                          | Type             | Default                                                                          |
 |------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|----------------------------------------------------------------------------------|
-| `jwks_url`                   | The JSON web key sets url to fetch a `.well-known/jwks.json` file that validates the JWT token.                                                                                                                                                                                                                                      | URL              | Not set, either this option or `decode_public_key` must be set to validate JWTs. | 
+| `jwks_url`                   | The JSON web key sets url to fetch a `.well-known/jwks.json` file that validates the JWT token. This should not contain the `.well-known/jwks.json` component.                                                                                                                                                                       | URL              | Not set, either this option or `decode_public_key` must be set to validate JWTs. | 
 | `decode_public_key`          | The path to PEM formatted public key used to decode the JWT token.                                                                                                                                                                                                                                                                   | Filesystem path  | Not set, either this option `jwks_url` must be set to validate JWTs.             |
 | `validate_audience`          | Validate that the JWT token has the specified audience field.                                                                                                                                                                                                                                                                        | Array of strings | Not set, does not validate the audience.                                         |
 | `validate_issuer`            | Validate that the JWT token has the specified issuer field.                                                                                                                                                                                                                                                                          | Array of strings | Not set, does not validate the issuer.                                           |
