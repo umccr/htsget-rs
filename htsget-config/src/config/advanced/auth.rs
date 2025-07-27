@@ -3,6 +3,7 @@
 
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
 use crate::error::{Error::ParseError, Result};
+use crate::tls::client::TlsClientConfig;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -23,6 +24,8 @@ pub struct AuthConfig {
   )]
   trusted_authorization_urls: Vec<Uri>,
   authorization_path: Option<String>,
+  #[serde(skip_serializing, default)]
+  tls: TlsClientConfig,
 }
 
 impl AuthConfig {
@@ -34,6 +37,7 @@ impl AuthConfig {
     validate_issuer: Option<Vec<String>>,
     trusted_authorization_urls: Vec<Uri>,
     authorization_path: Option<String>,
+    tls: TlsClientConfig,
   ) -> Self {
     Self {
       jwks_url,
@@ -42,6 +46,7 @@ impl AuthConfig {
       validate_issuer,
       trusted_authorization_urls,
       authorization_path,
+      tls,
     }
   }
 
@@ -73,6 +78,11 @@ impl AuthConfig {
   /// Get the authorization path.
   pub fn authorization_path(&self) -> Option<&str> {
     self.authorization_path.as_deref()
+  }
+
+  /// Get the TLS config.
+  pub fn tls(&self) -> &TlsClientConfig {
+    &self.tls
   }
 
   /// Validate the auth configuration.
@@ -111,6 +121,7 @@ impl Default for AuthConfig {
       validate_issuer: None,
       trusted_authorization_urls: vec!["https://example.com/".parse().expect("valid uri")],
       authorization_path: None,
+      tls: TlsClientConfig::default(),
     }
   }
 }
@@ -133,10 +144,10 @@ mod tests {
             authorization_path = "$.auth_url"
             "#,
       (
-        Some("https://example.com".to_string()),
+        Some("https://www.example.com/".to_string()),
         Some(vec!["aud1".to_string(), "aud2".to_string()]),
         Some(vec!["iss1".to_string()]),
-        vec!["https://example.com".parse().unwrap()],
+        vec!["https://www.example.com".parse().unwrap()],
         Some("$.auth_url".to_string()),
       ),
       |result: AuthConfig| {
@@ -164,6 +175,7 @@ mod tests {
       None,
       vec!["https://www.example.com".parse().unwrap()],
       None,
+      Default::default(),
     );
 
     assert_eq!(config.decode_public_key(), Some(key_path.as_path()));
@@ -179,6 +191,7 @@ mod tests {
       None,
       vec!["https://www.example.com".parse().unwrap()],
       None,
+      Default::default(),
     );
 
     let result = config.validate();
@@ -198,6 +211,7 @@ mod tests {
       None,
       vec!["https://www.example.com".parse().unwrap()],
       None,
+      Default::default(),
     );
 
     let result = config.validate();
@@ -213,6 +227,7 @@ mod tests {
       None,
       vec![],
       None,
+      Default::default(),
     );
 
     let result = config.validate();
@@ -228,6 +243,7 @@ mod tests {
       Some(vec!["iss1".to_string()]),
       vec!["https://www.example.com".parse().unwrap()],
       Some("$.auth_url".to_string()),
+      Default::default(),
     );
 
     assert!(config.validate().is_ok());
@@ -246,6 +262,7 @@ mod tests {
       Some(vec!["iss1".to_string()]),
       vec!["https://www.example.com".parse().unwrap()],
       Some("$.auth_url".to_string()),
+      Default::default(),
     );
 
     assert!(config.validate().is_ok());
