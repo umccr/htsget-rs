@@ -7,8 +7,9 @@ use std::{fmt, io, result};
 
 #[cfg(feature = "experimental")]
 use crate::encryption_scheme::EncryptionScheme;
+use crate::error;
 use crate::error::Error;
-use crate::error::Error::ParseError;
+use crate::error::Error::{ParseError, ValidationError};
 use http::HeaderMap;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
@@ -196,6 +197,19 @@ impl Interval {
   /// Create a new interval
   pub fn new(start: Option<u32>, end: Option<u32>) -> Self {
     Self { start, end }
+  }
+
+  /// Validate the interval.
+  pub fn validate(&self) -> error::Result<()> {
+    if let (Some(start), Some(end)) = (self.start, self.end) {
+      if start >= end {
+        return Err(ValidationError(format!(
+          "Invalid coordinate range: start ({start}) must be less than end ({end})"
+        )));
+      }
+    }
+
+    Ok(())
   }
 }
 

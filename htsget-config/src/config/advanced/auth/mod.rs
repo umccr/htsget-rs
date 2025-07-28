@@ -1,5 +1,7 @@
-//! JWT authorization configuration.
+//! JWT authorization configuration and response structures.
 //!
+//! This module provides configuration structures for JWT token validation and authorization
+//! service integration, enabling fine-grained access control over genomic data.
 
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
 use crate::error::{Error::ParseError, Result};
@@ -7,6 +9,10 @@ use crate::tls::client::TlsClientConfig;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+
+pub mod response;
+
+pub use response::{AuthorizationResponse, AuthorizationRule, ReferenceNameRestriction};
 
 /// Configuration for JWT authorization.
 #[derive(Serialize, Deserialize, Debug, Clone)]

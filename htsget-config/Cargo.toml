@@ -12,7 +12,7 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
-url = ["dep:reqwest"]
+url = []
 experimental = ["dep:crypt4gh", "dep:tokio", "dep:futures-util"]
 default = []
 
@@ -36,9 +36,7 @@ rustls-pemfile = "2"
 rustls = "0.23"
 rustls-pki-types = "1"
 chrono = { version = "0.4", features = ["now"], default-features = false }
-
-# url
-reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false, optional = true }
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }

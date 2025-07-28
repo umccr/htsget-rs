@@ -22,6 +22,9 @@ pub enum Error {
 
   #[error("parse error: {0}")]
   ParseError(String),
+
+  #[error("validation error: {0}")]
+  ValidationError(String),
 }
 
 impl From<Error> for io::Error {
