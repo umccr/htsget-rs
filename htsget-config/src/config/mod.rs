@@ -259,7 +259,6 @@ pub(crate) mod tests {
   use crate::types::Scheme;
   use figment::Jail;
   use http::uri::Authority;
-  #[cfg(feature = "url")]
   use http::Uri;
   use serde::de::DeserializeOwned;
   use serde_json::json;
@@ -718,5 +717,56 @@ pub(crate) mod tests {
   fn assert_file_location(location: &Location, local_path: &str) {
     assert!(matches!(location.backend(),
             Backend::File(file) if file.local_path() == local_path && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
+  }
+
+  #[test]
+  fn config_server_auth() {
+    test_config_from_file(
+      r#"
+      ticket_server.auth.jwks_url = "https://www.example.com/"
+      ticket_server.auth.validate_issuer = ["iss1"]
+      ticket_server.auth.trusted_authorization_urls = ["https://www.example.com"]
+      ticket_server.auth.authorization_path = "$.auth_url"
+      data_server.auth.jwks_url = "https://www.example.com/"
+      data_server.auth.validate_audience = ["aud1"]
+      data_server.auth.trusted_authorization_urls = ["https://www.example.com"]
+      "#,
+      |config| {
+        let auth = config.ticket_server().auth().unwrap();
+        assert_eq!(
+          auth.jwks_url(),
+          Some(&"https://www.example.com/".parse().unwrap())
+        );
+        assert_eq!(
+          auth.validate_issuer(),
+          Some(vec!["iss1".to_string()].as_slice())
+        );
+        assert_eq!(
+          auth.trusted_authorization_urls(),
+          &["https://www.example.com/".parse::<Uri>().unwrap()]
+        );
+        assert_eq!(auth.authorization_path(), Some("$.auth_url"));
+        assert!(auth.validate().is_ok());
+        let auth = config
+          .data_server()
+          .as_data_server_config()
+          .unwrap()
+          .auth()
+          .unwrap();
+        assert_eq!(
+          auth.jwks_url(),
+          Some(&"https://www.example.com/".parse().unwrap())
+        );
+        assert_eq!(
+          auth.validate_audience(),
+          Some(vec!["aud1".to_string()].as_slice())
+        );
+        assert_eq!(
+          auth.trusted_authorization_urls(),
+          &["https://www.example.com/".parse::<Uri>().unwrap()]
+        );
+        assert!(auth.validate().is_ok());
+      },
+    );
   }
 }

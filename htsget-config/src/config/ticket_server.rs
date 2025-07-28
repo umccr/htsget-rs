@@ -1,6 +1,7 @@
 //! Ticket server configuration.
 //!
 
+use crate::config::advanced::auth::AuthConfig;
 use crate::config::advanced::cors::CorsConfig;
 use crate::tls::TlsServerConfig;
 use serde::{Deserialize, Serialize};
@@ -14,12 +15,23 @@ pub struct TicketServerConfig {
   #[serde(skip_serializing)]
   tls: Option<TlsServerConfig>,
   cors: CorsConfig,
+  auth: Option<AuthConfig>,
 }
 
 impl TicketServerConfig {
   /// Create the ticket server config.
-  pub fn new(addr: SocketAddr, tls: Option<TlsServerConfig>, cors: CorsConfig) -> Self {
-    Self { addr, tls, cors }
+  pub fn new(
+    addr: SocketAddr,
+    tls: Option<TlsServerConfig>,
+    cors: CorsConfig,
+    auth: Option<AuthConfig>,
+  ) -> Self {
+    Self {
+      addr,
+      tls,
+      cors,
+      auth,
+    }
   }
 
   /// Get the socket address.
@@ -37,6 +49,11 @@ impl TicketServerConfig {
     &self.cors
   }
 
+  /// Get the auth config.
+  pub fn auth(&self) -> Option<&AuthConfig> {
+    self.auth.as_ref()
+  }
+
   /// Get the owned TLS config.
   pub fn into_tls(self) -> Option<TlsServerConfig> {
     self.tls
@@ -49,6 +66,7 @@ impl Default for TicketServerConfig {
       addr: default_addr().parse().expect("expected valid address"),
       tls: Default::default(),
       cors: Default::default(),
+      auth: None,
     }
   }
 }

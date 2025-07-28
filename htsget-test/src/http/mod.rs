@@ -155,11 +155,22 @@ fn default_test_config_params(
   scheme: Scheme,
 ) -> Config {
   let cors = default_cors_config();
-  let server_config = DataServerConfig::new(addr, default_dir_data(), tls.clone(), cors.clone());
+  let server_config = DataServerConfig::new(
+    addr,
+    default_dir_data(),
+    tls.clone(),
+    cors.clone(),
+    Default::default(),
+  );
 
   Config::new(
     Default::default(),
-    TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), tls, cors),
+    TicketServerConfig::new(
+      "127.0.0.1:8080".parse().unwrap(),
+      tls,
+      cors,
+      Default::default(),
+    ),
     DataServerEnabled::Some(server_config),
     Default::default(),
     default_test_resolver(addr, scheme),

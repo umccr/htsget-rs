@@ -1,6 +1,7 @@
 //! Data server configuration.
 //!
 
+use crate::config::advanced::auth::AuthConfig;
 use crate::config::advanced::cors::CorsConfig;
 use crate::error::{Error::ParseError, Result};
 use crate::storage::file::{default_localstorage_addr, default_path};
@@ -46,6 +47,7 @@ pub struct DataServerConfig {
   #[serde(skip_serializing)]
   tls: Option<TlsServerConfig>,
   cors: CorsConfig,
+  auth: Option<AuthConfig>,
 }
 
 impl DataServerConfig {
@@ -55,12 +57,14 @@ impl DataServerConfig {
     local_path: PathBuf,
     tls: Option<TlsServerConfig>,
     cors: CorsConfig,
+    auth: Option<AuthConfig>,
   ) -> Self {
     Self {
       addr,
       local_path,
       tls,
       cors,
+      auth,
     }
   }
 
@@ -84,6 +88,11 @@ impl DataServerConfig {
     &self.cors
   }
 
+  /// Get the auth config.
+  pub fn auth(&self) -> Option<&AuthConfig> {
+    self.auth.as_ref()
+  }
+
   /// Get the owned TLS config.
   pub fn into_tls(self) -> Option<TlsServerConfig> {
     self.tls
@@ -99,6 +108,7 @@ impl Default for DataServerConfig {
       local_path: default_path().into(),
       tls: Default::default(),
       cors: Default::default(),
+      auth: None,
     }
   }
 }

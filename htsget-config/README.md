@@ -381,13 +381,13 @@ following JSON structure, indicating whether the request is allowed, and any reg
   "version": 1,
   "htsgetAuth": [
     {
-      "allowPath": "dataset/001/id",
-      "allowReferenceNames": [
+      "path": "dataset/001/id",
+      "referenceNames": [
         {
-          "referenceName": "chr1",
+          "name": "chr1",
+          "format": "BAM",
           "start": 100,
-          "end": 1000,
-          "format": "BAM"
+          "end": 1000
         }
       ]
     }
