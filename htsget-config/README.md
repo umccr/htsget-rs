@@ -397,9 +397,11 @@ following JSON structure, indicating whether the request is allowed, and any reg
 
 The authorization server is allowed to respond with multiple paths that the user is allowed to access. Each path can 
 also be a regex that matches ids like the [regex resolvers](#regex-based-location). A full JSON schema defining this
-format is available under [auth.json][auth-json].
+format is available under [auth.json][auth-json]. An [example][auth-example] configuration file is available in the
+examples directory.
 
 [auth-json]: schemas/auth.json
+[auth-example]: examples/config-files/auth.toml
 
 ### MinIO
 

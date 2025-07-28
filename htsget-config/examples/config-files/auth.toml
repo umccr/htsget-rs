@@ -1,0 +1,51 @@
+# JWT authorization example
+# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/examples/config-files/auth.toml`
+
+ticket_server.addr = "127.0.0.1:8080"
+data_server.addr = "127.0.0.1:8081"
+
+locations = "file://data"
+
+# JWT authorization configuration for ticket server
+[ticket_server.auth]
+jwks_url = "https://www.example.com/htsget"
+## Alternatively use public key-based validation
+#decode_public_key = "/path/to/jwt-public-key.pem"
+
+# Trusted authorization URLs
+trusted_authorization_urls = ["https://www.example.com/authorize"]
+# Optionally fetch the authorization url from the path in the JWT. Only
+# issues the request to the URL if it's also in `trusted_authorization_urls`.
+authorization_path = "$.authorization_url"
+
+validate_audience = ["htsget-server"]
+validate_issuer = ["https://www.example.com"]
+
+## Set client authentication
+#tls.key = "key.pem"
+#tls.cert = "cert.pem"
+#
+## Set root certificates
+#tls.root_store = "root.crt"
+
+# JWT authorization configuration for the data server, same options as above.
+[data_server.auth]
+jwks_url = "https://www.example.com/htsget"
+## Alternatively use public key-based validation
+#decode_public_key = "/path/to/jwt-public-key.pem"
+
+# Trusted authorization URLs
+trusted_authorization_urls = ["https://www.example.com/authorize"]
+# Optionally fetch the authorization url from the path in the JWT. Only
+# issues request to URL if it's also in `trusted_authorization_urls`.
+authorization_path = "$.authorization_url"
+
+validate_audience = ["htsget-server"]
+validate_issuer = ["https://www.example.com"]
+
+## Set client authentication
+#tls.key = "key.pem"
+#tls.cert = "cert.pem"
+#
+## Set root certificates
+#tls.root_store = "root.crt"

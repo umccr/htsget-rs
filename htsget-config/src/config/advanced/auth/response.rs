@@ -2,6 +2,7 @@
 //!
 //! This module provides data structures for parsing and validating authorization
 //! responses from external authorization services.
+//!
 
 use crate::error;
 use crate::error::Error::ValidationError;

@@ -2,6 +2,7 @@
 //!
 //! This module provides configuration structures for JWT token validation and authorization
 //! service integration, enabling fine-grained access control over genomic data.
+//!
 
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
 use crate::error::{Error::ParseError, Result};
