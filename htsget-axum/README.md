@@ -192,4 +192,4 @@ This project is licensed under the [MIT license][license].
 [c4gh]: https://samtools.github.io/hts-specs/crypt4gh.pdf
 [htsget-client]: https://htsget.readthedocs.io/en/stable/installation.html
 [crypt4gh-cli]: https://github.com/ega-archive/crypt4gh-rust
-[example-config]: ../htsget-config/examples/config-files/c4gh.toml
+[example-config]: ../htsget-config/docs/examples/c4gh.toml

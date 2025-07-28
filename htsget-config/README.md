@@ -400,8 +400,8 @@ also be a regex that matches ids like the [regex resolvers](#regex-based-locatio
 format is available under [auth.json][auth-json]. An [example][auth-example] configuration file is available in the
 examples directory.
 
-[auth-json]: schemas/auth.json
-[auth-example]: examples/config-files/auth.toml
+[auth-json]: docs/schemas/auth.json
+[auth-example]: docs/examples/auth.toml
 
 ### MinIO
 
@@ -525,7 +525,7 @@ This project is licensed under the [MIT license][license].
 [tracing]: https://github.com/tokio-rs/tracing
 [rust-log]: https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
 [formatting-style]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html#formatters
-[examples-config-files]: examples/config-files
+[examples-config-files]: docs/examples/config-files
 [rustls]: https://github.com/rustls/rustls
 [htsget-actix]: ../htsget-actix
 [htsget-axum]: ../htsget-axum

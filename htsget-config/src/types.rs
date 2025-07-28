@@ -7,12 +7,12 @@ use std::{fmt, io, result};
 
 #[cfg(feature = "experimental")]
 use crate::encryption_scheme::EncryptionScheme;
-use crate::error;
 use crate::error::Error;
-use crate::error::Error::{ParseError, ValidationError};
+use crate::error::Error::ParseError;
 use http::HeaderMap;
 use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::instrument;
@@ -21,7 +21,7 @@ use tracing::instrument;
 pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(JsonSchema, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all(serialize = "UPPERCASE"), deny_unknown_fields)]
 pub enum Format {
   #[default]
@@ -122,10 +122,12 @@ pub enum Class {
 
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(JsonSchema, Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Interval {
+  /// The start interval (0-based, inclusive).
   start: Option<u32>,
+  /// The end interval (0-based, exclusive).
   end: Option<u32>,
 }
 
@@ -197,19 +199,6 @@ impl Interval {
   /// Create a new interval
   pub fn new(start: Option<u32>, end: Option<u32>) -> Self {
     Self { start, end }
-  }
-
-  /// Validate the interval.
-  pub fn validate(&self) -> error::Result<()> {
-    if let (Some(start), Some(end)) = (self.start, self.end) {
-      if start >= end {
-        return Err(ValidationError(format!(
-          "Invalid coordinate range: start ({start}) must be less than end ({end})"
-        )));
-      }
-    }
-
-    Ok(())
   }
 }
 

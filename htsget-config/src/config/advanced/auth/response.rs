@@ -4,35 +4,45 @@
 //! responses from external authorization services.
 //!
 
-use crate::error;
-use crate::error::Error::ValidationError;
 use crate::types::{Format, Interval};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Authorization response from external authorization service.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationResponse {
+  /// The version of the schema.
+  #[validate(range(min = 1))]
   version: u32,
+  /// The authorization rules.
   #[serde(rename = "htsgetAuth")]
+  #[validate(length(min = 1))]
   htsget_auth: Vec<AuthorizationRule>,
 }
 
 /// Individual authorization rule defining access permissions.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
+  /// The path that the authorization applies to. This should not contain the `/reads` or `/variants` component of the path, and it can be a regex.
+  #[validate(length(min = 1))]
   path: String,
+  /// The reference name restrictions to apply to this path.
   #[serde(rename = "referenceNames")]
   reference_names: Option<Vec<ReferenceNameRestriction>>,
 }
 
 /// Restriction on genomic reference names and coordinate ranges.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ReferenceNameRestriction {
+  /// The reference name to allow.
+  #[validate(length(min = 1))]
   name: String,
+  /// The format to allow. Allows all formats if unspecified.
   format: Option<Format>,
+  /// The interval to allow. Allows all intervals if unspecified.
   #[serde(flatten)]
   interval: Interval,
 }
@@ -55,24 +65,6 @@ impl AuthorizationResponse {
   pub fn htsget_auth(&self) -> &[AuthorizationRule] {
     &self.htsget_auth
   }
-
-  /// Validate the authorization response structure.
-  pub fn validate(&self) -> error::Result<()> {
-    if self.version != 1 {
-      return Err(ValidationError(format!(
-        "invalid version: expected 1, got {}",
-        self.version
-      )));
-    }
-
-    if self.htsget_auth.is_empty() {
-      return Err(ValidationError(
-        "authorization response must contain at least one rule".to_string(),
-      ));
-    }
-
-    self.htsget_auth.iter().try_for_each(|rule| rule.validate())
-  }
 }
 
 impl AuthorizationRule {
@@ -92,18 +84,6 @@ impl AuthorizationRule {
   /// Get the optional restrictions on reference names and genomic coordinates.
   pub fn reference_names(&self) -> Option<&[ReferenceNameRestriction]> {
     self.reference_names.as_deref()
-  }
-
-  /// Validate the authorization rule.
-  pub fn validate(&self) -> error::Result<()> {
-    if self.path.is_empty() {
-      return Err(ValidationError("path cannot be empty".to_string()));
-    }
-
-    self
-      .reference_names
-      .iter()
-      .try_for_each(|reference_name| reference_name.iter().try_for_each(|name| name.validate()))
   }
 }
 
@@ -130,15 +110,6 @@ impl ReferenceNameRestriction {
   /// Get the interval to allow.
   pub fn interval(&self) -> &Interval {
     &self.interval
-  }
-
-  /// Validate the reference name restriction.
-  pub fn validate(&self) -> error::Result<()> {
-    if self.name.is_empty() {
-      return Err(ValidationError("name cannot be empty".to_string()));
-    }
-
-    self.interval.validate()
   }
 }
 
@@ -191,62 +162,5 @@ mod tests {
     assert!(no_restrictions_response.htsget_auth()[0]
       .reference_names()
       .is_none());
-  }
-
-  #[test]
-  fn test_authorization_response_validation_success() {
-    let response = example_authorization_response();
-
-    assert!(response.validate().is_ok());
-  }
-
-  #[test]
-  fn test_authorization_response_validation_invalid_version() {
-    let response = AuthorizationResponse::new(
-      2,
-      vec![AuthorizationRule::new("/path/to/file".to_string(), None)],
-    );
-
-    let result = response.validate();
-    assert!(result.is_err());
-  }
-
-  #[test]
-  fn test_authorization_response_validation_empty_rules() {
-    let response = AuthorizationResponse::new(1, vec![]);
-
-    let result = response.validate();
-    assert!(result.is_err());
-  }
-
-  #[test]
-  fn test_authorization_rule_validation_empty_path() {
-    let rule = AuthorizationRule::new("".to_string(), None);
-
-    let result = rule.validate();
-    assert!(result.is_err());
-  }
-
-  #[test]
-  fn test_reference_name_restriction_validation_empty_name() {
-    let restriction =
-      ReferenceNameRestriction::new("".to_string(), None, Interval::new(None, None));
-
-    let result = restriction.validate();
-    assert!(result.is_err());
-  }
-
-  fn example_authorization_response() -> AuthorizationResponse {
-    AuthorizationResponse::new(
-      1,
-      vec![AuthorizationRule::new(
-        "/path/to/file".to_string(),
-        Some(vec![ReferenceNameRestriction::new(
-          "chr1".to_string(),
-          Some(Format::Bam),
-          Interval::new(Some(1000), Some(2000)),
-        )]),
-      )],
-    )
   }
 }
