@@ -163,13 +163,6 @@ pub fn load_key<P: AsRef<Path>>(key_path: P) -> Result<PrivateKeyDer<'static>> {
   Err(ParseError("no keys found in pem file".to_string()))
 }
 
-/// Read byte data.
-pub fn read_bytes<P: AsRef<Path>>(path: P) -> Result<Vec<u8>> {
-  let mut bytes = vec![];
-  File::open(path)?.read_to_end(&mut bytes)?;
-  Ok(bytes)
-}
-
 /// Load certificates from a file.
 pub fn load_certs<P: AsRef<Path>>(certs_path: P) -> Result<Vec<CertificateDer<'static>>> {
   let mut cert_reader = BufReader::new(File::open(certs_path)?);
