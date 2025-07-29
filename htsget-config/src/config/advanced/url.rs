@@ -1,6 +1,7 @@
 //! The config for remote URL server locations.
 //!
 
+use crate::config::advanced::HttpClient;
 use crate::error::Error;
 use crate::error::Error::ParseError;
 use crate::error::Result;
@@ -91,22 +92,7 @@ impl TryFrom<Url> for storage::url::Url {
   type Error = Error;
 
   fn try_from(storage: Url) -> Result<Self> {
-    let mut builder = Client::builder();
-
-    let (certs, identity) = storage.tls.into_inner();
-
-    if let Some(certs) = certs {
-      for cert in certs {
-        builder = builder.add_root_certificate(cert);
-      }
-    }
-    if let Some(identity) = identity {
-      builder = builder.identity(identity);
-    }
-
-    let client = builder
-      .build()
-      .map_err(|err| ParseError(format!("building url storage client: {err}")))?;
+    let client = HttpClient::try_from(storage.tls)?.0;
 
     let url_storage = Self::new(
       storage.url.clone(),
