@@ -34,6 +34,9 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features  -- -D warnings
+      - name: Run doc changes test
+        run: ./generate.sh && git add . && git diff --quiet && git diff --cached --quiet
+        working-directory: htsget-config/docs
       - name: Run cargo tests
         run: cargo test --all-features
       - name: Run cargo tests with no default features

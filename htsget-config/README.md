@@ -400,7 +400,7 @@ also be a regex that matches ids like the [regex resolvers](#regex-based-locatio
 format is available under [auth.json][auth-json]. An [example][auth-example] configuration file is available in the
 examples directory.
 
-[auth-json]: docs/schemas/auth.json
+[auth-json]: docs/schemas/auth.schema.json
 [auth-example]: docs/examples/auth.toml
 
 ### MinIO
