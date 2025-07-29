@@ -10,7 +10,7 @@ locations = "file://data"
 [ticket_server.auth]
 jwks_url = "https://www.example.com/htsget"
 ## Alternatively use public key-based validation
-#decode_public_key = "/path/to/jwt-public-key.pem"
+#public_key = "/path/to/jwt-public-key.pem"
 
 # Trusted authorization URLs
 trusted_authorization_urls = ["https://www.example.com/authorize"]
@@ -32,7 +32,7 @@ validate_issuer = ["https://www.example.com"]
 [data_server.auth]
 jwks_url = "https://www.example.com/htsget"
 ## Alternatively use public key-based validation
-#decode_public_key = "/path/to/jwt-public-key.pem"
+#public_key = "/path/to/jwt-public-key.pem"
 
 # Trusted authorization URLs
 trusted_authorization_urls = ["https://www.example.com/authorize"]

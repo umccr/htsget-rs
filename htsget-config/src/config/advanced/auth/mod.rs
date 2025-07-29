@@ -5,23 +5,76 @@
 //!
 
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
-use crate::error::{Error::ParseError, Result};
 use crate::tls::client::TlsClientConfig;
 use http::Uri;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub mod response;
 
+use crate::error::Error::ParseError;
+use crate::error::{Error, Result};
 pub use response::{AuthorizationResponse, AuthorizationRule, ReferenceNameRestriction};
+
+/// The method for authorization, either using a JWKS url or a public key.
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[serde(
+  deny_unknown_fields,
+  try_from = "AuthModeSerde",
+  into = "AuthModeSerde"
+)]
+pub enum AuthMode {
+  Jwks(Uri),
+  PublicKey(PathBuf),
+}
+
+/// Used to deserialize into the `AuthMode` struct.
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Default)]
+#[serde(deny_unknown_fields, default)]
+struct AuthModeSerde {
+  #[serde(with = "http_serde::option::uri")]
+  jwks_url: Option<Uri>,
+  public_key: Option<PathBuf>,
+}
+
+impl TryFrom<AuthModeSerde> for AuthMode {
+  type Error = Error;
+
+  fn try_from(mode: AuthModeSerde) -> Result<Self> {
+    match (mode.jwks_url, mode.public_key) {
+      (None, None) => Err(ParseError(
+        "Either 'jwks_url' or 'decode_public_key' must be set".to_string(),
+      )),
+      (Some(_), Some(_)) => Err(ParseError(
+        "Cannot set both 'jwks_url' and 'decode_public_key'".to_string(),
+      )),
+      (Some(jwks_url), None) => Ok(AuthMode::Jwks(jwks_url)),
+      (None, Some(public_key)) => Ok(AuthMode::PublicKey(public_key)),
+    }
+  }
+}
+
+impl From<AuthMode> for AuthModeSerde {
+  fn from(mode: AuthMode) -> Self {
+    match mode {
+      AuthMode::Jwks(jwks_url) => Self {
+        jwks_url: Some(jwks_url),
+        public_key: None,
+      },
+      AuthMode::PublicKey(public_key) => Self {
+        public_key: Some(public_key),
+        jwks_url: None,
+      },
+    }
+  }
+}
 
 /// Configuration for JWT authorization.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, deny_unknown_fields)]
+#[serde(deny_unknown_fields)]
 pub struct AuthConfig {
-  #[serde(with = "http_serde::option::uri", default)]
-  jwks_url: Option<Uri>,
-  decode_public_key: Option<PathBuf>,
+  #[serde(flatten)]
+  auth_mode: AuthMode,
   validate_audience: Option<Vec<String>>,
   validate_issuer: Option<Vec<String>>,
   #[serde(
@@ -38,8 +91,7 @@ pub struct AuthConfig {
 impl AuthConfig {
   /// Create a new auth config.
   pub fn new(
-    jwks_url: Option<Uri>,
-    decode_public_key: Option<PathBuf>,
+    auth_mode: AuthMode,
     validate_audience: Option<Vec<String>>,
     validate_issuer: Option<Vec<String>>,
     trusted_authorization_urls: Vec<Uri>,
@@ -47,8 +99,7 @@ impl AuthConfig {
     tls: TlsClientConfig,
   ) -> Self {
     Self {
-      jwks_url,
-      decode_public_key,
+      auth_mode,
       validate_audience,
       validate_issuer,
       trusted_authorization_urls,
@@ -57,14 +108,9 @@ impl AuthConfig {
     }
   }
 
-  /// Get the JWKS URL.
-  pub fn jwks_url(&self) -> Option<&Uri> {
-    self.jwks_url.as_ref()
-  }
-
-  /// Get the decode public key path.
-  pub fn decode_public_key(&self) -> Option<&Path> {
-    self.decode_public_key.as_deref()
+  /// Get the authorization mode.
+  pub fn auth_mode(&self) -> &AuthMode {
+    &self.auth_mode
   }
 
   /// Get the validate audience list.
@@ -91,57 +137,15 @@ impl AuthConfig {
   pub fn tls(&self) -> &TlsClientConfig {
     &self.tls
   }
-
-  /// Validate the auth configuration.
-  pub fn validate(&self) -> Result<()> {
-    match (&self.jwks_url, &self.decode_public_key) {
-      (None, None) => {
-        return Err(ParseError(
-          "Either 'jwks_url' or 'decode_public_key' must be set".to_string(),
-        ));
-      }
-      (Some(_), Some(_)) => {
-        return Err(ParseError(
-          "Cannot set both 'jwks_url' and 'decode_public_key'".to_string(),
-        ));
-      }
-      _ => {}
-    }
-
-    // Validate trusted_authorization_urls contains at least one URL
-    if self.trusted_authorization_urls.is_empty() {
-      return Err(ParseError(
-        "At least one URL must be provided in 'trusted_authorization_urls'".to_string(),
-      ));
-    }
-
-    Ok(())
-  }
-}
-
-impl Default for AuthConfig {
-  fn default() -> Self {
-    Self {
-      jwks_url: None,
-      decode_public_key: None,
-      validate_audience: None,
-      validate_issuer: None,
-      trusted_authorization_urls: vec!["https://example.com/".parse().expect("valid uri")],
-      authorization_path: None,
-      tls: TlsClientConfig::default(),
-    }
-  }
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
-  use std::fs::File;
-  use tempfile::tempdir;
 
   #[test]
-  fn auth_config_serialization() {
+  fn auth_config() {
     test_serialize_and_deserialize(
       r#"
             jwks_url = "https://www.example.com"
@@ -151,7 +155,7 @@ mod tests {
             authorization_path = "$.auth_url"
             "#,
       (
-        Some("https://www.example.com/".to_string()),
+        AuthMode::Jwks("https://www.example.com/".parse().unwrap()),
         Some(vec!["aud1".to_string(), "aud2".to_string()]),
         Some(vec!["iss1".to_string()]),
         vec!["https://www.example.com".parse().unwrap()],
@@ -159,7 +163,7 @@ mod tests {
       ),
       |result: AuthConfig| {
         (
-          result.jwks_url().map(|s| s.to_string()),
+          result.auth_mode().clone(),
           result.validate_audience().map(|v| v.to_vec()),
           result.validate_issuer().map(|v| v.to_vec()),
           result.trusted_authorization_urls().to_vec(),
@@ -170,108 +174,50 @@ mod tests {
   }
 
   #[test]
-  fn auth_config_with_public_key() {
-    let temp_dir = tempdir().unwrap();
-    let key_path = temp_dir.path().join("key.pem");
-    File::create(&key_path).unwrap();
-
-    let config = AuthConfig::new(
-      None,
-      Some(key_path.clone()),
-      None,
-      None,
-      vec!["https://www.example.com".parse().unwrap()],
-      None,
-      Default::default(),
+  fn auth_config_public_key() {
+    test_serialize_and_deserialize(
+      r#"
+            public_key = "public_key"
+            trusted_authorization_urls = ["https://www.example.com"]
+            "#,
+      (
+        AuthMode::PublicKey("public_key".parse().unwrap()),
+        vec!["https://www.example.com".parse().unwrap()],
+      ),
+      |result: AuthConfig| {
+        (
+          result.auth_mode().clone(),
+          result.trusted_authorization_urls().to_vec(),
+        )
+      },
     );
-
-    assert_eq!(config.decode_public_key(), Some(key_path.as_path()));
-    assert!(config.validate().is_ok());
   }
 
   #[test]
-  fn auth_config_validation_missing_jwt_method() {
-    let config = AuthConfig::new(
-      None,
-      None,
-      None,
-      None,
-      vec!["https://www.example.com".parse().unwrap()],
-      None,
-      Default::default(),
+  fn auth_config_no_mode() {
+    let config = toml::from_str::<AuthConfig>(
+      r#"
+      validate_audience = ["aud1", "aud2"]
+      validate_issuer = ["iss1"]
+      trusted_authorization_urls = ["https://www.example.com"]
+      authorization_path = "$.auth_url"
+      "#,
     );
-
-    let result = config.validate();
-    assert!(result.is_err());
+    assert!(config.is_err());
   }
 
   #[test]
-  fn auth_config_validation_both_jwt_methods() {
-    let temp_dir = tempdir().unwrap();
-    let key_path = temp_dir.path().join("key.pem");
-    File::create(&key_path).unwrap();
-
-    let config = AuthConfig::new(
-      Some("https://www.example.com".parse().unwrap()),
-      Some(key_path),
-      None,
-      None,
-      vec!["https://www.example.com".parse().unwrap()],
-      None,
-      Default::default(),
+  fn auth_config_both_modes() {
+    let config = toml::from_str::<AuthConfig>(
+      r#"
+      jwks_url = "https://www.example.com"
+      public_key = "public_key"
+      validate_audience = ["aud1", "aud2"]
+      validate_issuer = ["iss1"]
+      trusted_authorization_urls = ["https://www.example.com"]
+      authorization_path = "$.auth_url"
+      "#,
     );
-
-    let result = config.validate();
-    assert!(result.is_err());
-  }
-
-  #[test]
-  fn auth_config_validation_empty_trusted_urls() {
-    let config = AuthConfig::new(
-      Some("https://www.example.com".parse().unwrap()),
-      None,
-      None,
-      None,
-      vec![],
-      None,
-      Default::default(),
-    );
-
-    let result = config.validate();
-    assert!(result.is_err());
-  }
-
-  #[test]
-  fn auth_config_validation_success_jwks() {
-    let config = AuthConfig::new(
-      Some("https://www.example.com/".parse().unwrap()),
-      None,
-      Some(vec!["aud1".to_string()]),
-      Some(vec!["iss1".to_string()]),
-      vec!["https://www.example.com".parse().unwrap()],
-      Some("$.auth_url".to_string()),
-      Default::default(),
-    );
-
-    assert!(config.validate().is_ok());
-  }
-
-  #[test]
-  fn auth_config_validation_success_public_key() {
-    let temp_dir = tempdir().unwrap();
-    let key_path = temp_dir.path().join("key.pem");
-    File::create(&key_path).unwrap();
-
-    let config = AuthConfig::new(
-      None,
-      Some(key_path),
-      Some(vec!["aud1".to_string()]),
-      Some(vec!["iss1".to_string()]),
-      vec!["https://www.example.com".parse().unwrap()],
-      Some("$.auth_url".to_string()),
-      Default::default(),
-    );
-
-    assert!(config.validate().is_ok());
+    assert!(config.is_err());
   }
 }

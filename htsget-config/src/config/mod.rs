@@ -1,6 +1,7 @@
 //! Structs to serialize and deserialize the htsget-rs config options.
 //!
 
+use crate::config::advanced::auth::AuthorizationResponse;
 use crate::config::advanced::FormattingStyle;
 use crate::config::data_server::DataServerEnabled;
 use crate::config::location::{Location, LocationEither, Locations};
@@ -12,6 +13,7 @@ use crate::error::Result;
 use crate::storage::file::File;
 use crate::storage::Backend;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
+use schemars::schema_for;
 use serde::de::Error;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -48,6 +50,13 @@ struct Args {
   config: Option<PathBuf>,
   #[arg(short, long, exclusive = true, help = "Print a default config file")]
   print_default_config: bool,
+  #[arg(
+    short = 's',
+    long,
+    exclusive = true,
+    help = "Print the response JSON schema used in the htsget auth process"
+  )]
+  print_response_schema: bool,
 }
 
 /// Simplified config.
@@ -136,6 +145,12 @@ impl Config {
       println!(
         "{}",
         toml::ser::to_string_pretty(&Config::default()).unwrap()
+      );
+      None
+    } else if args.print_response_schema {
+      println!(
+        "{}",
+        serde_json::to_string_pretty(&schema_for!(AuthorizationResponse)).unwrap()
       );
       None
     } else {
@@ -254,6 +269,7 @@ pub(crate) mod tests {
   use std::fmt::Display;
 
   use super::*;
+  use crate::config::advanced::auth::AuthMode;
   use crate::config::parser::from_str;
   use crate::tls::tests::with_test_certificates;
   use crate::types::Scheme;
@@ -688,6 +704,55 @@ pub(crate) mod tests {
   }
 
   #[test]
+  fn config_server_auth() {
+    test_config_from_file(
+      r#"
+      ticket_server.auth.jwks_url = "https://www.example.com/"
+      ticket_server.auth.validate_issuer = ["iss1"]
+      ticket_server.auth.trusted_authorization_urls = ["https://www.example.com"]
+      ticket_server.auth.authorization_path = "$.auth_url"
+      data_server.auth.jwks_url = "https://www.example.com/"
+      data_server.auth.validate_audience = ["aud1"]
+      data_server.auth.trusted_authorization_urls = ["https://www.example.com"]
+      "#,
+      |config| {
+        let auth = config.ticket_server().auth().unwrap();
+        assert_eq!(
+          auth.auth_mode(),
+          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+        );
+        assert_eq!(
+          auth.validate_issuer(),
+          Some(vec!["iss1".to_string()].as_slice())
+        );
+        assert_eq!(
+          auth.trusted_authorization_urls(),
+          &["https://www.example.com/".parse::<Uri>().unwrap()]
+        );
+        assert_eq!(auth.authorization_path(), Some("$.auth_url"));
+        let auth = config
+          .data_server()
+          .as_data_server_config()
+          .unwrap()
+          .auth()
+          .unwrap();
+        assert_eq!(
+          auth.auth_mode(),
+          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+        );
+        assert_eq!(
+          auth.validate_audience(),
+          Some(vec!["aud1".to_string()].as_slice())
+        );
+        assert_eq!(
+          auth.trusted_authorization_urls(),
+          &["https://www.example.com/".parse::<Uri>().unwrap()]
+        );
+      },
+    );
+  }
+
+  #[test]
   fn no_data_server() {
     test_config_from_file(
       r#"
@@ -717,56 +782,5 @@ pub(crate) mod tests {
   fn assert_file_location(location: &Location, local_path: &str) {
     assert!(matches!(location.backend(),
             Backend::File(file) if file.local_path() == local_path && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
-  }
-
-  #[test]
-  fn config_server_auth() {
-    test_config_from_file(
-      r#"
-      ticket_server.auth.jwks_url = "https://www.example.com/"
-      ticket_server.auth.validate_issuer = ["iss1"]
-      ticket_server.auth.trusted_authorization_urls = ["https://www.example.com"]
-      ticket_server.auth.authorization_path = "$.auth_url"
-      data_server.auth.jwks_url = "https://www.example.com/"
-      data_server.auth.validate_audience = ["aud1"]
-      data_server.auth.trusted_authorization_urls = ["https://www.example.com"]
-      "#,
-      |config| {
-        let auth = config.ticket_server().auth().unwrap();
-        assert_eq!(
-          auth.jwks_url(),
-          Some(&"https://www.example.com/".parse().unwrap())
-        );
-        assert_eq!(
-          auth.validate_issuer(),
-          Some(vec!["iss1".to_string()].as_slice())
-        );
-        assert_eq!(
-          auth.trusted_authorization_urls(),
-          &["https://www.example.com/".parse::<Uri>().unwrap()]
-        );
-        assert_eq!(auth.authorization_path(), Some("$.auth_url"));
-        assert!(auth.validate().is_ok());
-        let auth = config
-          .data_server()
-          .as_data_server_config()
-          .unwrap()
-          .auth()
-          .unwrap();
-        assert_eq!(
-          auth.jwks_url(),
-          Some(&"https://www.example.com/".parse().unwrap())
-        );
-        assert_eq!(
-          auth.validate_audience(),
-          Some(vec!["aud1".to_string()].as_slice())
-        );
-        assert_eq!(
-          auth.trusted_authorization_urls(),
-          &["https://www.example.com/".parse::<Uri>().unwrap()]
-        );
-        assert!(auth.validate().is_ok());
-      },
-    );
   }
 }
