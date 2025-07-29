@@ -1,6 +1,8 @@
 //! Authentication middleware for htsget-axum.
 //!
 
+use crate::error::Error::AuthBuilderError;
+use crate::error::Result;
 use crate::error::{HtsGetError, HtsGetResult};
 use axum::extract::Request;
 use axum::response::Response;
@@ -9,35 +11,89 @@ use axum_extra::headers::authorization::Bearer;
 use axum_extra::headers::Authorization;
 use axum_extra::TypedHeader;
 use futures::future::BoxFuture;
+use htsget_config::config::advanced::auth::{AuthConfig, AuthMode};
+use http::uri::PathAndQuery;
+use http::Uri;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, TokenData, Validation};
-use reqwest;
+use std::fmt::format;
+use std::result;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-#[derive(Debug, Clone)]
-pub struct AuthLayer;
+#[derive(Default, Debug)]
+pub struct AuthLayerBuilder {
+  config: Option<AuthConfig>,
+}
+
+impl AuthLayerBuilder {
+  /// Set the config.
+  pub fn with_config(mut self, config: AuthConfig) -> Self {
+    self.config = Some(config);
+    self
+  }
+
+  pub fn build(self) -> Result<AuthLayer> {
+    let Some(mut config) = self.config else {
+      return Err(AuthBuilderError("missing config".to_string()));
+    };
+
+    if config.trusted_authorization_urls().is_empty() {
+      return Err(AuthBuilderError(
+        "at least one trusted authorization url must be set".to_string(),
+      ));
+    }
+
+    let mut decoding_key = None;
+    match config.auth_mode_mut() {
+      AuthMode::Jwks(uri) => {
+        let mut jwks_url = uri.clone().into_parts();
+        jwks_url.path_and_query = Some(PathAndQuery::from_static("/.well-known/jwks.json"));
+        *uri = Uri::from_parts(jwks_url).map_err(|err| AuthBuilderError(err.to_string()))?;
+      }
+      AuthMode::PublicKey(public_key) => {
+        decoding_key = Some(
+          AuthMiddleware::<Self>::decode_public_key(public_key)
+            .map_err(|_| AuthBuilderError("failed to decode public key".to_string()))?,
+        );
+      }
+    }
+
+    Ok(AuthLayer {
+      config,
+      decoding_key,
+    })
+  }
+}
+
+#[derive(Clone)]
+pub struct AuthLayer {
+  config: AuthConfig,
+  decoding_key: Option<DecodingKey>,
+}
 
 impl<S> Layer<S> for AuthLayer {
   type Service = AuthMiddleware<S>;
 
   fn layer(&self, inner: S) -> Self::Service {
-    AuthMiddleware::new(inner)
+    AuthMiddleware::new(inner, self.clone(), self.decoding_key.clone())
   }
 }
 
 #[derive(Clone)]
 pub struct AuthMiddleware<S> {
   inner: S,
-  client: reqwest::Client,
+  layer: AuthLayer,
+  decoding_key: Option<DecodingKey>,
 }
 
 impl<S> AuthMiddleware<S> {
   /// New function with default client.
-  pub fn new(inner: S) -> Self {
+  pub fn new(inner: S, layer: AuthLayer, decoding_key: Option<DecodingKey>) -> Self {
     Self {
       inner,
-      client: reqwest::Client::new(),
+      layer,
+      decoding_key,
     }
   }
 
@@ -46,9 +102,42 @@ impl<S> AuthMiddleware<S> {
     let err = || {
       HtsGetError::internal_error("failed to fetch jwks.json from authorization server".to_string())
     };
-    let response = self.client.get(jwks_url).send().await.map_err(|_| err())?;
+    let response = self
+      .layer
+      .config
+      .http_client()
+      .get(jwks_url)
+      .send()
+      .await
+      .map_err(|_| err())?;
 
     response.json().await.map_err(|_| err())
+  }
+
+  /// Get a decoding key form the JWKS url.
+  pub async fn decode_jwks(&self, jwks_url: &Uri, token: &str) -> HtsGetResult<DecodingKey> {
+    // Decode header and get the key id.
+    let header = decode_header(token)?;
+    let kid = header
+      .kid
+      .ok_or_else(|| HtsGetError::permission_denied("JWT missing key ID".to_string()))?;
+
+    // Fetch JWKS from the authorization server and find matching JWK.
+    let jwks = self.fetch_jwks(&jwks_url.to_string()).await?;
+    let matched_jwk = jwks
+      .find(&kid)
+      .ok_or_else(|| HtsGetError::permission_denied("matching JWK not found".to_string()))?;
+
+    Ok(DecodingKey::from_jwk(matched_jwk)?)
+  }
+
+  /// Decode a public key into an RSA, EdDSA or ECDSA pem-formatted decoding key.
+  pub fn decode_public_key(key: &[u8]) -> HtsGetResult<DecodingKey> {
+    Ok(
+      DecodingKey::from_rsa_pem(key)
+        .or_else(|_| DecodingKey::from_ed_pem(key))
+        .or_else(|_| DecodingKey::from_ec_pem(key))?,
+    )
   }
 
   pub async fn validate_authorization(
@@ -60,30 +149,32 @@ impl<S> AuthMiddleware<S> {
       .await
       .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
 
-    // Placeholder authorization server.
-    let jwks_url = "/.well-known/jwks.json".to_string();
-
-    // Decode header and get the key id.
-    let header = decode_header(auth_token.token())?;
-    let kid = header
-      .kid
-      .ok_or_else(|| HtsGetError::permission_denied("JWT missing key ID".to_string()))?;
-
-    // Fetch JWKS from the authorization server and find matching JWK.
-    let jwks = self.fetch_jwks(&jwks_url).await?;
-    let matched_jwk = jwks
-      .find(&kid)
-      .ok_or_else(|| HtsGetError::permission_denied("matching JWK not found".to_string()))?;
+    let decoding_key = if let Some(ref decoding_key) = self.decoding_key {
+      decoding_key
+    } else {
+      match self.layer.config.auth_mode() {
+        AuthMode::Jwks(jwks) => &self.decode_jwks(jwks, auth_token.token()).await?,
+        AuthMode::PublicKey(public_key) => &Self::decode_public_key(public_key)?,
+      }
+    };
 
     // Decode and validate the JWT
-    let mut validation = Validation::new(Algorithm::RS256);
+    let mut validation = Validation::default();
+    validation.algorithms = vec![Algorithm::RS256, Algorithm::ES256];
     validation.validate_exp = true;
+    validation.validate_aud = true;
+    validation.validate_nbf = true;
 
-    match decode(
-      auth_token.token(),
-      &DecodingKey::from_jwk(matched_jwk)?,
-      &validation,
-    ) {
+    if let Some(iss) = self.layer.config.validate_issuer() {
+      validation.set_issuer(iss);
+      validation.required_spec_claims.insert("iss".to_string());
+    }
+    if let Some(aud) = self.layer.config.validate_audience() {
+      validation.set_audience(aud);
+      validation.required_spec_claims.insert("aud".to_string());
+    }
+
+    match decode(auth_token.token(), decoding_key, &validation) {
       Ok(claims) => Ok(claims),
       Err(err) => Err(HtsGetError::permission_denied(format!(
         "invalid JWT: {err}"
@@ -99,9 +190,9 @@ where
 {
   type Response = S::Response;
   type Error = S::Error;
-  type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+  type Future = BoxFuture<'static, result::Result<Self::Response, Self::Error>>;
 
-  fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+  fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<result::Result<(), Self::Error>> {
     self.inner.poll_ready(cx)
   }
 

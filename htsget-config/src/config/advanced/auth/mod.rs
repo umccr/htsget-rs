@@ -5,7 +5,6 @@
 //!
 
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
-use crate::tls::client::TlsClientConfig;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -65,6 +64,7 @@ pub struct AuthConfig {
   auth_mode: AuthMode,
   validate_audience: Option<Vec<String>>,
   validate_issuer: Option<Vec<String>>,
+  validate_subject: Option<String>,
   #[serde(
     serialize_with = "serialize_array_display",
     deserialize_with = "deserialize_vec_from_str",
@@ -82,6 +82,7 @@ impl AuthConfig {
     auth_mode: AuthMode,
     validate_audience: Option<Vec<String>>,
     validate_issuer: Option<Vec<String>>,
+    validate_subject: Option<String>,
     trusted_authorization_urls: Vec<Uri>,
     authorization_path: Option<String>,
     http_client: HttpClient,
@@ -90,6 +91,7 @@ impl AuthConfig {
       auth_mode,
       validate_audience,
       validate_issuer,
+      validate_subject,
       trusted_authorization_urls,
       authorization_path,
       http_client,
@@ -114,6 +116,11 @@ impl AuthConfig {
   /// Get the validate issuer list.
   pub fn validate_issuer(&self) -> Option<&[String]> {
     self.validate_issuer.as_deref()
+  }
+
+  /// Get the validate issuer list.
+  pub fn validate_subject(&self) -> Option<&str> {
+    self.validate_subject.as_deref()
   }
 
   /// Get the trusted authorization URLs.
@@ -145,6 +152,7 @@ mod tests {
             jwks_url = "https://www.example.com"
             validate_audience = ["aud1", "aud2"]
             validate_issuer = ["iss1"]
+            validate_subject = sub
             trusted_authorization_urls = ["https://www.example.com"]
             authorization_path = "$.auth_url"
             "#,
@@ -195,6 +203,7 @@ mod tests {
       r#"
       validate_audience = ["aud1", "aud2"]
       validate_issuer = ["iss1"]
+      validate_subject = sub
       trusted_authorization_urls = ["https://www.example.com"]
       authorization_path = "$.auth_url"
       "#,
@@ -210,6 +219,7 @@ mod tests {
       public_key = "public_key"
       validate_audience = ["aud1", "aud2"]
       validate_issuer = ["iss1"]
+      validate_subject = sub
       trusted_authorization_urls = ["https://www.example.com"]
       authorization_path = "$.auth_url"
       "#,

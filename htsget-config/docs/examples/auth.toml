@@ -20,6 +20,7 @@ authorization_path = "$.authorization_url"
 
 validate_audience = ["htsget-server"]
 validate_issuer = ["https://www.example.com"]
+validate_subject = "htsget"
 
 ## Set client authentication
 #tls.key = "key.pem"
@@ -42,6 +43,7 @@ authorization_path = "$.authorization_url"
 
 validate_audience = ["htsget-server"]
 validate_issuer = ["https://www.example.com"]
+validate_subject = "htsget"
 
 ## Set client authentication
 #tls.key = "key.pem"
