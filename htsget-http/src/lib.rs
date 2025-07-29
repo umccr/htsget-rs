@@ -13,6 +13,7 @@ use std::str::FromStr;
 
 mod error;
 mod http_core;
+mod middleware;
 mod post_request;
 mod query_builder;
 mod service_info;
