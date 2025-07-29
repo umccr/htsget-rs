@@ -11,12 +11,12 @@ pub use service_info::{Htsget, ServiceInfo, Type};
 use std::result;
 use std::str::FromStr;
 
-mod error;
-mod http_core;
-mod middleware;
-mod post_request;
-mod query_builder;
-mod service_info;
+pub mod error;
+pub mod http_core;
+pub mod middleware;
+pub mod post_request;
+pub mod query_builder;
+pub mod service_info;
 
 /// A enum to distinguish between the two endpoint defined in the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
