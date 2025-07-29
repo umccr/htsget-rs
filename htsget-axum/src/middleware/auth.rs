@@ -11,11 +11,14 @@ use axum_extra::headers::authorization::Bearer;
 use axum_extra::headers::Authorization;
 use axum_extra::TypedHeader;
 use futures::future::BoxFuture;
-use htsget_config::config::advanced::auth::{AuthConfig, AuthMode};
+use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationResponse};
 use http::uri::PathAndQuery;
 use http::Uri;
+use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
-use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, TokenData, Validation};
+use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+use serde::de::DeserializeOwned;
+use serde_json::Value;
 use std::result;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
@@ -40,6 +43,12 @@ impl AuthLayerBuilder {
     if config.trusted_authorization_urls().is_empty() {
       return Err(AuthBuilderError(
         "at least one trusted authorization url must be set".to_string(),
+      ));
+    }
+    if config.authorization_path().is_none() && config.trusted_authorization_urls().len() > 1 {
+      return Err(AuthBuilderError(
+        "only one trusted authorization url should be set when not using authorization paths"
+          .to_string(),
       ));
     }
 
@@ -97,7 +106,7 @@ impl<S> AuthMiddleware<S> {
   }
 
   /// Fetch JWKS from the authorization server.
-  pub async fn fetch_jwks(&self, jwks_url: &str) -> HtsGetResult<JwkSet> {
+  pub async fn fetch_from_url<D: DeserializeOwned>(&self, url: &str) -> HtsGetResult<D> {
     let err = || {
       HtsGetError::internal_error("failed to fetch jwks.json from authorization server".to_string())
     };
@@ -105,7 +114,7 @@ impl<S> AuthMiddleware<S> {
       .layer
       .config
       .http_client()
-      .get(jwks_url)
+      .get(url)
       .send()
       .await
       .map_err(|_| err())?;
@@ -122,7 +131,7 @@ impl<S> AuthMiddleware<S> {
       .ok_or_else(|| HtsGetError::permission_denied("JWT missing key ID".to_string()))?;
 
     // Fetch JWKS from the authorization server and find matching JWK.
-    let jwks = self.fetch_jwks(&jwks_url.to_string()).await?;
+    let jwks = self.fetch_from_url::<JwkSet>(&jwks_url.to_string()).await?;
     let matched_jwk = jwks
       .find(&kid)
       .ok_or_else(|| HtsGetError::permission_denied("matching JWK not found".to_string()))?;
@@ -139,10 +148,61 @@ impl<S> AuthMiddleware<S> {
     )
   }
 
-  pub async fn validate_authorization(
+  pub async fn query_authorization_service(
     &self,
-    request: &mut Request,
-  ) -> HtsGetResult<TokenData<serde_json::Value>> {
+    claims: Value,
+  ) -> HtsGetResult<AuthorizationResponse> {
+    let query_url = match self.layer.config.authorization_path() {
+      None => self
+        .layer
+        .config
+        .trusted_authorization_urls()
+        .first()
+        .ok_or_else(|| {
+          HtsGetError::internal_error("missing trusted authorization url".to_string())
+        })?,
+      Some(path) => {
+        // Extract the url from the path.
+        let path = claims.query(path).map_err(|err| {
+          HtsGetError::permission_denied(format!(
+            "failed to find authorization service in claims: {err}",
+          ))
+        })?;
+        let url = path
+          .first()
+          .ok_or_else(|| {
+            HtsGetError::permission_denied(
+              "expected one value for authorization service in claims".to_string(),
+            )
+          })?
+          .as_str()
+          .ok_or_else(|| {
+            HtsGetError::permission_denied(
+              "expected string value for authorization service in claims".to_string(),
+            )
+          })?;
+        &url.parse::<Uri>().map_err(|err| {
+          HtsGetError::permission_denied(format!("failed to parse authorization url: {err}"))
+        })?
+      }
+    };
+
+    // Ensure that the authorization url is trusted.
+    if !self
+      .layer
+      .config
+      .trusted_authorization_urls()
+      .contains(query_url)
+    {
+      return Err(HtsGetError::permission_denied(
+        "authorization service in claims not a trusted authorization url".to_string(),
+      ));
+    };
+
+    self.fetch_from_url(&query_url.to_string()).await
+  }
+
+  pub async fn validate_authorization(&self, request: &mut Request) -> HtsGetResult<()> {
     let auth_token = request
       .extract_parts::<TypedHeader<Authorization<Bearer>>>()
       .await
@@ -177,12 +237,18 @@ impl<S> AuthMiddleware<S> {
       validation.required_spec_claims.insert("sub".to_string());
     }
 
-    match decode(auth_token.token(), decoding_key, &validation) {
-      Ok(claims) => Ok(claims),
-      Err(err) => Err(HtsGetError::permission_denied(format!(
-        "invalid JWT: {err}"
-      ))),
-    }
+    let claims = match decode::<Value>(auth_token.token(), decoding_key, &validation) {
+      Ok(claims) => claims,
+      Err(err) => {
+        return Err(HtsGetError::permission_denied(format!(
+          "invalid JWT: {err}"
+        )))
+      }
+    };
+
+    self.query_authorization_service(claims.claims).await?;
+
+    Ok(())
   }
 }
 
