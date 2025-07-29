@@ -93,6 +93,11 @@ impl DataServerConfig {
     self.auth.as_ref()
   }
 
+  /// Set the auth config.
+  pub fn set_auth(&mut self, auth: Option<AuthConfig>) {
+    self.auth = auth;
+  }
+
   /// Get the owned TLS config.
   pub fn into_tls(self) -> Option<TlsServerConfig> {
     self.tls

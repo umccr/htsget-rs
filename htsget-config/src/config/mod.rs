@@ -1,7 +1,7 @@
 //! Structs to serialize and deserialize the htsget-rs config options.
 //!
 
-use crate::config::advanced::auth::AuthorizationResponse;
+use crate::config::advanced::auth::{AuthConfig, AuthorizationResponse};
 use crate::config::advanced::FormattingStyle;
 use crate::config::data_server::DataServerEnabled;
 use crate::config::location::{Location, LocationEither, Locations};
@@ -68,6 +68,7 @@ pub struct Config {
   service_info: ServiceInfo,
   locations: Locations,
   formatting_style: FormattingStyle,
+  auth: Option<AuthConfig>,
 }
 
 impl Config {
@@ -78,6 +79,7 @@ impl Config {
     data_server: DataServerEnabled,
     service_info: ServiceInfo,
     locations: Locations,
+    auth: Option<AuthConfig>,
   ) -> Self {
     Self {
       formatting_style,
@@ -85,6 +87,7 @@ impl Config {
       data_server,
       service_info,
       locations,
+      auth,
     }
   }
 
@@ -160,7 +163,18 @@ impl Config {
 
   /// Read a config struct from a TOML file.
   pub fn from_path(path: &Path) -> io::Result<Self> {
-    let config: Self = from_path(path)?;
+    let mut config: Self = from_path(path)?;
+
+    // Propagate global config to individual ticket and data servers.
+    if let DataServerEnabled::Some(ref mut data_server_config) = config.data_server {
+      if data_server_config.auth().is_none() {
+        data_server_config.set_auth(config.auth.clone());
+      }
+    }
+    if config.ticket_server().auth().is_none() {
+      config.ticket_server.set_auth(config.auth.clone());
+    }
+
     Ok(config.resolvers_from_data_server_config()?)
   }
 
@@ -230,6 +244,7 @@ impl Default for Config {
       data_server: DataServerEnabled::Some(Default::default()),
       service_info: Default::default(),
       locations: Default::default(),
+      auth: Default::default(),
     }
   }
 }
@@ -736,6 +751,32 @@ pub(crate) mod tests {
           .unwrap()
           .auth()
           .unwrap();
+        assert_eq!(
+          auth.auth_mode(),
+          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+        );
+        assert_eq!(
+          auth.validate_audience(),
+          Some(vec!["aud1".to_string()].as_slice())
+        );
+        assert_eq!(
+          auth.trusted_authorization_urls(),
+          &["https://www.example.com/".parse::<Uri>().unwrap()]
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_server_auth_global() {
+    test_config_from_file(
+      r#"
+      auth.jwks_url = "https://www.example.com/"
+      auth.validate_audience = ["aud1"]
+      auth.trusted_authorization_urls = ["https://www.example.com"]
+      "#,
+      |config| {
+        let auth = config.auth.unwrap();
         assert_eq!(
           auth.auth_mode(),
           &AuthMode::Jwks("https://www.example.com/".parse().unwrap())

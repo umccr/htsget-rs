@@ -3,9 +3,11 @@
 
 use crate::error::Result;
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
+use crate::middleware::auth::AuthLayerBuilder;
 use crate::server::{configure_cors, AppState, BindServer, Server};
 use axum::routing::get;
 use axum::Router;
+use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::config::ticket_server::TicketServerConfig;
@@ -24,10 +26,11 @@ impl From<TicketServerConfig> for BindServer {
   fn from(config: TicketServerConfig) -> Self {
     let addr = config.addr();
     let cors = config.cors().clone();
+    let auth = config.auth().cloned();
 
     match config.into_tls() {
-      None => Self::new(addr, cors),
-      Some(tls) => Self::new_with_tls(addr, cors, tls),
+      None => Self::new(addr, cors, auth),
+      Some(tls) => Self::new_with_tls(addr, cors, auth, tls),
     }
   }
 }
@@ -39,6 +42,7 @@ pub struct TicketServer<H> {
   htsget: H,
   service_info: ServiceInfo,
   cors: CorsConfig,
+  auth: Option<AuthConfig>,
 }
 
 impl<H> TicketServer<H>
@@ -46,12 +50,19 @@ where
   H: HtsGet + Clone + Send + Sync + 'static,
 {
   /// Create a new ticket server.
-  pub fn new(server: Server, htsget: H, service_info: ServiceInfo, cors: CorsConfig) -> Self {
+  pub fn new(
+    server: Server,
+    htsget: H,
+    service_info: ServiceInfo,
+    cors: CorsConfig,
+    auth: Option<AuthConfig>,
+  ) -> Self {
     Self {
       server,
       htsget,
       service_info,
       cors,
+      auth,
     }
   }
 
@@ -59,13 +70,23 @@ where
   pub async fn serve(self) -> Result<()> {
     self
       .server
-      .serve(Self::router(self.htsget, self.service_info, self.cors))
+      .serve(Self::router(
+        self.htsget,
+        self.service_info,
+        self.cors,
+        self.auth,
+      )?)
       .await
   }
 
   /// Create the router for the ticket server.
-  pub fn router(htsget: H, service_info: ServiceInfo, cors: CorsConfig) -> Router {
-    Router::default()
+  pub fn router(
+    htsget: H,
+    service_info: ServiceInfo,
+    cors: CorsConfig,
+    auth: Option<AuthConfig>,
+  ) -> Result<Router> {
+    let router = Router::default()
       .route(
         "/reads/service-info",
         get(reads_service_info::<H>).post(reads_service_info::<H>),
@@ -82,7 +103,13 @@ where
           .layer(TraceLayer::new_for_http())
           .layer(configure_cors(cors)),
       )
-      .with_state(AppState::new(htsget, service_info))
+      .with_state(AppState::new(htsget, service_info));
+
+    if let Some(auth) = auth {
+      Ok(router.layer(AuthLayerBuilder::default().with_config(auth).build()?))
+    } else {
+      Ok(router)
+    }
   }
 
   /// Get the local address the server has bound to.
@@ -233,7 +260,9 @@ mod tests {
         self.config.clone().into_locations(),
         self.config.service_info().clone(),
         self.config.ticket_server().cors().clone(),
-      );
+        None,
+      )
+      .unwrap();
 
       app.oneshot(request).await
     }

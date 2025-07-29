@@ -6,8 +6,8 @@ data_server.addr = "127.0.0.1:8081"
 
 locations = "file://data"
 
-# JWT authorization configuration for ticket server
-[ticket_server.auth]
+# JWT authorization configuration.
+[auth]
 jwks_url = "https://www.example.com/htsget"
 ## Alternatively use public key-based validation
 #public_key = "/path/to/jwt-public-key.pem"
@@ -29,25 +29,6 @@ validate_subject = "htsget"
 ## Set root certificates
 #tls.root_store = "root.crt"
 
-# JWT authorization configuration for the data server, same options as above.
-[data_server.auth]
-jwks_url = "https://www.example.com/htsget"
-## Alternatively use public key-based validation
-#public_key = "/path/to/jwt-public-key.pem"
-
-# Trusted authorization URLs
-trusted_authorization_urls = ["https://www.example.com/authorize"]
-# Optionally fetch the authorization url from the path in the JWT. Only
-# issues request to URL if it's also in `trusted_authorization_urls`.
-authorization_path = "$.authorization_url"
-
-validate_audience = ["htsget-server"]
-validate_issuer = ["https://www.example.com"]
-validate_subject = "htsget"
-
-## Set client authentication
-#tls.key = "key.pem"
-#tls.cert = "cert.pem"
-#
-## Set root certificates
-#tls.root_store = "root.crt"
+## It's also possible to set auth individually for the ticket and auth servers:
+#[ticket_server.auth]
+#[data_server.auth]

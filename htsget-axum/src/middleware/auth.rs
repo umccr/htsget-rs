@@ -16,7 +16,6 @@ use http::uri::PathAndQuery;
 use http::Uri;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, TokenData, Validation};
-use std::fmt::format;
 use std::result;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
@@ -172,6 +171,10 @@ impl<S> AuthMiddleware<S> {
     if let Some(aud) = self.layer.config.validate_audience() {
       validation.set_audience(aud);
       validation.required_spec_claims.insert("aud".to_string());
+    }
+    if let Some(sub) = self.layer.config.validate_subject() {
+      validation.sub = Some(sub.to_string());
+      validation.required_spec_claims.insert("sub".to_string());
     }
 
     match decode(auth_token.token(), decoding_key, &validation) {

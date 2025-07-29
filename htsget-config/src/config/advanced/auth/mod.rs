@@ -43,10 +43,10 @@ impl TryFrom<AuthModeSerde> for AuthMode {
   fn try_from(mode: AuthModeSerde) -> Result<Self> {
     match (mode.jwks_url, mode.public_key) {
       (None, None) => Err(ParseError(
-        "Either 'jwks_url' or 'decode_public_key' must be set".to_string(),
+        "Either 'jwks_url' or 'public_key' must be set".to_string(),
       )),
       (Some(_), Some(_)) => Err(ParseError(
-        "Cannot set both 'jwks_url' and 'decode_public_key'".to_string(),
+        "Cannot set both 'jwks_url' and 'public_key'".to_string(),
       )),
       (Some(jwks_url), None) => Ok(AuthMode::Jwks(jwks_url)),
       (None, Some(public_key)) => Ok(AuthMode::PublicKey(
@@ -142,57 +142,59 @@ impl AuthConfig {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::config::tests::test_serialize_and_deserialize;
   use crate::tls::tests::with_test_certificates;
 
   #[test]
   fn auth_config() {
-    test_serialize_and_deserialize(
+    let config: AuthConfig = toml::from_str(
       r#"
-            jwks_url = "https://www.example.com"
-            validate_audience = ["aud1", "aud2"]
-            validate_issuer = ["iss1"]
-            validate_subject = sub
-            trusted_authorization_urls = ["https://www.example.com"]
-            authorization_path = "$.auth_url"
-            "#,
-      (
-        AuthMode::Jwks("https://www.example.com/".parse().unwrap()),
-        Some(vec!["aud1".to_string(), "aud2".to_string()]),
-        Some(vec!["iss1".to_string()]),
-        vec!["https://www.example.com".parse().unwrap()],
-        Some("$.auth_url".to_string()),
-      ),
-      |result: AuthConfig| {
-        (
-          result.auth_mode().clone(),
-          result.validate_audience().map(|v| v.to_vec()),
-          result.validate_issuer().map(|v| v.to_vec()),
-          result.trusted_authorization_urls().to_vec(),
-          result.authorization_path().map(|s| s.to_string()),
-        )
-      },
+      jwks_url = "https://www.example.com"
+      validate_audience = ["aud1", "aud2"]
+      validate_issuer = ["iss1"]
+      validate_subject = "sub"
+      trusted_authorization_urls = ["https://www.example.com"]
+      authorization_path = "$.auth_url"
+      "#,
+    )
+    .unwrap();
+
+    assert_eq!(
+      config.auth_mode(),
+      &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
     );
+    assert_eq!(
+      config.validate_audience().unwrap().to_vec(),
+      vec!["aud1".to_string(), "aud2".to_string()]
+    );
+    assert_eq!(
+      config.validate_issuer().unwrap().to_vec(),
+      vec!["iss1".to_string()]
+    );
+    assert_eq!(
+      config.trusted_authorization_urls().to_vec(),
+      vec!["https://www.example.com".parse::<Uri>().unwrap()]
+    );
+    assert_eq!(config.authorization_path().unwrap(), "$.auth_url");
   }
 
   #[test]
   fn auth_config_public_key() {
-    with_test_certificates(|path, key, _| {
+    with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
 
-      test_serialize_and_deserialize(
-        &format!(
-          r#"
+      let config: AuthConfig = toml::from_str(&format!(
+        r#"
             public_key = "{}"
             trusted_authorization_urls = ["https://www.example.com"]
             "#,
-          key_path.to_string_lossy()
-        ),
-        (vec!["https://www.example.com".parse().unwrap()],),
-        |result: AuthConfig| {
-          assert!(matches!(result.auth_mode(), AuthMode::PublicKey(_)));
-          (result.trusted_authorization_urls().to_vec(),)
-        },
+        key_path.to_string_lossy()
+      ))
+      .unwrap();
+
+      assert!(matches!(config.auth_mode(), AuthMode::PublicKey(_)));
+      assert_eq!(
+        vec!["https://www.example.com".parse::<Uri>().unwrap()],
+        config.trusted_authorization_urls().to_vec()
       );
     });
   }

@@ -21,6 +21,9 @@ pub enum Error {
 
   #[error("invalid address: {0}")]
   InvalidAddress(#[from] AddrParseError),
+
+  #[error("building auth middleware: {0}")]
+  AuthBuilderError(String),
 }
 
 impl From<hyper::Error> for Error {

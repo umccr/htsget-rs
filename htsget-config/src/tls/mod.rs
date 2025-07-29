@@ -5,7 +5,7 @@ pub mod client;
 
 use std::fs::File;
 use std::io;
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use rustls::ServerConfig;
