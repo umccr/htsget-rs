@@ -3,7 +3,7 @@
 
 use crate::error::Result;
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
-use crate::middleware::auth::AuthLayerBuilder;
+use crate::middleware::auth::AuthLayer;
 use crate::server::{configure_cors, AppState, BindServer, Server};
 use axum::routing::get;
 use axum::Router;
@@ -12,6 +12,7 @@ use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::config::ticket_server::TicketServerConfig;
 use htsget_config::config::Config;
+use htsget_http::middleware::auth::AuthBuilder;
 use htsget_search::HtsGet;
 use http::{StatusCode, Uri};
 use std::net::SocketAddr;
@@ -106,7 +107,9 @@ where
       .with_state(AppState::new(htsget, service_info));
 
     if let Some(auth) = auth {
-      Ok(router.layer(AuthLayerBuilder::default().with_config(auth).build()?))
+      Ok(router.layer(AuthLayer::from(
+        AuthBuilder::default().with_config(auth).build()?,
+      )))
     } else {
       Ok(router)
     }

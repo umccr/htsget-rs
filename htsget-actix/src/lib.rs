@@ -1,6 +1,9 @@
+extern crate core;
+
 use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
+use std::io;
 use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
@@ -9,11 +12,14 @@ use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::config::ticket_server::TicketServerConfig;
 pub use htsget_config::config::{Config, USAGE};
+use htsget_http::middleware::auth::AuthBuilder;
 use htsget_search::HtsGet;
 
 use crate::handlers::{get, post, reads_service_info, variants_service_info, HttpVersionCompat};
+use crate::middleware::auth::AuthLayer;
 
 pub mod handlers;
+pub mod middleware;
 
 /// Represents the actix app state.
 pub struct AppState<H: HtsGet> {
@@ -112,32 +118,59 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
   config: TicketServerConfig,
   service_info: ServiceInfo,
-) -> std::io::Result<Server> {
-  let addr = config.addr();
-
-  let config_copy = config.clone();
-  let server = HttpServer::new(Box::new(move || {
+) -> io::Result<Server> {
+  let app = |htsget: H, config: TicketServerConfig, service_info: ServiceInfo| {
     App::new()
       .configure(|service_config: &mut web::ServiceConfig| {
-        configure_server(service_config, htsget.clone(), service_info.clone());
+        configure_server(service_config, htsget, service_info);
       })
-      .wrap(configure_cors(config_copy.cors().clone()))
+      .wrap(configure_cors(config.cors().clone()))
       .wrap(TracingLogger::default())
-  }));
-
-  let server = match config.into_tls() {
-    None => {
-      info!("using non-TLS ticket server");
-      server.bind(addr)?
-    }
-    Some(tls) => {
-      info!("using TLS ticket server");
-      server.bind_rustls_0_23(addr, tls.into_inner())?
-    }
   };
 
-  info!(addresses = ?server.addrs(), "htsget query server addresses bound");
-  Ok(server.run())
+  let addr = config.addr();
+  if let Some(auth_config) = config.auth().cloned() {
+    let auth = AuthBuilder::default()
+      .with_config(auth_config)
+      .build()
+      .map_err(|err| io::Error::other(err.to_string()))?;
+    let config_copy = config.clone();
+    let server = HttpServer::new(move || {
+      app(htsget.clone(), config_copy.clone(), service_info.clone()).wrap(AuthLayer(auth.clone()))
+    });
+
+    let server = match config.into_tls() {
+      None => {
+        info!("using non-TLS ticket server");
+        server.bind(addr)?
+      }
+      Some(tls) => {
+        info!("using TLS ticket server");
+        server.bind_rustls_0_23(addr, tls.into_inner())?
+      }
+    };
+
+    info!(addresses = ?server.addrs(), "htsget query server addresses bound");
+    Ok(server.run())
+  } else {
+    let config_copy = config.clone();
+    let server =
+      HttpServer::new(move || app(htsget.clone(), config_copy.clone(), service_info.clone()));
+
+    let server = match config.into_tls() {
+      None => {
+        info!("using non-TLS ticket server");
+        server.bind(addr)?
+      }
+      Some(tls) => {
+        info!("using TLS ticket server");
+        server.bind_rustls_0_23(addr, tls.into_inner())?
+      }
+    };
+
+    info!(addresses = ?server.addrs(), "htsget query server addresses bound");
+    Ok(server.run())
+  }
 }
 
 #[cfg(test)]

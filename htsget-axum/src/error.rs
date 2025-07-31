@@ -42,6 +42,12 @@ impl From<Error> for io::Error {
   }
 }
 
+impl From<htsget_http::middleware::error::Error> for Error {
+  fn from(error: htsget_http::middleware::error::Error) -> Self {
+    Self::AuthBuilderError(error.to_string())
+  }
+}
+
 /// The result type for htsget errors.
 pub type HtsGetResult<T> = result::Result<T, HtsGetError>;
 

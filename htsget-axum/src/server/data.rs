@@ -2,12 +2,13 @@
 //!
 
 use crate::error::Result;
-use crate::middleware::auth::AuthLayerBuilder;
+use crate::middleware::auth::AuthLayer;
 use crate::server::{configure_cors, BindServer, Server};
 use axum::Router;
 use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::data_server::DataServerConfig;
+use htsget_http::middleware::auth::AuthBuilder;
 use std::net::SocketAddr;
 use std::path::Path;
 use tokio::task::JoinHandle;
@@ -49,7 +50,9 @@ impl DataServer {
       .layer(TraceLayer::new_for_http());
 
     if let Some(auth) = auth {
-      Ok(router.layer(AuthLayerBuilder::default().with_config(auth).build()?))
+      Ok(router.layer(AuthLayer::from(
+        AuthBuilder::default().with_config(auth).build()?,
+      )))
     } else {
       Ok(router)
     }
