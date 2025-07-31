@@ -8,10 +8,10 @@ use crate::types::{Format, Interval};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Authorization response from external authorization service.
+/// Authorization restrictions from an external authorization service.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct AuthorizationResponse {
+pub struct AuthorizationRestrictions {
   /// The version of the schema.
   #[validate(range(min = 1))]
   version: u32,
@@ -47,7 +47,7 @@ pub struct ReferenceNameRestriction {
   interval: Interval,
 }
 
-impl AuthorizationResponse {
+impl AuthorizationRestrictions {
   /// Create a new authorization response.
   pub fn new(version: u32, htsget_auth: Vec<AuthorizationRule>) -> Self {
     Self {
@@ -132,7 +132,7 @@ mod tests {
         }]
       }]
     });
-    let response: AuthorizationResponse = serde_json::from_value(json_value).unwrap();
+    let response: AuthorizationRestrictions = serde_json::from_value(json_value).unwrap();
 
     assert_eq!(response.version(), 1);
     assert_eq!(response.htsget_auth().len(), 1);
@@ -151,7 +151,7 @@ mod tests {
         "path": "/path/to/file"
       }]
     });
-    let no_restrictions_response: AuthorizationResponse =
+    let no_restrictions_response: AuthorizationRestrictions =
       serde_json::from_value(no_restrictions_value).unwrap();
     assert_eq!(no_restrictions_response.version(), 1);
     assert_eq!(no_restrictions_response.htsget_auth().len(), 1);

@@ -32,6 +32,7 @@ cfg-if = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 jsonwebtoken = "9"
 jsonpath-rust = "1"
+regex = "1"
 
 [dev-dependencies]
 htsget-test = { path = "../htsget-test", default-features = false }

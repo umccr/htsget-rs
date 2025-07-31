@@ -14,7 +14,7 @@ pub mod response;
 use crate::config::advanced::{Bytes, HttpClient};
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
-pub use response::{AuthorizationResponse, AuthorizationRule, ReferenceNameRestriction};
+pub use response::{AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction};
 
 /// The method for authorization, either using a JWKS url or a public key.
 #[derive(Deserialize, Debug, Clone, Eq, PartialEq)]

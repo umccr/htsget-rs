@@ -1,13 +1,15 @@
 use crate::error::Result as HtsGetResult;
 use crate::middleware::error::Error::AuthBuilderError;
 use crate::middleware::error::Result;
-use crate::HtsGetError;
-use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationResponse};
+use crate::{convert_to_query, match_format, Endpoint, HtsGetError};
+use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationRestrictions};
+use htsget_config::types::Request;
 use http::uri::PathAndQuery;
 use http::Uri;
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -114,7 +116,7 @@ impl Auth {
   pub async fn query_authorization_service(
     &self,
     claims: Value,
-  ) -> HtsGetResult<AuthorizationResponse> {
+  ) -> HtsGetResult<AuthorizationRestrictions> {
     let query_url = match self.config.authorization_path() {
       None => self
         .config
@@ -157,6 +159,63 @@ impl Auth {
     };
 
     self.fetch_from_url(&query_url.to_string()).await
+  }
+
+  pub async fn validate_restrictions(
+    restrictions: AuthorizationRestrictions,
+    request: Request,
+    endpoint: Endpoint,
+  ) -> HtsGetResult<()> {
+    // Find all rules matching the path.
+    let matching_rules = restrictions
+      .htsget_auth()
+      .iter()
+      .filter(|rule| {
+        // If this path is a direct match then just return that.
+        if rule.path().strip_prefix("/").unwrap_or(rule.path())
+          == request.path().strip_prefix("/").unwrap_or(request.path())
+        {
+          return true;
+        }
+
+        // Otherwise, try and parse it as a regex.
+        Regex::new(rule.path()).is_ok_and(|regex| regex.is_match(request.path()))
+      })
+      .collect::<Vec<_>>();
+
+    // If any of the rules allow all reference names (nothing set in the rule) then the user is authorized.
+    let allows_all = matching_rules
+      .iter()
+      .find(|rule| rule.reference_names().is_none());
+    if allows_all.is_some() {
+      return Ok(());
+    }
+
+    let format = match_format(&endpoint, request.query().get("format"))?;
+    let query = convert_to_query(request, format)?;
+    let matching_restriction = matching_rules
+      .iter()
+      .flat_map(|rule| rule.reference_names().unwrap_or_default())
+      .find(|restriction| {
+        query.reference_name() == Some(restriction.name())
+          && (restriction.format().is_none() || Some(query.format()) == restriction.format())
+          && restriction
+            .interval()
+            .contains(query.interval().start().unwrap_or(u32::MIN))
+          && restriction
+            .interval()
+            .contains(query.interval().end().unwrap_or(u32::MAX))
+      });
+
+    // If the matching rule with the restriction was found, then the user is authorized, otherwise
+    // it is a permission denied response.
+    if matching_restriction.is_some() {
+      Ok(())
+    } else {
+      Err(HtsGetError::PermissionDenied(
+        "failed to authorize user based on authorization service restrictions".to_string(),
+      ))
+    }
   }
 
   pub async fn validate_authorization(&self, token: &str) -> HtsGetResult<()> {

@@ -1,7 +1,7 @@
 //! Structs to serialize and deserialize the htsget-rs config options.
 //!
 
-use crate::config::advanced::auth::{AuthConfig, AuthorizationResponse};
+use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::advanced::FormattingStyle;
 use crate::config::data_server::DataServerEnabled;
 use crate::config::location::{Location, LocationEither, Locations};
@@ -153,7 +153,7 @@ impl Config {
     } else if args.print_response_schema {
       println!(
         "{}",
-        serde_json::to_string_pretty(&schema_for!(AuthorizationResponse)).unwrap()
+        serde_json::to_string_pretty(&schema_for!(AuthorizationRestrictions)).unwrap()
       );
       None
     } else {
