@@ -4,6 +4,9 @@
 pub mod data;
 pub mod ticket;
 
+#[cfg(test)]
+mod auth_tests;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;

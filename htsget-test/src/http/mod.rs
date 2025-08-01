@@ -1,6 +1,7 @@
 //! Testing functionality related to http and url tickets.
 //!
 
+pub mod auth;
 pub mod concat;
 pub mod cors;
 pub mod server;

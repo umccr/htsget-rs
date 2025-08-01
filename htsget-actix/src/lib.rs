@@ -181,8 +181,12 @@ mod tests {
   use actix_web::dev::ServiceResponse;
   use actix_web::{test, web, App};
   use async_trait::async_trait;
+  use futures_util::FutureExt;
   use rustls::crypto::aws_lc_rs;
   use tempfile::TempDir;
+  use htsget_test::http::auth::{create_test_auth_config_jwks, create_test_jwt_token, create_jwt_claims};
+  use http_1::Method;
+  use htsget_test::http::auth::test_all_auth;
 
   use htsget_axum::server::BindServer;
   use htsget_config::types::JsonResponse;
@@ -192,6 +196,11 @@ mod tests {
   use htsget_test::http::{
     Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
+  use htsget_test::http::auth::{
+    create_auth_restrictions,
+    MockAuthServer,
+  };
+  use htsget_http::middleware::auth::{Auth, AuthBuilder};
 
   use crate::Config;
 
@@ -199,6 +208,7 @@ mod tests {
 
   struct ActixTestServer {
     config: Config,
+    auth: Option<AuthLayer>,
   }
 
   struct ActixTestRequest<T>(T);
@@ -241,6 +251,7 @@ mod tests {
     fn default() -> Self {
       Self {
         config: default_test_config(),
+        auth: None,
       }
     }
   }
@@ -303,27 +314,45 @@ mod tests {
 
       Self {
         config: config_with_tls(path),
+        auth: None,
+      }
+    }
+
+    async fn new_with_auth() -> Self {
+      let mock_server = MockAuthServer::new().await;
+      let auth_config = create_test_auth_config_jwks(&mock_server);
+      let auth = AuthBuilder::default()
+        .with_config(auth_config)
+        .build()
+        .unwrap();
+
+      Self {
+        config: default_test_config(),
+        auth: Some(AuthLayer(auth)),
       }
     }
 
     async fn get_response(
       &self,
       request: test::TestRequest,
-    ) -> ServiceResponse<EitherBody<BoxBody>> {
-      let app = test::init_service(
-        App::new()
-          .configure(|service_config: &mut web::ServiceConfig| {
-            configure_server(
-              service_config,
-              self.config.clone().into_locations(),
-              self.config.service_info().clone(),
-            );
-          })
-          .wrap(configure_cors(self.config.ticket_server().cors().clone())),
-      )
-      .await;
+    ) -> ServiceResponse<BoxBody> {
+      let mut app = App::new()
+        .configure(|service_config: &mut web::ServiceConfig| {
+          configure_server(
+            service_config,
+            self.config.clone().into_locations(),
+            self.config.service_info().clone(),
+          );
+        })
+        .wrap(configure_cors(self.config.ticket_server().cors().clone()));
 
-      request.send_request(&app).await
+      if let Some(ref auth) = self.auth {
+        let app = test::init_service(app.wrap(auth.clone())).await;
+        request.send_request(&app).await.map_into_boxed_body()
+      } else {
+        let app = test::init_service(app).await;
+        request.send_request(&app).await.map_into_boxed_body()
+      }
     }
   }
 
@@ -406,4 +435,75 @@ mod tests {
   async fn cors_preflight_request() {
     cors::test_cors_preflight_request(&ActixTestServer::default()).await;
   }
+
+  #[actix_web::test]
+  async fn test_auth_integration() {
+    let server = ActixTestServer::new_with_auth().await;
+    test_all_auth(&server).await;
+  }
+
+  // #[actix_web::test]
+  // async fn test_auth_valid_request() {
+  //   let server = ActixTestServer::new_with_auth().await;
+  //   let claims = create_valid_jwt_claims();
+  //   let token = create_test_jwt_token(claims);
+  //
+  //   let request = server
+  //     .request()
+  //     .method(Method::GET)
+  //     .uri("/reads/1-vcf/sample1-bcbio-cancer")
+  //     .insert_header(TestHeader {
+  //       name: "authorization",
+  //       value: format!("Bearer {}", token),
+  //     });
+  //
+  //   let response = server.test_server(request, "".to_string()).await;
+  //
+  //   // Should not be an auth error
+  //   assert_ne!(response.status, 401);
+  //   assert_ne!(response.status, 403);
+  // }
+  //
+  // #[actix_web::test]
+  // async fn test_auth_missing_token() {
+  //   let server = ActixTestServer::new_with_auth().await;
+  //
+  //   let request = server.request().method(Method::GET).uri("/reads/1-vcf/sample1-bcbio-cancer");
+  //
+  //   let response = server.test_server(request, "".to_string()).await;
+  //   assert_eq!(response.status, 401);
+  // }
+  //
+  // #[actix_web::test]
+  // async fn test_auth_invalid_token() {
+  //   let server = ActixTestServer::new_with_auth().await;
+  //
+  //   let request = server
+  //     .request()
+  //     .method(Method::GET)
+  //     .uri("/reads/1-vcf/sample1-bcbio-cancer")
+  //     .insert_header(TestHeader {
+  //       name: "authorization",
+  //       value: "Bearer invalid.jwt.token".to_string(),
+  //     });
+  //
+  //   let response = server.test_server(request, "".to_string()).await;
+  //   assert_eq!(response.status, 403);
+  // }
+  //
+  // #[actix_web::test]
+  // async fn test_service_info_no_auth() {
+  //   let server = ActixTestServer::new_with_auth().await;
+  //
+  //   let request = server
+  //     .request()
+  //     .method(Method::GET)
+  //     .uri("/variants/service-info");
+  //
+  //   let response = server.test_server(request, "".to_string()).await;
+  //
+  //   // Service info should not require auth
+  //   assert_ne!(response.status, 401);
+  //   assert_ne!(response.status, 403);
+  // }
 }

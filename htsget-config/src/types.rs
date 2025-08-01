@@ -133,15 +133,22 @@ pub struct Interval {
 
 impl Interval {
   /// Does this interval contain the passed in interval.
-  pub fn contains_interval(&self, interval: Interval) -> bool {
-    let check_containment = |left_bound, right_bound| match (left_bound, right_bound) {
-      (None, _) => true,
-      (Some(_), None) => false,
-      (Some(left_val), Some(right_val)) => left_val <= right_val,
-    };
+  pub fn contains_interval(&self, other: Interval) -> bool {
+    let check_containment =
+      |self_bound, other_bound, is_start: bool| match (self_bound, other_bound) {
+        (None, _) => true,
+        (Some(_), None) => false,
+        (Some(self_val), Some(other_val)) => {
+          if is_start {
+            self_val <= other_val
+          } else {
+            self_val >= other_val
+          }
+        }
+      };
 
-    let start_contains = check_containment(self.start, interval.start);
-    let end_contains = check_containment(interval.end, self.end);
+    let start_contains = check_containment(self.start, other.start, true);
+    let end_contains = check_containment(self.end, other.end, false);
 
     start_contains && end_contains
   }

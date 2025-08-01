@@ -57,17 +57,14 @@ impl<S> AuthMiddleware<S> {
   }
 
   /// Validate the authorization.
-  pub async fn validate_authorization(
-    &self,
-    req: &mut ServiceRequest,
-  ) -> htsget_axum::error::HtsGetResult<()> {
+  pub async fn validate_authorization(&self, req: &mut ServiceRequest) -> Result<(), HtsGetError> {
     let (req, payload) = req.parts_mut();
 
-    let query: Query<HashMap<String, String>> =
-      <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
-        .await
-        .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
-    let path: Path<String> = <Path<String> as FromRequest>::from_request(req, payload)
+    let path = <Path<String> as FromRequest>::from_request(req, payload)
+      .await
+      .map_err(|err| HtsGetError::permission_denied(err.to_string()));
+    let path = path.unwrap();
+    let query = <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
       .await
       .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
 
