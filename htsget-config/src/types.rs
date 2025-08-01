@@ -132,6 +132,20 @@ pub struct Interval {
 }
 
 impl Interval {
+  /// Does this interval contain the passed in interval.
+  pub fn contains_interval(&self, interval: Interval) -> bool {
+    let check_containment = |left_bound, right_bound| match (left_bound, right_bound) {
+      (None, _) => true,
+      (Some(_), None) => false,
+      (Some(left_val), Some(right_val)) => left_val <= right_val,
+    };
+
+    let start_contains = check_containment(self.start, interval.start);
+    let end_contains = check_containment(interval.end, self.end);
+
+    start_contains && end_contains
+  }
+
   /// Check if this interval contains the value.
   pub fn contains(&self, value: u32) -> bool {
     match (self.start.as_ref(), self.end.as_ref()) {
@@ -767,6 +781,49 @@ mod tests {
       end: None,
     };
     assert!(interval.contains(0));
+  }
+
+  #[test]
+  fn interval_contains_interval() {
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(12), Some(18));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(10), Some(20));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(5), Some(15));
+    assert!(!outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(15), Some(25));
+    assert!(!outer.contains_interval(inner));
+
+    let outer = Interval::new(None, Some(20));
+    let inner = Interval::new(Some(10), Some(15));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), None);
+    let inner = Interval::new(Some(15), Some(25));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(None, None);
+    let inner = Interval::new(Some(10), Some(20));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(None, Some(15));
+    assert!(!outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(15), None);
+    assert!(!outer.contains_interval(inner));
+
+    let outer = Interval::new(None, None);
+    let inner = Interval::new(None, None);
+    assert!(outer.contains_interval(inner));
   }
 
   #[test]
