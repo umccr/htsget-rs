@@ -47,18 +47,26 @@ fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, imp
   }
 }
 
-fn extract_request(
+pub(crate) fn extract_request_path(
   request: Query<HashMap<String, String>>,
-  path: Path<String>,
+  path: String,
   http_request: HttpRequest,
 ) -> Request {
   let query = request.into_inner();
 
   Request::new(
-    path.into_inner(),
+    path,
     query,
     HttpVersionCompat::header_map_0_2_to_1(HeaderMap::from(&http_request).into_inner()),
   )
+}
+
+pub(crate) fn extract_request(
+  request: Query<HashMap<String, String>>,
+  path: Path<String>,
+  http_request: HttpRequest,
+) -> Request {
+  extract_request_path(request, path.into_inner(), http_request)
 }
 
 // Todo, remove this when actix-web starts using http 1.0.

@@ -2,14 +2,15 @@
 //!
 
 use crate::error::{HtsGetError, HtsGetResult};
-use axum::extract::Request;
+use crate::handlers::extract_request;
+use axum::extract::{Path, Query, Request};
 use axum::response::{IntoResponse, Response};
 use axum::RequestExt;
-use axum_extra::headers::authorization::Bearer;
-use axum_extra::headers::Authorization;
-use axum_extra::TypedHeader;
 use futures::future::BoxFuture;
 use htsget_http::middleware::auth::Auth;
+use htsget_http::Endpoint;
+use http::HeaderMap;
+use std::collections::HashMap;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
@@ -63,16 +64,39 @@ impl<S> AuthMiddleware<S> {
 
   /// Validate the request using the htsget-http validator.
   pub async fn validate_authorization(&self, request: &mut Request) -> HtsGetResult<()> {
-    let auth_token = request
-      .extract_parts::<TypedHeader<Authorization<Bearer>>>()
+    let query = request
+      .extract_parts::<Query<HashMap<String, String>>>()
       .await
       .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
+    let headers = request
+      .extract_parts::<HeaderMap>()
+      .await
+      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
+
+    let path = request
+      .extract_parts::<Path<String>>()
+      .await
+      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
+    let (request, endpoint) = if let Some(reads) = path.strip_prefix("/reads") {
+      (
+        extract_request(query, Path(reads.to_string()), headers),
+        Endpoint::Reads,
+      )
+    } else if let Some(variants) = path.strip_prefix("/variants") {
+      (
+        extract_request(query, Path(variants.to_string()), headers),
+        Endpoint::Variants,
+      )
+    } else {
+      // Only authorize on the variants and reads endpoints, no need to service info.
+      return Ok(());
+    };
 
     Ok(
       self
         .layer
         .inner
-        .validate_authorization(auth_token.token())
+        .validate_authorization(request, endpoint)
         .await?,
     )
   }

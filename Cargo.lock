@@ -2428,6 +2428,7 @@ version = "0.5.5"
 dependencies = [
  "cfg-if",
  "futures",
+ "headers",
  "htsget-config",
  "htsget-search",
  "htsget-test",

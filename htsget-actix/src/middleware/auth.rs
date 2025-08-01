@@ -1,18 +1,18 @@
 //! Authentication middleware for htsget-actix.
 //!
 
-use crate::handlers::HttpVersionCompat;
+use crate::handlers::{extract_request_path, HttpVersionCompat};
 use actix_web::body::{BoxBody, EitherBody};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::{Error, HttpResponse};
+use actix_web::web::{Path, Query};
+use actix_web::{Error, FromRequest, HttpResponse};
 use axum::body::to_bytes;
 use axum::response::IntoResponse;
 use futures_util::future::LocalBoxFuture;
-use headers::authorization::Bearer;
-use headers::{Authorization, Header};
 use htsget_axum::error::HtsGetError;
 use htsget_http::middleware::auth::Auth;
-use http_1::HeaderMap;
+use htsget_http::Endpoint;
+use std::collections::HashMap;
 use std::future::{ready, Ready};
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -59,16 +59,34 @@ impl<S> AuthMiddleware<S> {
   /// Validate the authorization.
   pub async fn validate_authorization(
     &self,
-    header_map: HeaderMap,
+    req: &mut ServiceRequest,
   ) -> htsget_axum::error::HtsGetResult<()> {
-    let auth_token = Authorization::<Bearer>::decode(&mut header_map.values())
-      .map_err(|err| HtsGetError::invalid_authentication(err.to_string()))?;
-    Ok(
-      self
-        .inner
-        .validate_authorization(auth_token.token())
-        .await?,
-    )
+    let (req, payload) = req.parts_mut();
+
+    let query: Query<HashMap<String, String>> =
+      <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
+        .await
+        .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
+    let path: Path<String> = <Path<String> as FromRequest>::from_request(req, payload)
+      .await
+      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
+
+    let (request, endpoint) = if let Some(reads) = path.strip_prefix("/reads") {
+      (
+        extract_request_path(query, reads.to_string(), req.clone()),
+        Endpoint::Reads,
+      )
+    } else if let Some(variants) = path.strip_prefix("/variants") {
+      (
+        extract_request_path(query, variants.to_string(), req.clone()),
+        Endpoint::Variants,
+      )
+    } else {
+      // Only authorize on the variants and reads endpoints, no need to service info.
+      return Ok(());
+    };
+
+    Ok(self.inner.validate_authorization(request, endpoint).await?)
   }
 }
 
@@ -86,12 +104,10 @@ where
     self.service.poll_ready(ctx)
   }
 
-  fn call(&self, req: ServiceRequest) -> Self::Future {
+  fn call(&self, mut req: ServiceRequest) -> Self::Future {
     let self_owned = self.clone();
     Box::pin(async move {
-      let header_map = HttpVersionCompat::header_map_0_2_to_1(req.headers().clone().into());
-
-      if let Err(err) = self_owned.validate_authorization(header_map).await {
+      if let Err(err) = self_owned.validate_authorization(&mut req).await {
         let response = err.into_response();
         let status_code = response.status();
         let body = to_bytes(response.into_body(), 1000)

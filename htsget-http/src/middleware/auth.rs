@@ -1,7 +1,9 @@
 use crate::error::Result as HtsGetResult;
 use crate::middleware::error::Error::AuthBuilderError;
 use crate::middleware::error::Result;
-use crate::{convert_to_query, match_format, Endpoint, HtsGetError};
+use crate::{convert_to_query, match_format_from_query, Endpoint, HtsGetError};
+use headers::authorization::Bearer;
+use headers::{Authorization, Header};
 use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationRestrictions};
 use htsget_config::types::Request;
 use http::uri::PathAndQuery;
@@ -13,6 +15,7 @@ use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+/// Builder the the authorization middleware.
 #[derive(Default, Debug)]
 pub struct AuthBuilder {
   config: Option<AuthConfig>,
@@ -25,6 +28,7 @@ impl AuthBuilder {
     self
   }
 
+  /// Build the auth layer, ensures that the config sets the correct parameters.
   pub fn build(self) -> Result<Auth> {
     let Some(mut config) = self.config else {
       return Err(AuthBuilderError("missing config".to_string()));
@@ -64,6 +68,7 @@ impl AuthBuilder {
   }
 }
 
+/// The auth middleware layer.
 #[derive(Clone)]
 pub struct Auth {
   config: AuthConfig,
@@ -113,6 +118,9 @@ impl Auth {
     )
   }
 
+  /// Query the authorization service to get the restrictions. This function validates
+  /// that the authorization url is trusted in the config settings before calling the
+  /// service. The claims are assumed to be valid.
   pub async fn query_authorization_service(
     &self,
     claims: Value,
@@ -161,7 +169,8 @@ impl Auth {
     self.fetch_from_url(&query_url.to_string()).await
   }
 
-  pub async fn validate_restrictions(
+  /// Validate the restrictions, returning an error if the user is not authorized.
+  pub fn validate_restrictions(
     restrictions: AuthorizationRestrictions,
     request: Request,
     endpoint: Endpoint,
@@ -184,27 +193,28 @@ impl Auth {
       .collect::<Vec<_>>();
 
     // If any of the rules allow all reference names (nothing set in the rule) then the user is authorized.
-    let allows_all = matching_rules
+    let None = matching_rules
       .iter()
-      .find(|rule| rule.reference_names().is_none());
-    if allows_all.is_some() {
+      .find(|rule| rule.reference_names().is_none())
+    else {
       return Ok(());
-    }
+    };
 
-    let format = match_format(&endpoint, request.query().get("format"))?;
+    let format = match_format_from_query(&endpoint, request.query())?;
     let query = convert_to_query(request, format)?;
     let matching_restriction = matching_rules
       .iter()
       .flat_map(|rule| rule.reference_names().unwrap_or_default())
       .find(|restriction| {
-        query.reference_name() == Some(restriction.name())
-          && (restriction.format().is_none() || Some(query.format()) == restriction.format())
-          && restriction
-            .interval()
-            .contains(query.interval().start().unwrap_or(u32::MIN))
-          && restriction
-            .interval()
-            .contains(query.interval().end().unwrap_or(u32::MAX))
+        // The reference name should match exactly.
+        let name_match = Some(restriction.name()) == query.reference_name();
+        // The format should match if it's defined, otherwise it allows any format.
+        let format_match =
+          restriction.format().is_none() || restriction.format() == Some(query.format());
+        // The interval should match exactly, considering undefined start or end ranges.
+        let interval_match = restriction.interval().contains_interval(query.interval());
+
+        name_match && format_match && interval_match
       });
 
     // If the matching rule with the restriction was found, then the user is authorized, otherwise
@@ -218,12 +228,26 @@ impl Auth {
     }
   }
 
-  pub async fn validate_authorization(&self, token: &str) -> HtsGetResult<()> {
+  /// Validate the authorization flow, returning an error if the user is not authorized.
+  /// This performs the following steps:
+  ///
+  /// 1. Finds the JWT decoding key from the config or by querying a JWKS url.
+  /// 2. Validates the JWT token according to the config.
+  /// 3. Queries the authorization service for restrictions based on the config or JWT claims.
+  /// 4. Validates the restrictions to determine if the user is authorized.
+  pub async fn validate_authorization(
+    &self,
+    request: Request,
+    endpoint: Endpoint,
+  ) -> HtsGetResult<()> {
+    let auth_token = Authorization::<Bearer>::decode(&mut request.headers().values())
+      .map_err(|err| HtsGetError::InvalidAuthentication(err.to_string()))?;
+
     let decoding_key = if let Some(ref decoding_key) = self.decoding_key {
       decoding_key
     } else {
       match self.config.auth_mode() {
-        AuthMode::Jwks(jwks) => &self.decode_jwks(jwks, token).await?,
+        AuthMode::Jwks(jwks) => &self.decode_jwks(jwks, auth_token.token()).await?,
         AuthMode::PublicKey(public_key) => &Self::decode_public_key(public_key)?,
       }
     };
@@ -248,13 +272,12 @@ impl Auth {
       validation.required_spec_claims.insert("sub".to_string());
     }
 
-    let claims = match decode::<Value>(token, decoding_key, &validation) {
+    let claims = match decode::<Value>(auth_token.token(), decoding_key, &validation) {
       Ok(claims) => claims,
       Err(err) => return Err(HtsGetError::PermissionDenied(format!("invalid JWT: {err}"))),
     };
 
-    self.query_authorization_service(claims.claims).await?;
-
-    Ok(())
+    let restrictions = self.query_authorization_service(claims.claims).await?;
+    Self::validate_restrictions(restrictions, request, endpoint)
   }
 }

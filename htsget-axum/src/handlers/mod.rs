@@ -23,7 +23,7 @@ fn handle_response(response: htsget_http::Result<JsonResponse>) -> impl IntoResp
   }
 }
 
-fn extract_request(
+pub(crate) fn extract_request(
   Query(query): Query<HashMap<String, String>>,
   Path(path): Path<String>,
   headers: HeaderMap,

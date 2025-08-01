@@ -8,6 +8,7 @@ pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
 pub use service_info::{Htsget, ServiceInfo, Type};
+use std::collections::HashMap;
 use std::result;
 use std::str::FromStr;
 
@@ -38,7 +39,15 @@ impl FromStr for Endpoint {
   }
 }
 
-/// Get the format from the string
+/// Match the format from a query parameter.
+pub fn match_format_from_query(
+  endpoint: &Endpoint,
+  query: &HashMap<String, String>,
+) -> Result<Format> {
+  match_format(endpoint, query.get("format"))
+}
+
+/// Get the format from the string.
 pub fn match_format(endpoint: &Endpoint, format: Option<impl Into<String>>) -> Result<Format> {
   let format = format.map(Into::into).map(|format| format.to_lowercase());
 
