@@ -73,10 +73,7 @@ impl<S> AuthMiddleware<S> {
       .await
       .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
 
-    let path = request
-      .extract_parts::<Path<String>>()
-      .await
-      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
+    let path = request.uri().path();
     let (request, endpoint) = if let Some(reads) = path.strip_prefix("/reads") {
       (
         extract_request(query, Path(reads.to_string()), headers),

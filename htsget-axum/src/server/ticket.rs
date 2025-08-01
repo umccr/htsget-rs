@@ -150,11 +150,13 @@ mod tests {
   use axum::response::Response;
   use htsget_config::config::Config;
   use htsget_config::types::JsonResponse;
+  use htsget_test::http::auth::{create_test_auth_config, MockAuthServer};
   use htsget_test::http::server::expected_url_path;
   use htsget_test::http::{
-    config_with_tls, cors, default_test_config, server, Header, Response as TestResponse,
+    auth, config_with_tls, cors, default_test_config, server, Header, Response as TestResponse,
     TestRequest, TestServer,
   };
+  use htsget_test::util::generate_key_pair;
   use http::header::HeaderName;
   use http::{Method, Request};
   use rustls::crypto::aws_lc_rs;
@@ -258,12 +260,21 @@ mod tests {
       }
     }
 
+    async fn new_with_auth(public_key: Vec<u8>) -> Self {
+      let mock_server = MockAuthServer::new().await;
+      let auth_config = create_test_auth_config(&mock_server, public_key);
+      let mut config = default_test_config();
+      config.ticket_server_mut().set_auth(Some(auth_config));
+
+      Self { config }
+    }
+
     async fn get_response(&self, request: Request<Body>) -> result::Result<Response, Infallible> {
       let app = TicketServer::router(
         self.config.clone().into_locations(),
         self.config.service_info().clone(),
         self.config.ticket_server().cors().clone(),
-        None,
+        self.config.ticket_server().auth().cloned(),
       )
       .unwrap();
 
@@ -354,5 +365,26 @@ mod tests {
   #[tokio::test]
   async fn test_errors() {
     server::test_errors(&AxumTestServer::default()).await;
+  }
+
+  #[tokio::test]
+  async fn test_auth_insufficient_permissions() {
+    let tmp = TempDir::new().unwrap();
+    let (private_key, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+
+    let server = AxumTestServer::new_with_auth(public_key).await;
+    auth::test_auth_insufficient_permissions(&server, private_key).await;
+  }
+
+  #[tokio::test]
+  async fn test_auth_succeeds() {
+    let tmp = TempDir::new().unwrap();
+    let (private_key, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &AxumTestServer::new_with_auth(public_key).await,
+      private_key,
+    )
+    .await;
   }
 }

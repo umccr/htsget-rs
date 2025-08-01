@@ -3,7 +3,7 @@
 
 use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::advanced::FormattingStyle;
-use crate::config::data_server::DataServerEnabled;
+use crate::config::data_server::{DataServerConfig, DataServerEnabled};
 use crate::config::location::{Location, LocationEither, Locations};
 use crate::config::parser::from_path;
 use crate::config::service_info::ServiceInfo;
@@ -101,9 +101,22 @@ impl Config {
     &self.ticket_server
   }
 
+  /// Get the mutable ticket server config.
+  pub fn ticket_server_mut(&mut self) -> &mut TicketServerConfig {
+    &mut self.ticket_server
+  }
+
   /// Get the data server config.
   pub fn data_server(&self) -> &DataServerEnabled {
     &self.data_server
+  }
+
+  /// Get the mutable data server config.
+  pub fn data_server_mut(&mut self) -> Option<&mut DataServerConfig> {
+    match &mut self.data_server {
+      DataServerEnabled::None(_) => None,
+      DataServerEnabled::Some(data_server) => Some(data_server),
+    }
   }
 
   /// Get the service info config.

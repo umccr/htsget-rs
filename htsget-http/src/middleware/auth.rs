@@ -254,7 +254,6 @@ impl Auth {
 
     // Decode and validate the JWT
     let mut validation = Validation::default();
-    validation.algorithms = vec![Algorithm::RS256, Algorithm::ES256];
     validation.validate_exp = true;
     validation.validate_aud = true;
     validation.validate_nbf = true;
@@ -272,12 +271,320 @@ impl Auth {
       validation.required_spec_claims.insert("sub".to_string());
     }
 
-    let claims = match decode::<Value>(auth_token.token(), decoding_key, &validation) {
+    // Each supported algorithm must be tried individually because the jsonwebtoken validation
+    // logic only tries one algorithm in the vec: https://github.com/Keats/jsonwebtoken/issues/297
+    validation.algorithms = vec![Algorithm::RS256];
+    let decoded_claims = decode::<Value>(auth_token.token(), decoding_key, &validation)
+      .or_else(|_| {
+        validation.algorithms = vec![Algorithm::ES256];
+        decode::<Value>(auth_token.token(), decoding_key, &validation)
+      })
+      .or_else(|_| {
+        validation.algorithms = vec![Algorithm::EdDSA];
+        decode::<Value>(auth_token.token(), decoding_key, &validation)
+      });
+
+    let claims = match decoded_claims {
       Ok(claims) => claims,
       Err(err) => return Err(HtsGetError::PermissionDenied(format!("invalid JWT: {err}"))),
     };
 
     let restrictions = self.query_authorization_service(claims.claims).await?;
     Self::validate_restrictions(restrictions, request, endpoint)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use htsget_config::config::advanced::auth::{
+    AuthMode, AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction,
+  };
+  use htsget_config::config::advanced::HttpClient;
+  use htsget_config::types::{Format, Interval};
+  use htsget_test::util::generate_key_pair;
+  use http::{HeaderMap, Uri};
+  use std::collections::HashMap;
+  use tempfile::TempDir;
+
+  #[test]
+  fn auth_builder_missing_config() {
+    let result = AuthBuilder::default().build();
+    assert!(matches!(result, Err(AuthBuilderError(_))));
+  }
+
+  #[test]
+  fn auth_builder_empty_trusted_urls() {
+    let config = AuthConfig::new(
+      AuthMode::PublicKey(vec![]),
+      None,
+      None,
+      None,
+      vec![],
+      None,
+      HttpClient::new(reqwest::Client::new()),
+    );
+    let result = AuthBuilder::default().with_config(config).build();
+    assert!(matches!(result, Err(AuthBuilderError(_))));
+  }
+
+  #[test]
+  fn auth_builder_multiple_urls_without_path() {
+    let config = AuthConfig::new(
+      AuthMode::PublicKey(vec![]),
+      None,
+      None,
+      None,
+      vec![
+        Uri::from_static("https://www.example.com"),
+        Uri::from_static("https://www.example.com"),
+      ],
+      None,
+      HttpClient::new(reqwest::Client::new()),
+    );
+    let result = AuthBuilder::default().with_config(config).build();
+    assert!(matches!(result, Err(AuthBuilderError(_))));
+  }
+
+  #[test]
+  fn auth_builder_success_with_public_key() {
+    let tmp = TempDir::new().unwrap();
+    let (_, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+
+    let config = create_test_auth_config(public_key);
+    let result = AuthBuilder::default().with_config(config).build();
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_no_matching_rules() {
+    let restrictions = AuthorizationRestrictions::new(1, vec![]);
+    let request = create_test_request("/reads/sample1", HashMap::new());
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn validate_restrictions_rule_allows_all() {
+    let rule = AuthorizationRule::new("/reads/sample1".to_string(), None);
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let request = create_test_request("/reads/sample1", HashMap::new());
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_exact_path_match() {
+    let reference_restriction = ReferenceNameRestriction::new(
+      "chr1".to_string(),
+      Some(Format::Bam),
+      Interval::new(Some(1000), Some(2000)),
+    );
+    let rule = AuthorizationRule::new(
+      "/reads/sample1".to_string(),
+      Some(vec![reference_restriction]),
+    );
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("start".to_string(), "1500".to_string());
+    query.insert("end".to_string(), "1800".to_string());
+    query.insert("format".to_string(), "BAM".to_string());
+
+    let request = create_test_request("/reads/sample1", query);
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_regex_path_match() {
+    let reference_restriction = ReferenceNameRestriction::new(
+      "chr1".to_string(),
+      Some(Format::Bam),
+      Interval::new(None, None),
+    );
+    let rule = AuthorizationRule::new(
+      r"/reads/sample(.+)".to_string(),
+      Some(vec![reference_restriction]),
+    );
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("format".to_string(), "BAM".to_string());
+
+    let request = create_test_request("/reads/sample123", query);
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_reference_name_mismatch() {
+    let reference_restriction = ReferenceNameRestriction::new(
+      "chr1".to_string(),
+      Some(Format::Bam),
+      Interval::new(None, None),
+    );
+    let rule = AuthorizationRule::new(
+      "/reads/sample1".to_string(),
+      Some(vec![reference_restriction]),
+    );
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr2".to_string());
+    query.insert("format".to_string(), "BAM".to_string());
+
+    let request = create_test_request("/reads/sample1", query);
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn validate_restrictions_format_mismatch() {
+    let reference_restriction = ReferenceNameRestriction::new(
+      "chr1".to_string(),
+      Some(Format::Bam),
+      Interval::new(None, None),
+    );
+    let rule = AuthorizationRule::new(
+      "/reads/sample1".to_string(),
+      Some(vec![reference_restriction]),
+    );
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("format".to_string(), "CRAM".to_string());
+
+    let request = create_test_request("/reads/sample1", query);
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn validate_restrictions_interval_not_contained() {
+    let reference_restriction = ReferenceNameRestriction::new(
+      "chr1".to_string(),
+      Some(Format::Bam),
+      Interval::new(Some(1000), Some(2000)),
+    );
+    let rule = AuthorizationRule::new(
+      "/reads/sample1".to_string(),
+      Some(vec![reference_restriction]),
+    );
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("start".to_string(), "500".to_string());
+    query.insert("end".to_string(), "1500".to_string());
+
+    let request = create_test_request("/reads/sample1", query);
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn validate_restrictions_format_none_allows_any() {
+    let reference_restriction =
+      ReferenceNameRestriction::new("chr1".to_string(), None, Interval::new(None, None));
+    let rule = AuthorizationRule::new(
+      "/reads/sample1".to_string(),
+      Some(vec![reference_restriction]),
+    );
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("format".to_string(), "CRAM".to_string());
+
+    let request = create_test_request("/reads/sample1", query);
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_path_with_leading_slash() {
+    let rule = AuthorizationRule::new("reads/sample1".to_string(), None);
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let request = create_test_request("/reads/sample1", HashMap::new());
+    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    assert!(result.is_ok());
+  }
+
+  #[tokio::test]
+  async fn validate_authorization_missing_auth_header() {
+    let (auth, _) = create_mock_auth_with_restrictions();
+    let request = create_test_request("/reads/sample1", HashMap::new());
+
+    let result = auth.validate_authorization(request, Endpoint::Reads).await;
+    assert!(result.is_err());
+    assert!(matches!(
+      result.unwrap_err(),
+      HtsGetError::InvalidAuthentication(_)
+    ));
+  }
+
+  #[tokio::test]
+  async fn validate_authorization_invalid_jwt_format() {
+    let (auth, _) = create_mock_auth_with_restrictions();
+    let request =
+      create_request_with_auth_header("/reads/sample1", HashMap::new(), "invalid.jwt.token");
+
+    let result = auth.validate_authorization(request, Endpoint::Reads).await;
+    assert!(result.is_err());
+    assert!(matches!(
+      result.unwrap_err(),
+      HtsGetError::PermissionDenied(_)
+    ));
+  }
+
+  fn create_test_auth_config(public_key: Vec<u8>) -> AuthConfig {
+    AuthConfig::new(
+      AuthMode::PublicKey(public_key),
+      None,
+      None,
+      None,
+      vec![Uri::from_static("https://www.example.com")],
+      None,
+      HttpClient::new(reqwest::Client::new()),
+    )
+  }
+
+  fn create_test_request(path: &str, query: HashMap<String, String>) -> Request {
+    Request::new(path.to_string(), query, HeaderMap::new())
+  }
+
+  fn create_request_with_auth_header(
+    path: &str,
+    query: HashMap<String, String>,
+    token: &str,
+  ) -> Request {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", format!("Bearer {token}").parse().unwrap());
+    Request::new(path.to_string(), query, headers)
+  }
+
+  fn create_mock_auth_with_restrictions() -> (Auth, AuthorizationRestrictions) {
+    let tmp = TempDir::new().unwrap();
+    let (_, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+
+    let config = create_test_auth_config(public_key);
+    let auth = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let reference_restriction = ReferenceNameRestriction::new(
+      "chr1".to_string(),
+      Some(Format::Bam),
+      Interval::new(Some(1000), Some(2000)),
+    );
+    let rule = AuthorizationRule::new(
+      "/reads/sample1".to_string(),
+      Some(vec![reference_restriction]),
+    );
+    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+
+    (auth, restrictions)
   }
 }

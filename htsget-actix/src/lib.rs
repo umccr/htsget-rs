@@ -177,28 +177,32 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
 mod tests {
   use std::path::Path;
 
-  use actix_web::body::{BoxBody, EitherBody};
+  use actix_web::body::BoxBody;
   use actix_web::dev::ServiceResponse;
   use actix_web::{test, web, App};
   use async_trait::async_trait;
+  use htsget_test::http::auth::create_test_auth_config;
   use rustls::crypto::aws_lc_rs;
   use tempfile::TempDir;
 
+  use crate::Config;
   use htsget_axum::server::BindServer;
   use htsget_config::types::JsonResponse;
+  use htsget_http::middleware::auth::AuthBuilder;
+  use htsget_test::http::auth::MockAuthServer;
   use htsget_test::http::server::expected_url_path;
-  use htsget_test::http::{config_with_tls, default_test_config};
+  use htsget_test::http::{auth, config_with_tls, default_test_config};
   use htsget_test::http::{cors, server};
   use htsget_test::http::{
     Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
-
-  use crate::Config;
+  use htsget_test::util::generate_key_pair;
 
   use super::*;
 
   struct ActixTestServer {
     config: Config,
+    auth: Option<AuthLayer>,
   }
 
   struct ActixTestRequest<T>(T);
@@ -241,6 +245,7 @@ mod tests {
     fn default() -> Self {
       Self {
         config: default_test_config(),
+        auth: None,
       }
     }
   }
@@ -303,27 +308,42 @@ mod tests {
 
       Self {
         config: config_with_tls(path),
+        auth: None,
       }
     }
 
-    async fn get_response(
-      &self,
-      request: test::TestRequest,
-    ) -> ServiceResponse<EitherBody<BoxBody>> {
-      let app = test::init_service(
-        App::new()
-          .configure(|service_config: &mut web::ServiceConfig| {
-            configure_server(
-              service_config,
-              self.config.clone().into_locations(),
-              self.config.service_info().clone(),
-            );
-          })
-          .wrap(configure_cors(self.config.ticket_server().cors().clone())),
-      )
-      .await;
+    async fn new_with_auth(public_key: Vec<u8>) -> Self {
+      let mock_server = MockAuthServer::new().await;
+      let auth_config = create_test_auth_config(&mock_server, public_key);
+      let auth = AuthBuilder::default()
+        .with_config(auth_config)
+        .build()
+        .unwrap();
 
-      request.send_request(&app).await
+      Self {
+        config: default_test_config(),
+        auth: Some(AuthLayer(auth)),
+      }
+    }
+
+    async fn get_response(&self, request: test::TestRequest) -> ServiceResponse<BoxBody> {
+      let app = App::new()
+        .configure(|service_config: &mut web::ServiceConfig| {
+          configure_server(
+            service_config,
+            self.config.clone().into_locations(),
+            self.config.service_info().clone(),
+          );
+        })
+        .wrap(configure_cors(self.config.ticket_server().cors().clone()));
+
+      if let Some(ref auth) = self.auth {
+        let app = test::init_service(app.wrap(auth.clone())).await;
+        request.send_request(&app).await.map_into_boxed_body()
+      } else {
+        let app = test::init_service(app).await;
+        request.send_request(&app).await.map_into_boxed_body()
+      }
     }
   }
 
@@ -405,5 +425,26 @@ mod tests {
   #[actix_web::test]
   async fn cors_preflight_request() {
     cors::test_cors_preflight_request(&ActixTestServer::default()).await;
+  }
+
+  #[actix_web::test]
+  async fn test_auth_insufficient_permissions() {
+    let tmp = TempDir::new().unwrap();
+    let (private_key, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+
+    let server = ActixTestServer::new_with_auth(public_key).await;
+    auth::test_auth_insufficient_permissions(&server, private_key).await;
+  }
+
+  #[actix_web::test]
+  async fn test_auth_succeeds() {
+    let tmp = TempDir::new().unwrap();
+    let (private_key, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &ActixTestServer::new_with_auth(public_key).await,
+      private_key,
+    )
+    .await;
   }
 }

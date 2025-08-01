@@ -126,8 +126,11 @@ fn post_request_two<T: TestRequest>(tester: &impl TestServer<T>) -> T {
 }
 
 /// Test an array of requests and their responses
-async fn test_responses<R, T>(tester: &impl TestServer<T>, requests: Vec<T>, class: Class)
-where
+pub(crate) async fn test_responses<R, T>(
+  tester: &impl TestServer<T>,
+  requests: Vec<T>,
+  class: Class,
+) where
   T: TestRequest,
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {

@@ -4,7 +4,7 @@
 use crate::handlers::{extract_request_path, HttpVersionCompat};
 use actix_web::body::{BoxBody, EitherBody};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::web::{Path, Query};
+use actix_web::web::Query;
 use actix_web::{Error, FromRequest, HttpResponse};
 use axum::body::to_bytes;
 use axum::response::IntoResponse;
@@ -57,17 +57,11 @@ impl<S> AuthMiddleware<S> {
   }
 
   /// Validate the authorization.
-  pub async fn validate_authorization(
-    &self,
-    req: &mut ServiceRequest,
-  ) -> htsget_axum::error::HtsGetResult<()> {
+  pub async fn validate_authorization(&self, req: &mut ServiceRequest) -> Result<(), HtsGetError> {
     let (req, payload) = req.parts_mut();
 
-    let query: Query<HashMap<String, String>> =
-      <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
-        .await
-        .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
-    let path: Path<String> = <Path<String> as FromRequest>::from_request(req, payload)
+    let path = req.path();
+    let query = <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
       .await
       .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
 
@@ -121,7 +115,7 @@ where
         )));
       }
 
-      self_owned.call(req).await
+      Ok(self_owned.service.call(req).await?.map_into_left_body())
     })
   }
 }
