@@ -1,9 +1,9 @@
 [package]
 name = "htsget-actix"
 version = "0.8.3"
-rust-version = "1.83"
+rust-version = "1.86"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
 description = "A webserver instance of htsget-rs using actix-web, which serves data according to the htsget protocol."
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-actix/README.md"
@@ -33,7 +33,6 @@ serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 # htsget-axum compatibility
-headers = "0.4"
 futures-util = "0.3"
 axum = { version = "0.8", features = ["http2"] }
 

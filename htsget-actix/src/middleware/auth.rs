@@ -1,7 +1,7 @@
 //! Authentication middleware for htsget-actix.
 //!
 
-use crate::handlers::{extract_request_path, HttpVersionCompat};
+use crate::handlers::{HttpVersionCompat, extract_request_path};
 use actix_web::body::{BoxBody, EitherBody};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::web::Query;
@@ -10,10 +10,10 @@ use axum::body::to_bytes;
 use axum::response::IntoResponse;
 use futures_util::future::LocalBoxFuture;
 use htsget_axum::error::HtsGetError;
-use htsget_http::middleware::auth::Auth;
 use htsget_http::Endpoint;
+use htsget_http::middleware::auth::Auth;
 use std::collections::HashMap;
-use std::future::{ready, Ready};
+use std::future::{Ready, ready};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 

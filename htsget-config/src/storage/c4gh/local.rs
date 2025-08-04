@@ -38,8 +38,8 @@ impl TryFrom<C4GHLocal> for C4GHKeys {
 
 #[cfg(test)]
 mod tests {
-  use crate::config::tests::test_config_from_file;
   use crate::config::Config;
+  use crate::config::tests::test_config_from_file;
   use crate::storage::Backend;
   use std::fs::copy;
   use std::path::PathBuf;

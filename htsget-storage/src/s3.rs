@@ -9,14 +9,14 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use aws_config::BehaviorVersion;
+use aws_sdk_s3::Client;
 use aws_sdk_s3::error::{DisplayErrorContext, SdkError};
-use aws_sdk_s3::operation::get_object::builders::GetObjectFluentBuilder;
 use aws_sdk_s3::operation::get_object::GetObjectError;
+use aws_sdk_s3::operation::get_object::builders::GetObjectFluentBuilder;
 use aws_sdk_s3::operation::head_object::{HeadObjectError, HeadObjectOutput};
 use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::StorageClass;
-use aws_sdk_s3::Client;
 use bytes::Bytes;
 use futures::Stream;
 use pin_project_lite::pin_project;
@@ -25,9 +25,9 @@ use tracing::instrument;
 use tracing::{debug, warn};
 
 use super::{GetOptions, RangeUrlOptions, Result};
+use crate::StorageError::{AwsS3Error, IoError, KeyNotFound};
 use crate::s3::Retrieval::{Delayed, Immediate};
 use crate::types::{BytesPosition, BytesRange};
-use crate::StorageError::{AwsS3Error, IoError, KeyNotFound};
 use crate::{HeadOptions, StorageError, StorageMiddleware, StorageTrait};
 use crate::{Streamable, Url};
 
@@ -294,10 +294,10 @@ pub(crate) mod tests {
 
   use htsget_test::aws_mocks::with_s3_test_server;
 
+  use crate::Headers;
   use crate::local::tests::create_local_test_files;
   use crate::s3::S3Storage;
   use crate::types::BytesPosition;
-  use crate::Headers;
   use crate::{GetOptions, RangeUrlOptions, StorageTrait};
   use crate::{HeadOptions, StorageError};
 

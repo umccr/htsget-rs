@@ -3,7 +3,7 @@
 
 use crate::error::Result;
 use crate::middleware::auth::AuthLayer;
-use crate::server::{configure_cors, BindServer, Server};
+use crate::server::{BindServer, Server, configure_cors};
 use axum::Router;
 use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
@@ -100,8 +100,8 @@ mod tests {
   use http::{HeaderMap, Method};
   use reqwest::{Client, ClientBuilder, RequestBuilder};
   use rustls::crypto::aws_lc_rs;
-  use tempfile::{tempdir, TempDir};
-  use tokio::fs::{create_dir, File};
+  use tempfile::{TempDir, tempdir};
+  use tokio::fs::{File, create_dir};
   use tokio::io::AsyncWriteExt;
 
   use htsget_config::config::Config;
@@ -109,8 +109,8 @@ mod tests {
   use htsget_config::types::Scheme;
   use htsget_test::http::cors::{test_cors_preflight_request_uri, test_cors_simple_request_uri};
   use htsget_test::http::{
-    config_with_tls, default_cors_config, default_test_config, Header, Response as TestResponse,
-    TestRequest, TestServer,
+    Header, Response as TestResponse, TestRequest, TestServer, config_with_tls,
+    default_cors_config, default_test_config,
   };
 
   use super::*;

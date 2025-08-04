@@ -159,8 +159,10 @@ mod tests {
       no_restrictions_response.htsget_auth()[0].path(),
       "/path/to/file"
     );
-    assert!(no_restrictions_response.htsget_auth()[0]
-      .reference_names()
-      .is_none());
+    assert!(
+      no_restrictions_response.htsget_auth()[0]
+        .reference_names()
+        .is_none()
+    );
   }
 }

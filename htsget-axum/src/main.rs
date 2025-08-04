@@ -4,8 +4,8 @@ use tokio::select;
 use tracing::debug;
 
 use htsget_axum::server::{data, ticket};
-use htsget_config::config::data_server::DataServerEnabled;
 use htsget_config::config::Config;
+use htsget_config::config::data_server::DataServerEnabled;
 use htsget_config::{command, package_info};
 
 #[tokio::main]

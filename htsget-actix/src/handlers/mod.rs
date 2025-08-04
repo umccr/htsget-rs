@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use actix_web::web::{Path, Query};
-use actix_web::{http::StatusCode, Either, HttpRequest, Responder};
+use actix_web::{Either, HttpRequest, Responder, http::StatusCode};
 use http::{HeaderMap as HttpHeaderMap, HeaderName, Method};
 
 use htsget_config::types::{JsonResponse, Request};

@@ -2,6 +2,7 @@
 //!
 
 use crate::search::Search;
+use crate::{Format, HtsGetError};
 use crate::{
   bam_search::BamSearch,
   bcf_search::BcfSearch,
@@ -9,7 +10,6 @@ use crate::{
   vcf_search::VcfSearch,
   {HtsGet, Query, Response, Result},
 };
-use crate::{Format, HtsGetError};
 use async_trait::async_trait;
 use htsget_config::config::location::Locations;
 use htsget_config::resolver::{ResolveResponse, StorageResolver};
@@ -108,11 +108,11 @@ pub(crate) mod tests {
   use tempfile::TempDir;
 
   use crate::bam_search::tests::{
-    expected_url as bam_expected_url, with_local_storage as with_bam_local_storage, BAM_FILE_NAME,
+    BAM_FILE_NAME, expected_url as bam_expected_url, with_local_storage as with_bam_local_storage,
   };
   use crate::vcf_search::tests::{
-    expected_url as vcf_expected_url, with_local_storage as with_vcf_local_storage,
-    VCF_FILE_NAME_SPEC,
+    VCF_FILE_NAME_SPEC, expected_url as vcf_expected_url,
+    with_local_storage as with_vcf_local_storage,
   };
   use crate::{Headers, Url};
 
@@ -128,8 +128,10 @@ pub(crate) mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(bam_expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
+        vec![
+          Url::new(bam_expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-2596798")),
+        ],
       ));
       assert_eq!(response, expected_response);
 
@@ -206,8 +208,10 @@ pub(crate) mod tests {
   fn expected_vcf_response(filename: &str) -> Result<Response> {
     Ok(Response::new(
       Format::Vcf,
-      vec![Url::new(vcf_expected_url(filename))
-        .with_headers(Headers::default().with_header("Range", "bytes=0-850"))],
+      vec![
+        Url::new(vcf_expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-850")),
+      ],
     ))
   }
 

@@ -4,14 +4,14 @@
 use crate::error::Result;
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
 use crate::middleware::auth::AuthLayer;
-use crate::server::{configure_cors, AppState, BindServer, Server};
-use axum::routing::get;
+use crate::server::{AppState, BindServer, Server, configure_cors};
 use axum::Router;
+use axum::routing::get;
+use htsget_config::config::Config;
 use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::config::ticket_server::TicketServerConfig;
-use htsget_config::config::Config;
 use htsget_http::middleware::auth::AuthBuilder;
 use htsget_search::HtsGet;
 use http::{StatusCode, Uri};
@@ -146,15 +146,15 @@ mod tests {
 
   use super::*;
   use async_trait::async_trait;
-  use axum::body::{to_bytes, Body};
+  use axum::body::{Body, to_bytes};
   use axum::response::Response;
   use htsget_config::config::Config;
   use htsget_config::types::JsonResponse;
-  use htsget_test::http::auth::{create_test_auth_config, MockAuthServer};
+  use htsget_test::http::auth::{MockAuthServer, create_test_auth_config};
   use htsget_test::http::server::expected_url_path;
   use htsget_test::http::{
-    auth, config_with_tls, cors, default_test_config, server, Header, Response as TestResponse,
-    TestRequest, TestServer,
+    Header, Response as TestResponse, TestRequest, TestServer, auth, config_with_tls, cors,
+    default_test_config, server,
   };
   use htsget_test::util::generate_key_pair;
   use http::header::HeaderName;

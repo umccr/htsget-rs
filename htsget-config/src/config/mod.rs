@@ -1,8 +1,8 @@
 //! Structs to serialize and deserialize the htsget-rs config options.
 //!
 
-use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::advanced::FormattingStyle;
+use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::data_server::{DataServerConfig, DataServerEnabled};
 use crate::config::location::{Location, LocationEither, Locations};
 use crate::config::parser::from_path;
@@ -10,8 +10,8 @@ use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
 use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
-use crate::storage::file::File;
 use crate::storage::Backend;
+use crate::storage::file::File;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
 use schemars::schema_for;
 use serde::de::Error;
@@ -302,8 +302,8 @@ pub(crate) mod tests {
   use crate::tls::tests::with_test_certificates;
   use crate::types::Scheme;
   use figment::Jail;
-  use http::uri::Authority;
   use http::Uri;
+  use http::uri::Authority;
   use serde::de::DeserializeOwned;
   use serde_json::json;
 
@@ -475,13 +475,15 @@ pub(crate) mod tests {
           key_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert!(config
-            .data_server()
-            .clone()
-            .as_data_server_config()
-            .unwrap()
-            .tls()
-            .is_none());
+          assert!(
+            config
+              .data_server()
+              .clone()
+              .as_data_server_config()
+              .unwrap()
+              .tls()
+              .is_none()
+          );
         },
       );
     });
@@ -503,13 +505,15 @@ pub(crate) mod tests {
           cert_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert!(config
-            .data_server()
-            .clone()
-            .as_data_server_config()
-            .unwrap()
-            .tls()
-            .is_some());
+          assert!(
+            config
+              .data_server()
+              .clone()
+              .as_data_server_config()
+              .unwrap()
+              .tls()
+              .is_some()
+          );
         },
       );
     });
@@ -527,13 +531,15 @@ pub(crate) mod tests {
           ("HTSGET_DATA_SERVER_TLS_CERT", cert_path.to_string_lossy()),
         ],
         |config| {
-          assert!(config
-            .data_server()
-            .clone()
-            .as_data_server_config()
-            .unwrap()
-            .tls()
-            .is_some());
+          assert!(
+            config
+              .data_server()
+              .clone()
+              .as_data_server_config()
+              .unwrap()
+              .tls()
+              .is_some()
+          );
         },
       );
     });

@@ -4,11 +4,11 @@
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::storage::c4gh::C4GHKeys;
-use aws_config::{load_defaults, BehaviorVersion};
-use aws_sdk_secretsmanager::error::SdkError;
+use aws_config::{BehaviorVersion, load_defaults};
 use aws_sdk_secretsmanager::Client;
-use crypt4gh::keys::{get_private_key, get_public_key};
+use aws_sdk_secretsmanager::error::SdkError;
 use crypt4gh::Keys;
+use crypt4gh::keys::{get_private_key, get_public_key};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -101,7 +101,7 @@ impl TryFrom<C4GHSecretsManager> for C4GHKeys {
 mod tests {
   use aws_sdk_secretsmanager::operation::get_secret_value::GetSecretValueOutput;
   use aws_sdk_secretsmanager::primitives::Blob;
-  use aws_smithy_mocks::{mock, mock_client, Rule, RuleMode};
+  use aws_smithy_mocks::{Rule, RuleMode, mock, mock_client};
   use std::fs::read;
   use std::path::PathBuf;
 

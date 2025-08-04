@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AuthorizationResponse",
-  "description": "Authorization response from external authorization service.",
+  "title": "AuthorizationRestrictions",
+  "description": "Authorization restrictions from an external authorization service.",
   "type": "object",
   "properties": {
     "htsgetAuth": {

@@ -97,10 +97,10 @@ mod tests {
 
   use htsget_config::storage;
   use htsget_config::types::{Headers, JsonResponse, Request, Scheme, Url};
-  use htsget_search::from_storage::HtsGetFromStorage;
   use htsget_search::FileStorage;
   use htsget_search::HtsGet;
   use htsget_search::Storage;
+  use htsget_search::from_storage::HtsGetFromStorage;
   use http::uri::Authority;
 
   use super::*;

@@ -2,17 +2,17 @@
 
 use crate::http::server::test_responses;
 use crate::http::{Header, TestRequest, TestServer};
-use axum::{http::StatusCode, response::Json, routing::get, Router};
+use axum::{Router, http::StatusCode, response::Json, routing::get};
 use chrono::{Duration, Utc};
+use htsget_config::config::advanced::HttpClient;
 use htsget_config::config::advanced::auth::{
   AuthConfig, AuthMode, AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction,
 };
-use htsget_config::config::advanced::HttpClient;
 use htsget_config::types::{Class, Format, Interval};
 use http::{Method, Uri};
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header as JwtHeader};
+use jsonwebtoken::{Algorithm, EncodingKey, Header as JwtHeader, encode};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;

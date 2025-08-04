@@ -5,8 +5,8 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
-use http::header::{HeaderName, HeaderValue as HeaderValueInner, InvalidHeaderValue};
 use http::Method;
+use http::header::{HeaderName, HeaderValue as HeaderValueInner, InvalidHeaderValue};
 use serde::{Deserialize, Serialize};
 
 use crate::types::TaggedTypeAll;
@@ -211,8 +211,8 @@ impl Default for CorsConfig {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::config::tests::test_serialize_and_deserialize;
   use crate::config::Config;
+  use crate::config::tests::test_serialize_and_deserialize;
   use http::Method;
   use toml::de::Error;
 

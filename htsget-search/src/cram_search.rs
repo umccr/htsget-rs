@@ -19,9 +19,9 @@ use tracing::{instrument, trace};
 use htsget_config::types::Class::Header as HtsGetHeader;
 use htsget_config::types::Interval;
 
-use crate::search::{Search, SearchAll, SearchReads};
 use crate::Class::Body;
 use crate::ConcurrencyError;
+use crate::search::{Search, SearchAll, SearchReads};
 use crate::{Format, HtsGetError, Query, Result};
 use htsget_storage::types::{BytesPosition, DataBlock};
 use htsget_storage::{Storage, Streamable};
@@ -45,7 +45,7 @@ impl SearchAll<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   #[instrument(level = "trace", skip_all, ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?)
+      BytesPosition::default().with_end(self.position_at_eof(query).await?),
     ])
   }
 
@@ -293,8 +293,10 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-1672447"))],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-1672447")),
+        ],
       ));
       assert_eq!(response, expected_response);
 
@@ -467,9 +469,11 @@ mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Cram,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-6133"))
-          .with_class(Header)],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-6133"))
+            .with_class(Header),
+        ],
       ));
       assert_eq!(response, expected_response);
 

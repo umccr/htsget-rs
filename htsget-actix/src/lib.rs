@@ -2,7 +2,7 @@ extern crate core;
 
 use actix_cors::Cors;
 use actix_web::dev::Server;
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, HttpServer, web};
 use std::io;
 use tracing::info;
 use tracing::instrument;
@@ -15,7 +15,7 @@ pub use htsget_config::config::{Config, USAGE};
 use htsget_http::middleware::auth::AuthBuilder;
 use htsget_search::HtsGet;
 
-use crate::handlers::{get, post, reads_service_info, variants_service_info, HttpVersionCompat};
+use crate::handlers::{HttpVersionCompat, get, post, reads_service_info, variants_service_info};
 use crate::middleware::auth::AuthLayer;
 
 pub mod handlers;
@@ -179,7 +179,7 @@ mod tests {
 
   use actix_web::body::BoxBody;
   use actix_web::dev::ServiceResponse;
-  use actix_web::{test, web, App};
+  use actix_web::{App, test, web};
   use async_trait::async_trait;
   use htsget_test::http::auth::create_test_auth_config;
   use rustls::crypto::aws_lc_rs;
@@ -191,11 +191,11 @@ mod tests {
   use htsget_http::middleware::auth::AuthBuilder;
   use htsget_test::http::auth::MockAuthServer;
   use htsget_test::http::server::expected_url_path;
-  use htsget_test::http::{auth, config_with_tls, default_test_config};
-  use htsget_test::http::{cors, server};
   use htsget_test::http::{
     Header as TestHeader, Response as TestResponse, TestRequest, TestServer,
   };
+  use htsget_test::http::{auth, config_with_tls, default_test_config};
+  use htsget_test::http::{cors, server};
   use htsget_test::util::generate_key_pair;
 
   use super::*;

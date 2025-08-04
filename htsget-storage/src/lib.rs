@@ -18,8 +18,8 @@ use crate::types::{BytesPositionOptions, DataBlock, GetOptions, HeadOptions, Ran
 #[cfg(feature = "url")]
 use crate::url::UrlStorage;
 use async_trait::async_trait;
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use cfg_if::cfg_if;
 #[cfg(feature = "experimental")]
 use htsget_config::encryption_scheme::EncryptionScheme;

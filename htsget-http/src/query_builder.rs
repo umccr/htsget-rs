@@ -36,7 +36,7 @@ impl QueryBuilder {
       Some(class) => {
         return Err(HtsGetError::InvalidInput(format!(
           "invalid class `{class}`"
-        )))
+        )));
       }
     });
 

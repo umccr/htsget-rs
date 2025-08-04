@@ -2,8 +2,8 @@
 //!
 
 use crate::config::Config;
-use figment::providers::{Env, Format, Serialized, Toml};
 use figment::Figment;
+use figment::providers::{Env, Format, Serialized, Toml};
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::io;

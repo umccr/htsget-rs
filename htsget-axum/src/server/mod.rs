@@ -12,8 +12,8 @@ use crate::error::Error::ServerError;
 use crate::error::Result;
 use crate::server::data::DataServer;
 use crate::server::ticket::TicketServer;
-use axum::extract::Request;
 use axum::Router;
+use axum::extract::Request;
 use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
@@ -125,6 +125,7 @@ pub struct BindServer {
 }
 
 impl BindServer {
+  /// Create a new bind server instance.
   pub fn new(addr: SocketAddr, cors: CorsConfig, auth: Option<AuthConfig>) -> Self {
     Self {
       addr,
@@ -135,6 +136,7 @@ impl BindServer {
     }
   }
 
+  /// Create a new bind server instance with TLS.
   pub fn new_with_tls(
     addr: SocketAddr,
     cors: CorsConfig,

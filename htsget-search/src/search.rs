@@ -10,17 +10,17 @@ use std::collections::BTreeSet;
 use async_trait::async_trait;
 use futures::StreamExt;
 use futures_util::stream::FuturesOrdered;
-use noodles::bgzf::{gzi, VirtualPosition};
-use noodles::csi::binning_index::index::reference_sequence::bin::Chunk;
-use noodles::csi::binning_index::index::Index;
-use noodles::csi::binning_index::index::{reference_sequence, ReferenceSequence};
-use noodles::csi::binning_index::ReferenceSequence as ReferenceSequenceExt;
+use noodles::bgzf::{VirtualPosition, gzi};
 use noodles::csi::BinningIndex;
+use noodles::csi::binning_index::ReferenceSequence as ReferenceSequenceExt;
+use noodles::csi::binning_index::index::Index;
+use noodles::csi::binning_index::index::reference_sequence::bin::Chunk;
+use noodles::csi::binning_index::index::{ReferenceSequence, reference_sequence};
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tokio::select;
 use tokio::task::JoinHandle;
-use tracing::{instrument, trace, trace_span, Instrument};
+use tracing::{Instrument, instrument, trace, trace_span};
 
 use htsget_config::types::Class::Header;
 
@@ -607,7 +607,7 @@ where
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?)
+      BytesPosition::default().with_end(self.position_at_eof(query).await?),
     ])
   }
 

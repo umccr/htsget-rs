@@ -30,6 +30,10 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
       - run: rustup override set ${{ steps.toolchain.outputs.name }}
+      - name: Install pre-commit
+        run: pip3 install pre-commit
+      - name: Run pre-commit
+        run: pre-commit run --all-files
       - name: Cargo fmt
         run: cargo fmt --all -- --check
       - name: Cargo clippy

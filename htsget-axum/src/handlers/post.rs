@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use http::HeaderMap;
 
-use htsget_http::{post, Endpoint, PostRequest};
+use htsget_http::{Endpoint, PostRequest, post};
 use htsget_search::HtsGet;
 
 use crate::handlers::extract_request;

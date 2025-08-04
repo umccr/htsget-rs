@@ -1,16 +1,19 @@
+//! The htsget authorization middleware.
+//!
+
 use crate::error::Result as HtsGetResult;
 use crate::middleware::error::Error::AuthBuilderError;
 use crate::middleware::error::Result;
-use crate::{convert_to_query, match_format_from_query, Endpoint, HtsGetError};
+use crate::{Endpoint, HtsGetError, convert_to_query, match_format_from_query};
 use headers::authorization::Bearer;
 use headers::{Authorization, Header};
 use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationRestrictions};
 use htsget_config::types::Request;
-use http::uri::PathAndQuery;
 use http::Uri;
+use http::uri::PathAndQuery;
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
-use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -297,10 +300,10 @@ impl Auth {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use htsget_config::config::advanced::HttpClient;
   use htsget_config::config::advanced::auth::{
     AuthMode, AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction,
   };
-  use htsget_config::config::advanced::HttpClient;
   use htsget_config::types::{Format, Interval};
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};

@@ -3,12 +3,12 @@
 
 use crate::error::{HtsGetError, HtsGetResult};
 use crate::handlers::extract_request;
+use axum::RequestExt;
 use axum::extract::{Path, Query, Request};
 use axum::response::{IntoResponse, Response};
-use axum::RequestExt;
 use futures::future::BoxFuture;
-use htsget_http::middleware::auth::Auth;
 use htsget_http::Endpoint;
+use htsget_http::middleware::auth::Auth;
 use http::HeaderMap;
 use std::collections::HashMap;
 use std::task::{Context, Poll};
@@ -20,6 +20,7 @@ impl From<Auth> for AuthLayer {
   }
 }
 
+/// A wrapper around the authorization layer.
 #[derive(Clone)]
 pub struct AuthLayer {
   inner: Auth,
@@ -40,6 +41,7 @@ impl<S> Layer<S> for AuthLayer {
   }
 }
 
+/// A wrapper around the authorization middleware.
 #[derive(Clone)]
 pub struct AuthMiddleware<S> {
   inner: S,

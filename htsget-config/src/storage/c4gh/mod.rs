@@ -7,8 +7,8 @@ use crate::storage::c4gh::local::C4GHLocal;
 #[cfg(feature = "aws")]
 use crate::storage::c4gh::secrets_manager::C4GHSecretsManager;
 use crypt4gh::error::Crypt4GHError;
-use futures_util::future::{BoxFuture, Shared};
 use futures_util::FutureExt;
+use futures_util::future::{BoxFuture, Shared};
 use serde::Deserialize;
 use tokio::task::{JoinError, JoinHandle};
 

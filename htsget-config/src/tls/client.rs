@@ -4,8 +4,8 @@
 use crate::config::advanced::Bytes;
 use crate::error::Error::IoError;
 use crate::error::{Error, Result};
-use crate::tls::load_certs;
 use crate::tls::RootCertStorePair;
+use crate::tls::load_certs;
 use reqwest::{Certificate, Identity};
 use serde::Deserialize;
 

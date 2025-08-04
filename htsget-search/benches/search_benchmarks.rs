@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use criterion::{BenchmarkGroup, Criterion, criterion_group, criterion_main};
 use http::uri::Authority;
 use tokio::runtime::Runtime;
 

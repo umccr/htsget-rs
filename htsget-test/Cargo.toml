@@ -1,9 +1,9 @@
 [package]
 name = "htsget-test"
 version = "0.7.2"
-rust-version = "1.83"
+rust-version = "1.86"
 authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
 description = "Common test functions and utilities used by htsget-rs."
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-test/README.md"

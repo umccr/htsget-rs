@@ -4,10 +4,10 @@ use std::thread::sleep;
 use std::{fs, time::Duration};
 
 use criterion::measurement::WallTime;
-use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
+use criterion::{BenchmarkGroup, Criterion, criterion_group, criterion_main};
+use reqwest::Result;
 use reqwest::blocking::Client;
 use reqwest::blocking::ClientBuilder;
-use reqwest::Result;
 use serde::{Deserialize, Serialize};
 
 use htsget_config::types::{Headers, JsonResponse};
