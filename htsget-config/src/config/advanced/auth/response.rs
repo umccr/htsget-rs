@@ -9,8 +9,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Authorization restrictions from an external authorization service.
-#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(deny_unknown_fields, default)]
+#[schemars(!default)]
 pub struct AuthorizationRestrictions {
   /// The version of the schema.
   #[validate(range(min = 1))]
@@ -22,8 +23,9 @@ pub struct AuthorizationRestrictions {
 }
 
 /// Individual authorization rule defining access permissions.
-#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(deny_unknown_fields, default)]
+#[schemars(!default)]
 pub struct AuthorizationRule {
   /// The path that the authorization applies to. This should not contain the `/reads` or `/variants` component of the path, and it can be a regex.
   #[validate(length(min = 1))]
@@ -34,8 +36,9 @@ pub struct AuthorizationRule {
 }
 
 /// Restriction on genomic reference names and coordinate ranges.
-#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(deny_unknown_fields, default)]
+#[schemars(!default)]
 pub struct ReferenceNameRestriction {
   /// The reference name to allow.
   #[validate(length(min = 1))]

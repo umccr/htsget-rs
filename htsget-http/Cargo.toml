@@ -37,5 +37,3 @@ headers = "0.4"
 
 [dev-dependencies]
 htsget-test = { path = "../htsget-test", default-features = false }
-
-tempfile = "3"

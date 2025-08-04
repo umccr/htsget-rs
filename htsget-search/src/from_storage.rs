@@ -328,7 +328,7 @@ pub(crate) mod tests {
     Fut: Future<Output = Option<(String, ConcatResponse)>>,
   {
     let tmp_dir = TempDir::new().unwrap();
-    let to_path = tmp_dir.keep().join("folder");
+    let to_path = tmp_dir.path().join("folder");
     create_dir(&to_path).unwrap();
 
     let base_path = copy_files_from(path, &to_path, copy_files).await;

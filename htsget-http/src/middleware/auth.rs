@@ -10,7 +10,6 @@ use headers::{Authorization, Header};
 use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationRestrictions};
 use htsget_config::types::Request;
 use http::Uri;
-use http::uri::PathAndQuery;
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
@@ -50,18 +49,11 @@ impl AuthBuilder {
     }
 
     let mut decoding_key = None;
-    match config.auth_mode_mut() {
-      AuthMode::Jwks(uri) => {
-        let mut jwks_url = uri.clone().into_parts();
-        jwks_url.path_and_query = Some(PathAndQuery::from_static("/.well-known/jwks.json"));
-        *uri = Uri::from_parts(jwks_url).map_err(|err| AuthBuilderError(err.to_string()))?;
-      }
-      AuthMode::PublicKey(public_key) => {
-        decoding_key = Some(
-          Auth::decode_public_key(public_key)
-            .map_err(|_| AuthBuilderError("failed to decode public key".to_string()))?,
-        );
-      }
+    if let AuthMode::PublicKey(public_key) = config.auth_mode_mut() {
+      decoding_key = Some(
+        Auth::decode_public_key(public_key)
+          .map_err(|_| AuthBuilderError("failed to decode public key".to_string()))?,
+      );
     }
 
     Ok(Auth {
@@ -196,12 +188,12 @@ impl Auth {
       .collect::<Vec<_>>();
 
     // If any of the rules allow all reference names (nothing set in the rule) then the user is authorized.
-    let None = matching_rules
+    if matching_rules
       .iter()
-      .find(|rule| rule.reference_names().is_none())
-    else {
+      .any(|rule| rule.reference_names().is_none())
+    {
       return Ok(());
-    };
+    }
 
     let format = match_format_from_query(&endpoint, request.query())?;
     let query = convert_to_query(request, format)?;
@@ -308,7 +300,6 @@ mod tests {
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};
   use std::collections::HashMap;
-  use tempfile::TempDir;
 
   #[test]
   fn auth_builder_missing_config() {
@@ -351,8 +342,7 @@ mod tests {
 
   #[test]
   fn auth_builder_success_with_public_key() {
-    let tmp = TempDir::new().unwrap();
-    let (_, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+    let (_, public_key) = generate_key_pair();
 
     let config = create_test_auth_config(public_key);
     let result = AuthBuilder::default().with_config(config).build();
@@ -571,8 +561,7 @@ mod tests {
   }
 
   fn create_mock_auth_with_restrictions() -> (Auth, AuthorizationRestrictions) {
-    let tmp = TempDir::new().unwrap();
-    let (_, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+    let (_, public_key) = generate_key_pair();
 
     let config = create_test_auth_config(public_key);
     let auth = AuthBuilder::default().with_config(config).build().unwrap();

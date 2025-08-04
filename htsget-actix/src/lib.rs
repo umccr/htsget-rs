@@ -429,8 +429,7 @@ mod tests {
 
   #[actix_web::test]
   async fn test_auth_insufficient_permissions() {
-    let tmp = TempDir::new().unwrap();
-    let (private_key, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+    let (private_key, public_key) = generate_key_pair();
 
     let server = ActixTestServer::new_with_auth(public_key).await;
     auth::test_auth_insufficient_permissions(&server, private_key).await;
@@ -438,8 +437,7 @@ mod tests {
 
   #[actix_web::test]
   async fn test_auth_succeeds() {
-    let tmp = TempDir::new().unwrap();
-    let (private_key, public_key) = generate_key_pair(tmp.path(), "private_key", "public_key");
+    let (private_key, public_key) = generate_key_pair();
 
     auth::test_auth_succeeds::<JsonResponse, _>(
       &ActixTestServer::new_with_auth(public_key).await,

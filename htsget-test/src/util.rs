@@ -20,20 +20,10 @@ pub fn generate_test_certificates<P: AsRef<Path>>(
 }
 
 /// Generate a public and private key pair.
-pub fn generate_key_pair<P: AsRef<Path>>(
-  in_path: P,
-  private_key: &str,
-  public_key: &str,
-) -> (Vec<u8>, Vec<u8>) {
-  let private_key = in_path.as_ref().join(private_key);
-  let public_key = in_path.as_ref().join(public_key);
-
+pub fn generate_key_pair() -> (Vec<u8>, Vec<u8>) {
   let key_pair = KeyPair::generate().unwrap();
   let private_key_pem = key_pair.serialize_pem();
   let public_key_pem = key_pair.public_key_pem();
-
-  fs::write(&private_key, &private_key_pem).unwrap();
-  fs::write(&public_key, &public_key_pem).unwrap();
 
   (private_key_pem.into_bytes(), public_key_pem.into_bytes())
 }
