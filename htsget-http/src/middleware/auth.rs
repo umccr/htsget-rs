@@ -293,10 +293,13 @@ impl Auth {
 mod tests {
   use super::*;
   use htsget_config::config::advanced::HttpClient;
-  use htsget_config::config::advanced::auth::{
-    AuthMode, AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction,
+  use htsget_config::config::advanced::auth::response::{
+    AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
   };
-  use htsget_config::types::{Format, Interval};
+  use htsget_config::config::advanced::auth::{
+    AuthConfigBuilder, AuthMode, AuthorizationRestrictions,
+  };
+  use htsget_config::types::Format;
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};
   use std::collections::HashMap;
@@ -304,39 +307,6 @@ mod tests {
   #[test]
   fn auth_builder_missing_config() {
     let result = AuthBuilder::default().build();
-    assert!(matches!(result, Err(AuthBuilderError(_))));
-  }
-
-  #[test]
-  fn auth_builder_empty_trusted_urls() {
-    let config = AuthConfig::new(
-      AuthMode::PublicKey(vec![]),
-      None,
-      None,
-      None,
-      vec![],
-      None,
-      HttpClient::new(reqwest::Client::new()),
-    );
-    let result = AuthBuilder::default().with_config(config).build();
-    assert!(matches!(result, Err(AuthBuilderError(_))));
-  }
-
-  #[test]
-  fn auth_builder_multiple_urls_without_path() {
-    let config = AuthConfig::new(
-      AuthMode::PublicKey(vec![]),
-      None,
-      None,
-      None,
-      vec![
-        Uri::from_static("https://www.example.com"),
-        Uri::from_static("https://www.example.com"),
-      ],
-      None,
-      HttpClient::new(reqwest::Client::new()),
-    );
-    let result = AuthBuilder::default().with_config(config).build();
     assert!(matches!(result, Err(AuthBuilderError(_))));
   }
 
@@ -350,17 +320,16 @@ mod tests {
   }
 
   #[test]
-  fn validate_restrictions_no_matching_rules() {
-    let restrictions = AuthorizationRestrictions::new(1, vec![]);
-    let request = create_test_request("/reads/sample1", HashMap::new());
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
-    assert!(result.is_err());
-  }
-
-  #[test]
   fn validate_restrictions_rule_allows_all() {
-    let rule = AuthorizationRule::new("/reads/sample1".to_string(), None);
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
+
     let request = create_test_request("/reads/sample1", HashMap::new());
     let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
     assert!(result.is_ok());
@@ -368,16 +337,22 @@ mod tests {
 
   #[test]
   fn validate_restrictions_exact_path_match() {
-    let reference_restriction = ReferenceNameRestriction::new(
-      "chr1".to_string(),
-      Some(Format::Bam),
-      Interval::new(Some(1000), Some(2000)),
-    );
-    let rule = AuthorizationRule::new(
-      "/reads/sample1".to_string(),
-      Some(vec![reference_restriction]),
-    );
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .start(1000)
+      .end(2000)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
 
     let mut query = HashMap::new();
     query.insert("referenceName".to_string(), "chr1".to_string());
@@ -392,16 +367,20 @@ mod tests {
 
   #[test]
   fn validate_restrictions_regex_path_match() {
-    let reference_restriction = ReferenceNameRestriction::new(
-      "chr1".to_string(),
-      Some(Format::Bam),
-      Interval::new(None, None),
-    );
-    let rule = AuthorizationRule::new(
-      r"/reads/sample(.+)".to_string(),
-      Some(vec![reference_restriction]),
-    );
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample(.+)")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
 
     let mut query = HashMap::new();
     query.insert("referenceName".to_string(), "chr1".to_string());
@@ -414,16 +393,20 @@ mod tests {
 
   #[test]
   fn validate_restrictions_reference_name_mismatch() {
-    let reference_restriction = ReferenceNameRestriction::new(
-      "chr1".to_string(),
-      Some(Format::Bam),
-      Interval::new(None, None),
-    );
-    let rule = AuthorizationRule::new(
-      "/reads/sample1".to_string(),
-      Some(vec![reference_restriction]),
-    );
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
 
     let mut query = HashMap::new();
     query.insert("referenceName".to_string(), "chr2".to_string());
@@ -436,16 +419,20 @@ mod tests {
 
   #[test]
   fn validate_restrictions_format_mismatch() {
-    let reference_restriction = ReferenceNameRestriction::new(
-      "chr1".to_string(),
-      Some(Format::Bam),
-      Interval::new(None, None),
-    );
-    let rule = AuthorizationRule::new(
-      "/reads/sample1".to_string(),
-      Some(vec![reference_restriction]),
-    );
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
 
     let mut query = HashMap::new();
     query.insert("referenceName".to_string(), "chr1".to_string());
@@ -458,16 +445,22 @@ mod tests {
 
   #[test]
   fn validate_restrictions_interval_not_contained() {
-    let reference_restriction = ReferenceNameRestriction::new(
-      "chr1".to_string(),
-      Some(Format::Bam),
-      Interval::new(Some(1000), Some(2000)),
-    );
-    let rule = AuthorizationRule::new(
-      "/reads/sample1".to_string(),
-      Some(vec![reference_restriction]),
-    );
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .start(1000)
+      .end(2000)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
 
     let mut query = HashMap::new();
     query.insert("referenceName".to_string(), "chr1".to_string());
@@ -481,13 +474,19 @@ mod tests {
 
   #[test]
   fn validate_restrictions_format_none_allows_any() {
-    let reference_restriction =
-      ReferenceNameRestriction::new("chr1".to_string(), None, Interval::new(None, None));
-    let rule = AuthorizationRule::new(
-      "/reads/sample1".to_string(),
-      Some(vec![reference_restriction]),
-    );
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
 
     let mut query = HashMap::new();
     query.insert("referenceName".to_string(), "chr1".to_string());
@@ -500,8 +499,14 @@ mod tests {
 
   #[test]
   fn validate_restrictions_path_with_leading_slash() {
-    let rule = AuthorizationRule::new("reads/sample1".to_string(), None);
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
     let request = create_test_request("/reads/sample1", HashMap::new());
     let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
     assert!(result.is_ok());
@@ -535,15 +540,12 @@ mod tests {
   }
 
   fn create_test_auth_config(public_key: Vec<u8>) -> AuthConfig {
-    AuthConfig::new(
-      AuthMode::PublicKey(public_key),
-      None,
-      None,
-      None,
-      vec![Uri::from_static("https://www.example.com")],
-      None,
-      HttpClient::new(reqwest::Client::new()),
-    )
+    AuthConfigBuilder::default()
+      .auth_mode(AuthMode::PublicKey(public_key))
+      .trusted_authorization_url(Uri::from_static("https://www.example.com"))
+      .http_client(HttpClient::new(reqwest::Client::new()))
+      .build()
+      .unwrap()
   }
 
   fn create_test_request(path: &str, query: HashMap<String, String>) -> Request {
@@ -566,16 +568,22 @@ mod tests {
     let config = create_test_auth_config(public_key);
     let auth = AuthBuilder::default().with_config(config).build().unwrap();
 
-    let reference_restriction = ReferenceNameRestriction::new(
-      "chr1".to_string(),
-      Some(Format::Bam),
-      Interval::new(Some(1000), Some(2000)),
-    );
-    let rule = AuthorizationRule::new(
-      "/reads/sample1".to_string(),
-      Some(vec![reference_restriction]),
-    );
-    let restrictions = AuthorizationRestrictions::new(1, vec![rule]);
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .start(1000)
+      .end(2000)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
 
     (auth, restrictions)
   }

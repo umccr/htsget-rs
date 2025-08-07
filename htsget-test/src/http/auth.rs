@@ -5,10 +5,13 @@ use crate::http::{Header, TestRequest, TestServer};
 use axum::{Router, http::StatusCode, response::Json, routing::get};
 use chrono::{Duration, Utc};
 use htsget_config::config::advanced::HttpClient;
-use htsget_config::config::advanced::auth::{
-  AuthConfig, AuthMode, AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction,
+use htsget_config::config::advanced::auth::response::{
+  AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
 };
-use htsget_config::types::{Class, Format, Interval};
+use htsget_config::config::advanced::auth::{
+  AuthConfig, AuthConfigBuilder, AuthMode, AuthorizationRestrictions,
+};
+use htsget_config::types::{Class, Format};
 use http::{Method, Uri};
 use jsonwebtoken::{Algorithm, EncodingKey, Header as JwtHeader, encode};
 use serde::Deserialize;
@@ -61,15 +64,15 @@ pub fn create_test_jwt_token(claims: Value, private_key: Vec<u8>) -> String {
 
 /// Create a test auth config with JWKS mode.
 pub fn create_test_auth_config(mock_server: &MockAuthServer, public_key: Vec<u8>) -> AuthConfig {
-  AuthConfig::new(
-    AuthMode::PublicKey(public_key),
-    Some(vec!["test-audience".to_string()]),
-    Some(vec!["test-issuer".to_string()]),
-    Some("test-subject".to_string()),
-    vec![mock_server.uri()],
-    None,
-    HttpClient::new(reqwest::Client::new()),
-  )
+  AuthConfigBuilder::default()
+    .auth_mode(AuthMode::PublicKey(public_key))
+    .validate_audience(vec!["test-audience".to_string()])
+    .validate_issuer(vec!["test-issuer".to_string()])
+    .validate_subject("test-subject".to_string())
+    .trusted_authorization_url(mock_server.uri())
+    .http_client(HttpClient::new(reqwest::Client::new()))
+    .build()
+    .unwrap()
 }
 
 /// Create a valid JWT token for testing.
@@ -84,16 +87,25 @@ pub fn create_jwt_claims() -> Value {
 
 /// Create authorization restrictions with specific reference name restrictions.
 pub fn create_auth_restrictions() -> AuthorizationRestrictions {
-  let reference_restriction = ReferenceNameRestriction::new(
-    "chrM".to_string(),
-    Some(Format::Vcf),
-    Interval::new(Some(1000), Some(2000)),
-  );
-  let rule = AuthorizationRule::new(
-    "/1-vcf/sample1-bcbio-cancer".to_string(),
-    Some(vec![reference_restriction]),
-  );
-  AuthorizationRestrictions::new(1, vec![rule])
+  AuthorizationRestrictionsBuilder::default()
+    .version(1)
+    .rule(
+      AuthorizationRuleBuilder::default()
+        .path("/1-vcf/sample1-bcbio-cancer")
+        .reference_name(
+          ReferenceNameRestrictionBuilder::default()
+            .name("chrM")
+            .format(Format::Vcf)
+            .start(1000)
+            .end(2000)
+            .build()
+            .unwrap(),
+        )
+        .build()
+        .unwrap(),
+    )
+    .build()
+    .unwrap()
 }
 
 /// Test authorization with insufficient permissions.

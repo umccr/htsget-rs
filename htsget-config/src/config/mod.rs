@@ -68,6 +68,7 @@ pub struct Config {
   service_info: ServiceInfo,
   locations: Locations,
   formatting_style: FormattingStyle,
+  #[serde(skip_serializing)]
   auth: Option<AuthConfig>,
 }
 

@@ -126,8 +126,10 @@ pub enum Class {
 #[serde(deny_unknown_fields)]
 pub struct Interval {
   /// The start interval (0-based, inclusive).
+  #[serde(skip_serializing_if = "Option::is_none")]
   start: Option<u32>,
   /// The end interval (0-based, exclusive).
+  #[serde(skip_serializing_if = "Option::is_none")]
   end: Option<u32>,
 }
 
