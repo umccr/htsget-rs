@@ -12,7 +12,7 @@ use htsget_config::types::Request;
 use http::Uri;
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
-use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
+use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode_header};
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -223,18 +223,9 @@ impl Auth {
     }
   }
 
-  /// Validate the authorization flow, returning an error if the user is not authorized.
-  /// This performs the following steps:
-  ///
-  /// 1. Finds the JWT decoding key from the config or by querying a JWKS url.
-  /// 2. Validates the JWT token according to the config.
-  /// 3. Queries the authorization service for restrictions based on the config or JWT claims.
-  /// 4. Validates the restrictions to determine if the user is authorized.
-  pub async fn validate_authorization(
-    &self,
-    request: Request,
-    endpoint: Endpoint,
-  ) -> HtsGetResult<()> {
+  /// Validate only the JWT without looking up restrictions and validating those. Returns the
+  /// decoded JWT token.
+  pub async fn validate_jwt(&self, request: &Request) -> HtsGetResult<TokenData<Value>> {
     let auth_token = Authorization::<Bearer>::decode(&mut request.headers().values())
       .map_err(|err| HtsGetError::InvalidAuthentication(err.to_string()))?;
 
@@ -284,6 +275,22 @@ impl Auth {
       Err(err) => return Err(HtsGetError::PermissionDenied(format!("invalid JWT: {err}"))),
     };
 
+    Ok(claims)
+  }
+
+  /// Validate the authorization flow, returning an error if the user is not authorized.
+  /// This performs the following steps:
+  ///
+  /// 1. Finds the JWT decoding key from the config or by querying a JWKS url.
+  /// 2. Validates the JWT token according to the config.
+  /// 3. Queries the authorization service for restrictions based on the config or JWT claims.
+  /// 4. Validates the restrictions to determine if the user is authorized.
+  pub async fn validate_authorization(
+    &self,
+    request: Request,
+    endpoint: Endpoint,
+  ) -> HtsGetResult<()> {
+    let claims = self.validate_jwt(&request).await?;
     let restrictions = self.query_authorization_service(claims.claims).await?;
     Self::validate_restrictions(restrictions, request, endpoint)
   }
