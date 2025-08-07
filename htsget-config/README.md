@@ -126,7 +126,7 @@ spec and some optional ones are pre-filled from the Rust package info. For examp
 crate version and `id` is set to `<package_name>/<package_version`. It is recommended to set the `service_info.id` field
 to a custom value as the package name and version are not globally unique.
 
-[service-info]: https://github.com/ga4gh-discovery/ga4gh-service-info/blob/develop/service-info.yaml
+[service-info]: https://github.com/ga4gh-discovery/ga4gh-service-info
 [service-info-custom]: https://github.com/ga4gh-discovery/ga4gh-service-info/blob/develop/service-info.yaml
 
 ### Environment variables
@@ -347,6 +347,67 @@ ticket_server.cors.expose_headers = []
 Use `"Mirror"` to mirror CORS requests, and `"All"` to allow all methods, headers, or origins. The `ticket_server` table
 above can be replaced with `data_server` to configure CORS for the data server.
 
+### JWT Authorization
+
+One advantage of the htsget protocol is that it is possible to make decisions about which regions of files a user is allowed
+to access, as the protocol is able to return a subset of a genomic file in the URL tickets. Custom JWT authorization can be
+configured to enable this.
+
+htsget-rs is a stateless service (except for caching) which means that making authorization decisions can be challenging
+there is no user tracking. To solve this, authorization is configured to call out to an arbitrary url to make decisions
+about a user. If this feature is configured, when a JWT is sent in the authorization header, htsget-rs:
+
+1. Decodes and validates the JWT according to the config.
+2. Queries the authorization service for restrictions based on the config or JWT claims. 
+3. Validates the restrictions to determine if the user is authorized.
+
+The authorization server should respond with a rule set that htsget-rs can use to approve or deny the user access.
+
+The following options can be configured under the `auth` table to enable this:
+
+| Option                       | Description                                                                                                                                                                                                                                                                                                                          | Type             | Default                                                                                                |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|--------------------------------------------------------------------------------------------------------|
+| `jwks_url`                   | The JSON web key sets url to fetch key sets validating the JWT token.                                                                                                                                                                                                                                                                | URL              | Not set, either this option or `decode_public_key` must be set to validate JWTs.                       | 
+| `public_key`                 | The path to PEM formatted public key used to decode the JWT token.                                                                                                                                                                                                                                                                   | Filesystem path  | Not set, either this option `jwks_url` must be set to validate JWTs.                                   |
+| `validate_audience`          | Validate that the JWT token has the specified audience field.                                                                                                                                                                                                                                                                        | Array of strings | Optional. Does not validate the audience by default.                                                   |
+| `validate_issuer`            | Validate that the JWT token has the specified issuer field.                                                                                                                                                                                                                                                                          | Array of strings | Optional. Does not validate the issuer by default.                                                     |
+| `validate_subject`           | Validate that the JWT token has the specified subject field.                                                                                                                                                                                                                                                                         | Strings          | Optional. Does not validate the subject by default.                                                    |
+| `trusted_authorization_urls` | The URLs which can be called to authorize the user. If `authorization_path` is not set, the first URL in the array will be called with a GET request and the forwarded JWT. If `authorization_path` is set, then the list of URLs will be trusted as authorization sources if they are found in the JWT.                             | Array of URLs    | Not set, must be set with at least one URL.                                                            |
+| `authorization_path`         | The JSON path that finds the authorization URL in the JWT. The path should find a URL value inside the JWT claims. This allows dynamically resolving the authorization url based on the content of the JWT. This URL will be called with a GET request and the forwarded JWT and should return the htsget authorization information. | JSON path        | Optional. Uses the first value in `trusted_authorization_urls` by default.                             |
+| `tls`                        | Enables client authentication, or sets non-native root certificates for TLS when making requests. See [server configuration](#server-configuration) for more details.                                                                                                                                                                | TOML table       | Optional. Performs no client authentication and uses native root certificates for TLS client requests. |
+
+When calling the authorization service configured using `authorization_url` or `authorization_path`, htsget-rs will
+forward the JWT inside an authorization bearer header and use a GET request. The service should respond with the
+following JSON structure, indicating whether the request is allowed, and any region restrictions (similar to the 
+[allow guard logic](#allow-guard)):
+
+```json
+{
+  "version": 1,
+  "htsgetAuth": [
+    {
+      "path": "dataset/001/id",
+      "referenceNames": [
+        {
+          "name": "chr1",
+          "format": "BAM",
+          "start": 100,
+          "end": 1000
+        }
+      ]
+    }
+  ]
+}
+```
+
+The authorization server is allowed to respond with multiple paths that the user is allowed to access. Each path can 
+also be a regex that matches ids like the [regex resolvers](#regex-based-location). A full JSON schema defining this
+format is available under [auth.json][auth-json]. An [example][auth-example] configuration file is available in the
+examples directory.
+
+[auth-json]: docs/schemas/auth.schema.json
+[auth-example]: docs/examples/auth.toml
+
 ### MinIO
 
 Operating a local object storage like [MinIO][minio] can be achieved by using `endpoint` under `"S3"` locations as shown below:
@@ -469,7 +530,7 @@ This project is licensed under the [MIT license][license].
 [tracing]: https://github.com/tokio-rs/tracing
 [rust-log]: https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
 [formatting-style]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html#formatters
-[examples-config-files]: examples/config-files
+[examples-config-files]: docs/examples/config-files
 [rustls]: https://github.com/rustls/rustls
 [htsget-actix]: ../htsget-actix
 [htsget-axum]: ../htsget-axum

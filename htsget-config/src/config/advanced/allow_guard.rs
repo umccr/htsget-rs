@@ -149,9 +149,9 @@ impl QueryAllowed for AllowGuard {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::config::tests::test_serialize_and_deserialize;
   #[cfg(feature = "aws")]
   use crate::config::Config;
+  use crate::config::tests::test_serialize_and_deserialize;
   use crate::types::Class::Header;
 
   #[test]
@@ -313,29 +313,35 @@ mod tests {
     assert!(!guard.query_allowed(&query.clone().with_format(Cram)));
 
     assert!(guard.query_allowed(&query.clone().with_class(Header).with_start(1).with_end(50)));
-    assert!(guard.query_allowed(
-      &query
-        .clone()
-        .with_class(Header)
-        .with_start(1)
-        .with_end(50)
-        .with_tags(Tags::List(HashSet::from_iter(vec!["tag".to_string()])))
-    ));
-    assert!(guard.query_allowed(
-      &query
-        .clone()
-        .with_class(Header)
-        .with_start(1)
-        .with_end(50)
-        .with_fields(Fields::List(HashSet::from_iter(vec!["field".to_string()])))
-    ));
+    assert!(
+      guard.query_allowed(
+        &query
+          .clone()
+          .with_class(Header)
+          .with_start(1)
+          .with_end(50)
+          .with_tags(Tags::List(HashSet::from_iter(vec!["tag".to_string()])))
+      )
+    );
+    assert!(
+      guard.query_allowed(
+        &query
+          .clone()
+          .with_class(Header)
+          .with_start(1)
+          .with_end(50)
+          .with_fields(Fields::List(HashSet::from_iter(vec!["field".to_string()])))
+      )
+    );
 
-    assert!(!guard.query_allowed(
-      &query
-        .clone()
-        .with_class(Header)
-        .with_start(1)
-        .with_end(1000)
-    ));
+    assert!(
+      !guard.query_allowed(
+        &query
+          .clone()
+          .with_class(Header)
+          .with_start(1)
+          .with_end(1000)
+      )
+    );
   }
 }

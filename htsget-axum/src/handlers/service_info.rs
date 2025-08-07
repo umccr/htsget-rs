@@ -2,8 +2,8 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum_extra::response::ErasedJson;
 
-use htsget_http::get_service_info_json as get_base_service_info_json;
 use htsget_http::Endpoint;
+use htsget_http::get_service_info_json as get_base_service_info_json;
 use htsget_search::HtsGet;
 
 use crate::server::AppState;

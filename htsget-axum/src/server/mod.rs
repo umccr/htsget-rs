@@ -8,8 +8,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::Request;
+use crate::error::Error::ServerError;
+use crate::error::Result;
+use crate::server::data::DataServer;
+use crate::server::ticket::TicketServer;
 use axum::Router;
+use axum::extract::Request;
+use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::tls::TlsServerConfig;
@@ -26,11 +31,6 @@ use tower::Service;
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer, ExposeHeaders};
 use tracing::trace;
 use tracing::{error, warn};
-
-use crate::error::Error::ServerError;
-use crate::error::Result;
-use crate::server::data::DataServer;
-use crate::server::ticket::TicketServer;
 
 /// Represents the axum app state.
 #[derive(Debug, Clone)]
@@ -121,24 +121,34 @@ pub struct BindServer {
   cert_key_pair: Option<TlsServerConfig>,
   scheme: Scheme,
   cors: CorsConfig,
+  auth: Option<AuthConfig>,
 }
 
 impl BindServer {
-  pub fn new(addr: SocketAddr, cors: CorsConfig) -> Self {
+  /// Create a new bind server instance.
+  pub fn new(addr: SocketAddr, cors: CorsConfig, auth: Option<AuthConfig>) -> Self {
     Self {
       addr,
       cert_key_pair: None,
       scheme: Scheme::Http,
       cors,
+      auth,
     }
   }
 
-  pub fn new_with_tls(addr: SocketAddr, cors: CorsConfig, tls: TlsServerConfig) -> Self {
+  /// Create a new bind server instance with TLS.
+  pub fn new_with_tls(
+    addr: SocketAddr,
+    cors: CorsConfig,
+    auth: Option<AuthConfig>,
+    tls: TlsServerConfig,
+  ) -> Self {
     Self {
       addr,
       cert_key_pair: Some(tls),
       scheme: Scheme::Https,
       cors,
+      auth,
     }
   }
 
@@ -160,7 +170,11 @@ impl BindServer {
   pub async fn bind_data_server(&mut self) -> Result<DataServer> {
     let server = self.bind_server().await?;
 
-    Ok(DataServer::new(server, self.cors.clone()))
+    Ok(DataServer::new(
+      server,
+      self.cors.clone(),
+      self.auth.clone(),
+    ))
   }
 
   /// Eagerly bind the address by returning a `TicketServer`.
@@ -179,6 +193,7 @@ impl BindServer {
       htsget,
       service_info,
       self.cors.clone(),
+      self.auth.clone(),
     ))
   }
 

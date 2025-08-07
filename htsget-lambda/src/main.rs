@@ -1,9 +1,9 @@
 use htsget_axum::server::ticket::TicketServer;
 use htsget_config::config::Config;
 use htsget_config::{command, package_info};
-use lambda_http::{run, Error};
+use lambda_http::{Error, run};
 use rustls::crypto::aws_lc_rs;
-use std::env::set_var;
+use std::env::var;
 use std::io;
 use tracing::debug;
 
@@ -13,9 +13,9 @@ async fn main() -> Result<(), Error> {
     .install_default()
     .map_err(|_| io::Error::other("setting crypto provider"))?;
 
-  // Ignore the API gateway stage.
+  // Ignore the API gateway stage. This value must be set for the Lambda to function.
   // See https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/lambda-http#integration-with-api-gateway-stages
-  set_var("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH", "true");
+  let _ = var("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH")?;
 
   if let Some(path) = Config::parse_args_with_command(command!())? {
     let mut config = Config::from_path(&path)?;
@@ -29,7 +29,8 @@ async fn main() -> Result<(), Error> {
 
     let service_info = config.service_info().clone();
     let cors = config.ticket_server().cors().clone();
-    let router = TicketServer::router(config.into_locations(), service_info, cors);
+    let auth = config.ticket_server().auth().cloned();
+    let router = TicketServer::router(config.into_locations(), service_info, cors, auth)?;
 
     run(router).await
   } else {

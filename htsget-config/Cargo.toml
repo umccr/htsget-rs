@@ -1,9 +1,9 @@
 [package]
 name = "htsget-config"
 version = "0.14.2"
-rust-version = "1.83"
+rust-version = "1.86"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
-edition = "2021"
+edition = "2024"
 description = "Used to configure htsget-rs by using a config file or reading environment variables."
 license = "MIT"
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
@@ -12,7 +12,7 @@ repository = "https://github.com/umccr/htsget-rs"
 
 [features]
 aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
-url = ["dep:reqwest"]
+url = []
 experimental = ["dep:crypt4gh", "dep:tokio", "dep:futures-util"]
 default = []
 
@@ -36,9 +36,8 @@ rustls-pemfile = "2"
 rustls = "0.23"
 rustls-pki-types = "1"
 chrono = { version = "0.4", features = ["now"], default-features = false }
-
-# url
-reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false, optional = true }
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+schemars = "1"
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
@@ -50,9 +49,14 @@ aws-sdk-secretsmanager = { version = "1", optional = true, features = ["test-uti
 aws-config = { version = "1", optional = true }
 tempfile = { version = "3", optional = true }
 
+[build-dependencies]
+schemars = "1"
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+
 [dev-dependencies]
 figment = { version = "0.10", features = ["test"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tempfile = "3"
 rcgen = { version = "0.14", features = ["pem"] }
-aws-smithy-mocks-experimental = "0.2"
+aws-smithy-mocks = "0.1"

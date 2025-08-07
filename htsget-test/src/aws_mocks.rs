@@ -1,8 +1,8 @@
 use aws_config::SdkConfig;
-use aws_credential_types::provider::SharedCredentialsProvider;
 use aws_credential_types::Credentials;
-use aws_sdk_s3::config::{BehaviorVersion, Region};
+use aws_credential_types::provider::SharedCredentialsProvider;
 use aws_sdk_s3::Client;
+use aws_sdk_s3::config::{BehaviorVersion, Region};
 use s3s::auth::SimpleAuth;
 use s3s::host::SingleDomain;
 use s3s::service::S3ServiceBuilder;

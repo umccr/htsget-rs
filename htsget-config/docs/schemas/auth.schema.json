@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AuthorizationRestrictions",
+  "description": "Authorization restrictions from an external authorization service.",
+  "type": "object",
+  "properties": {
+    "htsgetAuth": {
+      "description": "The authorization rules.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AuthorizationRule"
+      },
+      "minItems": 1
+    },
+    "version": {
+      "description": "The version of the schema.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false,
+  "required": ["version", "htsgetAuth"],
+  "$defs": {
+    "AuthorizationRule": {
+      "description": "Individual authorization rule defining access permissions.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "The path that the authorization applies to. This should not contain the `/reads` or `/variants` component of the path, and it can be a regex.",
+          "type": "string",
+          "minLength": 1
+        },
+        "referenceNames": {
+          "description": "The reference name restrictions to apply to this path.",
+          "type": ["array", "null"],
+          "items": {
+            "$ref": "#/$defs/ReferenceNameRestriction"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": ["path"]
+    },
+    "Format": {
+      "description": "An enumeration with all the possible formats.",
+      "type": "string",
+      "enum": ["Bam", "Cram", "Vcf", "Bcf"]
+    },
+    "ReferenceNameRestriction": {
+      "description": "Restriction on genomic reference names and coordinate ranges.",
+      "type": "object",
+      "properties": {
+        "end": {
+          "description": "The end interval (0-based, exclusive).",
+          "type": ["integer", "null"],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "format": {
+          "description": "The format to allow. Allows all formats if unspecified.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Format"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "description": "The reference name to allow.",
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "description": "The start interval (0-based, inclusive).",
+          "type": ["integer", "null"],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": ["name"]
+    }
+  }
+}

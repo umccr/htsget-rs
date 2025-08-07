@@ -4,7 +4,7 @@
 use crate::error::{Error, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_value, to_value, Value};
+use serde_json::{Value, from_value, to_value};
 use std::collections::HashMap;
 
 /// Create the package info used to populate the service info. This uses the `CARGO_PKG_*` environment
@@ -147,8 +147,8 @@ impl AsRef<HashMap<String, Value>> for ServiceInfo {
 
 #[cfg(test)]
 mod tests {
-  use crate::config::tests::test_serialize_and_deserialize;
   use crate::config::Config;
+  use crate::config::tests::test_serialize_and_deserialize;
   use serde_json::json;
 
   #[test]

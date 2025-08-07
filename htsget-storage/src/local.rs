@@ -147,7 +147,7 @@ pub(crate) mod tests {
   use htsget_config::types::Scheme;
   use http::uri::Authority;
   use tempfile::TempDir;
-  use tokio::fs::{create_dir, File};
+  use tokio::fs::{File, create_dir};
   use tokio::io::AsyncWriteExt;
 
   use super::*;

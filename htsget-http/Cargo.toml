@@ -1,9 +1,9 @@
 [package]
 name = "htsget-http"
 version = "0.5.5"
-rust-version = "1.83"
+rust-version = "1.86"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
 description = "Crate for handling HTTP in htsget-rs."
 documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-http/README.md"
@@ -27,6 +27,13 @@ futures = { version = "0.3" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 cfg-if = "1"
+
+# JWT middleware
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+jsonwebtoken = "9"
+jsonpath-rust = "1"
+regex = "1"
+headers = "0.4"
 
 [dev-dependencies]
 htsget-test = { path = "../htsget-test", default-features = false }

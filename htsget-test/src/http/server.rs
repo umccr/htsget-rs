@@ -2,14 +2,14 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 
 use crate::http::concat::ConcatResponse;
-use htsget_config::config::data_server::DataServerEnabled;
 use htsget_config::config::Config;
+use htsget_config::config::data_server::DataServerEnabled;
 use htsget_config::types::Class;
 use htsget_config::types::Format;
 use http::{HeaderValue, Method, StatusCode};
 use reqwest::ClientBuilder;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::http::{Header, Response, TestRequest, TestServer};
 
@@ -126,8 +126,11 @@ fn post_request_two<T: TestRequest>(tester: &impl TestServer<T>) -> T {
 }
 
 /// Test an array of requests and their responses
-async fn test_responses<R, T>(tester: &impl TestServer<T>, requests: Vec<T>, class: Class)
-where
+pub(crate) async fn test_responses<R, T>(
+  tester: &impl TestServer<T>,
+  requests: Vec<T>,
+  class: Class,
+) where
   T: TestRequest,
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {

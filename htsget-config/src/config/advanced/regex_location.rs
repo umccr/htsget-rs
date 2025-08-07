@@ -74,8 +74,8 @@ impl From<RegexLocation> for LocationEither {
 
 #[cfg(test)]
 mod tests {
-  use crate::config::tests::test_serialize_and_deserialize;
   use crate::config::Config;
+  use crate::config::tests::test_serialize_and_deserialize;
 
   #[test]
   fn regex_location_file() {

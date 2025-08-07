@@ -1,7 +1,7 @@
 use crate::error::TestError::ConcatResponse as ConcatResponseError;
 use crate::error::{Result, TestError};
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use futures::future::join_all;
 use futures::{Stream, TryStreamExt};
 use htsget_config::types::{Class, Format, Response, Url};

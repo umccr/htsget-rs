@@ -3,8 +3,8 @@
 
 use crate::c4gh::edit::{ClampedPosition, EditHeader, UnencryptedPosition};
 use crate::c4gh::{
-  to_unencrypted_file_size, unencrypted_clamp, unencrypted_clamp_next, unencrypted_to_data_block,
-  unencrypted_to_next_data_block, DecryptedData, DeserializedHeader,
+  DecryptedData, DeserializedHeader, to_unencrypted_file_size, unencrypted_clamp,
+  unencrypted_clamp_next, unencrypted_to_data_block, unencrypted_to_next_data_block,
 };
 use crate::error::StorageError::{InternalError, IoError};
 use crate::error::{Result, StorageError};
@@ -14,8 +14,8 @@ use crate::{
   StorageTrait, Streamable,
 };
 use async_trait::async_trait;
-use crypt4gh::error::Crypt4GHError;
 use crypt4gh::Keys;
+use crypt4gh::error::Crypt4GHError;
 use htsget_config::types::{Class, Format, Url};
 use std::cmp::min;
 use std::collections::HashMap;
@@ -324,7 +324,7 @@ mod tests {
   use http::HeaderMap;
   use std::future::Future;
   use std::path::Path;
-  use tokio::fs::{read, File};
+  use tokio::fs::{File, read};
   use tokio::io::AsyncWriteExt;
 
   #[tokio::test]

@@ -4,7 +4,7 @@
 
 use crypt4gh::error::Crypt4GHError;
 use crypt4gh::header::{DecryptedHeaderPackets, HeaderInfo};
-use crypt4gh::{body_decrypt, body_decrypt_parts, header, Keys, WriteInfo};
+use crypt4gh::{Keys, WriteInfo, body_decrypt, body_decrypt_parts, header};
 use std::cmp::min;
 use std::io;
 use std::io::{BufWriter, Cursor, Read};

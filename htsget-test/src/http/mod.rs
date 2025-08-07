@@ -1,6 +1,7 @@
 //! Testing functionality related to http and url tickets.
 //!
 
+pub mod auth;
 pub mod concat;
 pub mod cors;
 pub mod server;
@@ -11,16 +12,16 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
+use htsget_config::config::Config;
 use htsget_config::config::advanced::cors::{AllowType, CorsConfig, TaggedAllowTypes};
 use htsget_config::config::advanced::regex_location::RegexLocation;
 use htsget_config::config::data_server::{DataServerConfig, DataServerEnabled};
 use htsget_config::config::location::{LocationEither, Locations};
 use htsget_config::config::ticket_server::TicketServerConfig;
-use htsget_config::config::Config;
-use htsget_config::storage::file::File;
 use htsget_config::storage::Backend;
+use htsget_config::storage::file::File;
 use htsget_config::tls::{
-  load_certs, load_key, tls_server_config, CertificateKeyPair, TlsServerConfig,
+  CertificateKeyPair, TlsServerConfig, load_certs, load_key, tls_server_config,
 };
 use htsget_config::types::Scheme;
 use http::uri::Authority;
@@ -155,14 +156,26 @@ fn default_test_config_params(
   scheme: Scheme,
 ) -> Config {
   let cors = default_cors_config();
-  let server_config = DataServerConfig::new(addr, default_dir_data(), tls.clone(), cors.clone());
+  let server_config = DataServerConfig::new(
+    addr,
+    default_dir_data(),
+    tls.clone(),
+    cors.clone(),
+    Default::default(),
+  );
 
   Config::new(
     Default::default(),
-    TicketServerConfig::new("127.0.0.1:8080".parse().unwrap(), tls, cors),
+    TicketServerConfig::new(
+      "127.0.0.1:8080".parse().unwrap(),
+      tls,
+      cors,
+      Default::default(),
+    ),
     DataServerEnabled::Some(server_config),
     Default::default(),
     default_test_resolver(addr, scheme),
+    Default::default(),
   )
 }
 

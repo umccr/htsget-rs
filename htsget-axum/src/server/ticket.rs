@@ -3,13 +3,16 @@
 
 use crate::error::Result;
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
-use crate::server::{configure_cors, AppState, BindServer, Server};
-use axum::routing::get;
+use crate::middleware::auth::AuthLayer;
+use crate::server::{AppState, BindServer, Server, configure_cors};
 use axum::Router;
+use axum::routing::get;
+use htsget_config::config::Config;
+use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::config::ticket_server::TicketServerConfig;
-use htsget_config::config::Config;
+use htsget_http::middleware::auth::AuthBuilder;
 use htsget_search::HtsGet;
 use http::{StatusCode, Uri};
 use std::net::SocketAddr;
@@ -24,10 +27,11 @@ impl From<TicketServerConfig> for BindServer {
   fn from(config: TicketServerConfig) -> Self {
     let addr = config.addr();
     let cors = config.cors().clone();
+    let auth = config.auth().cloned();
 
     match config.into_tls() {
-      None => Self::new(addr, cors),
-      Some(tls) => Self::new_with_tls(addr, cors, tls),
+      None => Self::new(addr, cors, auth),
+      Some(tls) => Self::new_with_tls(addr, cors, auth, tls),
     }
   }
 }
@@ -39,6 +43,7 @@ pub struct TicketServer<H> {
   htsget: H,
   service_info: ServiceInfo,
   cors: CorsConfig,
+  auth: Option<AuthConfig>,
 }
 
 impl<H> TicketServer<H>
@@ -46,12 +51,19 @@ where
   H: HtsGet + Clone + Send + Sync + 'static,
 {
   /// Create a new ticket server.
-  pub fn new(server: Server, htsget: H, service_info: ServiceInfo, cors: CorsConfig) -> Self {
+  pub fn new(
+    server: Server,
+    htsget: H,
+    service_info: ServiceInfo,
+    cors: CorsConfig,
+    auth: Option<AuthConfig>,
+  ) -> Self {
     Self {
       server,
       htsget,
       service_info,
       cors,
+      auth,
     }
   }
 
@@ -59,13 +71,23 @@ where
   pub async fn serve(self) -> Result<()> {
     self
       .server
-      .serve(Self::router(self.htsget, self.service_info, self.cors))
+      .serve(Self::router(
+        self.htsget,
+        self.service_info,
+        self.cors,
+        self.auth,
+      )?)
       .await
   }
 
   /// Create the router for the ticket server.
-  pub fn router(htsget: H, service_info: ServiceInfo, cors: CorsConfig) -> Router {
-    Router::default()
+  pub fn router(
+    htsget: H,
+    service_info: ServiceInfo,
+    cors: CorsConfig,
+    auth: Option<AuthConfig>,
+  ) -> Result<Router> {
+    let router = Router::default()
       .route(
         "/reads/service-info",
         get(reads_service_info::<H>).post(reads_service_info::<H>),
@@ -82,7 +104,15 @@ where
           .layer(TraceLayer::new_for_http())
           .layer(configure_cors(cors)),
       )
-      .with_state(AppState::new(htsget, service_info))
+      .with_state(AppState::new(htsget, service_info));
+
+    if let Some(auth) = auth {
+      Ok(router.layer(AuthLayer::from(
+        AuthBuilder::default().with_config(auth).build()?,
+      )))
+    } else {
+      Ok(router)
+    }
   }
 
   /// Get the local address the server has bound to.
@@ -116,15 +146,17 @@ mod tests {
 
   use super::*;
   use async_trait::async_trait;
-  use axum::body::{to_bytes, Body};
+  use axum::body::{Body, to_bytes};
   use axum::response::Response;
   use htsget_config::config::Config;
   use htsget_config::types::JsonResponse;
+  use htsget_test::http::auth::{MockAuthServer, create_test_auth_config};
   use htsget_test::http::server::expected_url_path;
   use htsget_test::http::{
-    config_with_tls, cors, default_test_config, server, Header, Response as TestResponse,
-    TestRequest, TestServer,
+    Header, Response as TestResponse, TestRequest, TestServer, auth, config_with_tls, cors,
+    default_test_config, server,
   };
+  use htsget_test::util::generate_key_pair;
   use http::header::HeaderName;
   use http::{Method, Request};
   use rustls::crypto::aws_lc_rs;
@@ -228,12 +260,23 @@ mod tests {
       }
     }
 
+    async fn new_with_auth(public_key: Vec<u8>) -> Self {
+      let mock_server = MockAuthServer::new().await;
+      let auth_config = create_test_auth_config(&mock_server, public_key);
+      let mut config = default_test_config();
+      config.ticket_server_mut().set_auth(Some(auth_config));
+
+      Self { config }
+    }
+
     async fn get_response(&self, request: Request<Body>) -> result::Result<Response, Infallible> {
       let app = TicketServer::router(
         self.config.clone().into_locations(),
         self.config.service_info().clone(),
         self.config.ticket_server().cors().clone(),
-      );
+        self.config.ticket_server().auth().cloned(),
+      )
+      .unwrap();
 
       app.oneshot(request).await
     }
@@ -322,5 +365,24 @@ mod tests {
   #[tokio::test]
   async fn test_errors() {
     server::test_errors(&AxumTestServer::default()).await;
+  }
+
+  #[tokio::test]
+  async fn test_auth_insufficient_permissions() {
+    let (private_key, public_key) = generate_key_pair();
+
+    let server = AxumTestServer::new_with_auth(public_key).await;
+    auth::test_auth_insufficient_permissions(&server, private_key).await;
+  }
+
+  #[tokio::test]
+  async fn test_auth_succeeds() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &AxumTestServer::new_with_auth(public_key).await,
+      private_key,
+    )
+    .await;
   }
 }

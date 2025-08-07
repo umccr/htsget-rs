@@ -4,7 +4,7 @@ use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
 use http::HeaderMap;
 
-use htsget_http::{get, Endpoint};
+use htsget_http::{Endpoint, get};
 use htsget_search::HtsGet;
 
 use crate::handlers::extract_request;

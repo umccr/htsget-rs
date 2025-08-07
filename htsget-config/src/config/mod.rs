@@ -1,22 +1,26 @@
 //! Structs to serialize and deserialize the htsget-rs config options.
 //!
 
-use std::fmt::Debug;
-use std::io;
-use std::path::{Path, PathBuf};
-
 use crate::config::advanced::FormattingStyle;
-use crate::config::data_server::DataServerEnabled;
+use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
+use crate::config::data_server::{DataServerConfig, DataServerEnabled};
 use crate::config::location::{Location, LocationEither, Locations};
 use crate::config::parser::from_path;
 use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
 use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
-use crate::storage::file::File;
 use crate::storage::Backend;
+use crate::storage::file::File;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
-use serde::{Deserialize, Serialize};
+use schemars::schema_for;
+use serde::de::Error;
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt::{Debug, Display};
+use std::io;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use tracing::subscriber::set_global_default;
 use tracing_subscriber::fmt::{format, layer};
 use tracing_subscriber::layer::SubscriberExt;
@@ -46,6 +50,13 @@ struct Args {
   config: Option<PathBuf>,
   #[arg(short, long, exclusive = true, help = "Print a default config file")]
   print_default_config: bool,
+  #[arg(
+    short = 's',
+    long,
+    exclusive = true,
+    help = "Print the response JSON schema used in the htsget auth process"
+  )]
+  print_response_schema: bool,
 }
 
 /// Simplified config.
@@ -57,6 +68,8 @@ pub struct Config {
   service_info: ServiceInfo,
   locations: Locations,
   formatting_style: FormattingStyle,
+  #[serde(skip_serializing)]
+  auth: Option<AuthConfig>,
 }
 
 impl Config {
@@ -67,6 +80,7 @@ impl Config {
     data_server: DataServerEnabled,
     service_info: ServiceInfo,
     locations: Locations,
+    auth: Option<AuthConfig>,
   ) -> Self {
     Self {
       formatting_style,
@@ -74,6 +88,7 @@ impl Config {
       data_server,
       service_info,
       locations,
+      auth,
     }
   }
 
@@ -87,9 +102,22 @@ impl Config {
     &self.ticket_server
   }
 
+  /// Get the mutable ticket server config.
+  pub fn ticket_server_mut(&mut self) -> &mut TicketServerConfig {
+    &mut self.ticket_server
+  }
+
   /// Get the data server config.
   pub fn data_server(&self) -> &DataServerEnabled {
     &self.data_server
+  }
+
+  /// Get the mutable data server config.
+  pub fn data_server_mut(&mut self) -> Option<&mut DataServerConfig> {
+    match &mut self.data_server {
+      DataServerEnabled::None(_) => None,
+      DataServerEnabled::Some(data_server) => Some(data_server),
+    }
   }
 
   /// Get the service info config.
@@ -136,6 +164,12 @@ impl Config {
         toml::ser::to_string_pretty(&Config::default()).unwrap()
       );
       None
+    } else if args.print_response_schema {
+      println!(
+        "{}",
+        serde_json::to_string_pretty(&schema_for!(AuthorizationRestrictions)).unwrap()
+      );
+      None
     } else {
       Some(args.config.unwrap_or_else(|| "".into()))
     }
@@ -143,7 +177,18 @@ impl Config {
 
   /// Read a config struct from a TOML file.
   pub fn from_path(path: &Path) -> io::Result<Self> {
-    let config: Self = from_path(path)?;
+    let mut config: Self = from_path(path)?;
+
+    // Propagate global config to individual ticket and data servers.
+    if let DataServerEnabled::Some(ref mut data_server_config) = config.data_server {
+      if data_server_config.auth().is_none() {
+        data_server_config.set_auth(config.auth.clone());
+      }
+    }
+    if config.ticket_server().auth().is_none() {
+      config.ticket_server.set_auth(config.auth.clone());
+    }
+
     Ok(config.resolvers_from_data_server_config()?)
   }
 
@@ -213,8 +258,39 @@ impl Default for Config {
       data_server: DataServerEnabled::Some(Default::default()),
       service_info: Default::default(),
       locations: Default::default(),
+      auth: Default::default(),
     }
   }
+}
+
+pub(crate) fn serialize_array_display<S, T>(
+  names: &[T],
+  serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+  T: Display,
+  S: Serializer,
+{
+  let mut sequence = serializer.serialize_seq(Some(names.len()))?;
+  for element in names.iter().map(|name| format!("{name}")) {
+    sequence.serialize_element(&element)?;
+  }
+  sequence.end()
+}
+
+pub(crate) fn deserialize_vec_from_str<'de, D, T>(
+  deserializer: D,
+) -> std::result::Result<Vec<T>, D::Error>
+where
+  T: FromStr,
+  T::Err: Display,
+  D: Deserializer<'de>,
+{
+  let names: Vec<String> = Deserialize::deserialize(deserializer)?;
+  names
+    .into_iter()
+    .map(|name| T::from_str(&name).map_err(Error::custom))
+    .collect()
 }
 
 #[cfg(test)]
@@ -222,13 +298,13 @@ pub(crate) mod tests {
   use std::fmt::Display;
 
   use super::*;
+  use crate::config::advanced::auth::AuthMode;
   use crate::config::parser::from_str;
   use crate::tls::tests::with_test_certificates;
   use crate::types::Scheme;
   use figment::Jail;
-  use http::uri::Authority;
-  #[cfg(feature = "url")]
   use http::Uri;
+  use http::uri::Authority;
   use serde::de::DeserializeOwned;
   use serde_json::json;
 
@@ -400,13 +476,15 @@ pub(crate) mod tests {
           key_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert!(config
-            .data_server()
-            .clone()
-            .as_data_server_config()
-            .unwrap()
-            .tls()
-            .is_none());
+          assert!(
+            config
+              .data_server()
+              .clone()
+              .as_data_server_config()
+              .unwrap()
+              .tls()
+              .is_none()
+          );
         },
       );
     });
@@ -428,13 +506,15 @@ pub(crate) mod tests {
           cert_path.to_string_lossy().escape_default()
         ),
         |config| {
-          assert!(config
-            .data_server()
-            .clone()
-            .as_data_server_config()
-            .unwrap()
-            .tls()
-            .is_some());
+          assert!(
+            config
+              .data_server()
+              .clone()
+              .as_data_server_config()
+              .unwrap()
+              .tls()
+              .is_some()
+          );
         },
       );
     });
@@ -452,13 +532,15 @@ pub(crate) mod tests {
           ("HTSGET_DATA_SERVER_TLS_CERT", cert_path.to_string_lossy()),
         ],
         |config| {
-          assert!(config
-            .data_server()
-            .clone()
-            .as_data_server_config()
-            .unwrap()
-            .tls()
-            .is_some());
+          assert!(
+            config
+              .data_server()
+              .clone()
+              .as_data_server_config()
+              .unwrap()
+              .tls()
+              .is_some()
+          );
         },
       );
     });
@@ -652,6 +734,81 @@ pub(crate) mod tests {
         assert_eq!(location.prefix(), "vcf");
         assert!(matches!(location.backend(),
             Backend::S3(s3) if s3.bucket() == "bucket"));
+      },
+    );
+  }
+
+  #[test]
+  fn config_server_auth() {
+    test_config_from_file(
+      r#"
+      ticket_server.auth.jwks_url = "https://www.example.com/"
+      ticket_server.auth.validate_issuer = ["iss1"]
+      ticket_server.auth.trusted_authorization_urls = ["https://www.example.com"]
+      ticket_server.auth.authorization_path = "$.auth_url"
+      data_server.auth.jwks_url = "https://www.example.com/"
+      data_server.auth.validate_audience = ["aud1"]
+      data_server.auth.trusted_authorization_urls = ["https://www.example.com"]
+      "#,
+      |config| {
+        let auth = config.ticket_server().auth().unwrap();
+        assert_eq!(
+          auth.auth_mode(),
+          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+        );
+        assert_eq!(
+          auth.validate_issuer(),
+          Some(vec!["iss1".to_string()].as_slice())
+        );
+        assert_eq!(
+          auth.trusted_authorization_urls(),
+          &["https://www.example.com/".parse::<Uri>().unwrap()]
+        );
+        assert_eq!(auth.authorization_path(), Some("$.auth_url"));
+        let auth = config
+          .data_server()
+          .as_data_server_config()
+          .unwrap()
+          .auth()
+          .unwrap();
+        assert_eq!(
+          auth.auth_mode(),
+          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+        );
+        assert_eq!(
+          auth.validate_audience(),
+          Some(vec!["aud1".to_string()].as_slice())
+        );
+        assert_eq!(
+          auth.trusted_authorization_urls(),
+          &["https://www.example.com/".parse::<Uri>().unwrap()]
+        );
+      },
+    );
+  }
+
+  #[test]
+  fn config_server_auth_global() {
+    test_config_from_file(
+      r#"
+      auth.jwks_url = "https://www.example.com/"
+      auth.validate_audience = ["aud1"]
+      auth.trusted_authorization_urls = ["https://www.example.com"]
+      "#,
+      |config| {
+        let auth = config.auth.unwrap();
+        assert_eq!(
+          auth.auth_mode(),
+          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+        );
+        assert_eq!(
+          auth.validate_audience(),
+          Some(vec!["aud1".to_string()].as_slice())
+        );
+        assert_eq!(
+          auth.trusted_authorization_urls(),
+          &["https://www.example.com/".parse::<Uri>().unwrap()]
+        );
       },
     );
   }

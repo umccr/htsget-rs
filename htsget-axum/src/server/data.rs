@@ -2,10 +2,13 @@
 //!
 
 use crate::error::Result;
-use crate::server::{configure_cors, BindServer, Server};
+use crate::middleware::auth::AuthLayer;
+use crate::server::{BindServer, Server, configure_cors};
 use axum::Router;
+use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::data_server::DataServerConfig;
+use htsget_http::middleware::auth::AuthBuilder;
 use std::net::SocketAddr;
 use std::path::Path;
 use tokio::task::JoinHandle;
@@ -18,25 +21,41 @@ use tracing::info;
 pub struct DataServer {
   server: Server,
   cors: CorsConfig,
+  auth: Option<AuthConfig>,
 }
 
 impl DataServer {
   /// Create a new data server.
-  pub fn new(server: Server, cors: CorsConfig) -> Self {
-    Self { server, cors }
+  pub fn new(server: Server, cors: CorsConfig, auth: Option<AuthConfig>) -> Self {
+    Self { server, cors, auth }
   }
 
   /// Run the data server, using the provided path, key and certificate.
   pub async fn serve<P: AsRef<Path>>(self, path: P) -> Result<()> {
-    self.server.serve(Self::router(self.cors, path)).await
+    self
+      .server
+      .serve(Self::router(self.cors, self.auth, path)?)
+      .await
   }
 
   /// Create the router for the data server.
-  pub fn router<P: AsRef<Path>>(cors: CorsConfig, path: P) -> Router {
-    Router::new()
+  pub fn router<P: AsRef<Path>>(
+    cors: CorsConfig,
+    auth: Option<AuthConfig>,
+    path: P,
+  ) -> Result<Router> {
+    let router = Router::new()
       .fallback_service(ServeDir::new(path))
       .layer(configure_cors(cors))
-      .layer(TraceLayer::new_for_http())
+      .layer(TraceLayer::new_for_http());
+
+    if let Some(auth) = auth {
+      Ok(router.layer(AuthLayer::from(
+        AuthBuilder::default().with_config(auth).build()?,
+      )))
+    } else {
+      Ok(router)
+    }
   }
 
   /// Get the local address the server has bound to.
@@ -51,10 +70,11 @@ impl From<DataServerConfig> for BindServer {
   fn from(config: DataServerConfig) -> Self {
     let addr = config.addr();
     let cors = config.cors().clone();
+    let auth = config.auth().cloned();
 
     match config.into_tls() {
-      None => Self::new(addr, cors),
-      Some(tls) => Self::new_with_tls(addr, cors, tls),
+      None => Self::new(addr, cors, auth),
+      Some(tls) => Self::new_with_tls(addr, cors, auth, tls),
     }
   }
 }
@@ -80,8 +100,8 @@ mod tests {
   use http::{HeaderMap, Method};
   use reqwest::{Client, ClientBuilder, RequestBuilder};
   use rustls::crypto::aws_lc_rs;
-  use tempfile::{tempdir, TempDir};
-  use tokio::fs::{create_dir, File};
+  use tempfile::{TempDir, tempdir};
+  use tokio::fs::{File, create_dir};
   use tokio::io::AsyncWriteExt;
 
   use htsget_config::config::Config;
@@ -89,8 +109,8 @@ mod tests {
   use htsget_config::types::Scheme;
   use htsget_test::http::cors::{test_cors_preflight_request_uri, test_cors_simple_request_uri};
   use htsget_test::http::{
-    config_with_tls, default_cors_config, default_test_config, Header, Response as TestResponse,
-    TestRequest, TestServer,
+    Header, Response as TestResponse, TestRequest, TestServer, config_with_tls,
+    default_cors_config, default_test_config,
   };
 
   use super::*;
@@ -214,7 +234,11 @@ mod tests {
 
   #[test]
   fn http_scheme() {
-    let formatter = BindServer::new("127.0.0.1:8080".parse().unwrap(), CorsConfig::default());
+    let formatter = BindServer::new(
+      "127.0.0.1:8080".parse().unwrap(),
+      CorsConfig::default(),
+      None,
+    );
     assert_eq!(formatter.get_scheme(), &Scheme::Http);
   }
 
@@ -225,7 +249,8 @@ mod tests {
 
   #[tokio::test]
   async fn get_addr_local_addr() {
-    let mut formatter = BindServer::new("127.0.0.1:0".parse().unwrap(), CorsConfig::default());
+    let mut formatter =
+      BindServer::new("127.0.0.1:0".parse().unwrap(), CorsConfig::default(), None);
     let server = formatter.bind_server().await.unwrap();
     assert_eq!(formatter.get_addr(), server.local_addr().unwrap());
   }
@@ -270,6 +295,7 @@ mod tests {
     BindServer::new_with_tls(
       "127.0.0.1:8080".parse().unwrap(),
       CorsConfig::default(),
+      None,
       server_config,
     )
   }
@@ -282,7 +308,7 @@ mod tests {
     let server = Server::bind_addr(addr, cert_key_pair).await.unwrap();
     let port = server.local_addr().unwrap().port();
 
-    let data_server = DataServer::new(server, default_cors_config());
+    let data_server = DataServer::new(server, default_cors_config(), None);
     tokio::spawn(async move { data_server.serve(path).await.unwrap() });
 
     port

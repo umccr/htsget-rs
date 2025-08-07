@@ -4,10 +4,10 @@
 use crate::config::advanced::regex_location::RegexLocation;
 use crate::error::{Error::ParseError, Result};
 use crate::storage;
+use crate::storage::Backend;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
 use crate::storage::file::default_authority;
-use crate::storage::Backend;
 use crate::types::Scheme;
 use cfg_if::cfg_if;
 use serde::de::Error;
@@ -283,8 +283,8 @@ impl<'de> Deserialize<'de> for StringLocation {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::config::tests::test_serialize_and_deserialize;
   use crate::config::Config;
+  use crate::config::tests::test_serialize_and_deserialize;
 
   #[test]
   fn location_single() {

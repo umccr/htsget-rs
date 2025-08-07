@@ -8,14 +8,16 @@ pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
 pub use service_info::{Htsget, ServiceInfo, Type};
+use std::collections::HashMap;
 use std::result;
 use std::str::FromStr;
 
-mod error;
-mod http_core;
-mod post_request;
-mod query_builder;
-mod service_info;
+pub mod error;
+pub mod http_core;
+pub mod middleware;
+pub mod post_request;
+pub mod query_builder;
+pub mod service_info;
 
 /// A enum to distinguish between the two endpoint defined in the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html)
@@ -37,7 +39,15 @@ impl FromStr for Endpoint {
   }
 }
 
-/// Get the format from the string
+/// Match the format from a query parameter.
+pub fn match_format_from_query(
+  endpoint: &Endpoint,
+  query: &HashMap<String, String>,
+) -> Result<Format> {
+  match_format(endpoint, query.get("format"))
+}
+
+/// Get the format from the string.
 pub fn match_format(endpoint: &Endpoint, format: Option<impl Into<String>>) -> Result<Format> {
   let format = format.map(Into::into).map(|format| format.to_lowercase());
 
@@ -87,10 +97,10 @@ mod tests {
 
   use htsget_config::storage;
   use htsget_config::types::{Headers, JsonResponse, Request, Scheme, Url};
-  use htsget_search::from_storage::HtsGetFromStorage;
   use htsget_search::FileStorage;
   use htsget_search::HtsGet;
   use htsget_search::Storage;
+  use htsget_search::from_storage::HtsGetFromStorage;
   use http::uri::Authority;
 
   use super::*;

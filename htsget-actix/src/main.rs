@@ -3,8 +3,8 @@ use std::io;
 use tokio::select;
 use tracing::debug;
 
-use htsget_actix::run_server;
 use htsget_actix::Config;
+use htsget_actix::run_server;
 use htsget_axum::server::data;
 use htsget_config::config::data_server::DataServerEnabled;
 use htsget_config::{command, package_info};

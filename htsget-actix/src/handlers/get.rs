@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 
 use actix_web::{
-  web::{Data, Path, Query},
   HttpRequest, Responder,
+  web::{Data, Path, Query},
 };
 use tracing::info;
 use tracing::instrument;
 
-use htsget_http::{get, Endpoint};
+use htsget_http::{Endpoint, get};
 use htsget_search::HtsGet;
 
-use crate::handlers::extract_request;
 use crate::AppState;
+use crate::handlers::extract_request;
 
 use super::handle_response;
 

@@ -1,8 +1,8 @@
 //! The config for remote URL server locations.
 //!
 
+use crate::config::advanced::HttpClient;
 use crate::error::Error;
-use crate::error::Error::ParseError;
 use crate::error::Result;
 use crate::storage;
 #[cfg(feature = "experimental")]
@@ -10,7 +10,6 @@ use crate::storage::c4gh::C4GHKeys;
 use crate::tls::client::TlsClientConfig;
 use cfg_if::cfg_if;
 use http::Uri;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 /// Options for the remote URL server config.
@@ -91,22 +90,7 @@ impl TryFrom<Url> for storage::url::Url {
   type Error = Error;
 
   fn try_from(storage: Url) -> Result<Self> {
-    let mut builder = Client::builder();
-
-    let (certs, identity) = storage.tls.into_inner();
-
-    if let Some(certs) = certs {
-      for cert in certs {
-        builder = builder.add_root_certificate(cert);
-      }
-    }
-    if let Some(identity) = identity {
-      builder = builder.identity(identity);
-    }
-
-    let client = builder
-      .build()
-      .map_err(|err| ParseError(format!("building url storage client: {err}")))?;
+    let client = HttpClient::try_from(storage.tls)?.0;
 
     let url_storage = Self::new(
       storage.url.clone(),

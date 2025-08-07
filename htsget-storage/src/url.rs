@@ -251,7 +251,7 @@ pub(crate) mod tests {
   use axum::body::Body;
   use axum::middleware::Next;
   use axum::response::Response;
-  use axum::{middleware, Router};
+  use axum::{Router, middleware};
   use http::header::{AUTHORIZATION, HOST};
   use http::{HeaderName, HeaderValue, Request, StatusCode};
   use tokio::io::AsyncReadExt;
@@ -591,8 +591,6 @@ pub(crate) mod tests {
 
   fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions {
     let headers = test_headers(headers);
-    let options = RangeUrlOptions::new_with_default_range(headers);
-
-    options
+    RangeUrlOptions::new_with_default_range(headers)
   }
 }

@@ -3,10 +3,10 @@
 
 use crate::c4gh::DeserializedHeader;
 use crate::error::{Result, StorageError};
+use crypt4gh::Keys;
 use crypt4gh::error::Crypt4GHError;
 use crypt4gh::error::Crypt4GHError::InvalidPacketType;
-use crypt4gh::header::{encrypt, make_packet_data_edit_list, make_packet_data_enc, HeaderInfo};
-use crypt4gh::Keys;
+use crypt4gh::header::{HeaderInfo, encrypt, make_packet_data_edit_list, make_packet_data_enc};
 use std::collections::HashSet;
 use tokio::io;
 

@@ -3,7 +3,7 @@ use tracing::instrument;
 
 use htsget_config::types::{Format, Query, Request};
 
-use crate::{match_format, Endpoint, QueryBuilder, Result};
+use crate::{Endpoint, QueryBuilder, Result, match_format};
 
 /// A struct to represent a POST request according to the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html). It implements
@@ -104,11 +104,13 @@ mod tests {
       }
       .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
-      vec![Query::new("id", Format::Vcf, request)
-        .with_class(Class::Header)
-        .with_reference_name("20".to_string())
-        .with_start(150)
-        .with_end(153)]
+      vec![
+        Query::new("id", Format::Vcf, request)
+          .with_class(Class::Header)
+          .with_reference_name("20".to_string())
+          .with_start(150)
+          .with_end(153)
+      ]
     );
   }
 

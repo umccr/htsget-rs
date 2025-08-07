@@ -1,9 +1,9 @@
 use crate::http::{Header, TestRequest, TestServer};
+use http::Method;
 use http::header::{
   ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
   ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, ORIGIN,
 };
-use http::Method;
 
 /// A simple cors request test.
 pub async fn test_cors_simple_request<T: TestRequest>(tester: &impl TestServer<T>) {
@@ -89,12 +89,14 @@ pub async fn test_cors_preflight_request_uri<T: TestRequest>(
     "x-requested-with"
   );
 
-  assert!(response
-    .headers
-    .get(ACCESS_CONTROL_ALLOW_METHODS)
-    .unwrap()
-    .to_str()
-    .unwrap()
-    .to_lowercase()
-    .contains("post"));
+  assert!(
+    response
+      .headers
+      .get(ACCESS_CONTROL_ALLOW_METHODS)
+      .unwrap()
+      .to_str()
+      .unwrap()
+      .to_lowercase()
+      .contains("post")
+  );
 }

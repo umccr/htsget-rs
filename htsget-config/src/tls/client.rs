@@ -1,10 +1,11 @@
 //! TLS configuration related to HTTP clients.
 //!
 
+use crate::config::advanced::Bytes;
 use crate::error::Error::IoError;
 use crate::error::{Error, Result};
 use crate::tls::RootCertStorePair;
-use crate::tls::{load_certs, read_bytes};
+use crate::tls::load_certs;
 use reqwest::{Certificate, Identity};
 use serde::Deserialize;
 
@@ -53,11 +54,11 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
     let identity = key_pair
       .clone()
       .map(|pair| {
-        let key = read_bytes(pair.key)?;
-        let certs = read_bytes(pair.cert)?;
+        let key = Bytes::try_from(pair.key)?.into_inner();
+        let certs = Bytes::try_from(pair.cert)?.into_inner();
 
         Identity::from_pem(&[certs, key].concat())
-          .map_err(|err| IoError(format!("failed to pkcs8 pem identity: {err}")))
+          .map_err(|err| IoError(format!("failed to load pkcs8 pem identity: {err}")))
       })
       .transpose()?;
 

@@ -1,12 +1,11 @@
 //! Configuration related to TLS.
 //!
 
-#[cfg(feature = "url")]
 pub mod client;
 
 use std::fs::File;
 use std::io;
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use rustls::ServerConfig;
@@ -162,13 +161,6 @@ pub fn load_key<P: AsRef<Path>>(key_path: P) -> Result<PrivateKeyDer<'static>> {
   }
 
   Err(ParseError("no keys found in pem file".to_string()))
-}
-
-/// Read byte data.
-pub fn read_bytes<P: AsRef<Path>>(path: P) -> Result<Vec<u8>> {
-  let mut bytes = vec![];
-  File::open(path)?.read_to_end(&mut bytes)?;
-  Ok(bytes)
 }
 
 /// Load certificates from a file.

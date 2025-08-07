@@ -5,9 +5,9 @@ use async_trait::async_trait;
 use futures_util::stream::FuturesOrdered;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
-use noodles::csi::binning_index::index::ReferenceSequence;
 use noodles::csi::BinningIndex;
+use noodles::csi::binning_index::index::ReferenceSequence;
+use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
 use noodles::tabix;
 use noodles::tabix::Index;
 use noodles::vcf;
@@ -18,7 +18,7 @@ use tracing::{instrument, trace};
 
 use htsget_config::types::HtsGetError;
 
-use crate::search::{find_first, BgzfSearch, Search};
+use crate::search::{BgzfSearch, Search, find_first};
 use crate::{Format, Query, Result};
 use htsget_storage::types::BytesPosition;
 use htsget_storage::{Storage, Streamable};
@@ -171,8 +171,10 @@ pub(crate) mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-850"))],
+        vec![
+          Url::new(expected_url(filename))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-850")),
+        ],
       ));
       assert_eq!(response, expected_response);
 
@@ -237,9 +239,11 @@ pub(crate) mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Vcf,
-        vec![Url::new(expected_url(filename))
-          .with_headers(Headers::default().with_header("Range", "bytes=0-822"))
-          .with_class(Header)],
+        vec![
+          Url::new(expected_url(filename))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-822"))
+            .with_class(Header),
+        ],
       ));
       assert_eq!(response, expected_response);
 
@@ -453,8 +457,10 @@ pub(crate) mod tests {
   fn expected_vcf_response(filename: &str) -> Response {
     Response::new(
       Format::Vcf,
-      vec![Url::new(expected_url(filename))
-        .with_headers(Headers::default().with_header("Range", "bytes=0-3493"))],
+      vec![
+        Url::new(expected_url(filename))
+          .with_headers(Headers::default().with_header("Range", "bytes=0-3493")),
+      ],
     )
   }
 

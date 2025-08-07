@@ -10,8 +10,9 @@ use crate::encryption_scheme::EncryptionScheme;
 use crate::error::Error;
 use crate::error::Error::ParseError;
 use http::HeaderMap;
-use noodles::core::region::Interval as NoodlesInterval;
 use noodles::core::Position;
+use noodles::core::region::Interval as NoodlesInterval;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::instrument;
@@ -20,7 +21,7 @@ use tracing::instrument;
 pub type Result<T> = result::Result<T, HtsGetError>;
 
 /// An enumeration with all the possible formats.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(JsonSchema, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all(serialize = "UPPERCASE"), deny_unknown_fields)]
 pub enum Format {
   #[default]
@@ -121,14 +122,39 @@ pub enum Class {
 
 /// An interval represents the start (0-based, inclusive) and end (0-based exclusive) ranges of the
 /// query.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(JsonSchema, Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Interval {
+  /// The start interval (0-based, inclusive).
+  #[serde(skip_serializing_if = "Option::is_none")]
   start: Option<u32>,
+  /// The end interval (0-based, exclusive).
+  #[serde(skip_serializing_if = "Option::is_none")]
   end: Option<u32>,
 }
 
 impl Interval {
+  /// Does this interval contain the passed in interval.
+  pub fn contains_interval(&self, other: Interval) -> bool {
+    let check_containment =
+      |self_bound, other_bound, is_start: bool| match (self_bound, other_bound) {
+        (None, _) => true,
+        (Some(_), None) => false,
+        (Some(self_val), Some(other_val)) => {
+          if is_start {
+            self_val <= other_val
+          } else {
+            self_val >= other_val
+          }
+        }
+      };
+
+    let start_contains = check_containment(self.start, other.start, true);
+    let end_contains = check_containment(self.end, other.end, false);
+
+    start_contains && end_contains
+  }
+
   /// Check if this interval contains the value.
   pub fn contains(&self, value: u32) -> bool {
     match (self.start.as_ref(), self.end.as_ref()) {
@@ -764,6 +790,49 @@ mod tests {
       end: None,
     };
     assert!(interval.contains(0));
+  }
+
+  #[test]
+  fn interval_contains_interval() {
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(12), Some(18));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(10), Some(20));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(5), Some(15));
+    assert!(!outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(15), Some(25));
+    assert!(!outer.contains_interval(inner));
+
+    let outer = Interval::new(None, Some(20));
+    let inner = Interval::new(Some(10), Some(15));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), None);
+    let inner = Interval::new(Some(15), Some(25));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(None, None);
+    let inner = Interval::new(Some(10), Some(20));
+    assert!(outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(None, Some(15));
+    assert!(!outer.contains_interval(inner));
+
+    let outer = Interval::new(Some(10), Some(20));
+    let inner = Interval::new(Some(15), None);
+    assert!(!outer.contains_interval(inner));
+
+    let outer = Interval::new(None, None);
+    let inner = Interval::new(None, None);
+    assert!(outer.contains_interval(inner));
   }
 
   #[test]

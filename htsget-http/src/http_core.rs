@@ -1,5 +1,5 @@
-use futures::stream::FuturesOrdered;
 use futures::StreamExt;
+use futures::stream::FuturesOrdered;
 use tokio::select;
 use tracing::debug;
 use tracing::instrument;
@@ -9,7 +9,8 @@ use htsget_search::HtsGet;
 
 use crate::HtsGetError::InvalidInput;
 use crate::{
-  convert_to_query, match_format, merge_responses, Endpoint, HtsGetError, PostRequest, Result,
+  Endpoint, HtsGetError, PostRequest, Result, convert_to_query, match_format_from_query,
+  merge_responses,
 };
 
 /// Gets a JSON response for a GET request. The GET request parameters must
@@ -21,7 +22,7 @@ pub async fn get(
   request: Request,
   endpoint: Endpoint,
 ) -> Result<JsonResponse> {
-  let format = match_format(&endpoint, request.query().get("format"))?;
+  let format = match_format_from_query(&endpoint, request.query())?;
   let query = convert_to_query(request, format)?;
 
   debug!(endpoint = ?endpoint, query = ?query, "getting GET response");

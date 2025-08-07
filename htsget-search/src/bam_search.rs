@@ -7,17 +7,17 @@ use noodles::bam::bai;
 use noodles::bam::bai::Index;
 use noodles::bgzf;
 use noodles::bgzf::VirtualPosition;
-use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
-use noodles::csi::binning_index::index::ReferenceSequence;
 use noodles::csi::BinningIndex;
+use noodles::csi::binning_index::index::ReferenceSequence;
+use noodles::csi::binning_index::index::reference_sequence::index::LinearIndex;
 use noodles::sam::Header;
 use tokio::io;
 use tokio::io::{AsyncRead, BufReader};
 use tracing::{instrument, trace};
 
-use crate::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::Class::Body;
 use crate::HtsGetError;
+use crate::search::{BgzfSearch, Search, SearchAll, SearchReads};
 use crate::{Format, Query, Result};
 use htsget_storage::types::BytesPosition;
 use htsget_storage::{Storage, Streamable};
@@ -50,10 +50,12 @@ impl BgzfSearch<LinearIndex, AsyncReader, Header> for BamSearch {
       }
     };
 
-    Ok(vec![BytesPosition::default()
-      .with_start(start.compressed())
-      .with_end(self.position_at_eof(query).await?)
-      .with_class(Body)])
+    Ok(vec![
+      BytesPosition::default()
+        .with_start(start.compressed())
+        .with_end(self.position_at_eof(query).await?)
+        .with_class(Body),
+    ])
   }
 
   async fn read_bytes(reader: &mut AsyncReader) -> Option<usize> {
@@ -173,8 +175,10 @@ pub(crate) mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-2596798"))],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-2596798")),
+        ],
       ));
       assert_eq!(response, expected_response);
 
@@ -406,9 +410,11 @@ pub(crate) mod tests {
 
       let expected_response = Ok(Response::new(
         Format::Bam,
-        vec![Url::new(expected_url())
-          .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
-          .with_class(Header)],
+        vec![
+          Url::new(expected_url())
+            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_class(Header),
+        ],
       ));
       assert_eq!(response, expected_response);
 
