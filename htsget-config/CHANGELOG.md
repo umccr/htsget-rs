@@ -1,4 +1,42 @@
 # Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.15.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.14.2...htsget-config-v0.15.0) - 2025-08-08
+
+### Added
+
+- add authentication_only option
+- add builder for auth config and response and validate fields
+- [**breaking**] update editions, unused dependencies and newly unsafe set_var in Lambda function
+- *(config)* add contains interval function
+- *(http)* add authorization checks based on service restrictions
+- propagate auth config to all server instances
+- *(config)* add option to validate sub
+- *(config)* initialize client in auth config struct
+- *(config)* use schemars to create json schema for response
+- *(config)* add auth struct to data server and ticket server
+- *(config)* add response struct definitions for jwt auth scheme
+- *(config)* remove url feature flag for client TLS and add it to auth config
+- *(config)* add auth config module
+- add authentication flow following jwks
+
+### Other
+
+- key_pair simplification, doc updates, response default values and well-known JWKS updates
+- add pre-commit after testing doc generation
+- add integration tests for JWT auth
+- *(config)* add byte reading struct from pathbuf
+- add check for non-updated schema docs
+- *(config)* remove validate functions and use enum
+- *(config)* add example auth.toml file
+- describe auth protocol in config docs
+# Changelog
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
