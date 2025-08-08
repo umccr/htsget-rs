@@ -1,4 +1,35 @@
 # Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.4.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.3.3...htsget-axum-v0.4.0) - 2025-08-08
+
+### Added
+
+- [**breaking**] update editions, unused dependencies and newly unsafe set_var in Lambda function
+- add restriction checks to authorization flow for htsget servers
+- propagate config settings and validate all JWT fields in axum and actix servers
+- *(axum)* implement call-out to authorization service in middleware
+- propagate auth config to all server instances
+- *(config)* add option to validate sub
+- *(config)* use schemars to create json schema for response
+- *(config)* add auth config module
+- add authentication flow following jwks
+- add auth middleware service and layer structs
+- add implementations for creating htsget errors for htsget axum
+- add into_response implementation for htsget error type
+
+### Other
+
+- key_pair simplification, doc updates, response default values and well-known JWKS updates
+- add integration tests for JWT auth
+- describe auth protocol in config docs
+# Changelog
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

@@ -1,4 +1,30 @@
 # Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.5.5...htsget-http-v0.6.0) - 2025-08-08
+
+### Added
+
+- add authentication_only option
+- add validate jwt only function
+- add builder for auth config and response and validate fields
+- [**breaking**] update editions, unused dependencies and newly unsafe set_var in Lambda function
+- add restriction checks to authorization flow for htsget servers
+- *(http)* add authorization checks based on service restrictions
+- *(http)* export modules
+- *(http)* move auth logic to htsget-http
+
+### Other
+
+- key_pair simplification, doc updates, response default values and well-known JWKS updates
+- add integration tests for JWT auth
+# Changelog
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
