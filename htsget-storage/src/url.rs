@@ -589,7 +589,7 @@ pub(crate) mod tests {
     headers
   }
 
-  fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions {
+  fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions<'_> {
     let headers = test_headers(headers);
     RangeUrlOptions::new_with_default_range(headers)
   }

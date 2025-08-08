@@ -66,6 +66,7 @@ pub struct AuthConfig {
   trusted_authorization_urls: Vec<Uri>,
   authorization_path: Option<String>,
   http_client: HttpClient,
+  authentication_only: bool,
 }
 
 impl AuthConfig {
@@ -104,6 +105,11 @@ impl AuthConfig {
     self.authorization_path.as_deref()
   }
 
+  /// Whether to validate the JWT only.
+  pub fn authentication_only(&self) -> bool {
+    self.authentication_only
+  }
+
   /// Get the http client.
   pub fn http_client(&self) -> &reqwest::Client {
     &self.http_client.0
@@ -112,7 +118,7 @@ impl AuthConfig {
 
 /// Builder for `AuthConfig`.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, default)]
 pub struct AuthConfigBuilder {
   #[serde(flatten, skip_serializing)]
   auth_mode: Option<AuthMode>,
@@ -121,13 +127,13 @@ pub struct AuthConfigBuilder {
   validate_subject: Option<String>,
   #[serde(
     serialize_with = "serialize_array_display",
-    deserialize_with = "deserialize_vec_from_str",
-    default
+    deserialize_with = "deserialize_vec_from_str"
   )]
   trusted_authorization_urls: Vec<Uri>,
   authorization_path: Option<String>,
-  #[serde(rename = "tls", skip_serializing, default)]
+  #[serde(rename = "tls", skip_serializing)]
   http_client: Option<HttpClient>,
+  authentication_only: bool,
 }
 
 impl AuthConfigBuilder {
@@ -183,6 +189,13 @@ impl AuthConfigBuilder {
     self
   }
 
+  /// Validate the JWT only and don't check authorization logic, or call out to the
+  /// authorization service.
+  pub fn authentication_only(mut self, authentication_only: bool) -> Self {
+    self.authentication_only = authentication_only;
+    self
+  }
+
   /// Build the auth config.
   pub fn build(self) -> Result<AuthConfig> {
     let Some(auth_mode) = self.auth_mode else {
@@ -208,6 +221,7 @@ impl AuthConfigBuilder {
       trusted_authorization_urls: self.trusted_authorization_urls,
       authorization_path: self.authorization_path,
       http_client: HttpClient::default(),
+      authentication_only: self.authentication_only,
     })
   }
 }
@@ -235,6 +249,7 @@ mod tests {
       validate_subject = "sub"
       trusted_authorization_urls = ["https://www.example.com"]
       authorization_path = "$.auth_url"
+      authentication_only = true
       "#,
     )
     .unwrap();
@@ -256,6 +271,7 @@ mod tests {
       vec!["https://www.example.com".parse::<Uri>().unwrap()]
     );
     assert_eq!(config.authorization_path().unwrap(), "$.auth_url");
+    assert!(config.authentication_only());
   }
 
   #[test]

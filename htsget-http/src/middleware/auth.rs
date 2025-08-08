@@ -291,6 +291,10 @@ impl Auth {
     endpoint: Endpoint,
   ) -> HtsGetResult<()> {
     let claims = self.validate_jwt(&request).await?;
+    if self.config.authentication_only() {
+      return Ok(());
+    }
+
     let restrictions = self.query_authorization_service(claims.claims).await?;
     Self::validate_restrictions(restrictions, request, endpoint)
   }
