@@ -33,7 +33,9 @@ impl From<&HttpRequest> for HeaderMap {
 }
 
 /// Handles a response, converting errors to json and using the proper HTTP status code
-fn handle_response(response: Result<JsonResponse>) -> Either<impl Responder, impl Responder> {
+pub(crate) fn handle_response(
+  response: Result<JsonResponse>,
+) -> Either<impl Responder, impl Responder> {
   match response {
     Err(error) => {
       let (json, status_code) = error.to_json_representation();
