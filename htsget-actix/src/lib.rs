@@ -78,6 +78,9 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
   cors_layer = cors
     .allow_headers()
     .apply_any(|cors_layer| cors_layer.allow_any_header(), cors_layer);
+  cors_layer = cors
+      .allow_headers()
+      .apply_mirror(|cors_layer| cors_layer.allow_any_header(), cors_layer);
   cors_layer = cors.allow_headers().apply_list(
     |cors_layer, headers| {
       cors_layer.allowed_headers(HttpVersionCompat::header_names_1_to_0_2(headers.clone()))
@@ -88,6 +91,9 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
   cors_layer = cors
     .allow_methods()
     .apply_any(|cors_layer| cors_layer.allow_any_method(), cors_layer);
+  cors_layer = cors
+      .allow_methods()
+      .apply_mirror(|cors_layer| cors_layer.allow_any_method(), cors_layer);
   cors_layer = cors.allow_methods().apply_list(
     |cors_layer, methods| {
       cors_layer.allowed_methods(HttpVersionCompat::methods_0_2_to_1(methods.clone()))
@@ -424,7 +430,7 @@ mod tests {
 
   #[actix_web::test]
   async fn cors_preflight_request() {
-    cors::test_cors_preflight_request(&ActixTestServer::default()).await;
+    cors::test_cors_preflight_request(&ActixTestServer::default(), "x-requested-with", "POST").await;
   }
 
   #[actix_web::test]

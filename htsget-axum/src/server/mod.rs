@@ -75,7 +75,7 @@ pub fn configure_cors(cors: CorsConfig) -> CorsLayer {
   );
 
   cors_layer = cors.allow_headers().apply_any(
-    |cors_layer| cors_layer.allow_headers(AllowHeaders::mirror_request()),
+    |cors_layer| cors_layer.allow_headers(AllowHeaders::any()),
     cors_layer,
   );
   cors_layer = cors.allow_origins().apply_mirror(
@@ -88,7 +88,7 @@ pub fn configure_cors(cors: CorsConfig) -> CorsLayer {
   );
 
   cors_layer = cors.allow_methods().apply_any(
-    |cors_layer| cors_layer.allow_methods(AllowMethods::mirror_request()),
+    |cors_layer| cors_layer.allow_methods(AllowMethods::any()),
     cors_layer,
   );
   cors_layer = cors.allow_origins().apply_mirror(

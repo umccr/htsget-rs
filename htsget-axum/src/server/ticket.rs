@@ -359,7 +359,7 @@ mod tests {
 
   #[tokio::test]
   async fn cors_preflight_request() {
-    cors::test_cors_preflight_request(&AxumTestServer::default()).await;
+    cors::test_cors_preflight_request(&AxumTestServer::default(), "*", "*").await;
   }
 
   #[tokio::test]
