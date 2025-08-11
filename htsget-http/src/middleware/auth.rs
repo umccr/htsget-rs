@@ -73,14 +73,17 @@ pub struct Auth {
 
 impl Auth {
   /// Fetch JWKS from the authorization server.
-  pub async fn fetch_from_url<D: DeserializeOwned>(&self, url: &str) -> HtsGetResult<D> {
-    let err = || {
-      HtsGetError::InternalError("failed to fetch jwks.json from authorization server".to_string())
-    };
+  pub async fn fetch_from_url<D: DeserializeOwned>(
+    &self,
+    url: &str,
+    headers: HeaderMap,
+  ) -> HtsGetResult<D> {
+    let err = || HtsGetError::InternalError(format!("failed to fetch data from {url}"));
     let response = self
       .config
       .http_client()
       .get(url)
+      .headers(headers)
       .send()
       .await
       .map_err(|_| err())?;
@@ -97,7 +100,9 @@ impl Auth {
       .ok_or_else(|| HtsGetError::PermissionDenied("JWT missing key ID".to_string()))?;
 
     // Fetch JWKS from the authorization server and find matching JWK.
-    let jwks = self.fetch_from_url::<JwkSet>(&jwks_url.to_string()).await?;
+    let jwks = self
+      .fetch_from_url::<JwkSet>(&jwks_url.to_string(), Default::default())
+      .await?;
     let matched_jwk = jwks
       .find(&kid)
       .ok_or_else(|| HtsGetError::PermissionDenied("matching JWK not found".to_string()))?;
@@ -120,6 +125,7 @@ impl Auth {
   pub async fn query_authorization_service(
     &self,
     claims: Value,
+    headers: &HeaderMap,
   ) -> HtsGetResult<AuthorizationRestrictions> {
     let query_url = match self.config.authorization_path() {
       None => self
@@ -162,7 +168,20 @@ impl Auth {
       ));
     };
 
-    self.fetch_from_url(&query_url.to_string()).await
+    let auth_header = headers
+      .iter()
+      .find_map(|(name, value)| {
+        if Authorization::<Bearer>::decode(&mut [value].into_iter()).is_ok() {
+          return Some((name.clone(), value.clone()));
+        }
+
+        None
+      })
+      .ok_or_else(|| HtsGetError::PermissionDenied("missing authorization header".to_string()))?;
+
+    self
+      .fetch_from_url(&query_url.to_string(), HeaderMap::from_iter([auth_header]))
+      .await
   }
 
   /// Validate the restrictions, returning an error if the user is not authorized.
@@ -300,7 +319,9 @@ impl Auth {
       return Ok(());
     }
 
-    let restrictions = self.query_authorization_service(claims.claims).await?;
+    let restrictions = self
+      .query_authorization_service(claims.claims, request.headers())
+      .await?;
     Self::validate_restrictions(restrictions, request, endpoint)
   }
 
@@ -315,7 +336,7 @@ impl Auth {
   ) -> HtsGetResult<()> {
     if let Some(reads) = path.strip_prefix("/reads") {
       if reads.starts_with("/service-info") {
-        let _ = self.validate_jwt(&headers).await?;
+        self.validate_jwt(&headers).await?;
         return Ok(());
       }
 
@@ -327,7 +348,7 @@ impl Auth {
         .await
     } else if let Some(variants) = path.strip_prefix("/variants") {
       if variants.starts_with("/service-info") {
-        let _ = self.validate_jwt(&headers).await?;
+        self.validate_jwt(&headers).await?;
         return Ok(());
       }
 
@@ -338,7 +359,7 @@ impl Auth {
         )
         .await
     } else {
-      let _ = self.validate_jwt(&headers).await?;
+      self.validate_jwt(&headers).await?;
       Ok(())
     }
   }
