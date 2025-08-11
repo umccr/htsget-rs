@@ -1,5 +1,5 @@
 # An example config file for a TLS data server that uses a local storage backend.
-# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/examples/config-files/tls_data_server.toml`
+# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/docs/examples/tls_data_server.toml`
 
 ticket_server.addr = "0.0.0.0:8080"
 data_server.addr = "0.0.0.0:8081"

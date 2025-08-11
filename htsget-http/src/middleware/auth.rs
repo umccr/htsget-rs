@@ -9,13 +9,14 @@ use headers::authorization::Bearer;
 use headers::{Authorization, Header};
 use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationRestrictions};
 use htsget_config::types::Request;
-use http::Uri;
+use http::{HeaderMap, Uri};
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode_header};
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use std::collections::HashMap;
 
 /// Builder the the authorization middleware.
 #[derive(Default, Debug)]
@@ -72,14 +73,17 @@ pub struct Auth {
 
 impl Auth {
   /// Fetch JWKS from the authorization server.
-  pub async fn fetch_from_url<D: DeserializeOwned>(&self, url: &str) -> HtsGetResult<D> {
-    let err = || {
-      HtsGetError::InternalError("failed to fetch jwks.json from authorization server".to_string())
-    };
+  pub async fn fetch_from_url<D: DeserializeOwned>(
+    &self,
+    url: &str,
+    headers: HeaderMap,
+  ) -> HtsGetResult<D> {
+    let err = || HtsGetError::InternalError(format!("failed to fetch data from {url}"));
     let response = self
       .config
       .http_client()
       .get(url)
+      .headers(headers)
       .send()
       .await
       .map_err(|_| err())?;
@@ -96,7 +100,9 @@ impl Auth {
       .ok_or_else(|| HtsGetError::PermissionDenied("JWT missing key ID".to_string()))?;
 
     // Fetch JWKS from the authorization server and find matching JWK.
-    let jwks = self.fetch_from_url::<JwkSet>(&jwks_url.to_string()).await?;
+    let jwks = self
+      .fetch_from_url::<JwkSet>(&jwks_url.to_string(), Default::default())
+      .await?;
     let matched_jwk = jwks
       .find(&kid)
       .ok_or_else(|| HtsGetError::PermissionDenied("matching JWK not found".to_string()))?;
@@ -119,6 +125,7 @@ impl Auth {
   pub async fn query_authorization_service(
     &self,
     claims: Value,
+    headers: &HeaderMap,
   ) -> HtsGetResult<AuthorizationRestrictions> {
     let query_url = match self.config.authorization_path() {
       None => self
@@ -161,7 +168,20 @@ impl Auth {
       ));
     };
 
-    self.fetch_from_url(&query_url.to_string()).await
+    let auth_header = headers
+      .iter()
+      .find_map(|(name, value)| {
+        if Authorization::<Bearer>::decode(&mut [value].into_iter()).is_ok() {
+          return Some((name.clone(), value.clone()));
+        }
+
+        None
+      })
+      .ok_or_else(|| HtsGetError::PermissionDenied("missing authorization header".to_string()))?;
+
+    self
+      .fetch_from_url(&query_url.to_string(), HeaderMap::from_iter([auth_header]))
+      .await
   }
 
   /// Validate the restrictions, returning an error if the user is not authorized.
@@ -225,9 +245,13 @@ impl Auth {
 
   /// Validate only the JWT without looking up restrictions and validating those. Returns the
   /// decoded JWT token.
-  pub async fn validate_jwt(&self, request: &Request) -> HtsGetResult<TokenData<Value>> {
-    let auth_token = Authorization::<Bearer>::decode(&mut request.headers().values())
-      .map_err(|err| HtsGetError::InvalidAuthentication(err.to_string()))?;
+  pub async fn validate_jwt(&self, headers: &HeaderMap) -> HtsGetResult<TokenData<Value>> {
+    let auth_token = headers
+      .values()
+      .find_map(|value| Authorization::<Bearer>::decode(&mut [value].into_iter()).ok())
+      .ok_or_else(|| {
+        HtsGetError::InvalidAuthentication("invalid authorization header".to_string())
+      })?;
 
     let decoding_key = if let Some(ref decoding_key) = self.decoding_key {
       decoding_key
@@ -290,13 +314,54 @@ impl Auth {
     request: Request,
     endpoint: Endpoint,
   ) -> HtsGetResult<()> {
-    let claims = self.validate_jwt(&request).await?;
+    let claims = self.validate_jwt(request.headers()).await?;
     if self.config.authentication_only() {
       return Ok(());
     }
 
-    let restrictions = self.query_authorization_service(claims.claims).await?;
+    let restrictions = self
+      .query_authorization_service(claims.claims, request.headers())
+      .await?;
     Self::validate_restrictions(restrictions, request, endpoint)
+  }
+
+  /// Validate authorization flow according to `validate_authorization` and `validate_jwt`.
+  /// This function will only `validate_jwt` on service-info requests, and will otherwise
+  /// `validate_authorization` for htsget requests to `/reads` or `/variants`.
+  pub async fn authorize_request(
+    &self,
+    path: &str,
+    query: HashMap<String, String>,
+    headers: HeaderMap,
+  ) -> HtsGetResult<()> {
+    if let Some(reads) = path.strip_prefix("/reads") {
+      if reads.starts_with("/service-info") {
+        self.validate_jwt(&headers).await?;
+        return Ok(());
+      }
+
+      self
+        .validate_authorization(
+          Request::new(path.to_string(), query, headers),
+          Endpoint::Reads,
+        )
+        .await
+    } else if let Some(variants) = path.strip_prefix("/variants") {
+      if variants.starts_with("/service-info") {
+        self.validate_jwt(&headers).await?;
+        return Ok(());
+      }
+
+      self
+        .validate_authorization(
+          Request::new(path.to_string(), query, headers),
+          Endpoint::Variants,
+        )
+        .await
+    } else {
+      self.validate_jwt(&headers).await?;
+      Ok(())
+    }
   }
 }
 

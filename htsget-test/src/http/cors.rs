@@ -37,14 +37,26 @@ pub async fn test_cors_simple_request_uri<T: TestRequest>(tester: &impl TestServ
 }
 
 /// A preflight cors request test.
-pub async fn test_cors_preflight_request<T: TestRequest>(tester: &impl TestServer<T>) {
-  test_cors_preflight_request_uri(tester, "/variants/service-info").await;
+pub async fn test_cors_preflight_request<T: TestRequest>(
+  tester: &impl TestServer<T>,
+  expected_headers: &str,
+  expected_methods_contains: &str,
+) {
+  test_cors_preflight_request_uri(
+    tester,
+    "/variants/service-info",
+    expected_headers,
+    expected_methods_contains,
+  )
+  .await;
 }
 
 /// A preflight cors request test, with uri specified.
 pub async fn test_cors_preflight_request_uri<T: TestRequest>(
   tester: &impl TestServer<T>,
   uri: &str,
+  expected_headers: &str,
+  expected_methods_contains: &str,
 ) {
   let request = tester
     .request()
@@ -86,7 +98,7 @@ pub async fn test_cors_preflight_request_uri<T: TestRequest>(
       .to_str()
       .unwrap()
       .to_lowercase(),
-    "x-requested-with"
+    expected_headers
   );
 
   assert!(
@@ -96,7 +108,6 @@ pub async fn test_cors_preflight_request_uri<T: TestRequest>(
       .unwrap()
       .to_str()
       .unwrap()
-      .to_lowercase()
-      .contains("post")
+      .contains(expected_methods_contains)
   );
 }

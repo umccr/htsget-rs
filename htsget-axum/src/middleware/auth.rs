@@ -2,12 +2,10 @@
 //!
 
 use crate::error::{HtsGetError, HtsGetResult};
-use crate::handlers::extract_request;
 use axum::RequestExt;
-use axum::extract::{Path, Query, Request};
+use axum::extract::{Query, Request};
 use axum::response::{IntoResponse, Response};
 use futures::future::BoxFuture;
-use htsget_http::Endpoint;
 use htsget_http::middleware::auth::Auth;
 use http::HeaderMap;
 use std::collections::HashMap;
@@ -75,27 +73,11 @@ impl<S> AuthMiddleware<S> {
       .await
       .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
 
-    let path = request.uri().path();
-    let (request, endpoint) = if let Some(reads) = path.strip_prefix("/reads") {
-      (
-        extract_request(query, Path(reads.to_string()), headers),
-        Endpoint::Reads,
-      )
-    } else if let Some(variants) = path.strip_prefix("/variants") {
-      (
-        extract_request(query, Path(variants.to_string()), headers),
-        Endpoint::Variants,
-      )
-    } else {
-      // Only authorize on the variants and reads endpoints, no need to service info.
-      return Ok(());
-    };
-
     Ok(
       self
         .layer
         .inner
-        .validate_authorization(request, endpoint)
+        .authorize_request(request.uri().path(), query.0, headers)
         .await?,
     )
   }

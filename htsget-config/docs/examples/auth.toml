@@ -1,5 +1,5 @@
 # JWT authorization example
-# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/examples/config-files/auth.toml`
+# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/docs/examples/auth.toml`
 
 ticket_server.addr = "127.0.0.1:8080"
 data_server.addr = "127.0.0.1:8081"

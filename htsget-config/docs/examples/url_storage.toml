@@ -1,6 +1,6 @@
 # An example for a server which uses url storage with data located at "http://localhost:3000".
 # Run with
-# `cargo run -p htsget-axum --all-features -- --config htsget-config/examples/config-files/url_storage.toml`
+# `cargo run -p htsget-axum --all-features -- --config htsget-config/docs/examples/url_storage.toml`
 # in the project directory.
 
 ticket_server.addr = "127.0.0.1:8082"

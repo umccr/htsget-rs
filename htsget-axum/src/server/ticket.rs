@@ -1,11 +1,12 @@
 //! The Axum ticket server.
 //!
 
-use crate::error::Result;
+use crate::error::{HtsGetError, Result};
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
 use crate::middleware::auth::AuthLayer;
 use crate::server::{AppState, BindServer, Server, configure_cors};
 use axum::Router;
+use axum::response::IntoResponse;
 use axum::routing::get;
 use htsget_config::config::Config;
 use htsget_config::config::advanced::auth::AuthConfig;
@@ -14,7 +15,7 @@ use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::config::ticket_server::TicketServerConfig;
 use htsget_http::middleware::auth::AuthBuilder;
 use htsget_search::HtsGet;
-use http::{StatusCode, Uri};
+use http::Uri;
 use std::net::SocketAddr;
 use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
@@ -121,8 +122,8 @@ where
   }
 
   /// A handler for when a route is not found.
-  async fn fallback(uri: Uri) -> (StatusCode, String) {
-    (StatusCode::NOT_FOUND, format!("No route for {uri}"))
+  async fn fallback(uri: Uri) -> impl IntoResponse {
+    HtsGetError::not_found(format!("No route for {uri}")).into_response()
   }
 }
 
@@ -359,7 +360,7 @@ mod tests {
 
   #[tokio::test]
   async fn cors_preflight_request() {
-    cors::test_cors_preflight_request(&AxumTestServer::default()).await;
+    cors::test_cors_preflight_request(&AxumTestServer::default(), "*", "*").await;
   }
 
   #[tokio::test]

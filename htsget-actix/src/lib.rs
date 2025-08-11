@@ -2,20 +2,22 @@ extern crate core;
 
 use actix_cors::Cors;
 use actix_web::dev::Server;
-use actix_web::{App, HttpServer, web};
+use actix_web::{App, HttpRequest, HttpServer, Responder, web};
+use htsget_config::config::advanced::cors::CorsConfig;
+use htsget_config::config::service_info::ServiceInfo;
+use htsget_config::config::ticket_server::TicketServerConfig;
+pub use htsget_config::config::{Config, USAGE};
+use htsget_http::error::HtsGetError;
+use htsget_http::middleware::auth::AuthBuilder;
+use htsget_search::HtsGet;
 use std::io;
 use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
-use htsget_config::config::advanced::cors::CorsConfig;
-use htsget_config::config::service_info::ServiceInfo;
-use htsget_config::config::ticket_server::TicketServerConfig;
-pub use htsget_config::config::{Config, USAGE};
-use htsget_http::middleware::auth::AuthBuilder;
-use htsget_search::HtsGet;
-
-use crate::handlers::{HttpVersionCompat, get, post, reads_service_info, variants_service_info};
+use crate::handlers::{
+  HttpVersionCompat, get, handle_response, post, reads_service_info, variants_service_info,
+};
 use crate::middleware::auth::AuthLayer;
 
 pub mod handlers;
@@ -51,7 +53,16 @@ pub fn configure_server<H: HtsGet + Clone + Send + Sync + 'static>(
         .route("/service-info", web::post().to(variants_service_info::<H>))
         .route("/{id:.+}", web::get().to(get::variants::<H>))
         .route("/{id:.+}", web::post().to(post::variants::<H>)),
-    );
+    )
+    .default_service(web::to(fallback));
+}
+
+/// A handler for when a route is not found.
+async fn fallback(http_request: HttpRequest) -> impl Responder {
+  handle_response(Err(HtsGetError::NotFound(format!(
+    "No route for {}",
+    http_request.uri()
+  ))))
 }
 
 /// Configure cors, settings allowed methods, max age, allowed origins, and if credentials
@@ -78,6 +89,9 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
   cors_layer = cors
     .allow_headers()
     .apply_any(|cors_layer| cors_layer.allow_any_header(), cors_layer);
+  cors_layer = cors
+    .allow_headers()
+    .apply_mirror(|cors_layer| cors_layer.allow_any_header(), cors_layer);
   cors_layer = cors.allow_headers().apply_list(
     |cors_layer, headers| {
       cors_layer.allowed_headers(HttpVersionCompat::header_names_1_to_0_2(headers.clone()))
@@ -88,6 +102,9 @@ pub fn configure_cors(cors: CorsConfig) -> Cors {
   cors_layer = cors
     .allow_methods()
     .apply_any(|cors_layer| cors_layer.allow_any_method(), cors_layer);
+  cors_layer = cors
+    .allow_methods()
+    .apply_mirror(|cors_layer| cors_layer.allow_any_method(), cors_layer);
   cors_layer = cors.allow_methods().apply_list(
     |cors_layer, methods| {
       cors_layer.allowed_methods(HttpVersionCompat::methods_0_2_to_1(methods.clone()))
@@ -424,7 +441,8 @@ mod tests {
 
   #[actix_web::test]
   async fn cors_preflight_request() {
-    cors::test_cors_preflight_request(&ActixTestServer::default()).await;
+    cors::test_cors_preflight_request(&ActixTestServer::default(), "x-requested-with", "POST")
+      .await;
   }
 
   #[actix_web::test]

@@ -277,6 +277,8 @@ mod tests {
     test_cors_preflight_request_uri(
       &DataTestServer::default(),
       &format!("http://localhost:{port}/key1"),
+      "*",
+      "*",
     )
     .await;
   }

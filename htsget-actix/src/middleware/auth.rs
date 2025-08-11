@@ -1,7 +1,7 @@
 //! Authentication middleware for htsget-actix.
 //!
 
-use crate::handlers::{HttpVersionCompat, extract_request_path};
+use crate::handlers::{HeaderMap, HttpVersionCompat};
 use actix_web::body::{BoxBody, EitherBody};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::web::Query;
@@ -10,7 +10,6 @@ use axum::body::to_bytes;
 use axum::response::IntoResponse;
 use futures_util::future::LocalBoxFuture;
 use htsget_axum::error::HtsGetError;
-use htsget_http::Endpoint;
 use htsget_http::middleware::auth::Auth;
 use std::collections::HashMap;
 use std::future::{Ready, ready};
@@ -60,27 +59,14 @@ impl<S> AuthMiddleware<S> {
   pub async fn validate_authorization(&self, req: &mut ServiceRequest) -> Result<(), HtsGetError> {
     let (req, payload) = req.parts_mut();
 
-    let path = req.path();
     let query = <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
       .await
       .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
+    let headers =
+      HttpVersionCompat::header_map_0_2_to_1(HeaderMap::from(&req.clone()).into_inner());
+    let path = req.path();
 
-    let (request, endpoint) = if let Some(reads) = path.strip_prefix("/reads") {
-      (
-        extract_request_path(query, reads.to_string(), req.clone()),
-        Endpoint::Reads,
-      )
-    } else if let Some(variants) = path.strip_prefix("/variants") {
-      (
-        extract_request_path(query, variants.to_string(), req.clone()),
-        Endpoint::Variants,
-      )
-    } else {
-      // Only authorize on the variants and reads endpoints, no need to service info.
-      return Ok(());
-    };
-
-    Ok(self.inner.validate_authorization(request, endpoint).await?)
+    Ok(self.inner.authorize_request(path, query.0, headers).await?)
   }
 }
 
