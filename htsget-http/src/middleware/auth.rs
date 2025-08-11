@@ -227,8 +227,12 @@ impl Auth {
   /// Validate only the JWT without looking up restrictions and validating those. Returns the
   /// decoded JWT token.
   pub async fn validate_jwt(&self, headers: &HeaderMap) -> HtsGetResult<TokenData<Value>> {
-    let auth_token = Authorization::<Bearer>::decode(&mut headers.values())
-      .map_err(|err| HtsGetError::InvalidAuthentication(err.to_string()))?;
+    let auth_token = headers
+      .values()
+      .find_map(|value| Authorization::<Bearer>::decode(&mut [value].into_iter()).ok())
+      .ok_or_else(|| {
+        HtsGetError::InvalidAuthentication("invalid authorization header".to_string())
+      })?;
 
     let decoding_key = if let Some(ref decoding_key) = self.decoding_key {
       decoding_key
