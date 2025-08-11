@@ -18,10 +18,10 @@ pub mod service_info;
 
 mod pretty_json;
 
-struct HeaderMap(HttpHeaderMap);
+pub(crate) struct HeaderMap(HttpHeaderMap);
 
 impl HeaderMap {
-  fn into_inner(self) -> HttpHeaderMap {
+  pub(crate) fn into_inner(self) -> HttpHeaderMap {
     self.0
   }
 }

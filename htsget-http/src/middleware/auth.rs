@@ -9,13 +9,14 @@ use headers::authorization::Bearer;
 use headers::{Authorization, Header};
 use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationRestrictions};
 use htsget_config::types::Request;
-use http::Uri;
+use http::{HeaderMap, Uri};
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode_header};
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use std::collections::HashMap;
 
 /// Builder the the authorization middleware.
 #[derive(Default, Debug)]
@@ -225,8 +226,8 @@ impl Auth {
 
   /// Validate only the JWT without looking up restrictions and validating those. Returns the
   /// decoded JWT token.
-  pub async fn validate_jwt(&self, request: &Request) -> HtsGetResult<TokenData<Value>> {
-    let auth_token = Authorization::<Bearer>::decode(&mut request.headers().values())
+  pub async fn validate_jwt(&self, headers: &HeaderMap) -> HtsGetResult<TokenData<Value>> {
+    let auth_token = Authorization::<Bearer>::decode(&mut headers.values())
       .map_err(|err| HtsGetError::InvalidAuthentication(err.to_string()))?;
 
     let decoding_key = if let Some(ref decoding_key) = self.decoding_key {
@@ -290,13 +291,52 @@ impl Auth {
     request: Request,
     endpoint: Endpoint,
   ) -> HtsGetResult<()> {
-    let claims = self.validate_jwt(&request).await?;
+    let claims = self.validate_jwt(request.headers()).await?;
     if self.config.authentication_only() {
       return Ok(());
     }
 
     let restrictions = self.query_authorization_service(claims.claims).await?;
     Self::validate_restrictions(restrictions, request, endpoint)
+  }
+
+  /// Validate authorization flow according to `validate_authorization` and `validate_jwt`.
+  /// This function will only `validate_jwt` on service-info requests, and will otherwise
+  /// `validate_authorization` for htsget requests to `/reads` or `/variants`.
+  pub async fn authorize_request(
+    &self,
+    path: &str,
+    query: HashMap<String, String>,
+    headers: HeaderMap,
+  ) -> HtsGetResult<()> {
+    if let Some(reads) = path.strip_prefix("/reads") {
+      if reads.starts_with("/service-info") {
+        let _ = self.validate_jwt(&headers).await?;
+        return Ok(());
+      }
+
+      self
+        .validate_authorization(
+          Request::new(path.to_string(), query, headers),
+          Endpoint::Reads,
+        )
+        .await
+    } else if let Some(variants) = path.strip_prefix("/variants") {
+      if variants.starts_with("/service-info") {
+        let _ = self.validate_jwt(&headers).await?;
+        return Ok(());
+      }
+
+      self
+        .validate_authorization(
+          Request::new(path.to_string(), query, headers),
+          Endpoint::Variants,
+        )
+        .await
+    } else {
+      let _ = self.validate_jwt(&headers).await?;
+      Ok(())
+    }
   }
 }
 
