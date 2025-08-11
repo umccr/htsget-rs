@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.6.0...htsget-http-v0.7.0) - 2025-08-11
+
+### Added
+
+- [**breaking**] extract authorize request function and correct validate service-info routes and authorize data routes
+
+### Fixed
+
+- *(http)* forward JWT token to authorization service
+- *(http)* auth token extraction must iterate all header values as the decode iterator only parses the next value in the iterator
+
+### Other
+
+- Merge pull request #315 from umccr/feat/auth
+
 ## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.5.5...htsget-http-v0.6.0) - 2025-08-08
 
 ### Added

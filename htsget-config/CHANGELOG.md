@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.15.0...htsget-config-v0.15.1) - 2025-08-11
+
+### Fixed
+
+- *(http)* forward JWT token to authorization service
+
+### Other
+
+- Merge pull request #315 from umccr/feat/auth
+- fix reference to config file examples
+
 ## [0.15.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.14.2...htsget-config-v0.15.0) - 2025-08-08
 
 ### Added
