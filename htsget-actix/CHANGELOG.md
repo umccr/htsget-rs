@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.9.0...htsget-actix-v0.10.0) - 2025-08-11
+
+### Added
+
+- [**breaking**] extract authorize request function and correct validate service-info routes and authorize data routes
+
+### Fixed
+
+- fallback route should respond with JSON, and add missing fallback route to actix router
+- axum CORS supports both mirror and any for CORS headers, actix only supports any for origins
+
+### Other
+
+- Merge pull request #315 from umccr/feat/auth
+
 ## [0.9.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.8.3...htsget-actix-v0.9.0) - 2025-08-08
 
 ### Added

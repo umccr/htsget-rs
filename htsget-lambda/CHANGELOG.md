@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.0...htsget-lambda-v0.7.1) - 2025-08-11
+
+### Other
+
+- update Cargo.lock dependencies
+
 ## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.6.3...htsget-lambda-v0.7.0) - 2025-08-08
 
 ### Added
