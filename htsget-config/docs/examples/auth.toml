@@ -1,5 +1,5 @@
 # JWT authorization example
-# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/examples/config-files/auth.toml`
+# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/docs/examples/auth.toml`
 
 ticket_server.addr = "127.0.0.1:8080"
 data_server.addr = "127.0.0.1:8081"
@@ -8,19 +8,19 @@ locations = "file://data"
 
 # JWT authorization configuration.
 [auth]
-jwks_url = "https://www.example.com/htsget"
+jwks_url = "https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_iWOHnsurL/.well-known/jwks.json"
 ## Alternatively use public key-based validation
 #public_key = "/path/to/jwt-public-key.pem"
 
 # Trusted authorization URLs
-trusted_authorization_urls = ["https://www.example.com/authorize"]
+trusted_authorization_urls = ["https://127.0.0.1:8000/api/v1/auth"]
 # Optionally fetch the authorization url from the path in the JWT. Only
 # issues the request to the URL if it's also in `trusted_authorization_urls`.
-authorization_path = "$.authorization_url"
+#authorization_path = "$.authorization_url"
 
-validate_audience = ["htsget-server"]
-validate_issuer = ["https://www.example.com"]
-validate_subject = "htsget"
+validate_audience = ["22sj1n8n2ml28qe30de0h8k6ik"]
+#validate_issuer = ["https://www.example.com"]
+#validate_subject = "htsget"
 
 ## Set client authentication
 #tls.key = "key.pem"
