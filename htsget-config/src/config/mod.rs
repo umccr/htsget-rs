@@ -183,7 +183,12 @@ impl Config {
     // Propagate global config to individual ticket and data servers.
     if let DataServerEnabled::Some(ref mut data_server_config) = config.data_server {
       if data_server_config.auth().is_none() {
-        data_server_config.set_auth(config.auth.clone());
+        let auth = config.auth.clone().map(|mut auth| {
+          auth.set_authentication_only(true);
+          auth
+        });
+        
+        data_server_config.set_auth(auth);
       }
     }
     if config.ticket_server().auth().is_none() {
