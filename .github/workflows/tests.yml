@@ -8,6 +8,9 @@ on:
 
 jobs:
   test:
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TERM_COLOR: always
