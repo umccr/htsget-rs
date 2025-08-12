@@ -291,7 +291,7 @@ pub(crate) mod tests {
     with_config_local_storage(
       |base_path, local_storage| async {
         test(Storage::new(
-          FileStorage::new(base_path, local_storage).unwrap(),
+          FileStorage::new(base_path, local_storage, vec![]).unwrap(),
         ))
         .await
       },
@@ -310,7 +310,7 @@ pub(crate) mod tests {
     with_config_local_storage_map(
       |base_path, local_storage| async {
         test(Storage::new(
-          FileStorage::new(base_path, local_storage).unwrap(),
+          FileStorage::new(base_path, local_storage, vec![]).unwrap(),
         ))
         .await
       },

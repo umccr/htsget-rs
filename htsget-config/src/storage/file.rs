@@ -21,6 +21,8 @@ pub struct File {
   #[serde(with = "http_serde::authority")]
   authority: Authority,
   local_path: String,
+  #[serde(skip)]
+  ticket_headers: Vec<String>,
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
@@ -33,6 +35,7 @@ impl File {
       scheme,
       authority,
       local_path,
+      ticket_headers: Vec::new(),
       #[cfg(feature = "experimental")]
       keys: None,
     }
@@ -69,6 +72,16 @@ impl File {
   pub fn set_local_path(mut self, local_path: String) -> Self {
     self.local_path = local_path;
     self
+  }
+
+  /// Add a header to add to the ticket.
+  pub fn add_ticket_header(&mut self, header: String) {
+    self.ticket_headers.push(header);
+  }
+
+  /// Get the ticket headers.
+  pub fn ticket_headers(&self) -> &[String] {
+    &self.ticket_headers
   }
 }
 

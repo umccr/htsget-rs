@@ -159,7 +159,11 @@ impl Storage {
 
   /// Create from local storage config.
   pub async fn from_file(file: &storage::file::File, _query: &Query) -> Result<Storage> {
-    let storage = Storage::new(FileStorage::new(file.local_path(), file.clone())?);
+    let storage = Storage::new(FileStorage::new(
+      file.local_path(),
+      file.clone(),
+      file.ticket_headers().to_vec(),
+    )?);
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
@@ -314,10 +318,13 @@ mod tests {
 
   #[test]
   fn data_url() {
-    let result =
-      FileStorage::<storage::file::File>::new(default_dir_data(), storage::file::File::default())
-        .unwrap()
-        .data_url(b"Hello World!".to_vec(), Some(Class::Header));
+    let result = FileStorage::<storage::file::File>::new(
+      default_dir_data(),
+      storage::file::File::default(),
+      vec![],
+    )
+    .unwrap()
+    .data_url(b"Hello World!".to_vec(), Some(Class::Header));
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
@@ -347,8 +354,9 @@ mod tests {
   #[tokio::test]
   async fn from_c4gh_keys() {
     let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
-    let storage =
-      Storage::new(FileStorage::new(default_dir_data(), storage::file::File::default()).unwrap());
+    let storage = Storage::new(
+      FileStorage::new(default_dir_data(), storage::file::File::default(), vec![]).unwrap(),
+    );
 
     let result = Storage::from_c4gh_keys(
       Some(&C4GHKeys::from_join_handle(keys)),

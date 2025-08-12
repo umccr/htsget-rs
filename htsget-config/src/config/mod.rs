@@ -13,6 +13,7 @@ use crate::error::Result;
 use crate::storage::Backend;
 use crate::storage::file::File;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
+use http::header::AUTHORIZATION;
 use schemars::schema_for;
 use serde::de::Error;
 use serde::ser::SerializeSeq;
@@ -240,6 +241,17 @@ impl Config {
             *location =
               LocationEither::Simple(Box::new(Location::new(Backend::File(file), prefix)));
           }
+        }
+
+        // Ensure authorization header gets forwarded if the data server has authorization set.
+        if self
+          .data_server
+          .as_data_server_config()
+          .is_ok_and(|config| config.auth().is_some())
+        {
+          location
+            .backend_mut()
+            .add_ticket_header(AUTHORIZATION.to_string());
         }
 
         Ok(())
