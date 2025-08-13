@@ -62,19 +62,22 @@ curl 'http://localhost:8080/reads/cram/htsnexus_test_NA12878?format=CRAM'
 Locations can be mixed, and don't all need to have the same directory or resource:
 
 ```toml
-data_server.local_path = "root"
-locations = [ "file://dir_two/bam", "file://dir_one/cram", "s3://bucket/vcf" ]
+locations = [ "file://data/bam", "file://data/cram", "s3://bucket/vcf" ]
 ```
 
-htsget-rs spawns a separate server process to respond to htsget tickets for file locations,
-so setting `data_server.local_path` to the root directory which contains all subdirectories is
-required to give this server access to the local directory.
+htsget-rs spawns a separate server process to respond to htsget tickets for file locations.
+This server's path can be set by using `data_server.local_path`. When using `file://<dir>` locations,
+the directory component must be the same as the local path so that the server has access to it. 
+It is also not possible to have different directories components when using multiple `file://<dir>`
+locations.
 
 The data server process can be disabled by setting it to `None` if no file locations are being used:
 
 ```toml
 data_server = "None"
 ```
+
+This is automatically applied if no file locations are configured.
 
 > [!NOTE]  
 > For S3 locations, the bucket is not included in the request to htsget-rs. To include the bucket as well, 

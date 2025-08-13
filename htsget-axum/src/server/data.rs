@@ -8,6 +8,7 @@ use axum::Router;
 use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::data_server::DataServerConfig;
+use htsget_config::storage::file::default_path;
 use htsget_http::middleware::auth::AuthBuilder;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -81,7 +82,10 @@ impl From<DataServerConfig> for BindServer {
 
 /// Spawn a task to run the data server.
 pub async fn join_handle(config: DataServerConfig) -> Result<JoinHandle<Result<()>>> {
-  let local_path = config.local_path().to_path_buf();
+  let local_path = config
+    .local_path()
+    .unwrap_or_else(|| default_path().as_ref())
+    .to_path_buf();
   let data_server = BindServer::from(config.clone()).bind_data_server().await?;
 
   info!(address = ?data_server.local_addr()?, "data server address bound to");

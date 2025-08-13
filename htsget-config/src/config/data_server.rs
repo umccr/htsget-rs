@@ -4,7 +4,7 @@
 use crate::config::advanced::auth::AuthConfig;
 use crate::config::advanced::cors::CorsConfig;
 use crate::error::{Error::ParseError, Result};
-use crate::storage::file::{default_localstorage_addr, default_path};
+use crate::storage::file::default_localstorage_addr;
 use crate::tls::TlsServerConfig;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -43,7 +43,7 @@ impl DataServerEnabled {
 #[serde(default, deny_unknown_fields)]
 pub struct DataServerConfig {
   addr: SocketAddr,
-  local_path: PathBuf,
+  local_path: Option<PathBuf>,
   #[serde(skip_serializing)]
   tls: Option<TlsServerConfig>,
   cors: CorsConfig,
@@ -62,7 +62,7 @@ impl DataServerConfig {
   ) -> Self {
     Self {
       addr,
-      local_path,
+      local_path: Some(local_path),
       tls,
       cors,
       auth,
@@ -75,8 +75,13 @@ impl DataServerConfig {
   }
 
   /// Get the local path.
-  pub fn local_path(&self) -> &Path {
-    self.local_path.as_path()
+  pub fn local_path(&self) -> Option<&Path> {
+    self.local_path.as_deref()
+  }
+
+  /// Set the local path.
+  pub fn set_local_path(&mut self, local_path: Option<PathBuf>) {
+    self.local_path = local_path;
   }
 
   /// Get the TLS config.
@@ -111,7 +116,7 @@ impl Default for DataServerConfig {
       addr: default_localstorage_addr()
         .parse()
         .expect("expected valid address"),
-      local_path: default_path().into(),
+      local_path: None,
       tls: Default::default(),
       cors: Default::default(),
       auth: None,
@@ -136,7 +141,7 @@ mod tests {
       |result: DataServerConfig| {
         (
           result.addr().to_string(),
-          result.local_path().to_string_lossy().to_string(),
+          result.local_path().unwrap().to_string_lossy().to_string(),
           result.cors.max_age(),
         )
       },

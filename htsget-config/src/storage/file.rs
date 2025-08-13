@@ -74,6 +74,16 @@ impl File {
     self
   }
 
+  /// Set the scheme.
+  pub fn set_scheme(&mut self, scheme: Scheme) {
+    self.scheme = scheme;
+  }
+
+  /// Set the authority.
+  pub fn set_authority(&mut self, authority: Authority) {
+    self.authority = authority;
+  }
+
   /// Add a header to add to the ticket.
   pub fn add_ticket_header(&mut self, header: String) {
     self.ticket_headers.push(header);
@@ -98,7 +108,10 @@ impl TryFrom<&DataServerConfig> for File {
     Ok(Self::new(
       config.tls().get_scheme(),
       Authority::from_str(&config.addr().to_string()).map_err(|err| ParseError(err.to_string()))?,
-      config.local_path().to_string_lossy().to_string(),
+      config
+        .local_path()
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_else(|| default_path().to_string()),
     ))
   }
 }
@@ -111,7 +124,8 @@ pub(crate) fn default_localstorage_addr() -> &'static str {
   "127.0.0.1:8081"
 }
 
-pub(crate) fn default_path() -> &'static str {
+/// The default data server path.
+pub fn default_path() -> &'static str {
   "./"
 }
 
