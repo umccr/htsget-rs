@@ -26,6 +26,8 @@ pub struct File {
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  #[serde(skip)]
+  pub(crate) reset_origin: bool,
 }
 
 impl File {
@@ -38,6 +40,7 @@ impl File {
       ticket_headers: Vec::new(),
       #[cfg(feature = "experimental")]
       keys: None,
+      reset_origin: false,
     }
   }
 
@@ -97,7 +100,9 @@ impl File {
 
 impl Default for File {
   fn default() -> Self {
-    Self::new(Scheme::Http, default_authority(), default_path().into())
+    let mut file = Self::new(Scheme::Http, default_authority(), default_path().into());
+    file.reset_origin = true;
+    file
   }
 }
 

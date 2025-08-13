@@ -281,9 +281,10 @@ impl Config {
       .as_mut_slice()
       .iter_mut()
       .map(|location| {
-        // Configure the scheme and authority for simple locations.
-        if let LocationEither::Simple(simple) = location {
-          if let Backend::File(file) = simple.backend_mut() {
+        // Configure the scheme and authority for file locations that haven't been
+        // explicitly set.
+        if let Backend::File(file) = location.backend_mut() {
+          if file.reset_origin {
             file.set_scheme(scheme);
             file.set_authority(authority.clone());
           }
@@ -683,7 +684,7 @@ pub(crate) mod tests {
         let config = config.locations.into_inner();
         let regex = config[0].as_regex().unwrap();
         assert!(matches!(regex.backend(),
-            Backend::File(file) if file.local_path() == "path" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8081")));
+            Backend::File(file) if file.local_path() == "path" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
       },
     );
   }

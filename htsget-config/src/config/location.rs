@@ -243,12 +243,12 @@ impl<'de> Deserialize<'de> for StringLocation {
 
     if let Some(s) = s.strip_prefix("file://") {
       let (path, prefix) = split(s)?;
+      let mut file = storage::file::File::new(Scheme::Http, default_authority(), path.to_string());
+      // Origin should be updated based on data server config.
+      file.reset_origin = true;
+
       return Ok(StringLocation {
-        backend: Backend::File(storage::file::File::new(
-          Scheme::Http,
-          default_authority(),
-          path.to_string(),
-        )),
+        backend: Backend::File(file),
         prefix,
       });
     }
