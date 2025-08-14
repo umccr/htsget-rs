@@ -26,6 +26,7 @@ pub struct File {
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  ticket_origin: Option<String>,
   #[serde(skip)]
   pub(crate) reset_origin: bool,
 }
@@ -40,6 +41,7 @@ impl File {
       ticket_headers: Vec::new(),
       #[cfg(feature = "experimental")]
       keys: None,
+      ticket_origin: None,
       reset_origin: false,
     }
   }
@@ -71,6 +73,11 @@ impl File {
     self.keys.as_ref()
   }
 
+  /// Get the ticket origin.
+  pub fn ticket_origin(&self) -> Option<&str> {
+    self.ticket_origin.as_deref()
+  }
+
   /// Set the local path.
   pub fn set_local_path(mut self, local_path: String) -> Self {
     self.local_path = local_path;
@@ -85,6 +92,11 @@ impl File {
   /// Set the authority.
   pub fn set_authority(&mut self, authority: Authority) {
     self.authority = authority;
+  }
+
+  /// Set the authority.
+  pub fn set_ticket_origin(&mut self, ticket_origin: Option<String>) {
+    self.ticket_origin = ticket_origin;
   }
 
   /// Add a header to add to the ticket.

@@ -49,6 +49,7 @@ pub struct DataServerConfig {
   cors: CorsConfig,
   #[serde(skip_serializing)]
   auth: Option<AuthConfig>,
+  ticket_origin: Option<String>,
 }
 
 impl DataServerConfig {
@@ -59,6 +60,7 @@ impl DataServerConfig {
     tls: Option<TlsServerConfig>,
     cors: CorsConfig,
     auth: Option<AuthConfig>,
+    ticket_origin: Option<String>,
   ) -> Self {
     Self {
       addr,
@@ -66,6 +68,7 @@ impl DataServerConfig {
       tls,
       cors,
       auth,
+      ticket_origin,
     }
   }
 
@@ -99,6 +102,11 @@ impl DataServerConfig {
     self.auth.as_ref()
   }
 
+  /// Get the ticket origin.
+  pub fn ticket_origin(&self) -> Option<String> {
+    self.ticket_origin.clone()
+  }
+
   /// Set the auth config.
   pub fn set_auth(&mut self, auth: Option<AuthConfig>) {
     self.auth = auth;
@@ -120,6 +128,7 @@ impl Default for DataServerConfig {
       tls: Default::default(),
       cors: Default::default(),
       auth: None,
+      ticket_origin: None,
     }
   }
 }
@@ -136,13 +145,20 @@ mod tests {
       addr = "127.0.0.1:8083"
       local_path = "path"
       cors.max_age = 1
+      ticket_origin = "http://example.com"
       "#,
-      ("127.0.0.1:8083".to_string(), "path".to_string(), 1),
+      (
+        "127.0.0.1:8083".to_string(),
+        "path".to_string(),
+        1,
+        "http://example.com".to_string(),
+      ),
       |result: DataServerConfig| {
         (
           result.addr().to_string(),
           result.local_path().unwrap().to_string_lossy().to_string(),
           result.cors.max_age(),
+          result.ticket_origin.unwrap(),
         )
       },
     );

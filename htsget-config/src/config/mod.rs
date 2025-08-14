@@ -275,6 +275,7 @@ impl Config {
     let scheme = config.tls().get_scheme();
     let authority =
       Authority::from_str(&config.addr().to_string()).map_err(|err| ParseError(err.to_string()))?;
+    let ticket_origin = config.ticket_origin();
 
     self
       .locations
@@ -287,6 +288,7 @@ impl Config {
           if file.reset_origin {
             file.set_scheme(scheme);
             file.set_authority(authority.clone());
+            file.set_ticket_origin(ticket_origin.clone())
           }
         }
 
