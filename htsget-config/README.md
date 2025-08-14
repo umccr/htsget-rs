@@ -65,10 +65,20 @@ Locations can be mixed, and don't all need to have the same directory or resourc
 locations = [ "file://data/bam", "file://data/cram", "s3://bucket/vcf" ]
 ```
 
+For all types of locations, the second path segment represents the prefix which the request is expected
+to contain, in order to use that location. With the above example, if the request is `/variants/vcf/<id>`, then
+the S3 location is used, and if it is `/reads/bam/<id>` or `/reads/cram/<id>`, then the file locations are used.
+
+For each of the location types, the first component represents the storage location:
+
+```toml
+locations = [ "file://<directory>/<prefix>", "s3://<bucket>/<prefix>", "https://<endpoint>/<prefix>" ]
+```
+
 htsget-rs spawns a separate server process to respond to htsget tickets for file locations.
-This server's path can be set by using `data_server.local_path`. When using `file://<dir>` locations,
+This server's path can be set by using `data_server.local_path`. When using `file://<directory>` locations,
 the directory component must be the same as the local path so that the server has access to it. 
-It is also not possible to have different directories components when using multiple `file://<dir>`
+It is also not possible to have different directories components when using multiple `file://<directory>`
 locations.
 
 The data server process can be disabled by setting it to `None` if no file locations are being used:
