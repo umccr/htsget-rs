@@ -5,9 +5,12 @@ use std::fmt::Debug;
 use std::io::{ErrorKind, SeekFrom};
 use std::path::{Path, PathBuf};
 
+use super::{GetOptions, RangeUrlOptions, Result, StorageError};
 use crate::{HeadOptions, StorageMiddleware, StorageTrait, UrlFormatter};
 use crate::{Streamable, Url as HtsGetUrl};
 use async_trait::async_trait;
+use htsget_config::error;
+use http::HeaderMap;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncSeekExt;
@@ -15,18 +18,21 @@ use tracing::debug;
 use tracing::instrument;
 use url::Url;
 
-use super::{GetOptions, RangeUrlOptions, Result, StorageError};
-
 /// Implementation for the [StorageTrait] trait using the local file system. [T] is the type of the
 /// server struct, which is used for formatting urls.
 #[derive(Debug, Clone)]
 pub struct FileStorage<T> {
   base_path: PathBuf,
   url_formatter: T,
+  ticket_headers: Vec<String>,
 }
 
 impl<T: UrlFormatter + Send + Sync> FileStorage<T> {
-  pub fn new<P: AsRef<Path>>(base_path: P, url_formatter: T) -> Result<Self> {
+  pub fn new<P: AsRef<Path>>(
+    base_path: P,
+    url_formatter: T,
+    ticket_headers: Vec<String>,
+  ) -> Result<Self> {
     base_path
       .as_ref()
       .to_path_buf()
@@ -35,6 +41,7 @@ impl<T: UrlFormatter + Send + Sync> FileStorage<T> {
       .map(|canonicalized_base_path| Self {
         base_path: canonicalized_base_path,
         url_formatter,
+        ticket_headers,
       })
   }
 
@@ -116,7 +123,23 @@ impl<T: UrlFormatter + Send + Sync + Debug + Clone + 'static> StorageTrait for F
       })?;
     let path = path.trim_start_matches('/');
 
-    let url = HtsGetUrl::new(self.url_formatter.format_url(path)?);
+    let mut url = HtsGetUrl::new(self.url_formatter.format_url(path)?);
+    if !self.ticket_headers.is_empty() {
+      let headers = &HeaderMap::from_iter(options.response_headers().iter().filter_map(
+        |(name, value)| {
+          if self.ticket_headers.contains(&name.to_string()) {
+            Some((name.clone(), value.clone()))
+          } else {
+            None
+          }
+        },
+      ));
+      url = url.with_headers(
+        headers
+          .try_into()
+          .map_err(|err: error::Error| StorageError::InvalidInput(err.to_string()))?,
+      );
+    }
     let url = options.apply(url);
 
     debug!(calling_from = ?self, key = key, ?url, "getting url with key {:?}", key);
@@ -352,6 +375,7 @@ pub(crate) mod tests {
         Authority::from_static("127.0.0.1:8081"),
         "data".to_string(),
       ),
+      vec![],
     )
     .unwrap()
   }

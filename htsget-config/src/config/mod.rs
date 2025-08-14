@@ -4,19 +4,22 @@
 use crate::config::advanced::FormattingStyle;
 use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::data_server::{DataServerConfig, DataServerEnabled};
-use crate::config::location::{Location, LocationEither, Locations};
+use crate::config::location::{LocationEither, Locations};
 use crate::config::parser::from_path;
 use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
 use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
 use crate::storage::Backend;
-use crate::storage::file::File;
+use crate::tls::KeyPairScheme;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
+use http::header::AUTHORIZATION;
+use http::uri::Authority;
 use schemars::schema_for;
 use serde::de::Error;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::HashSet;
 use std::fmt::{Debug, Display};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -182,14 +185,19 @@ impl Config {
     // Propagate global config to individual ticket and data servers.
     if let DataServerEnabled::Some(ref mut data_server_config) = config.data_server {
       if data_server_config.auth().is_none() {
-        data_server_config.set_auth(config.auth.clone());
+        let auth = config.auth.clone().map(|mut auth| {
+          auth.set_authentication_only(true);
+          auth
+        });
+
+        data_server_config.set_auth(auth);
       }
     }
     if config.ticket_server().auth().is_none() {
       config.ticket_server.set_auth(config.auth.clone());
     }
 
-    Ok(config.resolvers_from_data_server_config()?)
+    Ok(config.validate_file_locations()?)
   }
 
   /// Setup tracing, using a global subscriber.
@@ -216,30 +224,89 @@ impl Config {
   }
 
   /// Set the local resolvers from the data server config.
-  pub fn resolvers_from_data_server_config(mut self) -> Result<Self> {
+  pub fn validate_file_locations(mut self) -> Result<Self> {
+    if !self
+      .locations()
+      .iter()
+      .any(|location| location.backend().as_file().is_ok())
+    {
+      return Ok(self);
+    }
+
+    let DataServerEnabled::Some(ref mut config) = self.data_server else {
+      return Err(ParseError(
+        "must enable data server if using file locations".to_string(),
+      ));
+    };
+
+    let mut possible_paths: HashSet<_> =
+      HashSet::from_iter(self.locations.as_slice().iter().map(|location| {
+        location
+          .backend()
+          .as_file()
+          .ok()
+          .map(|file| file.local_path())
+      }));
+    possible_paths.remove(&None);
+
+    if possible_paths.len() > 1 {
+      return Err(ParseError(
+        "cannot have multiple file paths for file storage".to_string(),
+      ));
+    }
+    let local_path = possible_paths
+      .into_iter()
+      .next()
+      .flatten()
+      .ok_or_else(|| ParseError("failed to find local path from locations".to_string()))?
+      .to_string();
+
+    if config
+      .local_path()
+      .is_some_and(|path| path.to_string_lossy() != local_path)
+    {
+      return Err(ParseError(
+        "the data server local path and file storage directories must be the same".to_string(),
+      ));
+    }
+
+    config.set_local_path(Some(PathBuf::from(local_path)));
+
+    let scheme = config.tls().get_scheme();
+    let authority =
+      Authority::from_str(&config.addr().to_string()).map_err(|err| ParseError(err.to_string()))?;
+    let ticket_origin = config.ticket_origin();
+
     self
       .locations
       .as_mut_slice()
       .iter_mut()
       .map(|location| {
-        if let LocationEither::Simple(simple) = location {
-          // Fall through only if the backend is File and default
-          let file_location = if let Ok(location) = simple.backend().as_file() {
-            location
-          } else {
-            return Ok(());
-          };
-
-          if let DataServerEnabled::Some(ref data_server) = self.data_server {
-            let prefix = simple.prefix().to_string();
-
-            // Don't update the local path as that comes in from the config.
-            let file: File = data_server.try_into()?;
-            let file = file.set_local_path(file_location.local_path().to_string());
-
-            *location =
-              LocationEither::Simple(Box::new(Location::new(Backend::File(file), prefix)));
+        // Configure the scheme and authority for file locations that haven't been
+        // explicitly set.
+        match location.backend_mut() {
+          Backend::File(file) => {
+            if file.reset_origin {
+              file.set_scheme(scheme);
+              file.set_authority(authority.clone());
+              file.set_ticket_origin(ticket_origin.clone())
+            }
           }
+          #[cfg(feature = "aws")]
+          Backend::S3(_) => {}
+          #[cfg(feature = "url")]
+          Backend::Url(_) => {}
+        }
+
+        // Ensure authorization header gets forwarded if the data server has authorization set.
+        if self
+          .data_server
+          .as_data_server_config()
+          .is_ok_and(|config| config.auth().is_some())
+        {
+          location
+            .backend_mut()
+            .add_ticket_header(AUTHORIZATION.to_string());
         }
 
         Ok(())
@@ -299,7 +366,9 @@ pub(crate) mod tests {
 
   use super::*;
   use crate::config::advanced::auth::AuthMode;
+  use crate::config::location::Location;
   use crate::config::parser::from_str;
+  use crate::storage::Backend;
   use crate::tls::tests::with_test_certificates;
   use crate::types::Scheme;
   use figment::Jail;
@@ -331,13 +400,13 @@ pub(crate) mod tests {
       test_fn(
         from_path::<Config>(path)
           .map_err(|err| err.to_string())?
-          .resolvers_from_data_server_config()
+          .validate_file_locations()
           .map_err(|err| err.to_string())?,
       );
       test_fn(
         from_str::<Config>(contents.unwrap_or(""))
           .map_err(|err| err.to_string())?
-          .resolvers_from_data_server_config()
+          .validate_file_locations()
           .map_err(|err| err.to_string())?,
       );
 
@@ -623,7 +692,7 @@ pub(crate) mod tests {
         let config = config.locations.into_inner();
         let regex = config[0].as_regex().unwrap();
         assert!(matches!(regex.backend(),
-            Backend::File(file) if file.local_path() == "path" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8081")));
+            Backend::File(file) if file.local_path() == "path" && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
       },
     );
   }
@@ -646,7 +715,7 @@ pub(crate) mod tests {
     test_config_from_file(
       r#"
     data_server.addr = "127.0.0.1:8080"
-    data_server.local_path = "path"
+    data_server.local_path = "data"
     
     locations = "file://data"
     "#,
@@ -715,8 +784,8 @@ pub(crate) mod tests {
     test_config_from_file(
       r#"
     data_server.addr = "127.0.0.1:8080"
-    data_server.local_path = "root"
-    locations = ["file://dir_one/bam", "file://dir_two/cram", "s3://bucket/vcf"]
+    data_server.local_path = "data"
+    locations = ["file://data/bam", "file://data/cram", "s3://bucket/vcf"]
     "#,
       |config| {
         assert_eq!(config.locations().len(), 3);
@@ -724,11 +793,11 @@ pub(crate) mod tests {
 
         let location = config[0].as_simple().unwrap();
         assert_eq!(location.prefix(), "bam");
-        assert_file_location(location, "dir_one");
+        assert_file_location(location, "data");
 
         let location = config[1].as_simple().unwrap();
         assert_eq!(location.prefix(), "cram");
-        assert_file_location(location, "dir_two");
+        assert_file_location(location, "data");
 
         let location = config[2].as_simple().unwrap();
         assert_eq!(location.prefix(), "vcf");
@@ -813,11 +882,13 @@ pub(crate) mod tests {
     );
   }
 
+  #[cfg(feature = "aws")]
   #[test]
   fn no_data_server() {
     test_config_from_file(
       r#"
       data_server = "None"
+      locations = "s3://bucket"
     "#,
       |config| {
         assert!(config.data_server().as_data_server_config().is_err());

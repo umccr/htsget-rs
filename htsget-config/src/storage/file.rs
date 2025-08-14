@@ -21,9 +21,14 @@ pub struct File {
   #[serde(with = "http_serde::authority")]
   authority: Authority,
   local_path: String,
+  #[serde(skip)]
+  ticket_headers: Vec<String>,
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  ticket_origin: Option<String>,
+  #[serde(skip)]
+  pub(crate) reset_origin: bool,
 }
 
 impl File {
@@ -33,8 +38,11 @@ impl File {
       scheme,
       authority,
       local_path,
+      ticket_headers: Vec::new(),
       #[cfg(feature = "experimental")]
       keys: None,
+      ticket_origin: None,
+      reset_origin: false,
     }
   }
 
@@ -65,16 +73,48 @@ impl File {
     self.keys.as_ref()
   }
 
+  /// Get the ticket origin.
+  pub fn ticket_origin(&self) -> Option<&str> {
+    self.ticket_origin.as_deref()
+  }
+
   /// Set the local path.
   pub fn set_local_path(mut self, local_path: String) -> Self {
     self.local_path = local_path;
     self
   }
+
+  /// Set the scheme.
+  pub fn set_scheme(&mut self, scheme: Scheme) {
+    self.scheme = scheme;
+  }
+
+  /// Set the authority.
+  pub fn set_authority(&mut self, authority: Authority) {
+    self.authority = authority;
+  }
+
+  /// Set the authority.
+  pub fn set_ticket_origin(&mut self, ticket_origin: Option<String>) {
+    self.ticket_origin = ticket_origin;
+  }
+
+  /// Add a header to add to the ticket.
+  pub fn add_ticket_header(&mut self, header: String) {
+    self.ticket_headers.push(header);
+  }
+
+  /// Get the ticket headers.
+  pub fn ticket_headers(&self) -> &[String] {
+    &self.ticket_headers
+  }
 }
 
 impl Default for File {
   fn default() -> Self {
-    Self::new(Scheme::Http, default_authority(), default_path().into())
+    let mut file = Self::new(Scheme::Http, default_authority(), default_path().into());
+    file.reset_origin = true;
+    file
   }
 }
 
@@ -85,7 +125,10 @@ impl TryFrom<&DataServerConfig> for File {
     Ok(Self::new(
       config.tls().get_scheme(),
       Authority::from_str(&config.addr().to_string()).map_err(|err| ParseError(err.to_string()))?,
-      config.local_path().to_string_lossy().to_string(),
+      config
+        .local_path()
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_else(|| default_path().to_string()),
     ))
   }
 }
@@ -98,7 +141,8 @@ pub(crate) fn default_localstorage_addr() -> &'static str {
   "127.0.0.1:8081"
 }
 
-pub(crate) fn default_path() -> &'static str {
+/// The default data server path.
+pub fn default_path() -> &'static str {
   "./"
 }
 

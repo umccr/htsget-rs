@@ -64,6 +64,30 @@ impl Backend {
     }
   }
 
+  /// Add a header to add to the ticket.
+  pub fn add_ticket_header(&mut self, header: String) {
+    match self {
+      Backend::File(file) => {
+        file.add_ticket_header(header);
+      }
+      #[cfg(feature = "aws")]
+      Backend::S3(_) => {}
+      #[cfg(feature = "url")]
+      Backend::Url(_) => {}
+    }
+  }
+
+  /// Get the ticket headers.
+  pub fn ticket_headers(&self) -> Option<&[String]> {
+    match self {
+      Backend::File(file) => Some(file.ticket_headers()),
+      #[cfg(feature = "aws")]
+      Backend::S3(_) => None,
+      #[cfg(feature = "url")]
+      Backend::Url(_) => None,
+    }
+  }
+
   /// Get the file variant and error if it is not `S3`.
   #[cfg(feature = "aws")]
   pub fn as_s3(&self) -> Result<&S3> {

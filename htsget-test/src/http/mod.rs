@@ -162,6 +162,7 @@ fn default_test_config_params(
     tls.clone(),
     cors.clone(),
     Default::default(),
+    Default::default(),
   );
 
   Config::new(

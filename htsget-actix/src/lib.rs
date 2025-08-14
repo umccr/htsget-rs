@@ -204,6 +204,7 @@ mod tests {
 
   use crate::Config;
   use htsget_axum::server::BindServer;
+  use htsget_config::storage::file::default_path;
   use htsget_config::types::JsonResponse;
   use htsget_http::middleware::auth::AuthBuilder;
   use htsget_test::http::auth::MockAuthServer;
@@ -276,7 +277,10 @@ mod tests {
         .as_data_server_config()
         .unwrap();
 
-      let path = data_server.local_path().to_path_buf();
+      let path = data_server
+        .local_path()
+        .unwrap_or_else(|| default_path().as_ref())
+        .to_path_buf();
       let mut bind_data_server = BindServer::from(data_server.clone());
       let server = bind_data_server.bind_data_server().await.unwrap();
       let addr = server.local_addr();

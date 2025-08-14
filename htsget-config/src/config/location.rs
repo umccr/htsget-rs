@@ -66,6 +66,14 @@ impl LocationEither {
     }
   }
 
+  /// Get the storage backend as a mutable reference.
+  pub fn backend_mut(&mut self) -> &mut Backend {
+    match self {
+      LocationEither::Simple(location) => location.backend_mut(),
+      LocationEither::Regex(regex_location) => regex_location.backend_mut(),
+    }
+  }
+
   /// Get the simple location variant, returning an error otherwise.
   pub fn as_simple(&self) -> Result<&Location> {
     if let LocationEither::Simple(simple) = self {
@@ -108,6 +116,11 @@ impl Location {
   /// Get the storage backend.
   pub fn backend(&self) -> &Backend {
     &self.backend
+  }
+
+  /// Get the storage backend as a mutable reference
+  pub fn backend_mut(&mut self) -> &mut Backend {
+    &mut self.backend
   }
 
   /// Get the prefix.
@@ -230,12 +243,12 @@ impl<'de> Deserialize<'de> for StringLocation {
 
     if let Some(s) = s.strip_prefix("file://") {
       let (path, prefix) = split(s)?;
+      let mut file = storage::file::File::new(Scheme::Http, default_authority(), path.to_string());
+      // Origin should be updated based on data server config.
+      file.reset_origin = true;
+
       return Ok(StringLocation {
-        backend: Backend::File(storage::file::File::new(
-          Scheme::Http,
-          default_authority(),
-          path.to_string(),
-        )),
+        backend: Backend::File(file),
         prefix,
       });
     }

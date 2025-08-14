@@ -62,19 +62,49 @@ curl 'http://localhost:8080/reads/cram/htsnexus_test_NA12878?format=CRAM'
 Locations can be mixed, and don't all need to have the same directory or resource:
 
 ```toml
-data_server.local_path = "root"
-locations = [ "file://dir_two/bam", "file://dir_one/cram", "s3://bucket/vcf" ]
+locations = [ "file://data/bam", "file://data/cram", "s3://bucket/vcf" ]
 ```
 
-htsget-rs spawns a separate server process to respond to htsget tickets for file locations,
-so setting `data_server.local_path` to the root directory which contains all subdirectories is
-required to give this server access to the local directory.
+For all types of locations, the second path segment represents the prefix which the request is expected
+to contain, in order to use that location. With the above example, if the request is `/variants/vcf/<id>`, then
+the S3 location is used, and if it is `/reads/bam/<id>` or `/reads/cram/<id>`, then the file locations are used.
+
+For each of the location types, the first component represents the storage location:
+
+```toml
+locations = [ "file://<directory>/<prefix>", "s3://<bucket>/<prefix>", "https://<endpoint>/<prefix>" ]
+```
+
+htsget-rs spawns a separate server process to respond to htsget tickets for file locations.
+This server's path can be set by using `data_server.local_path`. When using `file://<directory>` locations,
+the directory component must be the same as the local path so that the server has access to it. 
+It is also not possible to have different directories components when using multiple `file://<directory>`
+locations.
 
 The data server process can be disabled by setting it to `None` if no file locations are being used:
 
 ```toml
 data_server = "None"
 ```
+
+This is automatically applied if no file locations are configured.
+
+By default, file locations specified via `file://<dir>` will use the data server scheme and
+address for ticket responses. This means that tickets will be served as `<scheme>://<addr>/reads/<id>`,
+pointing to the data server `<scheme>` and `<addr>` automatically. For example, a default `file://data`
+location will have tickets that look like `http://127.0.0.1:8081/reads/<id>`.
+
+The scheme and address can be overridden for any file-based responses by setting `data_server.ticket_origin`:
+
+```toml
+# Ensure that the scheme is set for the origin.
+data_server.ticket_origin = "https://example.com/"
+## The url can also have a path set, which appears in the tickets.
+#data_server.ticket_origin = "https://example.com/path"
+```
+
+In this example, the tickets will appear as `https://example.com/<id>`. This is useful to arbitrarily route tickets to
+DNS-resolvable requests, for example, inside a docker container.
 
 > [!NOTE]  
 > For S3 locations, the bucket is not included in the request to htsget-rs. To include the bucket as well, 
@@ -180,11 +210,11 @@ locations. These are called `File`, `S3`, and `Url` respectively.
 
 To manually configure `File` locations, set `backend.kind = "File"`, and specify any additional options from below the `backend` table:
 
-| Option                   | Description                                                                                                                        | Type                         | Default            |
-|--------------------------|------------------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
-| `scheme`                 | The scheme present on URL tickets.                                                                                                 | Either `'Http'` or `'Https'` | `'Http'`           |
-| `authority`              | The authority present on URL tickets. This should likely match the `data_server.addr`.                                             | URL authority                | `'127.0.0.1:8081'` |
-| `local_path`             | The local filesystem path which the data server uses to respond to tickets. This should likely match the `data_server.local_path`. | Filesystem path              | `'./'`             |
+| Option                   | Description                                                                                                               | Type                         | Default            |
+|--------------------------|---------------------------------------------------------------------------------------------------------------------------|------------------------------|--------------------|
+| `scheme`                 | The scheme present on URL tickets.                                                                                        | Either `'Http'` or `'Https'` | `'Http'`           |
+| `authority`              | The authority present on URL tickets. This should likely match the `data_server.addr`.                                    | URL authority                | `'127.0.0.1:8081'` |
+| `local_path`             | The local filesystem path which the data server uses to respond to tickets. This must match the `data_server.local_path`. | Filesystem path              | `'./'`             |
 
 For example:
 

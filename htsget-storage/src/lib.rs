@@ -10,7 +10,6 @@ pub use htsget_config::types::{
 use crate::c4gh::storage::C4GHStorage;
 use crate::error::Result;
 use crate::error::StorageError;
-use crate::error::StorageError::InvalidKey;
 use crate::local::FileStorage;
 #[cfg(feature = "aws")]
 use crate::s3::S3Storage;
@@ -26,12 +25,9 @@ use htsget_config::encryption_scheme::EncryptionScheme;
 use htsget_config::storage;
 #[cfg(feature = "experimental")]
 use htsget_config::storage::c4gh::C4GHKeys;
-use htsget_config::types::Scheme;
-use http::uri;
 use pin_project_lite::pin_project;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, ReadBuf};
@@ -159,7 +155,11 @@ impl Storage {
 
   /// Create from local storage config.
   pub async fn from_file(file: &storage::file::File, _query: &Query) -> Result<Storage> {
-    let storage = Storage::new(FileStorage::new(file.local_path(), file.clone())?);
+    let storage = Storage::new(FileStorage::new(
+      file.local_path(),
+      file.clone(),
+      file.ticket_headers().to_vec(),
+    )?);
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
@@ -285,39 +285,41 @@ pub trait UrlFormatter {
 
 impl UrlFormatter for storage::file::File {
   fn format_url<K: AsRef<str>>(&self, key: K) -> Result<String> {
-    let path = Path::new("/").join(key.as_ref());
-    uri::Builder::new()
-      .scheme(match self.scheme() {
-        Scheme::Http => uri::Scheme::HTTP,
-        Scheme::Https => uri::Scheme::HTTPS,
-      })
-      .authority(self.authority().to_string())
-      .path_and_query(
-        path
-          .to_str()
-          .ok_or_else(|| InvalidKey("constructing url".to_string()))?,
-      )
-      .build()
+    let mut url = if let Some(origin) = self.ticket_origin() {
+      origin.to_string()
+    } else {
+      format!("{}://{}", self.scheme(), self.authority())
+    };
+    if !url.ends_with('/') {
+      url = format!("{url}/");
+    }
+
+    let url = ::url::Url::parse(&url).map_err(|err| StorageError::InvalidUri(err.to_string()))?;
+    url
+      .join(key.as_ref())
       .map_err(|err| StorageError::InvalidUri(err.to_string()))
-      .map(|value| value.to_string())
+      .map(|url| url.to_string())
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use http::uri::Authority;
-
   use crate::local::FileStorage;
+  use htsget_config::types::Scheme;
   use htsget_test::util::default_dir_data;
+  use http::uri::Authority;
 
   use super::*;
 
   #[test]
   fn data_url() {
-    let result =
-      FileStorage::<storage::file::File>::new(default_dir_data(), storage::file::File::default())
-        .unwrap()
-        .data_url(b"Hello World!".to_vec(), Some(Class::Header));
+    let result = FileStorage::<storage::file::File>::new(
+      default_dir_data(),
+      storage::file::File::default(),
+      vec![],
+    )
+    .unwrap()
+    .data_url(b"Hello World!".to_vec(), Some(Class::Header));
     let url = data_url::DataUrl::process(&result.url);
     let (result, _) = url.unwrap().decode_to_vec().unwrap();
     assert_eq!(result, b"Hello World!");
@@ -347,8 +349,9 @@ mod tests {
   #[tokio::test]
   async fn from_c4gh_keys() {
     let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
-    let storage =
-      Storage::new(FileStorage::new(default_dir_data(), storage::file::File::default()).unwrap());
+    let storage = Storage::new(
+      FileStorage::new(default_dir_data(), storage::file::File::default(), vec![]).unwrap(),
+    );
 
     let result = Storage::from_c4gh_keys(
       Some(&C4GHKeys::from_join_handle(keys)),

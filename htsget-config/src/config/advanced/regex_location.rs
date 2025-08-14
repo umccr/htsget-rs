@@ -49,6 +49,11 @@ impl RegexLocation {
     &self.backend
   }
 
+  /// Get the storage backend as a mutable reference.
+  pub fn backend_mut(&mut self) -> &mut Backend {
+    &mut self.backend
+  }
+
   /// Get the allow guard.
   pub fn guard(&self) -> Option<&AllowGuard> {
     self.guard.as_ref()

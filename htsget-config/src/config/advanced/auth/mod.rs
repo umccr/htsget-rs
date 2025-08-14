@@ -114,6 +114,11 @@ impl AuthConfig {
   pub fn http_client(&self) -> &reqwest::Client {
     &self.http_client.0
   }
+
+  /// Set the authentication only flag.
+  pub(crate) fn set_authentication_only(&mut self, authentication_only: bool) {
+    self.authentication_only = authentication_only;
+  }
 }
 
 /// Builder for `AuthConfig`.
