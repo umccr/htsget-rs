@@ -284,12 +284,18 @@ impl Config {
       .map(|location| {
         // Configure the scheme and authority for file locations that haven't been
         // explicitly set.
-        if let Backend::File(file) = location.backend_mut() {
-          if file.reset_origin {
-            file.set_scheme(scheme);
-            file.set_authority(authority.clone());
-            file.set_ticket_origin(ticket_origin.clone())
+        match location.backend_mut() {
+          Backend::File(file) => {
+            if file.reset_origin {
+              file.set_scheme(scheme);
+              file.set_authority(authority.clone());
+              file.set_ticket_origin(ticket_origin.clone())
+            }
           }
+          #[cfg(feature = "aws")]
+          Backend::S3(_) => {}
+          #[cfg(feature = "url")]
+          Backend::Url(_) => {}
         }
 
         // Ensure authorization header gets forwarded if the data server has authorization set.

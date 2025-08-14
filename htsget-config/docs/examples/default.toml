@@ -13,7 +13,6 @@ expose_headers = "All"
 
 [data_server]
 addr = "127.0.0.1:8081"
-local_path = "./"
 
 [data_server.cors]
 allow_credentials = false
