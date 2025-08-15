@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.15.1...htsget-config-v0.16.0) - 2025-08-15
+
+### Added
+
+- add ticket_origin option to override the ticket values produced when pointing to the data server
+- *(config)* [**breaking**] try and automatically derive scheme and authority based on data server config for any file based location
+
+### Fixed
+
+- [**breaking**] add restrictions to file locations and ensure that the data server local path lines up as expected
+- *(config)* data server should perform authentication only
+- data server should forward JWT token if auth is used
+
+### Other
+
+- remove duplicate changelog section
+- Merge pull request #320 from umccr/feat/auth
+- *(config)* update default.toml example
+- *(config)* clarify locations logic
+
 ## [0.15.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.15.0...htsget-config-v0.15.1) - 2025-08-11
 
 ### Fixed
