@@ -9,7 +9,7 @@ use tracing::debug;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-  debug!("entered main");
+  println!("entered main");
 
   aws_lc_rs::default_provider()
     .install_default()
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Error> {
 
   // Ignore the API gateway stage. This value must be set for the Lambda to function.
   // See https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/lambda-http#integration-with-api-gateway-stages
-  let _ = var("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH")?;
+  // let _ = var("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH")?;
 
   if let Some(path) = Config::parse_args_with_command(command!())? {
     let mut config = Config::from_path(&path)?;
