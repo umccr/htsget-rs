@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.16.0...htsget-config-v0.16.1) - 2025-08-21
+
+### Fixed
+
+- *(config)* auth environment variable deserialization
+
 ## [0.16.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.15.1...htsget-config-v0.16.0) - 2025-08-15
 
 ### Added
