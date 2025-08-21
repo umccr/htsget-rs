@@ -17,6 +17,7 @@ use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::collections::HashMap;
+use tracing::trace;
 
 /// Builder the the authorization middleware.
 #[derive(Default, Debug)]
@@ -78,6 +79,7 @@ impl Auth {
     url: &str,
     headers: HeaderMap,
   ) -> HtsGetResult<D> {
+    trace!("fetching url: {}", url);
     let err = || HtsGetError::InternalError(format!("failed to fetch data from {url}"));
     let response = self
       .config
