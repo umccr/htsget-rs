@@ -238,7 +238,7 @@ mod tests {
   #[tokio::test]
   async fn test_create_edit_list() {
     let mut src =
-      File::open(default_dir().join("data/c4gh/htsnexus_test_NA12878.bam.c4gh")).unwrap();
+      File::open(default_dir().join("data/c4gh/seraseq_cebpa_larger.bam.c4gh")).unwrap();
     let mut buf = vec![];
     src.read_to_end(&mut buf).unwrap();
 

@@ -13,7 +13,7 @@ This launches a `File` htsget-actix server serving data from the [`data`][data] 
 The htsget-rs server can then be queried:
 
 ```sh
-curl http://127.0.0.1:8080/reads/data/bam/htsnexus_test_NA12878
+curl http://127.0.0.1:8080/reads/data/bam/seraseq_cebpa_larger
 ```
 
 Which outputs:
@@ -23,7 +23,7 @@ Which outputs:
     "format": "BAM",
     "urls": [
       {
-        "url": "http://0.0.0.0:8081/data/bam/htsnexus_test_NA12878.bam",
+        "url": "http://0.0.0.0:8081/data/bam/seraseq_cebpa_larger.bam",
         "headers": {
           "Range": "bytes=0-2596770"
         }

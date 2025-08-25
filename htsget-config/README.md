@@ -30,7 +30,7 @@ cargo run --all-features -p htsget-axum -- --config <your_config_file.toml>
 This will serve files under the [`data`][data] directory:
 
 ```sh
-curl 'http://localhost:8080/reads/bam/htsnexus_test_NA12878'
+curl 'http://localhost:8080/reads/bam/seraseq_cebpa_larger'
 ```
 
 Locations allow htsget-rs access to bioinformatics files and indexes. Instead of local files, htsget-rs can access
@@ -55,8 +55,8 @@ locations = [ "file://data/bam", "file://data/cram" ]
 This allows htsget-rs to serve data only when the request also contains the prefix:
 
 ```sh
-curl 'http://localhost:8080/reads/bam/htsnexus_test_NA12878'
-curl 'http://localhost:8080/reads/cram/htsnexus_test_NA12878?format=CRAM'
+curl 'http://localhost:8080/reads/bam/seraseq_cebpa_larger'
+curl 'http://localhost:8080/reads/cram/seraseq_cebpa_larger?format=CRAM'
 ```
 
 Locations can be mixed, and don't all need to have the same directory or resource:

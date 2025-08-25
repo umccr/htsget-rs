@@ -122,7 +122,7 @@ cargo run -p htsget-axum --features experimental -- --config htsget-config/examp
 Crypt4GH encrypted byte ranges can be queried:
 
 ```sh
-curl 'http://localhost:8080/reads/data/c4gh/htsnexus_test_NA12878?referenceName=11&start=5000000&end=5050000'
+curl 'http://localhost:8080/reads/data/c4gh/seraseq_cebpa_larger?referenceName=11&start=5000000&end=5050000'
 ```
 
 The output consists of the Crypt4GH header, which includes the original header, the edit lists, and the re-encrypted header that
@@ -137,7 +137,7 @@ the recipient can use to decrypt bytes:
         "url": "data:;base64,Y3J5cHQ0Z2gBAAAAAwAAAA=="
       },
       {
-        "url": "http://127.0.0.1:8081/data/c4gh/htsnexus_test_NA12878.bam.c4gh",
+        "url": "http://127.0.0.1:8081/data/c4gh/seraseq_cebpa_larger.bam.c4gh",
         "headers": {
           "Range": "bytes=16-123"
         }
@@ -146,13 +146,13 @@ the recipient can use to decrypt bytes:
         "url": "data:;base64,bAAAAAAAAABPIoRdk+d+ifp2PWRFeXoe6Z9kPOj+HrREhzxZ3QiDa2SYh+0Gy8aKpFic4MtTa+ywMpkHziJgojVbcmbvBAr3G7o01lDubsBW98aQ/U1AcalIUCp0fGNkrtdTBN4NaVNIdtQmbAAAAAAAAABPIoRdk+d+ifp2PWRFeXoe6Z9kPOj+HrREhzxZ3QiDa+xJ+yh+52zHvw8qQXMyCtqT6jTFvaYhRPw/6ZzvOdt98YPQgCcTIut58VeTGmR3ien0TdcQFxmfE10MH4qapF2blgjX"
       },
       {
-        "url": "http://127.0.0.1:8081/data/c4gh/htsnexus_test_NA12878.bam.c4gh",
+        "url": "http://127.0.0.1:8081/data/c4gh/seraseq_cebpa_larger.bam.c4gh",
         "headers": {
           "Range": "bytes=124-1114711"
         }
       },
       {
-        "url": "http://127.0.0.1:8081/data/c4gh/htsnexus_test_NA12878.bam.c4gh",
+        "url": "http://127.0.0.1:8081/data/c4gh/seraseq_cebpa_larger.bam.c4gh",
         "headers": {
           "Range": "bytes=2557120-2598042"
         }
@@ -165,7 +165,7 @@ the recipient can use to decrypt bytes:
 For example, using a [htsget client][htsget-client], the data can be concatenated, and then decrypted using the [Crypt4GH CLI][crypt4gh-cli]:
 
 ```sh
-htsget 'http://localhost:8080/reads/data/c4gh/htsnexus_test_NA12878?referenceName=11&start=5000000&end=5050000' > out.c4gh
+htsget 'http://localhost:8080/reads/data/c4gh/seraseq_cebpa_larger?referenceName=11&start=5000000&end=5050000' > out.c4gh
 crypt4gh decrypt --sk data/c4gh/keys/alice.sec < out.c4gh > out.bam
 samtools view out.bam
 ```

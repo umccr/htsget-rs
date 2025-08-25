@@ -122,7 +122,7 @@ pub(crate) mod tests {
   async fn search_bam() {
     with_bam_local_storage(|storage| async move {
       let htsget = HtsGetFromStorage::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam);
       let response = htsget.search(query).await;
       println!("{response:#?}");
 
@@ -130,7 +130,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(bam_expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-2596798")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-986643")),
         ],
       ));
       assert_eq!(response, expected_response);
