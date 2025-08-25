@@ -78,10 +78,10 @@ produce minimal byte ranges. For example, consider this [file][example-file]:
 * Using just this data, the following query with: 
   * `referenceName=11`, `start=5015000`, and `end=5050000`
 * Would produce these byte ranges:
-  * `bytes=0-4667`
+  * `bytes=0-38969`
   * `bytes=256721-1065951`
 * However, an equally valid response, with smaller byte ranges is:
-  * `bytes=0-4667`
+  * `bytes=0-38969`
   * `bytes=256721-647345`
   * `bytes=824361-842100`
   * `bytes=977196-996014`
@@ -89,8 +89,8 @@ produce minimal byte ranges. For example, consider this [file][example-file]:
 To produce the smallest byte ranges, htsget-rs needs can search through GZI files and regular index files. It does not
 read data from the underlying target file.
 
-[example-file]: ../data/bam/htsnexus_test_NA12878.bam
-[example-index]: ../data/bam/htsnexus_test_NA12878.bam.bai
+[example-file]: ../data/bam/seraseq_cebpa_larger.bam
+[example-index]: ../data/bam/seraseq_cebpa_larger.bam.bai
 
 ## Benchmarks
 

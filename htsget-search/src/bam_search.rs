@@ -162,14 +162,14 @@ pub(crate) mod tests {
   };
 
   const DATA_LOCATION: &str = "data/bam";
-  const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.bam.bai";
-  pub(crate) const BAM_FILE_NAME: &str = "htsnexus_test_NA12878.bam";
+  const INDEX_FILE_LOCATION: &str = "seraseq_cebpa_larger.bam.bai";
+  pub(crate) const BAM_FILE_NAME: &str = "seraseq_cebpa_larger.bam";
 
   #[tokio::test]
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -177,7 +177,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-2596798")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-986643")),
         ],
       ));
       assert_eq!(response, expected_response);
@@ -191,7 +191,7 @@ pub(crate) mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
         .with_reference_name("*");
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -200,10 +200,10 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-38969"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=2060795-2596798"))
+            .with_headers(Headers::default().with_header("Range", "bytes=737972-986643"))
             .with_class(Body),
         ],
       ));
@@ -218,8 +218,8 @@ pub(crate) mod tests {
   async fn search_reference_name_without_seq_range_chr11() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("11");
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
+        .with_reference_name("chr19");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -242,7 +242,7 @@ pub(crate) mod tests {
   async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
         .with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -251,7 +251,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-38969"))
             .with_class(Header),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=977196-2128165"))
@@ -270,8 +270,8 @@ pub(crate) mod tests {
   async fn search_reference_name_with_seq_range() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("11")
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
+        .with_reference_name("chr19")
         .with_start(5015000)
         .with_end(5050000);
       let response = search.search(query).await;
@@ -281,7 +281,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-38969"))
             .with_class(Header),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=256721-647345"))
@@ -306,8 +306,8 @@ pub(crate) mod tests {
   async fn search_reference_name_no_end_position() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("11")
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
+        .with_reference_name("chr19")
         .with_start(5015000);
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -316,7 +316,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-38969"))
             .with_class(Header),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=256721-996014"))
@@ -335,8 +335,8 @@ pub(crate) mod tests {
   async fn search_many_response_urls() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("11")
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
+        .with_reference_name("chr19")
         .with_start(4999976)
         .with_end(5003981);
       let response = search.search(query).await;
@@ -348,7 +348,7 @@ pub(crate) mod tests {
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=0-273085")),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=499249-574358")),
+            .with_headers(Headers::default().with_header("Range", "bytes=986616-986643")),
           Url::new(expected_url())
             .with_headers(Headers::default().with_header("Range", "bytes=627987-647345")),
           Url::new(expected_url())
@@ -370,8 +370,8 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let mut search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-          .with_reference_name("11")
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
+          .with_reference_name("chr19")
           .with_start(5015000)
           .with_end(5050000);
         let response = search.search(query).await;
@@ -381,7 +381,7 @@ pub(crate) mod tests {
           Format::Bam,
           vec![
             Url::new(expected_url())
-              .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+              .with_headers(Headers::default().with_header("Range", "bytes=0-38969"))
               .with_class(Header),
             Url::new(expected_url())
               .with_headers(Headers::default().with_header("Range", "bytes=256721-1065951"))
@@ -404,7 +404,7 @@ pub(crate) mod tests {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
       let query =
-        Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+        Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -412,7 +412,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-38969"))
             .with_class(Header),
         ],
       ));
@@ -430,8 +430,8 @@ pub(crate) mod tests {
   async fn search_header_with_no_mapped_reads() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("22");
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
+        .with_reference_name("no_mapped_region_in_cepba?");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -439,7 +439,7 @@ pub(crate) mod tests {
         Format::Bam,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-4667"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-38969"))
             .with_class(Header),
           expected_eof_url(),
         ],
@@ -455,7 +455,7 @@ pub(crate) mod tests {
   async fn search_header_with_non_existent_reference_name() {
     with_local_storage(|storage| async move {
       let mut search = BamSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
         .with_reference_name("25");
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -472,7 +472,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let mut search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -489,7 +489,7 @@ pub(crate) mod tests {
     with_local_storage_fn(
       |storage| async move {
         let mut search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
           .with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
@@ -508,7 +508,7 @@ pub(crate) mod tests {
       |storage| async move {
         let mut search = BamSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -526,12 +526,12 @@ pub(crate) mod tests {
       |storage| async move {
         let search = BamSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam).with_class(Header);
 
         let index = search.read_index(&query).await.unwrap();
         let response = search.get_header_end_offset(&index).await;
 
-        assert_eq!(response, Ok(70204));
+        assert_eq!(response, Ok(104506));
 
         None
       },
@@ -547,7 +547,7 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let mut search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam);
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -565,7 +565,7 @@ pub(crate) mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let mut search = BamSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
           .with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
@@ -585,7 +585,7 @@ pub(crate) mod tests {
       |storage| async move {
         let mut search = BamSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam).with_class(Header);
+          Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -603,13 +603,13 @@ pub(crate) mod tests {
     with_local_storage_c4gh(|storage| async move {
       let storage = C4GHStorage::new(get_decryption_keys().await, storage);
       let mut search = BamSearch::new(Storage::new(storage));
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam);
       let response = search.search(query).await.unwrap();
 
       println!("{response:#?}");
 
       Some((
-        "htsnexus_test_NA12878.bam.c4gh".to_string(),
+        "seraseq_cebpa_larger.bam.c4gh".to_string(),
         (response, Body).into(),
       ))
     })
@@ -622,8 +622,8 @@ pub(crate) mod tests {
     with_local_storage_c4gh(|storage| async move {
       let storage = C4GHStorage::new(get_decryption_keys().await, storage);
       let mut search = BamSearch::new(Storage::new(storage));
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)
-        .with_reference_name("11")
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Bam)
+        .with_reference_name("chr19")
         .with_start(5015000)
         .with_end(5050000);
       let response = search.search(query).await.unwrap();
@@ -631,7 +631,7 @@ pub(crate) mod tests {
       println!("{response:#?}");
 
       Some((
-        "htsnexus_test_NA12878.bam.c4gh".to_string(),
+        "seraseq_cebpa_larger.bam.c4gh".to_string(),
         (response, Body).into(),
       ))
     })
@@ -647,12 +647,12 @@ pub(crate) mod tests {
   }
 
   pub(crate) fn expected_url() -> String {
-    "http://127.0.0.1:8081/htsnexus_test_NA12878.bam".to_string()
+    "http://127.0.0.1:8081/seraseq_cebpa_larger.bam".to_string()
   }
 
   pub(crate) fn expected_eof_url() -> Url {
     Url::new(expected_url())
-      .with_headers(Headers::default().with_header("Range", "bytes=2596771-2596798"))
+      .with_headers(Headers::default().with_header("Range", "bytes=2596771-986643"))
       .with_class(Body)
   }
 }

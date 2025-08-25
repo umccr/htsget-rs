@@ -280,14 +280,14 @@ mod tests {
   };
 
   const DATA_LOCATION: &str = "data/cram";
-  const INDEX_FILE_LOCATION: &str = "htsnexus_test_NA12878.cram.crai";
-  const CRAM_FILE_NAME: &str = "htsnexus_test_NA12878.cram";
+  const INDEX_FILE_LOCATION: &str = "seraseq_cebpa_larger.cram.crai";
+  const CRAM_FILE_NAME: &str = "seraseq_cebpa_larger.cram";
 
   #[tokio::test]
   async fn search_all_reads() {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -309,7 +309,7 @@ mod tests {
   async fn search_unmapped_reads() {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
         .with_reference_name("*");
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -336,8 +336,8 @@ mod tests {
   async fn search_reference_name_without_seq_range_chr11() {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("11");
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
+        .with_reference_name("chr19");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -360,7 +360,7 @@ mod tests {
   async fn search_reference_name_without_seq_range_chr20() {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
         .with_reference_name("20");
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -388,8 +388,8 @@ mod tests {
   async fn search_reference_name_with_seq_range_no_overlap() {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("11")
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
+        .with_reference_name("chr19")
         .with_start(5000000)
         .with_end(5050000);
       let response = search.search(query).await;
@@ -414,8 +414,8 @@ mod tests {
   async fn search_reference_name_with_seq_range_overlap() {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("11")
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
+        .with_reference_name("chr19")
         .with_start(5000000)
         .with_end(5100000);
       let response = search.search(query).await;
@@ -433,8 +433,8 @@ mod tests {
   async fn search_reference_name_with_no_end_position() {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("11")
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
+        .with_reference_name("chr19")
         .with_start(5000000);
       let response = search.search(query).await;
       println!("{response:#?}");
@@ -463,7 +463,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
       let query =
-        Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+        Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram).with_class(Header);
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -490,7 +490,7 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let mut search = CramSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -507,7 +507,7 @@ mod tests {
     with_local_storage_fn(
       |storage| async move {
         let mut search = CramSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
           .with_reference_name("20");
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
@@ -526,7 +526,7 @@ mod tests {
       |storage| async move {
         let mut search = CramSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+          Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram).with_class(Header);
         let response = search.search(query).await;
         assert!(matches!(response, Err(NotFound(_))));
 
@@ -544,7 +544,7 @@ mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let mut search = CramSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram);
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -562,7 +562,7 @@ mod tests {
     with_aws_storage_fn(
       |storage| async move {
         let mut search = CramSearch::new(storage);
-        let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
+        let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
           .with_reference_name("20");
         let response = search.search(query).await;
         assert!(response.is_err());
@@ -582,7 +582,7 @@ mod tests {
       |storage| async move {
         let mut search = CramSearch::new(storage);
         let query =
-          Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram).with_class(Header);
+          Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram).with_class(Header);
         let response = search.search(query).await;
         assert!(response.is_err());
 
@@ -600,13 +600,13 @@ mod tests {
     with_local_storage_c4gh(|storage| async move {
       let storage = C4GHStorage::new(get_decryption_keys().await, storage);
       let mut search = CramSearch::new(Storage::new(storage));
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram);
       let response = search.search(query).await.unwrap();
 
       println!("{response:#?}");
 
       Some((
-        "htsnexus_test_NA12878.cram.c4gh".to_string(),
+        "seraseq_cebpa_larger.cram.c4gh".to_string(),
         (response, Body).into(),
       ))
     })
@@ -619,8 +619,8 @@ mod tests {
     with_local_storage_c4gh(|storage| async move {
       let storage = C4GHStorage::new(get_decryption_keys().await, storage);
       let mut search = CramSearch::new(Storage::new(storage));
-      let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
-        .with_reference_name("11")
+      let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
+        .with_reference_name("chr19")
         .with_start(5000000)
         .with_end(5050000);
       let response = search.search(query).await.unwrap();
@@ -628,7 +628,7 @@ mod tests {
       println!("{response:#?}");
 
       Some((
-        "htsnexus_test_NA12878.cram.c4gh".to_string(),
+        "seraseq_cebpa_larger.cram.c4gh".to_string(),
         (response, Body).into(),
       ))
     })
@@ -644,7 +644,7 @@ mod tests {
   }
 
   fn expected_url() -> String {
-    "http://127.0.0.1:8081/htsnexus_test_NA12878.cram".to_string()
+    "http://127.0.0.1:8081/seraseq_cebpa_larger.cram".to_string()
   }
 
   pub(crate) fn expected_eof_url() -> Url {
