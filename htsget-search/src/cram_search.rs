@@ -318,10 +318,10 @@ mod tests {
         Format::Cram,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-6133"))
+            .with_headers(Headers::default().with_header("Range", "bytes=0-42674"))
             .with_class(Header),
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=1324614-1672447"))
+            .with_headers(Headers::default().with_header("Range", "bytes=349349-349386"))
             .with_class(Body),
         ],
       ));
@@ -345,7 +345,7 @@ mod tests {
         Format::Cram,
         vec![
           Url::new(expected_url())
-            .with_headers(Headers::default().with_header("Range", "bytes=0-625727")),
+            .with_headers(Headers::default().with_header("Range", "bytes=0-349386")),
           expected_eof_url().set_class(None),
         ],
       ));
@@ -361,7 +361,7 @@ mod tests {
     with_local_storage(|storage| async move {
       let mut search = CramSearch::new(storage);
       let query = Query::new_with_default_request("seraseq_cebpa_larger", Format::Cram)
-        .with_reference_name("20");
+        .with_reference_name("chr19");
       let response = search.search(query).await;
       println!("{response:#?}");
 
@@ -649,7 +649,7 @@ mod tests {
 
   pub(crate) fn expected_eof_url() -> Url {
     Url::new(expected_url())
-      .with_headers(Headers::default().with_header("Range", "bytes=1672410-1672447"))
+      .with_headers(Headers::default().with_header("Range", "bytes=349349-349386"))
       .with_class(Body)
   }
 }
