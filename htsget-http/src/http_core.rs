@@ -1,10 +1,11 @@
+use cfg_if::cfg_if;
 use futures::StreamExt;
 use futures::stream::FuturesOrdered;
 use tokio::select;
 use tracing::debug;
 use tracing::instrument;
 
-use htsget_config::types::{JsonResponse, Request, Response};
+use htsget_config::types::{JsonResponse, Request, Response, SuppressedRequest};
 use htsget_search::HtsGet;
 
 use crate::HtsGetError::InvalidInput;
@@ -21,17 +22,29 @@ pub async fn get(
   searcher: impl HtsGet + Send + Sync + 'static,
   request: Request,
   endpoint: Endpoint,
+  mut suppressed_request: Option<SuppressedRequest>,
 ) -> Result<JsonResponse> {
   let format = match_format_from_query(&endpoint, request.query())?;
-  let query = convert_to_query(request, format)?;
+  let rules = suppressed_request.as_mut().and_then(|req| {
+    if req.add_hint() {
+      Some(req.take_matching_rules())
+    } else {
+      None
+    }
+  });
+  let query = convert_to_query(request, format, suppressed_request)?;
 
   debug!(endpoint = ?endpoint, query = ?query, "getting GET response");
 
-  searcher
-    .search(query)
-    .await
-    .map_err(Into::into)
-    .map(JsonResponse::from)
+  let response = searcher.search(query).await.map(JsonResponse::from)?;
+
+  cfg_if! {
+    if #[cfg(feature = "experimental")] {
+      Ok(response.with_allowed(rules))
+    } else {
+      Ok(response)
+    }
+  }
 }
 
 /// Gets a response in JSON for a POST request.
@@ -42,6 +55,7 @@ pub async fn post(
   body: PostRequest,
   request: Request,
   endpoint: Endpoint,
+  mut suppressed_request: Option<SuppressedRequest>,
 ) -> Result<JsonResponse> {
   if !request.query().is_empty() {
     return Err(InvalidInput(
@@ -49,7 +63,14 @@ pub async fn post(
     ));
   }
 
-  let queries = body.get_queries(request, &endpoint)?;
+  let rules = suppressed_request.as_mut().and_then(|req| {
+    if req.add_hint() {
+      Some(req.take_matching_rules())
+    } else {
+      None
+    }
+  });
+  let queries = body.get_queries(request, &endpoint, suppressed_request)?;
 
   debug!(endpoint = ?endpoint, queries = ?queries, "getting POST response");
 
@@ -68,7 +89,13 @@ pub async fn post(
     }
   }
 
-  Ok(JsonResponse::from(
-    merge_responses(responses).expect("expected at least one response"),
-  ))
+  let response =
+    JsonResponse::from(merge_responses(responses).expect("expected at least one response"));
+  cfg_if! {
+    if #[cfg(feature = "experimental")] {
+      Ok(response.with_allowed(rules))
+    } else {
+      Ok(response)
+    }
+  }
 }

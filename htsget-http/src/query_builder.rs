@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 #[cfg(feature = "experimental")]
 use htsget_config::encryption_scheme::EncryptionScheme;
-use htsget_config::types::{Class, Fields, Format, Query, Request, Tags};
+use htsget_config::types::{Class, Fields, Format, Interval, Query, Request, Tags};
 use tracing::instrument;
 
 use crate::error::{HtsGetError, Result};
@@ -48,6 +48,12 @@ impl QueryBuilder {
     if let Some(reference_name) = reference_name {
       self.query = self.query.with_reference_name(reference_name);
     }
+    self
+  }
+
+  /// Set the interval for the query.
+  pub fn with_interval(mut self, interval: Interval) -> Self {
+    self.query = self.query.with_interval(interval);
     self
   }
 

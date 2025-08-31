@@ -1,9 +1,8 @@
+use htsget_config::types::{Query, Request, SuppressedRequest};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use htsget_config::types::{Format, Query, Request};
-
-use crate::{Endpoint, QueryBuilder, Result, match_format};
+use crate::{Endpoint, QueryBuilder, Result, match_format, set_query_builder};
 
 /// A struct to represent a POST request according to the
 /// [HtsGet specification](https://samtools.github.io/hts-specs/htsget.html). It implements
@@ -16,6 +15,8 @@ pub struct PostRequest {
   pub tags: Option<Vec<String>>,
   pub notags: Option<Vec<String>>,
   pub regions: Option<Vec<Region>>,
+  #[serde(rename = "encryptionScheme")]
+  pub encryption_scheme: Option<String>,
 }
 
 /// A struct that contains the data to quest for a specific region. It is only meant to be use
@@ -31,38 +32,56 @@ pub struct Region {
 impl PostRequest {
   /// Converts the `PostRequest` into one or more equivalent [Queries](Query)
   #[instrument(level = "trace", skip_all, ret)]
-  pub(crate) fn get_queries(self, request: Request, endpoint: &Endpoint) -> Result<Vec<Query>> {
+  pub(crate) fn get_queries(
+    self,
+    request: Request,
+    endpoint: &Endpoint,
+    suppressed_request: Option<SuppressedRequest>,
+  ) -> Result<Vec<Query>> {
     let format = match_format(endpoint, self.format.clone())?;
 
     if let Some(ref regions) = self.regions {
       regions
         .iter()
         .map(|region| {
-          Ok(
-            self
-              .get_base_query_builder(request.clone(), format)?
-              .with_reference_name(Some(region.reference_name.clone()))
-              .with_range_from_u32(region.start, region.end)?
-              .build(),
+          set_query_builder(
+            QueryBuilder::new(request.clone(), format),
+            self.class.clone(),
+            Some(region.reference_name.clone()),
+            Self::join_vec(self.fields.clone()),
+            (
+              Self::join_vec(self.tags.clone()),
+              Self::join_vec(self.notags.clone()),
+            ),
+            (
+              region.start.map(|start| start.to_string()),
+              region.end.map(|end| end.to_string()),
+            ),
+            (self.encryption_scheme.clone(), suppressed_request.clone()),
           )
         })
         .collect::<Result<Vec<Query>>>()
     } else {
-      Ok(vec![self.get_base_query_builder(request, format)?.build()])
+      Ok(vec![set_query_builder(
+        QueryBuilder::new(request, format),
+        self.class,
+        None::<String>,
+        Self::join_vec(self.fields),
+        (Self::join_vec(self.tags), Self::join_vec(self.notags)),
+        (None::<String>, None::<String>),
+        (self.encryption_scheme, suppressed_request),
+      )?])
     }
   }
 
-  fn get_base_query_builder(&self, request: Request, format: Format) -> Result<QueryBuilder> {
-    QueryBuilder::new(request, format)
-      .with_class(self.class.clone())?
-      .with_fields_from_vec(self.fields.clone())
-      .with_tags_from_vec(self.tags.clone(), self.notags.clone())
+  fn join_vec(fields: Option<Vec<String>>) -> Option<String> {
+    fields.map(|fields| fields.join(","))
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use htsget_config::types::{Class, Format};
+  use htsget_config::types::{Class, Format, Interval};
 
   use super::*;
 
@@ -78,10 +97,44 @@ mod tests {
         tags: None,
         notags: None,
         regions: None,
+        encryption_scheme: None,
       }
-      .get_queries(request.clone(), &Endpoint::Variants)
+      .get_queries(request.clone(), &Endpoint::Variants, None)
       .unwrap(),
       vec![Query::new("id", Format::Vcf, request).with_class(Class::Header)]
+    );
+  }
+
+  #[test]
+  fn post_request_suppressed_request() {
+    let request = Request::new_with_id("id".to_string());
+
+    assert_eq!(
+      PostRequest {
+        format: Some("VCF".to_string()),
+        class: Some("header".to_string()),
+        fields: None,
+        tags: None,
+        notags: None,
+        regions: None,
+        encryption_scheme: None,
+      }
+      .get_queries(
+        request.clone(),
+        &Endpoint::Variants,
+        Some(SuppressedRequest::new(
+          vec![],
+          Some(Interval::new(Some(1), Some(2))),
+          false,
+          false
+        ))
+      )
+      .unwrap(),
+      vec![
+        Query::new("id", Format::Vcf, request)
+          .with_class(Class::Header)
+          .with_interval(Interval::new(Some(1), Some(2)))
+      ]
     );
   }
 
@@ -101,8 +154,9 @@ mod tests {
           start: Some(150),
           end: Some(153),
         }]),
+        encryption_scheme: None,
       }
-      .get_queries(request.clone(), &Endpoint::Variants)
+      .get_queries(request.clone(), &Endpoint::Variants, None)
       .unwrap(),
       vec![
         Query::new("id", Format::Vcf, request)
@@ -137,8 +191,9 @@ mod tests {
             end: Some(154),
           }
         ]),
+        encryption_scheme: None,
       }
-      .get_queries(request.clone(), &Endpoint::Variants)
+      .get_queries(request.clone(), &Endpoint::Variants, None)
       .unwrap(),
       vec![
         Query::new("id", Format::Vcf, request.clone())

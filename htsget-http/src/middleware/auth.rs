@@ -5,10 +5,11 @@ use crate::error::Result as HtsGetResult;
 use crate::middleware::error::Error::AuthBuilderError;
 use crate::middleware::error::Result;
 use crate::{Endpoint, HtsGetError, convert_to_query, match_format_from_query};
+use cfg_if::cfg_if;
 use headers::authorization::Bearer;
 use headers::{Authorization, Header};
 use htsget_config::config::advanced::auth::{AuthConfig, AuthMode, AuthorizationRestrictions};
-use htsget_config::types::Request;
+use htsget_config::types::{Interval, Request, SuppressedRequest};
 use http::{HeaderMap, Uri};
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
@@ -16,7 +17,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use std::collections::HashMap;
+use tracing::trace;
 
 /// Builder the the authorization middleware.
 #[derive(Default, Debug)]
@@ -72,12 +73,18 @@ pub struct Auth {
 }
 
 impl Auth {
+  /// Get the config for this auth layer instance.
+  pub fn config(&self) -> &AuthConfig {
+    &self.config
+  }
+
   /// Fetch JWKS from the authorization server.
   pub async fn fetch_from_url<D: DeserializeOwned>(
     &self,
     url: &str,
     headers: HeaderMap,
   ) -> HtsGetResult<D> {
+    trace!("fetching url: {}", url);
     let err = || HtsGetError::InternalError(format!("failed to fetch data from {url}"));
     let response = self
       .config
@@ -185,15 +192,20 @@ impl Auth {
   }
 
   /// Validate the restrictions, returning an error if the user is not authorized.
+  /// If `suppressed_interval` is set then no error is returning if there is a
+  /// path match but no restrictions match. Instead, as many regions as possible
+  /// are returned.
   pub fn validate_restrictions(
     restrictions: AuthorizationRestrictions,
-    request: Request,
+    request: &mut Request,
     endpoint: Endpoint,
-  ) -> HtsGetResult<()> {
+    suppressed_interval: bool,
+    add_hint: bool,
+  ) -> HtsGetResult<Option<SuppressedRequest>> {
     // Find all rules matching the path.
     let matching_rules = restrictions
-      .htsget_auth()
-      .iter()
+      .into_rules()
+      .into_iter()
       .filter(|rule| {
         // If this path is a direct match then just return that.
         if rule.path().strip_prefix("/").unwrap_or(rule.path())
@@ -207,39 +219,74 @@ impl Auth {
       })
       .collect::<Vec<_>>();
 
-    // If any of the rules allow all reference names (nothing set in the rule) then the user is authorized.
-    if matching_rules
-      .iter()
-      .any(|rule| rule.reference_names().is_none())
-    {
-      return Ok(());
+    // If no paths match, then this is an authorization error.
+    if matching_rules.is_empty() {
+      return Err(HtsGetError::PermissionDenied(
+        "failed to authorize user based on authorization service restrictions".to_string(),
+      ));
     }
 
+    // If any of the rules allow all reference names (nothing set in the rule) then the user is authorized.
+    let (allows_all, allows_specific): (Vec<_>, Vec<_>) = matching_rules
+      .into_iter()
+      .partition(|rule| rule.reference_names().is_none());
+
+    // Otherwise, we need to check if the specific reference name is allowed.
     let format = match_format_from_query(&endpoint, request.query())?;
-    let query = convert_to_query(request, format)?;
-    let matching_restriction = matching_rules
+    let query = convert_to_query(request.clone(), format, None)?;
+    let matching_restriction = allows_specific
       .iter()
       .flat_map(|rule| rule.reference_names().unwrap_or_default())
-      .find(|restriction| {
+      .filter_map(|restriction| {
         // The reference name should match exactly.
         let name_match = Some(restriction.name()) == query.reference_name();
         // The format should match if it's defined, otherwise it allows any format.
         let format_match =
           restriction.format().is_none() || restriction.format() == Some(query.format());
-        // The interval should match exactly, considering undefined start or end ranges.
-        let interval_match = restriction.interval().contains_interval(query.interval());
+        // The interval should match and be constrained, considering undefined start or end ranges.
+        let interval_match = if suppressed_interval {
+          restriction.interval().constraint_interval(query.interval())
+        } else {
+          restriction.interval().contains_interval(query.interval())
+        };
 
-        name_match && format_match && interval_match
-      });
+        if let Some(interval_match) = interval_match {
+          if name_match && format_match {
+            return Some(interval_match);
+          }
+        }
 
-    // If the matching rule with the restriction was found, then the user is authorized, otherwise
-    // it is a permission denied response.
-    if matching_restriction.is_some() {
-      Ok(())
+        None
+      })
+      .max_by(Interval::order_by_range); // The largest interval should be used if there are multiple matches.
+
+    if suppressed_interval {
+      if allows_all.is_empty() && matching_restriction.is_none() {
+        // If nothing allows all and there are no matching intervals then return an empty response.
+        let matching_rules = [allows_all, allows_specific].concat();
+        return Ok(Some(SuppressedRequest::new(
+          matching_rules,
+          matching_restriction,
+          true,
+          add_hint,
+        )));
+      }
+
+      let matching_rules = [allows_all, allows_specific].concat();
+      Ok(Some(SuppressedRequest::new(
+        matching_rules,
+        matching_restriction,
+        false,
+        add_hint,
+      )))
     } else {
-      Err(HtsGetError::PermissionDenied(
-        "failed to authorize user based on authorization service restrictions".to_string(),
-      ))
+      if allows_all.is_empty() && matching_restriction.is_none() {
+        return Err(HtsGetError::PermissionDenied(
+          "failed to authorize user based on authorization service restrictions".to_string(),
+        ));
+      }
+
+      Ok(None)
     }
   }
 
@@ -311,18 +358,24 @@ impl Auth {
   /// 4. Validates the restrictions to determine if the user is authorized.
   pub async fn validate_authorization(
     &self,
-    request: Request,
+    request: &mut Request,
     endpoint: Endpoint,
-  ) -> HtsGetResult<()> {
+  ) -> HtsGetResult<Option<SuppressedRequest>> {
     let claims = self.validate_jwt(request.headers()).await?;
     if self.config.authentication_only() {
-      return Ok(());
+      return Ok(None);
     }
 
     let restrictions = self
       .query_authorization_service(claims.claims, request.headers())
       .await?;
-    Self::validate_restrictions(restrictions, request, endpoint)
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        Self::validate_restrictions(restrictions, request, endpoint, self.config.suppress_errors(), self.config.add_hint())
+      } else {
+        Self::validate_restrictions(restrictions, request, endpoint, false, false)
+      }
+    }
   }
 
   /// Validate authorization flow according to `validate_authorization` and `validate_jwt`.
@@ -330,37 +383,27 @@ impl Auth {
   /// `validate_authorization` for htsget requests to `/reads` or `/variants`.
   pub async fn authorize_request(
     &self,
-    path: &str,
-    query: HashMap<String, String>,
-    headers: HeaderMap,
-  ) -> HtsGetResult<()> {
-    if let Some(reads) = path.strip_prefix("/reads") {
+    request: &mut Request,
+  ) -> HtsGetResult<Option<SuppressedRequest>> {
+    if let Some(reads) = request.path().strip_prefix("/reads") {
       if reads.starts_with("/service-info") {
-        self.validate_jwt(&headers).await?;
-        return Ok(());
+        self.validate_jwt(request.headers()).await?;
+        return Ok(None);
       }
 
-      self
-        .validate_authorization(
-          Request::new(path.to_string(), query, headers),
-          Endpoint::Reads,
-        )
-        .await
-    } else if let Some(variants) = path.strip_prefix("/variants") {
+      self.validate_authorization(request, Endpoint::Reads).await
+    } else if let Some(variants) = request.path().strip_prefix("/variants") {
       if variants.starts_with("/service-info") {
-        self.validate_jwt(&headers).await?;
-        return Ok(());
+        self.validate_jwt(request.headers()).await?;
+        return Ok(None);
       }
 
       self
-        .validate_authorization(
-          Request::new(path.to_string(), query, headers),
-          Endpoint::Variants,
-        )
+        .validate_authorization(request, Endpoint::Variants)
         .await
     } else {
-      self.validate_jwt(&headers).await?;
-      Ok(())
+      self.validate_jwt(request.headers()).await?;
+      Ok(None)
     }
   }
 }
@@ -406,8 +449,9 @@ mod tests {
       .build()
       .unwrap();
 
-    let request = create_test_request("/reads/sample1", HashMap::new());
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    let mut request = create_test_request("/reads/sample1", HashMap::new());
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, false, false);
     assert!(result.is_ok());
   }
 
@@ -436,8 +480,9 @@ mod tests {
     query.insert("end".to_string(), "1800".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_request("/reads/sample1", query);
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    let mut request = create_test_request("/reads/sample1", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, false, false);
     assert!(result.is_ok());
   }
 
@@ -462,8 +507,9 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_request("/reads/sample123", query);
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    let mut request = create_test_request("/reads/sample123", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, false, false);
     assert!(result.is_ok());
   }
 
@@ -480,7 +526,7 @@ mod tests {
       .build()
       .unwrap();
     let restrictions = AuthorizationRestrictionsBuilder::default()
-      .rule(rule)
+      .rule(rule.clone())
       .build()
       .unwrap();
 
@@ -488,9 +534,41 @@ mod tests {
     query.insert("referenceName".to_string(), "chr2".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_request("/reads/sample1", query);
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    let mut request = create_test_request("/reads/sample1", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, false, false);
     assert!(result.is_err());
+  }
+
+  #[cfg(feature = "experimental")]
+  #[test]
+  fn validate_restrictions_reference_name_mismatch_suppressed() {
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule.clone())
+      .build()
+      .unwrap();
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr2".to_string());
+    query.insert("format".to_string(), "BAM".to_string());
+
+    let mut request = create_test_request("/reads/sample1", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, true, false);
+    assert_eq!(
+      result,
+      Ok(Some(SuppressedRequest::new(vec![rule], None, true, false)))
+    )
   }
 
   #[test]
@@ -506,7 +584,7 @@ mod tests {
       .build()
       .unwrap();
     let restrictions = AuthorizationRestrictionsBuilder::default()
-      .rule(rule)
+      .rule(rule.clone())
       .build()
       .unwrap();
 
@@ -514,9 +592,41 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "CRAM".to_string());
 
-    let request = create_test_request("/reads/sample1", query);
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    let mut request = create_test_request("/reads/sample1", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, false, false);
     assert!(result.is_err());
+  }
+
+  #[cfg(feature = "experimental")]
+  #[test]
+  fn validate_restrictions_format_mismatch_suppressed() {
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule.clone())
+      .build()
+      .unwrap();
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("format".to_string(), "CRAM".to_string());
+
+    let mut request = create_test_request("/reads/sample1", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, true, false);
+    assert_eq!(
+      result,
+      Ok(Some(SuppressedRequest::new(vec![rule], None, true, false)))
+    );
   }
 
   #[test]
@@ -534,7 +644,7 @@ mod tests {
       .build()
       .unwrap();
     let restrictions = AuthorizationRestrictionsBuilder::default()
-      .rule(rule)
+      .rule(rule.clone())
       .build()
       .unwrap();
 
@@ -543,9 +653,49 @@ mod tests {
     query.insert("start".to_string(), "500".to_string());
     query.insert("end".to_string(), "1500".to_string());
 
-    let request = create_test_request("/reads/sample1", query);
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    let mut request = create_test_request("/reads/sample1", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, false, false);
     assert!(result.is_err());
+  }
+
+  #[cfg(feature = "experimental")]
+  #[test]
+  fn validate_restrictions_interval_not_contained_suppressed() {
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .start(1000)
+      .end(2000)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule.clone())
+      .build()
+      .unwrap();
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("start".to_string(), "500".to_string());
+    query.insert("end".to_string(), "1500".to_string());
+
+    let mut request = create_test_request("/reads/sample1", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, true, false);
+    assert_eq!(
+      result,
+      Ok(Some(SuppressedRequest::new(
+        vec![rule],
+        Some(Interval::new(Some(1000), Some(1500))),
+        false,
+        false
+      )))
+    )
   }
 
   #[test]
@@ -568,8 +718,9 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "CRAM".to_string());
 
-    let request = create_test_request("/reads/sample1", query);
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    let mut request = create_test_request("/reads/sample1", query);
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, false, false);
     assert!(result.is_ok());
   }
 
@@ -583,17 +734,20 @@ mod tests {
       .rule(rule)
       .build()
       .unwrap();
-    let request = create_test_request("/reads/sample1", HashMap::new());
-    let result = Auth::validate_restrictions(restrictions, request, Endpoint::Reads);
+    let mut request = create_test_request("/reads/sample1", HashMap::new());
+    let result =
+      Auth::validate_restrictions(restrictions, &mut request, Endpoint::Reads, false, false);
     assert!(result.is_ok());
   }
 
   #[tokio::test]
   async fn validate_authorization_missing_auth_header() {
     let (auth, _) = create_mock_auth_with_restrictions();
-    let request = create_test_request("/reads/sample1", HashMap::new());
+    let mut request = create_test_request("/reads/sample1", HashMap::new());
 
-    let result = auth.validate_authorization(request, Endpoint::Reads).await;
+    let result = auth
+      .validate_authorization(&mut request, Endpoint::Reads)
+      .await;
     assert!(result.is_err());
     assert!(matches!(
       result.unwrap_err(),
@@ -604,10 +758,12 @@ mod tests {
   #[tokio::test]
   async fn validate_authorization_invalid_jwt_format() {
     let (auth, _) = create_mock_auth_with_restrictions();
-    let request =
+    let mut request =
       create_request_with_auth_header("/reads/sample1", HashMap::new(), "invalid.jwt.token");
 
-    let result = auth.validate_authorization(request, Endpoint::Reads).await;
+    let result = auth
+      .validate_authorization(&mut request, Endpoint::Reads)
+      .await;
     assert!(result.is_err());
     assert!(matches!(
       result.unwrap_err(),
