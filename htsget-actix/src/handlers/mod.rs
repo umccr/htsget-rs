@@ -2,10 +2,9 @@ use std::collections::HashMap;
 
 use actix_web::web::{Path, Query};
 use actix_web::{Either, HttpRequest, Responder, http::StatusCode};
-use http::{HeaderMap as HttpHeaderMap, HeaderName, Method};
-
 use htsget_config::types::{JsonResponse, Request};
 use htsget_http::Result;
+use http::{HeaderMap as HttpHeaderMap, HeaderName, Method};
 use pretty_json::PrettyJson;
 
 pub use crate::handlers::service_info::{
@@ -16,7 +15,7 @@ pub mod get;
 pub mod post;
 pub mod service_info;
 
-mod pretty_json;
+pub(crate) mod pretty_json;
 
 pub(crate) struct HeaderMap(HttpHeaderMap);
 

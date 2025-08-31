@@ -185,7 +185,7 @@ mod tests {
   impl Default for DataTestServer {
     fn default() -> Self {
       Self {
-        config: default_test_config(),
+        config: default_test_config(None),
       }
     }
   }

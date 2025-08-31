@@ -262,7 +262,7 @@ mod tests {
   impl Default for ActixTestServer {
     fn default() -> Self {
       Self {
-        config: default_test_config(),
+        config: default_test_config(None),
         auth: None,
       }
     }
@@ -333,16 +333,16 @@ mod tests {
       }
     }
 
-    async fn new_with_auth(public_key: Vec<u8>) -> Self {
+    async fn new_with_auth(public_key: Vec<u8>, suppressed: bool) -> Self {
       let mock_server = MockAuthServer::new().await;
-      let auth_config = create_test_auth_config(&mock_server, public_key);
+      let auth_config = create_test_auth_config(&mock_server, public_key, suppressed);
       let auth = AuthBuilder::default()
-        .with_config(auth_config)
+        .with_config(auth_config.clone())
         .build()
         .unwrap();
 
       Self {
-        config: default_test_config(),
+        config: default_test_config(Some(auth_config)),
         auth: Some(AuthLayer(auth)),
       }
     }
@@ -453,8 +453,8 @@ mod tests {
   async fn test_auth_insufficient_permissions() {
     let (private_key, public_key) = generate_key_pair();
 
-    let server = ActixTestServer::new_with_auth(public_key).await;
-    auth::test_auth_insufficient_permissions(&server, private_key).await;
+    let server = ActixTestServer::new_with_auth(public_key, false).await;
+    auth::test_auth_insufficient_permissions::<JsonResponse, _>(&server, private_key).await;
   }
 
   #[actix_web::test]
@@ -462,7 +462,28 @@ mod tests {
     let (private_key, public_key) = generate_key_pair();
 
     auth::test_auth_succeeds::<JsonResponse, _>(
-      &ActixTestServer::new_with_auth(public_key).await,
+      &ActixTestServer::new_with_auth(public_key, false).await,
+      private_key,
+    )
+    .await;
+  }
+
+  #[cfg(feature = "experimental")]
+  #[actix_web::test]
+  async fn test_auth_insufficient_permissions_suppressed() {
+    let (private_key, public_key) = generate_key_pair();
+
+    let server = ActixTestServer::new_with_auth(public_key, true).await;
+    auth::test_auth_insufficient_permissions::<JsonResponse, _>(&server, private_key).await;
+  }
+
+  #[cfg(feature = "experimental")]
+  #[actix_web::test]
+  async fn test_auth_succeeds_suppressed() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &ActixTestServer::new_with_auth(public_key, true).await,
       private_key,
     )
     .await;

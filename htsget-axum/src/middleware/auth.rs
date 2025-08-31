@@ -1,14 +1,12 @@
 //! Authentication middleware for htsget-axum.
 //!
 
-use crate::error::{HtsGetError, HtsGetResult};
-use axum::RequestExt;
-use axum::extract::{Query, Request};
+use crate::error::HtsGetResult;
+use crate::middleware::extract_request;
+use axum::extract::Request;
 use axum::response::{IntoResponse, Response};
 use futures::future::BoxFuture;
 use htsget_http::middleware::auth::Auth;
-use http::HeaderMap;
-use std::collections::HashMap;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
@@ -64,22 +62,15 @@ impl<S> AuthMiddleware<S> {
 
   /// Validate the request using the htsget-http validator.
   pub async fn validate_authorization(&self, request: &mut Request) -> HtsGetResult<()> {
-    let query = request
-      .extract_parts::<Query<HashMap<String, String>>>()
-      .await
-      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
-    let headers = request
-      .extract_parts::<HeaderMap>()
-      .await
-      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
+    let mut htsget_request = extract_request(request).await?;
+    let suppressed_request = self
+      .layer
+      .inner
+      .authorize_request(&mut htsget_request)
+      .await?;
 
-    Ok(
-      self
-        .layer
-        .inner
-        .authorize_request(request.uri().path(), query.0, headers)
-        .await?,
-    )
+    request.extensions_mut().insert(suppressed_request);
+    Ok(())
   }
 }
 
@@ -106,8 +97,7 @@ where
         return Ok(err.into_response());
       }
 
-      let response: Response = self_owned.inner.call(request).await?;
-      Ok(response)
+      self_owned.inner.call(request).await
     })
   }
 }

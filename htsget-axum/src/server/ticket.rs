@@ -203,7 +203,7 @@ mod tests {
   impl Default for AxumTestServer {
     fn default() -> Self {
       Self {
-        config: default_test_config(),
+        config: default_test_config(None),
       }
     }
   }
@@ -265,11 +265,10 @@ mod tests {
       }
     }
 
-    async fn new_with_auth(public_key: Vec<u8>) -> Self {
+    async fn new_with_auth(public_key: Vec<u8>, suppressed: bool) -> Self {
       let mock_server = MockAuthServer::new().await;
-      let auth_config = create_test_auth_config(&mock_server, public_key);
-      let mut config = default_test_config();
-      config.ticket_server_mut().set_auth(Some(auth_config));
+      let auth_config = create_test_auth_config(&mock_server, public_key, suppressed);
+      let config = default_test_config(Some(auth_config));
 
       Self { config }
     }
@@ -376,8 +375,8 @@ mod tests {
   async fn test_auth_insufficient_permissions() {
     let (private_key, public_key) = generate_key_pair();
 
-    let server = AxumTestServer::new_with_auth(public_key).await;
-    auth::test_auth_insufficient_permissions(&server, private_key).await;
+    let server = AxumTestServer::new_with_auth(public_key, false).await;
+    auth::test_auth_insufficient_permissions::<JsonResponse, _>(&server, private_key).await;
   }
 
   #[tokio::test]
@@ -385,7 +384,28 @@ mod tests {
     let (private_key, public_key) = generate_key_pair();
 
     auth::test_auth_succeeds::<JsonResponse, _>(
-      &AxumTestServer::new_with_auth(public_key).await,
+      &AxumTestServer::new_with_auth(public_key, false).await,
+      private_key,
+    )
+    .await;
+  }
+
+  #[cfg(feature = "experimental")]
+  #[tokio::test]
+  async fn test_auth_insufficient_permissions_suppressed() {
+    let (private_key, public_key) = generate_key_pair();
+
+    let server = AxumTestServer::new_with_auth(public_key, true).await;
+    auth::test_auth_insufficient_permissions::<JsonResponse, _>(&server, private_key).await;
+  }
+
+  #[cfg(feature = "experimental")]
+  #[tokio::test]
+  async fn test_auth_succeeds_suppressed() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &AxumTestServer::new_with_auth(public_key, true).await,
       private_key,
     )
     .await;

@@ -230,6 +230,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     tags: None,
     notags: None,
     regions: None,
+    encryption_scheme: None,
   };
   bench_pair(
     &mut group,
@@ -250,6 +251,7 @@ fn criterion_benchmark(c: &mut Criterion) {
       start: None,
       end: None,
     }]),
+    encryption_scheme: None,
   };
   bench_pair(
     &mut group,
@@ -277,6 +279,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         end: Some(5008321),
       },
     ]),
+    encryption_scheme: None,
   };
   bench_pair(
     &mut group,
@@ -297,6 +300,7 @@ fn criterion_benchmark(c: &mut Criterion) {
       start: Some(1),
       end: Some(153),
     }]),
+    encryption_scheme: None,
   };
   bench_pair(
     &mut group,
@@ -317,6 +321,7 @@ fn criterion_benchmark(c: &mut Criterion) {
       start: None,
       end: None,
     }]),
+    encryption_scheme: None,
   };
   bench_pair(
     &mut group,

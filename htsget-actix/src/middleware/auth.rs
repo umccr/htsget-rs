@@ -1,17 +1,16 @@
 //! Authentication middleware for htsget-actix.
 //!
 
-use crate::handlers::{HeaderMap, HttpVersionCompat};
+use crate::handlers::HttpVersionCompat;
+use crate::middleware::{SuppressedRequest, extract_request};
 use actix_web::body::{BoxBody, EitherBody};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::web::Query;
-use actix_web::{Error, FromRequest, HttpResponse};
+use actix_web::{Error, HttpMessage, HttpResponse};
 use axum::body::to_bytes;
 use axum::response::IntoResponse;
 use futures_util::future::LocalBoxFuture;
 use htsget_axum::error::HtsGetError;
 use htsget_http::middleware::auth::Auth;
-use std::collections::HashMap;
 use std::future::{Ready, ready};
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -57,16 +56,14 @@ impl<S> AuthMiddleware<S> {
 
   /// Validate the authorization.
   pub async fn validate_authorization(&self, req: &mut ServiceRequest) -> Result<(), HtsGetError> {
-    let (req, payload) = req.parts_mut();
+    let mut htsget_request = extract_request(req).await?;
+    let suppressed_request = self.inner.authorize_request(&mut htsget_request).await?;
 
-    let query = <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
-      .await
-      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
-    let headers =
-      HttpVersionCompat::header_map_0_2_to_1(HeaderMap::from(&req.clone()).into_inner());
-    let path = req.path();
+    req
+      .extensions_mut()
+      .insert(SuppressedRequest(suppressed_request));
 
-    Ok(self.inner.authorize_request(path, query.0, headers).await?)
+    Ok(())
   }
 }
 
