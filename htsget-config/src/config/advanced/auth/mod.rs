@@ -67,6 +67,10 @@ pub struct AuthConfig {
   authorization_path: Option<String>,
   http_client: HttpClient,
   authentication_only: bool,
+  #[cfg(feature = "experimental")]
+  suppress_errors: bool,
+  #[cfg(feature = "experimental")]
+  add_hint: bool,
 }
 
 impl AuthConfig {
@@ -110,6 +114,18 @@ impl AuthConfig {
     self.authentication_only
   }
 
+  /// Whether to suppress errors and return any available regions.
+  #[cfg(feature = "experimental")]
+  pub fn suppress_errors(&self) -> bool {
+    self.suppress_errors
+  }
+
+  /// Whether the client gets a hint about which regions are allowed.
+  #[cfg(feature = "experimental")]
+  pub fn add_hint(&self) -> bool {
+    self.add_hint
+  }
+
   /// Get the http client.
   pub fn http_client(&self) -> &reqwest::Client {
     &self.http_client.0
@@ -122,7 +138,7 @@ impl AuthConfig {
 }
 
 /// Builder for `AuthConfig`.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 pub struct AuthConfigBuilder {
   #[serde(flatten, skip_serializing)]
@@ -139,6 +155,10 @@ pub struct AuthConfigBuilder {
   #[serde(rename = "tls", skip_serializing)]
   http_client: Option<HttpClient>,
   authentication_only: bool,
+  #[cfg(feature = "experimental")]
+  suppress_errors: bool,
+  #[cfg(feature = "experimental")]
+  add_hint: bool,
 }
 
 impl AuthConfigBuilder {
@@ -201,6 +221,20 @@ impl AuthConfigBuilder {
     self
   }
 
+  /// Suppress errors and return any allowed regions if available.
+  #[cfg(feature = "experimental")]
+  pub fn suppress_errors(mut self, suppress_errors: bool) -> Self {
+    self.suppress_errors = suppress_errors;
+    self
+  }
+
+  /// Add a hint that shows the client which regions are allowed in ticket responses.
+  #[cfg(feature = "experimental")]
+  pub fn add_hint(mut self, add_hint: bool) -> Self {
+    self.add_hint = add_hint;
+    self
+  }
+
   /// Build the auth config.
   pub fn build(self) -> Result<AuthConfig> {
     let Some(auth_mode) = self.auth_mode else {
@@ -227,7 +261,30 @@ impl AuthConfigBuilder {
       authorization_path: self.authorization_path,
       http_client: HttpClient::default(),
       authentication_only: self.authentication_only,
+      #[cfg(feature = "experimental")]
+      suppress_errors: self.suppress_errors,
+      #[cfg(feature = "experimental")]
+      add_hint: self.add_hint,
     })
+  }
+}
+
+impl Default for AuthConfigBuilder {
+  fn default() -> Self {
+    Self {
+      auth_mode: None,
+      validate_audience: None,
+      validate_issuer: None,
+      validate_subject: None,
+      trusted_authorization_urls: vec![],
+      authorization_path: None,
+      http_client: None,
+      authentication_only: false,
+      #[cfg(feature = "experimental")]
+      suppress_errors: false,
+      #[cfg(feature = "experimental")]
+      add_hint: true,
+    }
   }
 }
 
@@ -277,6 +334,26 @@ mod tests {
     );
     assert_eq!(config.authorization_path().unwrap(), "$.auth_url");
     assert!(config.authentication_only());
+  }
+
+  #[cfg(feature = "experimental")]
+  #[test]
+  fn auth_config_experimental() {
+    let config: AuthConfig = toml::from_str(
+      r#"
+      jwks_url = "https://www.example.com"
+      validate_audience = ["aud1", "aud2"]
+      validate_issuer = ["iss1"]
+      trusted_authorization_urls = ["https://www.example.com"]
+      authentication_only = true
+      add_hint = false
+      suppress_errors = true
+      "#,
+    )
+    .unwrap();
+
+    assert!(!config.add_hint());
+    assert!(config.suppress_errors());
   }
 
   #[test]

@@ -11,7 +11,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Authorization restrictions from an external authorization service.
-#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRestrictions {
   /// The version of the schema.
@@ -24,7 +24,7 @@ pub struct AuthorizationRestrictions {
 }
 
 /// Individual authorization rule defining access permissions.
-#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
   /// The path that the authorization applies to. This should not contain the `/reads` or `/variants` component of the path, and it can be a regex.
@@ -36,7 +36,7 @@ pub struct AuthorizationRule {
 }
 
 /// Restriction on genomic reference names and coordinate ranges.
-#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ReferenceNameRestriction {
   /// The reference name to allow.
@@ -60,6 +60,11 @@ impl AuthorizationRestrictions {
   pub fn htsget_auth(&self) -> &[AuthorizationRule] {
     &self.htsget_auth
   }
+
+  /// Get the authorization rules as an owned vec.
+  pub fn into_rules(self) -> Vec<AuthorizationRule> {
+    self.htsget_auth
+  }
 }
 
 impl AuthorizationRule {
@@ -71,6 +76,11 @@ impl AuthorizationRule {
   /// Get the optional restrictions on reference names and genomic coordinates.
   pub fn reference_names(&self) -> Option<&[ReferenceNameRestriction]> {
     self.reference_names.as_deref()
+  }
+
+  /// Get the optional restrictions on reference names and genomic coordinates as a mutable reference.
+  pub fn reference_names_mut(&mut self) -> Option<&mut [ReferenceNameRestriction]> {
+    self.reference_names.as_deref_mut()
   }
 }
 
@@ -88,6 +98,11 @@ impl ReferenceNameRestriction {
   /// Get the interval to allow.
   pub fn interval(&self) -> &Interval {
     &self.interval
+  }
+
+  /// Set the interval.
+  pub fn set_interval(&mut self, interval: Interval) {
+    self.interval = interval;
   }
 }
 
