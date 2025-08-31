@@ -11,8 +11,10 @@ use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use crate::util::{default_dir, default_dir_data, generate_test_certificates};
 use async_trait::async_trait;
 use htsget_config::config::Config;
+use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::{AllowType, CorsConfig, TaggedAllowTypes};
 use htsget_config::config::advanced::regex_location::RegexLocation;
 use htsget_config::config::data_server::{DataServerConfig, DataServerEnabled};
@@ -27,8 +29,6 @@ use htsget_config::types::Scheme;
 use http::uri::Authority;
 use http::{HeaderMap, HeaderName, Method};
 use serde::de;
-
-use crate::util::{default_dir, default_dir_data, generate_test_certificates};
 
 /// Represents a http header.
 #[derive(Debug)]
@@ -130,7 +130,7 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Locations {
 pub fn default_config_fixed_port() -> Config {
   let addr = "127.0.0.1:8081".parse().unwrap();
 
-  default_test_config_params(addr, None, Scheme::Http)
+  default_test_config_params(addr, None, Scheme::Http, None)
 }
 
 fn get_dynamic_addr() -> SocketAddr {
@@ -154,6 +154,7 @@ fn default_test_config_params(
   addr: SocketAddr,
   tls: Option<TlsServerConfig>,
   scheme: Scheme,
+  auth_config: Option<AuthConfig>,
 ) -> Config {
   let cors = default_cors_config();
   let server_config = DataServerConfig::new(
@@ -171,20 +172,20 @@ fn default_test_config_params(
       "127.0.0.1:8080".parse().unwrap(),
       tls,
       cors,
-      Default::default(),
+      auth_config.clone(),
     ),
     DataServerEnabled::Some(server_config),
     Default::default(),
     default_test_resolver(addr, scheme),
-    Default::default(),
+    auth_config,
   )
 }
 
 /// Default config using the current cargo manifest directory, and dynamic port.
-pub fn default_test_config() -> Config {
+pub fn default_test_config(auth: Option<AuthConfig>) -> Config {
   let addr = get_dynamic_addr();
 
-  default_test_config_params(addr, None, Scheme::Http)
+  default_test_config_params(addr, None, Scheme::Http, auth)
 }
 
 /// Config with tls ticket server, using the current cargo manifest directory.
@@ -196,6 +197,7 @@ pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
     addr,
     Some(test_tls_server_config(key_path, cert_path)),
     Scheme::Https,
+    None,
   )
 }
 
