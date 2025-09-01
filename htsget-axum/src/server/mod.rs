@@ -19,6 +19,7 @@ use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::tls::TlsServerConfig;
 use htsget_config::types::Scheme;
+use htsget_http::middleware::auth::Auth;
 use htsget_search::HtsGet;
 use http::HeaderValue;
 use hyper::body::Incoming;
@@ -37,14 +38,16 @@ use tracing::{error, warn};
 pub struct AppState<H: HtsGet> {
   pub(crate) htsget: H,
   pub(crate) service_info: ServiceInfo,
+  pub(crate) auth_middleware: Option<Auth>,
 }
 
 impl<H: HtsGet> AppState<H> {
   /// Create a new app state.
-  pub fn new(htsget: H, service_info: ServiceInfo) -> Self {
+  pub fn new(htsget: H, service_info: ServiceInfo, auth_middleware: Option<Auth>) -> Self {
     Self {
       htsget,
       service_info,
+      auth_middleware,
     }
   }
 }

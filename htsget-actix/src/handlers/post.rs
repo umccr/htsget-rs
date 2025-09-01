@@ -12,7 +12,6 @@ use tracing::instrument;
 
 use super::{extract_request, handle_response};
 use crate::AppState;
-use crate::middleware::SuppressedRequest;
 
 /// POST request reads endpoint
 #[instrument(skip(app_state))]
@@ -20,7 +19,6 @@ pub async fn reads<H: HtsGet + Clone + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
   path: Path<String>,
   http_request: HttpRequest,
-  suppressed_request: SuppressedRequest,
   body: Json<PostRequest>,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
@@ -34,7 +32,7 @@ pub async fn reads<H: HtsGet + Clone + Send + Sync + 'static>(
       body.into_inner(),
       request,
       Endpoint::Reads,
-      suppressed_request.0,
+      app_state.auth.clone(),
     )
     .await,
   )
@@ -46,7 +44,6 @@ pub async fn variants<H: HtsGet + Clone + Send + Sync + 'static>(
   request: Query<HashMap<String, String>>,
   path: Path<String>,
   http_request: HttpRequest,
-  suppressed_request: SuppressedRequest,
   body: Json<PostRequest>,
   app_state: Data<AppState<H>>,
 ) -> impl Responder {
@@ -60,7 +57,7 @@ pub async fn variants<H: HtsGet + Clone + Send + Sync + 'static>(
       body.into_inner(),
       request,
       Endpoint::Variants,
-      suppressed_request.0,
+      app_state.auth.clone(),
     )
     .await,
   )

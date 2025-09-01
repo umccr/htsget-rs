@@ -450,6 +450,7 @@ pub struct Query {
   no_tags: NoTags,
   /// The raw HTTP request information.
   request: Request,
+  matching_rules: Option<Vec<AuthorizationRule>>,
   #[cfg(feature = "experimental")]
   encryption_scheme: Option<EncryptionScheme>,
 }
@@ -490,8 +491,13 @@ impl Query {
 
   /// Set the class.
   pub fn with_class(mut self, class: Class) -> Self {
-    self.class = class;
+    self.set_class(class);
     self
+  }
+
+  /// Set the class.
+  pub fn set_class(&mut self, class: Class) {
+    self.class = class;
   }
 
   /// Set the reference name.
@@ -514,8 +520,13 @@ impl Query {
 
   /// Set the interval.
   pub fn with_interval(mut self, interval: Interval) -> Self {
-    self.interval = interval;
+    self.set_interval(interval);
     self
+  }
+
+  /// Set the interval.
+  pub fn set_interval(&mut self, interval: Interval) {
+    self.interval = interval;
   }
 
   /// Set the interval.
@@ -581,6 +592,11 @@ impl Query {
   /// Request.
   pub fn request(&self) -> &Request {
     &self.request
+  }
+
+  /// Set the matching rules.
+  pub fn set_matching_rules(&mut self, matching_rules: Vec<AuthorizationRule>) {
+    self.matching_rules = Some(matching_rules);
   }
 
   /// Set the encryption scheme.

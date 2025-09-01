@@ -1,4 +1,4 @@
-use htsget_config::types::{Query, Request, SuppressedRequest};
+use htsget_config::types::{Query, Request};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -32,12 +32,7 @@ pub struct Region {
 impl PostRequest {
   /// Converts the `PostRequest` into one or more equivalent [Queries](Query)
   #[instrument(level = "trace", skip_all, ret)]
-  pub(crate) fn get_queries(
-    self,
-    request: Request,
-    endpoint: &Endpoint,
-    suppressed_request: Option<SuppressedRequest>,
-  ) -> Result<Vec<Query>> {
+  pub(crate) fn get_queries(self, request: Request, endpoint: &Endpoint) -> Result<Vec<Query>> {
     let format = match_format(endpoint, self.format.clone())?;
 
     if let Some(ref regions) = self.regions {
@@ -57,7 +52,7 @@ impl PostRequest {
               region.start.map(|start| start.to_string()),
               region.end.map(|end| end.to_string()),
             ),
-            (self.encryption_scheme.clone(), suppressed_request.clone()),
+            self.encryption_scheme.clone(),
           )
         })
         .collect::<Result<Vec<Query>>>()
@@ -69,7 +64,7 @@ impl PostRequest {
         Self::join_vec(self.fields),
         (Self::join_vec(self.tags), Self::join_vec(self.notags)),
         (None::<String>, None::<String>),
-        (self.encryption_scheme, suppressed_request),
+        self.encryption_scheme,
       )?])
     }
   }
@@ -81,7 +76,7 @@ impl PostRequest {
 
 #[cfg(test)]
 mod tests {
-  use htsget_config::types::{Class, Format, Interval};
+  use htsget_config::types::{Class, Format};
 
   use super::*;
 
@@ -99,42 +94,9 @@ mod tests {
         regions: None,
         encryption_scheme: None,
       }
-      .get_queries(request.clone(), &Endpoint::Variants, None)
+      .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
       vec![Query::new("id", Format::Vcf, request).with_class(Class::Header)]
-    );
-  }
-
-  #[test]
-  fn post_request_suppressed_request() {
-    let request = Request::new_with_id("id".to_string());
-
-    assert_eq!(
-      PostRequest {
-        format: Some("VCF".to_string()),
-        class: Some("header".to_string()),
-        fields: None,
-        tags: None,
-        notags: None,
-        regions: None,
-        encryption_scheme: None,
-      }
-      .get_queries(
-        request.clone(),
-        &Endpoint::Variants,
-        Some(SuppressedRequest::new(
-          vec![],
-          Some(Interval::new(Some(1), Some(2))),
-          false,
-          false
-        ))
-      )
-      .unwrap(),
-      vec![
-        Query::new("id", Format::Vcf, request)
-          .with_class(Class::Header)
-          .with_interval(Interval::new(Some(1), Some(2)))
-      ]
     );
   }
 
@@ -156,7 +118,7 @@ mod tests {
         }]),
         encryption_scheme: None,
       }
-      .get_queries(request.clone(), &Endpoint::Variants, None)
+      .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
       vec![
         Query::new("id", Format::Vcf, request)
@@ -193,7 +155,7 @@ mod tests {
         ]),
         encryption_scheme: None,
       }
-      .get_queries(request.clone(), &Endpoint::Variants, None)
+      .get_queries(request.clone(), &Endpoint::Variants)
       .unwrap(),
       vec![
         Query::new("id", Format::Vcf, request.clone())

@@ -2,7 +2,7 @@ use cfg_if::cfg_if;
 pub use error::{HtsGetError, Result};
 pub use htsget_config::config::Config;
 use htsget_config::types::Format::{Bam, Bcf, Cram, Vcf};
-use htsget_config::types::{Format, Query, Request, Response, SuppressedRequest};
+use htsget_config::types::{Format, Query, Request, Response};
 pub use http_core::{get, post};
 pub use post_request::{PostRequest, Region};
 use query_builder::QueryBuilder;
@@ -64,11 +64,7 @@ pub fn match_format(endpoint: &Endpoint, format: Option<impl Into<String>>) -> R
   }
 }
 
-fn convert_to_query(
-  request: Request,
-  format: Format,
-  suppressed_request: Option<SuppressedRequest>,
-) -> Result<Query> {
+fn convert_to_query(request: Request, format: Format) -> Result<Query> {
   let query = request.query().clone();
 
   set_query_builder(
@@ -78,7 +74,7 @@ fn convert_to_query(
     query.get("fields"),
     (query.get("tags"), query.get("notags")),
     (query.get("start"), query.get("end")),
-    (query.get("encryptionScheme"), suppressed_request),
+    query.get("encryptionScheme"),
   )
 }
 
@@ -89,27 +85,18 @@ fn set_query_builder(
   fields: Option<impl Into<String>>,
   (tags, no_tags): (Option<impl Into<String>>, Option<impl Into<String>>),
   (start, end): (Option<impl Into<String>>, Option<impl Into<String>>),
-  (encryption_scheme, suppressed_request): (Option<impl Into<String>>, Option<SuppressedRequest>),
+  _encryption_scheme: Option<impl Into<String>>,
 ) -> Result<Query> {
-  let mut builder = builder
+  let builder = builder
     .with_class(class)?
     .with_fields(fields)
     .with_tags(tags, no_tags)?
     .with_reference_name(reference_name)
     .with_range(start, end)?;
 
-  if let Some(ref request) = suppressed_request {
-    if let Some(interval) = request.constrained_interval() {
-      builder = builder.with_interval(*interval);
-    }
-    if request.empty_response() {
-      builder = builder.with_class(Some("header"))?;
-    }
-  };
-
   cfg_if! {
     if #[cfg(feature = "experimental")] {
-      Ok(builder.with_encryption_scheme(encryption_scheme)?.build())
+      Ok(builder.with_encryption_scheme(_encryption_scheme)?.build())
     } else {
       Ok(builder.build())
     }

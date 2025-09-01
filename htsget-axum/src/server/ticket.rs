@@ -3,7 +3,6 @@
 
 use crate::error::{HtsGetError, Result};
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
-use crate::middleware::auth::AuthLayer;
 use crate::server::{AppState, BindServer, Server, configure_cors};
 use axum::Router;
 use axum::response::IntoResponse;
@@ -105,15 +104,15 @@ where
           .layer(TraceLayer::new_for_http())
           .layer(configure_cors(cors)),
       )
-      .with_state(AppState::new(htsget, service_info));
+      .with_state(AppState::new(
+        htsget,
+        service_info,
+        auth
+          .map(|auth| AuthBuilder::default().with_config(auth).build())
+          .transpose()?,
+      ));
 
-    if let Some(auth) = auth {
-      Ok(router.layer(AuthLayer::from(
-        AuthBuilder::default().with_config(auth).build()?,
-      )))
-    } else {
-      Ok(router)
-    }
+    Ok(router)
   }
 
   /// Get the local address the server has bound to.

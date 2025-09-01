@@ -1,8 +1,7 @@
 //! Authentication middleware for htsget-axum.
 //!
 
-use crate::error::HtsGetResult;
-use crate::middleware::extract_request;
+use crate::error::HtsGetError;
 use axum::extract::Request;
 use axum::response::{IntoResponse, Response};
 use futures::future::BoxFuture;
@@ -16,7 +15,7 @@ impl From<Auth> for AuthLayer {
   }
 }
 
-/// A wrapper around the authorization layer.
+/// A wrapper around the authentication layer.
 #[derive(Clone)]
 pub struct AuthLayer {
   inner: Auth,
@@ -37,7 +36,7 @@ impl<S> Layer<S> for AuthLayer {
   }
 }
 
-/// A wrapper around the authorization middleware.
+/// A wrapper around the auth middleware.
 #[derive(Clone)]
 pub struct AuthMiddleware<S> {
   inner: S,
@@ -59,19 +58,6 @@ impl<S> AuthMiddleware<S> {
   pub fn layer(&self) -> &AuthLayer {
     &self.layer
   }
-
-  /// Validate the request using the htsget-http validator.
-  pub async fn validate_authorization(&self, request: &mut Request) -> HtsGetResult<()> {
-    let mut htsget_request = extract_request(request).await?;
-    let suppressed_request = self
-      .layer
-      .inner
-      .authorize_request(&mut htsget_request)
-      .await?;
-
-    request.extensions_mut().insert(suppressed_request);
-    Ok(())
-  }
 }
 
 impl<S> Service<Request> for AuthMiddleware<S>
@@ -87,14 +73,14 @@ where
     self.inner.poll_ready(cx)
   }
 
-  fn call(&mut self, mut request: Request) -> Self::Future {
+  fn call(&mut self, request: Request) -> Self::Future {
     let clone = self.clone();
     // The inner service must be ready so we replace it with the cloned value.
     // See https://docs.rs/tower/latest/tower/trait.Service.html#be-careful-when-cloning-inner-services
     let mut self_owned = std::mem::replace(self, clone);
     Box::pin(async move {
-      if let Err(err) = self_owned.validate_authorization(&mut request).await {
-        return Ok(err.into_response());
+      if let Err(err) = self_owned.layer.inner.validate_jwt(request.headers()).await {
+        return Ok(HtsGetError::from(err).into_response());
       }
 
       self_owned.inner.call(request).await

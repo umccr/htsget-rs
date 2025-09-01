@@ -271,12 +271,15 @@ impl AuthConfigBuilder {
 
 impl Default for AuthConfigBuilder {
   fn default() -> Self {
+    // Satisfy https://rust-lang.github.io/rust-clippy/master/index.html#derivable_impls
+    // when `experimental` is not enabled.
+    let trusted_authorization_urls = vec![];
     Self {
       auth_mode: None,
       validate_audience: None,
       validate_issuer: None,
       validate_subject: None,
-      trusted_authorization_urls: vec![],
+      trusted_authorization_urls,
       authorization_path: None,
       http_client: None,
       authentication_only: false,

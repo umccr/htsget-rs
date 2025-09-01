@@ -68,7 +68,7 @@ pub fn create_test_jwt_token(claims: Value, private_key: Vec<u8>) -> String {
 pub fn create_test_auth_config(
   mock_server: &MockAuthServer,
   public_key: Vec<u8>,
-  suppressed: bool,
+  _suppressed: bool,
 ) -> AuthConfig {
   let builder = AuthConfigBuilder::default()
     .auth_mode(AuthMode::PublicKey(public_key))
@@ -80,8 +80,8 @@ pub fn create_test_auth_config(
 
   cfg_if! {
     if #[cfg(feature = "experimental")] {
-      builder.suppress_errors(suppressed)
-      .add_hint(suppressed)
+      builder.suppress_errors(_suppressed)
+      .add_hint(_suppressed)
       .build().unwrap()
     } else {
       builder.build().unwrap()
@@ -197,10 +197,10 @@ where
     .get_config()
     .ticket_server()
     .auth()
-    .is_some_and(|auth| {
+    .is_some_and(|_auth| {
       cfg_if! {
         if #[cfg(feature = "experimental")] {
-          auth.suppress_errors()
+          _auth.suppress_errors()
         } else {
           false
         }
