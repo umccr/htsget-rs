@@ -526,13 +526,13 @@ mod tests {
       .unwrap();
 
     let mut query = HashMap::new();
-    query.insert("referenceName".to_string(), "chr2".to_string());
     query.insert("format".to_string(), "BAM".to_string());
+    query.insert("class".to_string(), "header".to_string());
 
     let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
-    assert!(result.is_err());
+    assert!(result.is_ok());
   }
 
   #[cfg(feature = "experimental")]
