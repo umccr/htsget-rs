@@ -2337,6 +2337,7 @@ name = "htsget-actix"
 version = "0.11.1"
 dependencies = [
  "actix-cors",
+ "actix-utils",
  "actix-web",
  "async-trait",
  "axum",
@@ -2514,6 +2515,7 @@ dependencies = [
  "aws-sdk-s3",
  "axum",
  "base64 0.22.1",
+ "cfg-if",
  "chrono",
  "crypt4gh",
  "futures",

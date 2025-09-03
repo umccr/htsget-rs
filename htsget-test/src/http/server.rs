@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 
@@ -14,8 +15,11 @@ use serde_json::{Value, json};
 use crate::http::{Header, Response, TestRequest, TestServer};
 
 /// Test response with with class.
-pub async fn test_response<R>(response: Response, class: Class)
-where
+pub async fn test_response<R>(
+  response: Response,
+  class: Class,
+  additional_fields: HashMap<String, Value>,
+) where
   R: for<'de> Deserialize<'de> + Eq + Debug,
 {
   println!(
@@ -25,7 +29,11 @@ where
   assert!(response.is_success());
   let body = response.deserialize_body::<R>().unwrap();
 
-  let expected_response = expected_response(class, response.expected_url_path);
+  let mut expected_response = expected_response(class, response.expected_url_path);
+  for (key, value) in additional_fields {
+    expected_response["htsget"][key] = value;
+  }
+
   assert_eq!(
     body,
     serde_json::from_value(expected_response.clone()).unwrap()
@@ -103,6 +111,7 @@ where
         .uri("/variants/2-vcf/sample1-bcbio-cancer"),
     ],
     Class::Body,
+    Default::default(),
   )
   .await;
 }
@@ -130,6 +139,7 @@ pub(crate) async fn test_responses<R, T>(
   tester: &impl TestServer<T>,
   requests: Vec<T>,
   class: Class,
+  additional_fields: HashMap<String, Value>,
 ) where
   T: TestRequest,
   R: for<'de> Deserialize<'de> + Eq + Debug,
@@ -138,7 +148,7 @@ pub(crate) async fn test_responses<R, T>(
 
   for request in requests.into_iter() {
     let response = tester.test_server(request, expected_path.clone()).await;
-    test_response::<R>(response, class).await;
+    test_response::<R>(response, class, additional_fields.clone()).await;
   }
 }
 
@@ -167,6 +177,7 @@ where
       post_request_two(tester).set_payload("{}"),
     ],
     Class::Body,
+    Default::default(),
   )
   .await;
 }
@@ -190,6 +201,7 @@ where
         .uri("/variants/2-vcf/sample1-bcbio-cancer?format=VCF&class=header"),
     ],
     Class::Header,
+    Default::default(),
   )
   .await;
 }
@@ -209,6 +221,7 @@ where
         .set_payload("{\"format\": \"VCF\", \"regions\": [{\"referenceName\": \"chrM\"}]}"),
     ],
     Class::Body,
+    Default::default(),
   )
   .await;
 }
@@ -230,6 +243,7 @@ where
     )
   ],
     Class::Header,
+    Default::default(),
   )
   .await;
 }

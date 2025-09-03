@@ -2,7 +2,7 @@
 //!
 
 use crate::error::Result;
-use crate::middleware::auth::AuthLayer;
+use crate::middleware::auth::AuthenticationLayer;
 use crate::server::{BindServer, Server, configure_cors};
 use axum::Router;
 use htsget_config::config::advanced::auth::AuthConfig;
@@ -45,18 +45,23 @@ impl DataServer {
     auth: Option<AuthConfig>,
     path: P,
   ) -> Result<Router> {
-    let router = Router::new()
-      .fallback_service(ServeDir::new(path))
-      .layer(configure_cors(cors))
-      .layer(TraceLayer::new_for_http());
+    let mut router = Router::new().fallback_service(ServeDir::new(path));
 
-    if let Some(auth) = auth {
-      Ok(router.layer(AuthLayer::from(
+    // The auth layer needs to be added first so that layers like the CorsLayer
+    // can respond to `Options` requests first and without auth.
+    router = if let Some(auth) = auth {
+      router.layer(AuthenticationLayer::from(
         AuthBuilder::default().with_config(auth).build()?,
-      )))
+      ))
     } else {
-      Ok(router)
-    }
+      router
+    };
+
+    Ok(
+      router
+        .layer(configure_cors(cors))
+        .layer(TraceLayer::new_for_http()),
+    )
   }
 
   /// Get the local address the server has bound to.
@@ -185,7 +190,7 @@ mod tests {
   impl Default for DataTestServer {
     fn default() -> Self {
       Self {
-        config: default_test_config(),
+        config: default_test_config(None),
       }
     }
   }

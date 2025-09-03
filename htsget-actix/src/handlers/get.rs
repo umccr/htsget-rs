@@ -4,16 +4,14 @@ use actix_web::{
   HttpRequest, Responder,
   web::{Data, Path, Query},
 };
+use htsget_http::{Endpoint, get};
+use htsget_search::HtsGet;
 use tracing::info;
 use tracing::instrument;
 
-use htsget_http::{Endpoint, get};
-use htsget_search::HtsGet;
-
+use super::handle_response;
 use crate::AppState;
 use crate::handlers::extract_request;
-
-use super::handle_response;
 
 /// GET request reads endpoint
 #[instrument(skip(app_state))]
@@ -27,7 +25,15 @@ pub async fn reads<H: HtsGet + Clone + Send + Sync + 'static>(
 
   info!(request = ?request, "reads endpoint GET request");
 
-  handle_response(get(app_state.get_ref().htsget.clone(), request, Endpoint::Reads).await)
+  handle_response(
+    get(
+      app_state.get_ref().htsget.clone(),
+      request,
+      Endpoint::Reads,
+      app_state.auth.clone(),
+    )
+    .await,
+  )
 }
 
 /// GET request variants endpoint
@@ -47,6 +53,7 @@ pub async fn variants<H: HtsGet + Clone + Send + Sync + 'static>(
       app_state.get_ref().htsget.clone(),
       request,
       Endpoint::Variants,
+      app_state.auth.clone(),
     )
     .await,
   )

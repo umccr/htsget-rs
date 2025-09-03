@@ -1,10 +1,7 @@
 //! Types related to htsget like formats, reference names, classes or intervals.
 //!
 
-use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Display, Formatter};
-use std::{fmt, io, result};
-
+use crate::config::advanced::auth::AuthorizationRule;
 #[cfg(feature = "experimental")]
 use crate::encryption_scheme::EncryptionScheme;
 use crate::error::Error;
@@ -14,6 +11,10 @@ use noodles::core::Position;
 use noodles::core::region::Interval as NoodlesInterval;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::cmp::{Ordering, max, min};
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Display, Formatter};
+use std::{fmt, io, result};
 use thiserror::Error;
 use tracing::instrument;
 
@@ -134,25 +135,61 @@ pub struct Interval {
 }
 
 impl Interval {
-  /// Does this interval contain the passed in interval.
-  pub fn contains_interval(&self, other: Interval) -> bool {
-    let check_containment =
-      |self_bound, other_bound, is_start: bool| match (self_bound, other_bound) {
-        (None, _) => true,
-        (Some(_), None) => false,
-        (Some(self_val), Some(other_val)) => {
-          if is_start {
-            self_val <= other_val
-          } else {
-            self_val >= other_val
-          }
+  /// Does this interval contain the passed in interval. Returns the passed in interval if true.
+  pub fn contains_interval(&self, other: Interval) -> Option<Self> {
+    match self.constraint_interval(other) {
+      Some(interval) if other == interval => Some(interval),
+      _ => None,
+    }
+  }
+
+  /// Constraint this interval so that it contains the maximum overlapping region between
+  /// the two intervals. This will reduce the range of either interval so that the returned
+  /// interval contains start and end ranges valid to both intervals. No interval is returned
+  /// if there are no valid ranges.
+  pub fn constraint_interval(&self, other: Interval) -> Option<Self> {
+    let constrain = |self_bound, other_bound, is_start: bool| match (self_bound, other_bound) {
+      (None, None) => None,
+      (None, other_val @ Some(_)) => other_val,
+      (self_val @ Some(_), None) => self_val,
+      (Some(self_val), Some(other_val)) => {
+        if is_start {
+          Some(max(self_val, other_val))
+        } else {
+          Some(min(self_val, other_val))
         }
-      };
+      }
+    };
 
-    let start_contains = check_containment(self.start, other.start, true);
-    let end_contains = check_containment(self.end, other.end, false);
+    let start = constrain(self.start, other.start, true);
+    let end = constrain(self.end, other.end, false);
 
-    start_contains && end_contains
+    let interval = Self::new(start, end);
+    if interval.is_valid() {
+      Some(interval)
+    } else {
+      None
+    }
+  }
+
+  /// Order the interval with another interval based on the range that either specify.
+  /// The interval with the larger range (end - start) is considered greater.
+  pub fn order_by_range(&self, other: &Interval) -> Ordering {
+    let self_range = self.end.unwrap_or(u32::MAX) - self.start.unwrap_or(u32::MIN);
+    let other_range = other.end.unwrap_or(u32::MAX) - other.start.unwrap_or(u32::MIN);
+
+    self_range.cmp(&other_range)
+  }
+
+  /// Is this a valid interval, i.e. is the start range less than the end range.
+  pub fn is_valid(&self) -> bool {
+    if let (Some(ref start), Some(ref end)) = (self.start, self.end) {
+      if start >= end {
+        return false;
+      }
+    }
+
+    true
   }
 
   /// Check if this interval contains the value.
@@ -290,6 +327,69 @@ impl Default for Tags {
 #[serde(deny_unknown_fields)]
 pub struct NoTags(pub Option<HashSet<String>>);
 
+/// A suppressed request has start/end intervals reduced because of authorization
+/// restrictions.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SuppressedRequest {
+  matching_rules: Vec<AuthorizationRule>,
+  constrained_interval: Option<Interval>,
+  empty_response: bool,
+  add_hint: bool,
+}
+
+impl SuppressedRequest {
+  /// Create a new suppressed request.
+  pub fn new(
+    matching_rules: Vec<AuthorizationRule>,
+    constrained_interval: Option<Interval>,
+    empty_response: bool,
+    add_hint: bool,
+  ) -> Self {
+    Self {
+      matching_rules,
+      constrained_interval,
+      empty_response,
+      add_hint,
+    }
+  }
+
+  /// Get the matching rules.
+  pub fn matching_rules(&self) -> &[AuthorizationRule] {
+    self.matching_rules.as_ref()
+  }
+
+  /// Take the matching rules out of this request.
+  pub fn take_matching_rules(&mut self) -> Vec<AuthorizationRule> {
+    self.matching_rules.drain(..).collect()
+  }
+
+  /// Get the constrained interval.
+  pub fn constrained_interval(&self) -> Option<&Interval> {
+    self.constrained_interval.as_ref()
+  }
+
+  /// Set the interval inside the query parameters.
+  pub fn set_constrained_interval(&mut self, interval: Interval) {
+    self.constrained_interval = Some(interval);
+  }
+
+  /// Set the matching rules.
+  pub fn set_matching_rules(&mut self, rules: Vec<AuthorizationRule>) {
+    self.matching_rules = rules;
+  }
+
+  /// Whether to return an empty response because nothing allows the user to see any
+  /// regions.
+  pub fn empty_response(&self) -> bool {
+    self.empty_response
+  }
+
+  /// Whether a hint should be added to the htsget response.
+  pub fn add_hint(&self) -> bool {
+    self.add_hint
+  }
+}
+
 /// A struct containing the information from the HTTP request.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Request {
@@ -323,6 +423,11 @@ impl Request {
     &self.query
   }
 
+  /// Get the query as a mutable reference.
+  pub fn query_mut(&mut self) -> &mut HashMap<String, String> {
+    &mut self.query
+  }
+
   /// Get the headers.
   pub fn headers(&self) -> &HeaderMap {
     &self.headers
@@ -345,6 +450,7 @@ pub struct Query {
   no_tags: NoTags,
   /// The raw HTTP request information.
   request: Request,
+  matching_rules: Option<Vec<AuthorizationRule>>,
   #[cfg(feature = "experimental")]
   encryption_scheme: Option<EncryptionScheme>,
 }
@@ -385,8 +491,13 @@ impl Query {
 
   /// Set the class.
   pub fn with_class(mut self, class: Class) -> Self {
-    self.class = class;
+    self.set_class(class);
     self
+  }
+
+  /// Set the class.
+  pub fn set_class(&mut self, class: Class) {
+    self.class = class;
   }
 
   /// Set the reference name.
@@ -405,6 +516,17 @@ impl Query {
   pub fn with_end(mut self, end: u32) -> Self {
     self.interval.end = Some(end);
     self
+  }
+
+  /// Set the interval.
+  pub fn with_interval(mut self, interval: Interval) -> Self {
+    self.set_interval(interval);
+    self
+  }
+
+  /// Set the interval.
+  pub fn set_interval(&mut self, interval: Interval) {
+    self.interval = interval;
   }
 
   /// Set the interval.
@@ -470,6 +592,11 @@ impl Query {
   /// Request.
   pub fn request(&self) -> &Request {
     &self.request
+  }
+
+  /// Set the matching rules.
+  pub fn set_matching_rules(&mut self, matching_rules: Vec<AuthorizationRule>) {
+    self.matching_rules = Some(matching_rules);
   }
 
   /// Set the encryption scheme.
@@ -693,6 +820,13 @@ impl JsonResponse {
   pub fn new(htsget: Response) -> Self {
     Self { htsget }
   }
+
+  #[cfg(feature = "experimental")]
+  /// Set the allowed restrictions.
+  pub fn with_allowed(mut self, allowed: Option<Vec<AuthorizationRule>>) -> Self {
+    self.htsget = self.htsget.with_allowed(allowed);
+    self
+  }
 }
 
 impl From<Response> for JsonResponse {
@@ -707,12 +841,27 @@ impl From<Response> for JsonResponse {
 pub struct Response {
   pub format: Format,
   pub urls: Vec<Url>,
+  #[cfg(feature = "experimental")]
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub allowed: Option<Vec<AuthorizationRule>>,
 }
 
 impl Response {
   /// Create a new `Response`.
   pub fn new(format: Format, urls: Vec<Url>) -> Self {
-    Self { format, urls }
+    Self {
+      format,
+      urls,
+      #[cfg(feature = "experimental")]
+      allowed: None,
+    }
+  }
+
+  #[cfg(feature = "experimental")]
+  /// Set the allowed restrictions.
+  pub fn with_allowed(mut self, allowed: Option<Vec<AuthorizationRule>>) -> Self {
+    self.allowed = allowed;
+    self
   }
 }
 
@@ -793,46 +942,104 @@ mod tests {
   }
 
   #[test]
-  fn interval_contains_interval() {
+  fn interval_constrain_and_contains() {
     let outer = Interval::new(Some(10), Some(20));
     let inner = Interval::new(Some(12), Some(18));
-    assert!(outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(12), Some(18)))
+    );
+    assert_eq!(
+      outer.contains_interval(inner),
+      Some(Interval::new(Some(12), Some(18)))
+    );
 
     let outer = Interval::new(Some(10), Some(20));
     let inner = Interval::new(Some(10), Some(20));
-    assert!(outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(10), Some(20)))
+    );
+    assert_eq!(
+      outer.contains_interval(inner),
+      Some(Interval::new(Some(10), Some(20)))
+    );
 
     let outer = Interval::new(Some(10), Some(20));
     let inner = Interval::new(Some(5), Some(15));
-    assert!(!outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(10), Some(15)))
+    );
+    assert_eq!(outer.contains_interval(inner), None);
 
     let outer = Interval::new(Some(10), Some(20));
     let inner = Interval::new(Some(15), Some(25));
-    assert!(!outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(15), Some(20)))
+    );
+    assert_eq!(outer.contains_interval(inner), None);
 
     let outer = Interval::new(None, Some(20));
     let inner = Interval::new(Some(10), Some(15));
-    assert!(outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(10), Some(15)))
+    );
+    assert_eq!(
+      outer.contains_interval(inner),
+      Some(Interval::new(Some(10), Some(15)))
+    );
 
     let outer = Interval::new(Some(10), None);
     let inner = Interval::new(Some(15), Some(25));
-    assert!(outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(15), Some(25)))
+    );
+    assert_eq!(
+      outer.contains_interval(inner),
+      Some(Interval::new(Some(15), Some(25)))
+    );
 
     let outer = Interval::new(None, None);
     let inner = Interval::new(Some(10), Some(20));
-    assert!(outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(10), Some(20)))
+    );
+    assert_eq!(
+      outer.contains_interval(inner),
+      Some(Interval::new(Some(10), Some(20)))
+    );
 
     let outer = Interval::new(Some(10), Some(20));
     let inner = Interval::new(None, Some(15));
-    assert!(!outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(10), Some(15)))
+    );
+    assert_eq!(outer.contains_interval(inner), None);
 
     let outer = Interval::new(Some(10), Some(20));
     let inner = Interval::new(Some(15), None);
-    assert!(!outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(Some(15), Some(20)))
+    );
+    assert_eq!(outer.contains_interval(inner), None);
 
     let outer = Interval::new(None, None);
     let inner = Interval::new(None, None);
-    assert!(outer.contains_interval(inner));
+    assert_eq!(
+      outer.constraint_interval(inner),
+      Some(Interval::new(None, None))
+    );
+    assert_eq!(
+      outer.contains_interval(inner),
+      Some(Interval::new(None, None))
+    );
   }
 
   #[test]

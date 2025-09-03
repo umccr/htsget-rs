@@ -1,17 +1,14 @@
-use std::collections::HashMap;
-
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
-use http::HeaderMap;
-
 use htsget_http::{Endpoint, PostRequest, post};
 use htsget_search::HtsGet;
+use http::HeaderMap;
+use std::collections::HashMap;
 
-use crate::handlers::extract_request;
 use crate::server::AppState;
 
-use super::handle_response;
+use super::{extract_request, handle_response};
 
 /// POST request reads endpoint.
 pub async fn reads<H: HtsGet + Clone + Send + Sync + 'static>(
@@ -23,7 +20,16 @@ pub async fn reads<H: HtsGet + Clone + Send + Sync + 'static>(
 ) -> impl IntoResponse {
   let request = extract_request(request, path, headers);
 
-  handle_response(post(app_state.htsget, body, request, Endpoint::Reads).await)
+  handle_response(
+    post(
+      app_state.htsget,
+      body,
+      request,
+      Endpoint::Reads,
+      app_state.auth_middleware,
+    )
+    .await,
+  )
 }
 
 /// POST request variants endpoint.
@@ -36,5 +42,14 @@ pub async fn variants<H: HtsGet + Clone + Send + Sync + 'static>(
 ) -> impl IntoResponse {
   let request = extract_request(request, path, headers);
 
-  handle_response(post(app_state.htsget, body, request, Endpoint::Variants).await)
+  handle_response(
+    post(
+      app_state.htsget,
+      body,
+      request,
+      Endpoint::Variants,
+      app_state.auth_middleware,
+    )
+    .await,
+  )
 }

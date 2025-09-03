@@ -91,6 +91,11 @@ impl HtsGetError {
     htsget_http::HtsGetError::InvalidRange(err).into()
   }
 
+  /// Create a method not allowed error.
+  pub fn method_not_allowed(err: String) -> HtsGetError {
+    htsget_http::HtsGetError::MethodNotAllowed(err).into()
+  }
+
   /// Create an internal error.
   pub fn internal_error(err: String) -> HtsGetError {
     htsget_http::HtsGetError::InternalError(err).into()

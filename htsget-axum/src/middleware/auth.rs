@@ -1,54 +1,52 @@
 //! Authentication middleware for htsget-axum.
 //!
 
-use crate::error::{HtsGetError, HtsGetResult};
-use axum::RequestExt;
-use axum::extract::{Query, Request};
+use crate::error::HtsGetError;
+use axum::extract::Request;
 use axum::response::{IntoResponse, Response};
 use futures::future::BoxFuture;
 use htsget_http::middleware::auth::Auth;
-use http::HeaderMap;
-use std::collections::HashMap;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-impl From<Auth> for AuthLayer {
+impl From<Auth> for AuthenticationLayer {
   fn from(auth: Auth) -> Self {
     Self { inner: auth }
   }
 }
 
-/// A wrapper around the authorization layer.
+/// A wrapper around the authentication layer.
 #[derive(Clone)]
-pub struct AuthLayer {
+pub struct AuthenticationLayer {
   inner: Auth,
 }
 
-impl AuthLayer {
+impl AuthenticationLayer {
   /// Get the inner auth layer.
   pub fn inner(&self) -> &Auth {
     &self.inner
   }
 }
 
-impl<S> Layer<S> for AuthLayer {
-  type Service = AuthMiddleware<S>;
+impl<S> Layer<S> for AuthenticationLayer {
+  type Service = AuthenticationMiddleware<S>;
 
   fn layer(&self, inner: S) -> Self::Service {
-    AuthMiddleware::new(inner, self.clone())
+    AuthenticationMiddleware::new(inner, self.clone())
   }
 }
 
-/// A wrapper around the authorization middleware.
+/// A wrapper around the authentication middleware. This middleware only handles
+/// authentication of a JWT token.
 #[derive(Clone)]
-pub struct AuthMiddleware<S> {
+pub struct AuthenticationMiddleware<S> {
   inner: S,
-  layer: AuthLayer,
+  layer: AuthenticationLayer,
 }
 
-impl<S> AuthMiddleware<S> {
+impl<S> AuthenticationMiddleware<S> {
   /// Create a new middleware auth.
-  pub fn new(inner: S, layer: AuthLayer) -> Self {
+  pub fn new(inner: S, layer: AuthenticationLayer) -> Self {
     Self { inner, layer }
   }
 
@@ -58,32 +56,12 @@ impl<S> AuthMiddleware<S> {
   }
 
   /// Get the layer.
-  pub fn layer(&self) -> &AuthLayer {
+  pub fn layer(&self) -> &AuthenticationLayer {
     &self.layer
-  }
-
-  /// Validate the request using the htsget-http validator.
-  pub async fn validate_authorization(&self, request: &mut Request) -> HtsGetResult<()> {
-    let query = request
-      .extract_parts::<Query<HashMap<String, String>>>()
-      .await
-      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
-    let headers = request
-      .extract_parts::<HeaderMap>()
-      .await
-      .map_err(|err| HtsGetError::permission_denied(err.to_string()))?;
-
-    Ok(
-      self
-        .layer
-        .inner
-        .authorize_request(request.uri().path(), query.0, headers)
-        .await?,
-    )
   }
 }
 
-impl<S> Service<Request> for AuthMiddleware<S>
+impl<S> Service<Request> for AuthenticationMiddleware<S>
 where
   S: Service<Request, Response = Response> + Clone + Send + 'static + Sync,
   S::Future: Send + 'static,
@@ -96,18 +74,17 @@ where
     self.inner.poll_ready(cx)
   }
 
-  fn call(&mut self, mut request: Request) -> Self::Future {
+  fn call(&mut self, request: Request) -> Self::Future {
     let clone = self.clone();
     // The inner service must be ready so we replace it with the cloned value.
     // See https://docs.rs/tower/latest/tower/trait.Service.html#be-careful-when-cloning-inner-services
     let mut self_owned = std::mem::replace(self, clone);
     Box::pin(async move {
-      if let Err(err) = self_owned.validate_authorization(&mut request).await {
-        return Ok(err.into_response());
+      if let Err(err) = self_owned.layer.inner.validate_jwt(request.headers()).await {
+        return Ok(HtsGetError::from(err).into_response());
       }
 
-      let response: Response = self_owned.inner.call(request).await?;
-      Ok(response)
+      self_owned.inner.call(request).await
     })
   }
 }

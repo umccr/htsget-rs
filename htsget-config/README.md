@@ -422,8 +422,8 @@ following JSON structure, indicating whether the request is allowed, and any reg
         {
           "name": "chr1",
           "format": "BAM",
-          "start": 100,
-          "end": 1000
+          "start": 1000,
+          "end": 2000
         }
       ]
     }
@@ -431,10 +431,74 @@ following JSON structure, indicating whether the request is allowed, and any reg
 }
 ```
 
-The authorization server is allowed to respond with multiple paths that the user is allowed to access. Each path can 
-also be a regex that matches ids like the [regex resolvers](#regex-based-location). A full JSON schema defining this
-format is available under [auth.json][auth-json]. An [example][auth-example] configuration file is available in the
-examples directory.
+These restrictions act as a whitelist of allowed regions that the user has access to. The authorization server is
+allowed to respond with multiple paths that the user is allowed to access. Each path can also be a regex that matches
+ids like the [regex resolvers](#regex-based-location). A full JSON schema defining this format is available under [auth.json][auth-json].
+An [example][auth-example] configuration file is available in the examples directory.
+
+With this authorization logic, the server will respond with a `403 Forbidden` error if any of the requested reference
+names are not allowed according to the restrictions. For example, if using the above JSON restrictions, a user
+requesting `?referenceName=chr1&format=BAM&start=500&end=1500` will receive a `403` error, even though part of the range
+is satisfiable (i.e. according to the restrictions, from `start=1000` to `end=1500`). In order to address this issue, the
+following flag can be enabled under the `auth` table:
+
+| Option            | Description                                                                                      | Type    | Default |
+|-------------------|--------------------------------------------------------------------------------------------------|---------|---------|
+| `suppress_errors` | Return any available regions according to restrictions, even if the full request is not allowed. | Boolean | `false` |
+| `add_hint`        | Add a hint to the ticket response that indicates which regions the client is allowed to view.    | Boolean | `true`  |
+
+To enable this option, htsget-rs needs to be compiled with `--features experimental` as suppressed errors lead to as
+many regions as possible being returned, which may not follow the htsget protocol. When this option is used, the
+above example with the request: `?referenceName=chr1&format=BAM&start=500&end=1500`, would return reads between `start=1000`
+and `end=1500` for the reference name. Additionally, there will be another field present in the JSON response which hints
+to clients that the full range was not satisfied because of authorization restrictions:
+
+```json
+{
+  "htsget": {
+    "format": "BAM",
+    "urls": [<list of urls...>],
+    "allowed": [
+      {
+        "name": "chr1",
+        "format": "BAM",
+        "start": 1000,
+        "end": 2000
+      }
+    ] 
+  }
+}            
+```
+
+The `allowed` field echos the rule defined in the restrictions, and allows clients to plan for a partially returned
+response. This field can be removed by setting `add_hint = false` in the `auth` table.
+
+The following diagram shows how the suppressed response behaves given restrictions based on the start and end restrictions
+and the requested range. The response shows the data that the user will receive.
+
+```
+Restriction:                 1000----------2000
+Request:             500------------1500
+Resulting response:          1000---1500
+
+Restriction:                 1000----------2000
+Request:                            1500------------2500
+Resulting response:                 1500---2000
+
+Restriction:                 1000----------2000
+Request:             500-----1000
+Resulting response:          empty header only
+```
+
+If `suppress_errors = true` was not used, all the above requests would result in an error instead.
+
+Note that when using `suppress_errors = true`, when a client is not authorization to view any of the requested regions,
+a non-error response is still returned with an empty response containing the file header. For example, if the
+client was not authorized to view `chr1` at all, the response would return urls that correspond to a valid file
+(with the file header and EOF block), but no actual reads data. Authorization error responses are still returned if the
+JWT is invalid or the client is not allowed to view the requested `<id>` path. Parameters are only checked for validity
+after authorizing the request, so invalid requests may return an unauthorized or forbidden response instead of a bad
+request if the user lacks authorization.
 
 [auth-json]: docs/schemas/auth.schema.json
 [auth-example]: docs/examples/auth.toml
@@ -462,7 +526,7 @@ See the MinIO deployment [example][minio-deployment] for more information on how
 
 ### Crypt4GH
 
-There is experimental support for serving [Crypt4GH][c4gh] encrypted files.
+There is experimental support for serving [Crypt4GH][c4gh] encrypted files which required compilation with `--features experimental`.
 
 This allows htsget-rs to read Crypt4GH files and serve them encrypted, directly to the client. In the process of
 serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and re-encrypt them so that the client can read
@@ -552,7 +616,8 @@ regex, and changing it by using a substitution string. Advanced configuration op
 This crate has the following features:
 * `aws`: used to enable `S3` location functionality and any other AWS features.
 * `url`: used to enable `Url` location functionality.
-* `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
+* `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`,
+                  or suppressed errors when using authorization logic.
 
 ## License
 
