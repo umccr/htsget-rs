@@ -9,7 +9,7 @@ use htsget_http::middleware::auth::Auth;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-impl From<Auth> for AuthLayer {
+impl From<Auth> for AuthenticationLayer {
   fn from(auth: Auth) -> Self {
     Self { inner: auth }
   }
@@ -17,35 +17,36 @@ impl From<Auth> for AuthLayer {
 
 /// A wrapper around the authentication layer.
 #[derive(Clone)]
-pub struct AuthLayer {
+pub struct AuthenticationLayer {
   inner: Auth,
 }
 
-impl AuthLayer {
+impl AuthenticationLayer {
   /// Get the inner auth layer.
   pub fn inner(&self) -> &Auth {
     &self.inner
   }
 }
 
-impl<S> Layer<S> for AuthLayer {
-  type Service = AuthMiddleware<S>;
+impl<S> Layer<S> for AuthenticationLayer {
+  type Service = AuthenticationMiddleware<S>;
 
   fn layer(&self, inner: S) -> Self::Service {
-    AuthMiddleware::new(inner, self.clone())
+    AuthenticationMiddleware::new(inner, self.clone())
   }
 }
 
-/// A wrapper around the auth middleware.
+/// A wrapper around the authentication middleware. This middleware only handles
+/// authentication of a JWT token.
 #[derive(Clone)]
-pub struct AuthMiddleware<S> {
+pub struct AuthenticationMiddleware<S> {
   inner: S,
-  layer: AuthLayer,
+  layer: AuthenticationLayer,
 }
 
-impl<S> AuthMiddleware<S> {
+impl<S> AuthenticationMiddleware<S> {
   /// Create a new middleware auth.
-  pub fn new(inner: S, layer: AuthLayer) -> Self {
+  pub fn new(inner: S, layer: AuthenticationLayer) -> Self {
     Self { inner, layer }
   }
 
@@ -55,12 +56,12 @@ impl<S> AuthMiddleware<S> {
   }
 
   /// Get the layer.
-  pub fn layer(&self) -> &AuthLayer {
+  pub fn layer(&self) -> &AuthenticationLayer {
     &self.layer
   }
 }
 
-impl<S> Service<Request> for AuthMiddleware<S>
+impl<S> Service<Request> for AuthenticationMiddleware<S>
 where
   S: Service<Request, Response = Response> + Clone + Send + 'static + Sync,
   S::Future: Send + 'static,

@@ -620,63 +620,451 @@ mod tests {
 
   #[test]
   fn validate_restrictions_interval_not_contained() {
-    let reference_restriction = ReferenceNameRestrictionBuilder::default()
-      .name("chr1")
-      .format(Format::Bam)
-      .start(1000)
-      .end(2000)
-      .build()
-      .unwrap();
-    let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
-      .reference_name(reference_restriction)
-      .build()
-      .unwrap();
-    let restrictions = AuthorizationRestrictionsBuilder::default()
-      .rule(rule.clone())
-      .build()
-      .unwrap();
+    // Restriction:       1000----------2000
+    // Request:               1250--1750
+    // Result:                1250--1750
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(1250),
+      Some(1750),
+      (Interval::new(Some(1250), Some(1750)), Class::Body),
+      false,
+      false,
+    );
 
-    let mut query = HashMap::new();
-    query.insert("referenceName".to_string(), "chr1".to_string());
-    query.insert("start".to_string(), "500".to_string());
-    query.insert("end".to_string(), "1500".to_string());
+    // Restriction:       1000----------2000
+    // Request:   500------------------------------->
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(500),
+      None,
+      (Interval::new(Some(500), None), Class::Body),
+      true,
+      false,
+    );
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
-    let result =
-      Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
-    assert!(result.is_err());
+    // Restriction:       1000----------2000
+    // Request:   <------------------------------2500
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      None,
+      Some(2500),
+      (Interval::new(None, Some(2500)), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:   <--------------------------------->
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      None,
+      None,
+      (Interval::new(None, None), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:   500------------1500
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(500),
+      Some(1500),
+      (Interval::new(Some(500), Some(1500)), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:   <--------------1500
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      None,
+      Some(1500),
+      (Interval::new(None, Some(1500)), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:                  1500------------2500
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(1500),
+      Some(2500),
+      (Interval::new(Some(1500), Some(2500)), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:                  1500--------------->
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(1500),
+      None,
+      (Interval::new(Some(1500), None), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:   500-----1000
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(500),
+      Some(1000),
+      (Interval::new(Some(500), Some(1000)), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:                         2000-----2500
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(2000),
+      Some(2500),
+      (Interval::new(Some(2000), Some(2500)), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       <-------------2000
+    // Request:   500------------1500
+    // Result:    500------------1500
+    test_interval_suppressed(
+      None,
+      Some(2000),
+      Some(500),
+      Some(1500),
+      (Interval::new(Some(500), Some(1500)), Class::Body),
+      false,
+      false,
+    );
+
+    // Restriction:       <-------------2000
+    // Request:                  1500------------2500
+    // Result:                   err
+    test_interval_suppressed(
+      None,
+      Some(2000),
+      Some(1500),
+      Some(2500),
+      (Interval::new(Some(1500), Some(2500)), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       1000------------->
+    // Request:                  1500------------2500
+    // Result:                   1500------------2500
+    test_interval_suppressed(
+      Some(1000),
+      None,
+      Some(1500),
+      Some(2500),
+      (Interval::new(Some(1500), Some(2500)), Class::Body),
+      false,
+      false,
+    );
+
+    // Restriction:       1000------------->
+    // Request:   500------------1500
+    // Result:                   err
+    test_interval_suppressed(
+      Some(1000),
+      None,
+      Some(500),
+      Some(1500),
+      (Interval::new(Some(500), Some(1500)), Class::Body),
+      true,
+      false,
+    );
+
+    // Restriction:       <---------------->
+    // Request:   500----------------------------2500
+    // Result:    500----------------------------2500
+    test_interval_suppressed(
+      None,
+      None,
+      Some(500),
+      Some(2500),
+      (Interval::new(Some(500), Some(2500)), Class::Body),
+      false,
+      false,
+    );
+
+    // Restriction:       <---------------->
+    // Request:   500------------------------------->
+    // Result:    500------------------------------->
+    test_interval_suppressed(
+      None,
+      None,
+      Some(500),
+      None,
+      (Interval::new(Some(500), None), Class::Body),
+      false,
+      false,
+    );
+
+    // Restriction:       <---------------->
+    // Request:   <------------------------------2500
+    // Result:    <------------------------------2500
+    test_interval_suppressed(
+      None,
+      None,
+      None,
+      Some(2500),
+      (Interval::new(None, Some(2500)), Class::Body),
+      false,
+      false,
+    );
   }
 
   #[cfg(feature = "experimental")]
   #[test]
-  fn validate_restrictions_interval_not_contained_suppressed() {
-    let reference_restriction = ReferenceNameRestrictionBuilder::default()
-      .name("chr1")
-      .format(Format::Bam)
-      .start(1000)
-      .end(2000)
-      .build()
-      .unwrap();
-    let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
-      .reference_name(reference_restriction)
-      .build()
-      .unwrap();
-    let restrictions = AuthorizationRestrictionsBuilder::default()
-      .rule(rule.clone())
-      .build()
-      .unwrap();
+  fn validate_restrictions_interval_suppressed() {
+    // Restriction:       1000----------2000
+    // Request:               1250--1750
+    // Result:                1250--1750
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(1250),
+      Some(1750),
+      (Interval::new(Some(1250), Some(1750)), Class::Body),
+      false,
+      true,
+    );
 
-    let mut query = HashMap::new();
-    query.insert("referenceName".to_string(), "chr1".to_string());
-    query.insert("start".to_string(), "500".to_string());
-    query.insert("end".to_string(), "1500".to_string());
+    // Restriction:       1000----------2000
+    // Request:   500------------------------------->
+    // Result:            1000----------2000
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(500),
+      None,
+      (Interval::new(Some(1000), Some(2000)), Class::Body),
+      false,
+      true,
+    );
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
-    let result =
-      Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], true);
-    assert!(result.is_ok())
+    // Restriction:       1000----------2000
+    // Request:   <------------------------------2500
+    // Result:            1000----------2000
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      None,
+      Some(2500),
+      (Interval::new(Some(1000), Some(2000)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:   <--------------------------------->
+    // Result:            1000----------2000
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      None,
+      None,
+      (Interval::new(Some(1000), Some(2000)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:   500------------1500
+    // Result:            1000---1500
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(500),
+      Some(1500),
+      (Interval::new(Some(1000), Some(1500)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:   <--------------1500
+    // Result:            1000---1500
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      None,
+      Some(1500),
+      (Interval::new(Some(1000), Some(1500)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:                  1500------------2500
+    // Result:                   1500---2000
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(1500),
+      Some(2500),
+      (Interval::new(Some(1500), Some(2000)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:                  1500--------------->
+    // Result:                   1500---2000
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(1500),
+      None,
+      (Interval::new(Some(1500), Some(2000)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:   500-----1000
+    // Result:            -
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(500),
+      Some(1000),
+      (Interval::new(Some(500), Some(1000)), Class::Header),
+      false,
+      true,
+    );
+
+    // Restriction:       1000----------2000
+    // Request:                         2000-----2500
+    // Result:                          -
+    test_interval_suppressed(
+      Some(1000),
+      Some(2000),
+      Some(2000),
+      Some(2500),
+      (Interval::new(Some(2000), Some(2500)), Class::Header),
+      false,
+      true,
+    );
+
+    // Restriction:       <-------------2000
+    // Request:   500------------1500
+    // Result:    500------------1500
+    test_interval_suppressed(
+      None,
+      Some(2000),
+      Some(500),
+      Some(1500),
+      (Interval::new(Some(500), Some(1500)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       <-------------2000
+    // Request:                  1500------------2500
+    // Result:                   1500---2000
+    test_interval_suppressed(
+      None,
+      Some(2000),
+      Some(1500),
+      Some(2500),
+      (Interval::new(Some(1500), Some(2000)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       1000------------->
+    // Request:                  1500------------2500
+    // Result:                   1500------------2500
+    test_interval_suppressed(
+      Some(1000),
+      None,
+      Some(1500),
+      Some(2500),
+      (Interval::new(Some(1500), Some(2500)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       1000------------->
+    // Request:   500------------1500
+    // Result:            1000---1500
+    test_interval_suppressed(
+      Some(1000),
+      None,
+      Some(500),
+      Some(1500),
+      (Interval::new(Some(1000), Some(1500)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       <---------------->
+    // Request:   500----------------------------2500
+    // Result:    500----------------------------2500
+    test_interval_suppressed(
+      None,
+      None,
+      Some(500),
+      Some(2500),
+      (Interval::new(Some(500), Some(2500)), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       <---------------->
+    // Request:   500------------------------------->
+    // Result:    500------------------------------->
+    test_interval_suppressed(
+      None,
+      None,
+      Some(500),
+      None,
+      (Interval::new(Some(500), None), Class::Body),
+      false,
+      true,
+    );
+
+    // Restriction:       <---------------->
+    // Request:   <------------------------------2500
+    // Result:    <------------------------------2500
+    test_interval_suppressed(
+      None,
+      None,
+      None,
+      Some(2500),
+      (Interval::new(None, Some(2500)), Class::Body),
+      false,
+      true,
+    );
   }
 
   #[test]
@@ -783,5 +1171,54 @@ mod tests {
 
     let config = create_test_auth_config(public_key);
     AuthBuilder::default().with_config(config).build().unwrap()
+  }
+
+  fn test_interval_suppressed(
+    restrict_start: Option<u32>,
+    restrict_end: Option<u32>,
+    request_start: Option<u32>,
+    request_end: Option<u32>,
+    expected_response: (Interval, Class),
+    is_err: bool,
+    suppress_interval: bool,
+  ) {
+    let mut reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam);
+
+    if let Some(start) = restrict_start {
+      reference_restriction = reference_restriction.start(start);
+    }
+    if let Some(end) = restrict_end {
+      reference_restriction = reference_restriction.end(end);
+    }
+
+    let reference_restriction = reference_restriction.build().unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .path("/reads/sample1")
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule.clone())
+      .build()
+      .unwrap();
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    request_start.map(|start| query.insert("start".to_string(), start.to_string()));
+    request_end.map(|end| query.insert("end".to_string(), end.to_string()));
+
+    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let id = request.id().to_string();
+    let mut slice = [request];
+    let result = Auth::validate_restrictions(restrictions, &id, &mut slice, suppress_interval);
+    if is_err {
+      assert!(result.is_err());
+    } else {
+      assert!(result.is_ok());
+    }
+    assert_eq!(slice.first().unwrap().interval(), expected_response.0);
+    assert_eq!(slice.last().unwrap().class(), expected_response.1);
   }
 }
