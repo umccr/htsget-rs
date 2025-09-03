@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.2](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.1...htsget-actix-v0.11.2) - 2025-09-03
+
+### Added
+
+- add auth logic to post requests and always allow headers to succeed
+- add suppressed errors options to axum and actix ticket servers
+
 ## [0.11.1](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.0...htsget-actix-v0.11.1) - 2025-08-21
 
 ### Other
