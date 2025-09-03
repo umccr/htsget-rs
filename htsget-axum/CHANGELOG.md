@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.6.1...htsget-axum-v0.6.2) - 2025-09-03
+
+### Added
+
+- add auth logic to post requests and always allow headers to succeed
+- add suppressed errors options to axum and actix ticket servers
+
+### Fixed
+
+- cors layer should run before auth to handle OPTIONS requests without authentication
+
+### Other
+
+- add more robust start/end range tests and document suppressed errors with diagrams.
+
 ## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.6.0...htsget-axum-v0.6.1) - 2025-08-21
 
 ### Other
