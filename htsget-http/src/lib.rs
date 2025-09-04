@@ -154,10 +154,10 @@ mod tests {
     let request = HashMap::new();
 
     let mut expected_response_headers = Headers::default();
-    expected_response_headers.insert("Range".to_string(), "bytes=0-2596798".to_string());
+    expected_response_headers.insert("Range".to_string(), "bytes=0-986643".to_string());
 
     let request = Request::new(
-      "bam/htsnexus_test_NA12878".to_string(),
+      "bam/seraseq_cebpa_larger".to_string(),
       request,
       Default::default(),
     );
@@ -174,7 +174,7 @@ mod tests {
     request.insert("format".to_string(), "VCF".to_string());
 
     let request = Request::new(
-      "bam/htsnexus_test_NA12878".to_string(),
+      "bam/seraseq_cebpa_larger".to_string(),
       request,
       Default::default(),
     );
@@ -209,7 +209,7 @@ mod tests {
 
   #[tokio::test]
   async fn post_request() {
-    let request = Request::new_with_id("bam/htsnexus_test_NA12878".to_string());
+    let request = Request::new_with_id("bam/seraseq_cebpa_larger".to_string());
     let body = PostRequest {
       format: None,
       class: None,
@@ -221,7 +221,7 @@ mod tests {
     };
 
     let mut expected_response_headers = Headers::default();
-    expected_response_headers.insert("Range".to_string(), "bytes=0-2596798".to_string());
+    expected_response_headers.insert("Range".to_string(), "bytes=0-986643".to_string());
 
     assert_eq!(
       post(get_searcher(), body, request, Endpoint::Reads, None).await,
@@ -231,7 +231,7 @@ mod tests {
 
   #[tokio::test]
   async fn post_variants_request_with_reads_format() {
-    let request = Request::new_with_id("bam/htsnexus_test_NA12878".to_string());
+    let request = Request::new_with_id("bam/seraseq_cebpa_larger".to_string());
     let body = PostRequest {
       format: Some("BAM".to_string()),
       class: None,
@@ -288,7 +288,7 @@ mod tests {
     JsonResponse::from(Response::new(
       Bam,
       vec![
-        Url::new("http://127.0.0.1:8081/bam/htsnexus_test_NA12878.bam".to_string())
+        Url::new("http://127.0.0.1:8081/bam/seraseq_cebpa_larger.bam".to_string())
           .with_headers(headers),
       ],
     ))

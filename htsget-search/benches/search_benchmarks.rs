@@ -45,39 +45,39 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_query(
     &mut group,
     "[LIGHT] Bam query all",
-    Query::new_with_default_request("bam/htsnexus_test_NA12878", Bam),
+    Query::new_with_default_request("bam/seraseq_cebpa_larger", Bam),
   );
   bench_query(
     &mut group,
     "[LIGHT] Bam query specific",
-    Query::new_with_default_request("bam/htsnexus_test_NA12878", Bam)
-      .with_reference_name("11")
+    Query::new_with_default_request("bam/seraseq_cebpa_larger", Bam)
+      .with_reference_name("chr19")
       .with_start(4999977)
       .with_end(5008321),
   );
   bench_query(
     &mut group,
     "[LIGHT] Bam query header",
-    Query::new_with_default_request("bam/htsnexus_test_NA12878", Bam).with_class(Header),
+    Query::new_with_default_request("bam/seraseq_cebpa_larger", Bam).with_class(Header),
   );
 
   bench_query(
     &mut group,
     "[LIGHT] Cram query all",
-    Query::new_with_default_request("cram/htsnexus_test_NA12878", Cram),
+    Query::new_with_default_request("cram/seraseq_cebpa_larger", Cram),
   );
   bench_query(
     &mut group,
     "[LIGHT] Cram query specific",
-    Query::new_with_default_request("cram/htsnexus_test_NA12878", Cram)
-      .with_reference_name("11")
+    Query::new_with_default_request("cram/seraseq_cebpa_larger", Cram)
+      .with_reference_name("chr19")
       .with_start(4999977)
       .with_end(5008321),
   );
   bench_query(
     &mut group,
     "[LIGHT] Cram query header",
-    Query::new_with_default_request("cram/htsnexus_test_NA12878", Cram).with_class(Header),
+    Query::new_with_default_request("cram/seraseq_cebpa_larger", Cram).with_class(Header),
   );
 
   bench_query(

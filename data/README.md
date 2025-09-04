@@ -15,10 +15,10 @@ crypt4gh keygen --sk c4gh/keys/bob.sec --pk c4gh/keys/bob.pub
 Files were encrypted by running:
 
 ```sh
-crypt4gh encrypt --sk c4gh/keys/alice.sec --recipient_pk c4gh/keys/bob.pub < bam/htsnexus_test_NA12878.bam > c4gh/htsnexus_test_NA12878.bam.c4gh
+crypt4gh encrypt --sk c4gh/keys/alice.sec --recipient_pk c4gh/keys/bob.pub < bam/seraseq_cebpa_larger.bam > c4gh/seraseq_cebpa_larger.bam.c4gh
 crypt4gh encrypt --sk c4gh/keys/alice.sec --recipient_pk c4gh/keys/bob.pub < bcf/sample1-bcbio-cancer.bcf > c4gh/sample1-bcbio-cancer.bcf.c4gh
 crypt4gh encrypt --sk c4gh/keys/alice.sec --recipient_pk c4gh/keys/bob.pub < bcf/spec-v4.3.bcf > c4gh/spec-v4.3.bcf.c4gh
-crypt4gh encrypt --sk c4gh/keys/alice.sec --recipient_pk c4gh/keys/bob.pub < cram/htsnexus_test_NA12878.cram > c4gh/htsnexus_test_NA12878.cram.c4gh
+crypt4gh encrypt --sk c4gh/keys/alice.sec --recipient_pk c4gh/keys/bob.pub < cram/seraseq_cebpa_larger.cram > c4gh/seraseq_cebpa_larger.cram.c4gh
 crypt4gh encrypt --sk c4gh/keys/alice.sec --recipient_pk c4gh/keys/bob.pub < vcf/sample1-bcbio-cancer.vcf.gz > c4gh/sample1-bcbio-cancer.vcf.gz.c4gh
 crypt4gh encrypt --sk c4gh/keys/alice.sec --recipient_pk c4gh/keys/bob.pub < vcf/spec-v4.3.vcf.gz > c4gh/spec-v4.3.vcf.gz.c4gh
 ```

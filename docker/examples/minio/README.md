@@ -32,7 +32,7 @@ docker compose up
 Then:
 
 ```sh
-curl http://127.0.0.1:8080/reads/bam/htsnexus_test_NA12878
+curl http://127.0.0.1:8080/reads/bam/seraseq_cebpa_larger
 ```
 
 Outputs:
@@ -43,7 +43,7 @@ Outputs:
     "format": "BAM",
     "urls": [
       {
-        "url": "http://data.minio:9000/bam/htsnexus_test_NA12878.bam?x-id=GetObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=user%2F20240320%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20240320T014007Z&X-Amz-Expires=1000&X-Amz-SignedHeaders=host%3Brange&X-Amz-Signature=33a75bd6363ccbfd5ce8edf7e102a5edff8ca7cee17e3c654db01a880e98072d",
+        "url": "http://data.minio:9000/bam/seraseq_cebpa_larger.bam?x-id=GetObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=user%2F20240320%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20240320T014007Z&X-Amz-Expires=1000&X-Amz-SignedHeaders=host%3Brange&X-Amz-Signature=33a75bd6363ccbfd5ce8edf7e102a5edff8ca7cee17e3c654db01a880e98072d",
         "headers": {
           "Range": "bytes=0-2596770"
         }
@@ -59,7 +59,7 @@ Outputs:
 The url tickets can then be fetched within the compose network context:
 
 ```sh
-docker exec -it minio curl -H "Range: bytes=0-2596770" "http://data.minio:9000/bam/htsnexus_test_NA12878.bam?x-id=GetObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=user%2F20240320%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20240320T014007Z&X-Amz-Expires=1000&X-Amz-SignedHeaders=host%3Brange&X-Amz-Signature=33a75bd6363ccbfd5ce8edf7e102a5edff8ca7cee17e3c654db01a880e98072d"
+docker exec -it minio curl -H "Range: bytes=0-2596770" "http://data.minio:9000/bam/seraseq_cebpa_larger.bam?x-id=GetObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=user%2F20240320%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20240320T014007Z&X-Amz-Expires=1000&X-Amz-SignedHeaders=host%3Brange&X-Amz-Signature=33a75bd6363ccbfd5ce8edf7e102a5edff8ca7cee17e3c654db01a880e98072d"
 ```
 
 [path-style-deprecated]: https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/

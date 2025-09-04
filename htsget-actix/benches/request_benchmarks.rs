@@ -235,8 +235,8 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_pair(
     &mut group,
     "[LIGHT] simple request",
-    format_url(&htsget_rs_url, "reads/data/bam/htsnexus_test_NA12878"),
-    format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
+    format_url(&htsget_rs_url, "reads/data/bam/seraseq_cebpa_larger"),
+    format_url(&htsget_refserver_url, "reads/seraseq_cebpa_larger"),
     &json_content,
   );
 
@@ -256,8 +256,8 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_pair(
     &mut group,
     "[LIGHT] with region",
-    format_url(&htsget_rs_url, "reads/data/bam/htsnexus_test_NA12878"),
-    format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
+    format_url(&htsget_rs_url, "reads/data/bam/seraseq_cebpa_larger"),
+    format_url(&htsget_refserver_url, "reads/seraseq_cebpa_larger"),
     &json_content,
   );
 
@@ -284,8 +284,8 @@ fn criterion_benchmark(c: &mut Criterion) {
   bench_pair(
     &mut group,
     "[LIGHT] with two regions",
-    format_url(&htsget_rs_url, "reads/data/bam/htsnexus_test_NA12878"),
-    format_url(&htsget_refserver_url, "reads/htsnexus_test_NA12878"),
+    format_url(&htsget_rs_url, "reads/data/bam/seraseq_cebpa_larger"),
+    format_url(&htsget_refserver_url, "reads/seraseq_cebpa_larger"),
     &json_content,
   );
 
