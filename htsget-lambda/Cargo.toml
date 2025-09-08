@@ -23,7 +23,8 @@ default = []
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 rustls = "0.23"
-lambda_http = { version = "0.16.0" }
+lambda_http = { git = "https://github.com/andrewpatto/aws-lambda-rust-runtime.git", branch = "feature/lattice-support-http" }
+aws_lambda_events = { git = "https://github.com/andrewpatto/aws-lambda-rust-runtime.git", branch = "feature/lattice-support-http" }
 tracing = "0.1"
 
 htsget-config = { version = "0.15.1", path = "../htsget-config", default-features = false }

@@ -9,8 +9,6 @@ use tracing::debug;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-  println!("entered main");
-
   aws_lc_rs::default_provider()
     .install_default()
     .map_err(|_| io::Error::other("setting crypto provider"))?;
