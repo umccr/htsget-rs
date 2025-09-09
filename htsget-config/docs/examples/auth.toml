@@ -23,13 +23,13 @@ validate_issuer = ["https://www.example.com"]
 validate_subject = "htsget"
 
 ## Set client authentication
-#tls.key = "key.pem"
-#tls.cert = "cert.pem"
+#http.key = "key.pem"
+#http.cert = "cert.pem"
 #
 ## Set root certificates
-#tls.root_store = "root.crt"
+#http.root_store = "root.crt"
 ## Disable HTTP caching
-#tls.use_cache = false
+#http.use_cache = false
 
 ## It's also possible to set auth individually for the ticket and data servers:
 #[ticket_server.auth]

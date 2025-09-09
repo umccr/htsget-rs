@@ -17,7 +17,7 @@ use axum::extract::Request;
 use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
 use htsget_config::config::service_info::ServiceInfo;
-use htsget_config::tls::TlsServerConfig;
+use htsget_config::http::TlsServerConfig;
 use htsget_config::types::Scheme;
 use htsget_http::middleware::auth::Auth;
 use htsget_search::HtsGet;
@@ -245,7 +245,7 @@ impl Server {
 
           tokio::spawn(async move {
             let Ok(stream) = tls_acceptor.accept(cnx).await else {
-              error!("error during tls handshake connection from {}", addr);
+              error!("error during http handshake connection from {}", addr);
               return;
             };
 

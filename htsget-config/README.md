@@ -259,7 +259,7 @@ To manually configure `Url` locations, set `backend.kind = "Url"`, specify any a
 | <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                                                                                          | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
 | `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query.                                                                                                            | Boolean                  | `true`                                                                                                          |
 | `header_blacklist`                   | List of headers that should not be forwarded.                                                                                                                                                  | Array of headers         | `[]`                                                                                                            |
-| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details. | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| `http`                               | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details. | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
 For example, the following forwards all headers to response tickets except `Host`, and constructs tickets using `https://example.com` instead of `http://localhost:8080`:
 
@@ -279,7 +279,7 @@ backend.header_blacklist = ["Host"]
 > Calls to the url endpoint use HTTP caching from headers like cache-control and expires. Requests to the url endpoint
 > only involve the beginning of a file to obtain the header. These requests are cached in a temporary file called
 > `htsget_rs_client_cache` in the system temp directory. To disable this functionality set
-> `tls.use_cache = false`.
+> `http.use_cache = false`.
 
 Regex-based locations also support multiple locations:
 
@@ -346,9 +346,9 @@ substitution_string = "$0"
 
 backend.kind = "Url"
 backend.url = "https://example.com"
-backend.tls.root_store = "root.crt"
+backend.http.root_store = "root.crt"
 ## Disable HTTP caching.
-#backend.tls.use_cache = false
+#backend.http.use_cache = false
 ```
 
 This project uses [rustls] for all TLS logic, and it does not depend on OpenSSL. The rustls library can be more
@@ -511,7 +511,7 @@ request if the user lacks authorization.
 > [!NOTE]  
 > Calls to both the authorization service and jwks endpoint correctly handle and support HTTP cache headers like
 > cache-control and expires. Requests are cached in a temporary file called `htsget_rs_client_cache` in the system
-> temp directory. To disable this functionality set `tls.use_cache = false`.
+> temp directory. To disable this functionality set `http.use_cache = false`.
 
 [auth-json]: docs/schemas/auth.schema.json
 [auth-example]: docs/examples/auth.toml

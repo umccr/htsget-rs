@@ -24,11 +24,11 @@ locations = "https://127.0.0.1:8081"
 #backend.forward_headers = true
 #
 ## Set client authentication
-#backend.tls.key = "key.pem"
-#backend.tls.cert = "cert.pem"
+#backend.http.key = "key.pem"
+#backend.http.cert = "cert.pem"
 #
 ## Set root certificates
-#backend.tls.root_store = "root.crt"
+#backend.http.root_store = "root.crt"
 #
 ## Disable HTTP caching
-#tls.use_cache = false
+#backend.http.use_cache = false

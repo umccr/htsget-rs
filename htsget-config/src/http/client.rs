@@ -4,8 +4,8 @@
 use crate::config::advanced::Bytes;
 use crate::error::Error::IoError;
 use crate::error::{Error, Result};
-use crate::tls::RootCertStorePair;
-use crate::tls::load_certs;
+use crate::http::RootCertStorePair;
+use crate::http::load_certs;
 use reqwest::{Certificate, Identity};
 use serde::Deserialize;
 
@@ -13,13 +13,13 @@ use serde::Deserialize;
 /// is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(try_from = "RootCertStorePair", deny_unknown_fields)]
-pub struct TlsClientConfig {
+pub struct HttpClientConfig {
   cert: Option<Vec<Certificate>>,
   identity: Option<Identity>,
   use_cache: bool,
 }
 
-impl Default for TlsClientConfig {
+impl Default for HttpClientConfig {
   fn default() -> Self {
     Self {
       cert: None,
@@ -29,7 +29,7 @@ impl Default for TlsClientConfig {
   }
 }
 
-impl TlsClientConfig {
+impl HttpClientConfig {
   /// Create a new TlsClientConfig.
   pub fn new(cert: Option<Vec<Certificate>>, identity: Option<Identity>, use_cache: bool) -> Self {
     Self {
@@ -45,7 +45,7 @@ impl TlsClientConfig {
   }
 }
 
-impl TryFrom<RootCertStorePair> for TlsClientConfig {
+impl TryFrom<RootCertStorePair> for HttpClientConfig {
   type Error = Error;
 
   fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
@@ -83,8 +83,8 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
 
 #[cfg(test)]
 pub(crate) mod tests {
-  use crate::tls::tests::with_test_certificates;
-  use crate::tls::{CertificateKeyPairPath, RootCertStorePair};
+  use crate::http::tests::with_test_certificates;
+  use crate::http::{CertificateKeyPairPath, RootCertStorePair};
   use std::path::Path;
 
   use super::*;
@@ -100,8 +100,8 @@ pub(crate) mod tests {
     });
   }
 
-  pub(crate) fn client_config_from_path(path: &Path) -> TlsClientConfig {
-    TlsClientConfig::try_from(RootCertStorePair::new(
+  pub(crate) fn client_config_from_path(path: &Path) -> HttpClientConfig {
+    HttpClientConfig::try_from(RootCertStorePair::new(
       Some(CertificateKeyPairPath::new(
         path.join("cert.pem"),
         path.join("key.pem"),

@@ -8,7 +8,7 @@ use crate::config::advanced::{Bytes, HttpClient};
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
 use crate::error::Error::{BuilderError, ParseError};
 use crate::error::{Error, Result};
-use crate::tls::client::TlsClientConfig;
+use crate::http::client::HttpClientConfig;
 use http::Uri;
 use reqwest_middleware::ClientWithMiddleware;
 pub use response::{AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction};
@@ -154,7 +154,7 @@ pub struct AuthConfigBuilder {
   )]
   trusted_authorization_urls: Vec<Uri>,
   authorization_path: Option<String>,
-  #[serde(rename = "tls", skip_serializing)]
+  #[serde(rename = "http", skip_serializing)]
   http_client: Option<HttpClient>,
   authentication_only: bool,
   #[cfg(feature = "experimental")]
@@ -263,7 +263,7 @@ impl AuthConfigBuilder {
       authorization_path: self.authorization_path,
       http_client: self
         .http_client
-        .unwrap_or(HttpClient::try_from(TlsClientConfig::default())?),
+        .unwrap_or(HttpClient::try_from(HttpClientConfig::default())?),
       authentication_only: self.authentication_only,
       #[cfg(feature = "experimental")]
       suppress_errors: self.suppress_errors,
@@ -306,7 +306,7 @@ impl TryFrom<AuthConfigBuilder> for AuthConfig {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::tls::tests::with_test_certificates;
+  use crate::http::tests::with_test_certificates;
 
   #[test]
   fn auth_config() {

@@ -4,8 +4,8 @@
 use crate::config::advanced::auth::AuthConfig;
 use crate::config::advanced::cors::CorsConfig;
 use crate::error::{Error::ParseError, Result};
+use crate::http::TlsServerConfig;
 use crate::storage::file::default_localstorage_addr;
-use crate::tls::TlsServerConfig;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};

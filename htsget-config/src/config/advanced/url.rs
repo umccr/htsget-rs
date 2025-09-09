@@ -4,10 +4,10 @@
 use crate::config::advanced::HttpClient;
 use crate::error::Error;
 use crate::error::Result;
+use crate::http::client::HttpClientConfig;
 use crate::storage;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
-use crate::tls::client::TlsClientConfig;
 use cfg_if::cfg_if;
 use http::Uri;
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,7 @@ pub struct Url {
   #[serde(default)]
   header_blacklist: Vec<String>,
   #[serde(skip_serializing, default)]
-  tls: TlsClientConfig,
+  http: HttpClientConfig,
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing, default)]
   keys: Option<C4GHKeys>,
@@ -38,14 +38,14 @@ impl Url {
     response_url: Option<Uri>,
     forward_headers: bool,
     header_blacklist: Vec<String>,
-    tls: TlsClientConfig,
+    http: HttpClientConfig,
   ) -> Self {
     Self {
       url,
       response_url,
       forward_headers,
       header_blacklist,
-      tls,
+      http,
       #[cfg(feature = "experimental")]
       keys: None,
     }
@@ -67,9 +67,9 @@ impl Url {
     self.forward_headers
   }
 
-  /// Get the tls client config.
-  pub fn tls(&self) -> &TlsClientConfig {
-    &self.tls
+  /// Get the http client config.
+  pub fn http(&self) -> &HttpClientConfig {
+    &self.http
   }
 
   #[cfg(feature = "experimental")]
@@ -90,7 +90,7 @@ impl TryFrom<Url> for storage::url::Url {
   type Error = Error;
 
   fn try_from(storage: Url) -> Result<Self> {
-    let client = HttpClient::try_from(storage.tls)?.0;
+    let client = HttpClient::try_from(storage.http)?.0;
 
     let url_storage = Self::new(
       storage.url.clone(),

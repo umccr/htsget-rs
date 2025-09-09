@@ -42,6 +42,7 @@ impl Parser<'_> {
               .replace("data_server_", "data_server.")
               .replace("cors_", "cors.")
               .replace("tls_", "tls.")
+              .replace("http_", "http.")
               .replace("auth_", "auth.")
               .into()
           }),

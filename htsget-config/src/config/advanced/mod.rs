@@ -3,7 +3,7 @@
 
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
-use crate::tls::client::TlsClientConfig;
+use crate::http::client::HttpClientConfig;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
@@ -33,7 +33,7 @@ pub enum FormattingStyle {
 
 /// A wrapper around a reqwest client to support creating from config fields.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields, try_from = "TlsClientConfig")]
+#[serde(deny_unknown_fields, try_from = "HttpClientConfig")]
 pub struct HttpClient(ClientWithMiddleware);
 
 impl HttpClient {
@@ -48,10 +48,10 @@ impl HttpClient {
   }
 }
 
-impl TryFrom<TlsClientConfig> for HttpClient {
+impl TryFrom<HttpClientConfig> for HttpClient {
   type Error = Error;
 
-  fn try_from(config: TlsClientConfig) -> Result<Self> {
+  fn try_from(config: HttpClientConfig) -> Result<Self> {
     let mut builder = Client::builder();
 
     let (certs, identity, use_cache) = config.into_inner();
