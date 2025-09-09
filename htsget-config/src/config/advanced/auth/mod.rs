@@ -154,7 +154,7 @@ pub struct AuthConfigBuilder {
   )]
   trusted_authorization_urls: Vec<Uri>,
   authorization_path: Option<String>,
-  #[serde(rename = "http", skip_serializing)]
+  #[serde(rename = "http", alias = "tls", skip_serializing)]
   http_client: Option<HttpClient>,
   authentication_only: bool,
   #[cfg(feature = "experimental")]

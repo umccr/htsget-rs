@@ -24,7 +24,7 @@ pub struct Url {
   forward_headers: bool,
   #[serde(default)]
   header_blacklist: Vec<String>,
-  #[serde(skip_serializing, default)]
+  #[serde(alias = "tls", skip_serializing, default)]
   http: HttpClientConfig,
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing, default)]
