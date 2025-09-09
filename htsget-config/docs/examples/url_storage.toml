@@ -29,3 +29,6 @@ locations = "https://127.0.0.1:8081"
 #
 ## Set root certificates
 #backend.tls.root_store = "root.crt"
+#
+## Disable HTTP caching
+#tls.use_cache = false

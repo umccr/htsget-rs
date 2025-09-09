@@ -5,7 +5,7 @@ use crate::config::advanced;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
 use http::Uri;
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 
 /// Remote URL server storage struct.
@@ -19,7 +19,7 @@ pub struct Url {
   forward_headers: bool,
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
-  client: Client,
+  client: ClientWithMiddleware,
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
@@ -32,7 +32,7 @@ impl Url {
     response_url: Uri,
     forward_headers: bool,
     header_blacklist: Vec<String>,
-    client: Client,
+    client: ClientWithMiddleware,
   ) -> Self {
     Self {
       url,
@@ -66,7 +66,7 @@ impl Url {
   }
 
   /// Get an owned client by cloning.
-  pub fn client_cloned(&self) -> Client {
+  pub fn client_cloned(&self) -> ClientWithMiddleware {
     self.client.clone()
   }
 

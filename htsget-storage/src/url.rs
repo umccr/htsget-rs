@@ -9,7 +9,7 @@ use futures_util::TryStreamExt;
 use http::header::CONTENT_LENGTH;
 use http::{HeaderMap, Method, Request, Uri};
 use pin_project_lite::pin_project;
-use reqwest::{Client, ClientBuilder};
+use reqwest_middleware::ClientWithMiddleware;
 use tokio_util::io::StreamReader;
 use tracing::{debug, instrument};
 
@@ -24,7 +24,7 @@ use crate::{Streamable, Url as HtsGetUrl};
 /// A storage struct which derives data from HTTP URLs.
 #[derive(Debug, Clone)]
 pub struct UrlStorage {
-  client: Client,
+  client: ClientWithMiddleware,
   url: Uri,
   response_url: Uri,
   forward_headers: bool,
@@ -34,7 +34,7 @@ pub struct UrlStorage {
 impl UrlStorage {
   /// Construct a new UrlStorage.
   pub fn new(
-    client: Client,
+    client: ClientWithMiddleware,
     url: Uri,
     response_url: Uri,
     forward_headers: bool,
@@ -47,24 +47,6 @@ impl UrlStorage {
       forward_headers,
       header_blacklist,
     }
-  }
-
-  /// Construct a new UrlStorage with a default client.
-  pub fn new_with_default_client(
-    url: Uri,
-    response_url: Uri,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
-  ) -> Result<Self> {
-    Ok(Self {
-      client: ClientBuilder::new()
-        .build()
-        .map_err(|err| InternalError(format!("failed to build reqwest client: {err}")))?,
-      url,
-      response_url,
-      forward_headers,
-      header_blacklist,
-    })
   }
 
   /// Get a url from the key.
@@ -243,6 +225,7 @@ impl StorageTrait for UrlStorage {
 
 #[cfg(test)]
 pub(crate) mod tests {
+  use reqwest::ClientBuilder;
   use std::future::Future;
   use std::path::{Path, PathBuf};
   use std::str::FromStr;
@@ -254,6 +237,7 @@ pub(crate) mod tests {
   use axum::{Router, middleware};
   use http::header::{AUTHORIZATION, HOST};
   use http::{HeaderName, HeaderValue, Request, StatusCode};
+  use reqwest_middleware::ClientWithMiddleware;
   use tokio::io::AsyncReadExt;
   use tokio::net::TcpListener;
   use tower_http::services::ServeDir;
@@ -525,8 +509,8 @@ pub(crate) mod tests {
     );
   }
 
-  fn test_client() -> Client {
-    ClientBuilder::new().build().unwrap()
+  fn test_client() -> ClientWithMiddleware {
+    reqwest_middleware::ClientBuilder::new(ClientBuilder::new().build().unwrap()).build()
   }
 
   pub(crate) async fn with_url_test_server<F, Fut>(test: F)

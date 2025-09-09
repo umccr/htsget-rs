@@ -28,7 +28,9 @@ validate_subject = "htsget"
 #
 ## Set root certificates
 #tls.root_store = "root.crt"
+## Disable HTTP caching
+#tls.use_cache = false
 
-## It's also possible to set auth individually for the ticket and auth servers:
+## It's also possible to set auth individually for the ticket and data servers:
 #[ticket_server.auth]
 #[data_server.auth]

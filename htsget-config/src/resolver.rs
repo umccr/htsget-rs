@@ -302,7 +302,8 @@ mod tests {
   #[cfg(feature = "url")]
   #[tokio::test]
   async fn resolver_resolve_url_request() {
-    let client = ClientBuilder::new().build().unwrap();
+    let client =
+      reqwest_middleware::ClientBuilder::new(ClientBuilder::new().build().unwrap()).build();
     let url_storage = storage::url::Url::new(
       "https://example.com/".parse().unwrap(),
       "https://example.com/".parse().unwrap(),

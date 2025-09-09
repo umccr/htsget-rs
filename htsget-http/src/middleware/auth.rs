@@ -389,6 +389,7 @@ mod tests {
   use htsget_config::types::{Format, Request};
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};
+  use reqwest_middleware::ClientBuilder;
   use std::collections::HashMap;
 
   #[test]
@@ -1144,7 +1145,9 @@ mod tests {
     AuthConfigBuilder::default()
       .auth_mode(AuthMode::PublicKey(public_key))
       .trusted_authorization_url(Uri::from_static("https://www.example.com"))
-      .http_client(HttpClient::new(reqwest::Client::new()))
+      .http_client(HttpClient::new(
+        ClientBuilder::new(reqwest::Client::new()).build(),
+      ))
       .build()
       .unwrap()
   }

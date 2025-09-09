@@ -8,7 +8,9 @@ use crate::config::advanced::{Bytes, HttpClient};
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
 use crate::error::Error::{BuilderError, ParseError};
 use crate::error::{Error, Result};
+use crate::tls::client::TlsClientConfig;
 use http::Uri;
+use reqwest_middleware::ClientWithMiddleware;
 pub use response::{AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -127,7 +129,7 @@ impl AuthConfig {
   }
 
   /// Get the http client.
-  pub fn http_client(&self) -> &reqwest::Client {
+  pub fn http_client(&self) -> &ClientWithMiddleware {
     &self.http_client.0
   }
 
@@ -259,7 +261,9 @@ impl AuthConfigBuilder {
       validate_subject: self.validate_subject,
       trusted_authorization_urls: self.trusted_authorization_urls,
       authorization_path: self.authorization_path,
-      http_client: HttpClient::default(),
+      http_client: self
+        .http_client
+        .unwrap_or(HttpClient::try_from(TlsClientConfig::default())?),
       authentication_only: self.authentication_only,
       #[cfg(feature = "experimental")]
       suppress_errors: self.suppress_errors,

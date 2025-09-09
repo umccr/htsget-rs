@@ -4,8 +4,11 @@
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::tls::client::TlsClientConfig;
+use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 use reqwest::Client;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::{Deserialize, Serialize};
+use std::env::temp_dir;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
@@ -29,18 +32,18 @@ pub enum FormattingStyle {
 }
 
 /// A wrapper around a reqwest client to support creating from config fields.
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields, try_from = "TlsClientConfig")]
-pub struct HttpClient(Client);
+pub struct HttpClient(ClientWithMiddleware);
 
 impl HttpClient {
   /// Create a new client.
-  pub fn new(client: Client) -> Self {
+  pub fn new(client: ClientWithMiddleware) -> Self {
     Self(client)
   }
 
   /// Get the inner client value.
-  pub fn into_inner(self) -> Client {
+  pub fn into_inner(self) -> ClientWithMiddleware {
     self.0
   }
 }
@@ -51,7 +54,7 @@ impl TryFrom<TlsClientConfig> for HttpClient {
   fn try_from(config: TlsClientConfig) -> Result<Self> {
     let mut builder = Client::builder();
 
-    let (certs, identity) = config.into_inner();
+    let (certs, identity, use_cache) = config.into_inner();
 
     if let Some(certs) = certs {
       for cert in certs {
@@ -62,9 +65,24 @@ impl TryFrom<TlsClientConfig> for HttpClient {
       builder = builder.identity(identity);
     }
 
-    Ok(Self(builder.build().map_err(|err| {
-      ParseError(format!("building http client: {err}"))
-    })?))
+    let client = builder
+      .build()
+      .map_err(|err| ParseError(format!("building http client: {err}")))?;
+
+    let client = if use_cache {
+      let client_cache = temp_dir().join("htsget_rs_client_cache");
+      ClientBuilder::new(client)
+        .with(Cache(HttpCache {
+          mode: CacheMode::Default,
+          manager: CACacheManager::new(client_cache, false),
+          options: HttpCacheOptions::default(),
+        }))
+        .build()
+    } else {
+      ClientBuilder::new(client).build()
+    };
+
+    Ok(Self::new(client))
   }
 }
 

@@ -11,22 +11,37 @@ use serde::Deserialize;
 
 /// A certificate and key pair used for TLS. Serialization is not implemented because there
 /// is no way to convert back to a `PathBuf`.
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(try_from = "RootCertStorePair", deny_unknown_fields)]
 pub struct TlsClientConfig {
   cert: Option<Vec<Certificate>>,
   identity: Option<Identity>,
+  use_cache: bool,
+}
+
+impl Default for TlsClientConfig {
+  fn default() -> Self {
+    Self {
+      cert: None,
+      identity: None,
+      use_cache: true,
+    }
+  }
 }
 
 impl TlsClientConfig {
   /// Create a new TlsClientConfig.
-  pub fn new(cert: Option<Vec<Certificate>>, identity: Option<Identity>) -> Self {
-    Self { cert, identity }
+  pub fn new(cert: Option<Vec<Certificate>>, identity: Option<Identity>, use_cache: bool) -> Self {
+    Self {
+      cert,
+      identity,
+      use_cache,
+    }
   }
 
   /// Get the inner client config.
-  pub fn into_inner(self) -> (Option<Vec<Certificate>>, Option<Identity>) {
-    (self.cert, self.identity)
+  pub fn into_inner(self) -> (Option<Vec<Certificate>>, Option<Identity>, bool) {
+    (self.cert, self.identity, self.use_cache)
   }
 }
 
@@ -34,7 +49,7 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
   type Error = Error;
 
   fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
-    let (key_pair, root_store) = root_store_pair.into_inner();
+    let (key_pair, root_store, use_cache) = root_store_pair.into_inner();
 
     let cert = root_store
       .clone()
@@ -62,7 +77,7 @@ impl TryFrom<RootCertStorePair> for TlsClientConfig {
       })
       .transpose()?;
 
-    Ok(Self::new(cert, identity))
+    Ok(Self::new(cert, identity, use_cache))
   }
 }
 
@@ -78,7 +93,7 @@ pub(crate) mod tests {
   async fn test_tls_client_config() {
     with_test_certificates(|path, _, _| {
       let client_config = client_config_from_path(path);
-      let (certs, identity) = client_config.into_inner();
+      let (certs, identity, _) = client_config.into_inner();
 
       assert_eq!(certs.unwrap().len(), 1);
       assert!(identity.is_some());
@@ -92,6 +107,7 @@ pub(crate) mod tests {
         path.join("key.pem"),
       )),
       Some(path.join("cert.pem")),
+      true,
     ))
     .unwrap()
   }
