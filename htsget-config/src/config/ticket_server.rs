@@ -3,7 +3,7 @@
 
 use crate::config::advanced::auth::AuthConfig;
 use crate::config::advanced::cors::CorsConfig;
-use crate::tls::TlsServerConfig;
+use crate::http::TlsServerConfig;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 

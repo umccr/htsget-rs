@@ -71,7 +71,7 @@ impl DataServer {
 }
 
 impl From<DataServerConfig> for BindServer {
-  /// Returns a data server with TLS enabled if the tls config is not None or without TLS enabled
+  /// Returns a data server with TLS enabled if the http config is not None or without TLS enabled
   /// if it is None.
   fn from(config: DataServerConfig) -> Self {
     let addr = config.addr();
@@ -114,7 +114,7 @@ mod tests {
   use tokio::io::AsyncWriteExt;
 
   use htsget_config::config::Config;
-  use htsget_config::tls::TlsServerConfig;
+  use htsget_config::http::TlsServerConfig;
   use htsget_config::types::Scheme;
   use htsget_test::http::cors::{test_cors_preflight_request_uri, test_cors_simple_request_uri};
   use htsget_test::http::{

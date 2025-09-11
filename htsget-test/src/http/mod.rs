@@ -20,11 +20,11 @@ use htsget_config::config::advanced::regex_location::RegexLocation;
 use htsget_config::config::data_server::{DataServerConfig, DataServerEnabled};
 use htsget_config::config::location::{LocationEither, Locations};
 use htsget_config::config::ticket_server::TicketServerConfig;
-use htsget_config::storage::Backend;
-use htsget_config::storage::file::File;
-use htsget_config::tls::{
+use htsget_config::http::{
   CertificateKeyPair, TlsServerConfig, load_certs, load_key, tls_server_config,
 };
+use htsget_config::storage::Backend;
+use htsget_config::storage::file::File;
 use htsget_config::types::Scheme;
 use http::uri::Authority;
 use http::{HeaderMap, HeaderName, Method};
@@ -188,7 +188,7 @@ pub fn default_test_config(auth: Option<AuthConfig>) -> Config {
   default_test_config_params(addr, None, Scheme::Http, auth)
 }
 
-/// Config with tls ticket server, using the current cargo manifest directory.
+/// Config with http ticket server, using the current cargo manifest directory.
 pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
   let addr = get_dynamic_addr();
   let (key_path, cert_path) = generate_test_certificates(path, "key.pem", "cert.pem");
@@ -201,7 +201,7 @@ pub fn config_with_tls<P: AsRef<Path>>(path: P) -> Config {
   )
 }
 
-/// Get a test tls server config.
+/// Get a test http server config.
 pub fn test_tls_server_config(key_path: PathBuf, cert_path: PathBuf) -> TlsServerConfig {
   let key = load_key(key_path).unwrap();
   let certs = load_certs(cert_path).unwrap();

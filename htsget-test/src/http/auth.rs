@@ -15,6 +15,7 @@ use htsget_config::config::advanced::auth::{
 use htsget_config::types::{Class, Format};
 use http::{Method, Uri};
 use jsonwebtoken::{Algorithm, EncodingKey, Header as JwtHeader, encode};
+use reqwest_middleware::ClientBuilder;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -76,7 +77,9 @@ pub fn create_test_auth_config(
     .validate_issuer(vec!["test-issuer".to_string()])
     .validate_subject("test-subject".to_string())
     .trusted_authorization_url(mock_server.uri())
-    .http_client(HttpClient::new(reqwest::Client::new()));
+    .http_client(HttpClient::new(
+      ClientBuilder::new(reqwest::Client::new()).build(),
+    ));
 
   cfg_if! {
     if #[cfg(feature = "experimental")] {
