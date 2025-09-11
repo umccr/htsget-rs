@@ -75,7 +75,7 @@ pub fn create_test_auth_config(
     .validate_audience(vec!["test-audience".to_string()])
     .validate_issuer(vec!["test-issuer".to_string()])
     .validate_subject("test-subject".to_string())
-    .trusted_authorization_url(mock_server.uri())
+    .authorization_url(mock_server.uri())
     .http_client(HttpClient::new(reqwest::Client::new()));
 
   cfg_if! {

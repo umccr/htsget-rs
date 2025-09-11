@@ -63,10 +63,8 @@ pub struct AuthConfig {
   validate_audience: Option<Vec<String>>,
   validate_issuer: Option<Vec<String>>,
   validate_subject: Option<String>,
-  trusted_authorization_urls: Vec<Uri>,
-  authorization_path: Option<String>,
+  authorization_url: Option<Uri>,
   http_client: HttpClient,
-  authentication_only: bool,
   #[cfg(feature = "experimental")]
   suppress_errors: bool,
   #[cfg(feature = "experimental")]
@@ -100,18 +98,8 @@ impl AuthConfig {
   }
 
   /// Get the trusted authorization URLs.
-  pub fn trusted_authorization_urls(&self) -> &[Uri] {
-    &self.trusted_authorization_urls
-  }
-
-  /// Get the authorization path.
-  pub fn authorization_path(&self) -> Option<&str> {
-    self.authorization_path.as_deref()
-  }
-
-  /// Whether to validate the JWT only.
-  pub fn authentication_only(&self) -> bool {
-    self.authentication_only
+  pub fn authorization_url(&self) -> Option<&Uri> {
+    self.authorization_url.as_ref()
   }
 
   /// Whether to suppress errors and return any available regions.
@@ -130,11 +118,6 @@ impl AuthConfig {
   pub fn http_client(&self) -> &reqwest::Client {
     &self.http_client.0
   }
-
-  /// Set the authentication only flag.
-  pub(crate) fn set_authentication_only(&mut self, authentication_only: bool) {
-    self.authentication_only = authentication_only;
-  }
 }
 
 /// Builder for `AuthConfig`.
@@ -146,15 +129,10 @@ pub struct AuthConfigBuilder {
   validate_audience: Option<Vec<String>>,
   validate_issuer: Option<Vec<String>>,
   validate_subject: Option<String>,
-  #[serde(
-    serialize_with = "serialize_array_display",
-    deserialize_with = "deserialize_vec_from_str"
-  )]
-  trusted_authorization_urls: Vec<Uri>,
-  authorization_path: Option<String>,
+  #[serde(with = "http_serde::option::uri")]
+  authorization_url: Option<Uri>,
   #[serde(rename = "tls", skip_serializing)]
   http_client: Option<HttpClient>,
-  authentication_only: bool,
   #[cfg(feature = "experimental")]
   suppress_errors: bool,
   #[cfg(feature = "experimental")]
@@ -187,37 +165,14 @@ impl AuthConfigBuilder {
   }
 
   /// Add an authorization url.
-  pub fn trusted_authorization_url(mut self, trusted_authorization_url: Uri) -> Self {
-    self
-      .trusted_authorization_urls
-      .push(trusted_authorization_url);
-    self
-  }
-
-  /// Add multiple trusted authorization urls.
-  pub fn trusted_authorization_urls(mut self, trusted_authorization_urls: Vec<Uri>) -> Self {
-    self
-      .trusted_authorization_urls
-      .extend(trusted_authorization_urls);
-    self
-  }
-
-  /// Set the authorization JSON path.
-  pub fn authorization_path(mut self, authorization_path: String) -> Self {
-    self.authorization_path = Some(authorization_path);
+  pub fn authorization_url(mut self, authorization_url: Uri) -> Self {
+    self.authorization_url = Some(authorization_url);
     self
   }
 
   /// Set the HTTP client.
   pub fn http_client(mut self, http_client: HttpClient) -> Self {
     self.http_client = Some(http_client);
-    self
-  }
-
-  /// Validate the JWT only and don't check authorization logic, or call out to the
-  /// authorization service.
-  pub fn authentication_only(mut self, authentication_only: bool) -> Self {
-    self.authentication_only = authentication_only;
     self
   }
 
@@ -257,7 +212,7 @@ impl AuthConfigBuilder {
       validate_audience: self.validate_audience,
       validate_issuer: self.validate_issuer,
       validate_subject: self.validate_subject,
-      trusted_authorization_urls: self.trusted_authorization_urls,
+      authorization_url: self.trusted_authorization_urls,
       authorization_path: self.authorization_path,
       http_client: HttpClient::default(),
       authentication_only: self.authentication_only,
@@ -273,16 +228,14 @@ impl Default for AuthConfigBuilder {
   fn default() -> Self {
     // Satisfy https://rust-lang.github.io/rust-clippy/master/index.html#derivable_impls
     // when `experimental` is not enabled.
-    let trusted_authorization_urls = vec![];
+    let authorization_url = None;
     Self {
       auth_mode: None,
       validate_audience: None,
       validate_issuer: None,
       validate_subject: None,
-      trusted_authorization_urls,
-      authorization_path: None,
+      authorization_url,
       http_client: None,
-      authentication_only: false,
       #[cfg(feature = "experimental")]
       suppress_errors: false,
       #[cfg(feature = "experimental")]
@@ -332,7 +285,7 @@ mod tests {
       vec!["iss1".to_string()]
     );
     assert_eq!(
-      config.trusted_authorization_urls().to_vec(),
+      config.authorization_url().to_vec(),
       vec!["https://www.example.com".parse::<Uri>().unwrap()]
     );
     assert_eq!(config.authorization_path().unwrap(), "$.auth_url");
@@ -376,7 +329,7 @@ mod tests {
       assert!(matches!(config.auth_mode(), AuthMode::PublicKey(_)));
       assert_eq!(
         vec!["https://www.example.com".parse::<Uri>().unwrap()],
-        config.trusted_authorization_urls().to_vec()
+        config.authorization_url().to_vec()
       );
     });
   }
@@ -415,12 +368,12 @@ mod tests {
   fn test_authorization_restrictions_builder() {
     let rule = AuthConfigBuilder::default()
       .auth_mode(AuthMode::Jwks("https://www.example.com/".parse().unwrap()))
-      .trusted_authorization_url("https://www.example.com".parse().unwrap())
+      .authorization_url("https://www.example.com".parse().unwrap())
       .build()
       .unwrap();
     assert!(rule.authorization_path.is_none());
     assert_eq!(
-      rule.trusted_authorization_urls,
+      rule.authorization_url,
       vec!["https://www.example.com".parse::<Uri>().unwrap()]
     );
     assert_eq!(
@@ -432,7 +385,7 @@ mod tests {
     assert_eq!(rule.validate_subject(), None);
 
     let rule = AuthConfigBuilder::default()
-      .trusted_authorization_url("https://www.example.com".parse().unwrap())
+      .authorization_url("https://www.example.com".parse().unwrap())
       .build();
     assert!(rule.is_err());
 
@@ -443,8 +396,8 @@ mod tests {
 
     let rule = AuthConfigBuilder::default()
       .auth_mode(AuthMode::Jwks("https://www.example.com/".parse().unwrap()))
-      .trusted_authorization_url("https://www.example.com".parse().unwrap())
-      .trusted_authorization_url("https://www.example.com".parse().unwrap())
+      .authorization_url("https://www.example.com".parse().unwrap())
+      .authorization_url("https://www.example.com".parse().unwrap())
       .build();
     assert!(rule.is_err());
   }

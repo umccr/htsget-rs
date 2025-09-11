@@ -41,12 +41,12 @@ impl AuthBuilder {
       return Err(AuthBuilderError("missing config".to_string()));
     };
 
-    if config.trusted_authorization_urls().is_empty() {
+    if config.authorization_url().is_empty() {
       return Err(AuthBuilderError(
         "at least one trusted authorization url must be set".to_string(),
       ));
     }
-    if config.authorization_path().is_none() && config.trusted_authorization_urls().len() > 1 {
+    if config.authorization_path().is_none() && config.authorization_url().len() > 1 {
       return Err(AuthBuilderError(
         "only one trusted authorization url should be set when not using authorization paths"
           .to_string(),
@@ -146,7 +146,7 @@ impl Auth {
     let query_url = match self.config.authorization_path() {
       None => self
         .config
-        .trusted_authorization_urls()
+        .authorization_url()
         .first()
         .ok_or_else(|| {
           HtsGetError::InternalError("missing trusted authorization url".to_string())
@@ -178,7 +178,7 @@ impl Auth {
     };
 
     // Ensure that the authorization url is trusted.
-    if !self.config.trusted_authorization_urls().contains(query_url) {
+    if !self.config.authorization_url().contains(query_url) {
       return Err(HtsGetError::PermissionDenied(
         "authorization service in claims not a trusted authorization url".to_string(),
       ));
@@ -1143,7 +1143,7 @@ mod tests {
   fn create_test_auth_config(public_key: Vec<u8>) -> AuthConfig {
     AuthConfigBuilder::default()
       .auth_mode(AuthMode::PublicKey(public_key))
-      .trusted_authorization_url(Uri::from_static("https://www.example.com"))
+      .authorization_url(Uri::from_static("https://www.example.com"))
       .http_client(HttpClient::new(reqwest::Client::new()))
       .build()
       .unwrap()

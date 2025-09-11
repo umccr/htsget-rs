@@ -185,12 +185,7 @@ impl Config {
     // Propagate global config to individual ticket and data servers.
     if let DataServerEnabled::Some(ref mut data_server_config) = config.data_server {
       if data_server_config.auth().is_none() {
-        let auth = config.auth.clone().map(|mut auth| {
-          auth.set_authentication_only(true);
-          auth
-        });
-
-        data_server_config.set_auth(auth);
+        data_server_config.set_auth(config.auth.clone());
       }
     }
     if config.ticket_server().auth().is_none() {
@@ -830,7 +825,7 @@ pub(crate) mod tests {
           Some(vec!["iss1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.trusted_authorization_urls(),
+          auth.authorization_url(),
           &["https://www.example.com/".parse::<Uri>().unwrap()]
         );
         assert_eq!(auth.authorization_path(), Some("$.auth_url"));
@@ -849,7 +844,7 @@ pub(crate) mod tests {
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.trusted_authorization_urls(),
+          auth.authorization_url(),
           &["https://www.example.com/".parse::<Uri>().unwrap()]
         );
       },
@@ -875,7 +870,7 @@ pub(crate) mod tests {
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.trusted_authorization_urls(),
+          auth.authorization_url(),
           &["https://www.example.com/".parse::<Uri>().unwrap()]
         );
       },
