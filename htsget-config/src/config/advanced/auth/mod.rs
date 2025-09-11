@@ -8,7 +8,9 @@ use crate::config::advanced::{Bytes, HttpClient};
 use crate::config::{deserialize_vec_from_str, serialize_array_display};
 use crate::error::Error::{BuilderError, ParseError};
 use crate::error::{Error, Result};
+use crate::http::client::HttpClientConfig;
 use http::Uri;
+use reqwest_middleware::ClientWithMiddleware;
 pub use response::{AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -115,7 +117,7 @@ impl AuthConfig {
   }
 
   /// Get the http client.
-  pub fn http_client(&self) -> &reqwest::Client {
+  pub fn http_client(&self) -> &ClientWithMiddleware {
     &self.http_client.0
   }
 }
@@ -131,7 +133,7 @@ pub struct AuthConfigBuilder {
   validate_subject: Option<String>,
   #[serde(with = "http_serde::option::uri")]
   authorization_url: Option<Uri>,
-  #[serde(rename = "tls", skip_serializing)]
+  #[serde(rename = "http", alias = "tls", skip_serializing)]
   http_client: Option<HttpClient>,
   #[cfg(feature = "experimental")]
   suppress_errors: bool,
@@ -214,7 +216,9 @@ impl AuthConfigBuilder {
       validate_subject: self.validate_subject,
       authorization_url: self.trusted_authorization_urls,
       authorization_path: self.authorization_path,
-      http_client: HttpClient::default(),
+      http_client: self
+        .http_client
+        .unwrap_or(HttpClient::try_from(HttpClientConfig::default())?),
       authentication_only: self.authentication_only,
       #[cfg(feature = "experimental")]
       suppress_errors: self.suppress_errors,
@@ -255,7 +259,7 @@ impl TryFrom<AuthConfigBuilder> for AuthConfig {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::tls::tests::with_test_certificates;
+  use crate::http::tests::with_test_certificates;
 
   #[test]
   fn auth_config() {

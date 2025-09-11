@@ -22,7 +22,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 
 impl From<TicketServerConfig> for BindServer {
-  /// Returns a ticket server with TLS enabled if the tls config is not None or without TLS enabled
+  /// Returns a ticket server with TLS enabled if the http config is not None or without TLS enabled
   /// if it is None.
   fn from(config: TicketServerConfig) -> Self {
     let addr = config.addr();

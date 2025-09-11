@@ -76,25 +76,41 @@ impl CertificateKeyPair {
 /// The location of a certificate and key pair used for TLS.
 /// This is the path to the PEM formatted X.509 certificate and private key.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, default)]
 pub struct RootCertStorePair {
   #[serde(flatten)]
   key_pair: Option<CertificateKeyPairPath>,
   root_store: Option<PathBuf>,
+  use_cache: bool,
+}
+
+impl Default for RootCertStorePair {
+  fn default() -> Self {
+    Self {
+      key_pair: None,
+      root_store: None,
+      use_cache: true,
+    }
+  }
 }
 
 impl RootCertStorePair {
   /// Create a new RootCertStorePair.
-  pub fn new(key_pair: Option<CertificateKeyPairPath>, root_store: Option<PathBuf>) -> Self {
+  pub fn new(
+    key_pair: Option<CertificateKeyPairPath>,
+    root_store: Option<PathBuf>,
+    use_cache: bool,
+  ) -> Self {
     Self {
       key_pair,
       root_store,
+      use_cache,
     }
   }
 
   /// Get the owned root store pair.
-  pub fn into_inner(self) -> (Option<CertificateKeyPairPath>, Option<PathBuf>) {
-    (self.key_pair, self.root_store)
+  pub fn into_inner(self) -> (Option<CertificateKeyPairPath>, Option<PathBuf>, bool) {
+    (self.key_pair, self.root_store, self.use_cache)
   }
 }
 

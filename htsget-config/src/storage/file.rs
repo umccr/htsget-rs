@@ -5,9 +5,9 @@ use crate::config::data_server::DataServerConfig;
 use crate::error::Error;
 use crate::error::Error::ParseError;
 use crate::error::Result;
+use crate::http::KeyPairScheme;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
-use crate::tls::KeyPairScheme;
 use crate::types::Scheme;
 use http::uri::Authority;
 use serde::{Deserialize, Serialize};
