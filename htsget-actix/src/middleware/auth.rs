@@ -5,7 +5,7 @@ use crate::handlers::{HeaderMap, HttpVersionCompat};
 use actix_web::body::{BoxBody, EitherBody};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::web::Query;
-use actix_web::{Error, FromRequest, HttpMessage, HttpResponse};
+use actix_web::{Error, FromRequest, HttpResponse};
 use axum::body::to_bytes;
 use axum::response::IntoResponse;
 use futures_util::future::LocalBoxFuture;
