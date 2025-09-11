@@ -310,7 +310,7 @@ This component can be configured by setting the `guard` table with:
 | `allow_fields`          | Resolve the query ID if the query also contains the fields set by this option.          | Array of fields or `'All'`                                            | `'All'`                             |
 | `allow_tags`            | Resolve the query ID if the query also contains the tags set by this option.            | Array of tags or `'All'`                                              | `'All'`                             |
 | `allow_formats`         | Resolve the query ID if the query is one of the formats specified by this option.       | An array of formats containing `'BAM'`, `'CRAM'`, `'VCF'`, or `'BCF'` | `['BAM', 'CRAM', 'VCF', 'BCF']`     |
-| `allow_classes`         | Resolve the query ID if the query is one of the classes specified by this option.       | An array of classes containing eithr `'body'` or `'header'`           | `['body', 'header']`                |
+| `allow_classes`         | Resolve the query ID if the query is one of the classes specified by this option.       | An array of classes containing either `'body'` or `'header'`          | `['body', 'header']`                |
 | `allow_interval.start`  | Resolve the query ID if the query reference start position is at least this option.     | Unsigned 32-bit integer start position, 0-based, inclusive            | Not set, allows all start positions |
 | `allow_interval.end`    | Resolve the query ID if the query reference end position is at most this option.        | Unsigned 32-bit integer end position, 0-based exclusive               | Not set, allows all end positions   |
 
@@ -377,21 +377,9 @@ ticket_server.cors.expose_headers = []
 Use `"Mirror"` to mirror CORS requests, and `"All"` to allow all methods, headers, or origins. The `ticket_server` table
 above can be replaced with `data_server` to configure CORS for the data server.
 
-### JWT Authorization
+### JWT Authentication
 
-One advantage of the htsget protocol is that it is possible to make decisions about which regions of files a user is allowed
-to access, as the protocol is able to return a subset of a genomic file in the URL tickets. Custom JWT authorization can be
-configured to enable this.
-
-htsget-rs is a stateless service (except for caching) which means that making authorization decisions can be challenging
-there is no user tracking. To solve this, authorization is configured to call out to an arbitrary url to make decisions
-about a user. If this feature is configured, when a JWT is sent in the authorization header, htsget-rs:
-
-1. Decodes and validates the JWT according to the config.
-2. Queries the authorization service for restrictions based on the config or JWT claims. 
-3. Validates the restrictions to determine if the user is authorized.
-
-The authorization server should respond with a rule set that htsget-rs can use to approve or deny the user access.
+The htsget-rs ticket and data servers can be configured to validate and authenticate JWT tokens.
 
 The following options can be configured under the `auth` table to enable this:
 
@@ -402,14 +390,47 @@ The following options can be configured under the `auth` table to enable this:
 | `validate_audience`          | Validate that the JWT token has the specified audience field.                                                                                                                                                                                                                                                                        | Array of strings | Optional. Does not validate the audience by default.                                                   |
 | `validate_issuer`            | Validate that the JWT token has the specified issuer field.                                                                                                                                                                                                                                                                          | Array of strings | Optional. Does not validate the issuer by default.                                                     |
 | `validate_subject`           | Validate that the JWT token has the specified subject field.                                                                                                                                                                                                                                                                         | Strings          | Optional. Does not validate the subject by default.                                                    |
-| `trusted_authorization_urls` | The URLs which can be called to authorize the user. If `authorization_path` is not set, the first URL in the array will be called with a GET request and the forwarded JWT. If `authorization_path` is set, then the list of URLs will be trusted as authorization sources if they are found in the JWT.                             | Array of URLs    | Not set, must be set with at least one URL.                                                            |
-| `authorization_path`         | The JSON path that finds the authorization URL in the JWT. The path should find a URL value inside the JWT claims. This allows dynamically resolving the authorization url based on the content of the JWT. This URL will be called with a GET request and the forwarded JWT and should return the htsget authorization information. | JSON path        | Optional. Uses the first value in `trusted_authorization_urls` by default.                             |
 | `tls`                        | Enables client authentication, or sets non-native root certificates for TLS when making requests. See [server configuration](#server-configuration) for more details.                                                                                                                                                                | TOML table       | Optional. Performs no client authentication and uses native root certificates for TLS client requests. |
-| `authentication_only`        | Skip the authorization service call out and only validate the JWT token. If set, this will skip the authorization flow described above, however it will still perform JWT validation.                                                                                                                                                | Boolean          | `false`                                                                                                |
 
-When calling the authorization service configured using `authorization_url` or `authorization_path`, htsget-rs will
-forward the JWT inside an authorization bearer header and use a GET request. The service should respond with the
-following JSON structure, indicating whether the request is allowed, and any region restrictions (similar to the 
+When JWT authentication is enabled, either `jwks_url` or `public_key` must be set to validate the JWT. The `auth` table
+can be set under the `data_server` or `ticket_server` table, or globally to use the same configuration for both. 
+See the [example][auth-example] configuration file in the example directory.
+
+#### Authorization
+
+One advantage of the htsget protocol is that it is possible to make decisions about which regions of files a user is allowed
+to access, as the protocol is able to return a subset of a genomic file in the URL tickets. Custom authorization can be
+configured to enable this.
+
+htsget-rs is a stateless service (except for caching) which means that making authorization decisions can be challenging
+there is no user tracking. To solve this, authorization is configured to call out to an arbitrary url to make decisions
+about a user. If this feature is configured, htsget-rs:
+
+1. Decodes and validates a JWT configured above.
+2. Queries the authorization service for restrictions based on the config. 
+3. Validates the restrictions to determine if the user is authorized.
+
+The authorization server should respond with a rule set that htsget-rs can use to approve or deny the user access.
+
+The following additional options can be configured under the `auth` table to enable this:
+
+| Option                | Description                                                                                                                                                                    | Type                  | Default  |
+|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|----------|
+| `authorization_url`   | The URL which will be called to authorize the user. A GET request will be issued to the url. Alternatively, this can be a file path to authorize users based on static config. | URL                   | Not set. |
+| `forward_headers`     | For each header specified, forward any headers from the client to the authorization server. Headers are forwarded with the `HtsGetContext-` as a prefix.                       | Array of header names | Not set. |
+| `forward_auth_header` | Forward the authorization header to the authorization server directly without renaming it to a `HtsGetContext-` custom header.                                                 | Boolean               | `false`  |
+
+When using the `authorization_url`, the [authentication](#jwt-authentication) config must also be set as htsget-rs will
+forward the JWT token to the authorization server so that it can make decisions about the user's authorization. If the
+`authorization_url` is a file path, then authentication doesn't need to be set.
+
+Each header in the `forward_headers` option is forwarded as a custom `HtsGetContext-<name>` header to the authorization server.
+The authorization header can be forward as though it is coming from the client by setting `forward_auth_header = true`. This is
+useful to support authenticating the original client JWT at the authorization server and can be used to set-up authorization
+flows like oauth.
+
+The authorization service should respond with the following JSON structure, indicating whether the request is allowed,
+and any region restrictions (similar to the 
 [allow guard logic](#allow-guard)):
 
 ```json
@@ -434,7 +455,8 @@ following JSON structure, indicating whether the request is allowed, and any reg
 These restrictions act as a whitelist of allowed regions that the user has access to. The authorization server is
 allowed to respond with multiple paths that the user is allowed to access. Each path can also be a regex that matches
 ids like the [regex resolvers](#regex-based-location). A full JSON schema defining this format is available under [auth.json][auth-json].
-An [example][auth-example] configuration file is available in the examples directory.
+
+#### Suppressed errors
 
 With this authorization logic, the server will respond with a `403 Forbidden` error if any of the requested reference
 names are not allowed according to the restrictions. For example, if using the above JSON restrictions, a user
@@ -499,6 +521,38 @@ client was not authorized to view `chr1` at all, the response would return urls 
 JWT is invalid or the client is not allowed to view the requested `<id>` path. Parameters are only checked for validity
 after authorizing the request, so invalid requests may return an unauthorized or forbidden response instead of a bad
 request if the user lacks authorization.
+
+
+#### Extensions
+
+> [!NOTE]  
+> The extension options should not be used unless developing custom extensions to the htsget-rs codebase to support
+> additional authorization capabilities. The options below are only useful to add out-of-band context to requests such
+> as from AWS Lambda events. When using the `htsget-lambda` crate, this option is available for all Lambda event fields.
+>
+> This can also be used for non-Lambda implementations if developing custom middleware to use with htsget-rs routers.
+
+As part the Rust [http][http] library, extensions can be added to requests before they are processed by the HTTP router.
+This is useful to add context to requests from external sources, such as AWS ApiGateway or VPC lattice Lambda events.
+These context fields can be forwarded to the authorization service to make authorization decisions about a user.
+
+Set the following in the `auth` table to use this feature:
+
+| Option               | Description                                                                                                                                                                                                                                                                                 | Type                              | Default   |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------|
+| `forward_extensions` | For each request extension specified, forward the HTTP extension to the authorization server. This can be a full JSON path to forward nested values. Extensions are forwarded as custom `HtsGetContext-<name>` headers, where each JSON path value must be assigned a name in this setting. | Array of name and JSON path pairs | Not set.  |
+
+For example, to forward the request context source VPC from a Lambda function handling [VPC lattice events](https://docs.aws.amazon.com/vpc-lattice/latest/ug/lambda-functions.html#receive-event-from-service), use the following
+setting:
+
+```toml
+[auth]
+forward_extensions = [ { json_path = '$.requestContext.identity.sourceVpcArn', name = 'SourceVpcArn'} ]
+```
+
+This would then forward the source VPC ARN to the authorization server in a header called `HtsGetContext-SourceVpcArn`.
+
+An example of this kind of implementation can be seen [here](https://github.com/umccr/htsget-deploy/tree/main/aws-vpc-lattice).
 
 [auth-json]: docs/schemas/auth.schema.json
 [auth-example]: docs/examples/auth.toml
@@ -647,3 +701,4 @@ This project is licensed under the [MIT license][license].
 [id]: https://samtools.github.io/hts-specs/htsget.html#url-parameters
 [toml]: https://toml.io/en/
 [data]: ../data
+[http]: https://docs.rs/http/latest/http/struct.Extensions.html
