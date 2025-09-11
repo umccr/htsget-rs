@@ -2384,7 +2384,6 @@ dependencies = [
  "actix-cors",
  "actix-web",
  "async-trait",
- "aws_lambda_events",
  "axum",
  "criterion",
  "futures-util",
@@ -2395,7 +2394,6 @@ dependencies = [
  "htsget-test",
  "http 0.2.12",
  "http 1.3.1",
- "lambda_http",
  "reqwest",
  "rustls 0.23.29",
  "serde",
@@ -2472,7 +2470,6 @@ dependencies = [
 name = "htsget-http"
 version = "0.7.0"
 dependencies = [
- "aws_lambda_events",
  "cfg-if",
  "futures",
  "headers",
@@ -2482,7 +2479,6 @@ dependencies = [
  "http 1.3.1",
  "jsonpath-rust",
  "jsonwebtoken",
- "lambda_http",
  "regex",
  "reqwest",
  "serde",

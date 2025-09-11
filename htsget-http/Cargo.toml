@@ -27,8 +27,6 @@ futures = { version = "0.3" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 cfg-if = "1"
-lambda_http = { git = "https://github.com/andrewpatto/aws-lambda-rust-runtime.git", branch = "feature/lattice-support-http" }
-aws_lambda_events = { git = "https://github.com/andrewpatto/aws-lambda-rust-runtime.git", branch = "feature/lattice-support-http" }
 
 # JWT middleware
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

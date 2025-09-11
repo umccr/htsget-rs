@@ -31,8 +31,6 @@ http = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-lambda_http = { git = "https://github.com/andrewpatto/aws-lambda-rust-runtime.git", branch = "feature/lattice-support-http" }
-aws_lambda_events = { git = "https://github.com/andrewpatto/aws-lambda-rust-runtime.git", branch = "feature/lattice-support-http" }
 
 # htsget-axum compatibility
 futures-util = "0.3"

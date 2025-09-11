@@ -1,7 +1,7 @@
 use htsget_axum::server::ticket::TicketServer;
 use htsget_config::config::Config;
 use htsget_config::{command, package_info};
-use lambda_http::{run, http::{StatusCode, Response},  Error, IntoResponse, Request, RequestPayloadExt, RequestExt};
+use lambda_http::{run,  Error};
 use rustls::crypto::aws_lc_rs;
 use std::io;
 use tracing::debug;
@@ -35,19 +35,4 @@ async fn main() -> Result<(), Error> {
   } else {
     Ok(())
   }
-}
-
-pub async fn function_handler(event: Request) -> Result<impl IntoResponse, Error> {
-  // let body = event.payload::<MyPayload>()?;
-
-  debug!("Received a request: {:?}", event);
-  debug!("Request context: {:?}", event.request_context());
-
-  let response = Response::builder()
-      .status(StatusCode::OK)
-      .header("Content-Type", "text/plain")
-      .body("hello".to_string())
-      .map_err(Box::new)?;
-
-  Ok(response)
 }

@@ -15,8 +15,6 @@ use std::collections::HashMap;
 use std::future::{Ready, ready};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use lambda_http::RequestExt;
-use tracing::debug;
 
 /// A wrapper around the axum middleware layer.
 #[derive(Clone)]
@@ -60,8 +58,6 @@ impl<S> AuthMiddleware<S> {
   /// Validate the authorization.
   pub async fn validate_authorization(&self, req: &mut ServiceRequest) -> Result<(), HtsGetError> {
     let (req, payload) = req.parts_mut();
-
-    debug!("Request extensions: {:?}", req.extensions());
 
     let query = <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
       .await
