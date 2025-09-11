@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.3...htsget-http-v0.8.0) - 2025-09-11
+
+### Added
+
+- [**breaking**] add on-disk caching layer to all client requests within the server
+
 ## [0.7.3](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.2...htsget-http-v0.7.3) - 2025-09-03
 
 ### Added

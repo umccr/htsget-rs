@@ -2367,7 +2367,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-actix"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "actix-cors",
  "actix-utils",
@@ -2395,7 +2395,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-axum"
-version = "0.6.2"
+version = "0.7.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2422,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-config"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -2459,7 +2459,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-http"
-version = "0.7.3"
+version = "0.8.0"
 dependencies = [
  "cfg-if",
  "futures",
@@ -2482,7 +2482,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-lambda"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "htsget-axum",
  "htsget-config",
@@ -2495,7 +2495,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-search"
-version = "0.11.4"
+version = "0.11.5"
 dependencies = [
  "async-trait",
  "criterion",
@@ -2513,7 +2513,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-storage"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "aws-config",
