@@ -5,7 +5,7 @@ use crate::handlers::{HeaderMap, HttpVersionCompat};
 use actix_web::body::{BoxBody, EitherBody};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::web::Query;
-use actix_web::{Error, FromRequest, HttpResponse};
+use actix_web::{Error, FromRequest, HttpMessage, HttpResponse};
 use axum::body::to_bytes;
 use axum::response::IntoResponse;
 use futures_util::future::LocalBoxFuture;
@@ -15,6 +15,8 @@ use std::collections::HashMap;
 use std::future::{Ready, ready};
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use lambda_http::RequestExt;
+use tracing::debug;
 
 /// A wrapper around the axum middleware layer.
 #[derive(Clone)]
@@ -58,6 +60,8 @@ impl<S> AuthMiddleware<S> {
   /// Validate the authorization.
   pub async fn validate_authorization(&self, req: &mut ServiceRequest) -> Result<(), HtsGetError> {
     let (req, payload) = req.parts_mut();
+
+    debug!("Request extensions: {:?}", req.extensions());
 
     let query = <Query<HashMap<String, String>> as FromRequest>::from_request(req, payload)
       .await
