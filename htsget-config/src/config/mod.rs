@@ -360,7 +360,8 @@ pub(crate) mod tests {
   use std::fmt::Display;
 
   use super::*;
-  use crate::config::advanced::auth::AuthMode;
+  use crate::config::advanced::auth::authorization::UrlOrStatic;
+  use crate::config::advanced::auth::jwt::AuthMode;
   use crate::config::location::Location;
   use crate::config::parser::from_str;
   use crate::http::tests::with_test_certificates;
@@ -808,11 +809,10 @@ pub(crate) mod tests {
       r#"
       ticket_server.auth.jwks_url = "https://www.example.com/"
       ticket_server.auth.validate_issuer = ["iss1"]
-      ticket_server.auth.trusted_authorization_urls = ["https://www.example.com"]
-      ticket_server.auth.authorization_path = "$.auth_url"
+      ticket_server.auth.authorization_url = "https://www.example.com"
       data_server.auth.jwks_url = "https://www.example.com/"
       data_server.auth.validate_audience = ["aud1"]
-      data_server.auth.trusted_authorization_urls = ["https://www.example.com"]
+      data_server.auth.authorization_url = "https://www.example.com"
       "#,
       |config| {
         let auth = config.ticket_server().auth().unwrap();
@@ -825,10 +825,9 @@ pub(crate) mod tests {
           Some(vec!["iss1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url(),
-          &["https://www.example.com/".parse::<Uri>().unwrap()]
+          auth.authorization_url().unwrap(),
+          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
         );
-        assert_eq!(auth.authorization_path(), Some("$.auth_url"));
         let auth = config
           .data_server()
           .as_data_server_config()
@@ -844,8 +843,8 @@ pub(crate) mod tests {
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url(),
-          &["https://www.example.com/".parse::<Uri>().unwrap()]
+          auth.authorization_url().unwrap(),
+          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
         );
       },
     );
@@ -857,7 +856,7 @@ pub(crate) mod tests {
       r#"
       auth.jwks_url = "https://www.example.com/"
       auth.validate_audience = ["aud1"]
-      auth.trusted_authorization_urls = ["https://www.example.com"]
+      auth.authorization_url = "https://www.example.com"
       "#,
       |config| {
         let auth = config.auth.unwrap();
@@ -870,8 +869,8 @@ pub(crate) mod tests {
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url(),
-          &["https://www.example.com/".parse::<Uri>().unwrap()]
+          auth.authorization_url().unwrap(),
+          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
         );
       },
     );

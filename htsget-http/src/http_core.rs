@@ -35,18 +35,12 @@ async fn authorize(
   queries: &mut [Query],
   auth: Option<(TokenData<Value>, Auth)>,
 ) -> Result<Option<Vec<AuthorizationRule>>> {
-  if let Some((token_data, auth)) = auth {
-    if auth.config().authentication_only() {
-      return Ok(None);
-    }
-
-    let _rules = auth
-      .validate_authorization(token_data, headers, path, queries)
-      .await?;
+  if let Some((_, auth)) = auth {
+    let _rules = auth.validate_authorization(headers, path, queries).await?;
     cfg_if! {
       if #[cfg(feature = "experimental")] {
         if auth.config().add_hint() {
-          Ok(Some(_rules))
+          Ok(_rules)
         } else {
           Ok(None)
         }

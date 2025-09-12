@@ -6,11 +6,13 @@ use axum::{Router, http::StatusCode, response::Json, routing::get};
 use cfg_if::cfg_if;
 use chrono::{Duration, Utc};
 use htsget_config::config::advanced::HttpClient;
+use htsget_config::config::advanced::auth::authorization::UrlOrStatic;
+use htsget_config::config::advanced::auth::jwt::AuthMode;
 use htsget_config::config::advanced::auth::response::{
   AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
 };
 use htsget_config::config::advanced::auth::{
-  AuthConfig, AuthConfigBuilder, AuthMode, AuthorizationRestrictions,
+  AuthConfig, AuthConfigBuilder, AuthorizationRestrictions,
 };
 use htsget_config::types::{Class, Format};
 use http::{Method, Uri};
@@ -76,7 +78,7 @@ pub fn create_test_auth_config(
     .validate_audience(vec!["test-audience".to_string()])
     .validate_issuer(vec!["test-issuer".to_string()])
     .validate_subject("test-subject".to_string())
-    .authorization_url(mock_server.uri())
+    .authorization_url(UrlOrStatic::Url(mock_server.uri()))
     .http_client(HttpClient::new(
       ClientBuilder::new(reqwest::Client::new()).build(),
     ));

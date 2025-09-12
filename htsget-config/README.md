@@ -422,11 +422,11 @@ The authorization server should respond with a rule set that htsget-rs can use t
 
 The following additional options can be configured under the `auth` table to enable this:
 
-| Option                | Description                                                                                                                                                                    | Type                  | Default  |
-|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|----------|
-| `authorization_url`   | The URL which will be called to authorize the user. A GET request will be issued to the url. Alternatively, this can be a file path to authorize users based on static config. | URL                   | Not set. |
-| `forward_headers`     | For each header specified, forward any headers from the client to the authorization server. Headers are forwarded with the `HtsGetContext-` as a prefix.                       | Array of header names | Not set. |
-| `forward_auth_header` | Forward the authorization header to the authorization server directly without renaming it to a `HtsGetContext-` custom header.                                                 | Boolean               | `false`  |
+| Option              | Description                                                                                                                                                                    | Type                  | Default  |
+|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|----------|
+| `authorization_url` | The URL which will be called to authorize the user. A GET request will be issued to the url. Alternatively, this can be a file path to authorize users based on static config. | URL                   | Not set. |
+| `forward_headers`   | For each header specified, forward any headers from the client to the authorization server. Headers are forwarded with the `HtsGetContext-` as a prefix.                       | Array of header names | Not set. |
+| `passthrough_auth`  | Forward the authorization header to the authorization server directly without renaming it to a `HtsGetContext-` custom header.                                                 | Boolean               | `true`   |
 
 When using the `authorization_url`, the [authentication](#jwt-authentication) config must also be set as htsget-rs will
 forward the JWT token to the authorization server so that it can make decisions about the user's authorization. If the

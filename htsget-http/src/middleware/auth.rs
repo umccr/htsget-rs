@@ -8,12 +8,13 @@ use crate::middleware::error::Result;
 use cfg_if::cfg_if;
 use headers::authorization::Bearer;
 use headers::{Authorization, Header};
+use htsget_config::config::advanced::auth::authorization::UrlOrStatic;
+use htsget_config::config::advanced::auth::jwt::AuthMode;
 use htsget_config::config::advanced::auth::{
-  AuthConfig, AuthMode, AuthorizationRestrictions, AuthorizationRule,
+  AuthConfig, AuthorizationRestrictions, AuthorizationRule,
 };
 use htsget_config::types::{Class, Interval, Query};
 use http::{HeaderMap, Uri};
-use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode_header};
 use regex::Regex;
@@ -40,18 +41,6 @@ impl AuthBuilder {
     let Some(mut config) = self.config else {
       return Err(AuthBuilderError("missing config".to_string()));
     };
-
-    if config.authorization_url().is_empty() {
-      return Err(AuthBuilderError(
-        "at least one trusted authorization url must be set".to_string(),
-      ));
-    }
-    if config.authorization_path().is_none() && config.authorization_url().len() > 1 {
-      return Err(AuthBuilderError(
-        "only one trusted authorization url should be set when not using authorization paths"
-          .to_string(),
-      ));
-    }
 
     let mut decoding_key = None;
     if let AuthMode::PublicKey(public_key) = config.auth_mode_mut() {
@@ -140,64 +129,31 @@ impl Auth {
   /// service. The claims are assumed to be valid.
   pub async fn query_authorization_service(
     &self,
-    claims: Value,
     headers: &HeaderMap,
-  ) -> HtsGetResult<AuthorizationRestrictions> {
-    let query_url = match self.config.authorization_path() {
-      None => self
-        .config
-        .authorization_url()
-        .first()
-        .ok_or_else(|| {
-          HtsGetError::InternalError("missing trusted authorization url".to_string())
-        })?,
-      Some(path) => {
-        // Extract the url from the path.
-        let path = claims.query(path).map_err(|err| {
-          HtsGetError::InvalidAuthentication(format!(
-            "failed to find authorization service in claims: {err}",
-          ))
-        })?;
-        let url = path
-          .first()
+  ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
+    match self.config.authorization_url() {
+      Some(UrlOrStatic::Url(uri)) => {
+        let auth_header = headers
+          .iter()
+          .find_map(|(name, value)| {
+            if Authorization::<Bearer>::decode(&mut [value].into_iter()).is_ok() {
+              return Some((name.clone(), value.clone()));
+            }
+
+            None
+          })
           .ok_or_else(|| {
-            HtsGetError::InvalidAuthentication(
-              "expected one value for authorization service in claims".to_string(),
-            )
-          })?
-          .as_str()
-          .ok_or_else(|| {
-            HtsGetError::InvalidAuthentication(
-              "expected string value for authorization service in claims".to_string(),
-            )
+            HtsGetError::PermissionDenied("missing authorization header".to_string())
           })?;
-        &url.parse::<Uri>().map_err(|err| {
-          HtsGetError::InvalidAuthentication(format!("failed to parse authorization url: {err}"))
-        })?
+
+        self
+          .fetch_from_url(&uri.to_string(), HeaderMap::from_iter([auth_header]))
+          .await
+          .map(Some)
       }
-    };
-
-    // Ensure that the authorization url is trusted.
-    if !self.config.authorization_url().contains(query_url) {
-      return Err(HtsGetError::PermissionDenied(
-        "authorization service in claims not a trusted authorization url".to_string(),
-      ));
-    };
-
-    let auth_header = headers
-      .iter()
-      .find_map(|(name, value)| {
-        if Authorization::<Bearer>::decode(&mut [value].into_iter()).is_ok() {
-          return Some((name.clone(), value.clone()));
-        }
-
-        None
-      })
-      .ok_or_else(|| HtsGetError::PermissionDenied("missing authorization header".to_string()))?;
-
-    self
-      .fetch_from_url(&query_url.to_string(), HeaderMap::from_iter([auth_header]))
-      .await
+      Some(UrlOrStatic::Static(config)) => Ok(Some(config.clone())),
+      _ => Ok(None),
+    }
   }
 
   /// Validate the restrictions, returning an error if the user is not authorized.
@@ -359,20 +315,22 @@ impl Auth {
   /// 4. Validates the restrictions to determine if the user is authorized.
   pub async fn validate_authorization(
     &self,
-    claims: TokenData<Value>,
     headers: &HeaderMap,
     path: &str,
     queries: &mut [Query],
-  ) -> HtsGetResult<Vec<AuthorizationRule>> {
-    let restrictions = self
-      .query_authorization_service(claims.claims, headers)
-      .await?;
-    cfg_if! {
-      if #[cfg(feature = "experimental")] {
-        Self::validate_restrictions(restrictions, path, queries, self.config.suppress_errors())
-      } else {
-        Self::validate_restrictions(restrictions, path, queries, false)
+  ) -> HtsGetResult<Option<Vec<AuthorizationRule>>> {
+    let restrictions = self.query_authorization_service(headers).await?;
+
+    if let Some(restrictions) = restrictions {
+      cfg_if! {
+        if #[cfg(feature = "experimental")] {
+          Self::validate_restrictions(restrictions, path, queries, self.config.suppress_errors()).map(Some)
+        } else {
+          Self::validate_restrictions(restrictions, path, queries, false).map(Some)
+        }
       }
+    } else {
+      Ok(None)
     }
   }
 }
@@ -382,10 +340,10 @@ mod tests {
   use super::*;
   use crate::{Endpoint, convert_to_query, match_format_from_query};
   use htsget_config::config::advanced::HttpClient;
+  use htsget_config::config::advanced::auth::AuthConfigBuilder;
   use htsget_config::config::advanced::auth::response::{
     AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
   };
-  use htsget_config::config::advanced::auth::{AuthConfigBuilder, AuthMode};
   use htsget_config::types::{Format, Request};
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};
@@ -1144,7 +1102,9 @@ mod tests {
   fn create_test_auth_config(public_key: Vec<u8>) -> AuthConfig {
     AuthConfigBuilder::default()
       .auth_mode(AuthMode::PublicKey(public_key))
-      .authorization_url(Uri::from_static("https://www.example.com"))
+      .authorization_url(UrlOrStatic::Url(Uri::from_static(
+        "https://www.example.com",
+      )))
       .http_client(HttpClient::new(
         ClientBuilder::new(reqwest::Client::new()).build(),
       ))
