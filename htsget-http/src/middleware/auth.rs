@@ -14,13 +14,14 @@ use htsget_config::config::advanced::auth::{
   AuthConfig, AuthorizationRestrictions, AuthorizationRule,
 };
 use htsget_config::types::{Class, Interval, Query};
-use http::{HeaderMap, Uri};
+use http::{HeaderMap, HeaderName, Uri};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode_header};
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::fmt::{Debug, Formatter};
+use std::str::FromStr;
 use tracing::trace;
 
 /// Builder the the authorization middleware.
@@ -43,7 +44,7 @@ impl AuthBuilder {
     };
 
     let mut decoding_key = None;
-    if let AuthMode::PublicKey(public_key) = config.auth_mode_mut() {
+    if let Some(AuthMode::PublicKey(public_key)) = config.auth_mode_mut() {
       decoding_key = Some(
         Auth::decode_public_key(public_key)
           .map_err(|_| AuthBuilderError("failed to decode public key".to_string()))?,
@@ -69,6 +70,8 @@ impl Debug for Auth {
     f.debug_struct("config").finish()
   }
 }
+
+const FORWARD_HEADER_PREFIX: &str = "Htsget-Context-";
 
 impl Auth {
   /// Get the config for this auth layer instance.
@@ -124,6 +127,48 @@ impl Auth {
     )
   }
 
+  /// Get the headers to send to the authorization service.
+  pub fn forwarded_headers(&self, request_headers: &HeaderMap) -> HtsGetResult<HeaderMap> {
+    let mut forwarded_headers = if self.config.passthrough_auth() {
+      let auth_header = request_headers
+        .iter()
+        .find_map(|(name, value)| {
+          if Authorization::<Bearer>::decode(&mut [value].into_iter()).is_ok() {
+            return Some((name.clone(), value.clone()));
+          }
+
+          None
+        })
+        .ok_or_else(|| HtsGetError::PermissionDenied("missing authorization header".to_string()))?;
+      HeaderMap::from_iter([auth_header])
+    } else {
+      HeaderMap::default()
+    };
+
+    for header in self.config.forward_headers() {
+      let Some((existing_name, existing_value)) = request_headers
+        .iter()
+        .find_map(|(name, value)| {
+          if header.to_lowercase() == name.as_str().to_lowercase() {
+            return match HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, name)) {
+              Ok(header) => Some(Ok((header, value))),
+              Err(err) => Some(Err(HtsGetError::InternalError(err.to_string()))),
+            };
+          }
+
+          None
+        })
+        .transpose()?
+      else {
+        continue;
+      };
+
+      forwarded_headers.insert(existing_name, existing_value.clone());
+    }
+
+    Ok(forwarded_headers)
+  }
+
   /// Query the authorization service to get the restrictions. This function validates
   /// that the authorization url is trusted in the config settings before calling the
   /// service. The claims are assumed to be valid.
@@ -133,21 +178,10 @@ impl Auth {
   ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
     match self.config.authorization_url() {
       Some(UrlOrStatic::Url(uri)) => {
-        let auth_header = headers
-          .iter()
-          .find_map(|(name, value)| {
-            if Authorization::<Bearer>::decode(&mut [value].into_iter()).is_ok() {
-              return Some((name.clone(), value.clone()));
-            }
-
-            None
-          })
-          .ok_or_else(|| {
-            HtsGetError::PermissionDenied("missing authorization header".to_string())
-          })?;
+        let forwarded_headers = self.forwarded_headers(headers)?;
 
         self
-          .fetch_from_url(&uri.to_string(), HeaderMap::from_iter([auth_header]))
+          .fetch_from_url(&uri.to_string(), forwarded_headers)
           .await
           .map(Some)
       }
@@ -261,8 +295,13 @@ impl Auth {
       decoding_key
     } else {
       match self.config.auth_mode() {
-        AuthMode::Jwks(jwks) => &self.decode_jwks(jwks, auth_token.token()).await?,
-        AuthMode::PublicKey(public_key) => &Self::decode_public_key(public_key)?,
+        Some(AuthMode::Jwks(jwks)) => &self.decode_jwks(jwks, auth_token.token()).await?,
+        Some(AuthMode::PublicKey(public_key)) => &Self::decode_public_key(public_key)?,
+        _ => {
+          return Err(HtsGetError::InternalError(
+            "JWT validation not set".to_string(),
+          ));
+        }
       }
     };
 
@@ -438,6 +477,93 @@ mod tests {
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_forward_headers() {
+    let (_, public_key) = generate_key_pair();
+
+    let builder = AuthConfigBuilder::default()
+      .auth_mode(AuthMode::PublicKey(public_key))
+      .authorization_url(UrlOrStatic::Url(Uri::from_static(
+        "https://www.example.com",
+      )))
+      .http_client(HttpClient::new(
+        ClientBuilder::new(reqwest::Client::new()).build(),
+      ));
+    let config = builder
+      .clone()
+      .forward_headers(vec!["Custom1".to_string()])
+      .build()
+      .unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let request_headers = HeaderMap::from_iter([
+      (
+        "Authorization".parse().unwrap(),
+        "Bearer Value".parse().unwrap(),
+      ),
+      ("Custom1".parse().unwrap(), "Value".parse().unwrap()),
+      ("Custom2".parse().unwrap(), "Value".parse().unwrap()),
+    ]);
+    let forwarded_headers = result.forwarded_headers(&request_headers).unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([
+        (
+          format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+          "Value".parse().unwrap()
+        ),
+        (
+          "Authorization".parse().unwrap(),
+          "Bearer Value".parse().unwrap()
+        ),
+      ])
+    );
+
+    let config = builder
+      .clone()
+      .forward_headers(vec!["Custom1".to_string(), "Authorization".to_string()])
+      .build()
+      .unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let forwarded_headers = result.forwarded_headers(&request_headers).unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([
+        (
+          format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+          "Value".parse().unwrap()
+        ),
+        (
+          format!("{}Authorization", FORWARD_HEADER_PREFIX)
+            .parse()
+            .unwrap(),
+          "Bearer Value".parse().unwrap()
+        ),
+        (
+          "Authorization".parse().unwrap(),
+          "Bearer Value".parse().unwrap()
+        ),
+      ])
+    );
+
+    let config = builder
+      .forward_headers(vec!["Custom1".to_string()])
+      .passthrough_auth(false)
+      .build()
+      .unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let forwarded_headers = result.forwarded_headers(&request_headers).unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([(
+        format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+        "Value".parse().unwrap()
+      ),])
+    );
   }
 
   #[test]

@@ -3,7 +3,6 @@
 
 use crate::config::advanced::auth::AuthorizationRestrictions;
 use http::Uri;
-use http_serde::uri;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fs::File;
@@ -22,20 +21,18 @@ impl<'de> Deserialize<'de> for UrlOrStatic {
   where
     D: Deserializer<'de>,
   {
-    let uri = uri::deserialize(deserializer)?;
+    let uri = String::deserialize(deserializer)?;
 
-    if uri
-      .scheme_str()
-      .is_none_or(|scheme| scheme.to_lowercase() == "file")
-    {
-      let mut auth_rules = File::open(uri.to_string()).map_err(Error::custom)?;
+    if uri.to_lowercase().starts_with("http://") || uri.to_lowercase().starts_with("https://") {
+      Ok(UrlOrStatic::Url(uri.parse().map_err(Error::custom)?))
+    } else {
+      let mut auth_rules =
+        File::open(uri.strip_prefix("file://").unwrap_or(&uri)).map_err(Error::custom)?;
       let mut buf = vec![];
       auth_rules.read_to_end(&mut buf).map_err(Error::custom)?;
       Ok(UrlOrStatic::Static(
         serde_json::from_slice(buf.as_slice()).map_err(Error::custom)?,
       ))
-    } else {
-      Ok(UrlOrStatic::Url(uri))
     }
   }
 }

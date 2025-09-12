@@ -817,7 +817,7 @@ pub(crate) mod tests {
       |config| {
         let auth = config.ticket_server().auth().unwrap();
         assert_eq!(
-          auth.auth_mode(),
+          auth.auth_mode().unwrap(),
           &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
         );
         assert_eq!(
@@ -835,7 +835,7 @@ pub(crate) mod tests {
           .auth()
           .unwrap();
         assert_eq!(
-          auth.auth_mode(),
+          auth.auth_mode().unwrap(),
           &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
         );
         assert_eq!(
@@ -861,7 +861,7 @@ pub(crate) mod tests {
       |config| {
         let auth = config.auth.unwrap();
         assert_eq!(
-          auth.auth_mode(),
+          auth.auth_mode().unwrap(),
           &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
         );
         assert_eq!(

@@ -23,10 +23,12 @@ async fn authenticate(
   auth: Option<Auth>,
 ) -> Result<Option<(TokenData<Value>, Auth)>> {
   if let Some(auth) = auth {
-    Ok(Some((auth.validate_jwt(headers).await?, auth)))
-  } else {
-    Ok(None)
+    if auth.config().auth_mode().is_some() {
+      return Ok(Some((auth.validate_jwt(headers).await?, auth)));
+    }
   }
+
+  Ok(None)
 }
 
 async fn authorize(

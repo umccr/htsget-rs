@@ -425,14 +425,14 @@ The following additional options can be configured under the `auth` table to ena
 | Option              | Description                                                                                                                                                                    | Type                  | Default  |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|----------|
 | `authorization_url` | The URL which will be called to authorize the user. A GET request will be issued to the url. Alternatively, this can be a file path to authorize users based on static config. | URL                   | Not set. |
-| `forward_headers`   | For each header specified, forward any headers from the client to the authorization server. Headers are forwarded with the `HtsGetContext-` as a prefix.                       | Array of header names | Not set. |
-| `passthrough_auth`  | Forward the authorization header to the authorization server directly without renaming it to a `HtsGetContext-` custom header.                                                 | Boolean               | `true`   |
+| `forward_headers`   | For each header specified, forward any headers from the client to the authorization server. Headers are forwarded with the `Htsget-Context-` as a prefix.                       | Array of header names | Not set. |
+| `passthrough_auth`  | Forward the authorization header to the authorization server directly without renaming it to a `Htsget-Context-` custom header.                                                 | Boolean               | `true`   |
 
 When using the `authorization_url`, the [authentication](#jwt-authentication) config must also be set as htsget-rs will
 forward the JWT token to the authorization server so that it can make decisions about the user's authorization. If the
 `authorization_url` is a file path, then authentication doesn't need to be set.
 
-Each header in the `forward_headers` option is forwarded as a custom `HtsGetContext-<name>` header to the authorization server.
+Each header in the `forward_headers` option is forwarded as a custom `Htsget-Context-<name>` header to the authorization server.
 The authorization header can be forward as though it is coming from the client by setting `forward_auth_header = true`. This is
 useful to support authenticating the original client JWT at the authorization server and can be used to set-up authorization
 flows like oauth.
@@ -552,7 +552,7 @@ Set the following in the `auth` table to use this feature:
 
 | Option               | Description                                                                                                                                                                                                                                                                                 | Type                              | Default   |
 |----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------|
-| `forward_extensions` | For each request extension specified, forward the HTTP extension to the authorization server. This can be a full JSON path to forward nested values. Extensions are forwarded as custom `HtsGetContext-<name>` headers, where each JSON path value must be assigned a name in this setting. | Array of name and JSON path pairs | Not set.  |
+| `forward_extensions` | For each request extension specified, forward the HTTP extension to the authorization server. This can be a full JSON path to forward nested values. Extensions are forwarded as custom `Htsget-Context-<name>` headers, where each JSON path value must be assigned a name in this setting. | Array of name and JSON path pairs | Not set.  |
 
 For example, to forward the request context source VPC from a Lambda function handling [VPC lattice events](https://docs.aws.amazon.com/vpc-lattice/latest/ug/lambda-functions.html#receive-event-from-service), use the following
 setting:
@@ -562,7 +562,7 @@ setting:
 forward_extensions = [ { json_path = '$.requestContext.identity.sourceVpcArn', name = 'SourceVpcArn'} ]
 ```
 
-This would then forward the source VPC ARN to the authorization server in a header called `HtsGetContext-SourceVpcArn`.
+This would then forward the source VPC ARN to the authorization server in a header called `Htsget-Context-SourceVpcArn`.
 
 An example of this kind of implementation can be seen [here](https://github.com/umccr/htsget-deploy/tree/main/aws-vpc-lattice).
 

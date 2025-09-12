@@ -7,7 +7,6 @@
 use crate::config::advanced::HttpClient;
 use crate::config::advanced::auth::authorization::{ForwardExtensions, UrlOrStatic};
 use crate::config::advanced::auth::jwt::AuthMode;
-use crate::error::Error::BuilderError;
 use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
 use reqwest_middleware::ClientWithMiddleware;
@@ -22,7 +21,7 @@ pub mod response;
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, try_from = "AuthConfigBuilder")]
 pub struct AuthConfig {
-  auth_mode: AuthMode,
+  auth_mode: Option<AuthMode>,
   validate_audience: Option<Vec<String>>,
   validate_issuer: Option<Vec<String>>,
   validate_subject: Option<String>,
@@ -56,13 +55,13 @@ impl AuthConfig {
   }
 
   /// Get the authorization mode.
-  pub fn auth_mode(&self) -> &AuthMode {
-    &self.auth_mode
+  pub fn auth_mode(&self) -> Option<&AuthMode> {
+    self.auth_mode.as_ref()
   }
 
   /// Get the authorization mode.
-  pub fn auth_mode_mut(&mut self) -> &mut AuthMode {
-    &mut self.auth_mode
+  pub fn auth_mode_mut(&mut self) -> Option<&mut AuthMode> {
+    self.auth_mode.as_mut()
   }
 
   /// Get the validate audience list.
@@ -193,12 +192,8 @@ impl AuthConfigBuilder {
 
   /// Build the auth config.
   pub fn build(self) -> Result<AuthConfig> {
-    let Some(auth_mode) = self.auth_mode else {
-      return Err(BuilderError("missing auth mode".to_string()));
-    };
-
     Ok(AuthConfig {
-      auth_mode,
+      auth_mode: self.auth_mode,
       validate_audience: self.validate_audience,
       validate_issuer: self.validate_issuer,
       validate_subject: self.validate_subject,
@@ -248,8 +243,14 @@ impl TryFrom<AuthConfigBuilder> for AuthConfig {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::config::advanced::auth::response::{
+    AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder,
+  };
   use crate::http::tests::with_test_certificates;
   use http::Uri;
+  use serde_json::to_string;
+  use std::io::Write;
+  use tempfile::NamedTempFile;
 
   #[test]
   fn auth_config_public_key() {
@@ -258,13 +259,16 @@ mod tests {
 
       let config: AuthConfig = toml::from_str(&format!(
         r#"
-            public_key = "{}"
-            "#,
+        public_key = "{}"
+        "#,
         key_path.to_string_lossy()
       ))
       .unwrap();
 
-      assert!(matches!(config.auth_mode(), AuthMode::PublicKey(_)));
+      assert!(matches!(
+        config.auth_mode().unwrap(),
+        AuthMode::PublicKey(_)
+      ));
     });
   }
 
@@ -295,6 +299,51 @@ mod tests {
   }
 
   #[test]
+  fn auth_config_no_authentication() {
+    let config: AuthConfig = toml::from_str(
+      r#"
+      authorization_url = "https://www.example.com"
+      "#,
+    )
+    .unwrap();
+
+    assert_eq!(
+      config.authorization_url().unwrap(),
+      &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
+    );
+  }
+
+  #[test]
+  fn auth_config_static_auth() {
+    let mut temp = NamedTempFile::new().unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(
+        AuthorizationRuleBuilder::default()
+          .path("path")
+          .build()
+          .unwrap(),
+      )
+      .build()
+      .unwrap();
+    temp
+      .write_all(to_string(&restrictions).unwrap().as_bytes())
+      .unwrap();
+
+    let config: AuthConfig = toml::from_str(&format!(
+      r#"
+      authorization_url = "file://{}"
+      "#,
+      temp.path().to_string_lossy()
+    ))
+    .unwrap();
+
+    assert_eq!(
+      config.authorization_url().unwrap(),
+      &UrlOrStatic::Static(restrictions)
+    );
+  }
+
+  #[test]
   fn auth_config() {
     let config: AuthConfig = toml::from_str(
       r#"
@@ -308,7 +357,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(
-      config.auth_mode(),
+      config.auth_mode().unwrap(),
       &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
     );
     assert_eq!(
@@ -358,18 +407,11 @@ mod tests {
       &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
     );
     assert_eq!(
-      rule.auth_mode,
+      rule.clone().auth_mode.unwrap(),
       AuthMode::Jwks("https://www.example.com/".parse().unwrap())
     );
     assert_eq!(rule.validate_audience(), None);
     assert_eq!(rule.validate_issuer(), None);
     assert_eq!(rule.validate_subject(), None);
-
-    let rule = AuthConfigBuilder::default()
-      .authorization_url(UrlOrStatic::Url(
-        "https://www.example.com".parse::<Uri>().unwrap(),
-      ))
-      .build();
-    assert!(rule.is_err());
   }
 }
