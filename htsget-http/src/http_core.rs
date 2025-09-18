@@ -36,9 +36,12 @@ async fn authorize(
   path: &str,
   queries: &mut [Query],
   auth: Option<(TokenData<Value>, Auth)>,
+  extensions: Option<Value>,
 ) -> Result<Option<Vec<AuthorizationRule>>> {
   if let Some((_, auth)) = auth {
-    let _rules = auth.validate_authorization(headers, path, queries).await?;
+    let _rules = auth
+      .validate_authorization(headers, path, queries, extensions)
+      .await?;
     cfg_if! {
       if #[cfg(feature = "experimental")] {
         if auth.config().add_hint() {
@@ -64,6 +67,7 @@ pub async fn get(
   request: Request,
   endpoint: Endpoint,
   auth: Option<Auth>,
+  extensions: Option<Value>,
 ) -> Result<JsonResponse> {
   let path = request.path().to_string();
   let headers = request.headers().clone();
@@ -72,7 +76,7 @@ pub async fn get(
 
   let format = match_format_from_query(&endpoint, request.query())?;
   let mut query = vec![convert_to_query(request, format)?];
-  let _rules = authorize(&headers, &path, query.as_mut_slice(), auth).await?;
+  let _rules = authorize(&headers, &path, query.as_mut_slice(), auth, extensions).await?;
 
   debug!(endpoint = ?endpoint, query = ?query, "getting GET response");
 
@@ -99,6 +103,7 @@ pub async fn post(
   request: Request,
   endpoint: Endpoint,
   auth: Option<Auth>,
+  extensions: Option<Value>,
 ) -> Result<JsonResponse> {
   let path = request.path().to_string();
   let headers = request.headers().clone();
@@ -112,7 +117,7 @@ pub async fn post(
   }
 
   let mut queries = body.get_queries(request, &endpoint)?;
-  let _rules = authorize(&headers, &path, queries.as_mut_slice(), auth).await?;
+  let _rules = authorize(&headers, &path, queries.as_mut_slice(), auth, extensions).await?;
 
   debug!(endpoint = ?endpoint, queries = ?queries, "getting POST response");
 

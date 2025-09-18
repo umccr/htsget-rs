@@ -214,14 +214,17 @@ impl AuthConfigBuilder {
 
 impl Default for AuthConfigBuilder {
   fn default() -> Self {
+    // Satisfy https://rust-lang.github.io/rust-clippy/master/index.html#derivable_impls
+    // when `experimental` is not enabled.
+    let authorization_url = None;
     Self {
       auth_mode: None,
       validate_audience: None,
       validate_issuer: None,
       validate_subject: None,
-      authorization_url: None,
+      authorization_url,
       forward_headers: vec![],
-      passthrough_auth: true,
+      passthrough_auth: false,
       forward_extensions: vec![],
       http_client: None,
       #[cfg(feature = "experimental")]

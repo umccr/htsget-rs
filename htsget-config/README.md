@@ -422,11 +422,11 @@ The authorization server should respond with a rule set that htsget-rs can use t
 
 The following additional options can be configured under the `auth` table to enable this:
 
-| Option              | Description                                                                                                                                                                    | Type                  | Default  |
-|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|----------|
-| `authorization_url` | The URL which will be called to authorize the user. A GET request will be issued to the url. Alternatively, this can be a file path to authorize users based on static config. | URL                   | Not set. |
-| `forward_headers`   | For each header specified, forward any headers from the client to the authorization server. Headers are forwarded with the `Htsget-Context-` as a prefix.                       | Array of header names | Not set. |
-| `passthrough_auth`  | Forward the authorization header to the authorization server directly without renaming it to a `Htsget-Context-` custom header.                                                 | Boolean               | `true`   |
+| Option              | Description                                                                                                                                                                                                    | Type                  | Default  |
+|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|----------|
+| `authorization_url` | The URL which will be called to authorize the user. A GET request will be issued to the url. Alternatively, this can be a file path to authorize users based on static config.                                 | URL                   | Not set. |
+| `forward_headers`   | For each header specified, forward any headers from the client to the authorization server. Headers are forwarded with the `Htsget-Context-` as a prefix.                                                      | Array of header names | Not set. |
+| `passthrough_auth`  | Forward the authorization header to the authorization server directly without renaming it to a `Htsget-Context-` custom header. If this is true, then the `Authorization` header is required with the request. | Boolean               | `false`  |
 
 When using the `authorization_url`, the [authentication](#jwt-authentication) config must also be set as htsget-rs will
 forward the JWT token to the authorization server so that it can make decisions about the user's authorization. If the
@@ -550,8 +550,8 @@ These context fields can be forwarded to the authorization service to make autho
 
 Set the following in the `auth` table to use this feature:
 
-| Option               | Description                                                                                                                                                                                                                                                                                 | Type                              | Default   |
-|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------|
+| Option               | Description                                                                                                                                                                                                                                                                                  | Type                              | Default   |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------|
 | `forward_extensions` | For each request extension specified, forward the HTTP extension to the authorization server. This can be a full JSON path to forward nested values. Extensions are forwarded as custom `Htsget-Context-<name>` headers, where each JSON path value must be assigned a name in this setting. | Array of name and JSON path pairs | Not set.  |
 
 For example, to forward the request context source VPC from a Lambda function handling [VPC lattice events](https://docs.aws.amazon.com/vpc-lattice/latest/ug/lambda-functions.html#receive-event-from-service), use the following

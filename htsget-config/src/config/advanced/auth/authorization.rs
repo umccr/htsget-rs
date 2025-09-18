@@ -44,3 +44,20 @@ pub struct ForwardExtensions {
   json_path: String,
   name: String,
 }
+
+impl ForwardExtensions {
+  /// Create a new forward extensions config.
+  pub fn new(json_path: String, name: String) -> Self {
+    Self { json_path, name }
+  }
+
+  /// Get the JSON path to fetch for the extension.
+  pub fn json_path(&self) -> &str {
+    &self.json_path
+  }
+
+  /// Get the name of the header.
+  pub fn name(&self) -> &str {
+    &self.name
+  }
+}

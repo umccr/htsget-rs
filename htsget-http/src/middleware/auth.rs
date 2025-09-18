@@ -14,7 +14,8 @@ use htsget_config::config::advanced::auth::{
   AuthConfig, AuthorizationRestrictions, AuthorizationRule,
 };
 use htsget_config::types::{Class, Interval, Query};
-use http::{HeaderMap, HeaderName, Uri};
+use http::{HeaderMap, HeaderName, HeaderValue, Uri};
+use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode_header};
 use regex::Regex;
@@ -128,7 +129,11 @@ impl Auth {
   }
 
   /// Get the headers to send to the authorization service.
-  pub fn forwarded_headers(&self, request_headers: &HeaderMap) -> HtsGetResult<HeaderMap> {
+  pub fn forwarded_headers(
+    &self,
+    request_headers: &HeaderMap,
+    request_extensions: Option<Value>,
+  ) -> HtsGetResult<HeaderMap> {
     let mut forwarded_headers = if self.config.passthrough_auth() {
       let auth_header = request_headers
         .iter()
@@ -166,6 +171,28 @@ impl Auth {
       forwarded_headers.insert(existing_name, existing_value.clone());
     }
 
+    if let Some(request_extensions) = request_extensions {
+      for extension in self.config.forward_extensions() {
+        let Some(value) = request_extensions.query(extension.json_path()).ok() else {
+          continue;
+        };
+
+        let value = value.first().ok_or_else(|| {
+          HtsGetError::InternalError("extension does not have only one value".to_string())
+        })?;
+        let value = value.as_str().ok_or_else(|| {
+          HtsGetError::InternalError("extension value is not a string".to_string())
+        })?;
+
+        let header_name =
+          HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, extension.name()))
+            .map_err(|err| HtsGetError::InternalError(err.to_string()))?;
+        let value = HeaderValue::from_str(value)
+          .map_err(|err| HtsGetError::InternalError(err.to_string()))?;
+        forwarded_headers.insert(header_name, value);
+      }
+    }
+
     Ok(forwarded_headers)
   }
 
@@ -175,10 +202,11 @@ impl Auth {
   pub async fn query_authorization_service(
     &self,
     headers: &HeaderMap,
+    request_extensions: Option<Value>,
   ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
     match self.config.authorization_url() {
       Some(UrlOrStatic::Url(uri)) => {
-        let forwarded_headers = self.forwarded_headers(headers)?;
+        let forwarded_headers = self.forwarded_headers(headers, request_extensions)?;
 
         self
           .fetch_from_url(&uri.to_string(), forwarded_headers)
@@ -357,8 +385,11 @@ impl Auth {
     headers: &HeaderMap,
     path: &str,
     queries: &mut [Query],
+    request_extensions: Option<Value>,
   ) -> HtsGetResult<Option<Vec<AuthorizationRule>>> {
-    let restrictions = self.query_authorization_service(headers).await?;
+    let restrictions = self
+      .query_authorization_service(headers, request_extensions)
+      .await?;
 
     if let Some(restrictions) = restrictions {
       cfg_if! {
@@ -380,6 +411,7 @@ mod tests {
   use crate::{Endpoint, convert_to_query, match_format_from_query};
   use htsget_config::config::advanced::HttpClient;
   use htsget_config::config::advanced::auth::AuthConfigBuilder;
+  use htsget_config::config::advanced::auth::authorization::ForwardExtensions;
   use htsget_config::config::advanced::auth::response::{
     AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
   };
@@ -387,6 +419,7 @@ mod tests {
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};
   use reqwest_middleware::ClientBuilder;
+  use serde_json::json;
   use std::collections::HashMap;
 
   #[test]
@@ -493,6 +526,7 @@ mod tests {
       ));
     let config = builder
       .clone()
+      .passthrough_auth(true)
       .forward_headers(vec!["Custom1".to_string()])
       .build()
       .unwrap();
@@ -506,7 +540,7 @@ mod tests {
       ("Custom1".parse().unwrap(), "Value".parse().unwrap()),
       ("Custom2".parse().unwrap(), "Value".parse().unwrap()),
     ]);
-    let forwarded_headers = result.forwarded_headers(&request_headers).unwrap();
+    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([
@@ -523,12 +557,13 @@ mod tests {
 
     let config = builder
       .clone()
+      .passthrough_auth(true)
       .forward_headers(vec!["Custom1".to_string(), "Authorization".to_string()])
       .build()
       .unwrap();
     let result = AuthBuilder::default().with_config(config).build().unwrap();
 
-    let forwarded_headers = result.forwarded_headers(&request_headers).unwrap();
+    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([
@@ -550,13 +585,40 @@ mod tests {
     );
 
     let config = builder
+      .clone()
       .forward_headers(vec!["Custom1".to_string()])
       .passthrough_auth(false)
       .build()
       .unwrap();
     let result = AuthBuilder::default().with_config(config).build().unwrap();
 
-    let forwarded_headers = result.forwarded_headers(&request_headers).unwrap();
+    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([(
+        format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+        "Value".parse().unwrap()
+      ),])
+    );
+
+    let config = builder
+      .forward_extensions(vec![ForwardExtensions::new(
+        "$.Key".to_string(),
+        "Custom1".to_string(),
+      )])
+      .passthrough_auth(false)
+      .build()
+      .unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let forwarded_headers = result
+      .forwarded_headers(
+        &request_headers,
+        Some(json!({
+          "Key": "Value"
+        })),
+      )
+      .unwrap();
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([(
