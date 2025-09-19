@@ -2,7 +2,7 @@
 
 use crate::config::advanced::allow_guard::QueryAllowed;
 use crate::config::advanced::regex_location::RegexLocation;
-use crate::config::location::{LocationEither, Locations};
+use crate::config::location::{LocationEither, Locations, PrefixOrId};
 use crate::storage;
 use crate::storage::{Backend, ResolvedId};
 use crate::types::{Query, Response, Result};
@@ -71,34 +71,56 @@ impl IdResolver for LocationEither {
   #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, query: &Query) -> Option<ResolvedId> {
     let replace = |regex_location: &RegexLocation| {
-      Some(ResolvedId::new(
+      Some(
         regex_location
           .regex()
           .replace(query.id(), regex_location.substitution_string())
           .to_string(),
-      ))
+      )
     };
 
-    match self {
-      LocationEither::Simple(location) => {
-        if query.id().starts_with(location.prefix()) {
-          return Some(ResolvedId::new(query.id().to_string()));
+    let resolved_id = match self {
+      LocationEither::Simple(location) => match location.prefix_or_id() {
+        PrefixOrId::Prefix(prefix) if query.id().starts_with(prefix) => {
+          Some(format!(
+            "{}/{}",
+            location.to_append(),
+            query.id()
+          ))
         }
-      }
+        PrefixOrId::Id(id) => {
+          if query.id() == id.as_str() {
+            Some(location.to_append().to_string())
+          } else {
+            None
+          }
+        }
+        _ => None
+      },
       LocationEither::Regex(regex_location) => {
         if regex_location.regex().is_match(query.id()) {
           if let Some(guard) = regex_location.guard() {
             if guard.query_allowed(query) {
-              return replace(regex_location);
+              replace(regex_location)
+            } else {
+              None
             }
+          } else {
+            replace(regex_location)
           }
-
-          return replace(regex_location);
+        } else {
+          None
         }
       }
-    }
+    };
 
-    None
+    resolved_id.map(|id| {
+      println!("{:#?}", id);
+      let id = id.strip_prefix("/").unwrap_or(&id);
+      let a= ResolvedId::new(id.to_string());
+      println!("{:#?}", a);
+      a
+    })
   }
 }
 
@@ -253,7 +275,11 @@ mod tests {
     );
     expected_resolved_request(vec![regex_location.into()], "127.0.0.1:8080/id-test-1").await;
 
-    let location = Location::new(Backend::File(file), "".to_string());
+    let location = Location::new(
+      Backend::File(file),
+      "".to_string(),
+      PrefixOrId::Prefix("".to_string()),
+    );
     expected_resolved_request(vec![location.into()], "127.0.0.1:8080/id-1").await;
   }
 
@@ -269,7 +295,11 @@ mod tests {
     );
     expected_resolved_request(vec![regex_location.into()], "id2/id-test").await;
 
-    let location = Location::new(Backend::S3(s3_storage), "".to_string());
+    let location = Location::new(
+      Backend::S3(s3_storage),
+      "".to_string(),
+      PrefixOrId::Prefix("".to_string()),
+    );
     expected_resolved_request(vec![location.into()], "id2/id-1").await;
   }
 
@@ -295,6 +325,7 @@ mod tests {
     let location = Location::new(
       Backend::S3(storage::s3::S3::new("bucket".to_string(), None, false)),
       "".to_string(),
+      PrefixOrId::Prefix("".to_string()),
     );
     expected_resolved_request(vec![location.into()], "bucket/id-1").await;
   }
@@ -324,7 +355,11 @@ mod tests {
     )
     .await;
 
-    let location = Location::new(Backend::Url(url_storage), "".to_string());
+    let location = Location::new(
+      Backend::Url(url_storage),
+      "".to_string(),
+      PrefixOrId::Prefix("".to_string()),
+    );
     expected_resolved_request(vec![location.into()], "https://example.com/id-1").await;
   }
 
@@ -365,10 +400,19 @@ mod tests {
     );
 
     let resolver = Locations::new(vec![
-      Location::new(Default::default(), "id-1".to_string()).into(),
-      Location::new(Default::default(), "id-2".to_string()).into(),
+      Location::new(
+        Default::default(),
+        "".to_string(),
+        PrefixOrId::Prefix("id-1".to_string()),
+      )
+      .into(),
+      Location::new(
+        Default::default(),
+        "".to_string(),
+        PrefixOrId::Prefix("id-2".to_string()),
+      )
+      .into(),
     ]);
-
     assert_eq!(
       resolver
         .as_slice()
@@ -384,6 +428,67 @@ mod tests {
         .unwrap()
         .into_inner(),
       "id-2"
+    );
+    let resolver = Locations::new(vec![
+      Location::new(
+        Default::default(),
+        "append_to".to_string(),
+        PrefixOrId::Prefix("id-1".to_string()),
+      )
+      .into(),
+      Location::new(
+        Default::default(),
+        "append_to".to_string(),
+        PrefixOrId::Prefix("id-2".to_string()),
+      )
+      .into(),
+    ]);
+    assert_eq!(
+      resolver
+        .as_slice()
+        .resolve_id(&Query::new_with_default_request("id-1", Bam))
+        .unwrap()
+        .into_inner(),
+      "append_to/id-1"
+    );
+    assert_eq!(
+      resolver
+        .as_slice()
+        .resolve_id(&Query::new_with_default_request("id-2", Bam))
+        .unwrap()
+        .into_inner(),
+      "append_to/id-2"
+    );
+
+    let resolver = Locations::new(vec![
+      Location::new(
+        Default::default(),
+        "append_to".to_string(),
+        PrefixOrId::Id("id-1".to_string()),
+      )
+      .into(),
+      Location::new(
+        Default::default(),
+        "append_to".to_string(),
+        PrefixOrId::Id("id-2".to_string()),
+      )
+      .into(),
+    ]);
+    assert_eq!(
+      resolver
+        .as_slice()
+        .resolve_id(&Query::new_with_default_request("id-1", Bam))
+        .unwrap()
+        .into_inner(),
+      "append_to"
+    );
+    assert_eq!(
+      resolver
+        .as_slice()
+        .resolve_id(&Query::new_with_default_request("id-2", Bam))
+        .unwrap()
+        .into_inner(),
+      "append_to"
     );
   }
 

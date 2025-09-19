@@ -95,7 +95,7 @@ pub(crate) mod tests {
     htsget_storage::s3::S3Storage, htsget_test::aws_mocks::with_s3_test_server, std::fs::create_dir,
   };
 
-  use htsget_config::config::location::{Location, LocationEither};
+  use htsget_config::config::location::{Location, LocationEither, PrefixOrId};
   use htsget_config::storage;
   use htsget_config::storage::Backend;
   use htsget_config::types::Class::Body;
@@ -185,7 +185,12 @@ pub(crate) mod tests {
     with_config_local_storage(
       |_, local_storage| async {
         let locations = Locations::new(vec![LocationEither::Simple(
-          Location::new(Backend::File(local_storage), "".to_string()).into(),
+          Location::new(
+            Backend::File(local_storage),
+            "".to_string(),
+            PrefixOrId::Prefix("".to_string()),
+          )
+          .into(),
         )]);
 
         let filename = "spec-v4.3";

@@ -46,40 +46,60 @@ or on a remote HTTP server (either `http://` or `https://`):
 locations = "https://example.com"
 ```
 
-Multiple locations can be specified by providing a list and an id prefix after the location:
+For any of the above examples, htsget-rs will look for data using the id passed in the request. Locations can
+also have extra path segments to lookup nested data. For example, when using `location = "s3://bucket/dir"`,
+and the request `/reads/bam/htsnexus_test_NA12878`,  htsget-rs will search for data under
+`s3://bucket/dir/bam/htsnexus_test_NA12878.bam` and `s3://bucket/dir/bam/htsnexus_test_NA12878.bam.bai`,
+and return tickets for `s3://bucket/dir/bam/htsnexus_test_NA12878.bam`.
+
+> [!IMPORTANT]  
+> The file extension of data should not be specified in the request id and location. Any request for data will always
+> look for files with the file format extension. For example, a bam file will always use `.bam` and a VCF file will
+> always use `.vcf.gz`.
+
+Multiple locations can be specified by providing a list and an prefix after the location:
 
 ```toml
-locations = [ "file://data/bam", "file://data/cram" ]
+locations = [ { location = "file://data", prefix = "bam" }, { location = "s3://bucket", prefix = "cram" } ]
 ```
 
-This allows htsget-rs to serve data only when the request also contains the prefix:
+This allows htsget-rs to serve data only when the request also contains the prefix. For example, 
+`/reads/bam/htsnexus_test_NA12878` will go to `file://data/bam/htsnexus_test_NA12878.bam` and
+`/reads/cram/htsnexus_test_NA12878?format=CRAM'` will go to `s3://bucket/cram/htsnexus_test_NA12878.cram`.
 
-```sh
-curl 'http://localhost:8080/reads/bam/htsnexus_test_NA12878'
-curl 'http://localhost:8080/reads/cram/htsnexus_test_NA12878?format=CRAM'
-```
+When specifying locations like this, the location is additive. That is, the request id is appended to the
+location. This means that when the user requests data at `/reads/<id>`, the server fetches data and returns tickets
+from `<location>/<id>`. Trailing 
 
-Locations can be mixed, and don't all need to have the same directory or resource:
+As an alternative to additive locations, a location can be specified as an exact match for a file by setting the id
+field:
 
 ```toml
-locations = [ "file://data/bam", "file://data/cram", "s3://bucket/vcf" ]
+locations = [ { location = "file://data/file", id = "bam_file" }, { location = "s3://bucket/file", id = "cram_file" } ]
 ```
 
-For all types of locations, the second path segment represents the prefix which the request is expected
-to contain, in order to use that location. With the above example, if the request is `/variants/vcf/<id>`, then
-the S3 location is used, and if it is `/reads/bam/<id>` or `/reads/cram/<id>`, then the file locations are used.
+Now, when a user requests data at `/reads/bam_file`, the server will use `file://data/file.bam` and
+`file://data/file.bam.bai` instead of appending the id, and similar for `/reads/cram_file`. The advantage of this is 
+that it decouples the requested id from the name of the file completely. In general, when using exact id matches,
+a request for data at `/reads/<id>` will result in fetching data and returning tickets from `<location>`.
 
-For each of the location types, the first component represents the storage location:
+For added flexibility, there is an alternative location configuration system using regex under [advanced config].
 
-```toml
-locations = [ "file://<directory>/<prefix>", "s3://<bucket>/<prefix>", "https://<endpoint>/<prefix>" ]
-```
+> [!IMPORTANT]  
+> Some parts of htsget-rs require extra feature flags for conditional compilation, that's why the examples specify
+> using `--all-features`. Notably, `--features aws` enables the `S3` location type, and `--features url`
+> enabled the remote HTTP server location type. If using a subset of features, for example S3 locations only, then
+> a single feature can be enabled instead of using `--all-features`.
 
-htsget-rs spawns a separate server process to respond to htsget tickets for file locations.
-This server's path can be set by using `data_server.local_path`. When using `file://<directory>` locations,
-the directory component must be the same as the local path so that the server has access to it. 
-It is also not possible to have different directories components when using multiple `file://<directory>`
-locations.
+### Server config
+
+htsget-rs spawn up to two server instances - the ticket server, which responds to the initial htsget request, and
+optionally, the data server, which responds to the htsget tickets if using file locations.
+
+The data server's path can be set by using `data_server.local_path`. When using `file://<directory>` locations, the
+directory component must be the same as the local path so that the server has access to it. It is also not possible to
+have different directories components when using multiple `file://<directory>` locations. This means that there can only
+be one file location directory, although there can be multiple matching prefixes or ids to control the request.
 
 The data server process can be disabled by setting it to `None` if no file locations are being used:
 
@@ -90,9 +110,9 @@ data_server = "None"
 This is automatically applied if no file locations are configured.
 
 By default, file locations specified via `file://<dir>` will use the data server scheme and
-address for ticket responses. This means that tickets will be served as `<scheme>://<addr>/reads/<id>`,
+address for ticket responses. This means that tickets will be served as `<scheme>://<addr>/<id>`,
 pointing to the data server `<scheme>` and `<addr>` automatically. For example, a default `file://data`
-location will have tickets that look like `http://127.0.0.1:8081/reads/<id>`.
+location will have tickets that look like `http://127.0.0.1:8081/<id>`.
 
 The scheme and address can be overridden for any file-based responses by setting `data_server.ticket_origin`:
 
@@ -105,16 +125,6 @@ data_server.ticket_origin = "https://example.com/"
 
 In this example, the tickets will appear as `https://example.com/<id>`. This is useful to arbitrarily route tickets to
 DNS-resolvable requests, for example, inside a docker container.
-
-> [!NOTE]  
-> For S3 locations, the bucket is not included in the request to htsget-rs. To include the bucket as well, 
-> see deriving the bucket from the first capture group in [advanced config](#bucket).
- 
-> [!IMPORTANT]  
-> Some parts of htsget-rs require extra feature flags for conditional compilation, that's why the examples specify
-> using `--all-features`. Notably, `--features aws` enables the `S3` location type, and `--features url`
-> enabled the remote HTTP server location type. If using a subset of features, for example S3 locations only, then
-> a single feature can be enabled instead of using `--all-features`.
 
 ### Server config
 

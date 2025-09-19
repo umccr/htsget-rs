@@ -5,4 +5,4 @@ ticket_server.addr = "127.0.0.1:8080"
 data_server.addr = "127.0.0.1:8081"
 
 # Serve data locally from the `data` directory or from an S3 bucket called `bucket` depending on the prefix.
-locations = ["file://data/file_prefix", "s3://bucket/s3_prefix"]
+location = [ { location = "file://data", prefix = "file_prefix" }, { location = "s3://bucket", prefix = "s3_prefix" } ]

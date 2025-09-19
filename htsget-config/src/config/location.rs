@@ -3,18 +3,16 @@
 
 use crate::config::advanced::regex_location::RegexLocation;
 use crate::error::{Error::ParseError, Result};
-use crate::storage;
 use crate::storage::Backend;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
 use crate::storage::file::default_authority;
 use crate::types::Scheme;
+use crate::{error, storage};
 use cfg_if::cfg_if;
-use serde::de::Error;
-use serde::{Deserialize, Deserializer, Serialize};
-use std::result;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "url")]
-use {crate::config::advanced::url::Url, crate::error, http::Uri};
+use {crate::config::advanced::url::Url, http::Uri, http::uri::InvalidUri};
 
 /// The locations of data.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -99,18 +97,60 @@ impl Default for LocationEither {
   }
 }
 
+/// Whether the location specifies a prefix or an exact match id.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, rename_all = "lowercase")]
+pub enum PrefixOrId {
+  Prefix(String),
+  Id(String),
+}
+
+impl PrefixOrId {
+  /// Convert to a prefix if the variant is a prefix.
+  pub fn as_prefix(&self) -> Option<&str> {
+    match self {
+      PrefixOrId::Prefix(prefix) => Some(prefix),
+      PrefixOrId::Id(_) => None,
+    }
+  }
+
+  /// Convert to an id if the variant is an id.
+  pub fn as_id(&self) -> Option<&str> {
+    match self {
+      PrefixOrId::Prefix(_) => None,
+      PrefixOrId::Id(id) => Some(id),
+    }
+  }
+}
+
+impl Default for PrefixOrId {
+  fn default() -> Self {
+    Self::Prefix(Default::default())
+  }
+}
+
 /// Location config.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(default, from = "LocationWrapper", deny_unknown_fields)]
+#[serde(
+  default,
+  try_from = "LocationWrapper",
+  into = "LocationWrapper",
+  deny_unknown_fields
+)]
 pub struct Location {
   backend: Backend,
-  prefix: String,
+  to_append: String,
+  prefix_or_id: PrefixOrId,
 }
 
 impl Location {
   /// Create a new location.
-  pub fn new(backend: Backend, prefix: String) -> Self {
-    Self { backend, prefix }
+  pub fn new(backend: Backend, to_append: String, prefix_or_id: PrefixOrId) -> Self {
+    Self {
+      backend,
+      to_append,
+      prefix_or_id,
+    }
   }
 
   /// Get the storage backend.
@@ -123,9 +163,14 @@ impl Location {
     &mut self.backend
   }
 
-  /// Get the prefix.
-  pub fn prefix(&self) -> &str {
-    &self.prefix
+  /// Get the prefix or id.
+  pub fn prefix_or_id(&self) -> &PrefixOrId {
+    &self.prefix_or_id
+  }
+
+  /// Get the additional path to append to resolve the id.
+  pub fn to_append(&self) -> &str {
+    &self.to_append
   }
 }
 
@@ -151,6 +196,7 @@ impl From<LocationsOneOrMany> for Locations {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 struct ExtendedLocation {
+  #[serde(flatten)]
   location: StringLocation,
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
@@ -158,19 +204,21 @@ struct ExtendedLocation {
 }
 
 /// Deserialize the location from a string with a protocol.
-#[derive(Serialize, Debug, Clone, Default)]
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 struct StringLocation {
-  backend: Backend,
-  prefix: String,
+  location: String,
+  #[serde(flatten)]
+  prefix_or_id: PrefixOrId,
 }
 
 /// Deserialize the location from a map with regular field and values.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 struct MapLocation {
-  backend: Backend,
-  prefix: String,
+  location: Backend,
+  append_to: String,
+  prefix_or_id: PrefixOrId,
 }
 
 /// A wrapper around location deserialization that can deserialize either a string
@@ -184,24 +232,49 @@ struct MapLocation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged, deny_unknown_fields)]
 enum LocationWrapper {
+  SingleLocation(String),
   String(StringLocation),
-  Map(MapLocation),
+  Map(Box<MapLocation>),
   Extended(ExtendedLocation),
 }
 
-impl From<LocationWrapper> for Location {
-  fn from(location: LocationWrapper) -> Self {
+impl From<Location> for LocationWrapper {
+  fn from(location: Location) -> Self {
+    LocationWrapper::Map(Box::from(MapLocation {
+      location: location.backend,
+      append_to: location.to_append,
+      prefix_or_id: location.prefix_or_id,
+    }))
+  }
+}
+
+impl TryFrom<LocationWrapper> for Location {
+  type Error = error::Error;
+
+  fn try_from(location: LocationWrapper) -> Result<Self> {
     match location {
-      LocationWrapper::String(location) => Location::new(location.backend, location.prefix),
-      LocationWrapper::Map(location) => Location::new(location.backend, location.prefix),
-      LocationWrapper::Extended(location) => {
+      LocationWrapper::SingleLocation(location) => {
+        let backend: BackendWithAppend = location.try_into()?;
+        Ok(Location::new(backend.0, backend.1, Default::default()))
+      }
+      LocationWrapper::String(wrapper) => {
+        let backend: BackendWithAppend = wrapper.location.try_into()?;
+        Ok(Location::new(backend.0, backend.1, wrapper.prefix_or_id))
+      }
+      LocationWrapper::Map(wrapper) => Ok(Location::new(
+        wrapper.location,
+        wrapper.append_to,
+        wrapper.prefix_or_id,
+      )),
+      LocationWrapper::Extended(wrapper) => {
         cfg_if! {
           if #[cfg(feature = "experimental")] {
-            let mut location = location;
-            location.location.backend.set_keys(location.keys);
-            Location::new(location.location.backend, location.location.prefix)
+            let mut backend: BackendWithAppend = wrapper.location.location.try_into()?;
+            backend.0.set_keys(wrapper.keys);
+            Ok(Location::new(backend.0, backend.1, wrapper.location.prefix_or_id))
           } else {
-            Location::new(location.location.backend, location.location.prefix)
+            let backend: BackendWithAppend = wrapper.location.location.try_into()?;
+            Ok(Location::new(backend.0, backend.1, wrapper.location.prefix_or_id))
           }
         }
       }
@@ -215,16 +288,18 @@ impl From<Location> for LocationEither {
   }
 }
 
-impl<'de> Deserialize<'de> for StringLocation {
-  fn deserialize<D>(deserializer: D) -> result::Result<StringLocation, D::Error>
-  where
-    D: Deserializer<'de>,
-  {
+/// Extracts the backend and the additional path that needs to be appended to resolve the id.
+struct BackendWithAppend(Backend, String);
+
+impl TryFrom<String> for BackendWithAppend {
+  type Error = error::Error;
+
+  fn try_from(s: String) -> Result<Self> {
     let split = |s: &str| {
       let (s1, s2) = if let Some(split) = s.split_once("/").map(|(s1, s2)| {
         (
           s1.to_string(),
-          s2.strip_suffix('/').unwrap_or(s2).to_string(),
+          s2.to_string(),
         )
       }) {
         split
@@ -233,33 +308,30 @@ impl<'de> Deserialize<'de> for StringLocation {
       };
 
       if s1.is_empty() {
-        Err(Error::custom("cannot have empty location"))
+        Err(ParseError("cannot have empty location".to_string()))
       } else {
         Ok((s1, s2))
       }
     };
 
-    let s = String::deserialize(deserializer)?.to_lowercase();
-
     if let Some(s) = s.strip_prefix("file://") {
-      let (path, prefix) = split(s)?;
+      let (path, to_append) = split(s)?;
+
       let mut file = storage::file::File::new(Scheme::Http, default_authority(), path.to_string());
       // Origin should be updated based on data server config.
       file.reset_origin = true;
 
-      return Ok(StringLocation {
-        backend: Backend::File(file),
-        prefix,
-      });
+      return Ok(BackendWithAppend(Backend::File(file), to_append));
     }
 
     #[cfg(feature = "aws")]
     if let Some(s) = s.strip_prefix("s3://") {
-      let (bucket, prefix) = split(s)?;
-      return Ok(StringLocation {
-        backend: Backend::S3(storage::s3::S3::new(bucket.to_string(), None, false)),
-        prefix,
-      });
+      let (bucket, to_append) = split(s)?;
+
+      return Ok(BackendWithAppend(
+        Backend::S3(storage::s3::S3::new(bucket.to_string(), None, false)),
+        to_append,
+      ));
     }
 
     #[cfg(feature = "url")]
@@ -267,28 +339,25 @@ impl<'de> Deserialize<'de> for StringLocation {
       .strip_prefix("http://")
       .or_else(|| s.strip_prefix("https://"))
     {
-      let (mut uri, prefix) = split(s_stripped)?;
+      let (mut uri, to_append) = split(s_stripped)?;
 
       if s.starts_with("http://") {
-        uri = format!("http://{uri}");
+        uri = format!("http://{s_stripped}");
       }
       if s.starts_with("https://") {
-        uri = format!("https://{uri}");
+        uri = format!("https://{s_stripped}");
       }
 
-      let uri: Uri = uri.parse().map_err(Error::custom)?;
-      let url = Url::new(uri.clone(), Some(uri), true, vec![], Default::default())
-        .try_into()
-        .map_err(|err: error::Error| Error::custom(err.to_string()))?;
+      let uri: Uri = uri
+        .parse()
+        .map_err(|err: InvalidUri| error::Error::ParseError(err.to_string()))?;
+      let url = Url::new(uri.clone(), Some(uri), true, vec![], Default::default()).try_into()?;
 
-      return Ok(StringLocation {
-        backend: Backend::Url(url),
-        prefix,
-      });
+      return Ok(BackendWithAppend(Backend::Url(url), to_append));
     }
 
-    Err(Error::custom(
-      "expected file://, s3://, http:// or https:// scheme",
+    Err(ParseError(
+      "expected file://, s3://, http:// or https:// scheme".to_string(),
     ))
   }
 }
@@ -298,6 +367,7 @@ mod tests {
   use super::*;
   use crate::config::Config;
   use crate::config::tests::test_serialize_and_deserialize;
+  use std::result;
 
   #[test]
   fn location_single() {
@@ -305,14 +375,14 @@ mod tests {
       r#"
       locations = "file://path/prefix1"
       "#,
-      ("path".to_string(), "prefix1".to_string()),
+      ("path".to_string(), "prefix1".to_string(), "".to_string()),
       |result: Config| assert_file_location(result),
     );
     test_serialize_and_deserialize(
       r#"
       locations = "file://path/prefix1/"
       "#,
-      ("path".to_string(), "prefix1".to_string()),
+      ("path".to_string(), "prefix1/".to_string(), "".to_string()),
       |result: Config| assert_file_location(result),
     );
   }
@@ -323,14 +393,14 @@ mod tests {
       r#"
       locations = "file://path"
       "#,
-      ("path".to_string(), "".to_string()),
+      ("path".to_string(), "".to_string(), "".to_string()),
       |result: Config| assert_file_location(result),
     );
     test_serialize_and_deserialize(
       r#"
       locations = "file://path/"
       "#,
-      ("path".to_string(), "".to_string()),
+      ("path".to_string(), "".to_string(), "".to_string()),
       |result: Config| assert_file_location(result),
     );
   }
@@ -339,7 +409,7 @@ mod tests {
   fn location_file() {
     test_serialize_and_deserialize(
       r#"
-      locations = [ "file://path/prefix1", "file://path/prefix2" ]
+      locations = [ { location = "file://path", prefix = "prefix1" }, { location = "file://path", prefix = "prefix2" } ]
       "#,
       (
         "path".to_string(),
@@ -358,9 +428,9 @@ mod tests {
 
           return (
             file1.local_path().to_string(),
-            location1.prefix().to_string(),
+            location1.prefix_or_id().as_prefix().unwrap().to_string(),
             file2.local_path().to_string(),
-            location2.prefix().to_string(),
+            location2.prefix_or_id().as_prefix().unwrap().to_string(),
           );
         }
 
@@ -369,12 +439,126 @@ mod tests {
     );
   }
 
+  #[test]
+  fn location_file_append_to() {
+    let assert_fn = |result: Config| {
+      let result = result.locations.0;
+      assert_eq!(result.len(), 2);
+      if let (LocationEither::Simple(location1), LocationEither::Simple(location2)) =
+        (result.first().unwrap(), result.get(1).unwrap())
+      {
+        let file1 = location1.backend().as_file().unwrap();
+        let file2 = location2.backend().as_file().unwrap();
+
+        return (
+          file1.local_path().to_string(),
+          location1.to_append().to_string(),
+          location1.prefix_or_id().as_prefix().unwrap().to_string(),
+          file2.local_path().to_string(),
+          location2.to_append().to_string(),
+          location2.prefix_or_id().as_prefix().unwrap().to_string(),
+        );
+      }
+
+      panic!();
+    };
+
+    test_serialize_and_deserialize(
+      r#"
+      locations = [ { location = "file://path/dir1", prefix = "prefix1" }, { location = "file://path/dir2", prefix = "prefix2" } ]
+      "#,
+      (
+        "path".to_string(),
+        "dir1".to_string(),
+        "prefix1".to_string(),
+        "path".to_string(),
+        "dir2".to_string(),
+        "prefix2".to_string(),
+      ),
+      assert_fn,
+    );
+
+    test_serialize_and_deserialize(
+      r#"
+      locations = [ { location = "file://path/dir1/", prefix = "prefix1" }, { location = "file://path/dir2/", prefix = "prefix2" } ]
+      "#,
+      (
+        "path".to_string(),
+        "dir1/".to_string(),
+        "prefix1".to_string(),
+        "path".to_string(),
+        "dir2/".to_string(),
+        "prefix2".to_string(),
+      ),
+      assert_fn,
+    );
+
+    test_serialize_and_deserialize(
+      r#"
+      locations = [ { location = "file://path/", prefix = "prefix1" }, { location = "file://path", prefix = "prefix2" } ]
+      "#,
+      (
+        "path".to_string(),
+        "".to_string(),
+        "prefix1".to_string(),
+        "path".to_string(),
+        "".to_string(),
+        "prefix2".to_string(),
+      ),
+      assert_fn,
+    );
+  }
+
+  #[test]
+  fn location_file_id() {
+    test_serialize_and_deserialize(
+      r#"
+      locations = [ { location = "file://path", id = "id1" }, { location = "file://path", id = "id2" } ]
+      "#,
+      (
+        "path".to_string(),
+        "id1".to_string(),
+        "path".to_string(),
+        "id2".to_string(),
+      ),
+      |result: Config| {
+        let result = result.locations.0;
+        assert_eq!(result.len(), 2);
+        if let (LocationEither::Simple(location1), LocationEither::Simple(location2)) =
+          (result.first().unwrap(), result.get(1).unwrap())
+        {
+          let file1 = location1.backend().as_file().unwrap();
+          let file2 = location2.backend().as_file().unwrap();
+
+          return (
+            file1.local_path().to_string(),
+            location1.prefix_or_id().as_id().unwrap().to_string(),
+            file2.local_path().to_string(),
+            location2.prefix_or_id().as_id().unwrap().to_string(),
+          );
+        }
+
+        panic!();
+      },
+    );
+  }
+
+  #[test]
+  fn location_file_multiple_fail() {
+    let config: result::Result<Config, _> = toml::from_str(
+      r#"
+      locations = [ { location = "file://path", id = "id1", prefix = "prefix1" }]
+      "#,
+    );
+    assert!(config.is_err());
+  }
+
   #[cfg(feature = "aws")]
   #[test]
   fn location_s3() {
     test_serialize_and_deserialize(
       r#"
-      locations = [ "s3://bucket/prefix1", "s3://bucket/prefix2" ]
+      locations = [ { location = "s3://bucket", prefix = "prefix1" }, { location = "s3://bucket", prefix = "prefix2" } ]
       "#,
       (
         "bucket".to_string(),
@@ -391,9 +575,9 @@ mod tests {
           if let (Backend::S3(s31), Backend::S3(s32)) = (location1.backend(), location2.backend()) {
             return (
               s31.bucket().to_string(),
-              location1.prefix().to_string(),
+              location1.prefix_or_id().as_prefix().unwrap().to_string(),
               s32.bucket().to_string(),
-              location2.prefix().to_string(),
+              location2.prefix_or_id().as_prefix().unwrap().to_string(),
             );
           }
         }
@@ -408,7 +592,7 @@ mod tests {
   fn location_url() {
     test_serialize_and_deserialize(
       r#"
-      locations = [ "https://example.com/prefix1", "http://example.com/prefix2" ]
+      locations = [ { location = "https://example.com", prefix = "prefix1" }, { location = "http://example.com", prefix = "prefix2" } ]
       "#,
       (
         "https://example.com/".to_string(),
@@ -427,9 +611,9 @@ mod tests {
           {
             return (
               url1.url().to_string(),
-              location1.prefix().to_string(),
+              location1.prefix_or_id().as_prefix().unwrap().to_string(),
               url2.url().to_string(),
-              location2.prefix().to_string(),
+              location2.prefix_or_id().as_prefix().unwrap().to_string(),
             );
           }
         }
@@ -439,14 +623,15 @@ mod tests {
     );
   }
 
-  fn assert_file_location(result: Config) -> (String, String) {
+  fn assert_file_location(result: Config) -> (String, String, String) {
     let result = result.locations.0;
     assert_eq!(result.len(), 1);
     if let LocationEither::Simple(location1) = result.first().unwrap() {
       let file1 = location1.backend().as_file().unwrap();
       return (
         file1.local_path().to_string(),
-        location1.prefix().to_string(),
+        location1.to_append().to_string(),
+        location1.prefix_or_id().as_prefix().unwrap().to_string(),
       );
     }
 

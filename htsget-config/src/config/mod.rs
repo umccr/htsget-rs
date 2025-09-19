@@ -69,6 +69,7 @@ pub struct Config {
   ticket_server: TicketServerConfig,
   data_server: DataServerEnabled,
   service_info: ServiceInfo,
+  #[serde(alias = "location")]
   locations: Locations,
   formatting_style: FormattingStyle,
   #[serde(skip_serializing)]
@@ -698,7 +699,10 @@ pub(crate) mod tests {
     test_config_from_env(
       vec![
         ("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8080"),
-        ("HTSGET_LOCATIONS", "[file://data/bam, file://data/cram]"),
+        (
+          "HTSGET_LOCATIONS",
+          "[ { location=file://data, prefix=bam }, { location=file://data, prefix=cram }]",
+        ),
       ],
       |config| {
         assert_multiple(config);
@@ -719,7 +723,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "");
+        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "");
         assert_file_location(location, "data");
       },
     );
@@ -736,7 +740,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "");
+        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "");
         assert!(matches!(location.backend(),
             Backend::S3(s3) if s3.bucket() == "bucket"));
       },
@@ -754,7 +758,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "");
+        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "");
         assert!(matches!(location.backend(),
             Backend::Url(url) if url.url() == &"https://example.com".parse::<Uri>().unwrap()));
       },
@@ -766,7 +770,7 @@ pub(crate) mod tests {
     test_config_from_file(
       r#"
     data_server.addr = "127.0.0.1:8080"
-    locations = ["file://data/bam", "file://data/cram"]
+    locations = [ { location = "file://data", prefix = "bam" }, { location = "file://data", prefix = "cram" }]
     "#,
       |config| {
         assert_multiple(config);
@@ -781,22 +785,22 @@ pub(crate) mod tests {
       r#"
     data_server.addr = "127.0.0.1:8080"
     data_server.local_path = "data"
-    locations = ["file://data/bam", "file://data/cram", "s3://bucket/vcf"]
+    locations = [ { location = "file://data", prefix = "bam" }, { location = "file://data", prefix = "cram" }, { location = "s3://bucket", prefix = "vcf" } ]
     "#,
       |config| {
         assert_eq!(config.locations().len(), 3);
         let config = config.locations.into_inner();
 
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "bam");
+        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "bam");
         assert_file_location(location, "data");
 
         let location = config[1].as_simple().unwrap();
-        assert_eq!(location.prefix(), "cram");
+        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "cram");
         assert_file_location(location, "data");
 
         let location = config[2].as_simple().unwrap();
-        assert_eq!(location.prefix(), "vcf");
+        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "vcf");
         assert!(matches!(location.backend(),
             Backend::S3(s3) if s3.bucket() == "bucket"));
       },
@@ -897,11 +901,11 @@ pub(crate) mod tests {
     println!("{config:#?}");
 
     let location = config[0].as_simple().unwrap();
-    assert_eq!(location.prefix(), "bam");
+    assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "bam");
     assert_file_location(location, "data");
 
     let location = config[1].as_simple().unwrap();
-    assert_eq!(location.prefix(), "cram");
+    assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "cram");
     assert_file_location(location, "data");
   }
 
