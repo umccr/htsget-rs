@@ -233,15 +233,22 @@ impl Auth {
       .into_rules()
       .into_iter()
       .filter(|rule| {
+        let rule_path = rule
+          .location()
+          .as_simple()
+          .unwrap()
+          .prefix_or_id()
+          .as_id()
+          .unwrap();
         // If this path is a direct match then just return that.
-        if rule.path().strip_prefix("/").unwrap_or(rule.path())
+        if rule_path.strip_prefix("/").unwrap_or(rule_path)
           == path.strip_prefix("/").unwrap_or(path)
         {
           return true;
         }
 
         // Otherwise, try and parse it as a regex.
-        Regex::new(rule.path()).is_ok_and(|regex| regex.is_match(path))
+        Regex::new(rule_path).is_ok_and(|regex| regex.is_match(path))
       })
       .collect::<Vec<_>>();
 
@@ -254,7 +261,7 @@ impl Auth {
 
     let (allows_all, allows_specific): (Vec<_>, Vec<_>) = matching_rules
       .into_iter()
-      .partition(|rule| rule.reference_names().is_none());
+      .partition(|rule| rule.rules().is_none());
 
     // Otherwise, we need to check if the specific reference name is allowed for all queries.
     for query in queries {
@@ -265,10 +272,11 @@ impl Auth {
 
       let matching_restriction = allows_specific
         .iter()
-        .flat_map(|rule| rule.reference_names().unwrap_or_default())
+        .flat_map(|rule| rule.rules().unwrap_or_default())
         .filter_map(|restriction| {
-          // The reference name should match exactly.
-          let name_match = Some(restriction.name()) == query.reference_name();
+          // The reference name should match exactly if it's set, otherwise allow any reference name.
+          let name_match = restriction.reference_name().is_none()
+            || restriction.reference_name() == query.reference_name();
           // The format should match if it's defined, otherwise it allows any format.
           let format_match =
             restriction.format().is_none() || restriction.format() == Some(query.format());

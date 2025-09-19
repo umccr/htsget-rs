@@ -3,10 +3,11 @@
 
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Configuration struct for S3 storage.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 pub struct S3 {
   bucket: String,
@@ -15,6 +16,16 @@ pub struct S3 {
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+}
+
+impl Eq for S3 {}
+
+impl PartialEq for S3 {
+  fn eq(&self, other: &Self) -> bool {
+    self.bucket == other.bucket
+      && self.endpoint == other.endpoint
+      && self.path_style == other.path_style
+  }
 }
 
 impl S3 {

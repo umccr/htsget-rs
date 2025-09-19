@@ -249,7 +249,9 @@ mod tests {
   use crate::config::advanced::auth::response::{
     AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder,
   };
+  use crate::config::location::{Location, LocationEither, PrefixOrId};
   use crate::http::tests::with_test_certificates;
+  use crate::storage::Backend;
   use http::Uri;
   use serde_json::to_string;
   use std::io::Write;
@@ -322,7 +324,11 @@ mod tests {
     let restrictions = AuthorizationRestrictionsBuilder::default()
       .rule(
         AuthorizationRuleBuilder::default()
-          .path("path")
+          .location(LocationEither::Simple(Box::new(Location::new(
+            Backend::default(),
+            String::default(),
+            PrefixOrId::Id("path".to_string()),
+          ))))
           .build()
           .unwrap(),
       )

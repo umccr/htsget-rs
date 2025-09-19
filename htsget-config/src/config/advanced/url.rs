@@ -10,20 +10,24 @@ use crate::storage;
 use crate::storage::c4gh::C4GHKeys;
 use cfg_if::cfg_if;
 use http::Uri;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Options for the remote URL server config.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Url {
+  #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   url: Uri,
+  #[schemars(with = "Option::<String>")]
   #[serde(with = "http_serde::option::uri", default)]
   response_url: Option<Uri>,
   #[serde(default = "default_forward_headers")]
   forward_headers: bool,
   #[serde(default)]
   header_blacklist: Vec<String>,
+  #[schemars(skip)]
   #[serde(alias = "tls", skip_serializing, default)]
   http: HttpClientConfig,
   #[cfg(feature = "experimental")]

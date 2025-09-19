@@ -6,23 +6,38 @@ use crate::config::advanced;
 use crate::storage::c4gh::C4GHKeys;
 use http::Uri;
 use reqwest_middleware::ClientWithMiddleware;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Remote URL server storage struct.
-#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+#[derive(JsonSchema, Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(try_from = "advanced::url::Url", deny_unknown_fields)]
 pub struct Url {
+  #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   url: Uri,
+  #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   response_url: Uri,
   forward_headers: bool,
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
+  #[schemars(skip)]
   client: ClientWithMiddleware,
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+}
+
+impl Eq for Url {}
+
+impl PartialEq for Url {
+  fn eq(&self, other: &Self) -> bool {
+    self.url == other.url
+      && self.response_url == other.response_url
+      && self.forward_headers == other.forward_headers
+      && self.header_blacklist == other.header_blacklist
+  }
 }
 
 impl Url {

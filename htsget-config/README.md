@@ -448,18 +448,17 @@ useful to support authenticating the original client JWT at the authorization se
 flows like oauth.
 
 The authorization service should respond with the following JSON structure, indicating whether the request is allowed,
-and any region restrictions (similar to the 
-[allow guard logic](#allow-guard)):
+and any region restrictions:
 
 ```json
 {
   "version": 1,
   "htsgetAuth": [
     {
-      "path": "dataset/001/id",
-      "referenceNames": [
+      "id": "dataset/001/id",
+      "rules": [
         {
-          "name": "chr1",
+          "referenceName": "chr1",
           "format": "BAM",
           "start": 1000,
           "end": 2000
@@ -471,8 +470,42 @@ and any region restrictions (similar to the
 ```
 
 These restrictions act as a whitelist of allowed regions that the user has access to. The authorization server is
-allowed to respond with multiple paths that the user is allowed to access. Each path can also be a regex that matches
-ids like the [regex resolvers](#regex-based-location). A full JSON schema defining this format is available under [auth.json][auth-json].
+allowed to respond with multiple paths that the user is allowed to access. A full JSON schema defining this format is
+available under [auth.json][auth-json].
+
+Each auth rule can also contain a location that has the same options as the [locations config](#quickstart). This gives
+the authorization server flexibility to specify locations dynamically on a per-request basis.
+
+For example, to specify a dynamic location for VCF files separately to BAM files:
+
+```json
+{
+  "version": 1,
+  "htsgetAuth": [
+    {
+      "id": "dataset/001/id-bam",
+      "location": "s3://bucket-a",
+      "rules": [
+        {
+          "format": "BAM"
+        }
+      ]
+    },
+    {
+      "id": "dataset/001/id-vcf",
+      "location": "s3://bucket-b",
+      "rules": [
+        {
+          "format": "VCF"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Similarly to the config, prefixes can be used instead of an "id", or a full [regex location](#regex-based-location) can
+be used.
 
 > [!NOTE]  
 > Calls to both the authorization service and jwks endpoint correctly handle and support HTTP cache headers like

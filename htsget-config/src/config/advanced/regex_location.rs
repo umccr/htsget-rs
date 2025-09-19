@@ -5,17 +5,30 @@ use crate::config::advanced::allow_guard::AllowGuard;
 use crate::config::location::LocationEither;
 use crate::storage::Backend;
 use regex::Regex;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A regex storage is a storage that matches ids using Regex.
-#[derive(Serialize, Debug, Clone, Deserialize)]
+#[derive(JsonSchema, Serialize, Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RegexLocation {
+  #[schemars(with = "String")]
   #[serde(with = "serde_regex")]
   regex: Regex,
   substitution_string: String,
   backend: Backend,
+  #[schemars(skip)]
   guard: Option<AllowGuard>,
+}
+
+impl Eq for RegexLocation {}
+impl PartialEq for RegexLocation {
+  fn eq(&self, other: &Self) -> bool {
+    self.substitution_string == other.substitution_string
+      && self.backend == other.backend
+      && self.guard == other.guard
+      && self.regex.to_string() == other.regex.to_string()
+  }
 }
 
 impl RegexLocation {

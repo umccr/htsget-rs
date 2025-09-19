@@ -10,6 +10,7 @@ use crate::storage::file::default_authority;
 use crate::types::Scheme;
 use crate::{error, storage};
 use cfg_if::cfg_if;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "url")]
 use {crate::config::advanced::url::Url, http::Uri, http::uri::InvalidUri};
@@ -48,7 +49,7 @@ impl Default for Locations {
 }
 
 /// Either simple or regex based location
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum LocationEither {
   Simple(Box<Location>),
@@ -98,7 +99,7 @@ impl Default for LocationEither {
 }
 
 /// Whether the location specifies a prefix or an exact match id.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields, rename_all = "lowercase")]
 pub enum PrefixOrId {
   Prefix(String),
@@ -130,7 +131,7 @@ impl Default for PrefixOrId {
 }
 
 /// Location config.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(
   default,
   try_from = "LocationWrapper",
@@ -204,7 +205,7 @@ struct ExtendedLocation {
 }
 
 /// Deserialize the location from a string with a protocol.
-#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+#[derive(JsonSchema, Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 struct StringLocation {
   location: String,
@@ -229,12 +230,15 @@ struct MapLocation {
 /// falling back to the regular `MapLocation` derived deserializer. The reason there needs to be a
 /// `StringLocation` and `MapLocation` type is so that `Location` can be deserialized using the
 /// `from` attribute without recursion.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged, deny_unknown_fields)]
 enum LocationWrapper {
   SingleLocation(String),
+  #[schemars(skip)]
   String(StringLocation),
+  #[schemars(skip)]
   Map(Box<MapLocation>),
+  #[schemars(skip)]
   Extended(ExtendedLocation),
 }
 
@@ -296,12 +300,10 @@ impl TryFrom<String> for BackendWithAppend {
 
   fn try_from(s: String) -> Result<Self> {
     let split = |s: &str| {
-      let (s1, s2) = if let Some(split) = s.split_once("/").map(|(s1, s2)| {
-        (
-          s1.to_string(),
-          s2.to_string(),
-        )
-      }) {
+      let (s1, s2) = if let Some(split) = s
+        .split_once("/")
+        .map(|(s1, s2)| (s1.to_string(), s2.to_string()))
+      {
         split
       } else {
         (s.to_string(), "".to_string())

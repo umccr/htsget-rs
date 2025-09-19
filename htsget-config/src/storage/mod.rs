@@ -11,6 +11,7 @@ use crate::storage::file::File;
 use crate::storage::s3::S3;
 #[cfg(feature = "url")]
 use crate::storage::url::Url;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "experimental")]
@@ -38,7 +39,7 @@ impl ResolvedId {
 }
 
 /// Specify the storage backend to use as config values.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum Backend {

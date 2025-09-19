@@ -10,14 +10,16 @@ use crate::http::KeyPairScheme;
 use crate::storage::c4gh::C4GHKeys;
 use crate::types::Scheme;
 use http::uri::Authority;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// Local file based storage.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct File {
   scheme: Scheme,
+  #[schemars(with = "String")]
   #[serde(with = "http_serde::authority")]
   authority: Authority,
   local_path: String,
@@ -29,6 +31,19 @@ pub struct File {
   ticket_origin: Option<String>,
   #[serde(skip)]
   pub(crate) reset_origin: bool,
+}
+
+impl Eq for File {}
+
+impl PartialEq for File {
+  fn eq(&self, other: &Self) -> bool {
+    self.scheme == other.scheme
+      && self.authority == other.authority
+      && self.local_path == other.local_path
+      && self.ticket_headers == other.ticket_headers
+      && self.ticket_origin == other.ticket_origin
+      && self.reset_origin == other.reset_origin
+  }
 }
 
 impl File {

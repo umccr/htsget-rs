@@ -82,11 +82,7 @@ impl IdResolver for LocationEither {
     let resolved_id = match self {
       LocationEither::Simple(location) => match location.prefix_or_id() {
         PrefixOrId::Prefix(prefix) if query.id().starts_with(prefix) => {
-          Some(format!(
-            "{}/{}",
-            location.to_append(),
-            query.id()
-          ))
+          Some(format!("{}/{}", location.to_append(), query.id()))
         }
         PrefixOrId::Id(id) => {
           if query.id() == id.as_str() {
@@ -95,7 +91,7 @@ impl IdResolver for LocationEither {
             None
           }
         }
-        _ => None
+        _ => None,
       },
       LocationEither::Regex(regex_location) => {
         if regex_location.regex().is_match(query.id()) {
@@ -115,11 +111,8 @@ impl IdResolver for LocationEither {
     };
 
     resolved_id.map(|id| {
-      println!("{:#?}", id);
       let id = id.strip_prefix("/").unwrap_or(&id);
-      let a= ResolvedId::new(id.to_string());
-      println!("{:#?}", a);
-      a
+      ResolvedId::new(id.to_string())
     })
   }
 }

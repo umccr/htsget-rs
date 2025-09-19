@@ -9,13 +9,14 @@ use aws_sdk_secretsmanager::Client;
 use aws_sdk_secretsmanager::error::SdkError;
 use crypt4gh::Keys;
 use crypt4gh::keys::{get_private_key, get_public_key};
+use schemars::JsonSchema;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
 /// C4GH secrets manager key storage.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct C4GHSecretsManager {
   private: String,

@@ -10,7 +10,7 @@ use std::io::Read;
 
 /// The authorization restrictions to fetch from either a URL or a hard-coded
 /// static config.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UrlOrStatic {
   Url(Uri),
   Static(AuthorizationRestrictions),

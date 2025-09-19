@@ -9,6 +9,7 @@ use crate::storage::c4gh::secrets_manager::C4GHSecretsManager;
 use crypt4gh::error::Crypt4GHError;
 use futures_util::FutureExt;
 use futures_util::future::{BoxFuture, Shared};
+use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio::task::{JoinError, JoinHandle};
 
@@ -18,9 +19,10 @@ pub mod local;
 pub mod secrets_manager;
 
 /// Config for Crypt4GH keys.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Deserialize, Debug, Clone)]
 #[serde(try_from = "C4GHKeyLocation", deny_unknown_fields)]
 pub struct C4GHKeys {
+  #[schemars(with = "C4GHKeyLocation")]
   // Store a cloneable future so that it can be resolved outside serde.
   keys: Shared<BoxFuture<'static, Result<Vec<crypt4gh::Keys>>>>,
 }
@@ -73,7 +75,7 @@ impl TryFrom<C4GHKeyLocation> for C4GHKeys {
 }
 
 /// The location of C4GH keys.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Deserialize, Debug, Clone)]
 #[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum C4GHKeyLocation {
