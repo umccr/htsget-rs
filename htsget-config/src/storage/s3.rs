@@ -7,7 +7,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Configuration struct for S3 storage.
-#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct S3 {
   bucket: String,
@@ -16,6 +16,8 @@ pub struct S3 {
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  #[serde(skip)]
+  pub(crate) is_defaulted: bool,
 }
 
 impl Eq for S3 {}
@@ -37,6 +39,7 @@ impl S3 {
       path_style,
       #[cfg(feature = "experimental")]
       keys: None,
+      is_defaulted: false,
     }
   }
 
@@ -83,6 +86,14 @@ impl S3 {
   /// Get the C4GH keys.
   pub fn keys(&self) -> Option<&C4GHKeys> {
     self.keys.as_ref()
+  }
+}
+
+impl Default for S3 {
+  fn default() -> Self {
+    let mut s3 = Self::new(Default::default(), Default::default(), Default::default());
+    s3.is_defaulted = true;
+    s3
   }
 }
 

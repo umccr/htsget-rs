@@ -80,8 +80,8 @@ impl IdResolver for LocationEither {
     };
 
     let resolved_id = match self {
-      LocationEither::Simple(location) => match location.prefix_or_id() {
-        PrefixOrId::Prefix(prefix) if query.id().starts_with(prefix) => {
+      LocationEither::Simple(location) => match location.prefix_or_id().unwrap_or_default() {
+        PrefixOrId::Prefix(prefix) if query.id().starts_with(&prefix) => {
           Some(format!("{}/{}", location.to_append(), query.id()))
         }
         PrefixOrId::Id(id) => {
@@ -271,7 +271,7 @@ mod tests {
     let location = Location::new(
       Backend::File(file),
       "".to_string(),
-      PrefixOrId::Prefix("".to_string()),
+      Some(PrefixOrId::Prefix("".to_string())),
     );
     expected_resolved_request(vec![location.into()], "127.0.0.1:8080/id-1").await;
   }
@@ -291,7 +291,7 @@ mod tests {
     let location = Location::new(
       Backend::S3(s3_storage),
       "".to_string(),
-      PrefixOrId::Prefix("".to_string()),
+      Some(PrefixOrId::Prefix("".to_string())),
     );
     expected_resolved_request(vec![location.into()], "id2/id-1").await;
   }
@@ -318,7 +318,7 @@ mod tests {
     let location = Location::new(
       Backend::S3(storage::s3::S3::new("bucket".to_string(), None, false)),
       "".to_string(),
-      PrefixOrId::Prefix("".to_string()),
+      Some(PrefixOrId::Prefix("".to_string())),
     );
     expected_resolved_request(vec![location.into()], "bucket/id-1").await;
   }
@@ -351,7 +351,7 @@ mod tests {
     let location = Location::new(
       Backend::Url(url_storage),
       "".to_string(),
-      PrefixOrId::Prefix("".to_string()),
+      Some(PrefixOrId::Prefix("".to_string())),
     );
     expected_resolved_request(vec![location.into()], "https://example.com/id-1").await;
   }
@@ -396,13 +396,13 @@ mod tests {
       Location::new(
         Default::default(),
         "".to_string(),
-        PrefixOrId::Prefix("id-1".to_string()),
+        Some(PrefixOrId::Prefix("id-1".to_string())),
       )
       .into(),
       Location::new(
         Default::default(),
         "".to_string(),
-        PrefixOrId::Prefix("id-2".to_string()),
+        Some(PrefixOrId::Prefix("id-2".to_string())),
       )
       .into(),
     ]);
@@ -426,13 +426,13 @@ mod tests {
       Location::new(
         Default::default(),
         "append_to".to_string(),
-        PrefixOrId::Prefix("id-1".to_string()),
+        Some(PrefixOrId::Prefix("id-1".to_string())),
       )
       .into(),
       Location::new(
         Default::default(),
         "append_to".to_string(),
-        PrefixOrId::Prefix("id-2".to_string()),
+        Some(PrefixOrId::Prefix("id-2".to_string())),
       )
       .into(),
     ]);
@@ -457,13 +457,13 @@ mod tests {
       Location::new(
         Default::default(),
         "append_to".to_string(),
-        PrefixOrId::Id("id-1".to_string()),
+        Some(PrefixOrId::Id("id-1".to_string())),
       )
       .into(),
       Location::new(
         Default::default(),
         "append_to".to_string(),
-        PrefixOrId::Id("id-2".to_string()),
+        Some(PrefixOrId::Id("id-2".to_string())),
       )
       .into(),
     ]);

@@ -30,7 +30,7 @@ pub struct File {
   keys: Option<C4GHKeys>,
   ticket_origin: Option<String>,
   #[serde(skip)]
-  pub(crate) reset_origin: bool,
+  pub(crate) is_defaulted: bool,
 }
 
 impl Eq for File {}
@@ -42,7 +42,6 @@ impl PartialEq for File {
       && self.local_path == other.local_path
       && self.ticket_headers == other.ticket_headers
       && self.ticket_origin == other.ticket_origin
-      && self.reset_origin == other.reset_origin
   }
 }
 
@@ -57,7 +56,7 @@ impl File {
       #[cfg(feature = "experimental")]
       keys: None,
       ticket_origin: None,
-      reset_origin: false,
+      is_defaulted: false,
     }
   }
 
@@ -128,7 +127,7 @@ impl File {
 impl Default for File {
   fn default() -> Self {
     let mut file = Self::new(Scheme::Http, default_authority(), default_path().into());
-    file.reset_origin = true;
+    file.is_defaulted = true;
     file
   }
 }

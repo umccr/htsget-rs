@@ -10,7 +10,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Remote URL server storage struct.
-#[derive(JsonSchema, Deserialize, Serialize, Debug, Clone, Default)]
+#[derive(JsonSchema, Deserialize, Serialize, Debug, Clone)]
 #[serde(try_from = "advanced::url::Url", deny_unknown_fields)]
 pub struct Url {
   #[schemars(with = "String")]
@@ -27,6 +27,8 @@ pub struct Url {
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  #[serde(skip)]
+  pub(crate) is_defaulted: bool,
 }
 
 impl Eq for Url {}
@@ -57,6 +59,7 @@ impl Url {
       client,
       #[cfg(feature = "experimental")]
       keys: None,
+      is_defaulted: false,
     }
   }
 
@@ -95,5 +98,19 @@ impl Url {
   /// Get the C4GH keys.
   pub fn keys(&self) -> Option<&C4GHKeys> {
     self.keys.as_ref()
+  }
+}
+
+impl Default for Url {
+  fn default() -> Self {
+    let mut url = Self::new(
+      Default::default(),
+      Default::default(),
+      Default::default(),
+      Default::default(),
+      Default::default(),
+    );
+    url.is_defaulted = true;
+    url
   }
 }

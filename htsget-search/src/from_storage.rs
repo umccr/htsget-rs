@@ -188,7 +188,7 @@ pub(crate) mod tests {
           Location::new(
             Backend::File(local_storage),
             "".to_string(),
-            PrefixOrId::Prefix("".to_string()),
+            Some(PrefixOrId::Prefix("".to_string())),
           )
           .into(),
         )]);

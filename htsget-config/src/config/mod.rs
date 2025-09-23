@@ -282,7 +282,7 @@ impl Config {
         // explicitly set.
         match location.backend_mut() {
           Backend::File(file) => {
-            if file.reset_origin {
+            if file.is_defaulted {
               file.set_scheme(scheme);
               file.set_authority(authority.clone());
               file.set_ticket_origin(ticket_origin.clone())
@@ -723,7 +723,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "");
+        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "");
         assert_file_location(location, "data");
       },
     );
@@ -740,7 +740,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "");
+        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "");
         assert!(matches!(location.backend(),
             Backend::S3(s3) if s3.bucket() == "bucket"));
       },
@@ -758,7 +758,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "");
+        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "");
         assert!(matches!(location.backend(),
             Backend::Url(url) if url.url() == &"https://example.com".parse::<Uri>().unwrap()));
       },
@@ -792,15 +792,18 @@ pub(crate) mod tests {
         let config = config.locations.into_inner();
 
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "bam");
+        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "bam");
         assert_file_location(location, "data");
 
         let location = config[1].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "cram");
+        assert_eq!(
+          location.prefix_or_id().unwrap().as_prefix().unwrap(),
+          "cram"
+        );
         assert_file_location(location, "data");
 
         let location = config[2].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "vcf");
+        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "vcf");
         assert!(matches!(location.backend(),
             Backend::S3(s3) if s3.bucket() == "bucket"));
       },
@@ -901,11 +904,14 @@ pub(crate) mod tests {
     println!("{config:#?}");
 
     let location = config[0].as_simple().unwrap();
-    assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "bam");
+    assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "bam");
     assert_file_location(location, "data");
 
     let location = config[1].as_simple().unwrap();
-    assert_eq!(location.prefix_or_id().as_prefix().unwrap(), "cram");
+    assert_eq!(
+      location.prefix_or_id().unwrap().as_prefix().unwrap(),
+      "cram"
+    );
     assert_file_location(location, "data");
   }
 

@@ -6,7 +6,7 @@
 
 use crate::config::location::LocationEither;
 use crate::error::Error::BuilderError;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::types::{Format, Interval};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -108,9 +108,14 @@ impl ReferenceNameRestriction {
 }
 
 /// Builder for `AuthorizationRestrictions`.
-#[derive(Debug, Clone, Default)]
+#[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
 pub struct AuthorizationRestrictionsBuilder {
+  /// The version of the schema.
+  #[validate(range(min = 1))]
   version: Option<u32>,
+  /// The authorization rules.
+  #[serde(rename = "htsgetAuth")]
+  #[validate(length(min = 1))]
   htsget_auth: Vec<AuthorizationRule>,
 }
 
@@ -150,20 +155,17 @@ impl AuthorizationRestrictionsBuilder {
 }
 
 /// Builder for `AuthorizationRule`.
-#[derive(Debug, Clone, Default)]
+#[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
 pub struct AuthorizationRuleBuilder {
-  path: Option<String>,
+  /// The location that the authorization applies to.
+  #[serde(flatten)]
   location: Option<LocationEither>,
+  /// The reference name restrictions to apply to this path.
+  #[serde(skip_serializing_if = "Vec::is_empty")]
   reference_names: Vec<ReferenceNameRestriction>,
 }
 
 impl AuthorizationRuleBuilder {
-  /// Set the path pattern for this rule.
-  pub fn path<S: Into<String>>(mut self, path: S) -> Self {
-    self.path = Some(path.into());
-    self
-  }
-
   /// Set the location for this rule.
   pub fn location(mut self, location_either: LocationEither) -> Self {
     self.location = Some(location_either);
@@ -184,10 +186,18 @@ impl AuthorizationRuleBuilder {
 
   /// Build the `AuthorizationRule`.
   pub fn build(self) -> Result<AuthorizationRule> {
+    let location = self
+      .location
+      .ok_or_else(|| BuilderError("location not set".to_string()))?;
+    if location
+      .as_simple()
+      .is_ok_and(|simple| simple.prefix_or_id().is_none())
+    {
+      return Err(BuilderError("A prefix or id must be set".to_string()))?;
+    }
+
     Ok(AuthorizationRule {
-      location: self
-        .location
-        .ok_or_else(|| BuilderError("location not set".to_string()))?,
+      location,
       rules: if self.reference_names.is_empty() {
         None
       } else {
@@ -198,11 +208,17 @@ impl AuthorizationRuleBuilder {
 }
 
 /// Builder for `ReferenceNameRestriction`.
-#[derive(Debug, Clone, Default)]
+#[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ReferenceNameRestrictionBuilder {
+  /// The reference name to allow. Allows all reference names if unspecified.
+  #[serde(rename = "referenceName", skip_serializing_if = "Option::is_none")]
   name: Option<String>,
+  /// The format to allow. Allows all formats if unspecified.
+  #[serde(skip_serializing_if = "Option::is_none")]
   format: Option<Format>,
+  /// The start interval to allow. Allows any start interval if unspecified.
   start: Option<u32>,
+  /// The end interval to allow. Allows any end interval if unspecified.
   end: Option<u32>,
 }
 
@@ -247,9 +263,34 @@ impl ReferenceNameRestrictionBuilder {
   }
 }
 
+impl TryFrom<AuthorizationRestrictionsBuilder> for AuthorizationRestrictions {
+  type Error = Error;
+
+  fn try_from(builder: AuthorizationRestrictionsBuilder) -> Result<Self> {
+    builder.build()
+  }
+}
+
+impl TryFrom<AuthorizationRuleBuilder> for AuthorizationRule {
+  type Error = Error;
+
+  fn try_from(builder: AuthorizationRuleBuilder) -> Result<Self> {
+    builder.build()
+  }
+}
+
+impl TryFrom<ReferenceNameRestrictionBuilder> for ReferenceNameRestriction {
+  type Error = Error;
+
+  fn try_from(builder: ReferenceNameRestrictionBuilder) -> Result<Self> {
+    builder.build()
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::config::location::{Location, PrefixOrId};
   use serde_json;
 
   #[test]
@@ -276,6 +317,7 @@ mod tests {
         .as_simple()
         .unwrap()
         .prefix_or_id()
+        .unwrap()
         .as_id()
         .unwrap(),
       "path/to/file"
@@ -304,6 +346,7 @@ mod tests {
         .as_simple()
         .unwrap()
         .prefix_or_id()
+        .unwrap()
         .as_id()
         .unwrap(),
       "path/to/file"
@@ -332,7 +375,11 @@ mod tests {
   #[test]
   fn test_authorization_rule_builder() {
     let rule = AuthorizationRuleBuilder::default()
-      .path("sample1")
+      .location(LocationEither::Simple(Box::new(Location::new(
+        Default::default(),
+        "".to_string(),
+        Some(PrefixOrId::Id("sample1".to_string())),
+      ))))
       .build()
       .unwrap();
     assert_eq!(
@@ -341,12 +388,23 @@ mod tests {
         .as_simple()
         .unwrap()
         .prefix_or_id()
+        .unwrap()
         .as_id()
         .unwrap(),
       "sample1"
     );
     assert!(rule.rules().is_none());
+
     let rule = AuthorizationRuleBuilder::default().build();
+    assert!(rule.is_err());
+
+    let rule = AuthorizationRuleBuilder::default()
+      .location(LocationEither::Simple(Box::new(Location::new(
+        Default::default(),
+        "".to_string(),
+        None,
+      ))))
+      .build();
     assert!(rule.is_err());
   }
 

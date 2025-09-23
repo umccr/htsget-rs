@@ -115,7 +115,7 @@ pub fn create_auth_restrictions() -> AuthorizationRestrictions {
         .location(LocationEither::Simple(Box::new(Location::new(
           Backend::default(),
           String::default(),
-          PrefixOrId::Id("1-vcf/sample1-bcbio-cancer".to_string()),
+          Some(PrefixOrId::Id("1-vcf/sample1-bcbio-cancer".to_string())),
         ))))
         .reference_name(
           ReferenceNameRestrictionBuilder::default()

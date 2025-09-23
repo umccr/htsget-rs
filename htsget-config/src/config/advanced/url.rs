@@ -14,25 +14,25 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Options for the remote URL server config.
-#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(deny_unknown_fields)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
+#[serde(default, deny_unknown_fields)]
 pub struct Url {
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   url: Uri,
   #[schemars(with = "Option::<String>")]
-  #[serde(with = "http_serde::option::uri", default)]
+  #[serde(with = "http_serde::option::uri")]
   response_url: Option<Uri>,
-  #[serde(default = "default_forward_headers")]
   forward_headers: bool,
-  #[serde(default)]
   header_blacklist: Vec<String>,
   #[schemars(skip)]
-  #[serde(alias = "tls", skip_serializing, default)]
+  #[serde(alias = "tls", skip_serializing)]
   http: HttpClientConfig,
   #[cfg(feature = "experimental")]
-  #[serde(skip_serializing, default)]
+  #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  #[serde(skip)]
+  pub(crate) is_defaulted: bool,
 }
 
 impl Url {
@@ -52,6 +52,7 @@ impl Url {
       http,
       #[cfg(feature = "experimental")]
       keys: None,
+      is_defaulted: false,
     }
   }
 
@@ -116,8 +117,18 @@ impl TryFrom<Url> for storage::url::Url {
   }
 }
 
-fn default_forward_headers() -> bool {
-  true
+impl Default for Url {
+  fn default() -> Self {
+    let mut url = Self::new(
+      Default::default(),
+      Default::default(),
+      true,
+      Default::default(),
+      Default::default(),
+    );
+    url.is_defaulted = true;
+    url
+  }
 }
 
 #[cfg(test)]

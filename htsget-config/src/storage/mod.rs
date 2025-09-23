@@ -89,6 +89,17 @@ impl Backend {
     }
   }
 
+  /// Whether the backend storage has been default generated.
+  pub fn is_defaulted(&self) -> bool {
+    match self {
+      Backend::File(file) => file.is_defaulted,
+      #[cfg(feature = "aws")]
+      Backend::S3(s3) => s3.is_defaulted,
+      #[cfg(feature = "url")]
+      Backend::Url(url) => url.is_defaulted,
+    }
+  }
+
   /// Get the file variant and error if it is not `S3`.
   #[cfg(feature = "aws")]
   pub fn as_s3(&self) -> Result<&S3> {

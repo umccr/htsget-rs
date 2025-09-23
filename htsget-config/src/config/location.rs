@@ -133,7 +133,6 @@ impl Default for PrefixOrId {
 /// Location config.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(
-  default,
   try_from = "LocationWrapper",
   into = "LocationWrapper",
   deny_unknown_fields
@@ -141,12 +140,12 @@ impl Default for PrefixOrId {
 pub struct Location {
   backend: Backend,
   to_append: String,
-  prefix_or_id: PrefixOrId,
+  prefix_or_id: Option<PrefixOrId>,
 }
 
 impl Location {
   /// Create a new location.
-  pub fn new(backend: Backend, to_append: String, prefix_or_id: PrefixOrId) -> Self {
+  pub fn new(backend: Backend, to_append: String, prefix_or_id: Option<PrefixOrId>) -> Self {
     Self {
       backend,
       to_append,
@@ -165,8 +164,8 @@ impl Location {
   }
 
   /// Get the prefix or id.
-  pub fn prefix_or_id(&self) -> &PrefixOrId {
-    &self.prefix_or_id
+  pub fn prefix_or_id(&self) -> Option<PrefixOrId> {
+    self.prefix_or_id.clone()
   }
 
   /// Get the additional path to append to resolve the id.
@@ -247,7 +246,7 @@ impl From<Location> for LocationWrapper {
     LocationWrapper::Map(Box::from(MapLocation {
       location: location.backend,
       append_to: location.to_append,
-      prefix_or_id: location.prefix_or_id,
+      prefix_or_id: location.prefix_or_id.unwrap_or_default(),
     }))
   }
 }
@@ -259,26 +258,30 @@ impl TryFrom<LocationWrapper> for Location {
     match location {
       LocationWrapper::SingleLocation(location) => {
         let backend: BackendWithAppend = location.try_into()?;
-        Ok(Location::new(backend.0, backend.1, Default::default()))
+        Ok(Location::new(backend.0, backend.1, None))
       }
       LocationWrapper::String(wrapper) => {
         let backend: BackendWithAppend = wrapper.location.try_into()?;
-        Ok(Location::new(backend.0, backend.1, wrapper.prefix_or_id))
+        Ok(Location::new(
+          backend.0,
+          backend.1,
+          Some(wrapper.prefix_or_id),
+        ))
       }
       LocationWrapper::Map(wrapper) => Ok(Location::new(
         wrapper.location,
         wrapper.append_to,
-        wrapper.prefix_or_id,
+        Some(wrapper.prefix_or_id),
       )),
       LocationWrapper::Extended(wrapper) => {
         cfg_if! {
           if #[cfg(feature = "experimental")] {
             let mut backend: BackendWithAppend = wrapper.location.location.try_into()?;
             backend.0.set_keys(wrapper.keys);
-            Ok(Location::new(backend.0, backend.1, wrapper.location.prefix_or_id))
+            Ok(Location::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
           } else {
             let backend: BackendWithAppend = wrapper.location.location.try_into()?;
-            Ok(Location::new(backend.0, backend.1, wrapper.location.prefix_or_id))
+            Ok(Location::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
           }
         }
       }
@@ -321,7 +324,7 @@ impl TryFrom<String> for BackendWithAppend {
 
       let mut file = storage::file::File::new(Scheme::Http, default_authority(), path.to_string());
       // Origin should be updated based on data server config.
-      file.reset_origin = true;
+      file.is_defaulted = true;
 
       return Ok(BackendWithAppend(Backend::File(file), to_append));
     }
@@ -430,9 +433,19 @@ mod tests {
 
           return (
             file1.local_path().to_string(),
-            location1.prefix_or_id().as_prefix().unwrap().to_string(),
+            location1
+              .prefix_or_id()
+              .unwrap()
+              .as_prefix()
+              .unwrap()
+              .to_string(),
             file2.local_path().to_string(),
-            location2.prefix_or_id().as_prefix().unwrap().to_string(),
+            location2
+              .prefix_or_id()
+              .unwrap()
+              .as_prefix()
+              .unwrap()
+              .to_string(),
           );
         }
 
@@ -455,10 +468,20 @@ mod tests {
         return (
           file1.local_path().to_string(),
           location1.to_append().to_string(),
-          location1.prefix_or_id().as_prefix().unwrap().to_string(),
+          location1
+            .prefix_or_id()
+            .unwrap()
+            .as_prefix()
+            .unwrap()
+            .to_string(),
           file2.local_path().to_string(),
           location2.to_append().to_string(),
-          location2.prefix_or_id().as_prefix().unwrap().to_string(),
+          location2
+            .prefix_or_id()
+            .unwrap()
+            .as_prefix()
+            .unwrap()
+            .to_string(),
         );
       }
 
@@ -534,9 +557,19 @@ mod tests {
 
           return (
             file1.local_path().to_string(),
-            location1.prefix_or_id().as_id().unwrap().to_string(),
+            location1
+              .prefix_or_id()
+              .unwrap()
+              .as_id()
+              .unwrap()
+              .to_string(),
             file2.local_path().to_string(),
-            location2.prefix_or_id().as_id().unwrap().to_string(),
+            location2
+              .prefix_or_id()
+              .unwrap()
+              .as_id()
+              .unwrap()
+              .to_string(),
           );
         }
 
@@ -577,9 +610,19 @@ mod tests {
           if let (Backend::S3(s31), Backend::S3(s32)) = (location1.backend(), location2.backend()) {
             return (
               s31.bucket().to_string(),
-              location1.prefix_or_id().as_prefix().unwrap().to_string(),
+              location1
+                .prefix_or_id()
+                .unwrap()
+                .as_prefix()
+                .unwrap()
+                .to_string(),
               s32.bucket().to_string(),
-              location2.prefix_or_id().as_prefix().unwrap().to_string(),
+              location2
+                .prefix_or_id()
+                .unwrap()
+                .as_prefix()
+                .unwrap()
+                .to_string(),
             );
           }
         }
@@ -613,9 +656,19 @@ mod tests {
           {
             return (
               url1.url().to_string(),
-              location1.prefix_or_id().as_prefix().unwrap().to_string(),
+              location1
+                .prefix_or_id()
+                .unwrap()
+                .as_prefix()
+                .unwrap()
+                .to_string(),
               url2.url().to_string(),
-              location2.prefix_or_id().as_prefix().unwrap().to_string(),
+              location2
+                .prefix_or_id()
+                .unwrap()
+                .as_prefix()
+                .unwrap()
+                .to_string(),
             );
           }
         }
@@ -633,7 +686,12 @@ mod tests {
       return (
         file1.local_path().to_string(),
         location1.to_append().to_string(),
-        location1.prefix_or_id().as_prefix().unwrap().to_string(),
+        location1
+          .prefix_or_id()
+          .unwrap()
+          .as_prefix()
+          .unwrap()
+          .to_string(),
       );
     }
 

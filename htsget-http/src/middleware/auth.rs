@@ -13,12 +13,12 @@ use htsget_config::config::advanced::auth::jwt::AuthMode;
 use htsget_config::config::advanced::auth::{
   AuthConfig, AuthorizationRestrictions, AuthorizationRule,
 };
+use htsget_config::config::location::{LocationEither, PrefixOrId};
 use htsget_config::types::{Class, Interval, Query};
 use http::{HeaderMap, HeaderName, HeaderValue, Uri};
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode_header};
-use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::fmt::{Debug, Formatter};
@@ -233,22 +233,26 @@ impl Auth {
       .into_rules()
       .into_iter()
       .filter(|rule| {
-        let rule_path = rule
-          .location()
-          .as_simple()
-          .unwrap()
-          .prefix_or_id()
-          .as_id()
-          .unwrap();
-        // If this path is a direct match then just return that.
-        if rule_path.strip_prefix("/").unwrap_or(rule_path)
-          == path.strip_prefix("/").unwrap_or(path)
-        {
-          return true;
+        match rule.location() {
+          LocationEither::Simple(location) if location.prefix_or_id().is_some() => {
+            match location.prefix_or_id().unwrap_or_default() {
+              PrefixOrId::Prefix(prefix) => {
+                // A prefix has a starts with rule.
+                path.starts_with(&prefix)
+              }
+              PrefixOrId::Id(id) => {
+                // An id location must match exactly.
+                id == path
+              }
+            }
+          }
+          LocationEither::Regex(location) => {
+            // A regex location matches using the regex.
+            location.regex().is_match(path)
+          }
+          // Missing valid location.
+          _ => false,
         }
-
-        // Otherwise, try and parse it as a regex.
-        Regex::new(rule_path).is_ok_and(|regex| regex.is_match(path))
       })
       .collect::<Vec<_>>();
 
@@ -423,9 +427,12 @@ mod tests {
   use htsget_config::config::advanced::auth::response::{
     AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
   };
+  use htsget_config::config::advanced::regex_location::RegexLocation;
+  use htsget_config::config::location::Location;
   use htsget_config::types::{Format, Request};
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};
+  use regex::Regex;
   use reqwest_middleware::ClientBuilder;
   use serde_json::json;
   use std::collections::HashMap;
@@ -448,7 +455,7 @@ mod tests {
   #[test]
   fn validate_restrictions_rule_allows_all() {
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .build()
       .unwrap();
     let restrictions = AuthorizationRestrictionsBuilder::default()
@@ -472,7 +479,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -501,7 +508,43 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample(.+)")
+      .location(LocationEither::Simple(Box::new(Location::new(
+        Default::default(),
+        "".to_string(),
+        Some(PrefixOrId::Prefix("/reads/sam".to_string())),
+      ))))
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("format".to_string(), "BAM".to_string());
+
+    let request = create_test_query(Endpoint::Reads, "/reads/sample123", query);
+    let result =
+      Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_prefix_match() {
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .location(LocationEither::Regex(Box::new(RegexLocation::new(
+        Regex::new("/reads/sample(.+)").unwrap(),
+        "".to_string(),
+        Default::default(),
+        Default::default(),
+      ))))
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -644,7 +687,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -671,7 +714,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -699,7 +742,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -726,7 +769,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -754,7 +797,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -1229,7 +1272,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -1251,7 +1294,7 @@ mod tests {
   #[test]
   fn validate_restrictions_path_with_leading_slash() {
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .build()
       .unwrap();
     let restrictions = AuthorizationRestrictionsBuilder::default()
@@ -1354,7 +1397,7 @@ mod tests {
 
     let reference_restriction = reference_restriction.build().unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -1379,5 +1422,13 @@ mod tests {
     }
     assert_eq!(slice.first().unwrap().interval(), expected_response.0);
     assert_eq!(slice.last().unwrap().class(), expected_response.1);
+  }
+
+  fn test_location() -> LocationEither {
+    LocationEither::Simple(Box::new(Location::new(
+      Default::default(),
+      "".to_string(),
+      Some(PrefixOrId::Id("/reads/sample1".to_string())),
+    )))
   }
 }

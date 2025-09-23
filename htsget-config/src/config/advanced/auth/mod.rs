@@ -327,7 +327,7 @@ mod tests {
           .location(LocationEither::Simple(Box::new(Location::new(
             Backend::default(),
             String::default(),
-            PrefixOrId::Id("path".to_string()),
+            Some(PrefixOrId::Id("path".to_string())),
           ))))
           .build()
           .unwrap(),
