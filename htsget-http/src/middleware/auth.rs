@@ -12,7 +12,7 @@ use htsget_config::config::advanced::auth::authorization::UrlOrStatic;
 use htsget_config::config::advanced::auth::jwt::AuthMode;
 use htsget_config::config::advanced::auth::response::AuthorizationRestrictionsBuilder;
 use htsget_config::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
-use htsget_config::config::location::{LocationEither, PrefixOrId};
+use htsget_config::config::location::{Location, PrefixOrId};
 use htsget_config::types::{Class, Interval, Query};
 use http::{HeaderMap, HeaderName, HeaderValue, Uri};
 use jsonpath_rust::JsonPath;
@@ -233,7 +233,7 @@ impl Auth {
       .into_iter()
       .filter(|rule| {
         match rule.location() {
-          LocationEither::Simple(location) if location.prefix_or_id().is_some() => {
+          Location::Simple(location) if location.prefix_or_id().is_some() => {
             match location.prefix_or_id().unwrap_or_default() {
               PrefixOrId::Prefix(prefix) => {
                 // A prefix has a starts with rule.
@@ -245,7 +245,7 @@ impl Auth {
               }
             }
           }
-          LocationEither::Regex(location) => {
+          Location::Regex(location) => {
             // A regex location matches using the regex.
             location.regex().is_match(path)
           }
@@ -430,7 +430,7 @@ mod tests {
     AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
   };
   use htsget_config::config::advanced::regex_location::RegexLocation;
-  use htsget_config::config::location::Location;
+  use htsget_config::config::location::SimpleLocation;
   use htsget_config::types::{Format, Request};
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};
@@ -510,7 +510,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .location(LocationEither::Simple(Box::new(Location::new(
+      .location(Location::Simple(Box::new(SimpleLocation::new(
         Default::default(),
         "".to_string(),
         Some(PrefixOrId::Prefix("sam".to_string())),
@@ -541,7 +541,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .location(LocationEither::Regex(Box::new(RegexLocation::new(
+      .location(Location::Regex(Box::new(RegexLocation::new(
         Regex::new("sample(.+)").unwrap(),
         "".to_string(),
         Default::default(),
@@ -1421,8 +1421,8 @@ mod tests {
     assert_eq!(slice.last().unwrap().class(), expected_response.1);
   }
 
-  fn test_location() -> LocationEither {
-    LocationEither::Simple(Box::new(Location::new(
+  fn test_location() -> Location {
+    Location::Simple(Box::new(SimpleLocation::new(
       Default::default(),
       "".to_string(),
       Some(PrefixOrId::Id("sample1".to_string())),

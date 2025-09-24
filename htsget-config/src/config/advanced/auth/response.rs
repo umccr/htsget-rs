@@ -4,7 +4,7 @@
 //! responses from external authorization services.
 //!
 
-use crate::config::location::{LocationEither, Locations};
+use crate::config::location::{Location, Locations};
 use crate::error::Error::BuilderError;
 use crate::error::{Error, Result};
 use crate::types::{Format, Interval};
@@ -29,7 +29,7 @@ pub struct AuthorizationRestrictions {
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
   /// The location that the authorization applies to.
-  location: LocationEither,
+  location: Location,
   /// The reference name restrictions to apply to this path.
   #[serde(skip_serializing_if = "Option::is_none")]
   rules: Option<Vec<ReferenceNameRestriction>>,
@@ -87,12 +87,12 @@ impl AuthorizationRestrictions {
 
 impl AuthorizationRule {
   /// The location of the rule.
-  pub fn location(&self) -> &LocationEither {
+  pub fn location(&self) -> &Location {
     &self.location
   }
 
   /// Get the owned location.
-  pub fn into_location(self) -> LocationEither {
+  pub fn into_location(self) -> Location {
     self.location
   }
 
@@ -131,6 +131,7 @@ impl ReferenceNameRestriction {
 
 /// Builder for `AuthorizationRestrictions`.
 #[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthorizationRestrictionsBuilder {
   /// The version of the schema.
   #[validate(range(min = 1))]
@@ -178,9 +179,10 @@ impl AuthorizationRestrictionsBuilder {
 
 /// Builder for `AuthorizationRule`.
 #[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthorizationRuleBuilder {
   /// The location that the authorization applies to.
-  location: Option<LocationEither>,
+  location: Option<Location>,
   /// The reference name restrictions to apply to this path.
   #[serde(skip_serializing_if = "Vec::is_empty")]
   reference_names: Vec<ReferenceNameRestriction>,
@@ -188,7 +190,7 @@ pub struct AuthorizationRuleBuilder {
 
 impl AuthorizationRuleBuilder {
   /// Set the location for this rule.
-  pub fn location(mut self, location_either: LocationEither) -> Self {
+  pub fn location(mut self, location_either: Location) -> Self {
     self.location = Some(location_either);
     self
   }
@@ -230,6 +232,7 @@ impl AuthorizationRuleBuilder {
 
 /// Builder for `ReferenceNameRestriction`.
 #[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReferenceNameRestrictionBuilder {
   /// The reference name to allow. Allows all reference names if unspecified.
   #[serde(rename = "referenceName", skip_serializing_if = "Option::is_none")]
@@ -311,7 +314,7 @@ impl TryFrom<ReferenceNameRestrictionBuilder> for ReferenceNameRestriction {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::config::location::{Location, PrefixOrId};
+  use crate::config::location::{PrefixOrId, SimpleLocation};
   use serde_json;
 
   #[test]
@@ -400,7 +403,7 @@ mod tests {
   #[test]
   fn test_authorization_rule_builder() {
     let rule = AuthorizationRuleBuilder::default()
-      .location(LocationEither::Simple(Box::new(Location::new(
+      .location(Location::Simple(Box::new(SimpleLocation::new(
         Default::default(),
         "".to_string(),
         Some(PrefixOrId::Id("sample1".to_string())),
@@ -424,7 +427,7 @@ mod tests {
     assert!(rule.is_err());
 
     let rule = AuthorizationRuleBuilder::default()
-      .location(LocationEither::Simple(Box::new(Location::new(
+      .location(Location::Simple(Box::new(SimpleLocation::new(
         Default::default(),
         "".to_string(),
         None,

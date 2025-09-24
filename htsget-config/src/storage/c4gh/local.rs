@@ -8,11 +8,13 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use std::path::PathBuf;
 
-/// Local C4GH key storage.
+/// Specify keys from a local file.
 #[derive(JsonSchema, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct C4GHLocal {
+  /// The path to the private key.
   private: PathBuf,
+  /// The path to the public key.
   public: PathBuf,
 }
 

@@ -18,26 +18,26 @@ use {crate::config::advanced::url::Url, http::Uri, http::uri::InvalidUri};
 /// The locations of data.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields, from = "LocationsOneOrMany")]
-pub struct Locations(Vec<LocationEither>);
+pub struct Locations(Vec<Location>);
 
 impl Locations {
   /// Create new locations.
-  pub fn new(locations: Vec<LocationEither>) -> Self {
+  pub fn new(locations: Vec<Location>) -> Self {
     Self(locations)
   }
 
   /// Get locations as a slice of `LocationEither`.
-  pub fn as_slice(&self) -> &[LocationEither] {
+  pub fn as_slice(&self) -> &[Location] {
     self.0.as_slice()
   }
 
   /// Get locations as an owned vector of `LocationEither`.
-  pub fn into_inner(self) -> Vec<LocationEither> {
+  pub fn into_inner(self) -> Vec<Location> {
     self.0
   }
 
   /// Get locations as a mutable slice of `LocationEither`.
-  pub fn as_mut_slice(&mut self) -> &mut [LocationEither] {
+  pub fn as_mut_slice(&mut self) -> &mut [Location] {
     self.0.as_mut_slice()
   }
 }
@@ -48,40 +48,42 @@ impl Default for Locations {
   }
 }
 
-impl From<Vec<LocationEither>> for Locations {
-  fn from(locations: Vec<LocationEither>) -> Self {
+impl From<Vec<Location>> for Locations {
+  fn from(locations: Vec<Location>) -> Self {
     Self::new(locations)
   }
 }
 
-/// Either simple or regex based location
+/// Either simple or regex based location.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged, deny_unknown_fields)]
-pub enum LocationEither {
-  Simple(Box<Location>),
+pub enum Location {
+  /// Use a simple location.
+  Simple(Box<SimpleLocation>),
+  /// Use a regex location.
   Regex(Box<RegexLocation>),
 }
 
-impl LocationEither {
+impl Location {
   /// Get the storage backend.
   pub fn backend(&self) -> &Backend {
     match self {
-      LocationEither::Simple(location) => location.backend(),
-      LocationEither::Regex(regex_location) => regex_location.backend(),
+      Location::Simple(location) => location.backend(),
+      Location::Regex(regex_location) => regex_location.backend(),
     }
   }
 
   /// Get the storage backend as a mutable reference.
   pub fn backend_mut(&mut self) -> &mut Backend {
     match self {
-      LocationEither::Simple(location) => location.backend_mut(),
-      LocationEither::Regex(regex_location) => regex_location.backend_mut(),
+      Location::Simple(location) => location.backend_mut(),
+      Location::Regex(regex_location) => regex_location.backend_mut(),
     }
   }
 
   /// Get the simple location variant, returning an error otherwise.
-  pub fn as_simple(&self) -> Result<&Location> {
-    if let LocationEither::Simple(simple) = self {
+  pub fn as_simple(&self) -> Result<&SimpleLocation> {
+    if let Location::Simple(simple) = self {
       Ok(simple)
     } else {
       Err(ParseError("not a `Simple` variant".to_string()))
@@ -90,7 +92,7 @@ impl LocationEither {
 
   /// Get the regex location variant, returning an error otherwise.
   pub fn as_regex(&self) -> Result<&RegexLocation> {
-    if let LocationEither::Regex(regex) = self {
+    if let Location::Regex(regex) = self {
       Ok(regex)
     } else {
       Err(ParseError("not a `Regex` variant".to_string()))
@@ -98,7 +100,7 @@ impl LocationEither {
   }
 }
 
-impl Default for LocationEither {
+impl Default for Location {
   fn default() -> Self {
     Self::Simple(Default::default())
   }
@@ -108,7 +110,9 @@ impl Default for LocationEither {
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields, rename_all = "lowercase")]
 pub enum PrefixOrId {
+  /// Use prefix matching logic, where the requested id should start with the prefix.
   Prefix(String),
+  /// Use exact id matching logic, where the requested id should be equal to this id.
   Id(String),
 }
 
@@ -136,20 +140,20 @@ impl Default for PrefixOrId {
   }
 }
 
-/// Location config.
+/// A simple location config.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(
   try_from = "LocationWrapper",
   into = "LocationWrapper",
   deny_unknown_fields
 )]
-pub struct Location {
+pub struct SimpleLocation {
   backend: Backend,
   to_append: String,
   prefix_or_id: Option<PrefixOrId>,
 }
 
-impl Location {
+impl SimpleLocation {
   /// Create a new location.
   pub fn new(backend: Backend, to_append: String, prefix_or_id: Option<PrefixOrId>) -> Self {
     Self {
@@ -184,8 +188,8 @@ impl Location {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged, deny_unknown_fields)]
 enum LocationsOneOrMany {
-  Many(Vec<LocationEither>),
-  One(Box<LocationEither>),
+  Many(Vec<Location>),
+  One(Box<Location>),
 }
 
 impl From<LocationsOneOrMany> for Locations {
@@ -209,11 +213,13 @@ struct ExtendedLocation {
   keys: Option<C4GHKeys>,
 }
 
-/// Deserialize the location from a string with a protocol.
+/// Deserialize the location from a string with a protocol and either a prefix or exact id match logic.
 #[derive(JsonSchema, Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 struct StringLocation {
-  location: String,
+  /// The location, which should start with `file://`, `s3://`, `http://` or `https://`.
+  location: Option<String>,
+  /// The prefix or id match configuration.
   #[serde(flatten)]
   prefix_or_id: PrefixOrId,
 }
@@ -238,8 +244,8 @@ struct MapLocation {
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged, deny_unknown_fields)]
 enum LocationWrapper {
-  SingleLocation(String),
   #[schemars(skip)]
+  SingleLocation(String),
   String(StringLocation),
   #[schemars(skip)]
   Map(Box<MapLocation>),
@@ -247,8 +253,8 @@ enum LocationWrapper {
   Extended(ExtendedLocation),
 }
 
-impl From<Location> for LocationWrapper {
-  fn from(location: Location) -> Self {
+impl From<SimpleLocation> for LocationWrapper {
+  fn from(location: SimpleLocation) -> Self {
     LocationWrapper::Map(Box::from(MapLocation {
       location: location.backend,
       append_to: location.to_append,
@@ -257,28 +263,29 @@ impl From<Location> for LocationWrapper {
   }
 }
 
-impl TryFrom<LocationWrapper> for Location {
+impl TryFrom<LocationWrapper> for SimpleLocation {
   type Error = error::Error;
 
   fn try_from(location: LocationWrapper) -> Result<Self> {
     match location {
       LocationWrapper::SingleLocation(location) => {
         let backend: BackendWithAppend = location.try_into()?;
-        Ok(Location::new(backend.0, backend.1, None))
+        Ok(SimpleLocation::new(backend.0, backend.1, None))
       }
       LocationWrapper::String(wrapper) => {
-        let backend: BackendWithAppend = if wrapper.location.is_empty() {
+        let location = wrapper.location.unwrap_or_default();
+        let backend: BackendWithAppend = if location.is_empty() {
           Default::default()
         } else {
-          wrapper.location.try_into()?
+          location.try_into()?
         };
-        Ok(Location::new(
+        Ok(SimpleLocation::new(
           backend.0,
           backend.1,
           Some(wrapper.prefix_or_id),
         ))
       }
-      LocationWrapper::Map(wrapper) => Ok(Location::new(
+      LocationWrapper::Map(wrapper) => Ok(SimpleLocation::new(
         wrapper.location,
         wrapper.append_to,
         wrapper.prefix_or_id,
@@ -286,11 +293,11 @@ impl TryFrom<LocationWrapper> for Location {
       LocationWrapper::Extended(wrapper) => {
         cfg_if! {
           if #[cfg(feature = "experimental")] {
-            let mut backend: BackendWithAppend = wrapper.location.location.try_into()?;
+            let mut backend: BackendWithAppend = wrapper.location.location.unwrap_or_default().try_into()?;
             backend.0.set_keys(wrapper.keys);
-            Ok(Location::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
+            Ok(SimpleLocation::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
           } else {
-            let backend: BackendWithAppend = wrapper.location.location.try_into()?;
+            let backend: BackendWithAppend = wrapper.location.location.unwrap_or_default().try_into()?;
             Ok(Location::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
           }
         }
@@ -299,8 +306,8 @@ impl TryFrom<LocationWrapper> for Location {
   }
 }
 
-impl From<Location> for LocationEither {
-  fn from(location: Location) -> Self {
+impl From<SimpleLocation> for Location {
+  fn from(location: SimpleLocation) -> Self {
     Self::Simple(Box::new(location))
   }
 }
@@ -436,7 +443,7 @@ mod tests {
       |result: Config| {
         let result = result.locations.0;
         assert_eq!(result.len(), 2);
-        if let (LocationEither::Simple(location1), LocationEither::Simple(location2)) =
+        if let (Location::Simple(location1), Location::Simple(location2)) =
           (result.first().unwrap(), result.get(1).unwrap())
         {
           let file1 = location1.backend().as_file().unwrap();
@@ -470,7 +477,7 @@ mod tests {
     let assert_fn = |result: Config| {
       let result = result.locations.0;
       assert_eq!(result.len(), 2);
-      if let (LocationEither::Simple(location1), LocationEither::Simple(location2)) =
+      if let (Location::Simple(location1), Location::Simple(location2)) =
         (result.first().unwrap(), result.get(1).unwrap())
       {
         let file1 = location1.backend().as_file().unwrap();
@@ -560,7 +567,7 @@ mod tests {
       |result: Config| {
         let result = result.locations.0;
         assert_eq!(result.len(), 2);
-        if let (LocationEither::Simple(location1), LocationEither::Simple(location2)) =
+        if let (Location::Simple(location1), Location::Simple(location2)) =
           (result.first().unwrap(), result.get(1).unwrap())
         {
           let file1 = location1.backend().as_file().unwrap();
@@ -615,7 +622,7 @@ mod tests {
       |result: Config| {
         let result = result.locations.0;
         assert_eq!(result.len(), 2);
-        if let (LocationEither::Simple(location1), LocationEither::Simple(location2)) =
+        if let (Location::Simple(location1), Location::Simple(location2)) =
           (result.first().unwrap(), result.get(1).unwrap())
         {
           if let (Backend::S3(s31), Backend::S3(s32)) = (location1.backend(), location2.backend()) {
@@ -659,7 +666,7 @@ mod tests {
       |result: Config| {
         let result = result.locations.0;
         assert_eq!(result.len(), 2);
-        if let (LocationEither::Simple(location1), LocationEither::Simple(location2)) =
+        if let (Location::Simple(location1), Location::Simple(location2)) =
           (result.first().unwrap(), result.get(1).unwrap())
         {
           if let (Backend::Url(url1), Backend::Url(url2)) =
@@ -692,7 +699,7 @@ mod tests {
   fn assert_file_location(result: Config) -> (String, String, Option<String>) {
     let result = result.locations.0;
     assert_eq!(result.len(), 1);
-    if let LocationEither::Simple(location1) = result.first().unwrap() {
+    if let Location::Simple(location1) = result.first().unwrap() {
       let file1 = location1.backend().as_file().unwrap();
       return (
         file1.local_path().to_string(),

@@ -9,21 +9,26 @@ use reqwest_middleware::ClientWithMiddleware;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Remote URL server storage struct.
+/// Configure the server to reach out to a remote URL to fetch data.
 #[derive(JsonSchema, Deserialize, Serialize, Debug, Clone)]
 #[serde(try_from = "advanced::url::Url", deny_unknown_fields)]
 pub struct Url {
+  /// The URL to fetch data from.
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   url: Uri,
+  /// The URL of the response tickets.
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   response_url: Uri,
+  /// Whether to forward client headers to the remote URL.
   forward_headers: bool,
+  /// Headers to not forward to the remote URL even if `forward_headers` is true.
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
   #[schemars(skip)]
   client: ClientWithMiddleware,
+  /// Optional Crypt4GH keys to use when decrypting data.
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,

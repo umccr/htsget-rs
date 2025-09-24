@@ -15,7 +15,7 @@ use htsget_config::config::advanced::auth::response::{
 use htsget_config::config::advanced::auth::{
   AuthConfig, AuthConfigBuilder, AuthorizationRestrictions,
 };
-use htsget_config::config::location::{Location, LocationEither, PrefixOrId};
+use htsget_config::config::location::{Location, PrefixOrId, SimpleLocation};
 use htsget_config::storage::Backend;
 use htsget_config::types::{Class, Format};
 use http::{Method, Uri};
@@ -145,7 +145,7 @@ pub fn create_auth_restrictions() -> AuthorizationRestrictions {
     .version(1)
     .rule(
       AuthorizationRuleBuilder::default()
-        .location(LocationEither::Simple(Box::new(Location::new(
+        .location(Location::Simple(Box::new(SimpleLocation::new(
           Backend::default(),
           String::default(),
           Some(PrefixOrId::Id("1-vcf/sample1-bcbio-cancer".to_string())),

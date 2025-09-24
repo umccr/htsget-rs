@@ -15,11 +15,13 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
-/// C4GH secrets manager key storage.
+/// Specify keys on AWS secrets manager.
 #[derive(JsonSchema, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct C4GHSecretsManager {
+  /// The ARN or name of the secret holding the private key.
   private: String,
+  /// The ARN or name of the secret holding the public key.
   public: String,
   #[serde(skip)]
   client: Option<Client>,

@@ -18,7 +18,7 @@ pub mod local;
 #[cfg(feature = "aws")]
 pub mod secrets_manager;
 
-/// Config for Crypt4GH keys.
+/// Specifies the location of a Crypt4GH key.
 #[derive(JsonSchema, Deserialize, Debug, Clone)]
 #[serde(try_from = "C4GHKeyLocation", deny_unknown_fields)]
 pub struct C4GHKeys {
@@ -74,13 +74,15 @@ impl TryFrom<C4GHKeyLocation> for C4GHKeys {
   }
 }
 
-/// The location of C4GH keys.
+/// Specifies the location of a Crypt4GH key.
 #[derive(JsonSchema, Deserialize, Debug, Clone)]
 #[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum C4GHKeyLocation {
+  /// Obtain keys from a local file.
   #[serde(alias = "file", alias = "FILE")]
   File(C4GHLocal),
+  /// Obtain keys from AWS secrets manager.
   #[cfg(feature = "aws")]
   #[serde(alias = "secretsmanager", alias = "SECRETSMANAGER")]
   SecretsManager(C4GHSecretsManager),

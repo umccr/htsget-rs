@@ -249,7 +249,7 @@ mod tests {
   use crate::config::advanced::auth::response::{
     AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder,
   };
-  use crate::config::location::{Location, LocationEither, PrefixOrId};
+  use crate::config::location::{Location, PrefixOrId, SimpleLocation};
   use crate::http::tests::with_test_certificates;
   use crate::storage::Backend;
   use http::Uri;
@@ -324,7 +324,7 @@ mod tests {
     let restrictions = AuthorizationRestrictionsBuilder::default()
       .rule(
         AuthorizationRuleBuilder::default()
-          .location(LocationEither::Simple(Box::new(Location::new(
+          .location(Location::Simple(Box::new(SimpleLocation::new(
             Backend::default(),
             String::default(),
             Some(PrefixOrId::Id("path".to_string())),

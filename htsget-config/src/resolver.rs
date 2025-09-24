@@ -2,7 +2,7 @@
 
 use crate::config::advanced::allow_guard::QueryAllowed;
 use crate::config::advanced::regex_location::RegexLocation;
-use crate::config::location::{LocationEither, Locations, PrefixOrId};
+use crate::config::location::{Location, Locations, PrefixOrId};
 use crate::storage;
 use crate::storage::{Backend, ResolvedId};
 use crate::types::{Query, Response, Result};
@@ -67,7 +67,7 @@ impl<T> ResolvedStorage<T> {
   }
 }
 
-impl IdResolver for LocationEither {
+impl IdResolver for Location {
   #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, query: &Query) -> Option<ResolvedId> {
     let replace = |regex_location: &RegexLocation| {
@@ -80,7 +80,7 @@ impl IdResolver for LocationEither {
     };
 
     let resolved_id = match self {
-      LocationEither::Simple(location) => match location.prefix_or_id().unwrap_or_default() {
+      Location::Simple(location) => match location.prefix_or_id().unwrap_or_default() {
         PrefixOrId::Prefix(prefix) if query.id().starts_with(&prefix) => {
           Some(format!("{}/{}", location.to_append(), query.id()))
         }
@@ -93,7 +93,7 @@ impl IdResolver for LocationEither {
         }
         _ => None,
       },
-      LocationEither::Regex(regex_location) => {
+      Location::Regex(regex_location) => {
         if regex_location.regex().is_match(query.id()) {
           if let Some(guard) = regex_location.guard() {
             if guard.query_allowed(query) {
@@ -118,7 +118,7 @@ impl IdResolver for LocationEither {
 }
 
 #[async_trait]
-impl StorageResolver for LocationEither {
+impl StorageResolver for Location {
   #[instrument(level = "trace", skip(self), ret)]
   async fn resolve_request<T: ResolveResponse>(
     &self,
@@ -157,7 +157,7 @@ impl StorageResolver for LocationEither {
   }
 }
 
-impl IdResolver for &[LocationEither] {
+impl IdResolver for &[Location] {
   #[instrument(level = "trace", skip(self), ret)]
   fn resolve_id(&self, query: &Query) -> Option<ResolvedId> {
     self.iter().find_map(|location| location.resolve_id(query))
@@ -165,7 +165,7 @@ impl IdResolver for &[LocationEither] {
 }
 
 #[async_trait]
-impl StorageResolver for &[LocationEither] {
+impl StorageResolver for &[Location] {
   #[instrument(level = "trace", skip(self), ret)]
   async fn resolve_request<T: ResolveResponse>(
     &self,
@@ -202,7 +202,7 @@ impl StorageResolver for Locations {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::config::location::Location;
+  use crate::config::location::SimpleLocation;
   use crate::config::tests::{test_config_from_env, test_config_from_file};
   use crate::storage;
   use crate::types::Format::Bam;
@@ -268,7 +268,7 @@ mod tests {
     );
     expected_resolved_request(vec![regex_location.into()], "127.0.0.1:8080/id-test-1").await;
 
-    let location = Location::new(
+    let location = SimpleLocation::new(
       Backend::File(file),
       "".to_string(),
       Some(PrefixOrId::Prefix("".to_string())),
@@ -288,7 +288,7 @@ mod tests {
     );
     expected_resolved_request(vec![regex_location.into()], "id2/id-test").await;
 
-    let location = Location::new(
+    let location = SimpleLocation::new(
       Backend::S3(s3_storage),
       "".to_string(),
       Some(PrefixOrId::Prefix("".to_string())),
@@ -315,7 +315,7 @@ mod tests {
     );
     expected_resolved_request(vec![regex_location.clone().into()], "id/1").await;
 
-    let location = Location::new(
+    let location = SimpleLocation::new(
       Backend::S3(storage::s3::S3::new("bucket".to_string(), None, false)),
       "".to_string(),
       Some(PrefixOrId::Prefix("".to_string())),
@@ -348,7 +348,7 @@ mod tests {
     )
     .await;
 
-    let location = Location::new(
+    let location = SimpleLocation::new(
       Backend::Url(url_storage),
       "".to_string(),
       Some(PrefixOrId::Prefix("".to_string())),
@@ -393,13 +393,13 @@ mod tests {
     );
 
     let resolver = Locations::new(vec![
-      Location::new(
+      SimpleLocation::new(
         Default::default(),
         "".to_string(),
         Some(PrefixOrId::Prefix("id-1".to_string())),
       )
       .into(),
-      Location::new(
+      SimpleLocation::new(
         Default::default(),
         "".to_string(),
         Some(PrefixOrId::Prefix("id-2".to_string())),
@@ -423,13 +423,13 @@ mod tests {
       "id-2"
     );
     let resolver = Locations::new(vec![
-      Location::new(
+      SimpleLocation::new(
         Default::default(),
         "append_to".to_string(),
         Some(PrefixOrId::Prefix("id-1".to_string())),
       )
       .into(),
-      Location::new(
+      SimpleLocation::new(
         Default::default(),
         "append_to".to_string(),
         Some(PrefixOrId::Prefix("id-2".to_string())),
@@ -454,13 +454,13 @@ mod tests {
     );
 
     let resolver = Locations::new(vec![
-      Location::new(
+      SimpleLocation::new(
         Default::default(),
         "append_to".to_string(),
         Some(PrefixOrId::Id("id-1".to_string())),
       )
       .into(),
-      Location::new(
+      SimpleLocation::new(
         Default::default(),
         "append_to".to_string(),
         Some(PrefixOrId::Id("id-2".to_string())),
@@ -563,7 +563,7 @@ mod tests {
     );
   }
 
-  async fn expected_resolved_request(resolver: Vec<LocationEither>, expected_id: &str) {
+  async fn expected_resolved_request(resolver: Vec<Location>, expected_id: &str) {
     assert_eq!(
       Locations::new(resolver)
         .resolve_request::<TestResolveResponse>(&mut Query::new_with_default_request("id-1", Bam))

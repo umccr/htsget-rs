@@ -4,7 +4,7 @@
 use crate::config::advanced::FormattingStyle;
 use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::data_server::{DataServerConfig, DataServerEnabled};
-use crate::config::location::{LocationEither, Locations};
+use crate::config::location::{Location, Locations};
 use crate::config::parser::from_path;
 use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
@@ -135,7 +135,7 @@ impl Config {
   }
 
   /// Get the location.
-  pub fn locations(&self) -> &[LocationEither] {
+  pub fn locations(&self) -> &[Location] {
     self.locations.as_slice()
   }
 
@@ -363,7 +363,7 @@ pub(crate) mod tests {
   use super::*;
   use crate::config::advanced::auth::authorization::UrlOrStatic;
   use crate::config::advanced::auth::jwt::AuthMode;
-  use crate::config::location::Location;
+  use crate::config::location::SimpleLocation;
   use crate::config::parser::from_str;
   use crate::http::tests::with_test_certificates;
   use crate::storage::Backend;
@@ -915,7 +915,7 @@ pub(crate) mod tests {
     assert_file_location(location, "data");
   }
 
-  fn assert_file_location(location: &Location, local_path: &str) {
+  fn assert_file_location(location: &SimpleLocation, local_path: &str) {
     assert!(matches!(location.backend(),
             Backend::File(file) if file.local_path() == local_path && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
   }

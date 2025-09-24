@@ -14,20 +14,26 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-/// Local file based storage.
+/// Configure the server to fetch data and return tickets from a local filesystem.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct File {
+  /// The ticket response scheme to the data server.
   scheme: Scheme,
+  /// The authority of the data server.
   #[schemars(with = "String")]
   #[serde(with = "http_serde::authority")]
   authority: Authority,
+  /// The local path to serve files from.
   local_path: String,
+  /// The headers to add to ticket responses.
   #[serde(skip)]
   ticket_headers: Vec<String>,
+  /// Configure the server to fetch data and return tickets from S3.
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  /// The origin of the tickets, which can be different to the data server address.
   ticket_origin: Option<String>,
   #[serde(skip)]
   pub(crate) is_defaulted: bool,

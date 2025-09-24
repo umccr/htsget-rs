@@ -6,13 +6,17 @@ use crate::storage::c4gh::C4GHKeys;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration struct for S3 storage.
+/// Configure the server to fetch data and return tickets from S3.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct S3 {
+  /// The bucket to use.
   bucket: String,
+  /// The S3 endpoint to use.
   endpoint: Option<String>,
+  /// Whether path style or virtual host addressing should be used.
   path_style: bool,
+  /// Optional Crypt4GH keys to use when decrypting data.
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
