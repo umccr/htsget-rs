@@ -723,7 +723,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "");
+        assert_eq!(location.prefix_or_id(), None);
         assert_file_location(location, "data");
       },
     );
@@ -740,7 +740,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "");
+        assert_eq!(location.prefix_or_id(), None);
         assert!(matches!(location.backend(),
             Backend::S3(s3) if s3.bucket() == "bucket"));
       },
@@ -758,7 +758,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "");
+        assert_eq!(location.prefix_or_id(), None);
         assert!(matches!(location.backend(),
             Backend::Url(url) if url.url() == &"https://example.com".parse::<Uri>().unwrap()));
       },

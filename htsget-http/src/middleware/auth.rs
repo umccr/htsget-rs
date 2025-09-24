@@ -10,9 +10,8 @@ use headers::authorization::Bearer;
 use headers::{Authorization, Header};
 use htsget_config::config::advanced::auth::authorization::UrlOrStatic;
 use htsget_config::config::advanced::auth::jwt::AuthMode;
-use htsget_config::config::advanced::auth::{
-  AuthConfig, AuthorizationRestrictions, AuthorizationRule,
-};
+use htsget_config::config::advanced::auth::response::AuthorizationRestrictionsBuilder;
+use htsget_config::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use htsget_config::config::location::{LocationEither, PrefixOrId};
 use htsget_config::types::{Class, Interval, Query};
 use http::{HeaderMap, HeaderName, HeaderValue, Uri};
@@ -25,7 +24,7 @@ use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
 use tracing::trace;
 
-/// Builder the the authorization middleware.
+/// The authorization middleware builder.
 #[derive(Default, Debug)]
 pub struct AuthBuilder {
   config: Option<AuthConfig>,
@@ -227,7 +226,7 @@ impl Auth {
     path: &str,
     queries: &mut [Query],
     suppressed_interval: bool,
-  ) -> HtsGetResult<Vec<AuthorizationRule>> {
+  ) -> HtsGetResult<AuthorizationRestrictions> {
     // Find all rules matching the path.
     let matching_rules = restrictions
       .into_rules()
@@ -318,7 +317,10 @@ impl Auth {
       }
     }
 
-    Ok([allows_all, allows_specific].concat())
+    AuthorizationRestrictionsBuilder::default()
+      .rules([allows_all, allows_specific].concat())
+      .build()
+      .map_err(|err| HtsGetError::InternalError(err.to_string()))
   }
 
   /// Validate only the JWT without looking up restrictions and validating those. Returns the
@@ -398,7 +400,7 @@ impl Auth {
     path: &str,
     queries: &mut [Query],
     request_extensions: Option<Value>,
-  ) -> HtsGetResult<Option<Vec<AuthorizationRule>>> {
+  ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
     let restrictions = self
       .query_authorization_service(headers, request_extensions)
       .await?;
@@ -463,7 +465,7 @@ mod tests {
       .build()
       .unwrap();
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", HashMap::new());
+    let request = create_test_query(Endpoint::Reads, "sample1", HashMap::new());
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -494,14 +496,14 @@ mod tests {
     query.insert("end".to_string(), "1800".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
   }
 
   #[test]
-  fn validate_restrictions_regex_path_match() {
+  fn validate_restrictions_regex_prefix_match() {
     let reference_restriction = ReferenceNameRestrictionBuilder::default()
       .name("chr1")
       .format(Format::Bam)
@@ -511,7 +513,7 @@ mod tests {
       .location(LocationEither::Simple(Box::new(Location::new(
         Default::default(),
         "".to_string(),
-        Some(PrefixOrId::Prefix("/reads/sam".to_string())),
+        Some(PrefixOrId::Prefix("sam".to_string())),
       ))))
       .reference_name(reference_restriction)
       .build()
@@ -525,14 +527,14 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample123", query);
+    let request = create_test_query(Endpoint::Reads, "sample123", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
   }
 
   #[test]
-  fn validate_restrictions_prefix_match() {
+  fn validate_restrictions_regex_match() {
     let reference_restriction = ReferenceNameRestrictionBuilder::default()
       .name("chr1")
       .format(Format::Bam)
@@ -540,7 +542,7 @@ mod tests {
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
       .location(LocationEither::Regex(Box::new(RegexLocation::new(
-        Regex::new("/reads/sample(.+)").unwrap(),
+        Regex::new("sample(.+)").unwrap(),
         "".to_string(),
         Default::default(),
         Default::default(),
@@ -557,7 +559,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample123", query);
+    let request = create_test_query(Endpoint::Reads, "sample123", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -700,7 +702,7 @@ mod tests {
     query.insert("class".to_string(), "header".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -727,7 +729,7 @@ mod tests {
     query.insert("format".to_string(), "BAM".to_string());
     query.insert("class".to_string(), "header".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -755,7 +757,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr2".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], true);
     assert!(result.is_ok());
@@ -782,7 +784,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "CRAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_err());
@@ -810,7 +812,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "CRAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], true);
     assert!(result.is_ok());
@@ -1285,7 +1287,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "CRAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -1301,7 +1303,7 @@ mod tests {
       .rule(rule)
       .build()
       .unwrap();
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", HashMap::new());
+    let request = create_test_query(Endpoint::Reads, "sample1", HashMap::new());
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -1310,11 +1312,7 @@ mod tests {
   #[tokio::test]
   async fn validate_authorization_missing_auth_header() {
     let auth = create_mock_auth_with_restrictions();
-    let request = Request::new(
-      "/reads/sample1".to_string(),
-      HashMap::new(),
-      HeaderMap::new(),
-    );
+    let request = Request::new("sample1".to_string(), HashMap::new(), HeaderMap::new());
 
     let result = auth.validate_jwt(request.headers()).await;
     assert!(result.is_err());
@@ -1327,8 +1325,7 @@ mod tests {
   #[tokio::test]
   async fn validate_authorization_invalid_jwt_format() {
     let auth = create_mock_auth_with_restrictions();
-    let request =
-      create_request_with_auth_header("/reads/sample1", HashMap::new(), "invalid.jwt.token");
+    let request = create_request_with_auth_header("sample1", HashMap::new(), "invalid.jwt.token");
 
     let result = auth.validate_jwt(request.headers()).await;
     assert!(result.is_err());
@@ -1411,7 +1408,7 @@ mod tests {
     request_start.map(|start| query.insert("start".to_string(), start.to_string()));
     request_end.map(|end| query.insert("end".to_string(), end.to_string()));
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let id = request.id().to_string();
     let mut slice = [request];
     let result = Auth::validate_restrictions(restrictions, &id, &mut slice, suppress_interval);
@@ -1428,7 +1425,7 @@ mod tests {
     LocationEither::Simple(Box::new(Location::new(
       Default::default(),
       "".to_string(),
-      Some(PrefixOrId::Id("/reads/sample1".to_string())),
+      Some(PrefixOrId::Id("sample1".to_string())),
     )))
   }
 }

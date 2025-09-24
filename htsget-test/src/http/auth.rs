@@ -35,8 +35,25 @@ pub struct MockAuthServer {
 impl MockAuthServer {
   /// Create a new mock authorization server.
   pub async fn new() -> Self {
-    async fn auth_handler() -> Result<Json<AuthorizationRestrictions>, StatusCode> {
-      Ok(Json(create_auth_restrictions()))
+    async fn auth_handler() -> Result<Json<Value>, StatusCode> {
+      Ok(Json(json!({
+        "version": 1,
+        "htsgetAuth": [
+          {
+            "location": {
+              "id": "1-vcf/sample1-bcbio-cancer"
+            },
+            "rules": [
+              {
+                "referenceName": "chrM",
+                "format": "VCF",
+                "start": 1000,
+                "end": 2000
+              }
+            ]
+          }
+        ]
+      })))
     }
 
     let app = Router::new().route("/", get(auth_handler));

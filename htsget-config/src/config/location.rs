@@ -48,6 +48,12 @@ impl Default for Locations {
   }
 }
 
+impl From<Vec<LocationEither>> for Locations {
+  fn from(locations: Vec<LocationEither>) -> Self {
+    Self::new(locations)
+  }
+}
+
 /// Either simple or regex based location
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged, deny_unknown_fields)]
@@ -218,7 +224,7 @@ struct StringLocation {
 struct MapLocation {
   location: Backend,
   append_to: String,
-  prefix_or_id: PrefixOrId,
+  prefix_or_id: Option<PrefixOrId>,
 }
 
 /// A wrapper around location deserialization that can deserialize either a string
@@ -246,7 +252,7 @@ impl From<Location> for LocationWrapper {
     LocationWrapper::Map(Box::from(MapLocation {
       location: location.backend,
       append_to: location.to_append,
-      prefix_or_id: location.prefix_or_id.unwrap_or_default(),
+      prefix_or_id: location.prefix_or_id,
     }))
   }
 }
@@ -261,7 +267,11 @@ impl TryFrom<LocationWrapper> for Location {
         Ok(Location::new(backend.0, backend.1, None))
       }
       LocationWrapper::String(wrapper) => {
-        let backend: BackendWithAppend = wrapper.location.try_into()?;
+        let backend: BackendWithAppend = if wrapper.location.is_empty() {
+          Default::default()
+        } else {
+          wrapper.location.try_into()?
+        };
         Ok(Location::new(
           backend.0,
           backend.1,
@@ -271,7 +281,7 @@ impl TryFrom<LocationWrapper> for Location {
       LocationWrapper::Map(wrapper) => Ok(Location::new(
         wrapper.location,
         wrapper.append_to,
-        Some(wrapper.prefix_or_id),
+        wrapper.prefix_or_id,
       )),
       LocationWrapper::Extended(wrapper) => {
         cfg_if! {
@@ -296,6 +306,7 @@ impl From<Location> for LocationEither {
 }
 
 /// Extracts the backend and the additional path that needs to be appended to resolve the id.
+#[derive(Debug, Default)]
 struct BackendWithAppend(Backend, String);
 
 impl TryFrom<String> for BackendWithAppend {
@@ -380,14 +391,14 @@ mod tests {
       r#"
       locations = "file://path/prefix1"
       "#,
-      ("path".to_string(), "prefix1".to_string(), "".to_string()),
+      ("path".to_string(), "prefix1".to_string(), None),
       |result: Config| assert_file_location(result),
     );
     test_serialize_and_deserialize(
       r#"
       locations = "file://path/prefix1/"
       "#,
-      ("path".to_string(), "prefix1/".to_string(), "".to_string()),
+      ("path".to_string(), "prefix1/".to_string(), None),
       |result: Config| assert_file_location(result),
     );
   }
@@ -398,14 +409,14 @@ mod tests {
       r#"
       locations = "file://path"
       "#,
-      ("path".to_string(), "".to_string(), "".to_string()),
+      ("path".to_string(), "".to_string(), None),
       |result: Config| assert_file_location(result),
     );
     test_serialize_and_deserialize(
       r#"
       locations = "file://path/"
       "#,
-      ("path".to_string(), "".to_string(), "".to_string()),
+      ("path".to_string(), "".to_string(), None),
       |result: Config| assert_file_location(result),
     );
   }
@@ -678,7 +689,7 @@ mod tests {
     );
   }
 
-  fn assert_file_location(result: Config) -> (String, String, String) {
+  fn assert_file_location(result: Config) -> (String, String, Option<String>) {
     let result = result.locations.0;
     assert_eq!(result.len(), 1);
     if let LocationEither::Simple(location1) = result.first().unwrap() {
@@ -688,10 +699,7 @@ mod tests {
         location1.to_append().to_string(),
         location1
           .prefix_or_id()
-          .unwrap()
-          .as_prefix()
-          .unwrap()
-          .to_string(),
+          .and_then(|prefix| prefix.as_prefix().map(|prefix| prefix.to_string())),
       );
     }
 

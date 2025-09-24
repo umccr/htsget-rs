@@ -4,7 +4,7 @@
 //! responses from external authorization services.
 //!
 
-use crate::config::location::LocationEither;
+use crate::config::location::{LocationEither, Locations};
 use crate::error::Error::BuilderError;
 use crate::error::{Error, Result};
 use crate::types::{Format, Interval};
@@ -29,7 +29,6 @@ pub struct AuthorizationRestrictions {
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
   /// The location that the authorization applies to.
-  #[serde(flatten)]
   location: LocationEither,
   /// The reference name restrictions to apply to this path.
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -66,12 +65,35 @@ impl AuthorizationRestrictions {
   pub fn into_rules(self) -> Vec<AuthorizationRule> {
     self.htsget_auth
   }
+
+  /// Get the possible locations from the remote authorization service that would be valid to
+  /// search with. I.e. locations with backends that are not defaulted.
+  pub fn into_remote_locations(self) -> Locations {
+    self
+      .into_rules()
+      .into_iter()
+      .flat_map(|r| {
+        let location = r.into_location();
+        if location.backend().is_defaulted() {
+          None
+        } else {
+          Some(location)
+        }
+      })
+      .collect::<Vec<_>>()
+      .into()
+  }
 }
 
 impl AuthorizationRule {
-  /// Get the file path pattern that this rule allows access to.
+  /// The location of the rule.
   pub fn location(&self) -> &LocationEither {
     &self.location
+  }
+
+  /// Get the owned location.
+  pub fn into_location(self) -> LocationEither {
+    self.location
   }
 
   /// Get the optional rules on reference names and genomic coordinates.
@@ -158,7 +180,6 @@ impl AuthorizationRestrictionsBuilder {
 #[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
 pub struct AuthorizationRuleBuilder {
   /// The location that the authorization applies to.
-  #[serde(flatten)]
   location: Option<LocationEither>,
   /// The reference name restrictions to apply to this path.
   #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -298,7 +319,9 @@ mod tests {
     let json_value = serde_json::json!({
       "version": 1,
       "htsgetAuth": [{
-        "id": "path/to/file",
+        "location": {
+          "id": "path/to/file"
+        },
         "rules": [{
           "referenceName": "chr1",
           "start": 1000,
@@ -333,7 +356,9 @@ mod tests {
     let no_restrictions_value = serde_json::json!({
       "version": 1,
       "htsgetAuth": [{
-        "id": "path/to/file"
+        "location": {
+          "id": "path/to/file"
+        }
       }]
     });
     let no_restrictions_response: AuthorizationRestrictions =
@@ -369,7 +394,7 @@ mod tests {
       .start(2000)
       .end(3000)
       .build();
-    assert!(restriction.is_err());
+    assert!(restriction.is_ok());
   }
 
   #[test]
