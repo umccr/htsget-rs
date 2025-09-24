@@ -298,7 +298,7 @@ impl TryFrom<LocationWrapper> for SimpleLocation {
             Ok(SimpleLocation::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
           } else {
             let backend: BackendWithAppend = wrapper.location.location.unwrap_or_default().try_into()?;
-            Ok(Location::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
+            Ok(SimpleLocation::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
           }
         }
       }
