@@ -2,6 +2,7 @@
 
 use crate::http::server::test_responses;
 use crate::http::{Header, TestRequest, TestServer};
+use axum::extract::State;
 use axum::{Router, http::StatusCode, response::Json, routing::get};
 use cfg_if::cfg_if;
 use chrono::{Duration, Utc};
@@ -32,17 +33,30 @@ pub struct MockAuthServer {
   addr: SocketAddr,
 }
 
+/// Mock a test with an id matching location.
+pub fn mock_id_test() -> Value {
+  json!({"id": "1-vcf/sample1-bcbio-cancer"})
+}
+
+/// Mock a test with a prefix matching location.
+pub fn mock_prefix_test() -> Value {
+  json!({"prefix": "1-vcf/sample1"})
+}
+
+/// Mock a test with a regex matching location.
+pub fn mock_regex_test() -> Value {
+  json!({"regex": "1-vcf/sample1(.*)"})
+}
+
 impl MockAuthServer {
   /// Create a new mock authorization server.
-  pub async fn new() -> Self {
-    async fn auth_handler() -> Result<Json<Value>, StatusCode> {
+  pub async fn new(location_value: Value) -> Self {
+    async fn auth_handler(State(state): State<Value>) -> Result<Json<Value>, StatusCode> {
       Ok(Json(json!({
         "version": 1,
         "htsgetAuth": [
           {
-            "location": {
-              "id": "1-vcf/sample1-bcbio-cancer"
-            },
+            "location": state,
             "rules": [
               {
                 "referenceName": "chrM",
@@ -56,7 +70,9 @@ impl MockAuthServer {
       })))
     }
 
-    let app = Router::new().route("/", get(auth_handler));
+    let app = Router::new()
+      .route("/", get(auth_handler))
+      .with_state(location_value);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
