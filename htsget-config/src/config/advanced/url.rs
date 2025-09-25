@@ -10,25 +10,29 @@ use crate::storage;
 use crate::storage::c4gh::C4GHKeys;
 use cfg_if::cfg_if;
 use http::Uri;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Options for the remote URL server config.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(deny_unknown_fields)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
+#[serde(default, deny_unknown_fields)]
 pub struct Url {
+  #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   url: Uri,
-  #[serde(with = "http_serde::option::uri", default)]
+  #[schemars(with = "Option::<String>")]
+  #[serde(with = "http_serde::option::uri")]
   response_url: Option<Uri>,
-  #[serde(default = "default_forward_headers")]
   forward_headers: bool,
-  #[serde(default)]
   header_blacklist: Vec<String>,
-  #[serde(alias = "tls", skip_serializing, default)]
+  #[schemars(skip)]
+  #[serde(alias = "tls", skip_serializing)]
   http: HttpClientConfig,
   #[cfg(feature = "experimental")]
-  #[serde(skip_serializing, default)]
+  #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  #[serde(skip)]
+  pub(crate) is_defaulted: bool,
 }
 
 impl Url {
@@ -48,6 +52,7 @@ impl Url {
       http,
       #[cfg(feature = "experimental")]
       keys: None,
+      is_defaulted: false,
     }
   }
 
@@ -112,8 +117,18 @@ impl TryFrom<Url> for storage::url::Url {
   }
 }
 
-fn default_forward_headers() -> bool {
-  true
+impl Default for Url {
+  fn default() -> Self {
+    let mut url = Self::new(
+      Default::default(),
+      Default::default(),
+      true,
+      Default::default(),
+      Default::default(),
+    );
+    url.is_defaulted = true;
+    url
+  }
 }
 
 #[cfg(test)]

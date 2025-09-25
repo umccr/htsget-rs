@@ -50,9 +50,13 @@ impl DataServer {
     // The auth layer needs to be added first so that layers like the CorsLayer
     // can respond to `Options` requests first and without auth.
     router = if let Some(auth) = auth {
-      router.layer(AuthenticationLayer::from(
-        AuthBuilder::default().with_config(auth).build()?,
-      ))
+      if auth.auth_mode().is_some() {
+        router.layer(AuthenticationLayer::from(
+          AuthBuilder::default().with_config(auth).build()?,
+        ))
+      } else {
+        router
+      }
     } else {
       router
     };

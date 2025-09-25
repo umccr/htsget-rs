@@ -6,23 +6,45 @@ use crate::config::advanced;
 use crate::storage::c4gh::C4GHKeys;
 use http::Uri;
 use reqwest_middleware::ClientWithMiddleware;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Remote URL server storage struct.
-#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+/// Configure the server to reach out to a remote URL to fetch data.
+#[derive(JsonSchema, Deserialize, Serialize, Debug, Clone)]
 #[serde(try_from = "advanced::url::Url", deny_unknown_fields)]
 pub struct Url {
+  /// The URL to fetch data from.
+  #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   url: Uri,
+  /// The URL of the response tickets.
+  #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   response_url: Uri,
+  /// Whether to forward client headers to the remote URL.
   forward_headers: bool,
+  /// Headers to not forward to the remote URL even if `forward_headers` is true.
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
+  #[schemars(skip)]
   client: ClientWithMiddleware,
+  /// Optional Crypt4GH keys to use when decrypting data.
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  #[serde(skip)]
+  pub(crate) is_defaulted: bool,
+}
+
+impl Eq for Url {}
+
+impl PartialEq for Url {
+  fn eq(&self, other: &Self) -> bool {
+    self.url == other.url
+      && self.response_url == other.response_url
+      && self.forward_headers == other.forward_headers
+      && self.header_blacklist == other.header_blacklist
+  }
 }
 
 impl Url {
@@ -42,6 +64,7 @@ impl Url {
       client,
       #[cfg(feature = "experimental")]
       keys: None,
+      is_defaulted: false,
     }
   }
 
@@ -80,5 +103,19 @@ impl Url {
   /// Get the C4GH keys.
   pub fn keys(&self) -> Option<&C4GHKeys> {
     self.keys.as_ref()
+  }
+}
+
+impl Default for Url {
+  fn default() -> Self {
+    let mut url = Self::new(
+      Default::default(),
+      Default::default(),
+      Default::default(),
+      Default::default(),
+      Default::default(),
+    );
+    url.is_defaulted = true;
+    url
   }
 }

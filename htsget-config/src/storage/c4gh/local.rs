@@ -4,14 +4,17 @@
 use crate::error::{Error, Result};
 use crate::storage::c4gh::C4GHKeys;
 use crypt4gh::keys::{get_private_key, get_public_key};
+use schemars::JsonSchema;
 use serde::Deserialize;
 use std::path::PathBuf;
 
-/// Local C4GH key storage.
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+/// Specify keys from a local file.
+#[derive(JsonSchema, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct C4GHLocal {
+  /// The path to the private key.
   private: PathBuf,
+  /// The path to the public key.
   public: PathBuf,
 }
 

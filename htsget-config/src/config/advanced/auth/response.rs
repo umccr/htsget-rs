@@ -4,8 +4,9 @@
 //! responses from external authorization services.
 //!
 
+use crate::config::location::{Location, Locations};
 use crate::error::Error::BuilderError;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::types::{Format, Interval};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -27,21 +28,20 @@ pub struct AuthorizationRestrictions {
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
-  /// The path that the authorization applies to. This should not contain the `/reads` or `/variants` component of the path, and it can be a regex.
-  #[validate(length(min = 1))]
-  path: String,
+  /// The location that the authorization applies to.
+  location: Location,
   /// The reference name restrictions to apply to this path.
-  #[serde(rename = "referenceNames", skip_serializing_if = "Option::is_none")]
-  reference_names: Option<Vec<ReferenceNameRestriction>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  rules: Option<Vec<ReferenceNameRestriction>>,
 }
 
 /// Restriction on genomic reference names and coordinate ranges.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ReferenceNameRestriction {
-  /// The reference name to allow.
-  #[validate(length(min = 1))]
-  name: String,
+  /// The reference name to allow. Allows all reference names if unspecified.
+  #[serde(rename = "referenceName", skip_serializing_if = "Option::is_none")]
+  reference_name: Option<String>,
   /// The format to allow. Allows all formats if unspecified.
   #[serde(skip_serializing_if = "Option::is_none")]
   format: Option<Format>,
@@ -65,29 +65,52 @@ impl AuthorizationRestrictions {
   pub fn into_rules(self) -> Vec<AuthorizationRule> {
     self.htsget_auth
   }
+
+  /// Get the possible locations from the remote authorization service that would be valid to
+  /// search with. I.e. locations with backends that are not defaulted.
+  pub fn into_remote_locations(self) -> Locations {
+    self
+      .into_rules()
+      .into_iter()
+      .flat_map(|r| {
+        let location = r.into_location();
+        if location.backend().is_defaulted() {
+          None
+        } else {
+          Some(location)
+        }
+      })
+      .collect::<Vec<_>>()
+      .into()
+  }
 }
 
 impl AuthorizationRule {
-  /// Get the file path pattern that this rule allows access to.
-  pub fn path(&self) -> &str {
-    &self.path
+  /// The location of the rule.
+  pub fn location(&self) -> &Location {
+    &self.location
   }
 
-  /// Get the optional restrictions on reference names and genomic coordinates.
-  pub fn reference_names(&self) -> Option<&[ReferenceNameRestriction]> {
-    self.reference_names.as_deref()
+  /// Get the owned location.
+  pub fn into_location(self) -> Location {
+    self.location
   }
 
-  /// Get the optional restrictions on reference names and genomic coordinates as a mutable reference.
-  pub fn reference_names_mut(&mut self) -> Option<&mut [ReferenceNameRestriction]> {
-    self.reference_names.as_deref_mut()
+  /// Get the optional rules on reference names and genomic coordinates.
+  pub fn rules(&self) -> Option<&[ReferenceNameRestriction]> {
+    self.rules.as_deref()
+  }
+
+  /// Get the optional rules on reference names and genomic coordinates as a mutable reference.
+  pub fn rules_mut(&mut self) -> Option<&mut [ReferenceNameRestriction]> {
+    self.rules.as_deref_mut()
   }
 }
 
 impl ReferenceNameRestriction {
   /// Get the name of the reference sequence.
-  pub fn name(&self) -> &str {
-    &self.name
+  pub fn reference_name(&self) -> Option<&str> {
+    self.reference_name.as_deref()
   }
 
   /// Get the optional format restriction.
@@ -107,9 +130,15 @@ impl ReferenceNameRestriction {
 }
 
 /// Builder for `AuthorizationRestrictions`.
-#[derive(Debug, Clone, Default)]
+#[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthorizationRestrictionsBuilder {
+  /// The version of the schema.
+  #[validate(range(min = 1))]
   version: Option<u32>,
+  /// The authorization rules.
+  #[serde(rename = "htsgetAuth")]
+  #[validate(length(min = 1))]
   htsget_auth: Vec<AuthorizationRule>,
 }
 
@@ -149,16 +178,20 @@ impl AuthorizationRestrictionsBuilder {
 }
 
 /// Builder for `AuthorizationRule`.
-#[derive(Debug, Clone, Default)]
+#[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthorizationRuleBuilder {
-  path: Option<String>,
+  /// The location that the authorization applies to.
+  location: Option<Location>,
+  /// The reference name restrictions to apply to this path.
+  #[serde(skip_serializing_if = "Vec::is_empty")]
   reference_names: Vec<ReferenceNameRestriction>,
 }
 
 impl AuthorizationRuleBuilder {
-  /// Set the path pattern for this rule.
-  pub fn path<S: Into<String>>(mut self, path: S) -> Self {
-    self.path = Some(path.into());
+  /// Set the location for this rule.
+  pub fn location(mut self, location_either: Location) -> Self {
+    self.location = Some(location_either);
     self
   }
 
@@ -176,11 +209,19 @@ impl AuthorizationRuleBuilder {
 
   /// Build the `AuthorizationRule`.
   pub fn build(self) -> Result<AuthorizationRule> {
+    let location = self
+      .location
+      .ok_or_else(|| BuilderError("location not set".to_string()))?;
+    if location
+      .as_simple()
+      .is_ok_and(|simple| simple.prefix_or_id().is_none())
+    {
+      return Err(BuilderError("A prefix or id must be set".to_string()))?;
+    }
+
     Ok(AuthorizationRule {
-      path: self
-        .path
-        .ok_or_else(|| BuilderError("path not set".to_string()))?,
-      reference_names: if self.reference_names.is_empty() {
+      location,
+      rules: if self.reference_names.is_empty() {
         None
       } else {
         Some(self.reference_names)
@@ -190,11 +231,18 @@ impl AuthorizationRuleBuilder {
 }
 
 /// Builder for `ReferenceNameRestriction`.
-#[derive(Debug, Clone, Default)]
+#[derive(JsonSchema, Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReferenceNameRestrictionBuilder {
+  /// The reference name to allow. Allows all reference names if unspecified.
+  #[serde(rename = "referenceName", skip_serializing_if = "Option::is_none")]
   name: Option<String>,
+  /// The format to allow. Allows all formats if unspecified.
+  #[serde(skip_serializing_if = "Option::is_none")]
   format: Option<Format>,
+  /// The start interval to allow. Allows any start interval if unspecified.
   start: Option<u32>,
+  /// The end interval to allow. Allows any end interval if unspecified.
   end: Option<u32>,
 }
 
@@ -232,18 +280,41 @@ impl ReferenceNameRestrictionBuilder {
     }
 
     Ok(ReferenceNameRestriction {
-      name: self
-        .name
-        .ok_or_else(|| BuilderError("name not set".to_string()))?,
+      reference_name: self.name,
       format: self.format,
       interval: Interval::new(self.start, self.end),
     })
   }
 }
 
+impl TryFrom<AuthorizationRestrictionsBuilder> for AuthorizationRestrictions {
+  type Error = Error;
+
+  fn try_from(builder: AuthorizationRestrictionsBuilder) -> Result<Self> {
+    builder.build()
+  }
+}
+
+impl TryFrom<AuthorizationRuleBuilder> for AuthorizationRule {
+  type Error = Error;
+
+  fn try_from(builder: AuthorizationRuleBuilder) -> Result<Self> {
+    builder.build()
+  }
+}
+
+impl TryFrom<ReferenceNameRestrictionBuilder> for ReferenceNameRestriction {
+  type Error = Error;
+
+  fn try_from(builder: ReferenceNameRestrictionBuilder) -> Result<Self> {
+    builder.build()
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::config::location::{PrefixOrId, SimpleLocation};
   use serde_json;
 
   #[test]
@@ -251,9 +322,11 @@ mod tests {
     let json_value = serde_json::json!({
       "version": 1,
       "htsgetAuth": [{
-        "path": "/path/to/file",
-        "referenceNames": [{
-          "name": "chr1",
+        "location": {
+          "id": "path/to/file"
+        },
+        "rules": [{
+          "referenceName": "chr1",
           "start": 1000,
           "end": 2000,
           "format": "BAM"
@@ -264,11 +337,21 @@ mod tests {
 
     assert_eq!(response.version(), 1);
     assert_eq!(response.htsget_auth().len(), 1);
-    assert_eq!(response.htsget_auth()[0].path(), "/path/to/file");
+    assert_eq!(
+      response.htsget_auth()[0]
+        .location()
+        .as_simple()
+        .unwrap()
+        .prefix_or_id()
+        .unwrap()
+        .as_id()
+        .unwrap(),
+      "path/to/file"
+    );
 
-    let restrictions = response.htsget_auth()[0].reference_names().unwrap();
+    let restrictions = response.htsget_auth()[0].rules().unwrap();
     assert_eq!(restrictions.len(), 1);
-    assert_eq!(restrictions[0].name(), "chr1");
+    assert_eq!(restrictions[0].reference_name(), Some("chr1"));
     assert_eq!(restrictions[0].interval().start(), Some(1000));
     assert_eq!(restrictions[0].interval().end(), Some(2000));
     assert_eq!(restrictions[0].format(), Some(Format::Bam));
@@ -276,7 +359,9 @@ mod tests {
     let no_restrictions_value = serde_json::json!({
       "version": 1,
       "htsgetAuth": [{
-        "path": "/path/to/file"
+        "location": {
+          "id": "path/to/file"
+        }
       }]
     });
     let no_restrictions_response: AuthorizationRestrictions =
@@ -284,14 +369,17 @@ mod tests {
     assert_eq!(no_restrictions_response.version(), 1);
     assert_eq!(no_restrictions_response.htsget_auth().len(), 1);
     assert_eq!(
-      no_restrictions_response.htsget_auth()[0].path(),
-      "/path/to/file"
-    );
-    assert!(
       no_restrictions_response.htsget_auth()[0]
-        .reference_names()
-        .is_none()
+        .location()
+        .as_simple()
+        .unwrap()
+        .prefix_or_id()
+        .unwrap()
+        .as_id()
+        .unwrap(),
+      "path/to/file"
     );
+    assert!(no_restrictions_response.htsget_auth()[0].rules().is_none());
   }
 
   #[test]
@@ -309,18 +397,42 @@ mod tests {
       .start(2000)
       .end(3000)
       .build();
-    assert!(restriction.is_err());
+    assert!(restriction.is_ok());
   }
 
   #[test]
   fn test_authorization_rule_builder() {
     let rule = AuthorizationRuleBuilder::default()
-      .path("/sample1")
+      .location(Location::Simple(Box::new(SimpleLocation::new(
+        Default::default(),
+        "".to_string(),
+        Some(PrefixOrId::Id("sample1".to_string())),
+      ))))
       .build()
       .unwrap();
-    assert_eq!(rule.path(), "/sample1");
-    assert!(rule.reference_names().is_none());
+    assert_eq!(
+      rule
+        .location()
+        .as_simple()
+        .unwrap()
+        .prefix_or_id()
+        .unwrap()
+        .as_id()
+        .unwrap(),
+      "sample1"
+    );
+    assert!(rule.rules().is_none());
+
     let rule = AuthorizationRuleBuilder::default().build();
+    assert!(rule.is_err());
+
+    let rule = AuthorizationRuleBuilder::default()
+      .location(Location::Simple(Box::new(SimpleLocation::new(
+        Default::default(),
+        "".to_string(),
+        None,
+      ))))
+      .build();
     assert!(rule.is_err());
   }
 

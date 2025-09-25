@@ -2,16 +2,21 @@
 
 use crate::http::server::test_responses;
 use crate::http::{Header, TestRequest, TestServer};
+use axum::extract::State;
 use axum::{Router, http::StatusCode, response::Json, routing::get};
 use cfg_if::cfg_if;
 use chrono::{Duration, Utc};
 use htsget_config::config::advanced::HttpClient;
+use htsget_config::config::advanced::auth::authorization::UrlOrStatic;
+use htsget_config::config::advanced::auth::jwt::AuthMode;
 use htsget_config::config::advanced::auth::response::{
   AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
 };
 use htsget_config::config::advanced::auth::{
-  AuthConfig, AuthConfigBuilder, AuthMode, AuthorizationRestrictions,
+  AuthConfig, AuthConfigBuilder, AuthorizationRestrictions,
 };
+use htsget_config::config::location::{Location, PrefixOrId, SimpleLocation};
+use htsget_config::storage::Backend;
 use htsget_config::types::{Class, Format};
 use http::{Method, Uri};
 use jsonwebtoken::{Algorithm, EncodingKey, Header as JwtHeader, encode};
@@ -28,14 +33,46 @@ pub struct MockAuthServer {
   addr: SocketAddr,
 }
 
+/// Mock a test with an id matching location.
+pub fn mock_id_test() -> Value {
+  json!({"id": "1-vcf/sample1-bcbio-cancer"})
+}
+
+/// Mock a test with a prefix matching location.
+pub fn mock_prefix_test() -> Value {
+  json!({"prefix": "1-vcf/sample1"})
+}
+
+/// Mock a test with a regex matching location.
+pub fn mock_regex_test() -> Value {
+  json!({"regex": "1-vcf/sample1(.*)"})
+}
+
 impl MockAuthServer {
   /// Create a new mock authorization server.
-  pub async fn new() -> Self {
-    async fn auth_handler() -> Result<Json<AuthorizationRestrictions>, StatusCode> {
-      Ok(Json(create_auth_restrictions()))
+  pub async fn new(location_value: Value) -> Self {
+    async fn auth_handler(State(state): State<Value>) -> Result<Json<Value>, StatusCode> {
+      Ok(Json(json!({
+        "version": 1,
+        "htsgetAuth": [
+          {
+            "location": state,
+            "rules": [
+              {
+                "referenceName": "chrM",
+                "format": "VCF",
+                "start": 1000,
+                "end": 2000
+              }
+            ]
+          }
+        ]
+      })))
     }
 
-    let app = Router::new().route("/", get(auth_handler));
+    let app = Router::new()
+      .route("/", get(auth_handler))
+      .with_state(location_value);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -76,7 +113,7 @@ pub fn create_test_auth_config(
     .validate_audience(vec!["test-audience".to_string()])
     .validate_issuer(vec!["test-issuer".to_string()])
     .validate_subject("test-subject".to_string())
-    .trusted_authorization_url(mock_server.uri())
+    .authorization_url(UrlOrStatic::Url(mock_server.uri()))
     .http_client(HttpClient::new(
       ClientBuilder::new(reqwest::Client::new()).build(),
     ));
@@ -108,7 +145,11 @@ pub fn create_auth_restrictions() -> AuthorizationRestrictions {
     .version(1)
     .rule(
       AuthorizationRuleBuilder::default()
-        .path("/1-vcf/sample1-bcbio-cancer")
+        .location(Location::Simple(Box::new(SimpleLocation::new(
+          Backend::default(),
+          String::default(),
+          Some(PrefixOrId::Id("1-vcf/sample1-bcbio-cancer".to_string())),
+        ))))
         .reference_name(
           ReferenceNameRestrictionBuilder::default()
             .name("chrM")

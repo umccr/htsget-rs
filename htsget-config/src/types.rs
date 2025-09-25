@@ -263,7 +263,7 @@ impl Interval {
 }
 
 /// Schemes that can be used with htsget.
-#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE", deny_unknown_fields)]
 pub enum Scheme {
   #[default]

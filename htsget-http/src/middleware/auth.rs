@@ -8,21 +8,23 @@ use crate::middleware::error::Result;
 use cfg_if::cfg_if;
 use headers::authorization::Bearer;
 use headers::{Authorization, Header};
-use htsget_config::config::advanced::auth::{
-  AuthConfig, AuthMode, AuthorizationRestrictions, AuthorizationRule,
-};
+use htsget_config::config::advanced::auth::authorization::UrlOrStatic;
+use htsget_config::config::advanced::auth::jwt::AuthMode;
+use htsget_config::config::advanced::auth::response::AuthorizationRestrictionsBuilder;
+use htsget_config::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
+use htsget_config::config::location::{Location, PrefixOrId};
 use htsget_config::types::{Class, Interval, Query};
-use http::{HeaderMap, Uri};
+use http::{HeaderMap, HeaderName, HeaderValue, Uri};
 use jsonpath_rust::JsonPath;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode, decode_header};
-use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::fmt::{Debug, Formatter};
+use std::str::FromStr;
 use tracing::trace;
 
-/// Builder the the authorization middleware.
+/// The authorization middleware builder.
 #[derive(Default, Debug)]
 pub struct AuthBuilder {
   config: Option<AuthConfig>,
@@ -41,20 +43,8 @@ impl AuthBuilder {
       return Err(AuthBuilderError("missing config".to_string()));
     };
 
-    if config.trusted_authorization_urls().is_empty() {
-      return Err(AuthBuilderError(
-        "at least one trusted authorization url must be set".to_string(),
-      ));
-    }
-    if config.authorization_path().is_none() && config.trusted_authorization_urls().len() > 1 {
-      return Err(AuthBuilderError(
-        "only one trusted authorization url should be set when not using authorization paths"
-          .to_string(),
-      ));
-    }
-
     let mut decoding_key = None;
-    if let AuthMode::PublicKey(public_key) = config.auth_mode_mut() {
+    if let Some(AuthMode::PublicKey(public_key)) = config.auth_mode_mut() {
       decoding_key = Some(
         Auth::decode_public_key(public_key)
           .map_err(|_| AuthBuilderError("failed to decode public key".to_string()))?,
@@ -80,6 +70,8 @@ impl Debug for Auth {
     f.debug_struct("config").finish()
   }
 }
+
+const FORWARD_HEADER_PREFIX: &str = "Htsget-Context-";
 
 impl Auth {
   /// Get the config for this auth layer instance.
@@ -135,69 +127,94 @@ impl Auth {
     )
   }
 
+  /// Get the headers to send to the authorization service.
+  pub fn forwarded_headers(
+    &self,
+    request_headers: &HeaderMap,
+    request_extensions: Option<Value>,
+  ) -> HtsGetResult<HeaderMap> {
+    let mut forwarded_headers = if self.config.passthrough_auth() {
+      let auth_header = request_headers
+        .iter()
+        .find_map(|(name, value)| {
+          if Authorization::<Bearer>::decode(&mut [value].into_iter()).is_ok() {
+            return Some((name.clone(), value.clone()));
+          }
+
+          None
+        })
+        .ok_or_else(|| HtsGetError::PermissionDenied("missing authorization header".to_string()))?;
+      HeaderMap::from_iter([auth_header])
+    } else {
+      HeaderMap::default()
+    };
+
+    for header in self.config.forward_headers() {
+      let Some((existing_name, existing_value)) = request_headers
+        .iter()
+        .find_map(|(name, value)| {
+          if header.to_lowercase() == name.as_str().to_lowercase() {
+            return match HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, name)) {
+              Ok(header) => Some(Ok((header, value))),
+              Err(err) => Some(Err(HtsGetError::InternalError(err.to_string()))),
+            };
+          }
+
+          None
+        })
+        .transpose()?
+      else {
+        continue;
+      };
+
+      forwarded_headers.insert(existing_name, existing_value.clone());
+    }
+
+    if let Some(request_extensions) = request_extensions {
+      for extension in self.config.forward_extensions() {
+        let Some(value) = request_extensions.query(extension.json_path()).ok() else {
+          continue;
+        };
+
+        let value = value.first().ok_or_else(|| {
+          HtsGetError::InternalError("extension does not have only one value".to_string())
+        })?;
+        let value = value.as_str().ok_or_else(|| {
+          HtsGetError::InternalError("extension value is not a string".to_string())
+        })?;
+
+        let header_name =
+          HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, extension.name()))
+            .map_err(|err| HtsGetError::InternalError(err.to_string()))?;
+        let value = HeaderValue::from_str(value)
+          .map_err(|err| HtsGetError::InternalError(err.to_string()))?;
+        forwarded_headers.insert(header_name, value);
+      }
+    }
+
+    Ok(forwarded_headers)
+  }
+
   /// Query the authorization service to get the restrictions. This function validates
   /// that the authorization url is trusted in the config settings before calling the
   /// service. The claims are assumed to be valid.
   pub async fn query_authorization_service(
     &self,
-    claims: Value,
     headers: &HeaderMap,
-  ) -> HtsGetResult<AuthorizationRestrictions> {
-    let query_url = match self.config.authorization_path() {
-      None => self
-        .config
-        .trusted_authorization_urls()
-        .first()
-        .ok_or_else(|| {
-          HtsGetError::InternalError("missing trusted authorization url".to_string())
-        })?,
-      Some(path) => {
-        // Extract the url from the path.
-        let path = claims.query(path).map_err(|err| {
-          HtsGetError::InvalidAuthentication(format!(
-            "failed to find authorization service in claims: {err}",
-          ))
-        })?;
-        let url = path
-          .first()
-          .ok_or_else(|| {
-            HtsGetError::InvalidAuthentication(
-              "expected one value for authorization service in claims".to_string(),
-            )
-          })?
-          .as_str()
-          .ok_or_else(|| {
-            HtsGetError::InvalidAuthentication(
-              "expected string value for authorization service in claims".to_string(),
-            )
-          })?;
-        &url.parse::<Uri>().map_err(|err| {
-          HtsGetError::InvalidAuthentication(format!("failed to parse authorization url: {err}"))
-        })?
+    request_extensions: Option<Value>,
+  ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
+    match self.config.authorization_url() {
+      Some(UrlOrStatic::Url(uri)) => {
+        let forwarded_headers = self.forwarded_headers(headers, request_extensions)?;
+
+        self
+          .fetch_from_url(&uri.to_string(), forwarded_headers)
+          .await
+          .map(Some)
       }
-    };
-
-    // Ensure that the authorization url is trusted.
-    if !self.config.trusted_authorization_urls().contains(query_url) {
-      return Err(HtsGetError::PermissionDenied(
-        "authorization service in claims not a trusted authorization url".to_string(),
-      ));
-    };
-
-    let auth_header = headers
-      .iter()
-      .find_map(|(name, value)| {
-        if Authorization::<Bearer>::decode(&mut [value].into_iter()).is_ok() {
-          return Some((name.clone(), value.clone()));
-        }
-
-        None
-      })
-      .ok_or_else(|| HtsGetError::PermissionDenied("missing authorization header".to_string()))?;
-
-    self
-      .fetch_from_url(&query_url.to_string(), HeaderMap::from_iter([auth_header]))
-      .await
+      Some(UrlOrStatic::Static(config)) => Ok(Some(config.clone())),
+      _ => Ok(None),
+    }
   }
 
   /// Validate the restrictions, returning an error if the user is not authorized.
@@ -209,21 +226,32 @@ impl Auth {
     path: &str,
     queries: &mut [Query],
     suppressed_interval: bool,
-  ) -> HtsGetResult<Vec<AuthorizationRule>> {
+  ) -> HtsGetResult<AuthorizationRestrictions> {
     // Find all rules matching the path.
     let matching_rules = restrictions
       .into_rules()
       .into_iter()
       .filter(|rule| {
-        // If this path is a direct match then just return that.
-        if rule.path().strip_prefix("/").unwrap_or(rule.path())
-          == path.strip_prefix("/").unwrap_or(path)
-        {
-          return true;
+        match rule.location() {
+          Location::Simple(location) if location.prefix_or_id().is_some() => {
+            match location.prefix_or_id().unwrap_or_default() {
+              PrefixOrId::Prefix(prefix) => {
+                // A prefix has a starts with rule.
+                path.starts_with(&prefix)
+              }
+              PrefixOrId::Id(id) => {
+                // An id location must match exactly.
+                id == path
+              }
+            }
+          }
+          Location::Regex(location) => {
+            // A regex location matches using the regex.
+            location.regex().is_match(path)
+          }
+          // Missing valid location.
+          _ => false,
         }
-
-        // Otherwise, try and parse it as a regex.
-        Regex::new(rule.path()).is_ok_and(|regex| regex.is_match(path))
       })
       .collect::<Vec<_>>();
 
@@ -236,7 +264,7 @@ impl Auth {
 
     let (allows_all, allows_specific): (Vec<_>, Vec<_>) = matching_rules
       .into_iter()
-      .partition(|rule| rule.reference_names().is_none());
+      .partition(|rule| rule.rules().is_none());
 
     // Otherwise, we need to check if the specific reference name is allowed for all queries.
     for query in queries {
@@ -247,10 +275,11 @@ impl Auth {
 
       let matching_restriction = allows_specific
         .iter()
-        .flat_map(|rule| rule.reference_names().unwrap_or_default())
+        .flat_map(|rule| rule.rules().unwrap_or_default())
         .filter_map(|restriction| {
-          // The reference name should match exactly.
-          let name_match = Some(restriction.name()) == query.reference_name();
+          // The reference name should match exactly if it's set, otherwise allow any reference name.
+          let name_match = restriction.reference_name().is_none()
+            || restriction.reference_name() == query.reference_name();
           // The format should match if it's defined, otherwise it allows any format.
           let format_match =
             restriction.format().is_none() || restriction.format() == Some(query.format());
@@ -288,7 +317,10 @@ impl Auth {
       }
     }
 
-    Ok([allows_all, allows_specific].concat())
+    AuthorizationRestrictionsBuilder::default()
+      .rules([allows_all, allows_specific].concat())
+      .build()
+      .map_err(|err| HtsGetError::InternalError(err.to_string()))
   }
 
   /// Validate only the JWT without looking up restrictions and validating those. Returns the
@@ -305,8 +337,13 @@ impl Auth {
       decoding_key
     } else {
       match self.config.auth_mode() {
-        AuthMode::Jwks(jwks) => &self.decode_jwks(jwks, auth_token.token()).await?,
-        AuthMode::PublicKey(public_key) => &Self::decode_public_key(public_key)?,
+        Some(AuthMode::Jwks(jwks)) => &self.decode_jwks(jwks, auth_token.token()).await?,
+        Some(AuthMode::PublicKey(public_key)) => &Self::decode_public_key(public_key)?,
+        _ => {
+          return Err(HtsGetError::InternalError(
+            "JWT validation not set".to_string(),
+          ));
+        }
       }
     };
 
@@ -359,20 +396,25 @@ impl Auth {
   /// 4. Validates the restrictions to determine if the user is authorized.
   pub async fn validate_authorization(
     &self,
-    claims: TokenData<Value>,
     headers: &HeaderMap,
     path: &str,
     queries: &mut [Query],
-  ) -> HtsGetResult<Vec<AuthorizationRule>> {
+    request_extensions: Option<Value>,
+  ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
     let restrictions = self
-      .query_authorization_service(claims.claims, headers)
+      .query_authorization_service(headers, request_extensions)
       .await?;
-    cfg_if! {
-      if #[cfg(feature = "experimental")] {
-        Self::validate_restrictions(restrictions, path, queries, self.config.suppress_errors())
-      } else {
-        Self::validate_restrictions(restrictions, path, queries, false)
+
+    if let Some(restrictions) = restrictions {
+      cfg_if! {
+        if #[cfg(feature = "experimental")] {
+          Self::validate_restrictions(restrictions, path, queries, self.config.suppress_errors()).map(Some)
+        } else {
+          Self::validate_restrictions(restrictions, path, queries, false).map(Some)
+        }
       }
+    } else {
+      Ok(None)
     }
   }
 }
@@ -382,14 +424,19 @@ mod tests {
   use super::*;
   use crate::{Endpoint, convert_to_query, match_format_from_query};
   use htsget_config::config::advanced::HttpClient;
+  use htsget_config::config::advanced::auth::AuthConfigBuilder;
+  use htsget_config::config::advanced::auth::authorization::ForwardExtensions;
   use htsget_config::config::advanced::auth::response::{
     AuthorizationRestrictionsBuilder, AuthorizationRuleBuilder, ReferenceNameRestrictionBuilder,
   };
-  use htsget_config::config::advanced::auth::{AuthConfigBuilder, AuthMode};
+  use htsget_config::config::advanced::regex_location::RegexLocation;
+  use htsget_config::config::location::SimpleLocation;
   use htsget_config::types::{Format, Request};
   use htsget_test::util::generate_key_pair;
   use http::{HeaderMap, Uri};
+  use regex::Regex;
   use reqwest_middleware::ClientBuilder;
+  use serde_json::json;
   use std::collections::HashMap;
 
   #[test]
@@ -410,7 +457,7 @@ mod tests {
   #[test]
   fn validate_restrictions_rule_allows_all() {
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .build()
       .unwrap();
     let restrictions = AuthorizationRestrictionsBuilder::default()
@@ -418,7 +465,7 @@ mod tests {
       .build()
       .unwrap();
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", HashMap::new());
+    let request = create_test_query(Endpoint::Reads, "sample1", HashMap::new());
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -434,7 +481,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -449,21 +496,25 @@ mod tests {
     query.insert("end".to_string(), "1800".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
   }
 
   #[test]
-  fn validate_restrictions_regex_path_match() {
+  fn validate_restrictions_regex_prefix_match() {
     let reference_restriction = ReferenceNameRestrictionBuilder::default()
       .name("chr1")
       .format(Format::Bam)
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample(.+)")
+      .location(Location::Simple(Box::new(SimpleLocation::new(
+        Default::default(),
+        "".to_string(),
+        Some(PrefixOrId::Prefix("sam".to_string())),
+      ))))
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -476,10 +527,158 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample123", query);
+    let request = create_test_query(Endpoint::Reads, "sample123", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_regex_match() {
+    let reference_restriction = ReferenceNameRestrictionBuilder::default()
+      .name("chr1")
+      .format(Format::Bam)
+      .build()
+      .unwrap();
+    let rule = AuthorizationRuleBuilder::default()
+      .location(Location::Regex(Box::new(RegexLocation::new(
+        Regex::new("sample(.+)").unwrap(),
+        "".to_string(),
+        Default::default(),
+        Default::default(),
+      ))))
+      .reference_name(reference_restriction)
+      .build()
+      .unwrap();
+    let restrictions = AuthorizationRestrictionsBuilder::default()
+      .rule(rule)
+      .build()
+      .unwrap();
+
+    let mut query = HashMap::new();
+    query.insert("referenceName".to_string(), "chr1".to_string());
+    query.insert("format".to_string(), "BAM".to_string());
+
+    let request = create_test_query(Endpoint::Reads, "sample123", query);
+    let result =
+      Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn validate_restrictions_forward_headers() {
+    let (_, public_key) = generate_key_pair();
+
+    let builder = AuthConfigBuilder::default()
+      .auth_mode(AuthMode::PublicKey(public_key))
+      .authorization_url(UrlOrStatic::Url(Uri::from_static(
+        "https://www.example.com",
+      )))
+      .http_client(HttpClient::new(
+        ClientBuilder::new(reqwest::Client::new()).build(),
+      ));
+    let config = builder
+      .clone()
+      .passthrough_auth(true)
+      .forward_headers(vec!["Custom1".to_string()])
+      .build()
+      .unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let request_headers = HeaderMap::from_iter([
+      (
+        "Authorization".parse().unwrap(),
+        "Bearer Value".parse().unwrap(),
+      ),
+      ("Custom1".parse().unwrap(), "Value".parse().unwrap()),
+      ("Custom2".parse().unwrap(), "Value".parse().unwrap()),
+    ]);
+    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([
+        (
+          format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+          "Value".parse().unwrap()
+        ),
+        (
+          "Authorization".parse().unwrap(),
+          "Bearer Value".parse().unwrap()
+        ),
+      ])
+    );
+
+    let config = builder
+      .clone()
+      .passthrough_auth(true)
+      .forward_headers(vec!["Custom1".to_string(), "Authorization".to_string()])
+      .build()
+      .unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([
+        (
+          format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+          "Value".parse().unwrap()
+        ),
+        (
+          format!("{}Authorization", FORWARD_HEADER_PREFIX)
+            .parse()
+            .unwrap(),
+          "Bearer Value".parse().unwrap()
+        ),
+        (
+          "Authorization".parse().unwrap(),
+          "Bearer Value".parse().unwrap()
+        ),
+      ])
+    );
+
+    let config = builder
+      .clone()
+      .forward_headers(vec!["Custom1".to_string()])
+      .passthrough_auth(false)
+      .build()
+      .unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([(
+        format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+        "Value".parse().unwrap()
+      ),])
+    );
+
+    let config = builder
+      .forward_extensions(vec![ForwardExtensions::new(
+        "$.Key".to_string(),
+        "Custom1".to_string(),
+      )])
+      .passthrough_auth(false)
+      .build()
+      .unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let forwarded_headers = result
+      .forwarded_headers(
+        &request_headers,
+        Some(json!({
+          "Key": "Value"
+        })),
+      )
+      .unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([(
+        format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+        "Value".parse().unwrap()
+      ),])
+    );
   }
 
   #[test]
@@ -490,7 +689,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -503,7 +702,7 @@ mod tests {
     query.insert("class".to_string(), "header".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -517,7 +716,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -530,7 +729,7 @@ mod tests {
     query.insert("format".to_string(), "BAM".to_string());
     query.insert("class".to_string(), "header".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -545,7 +744,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -558,7 +757,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr2".to_string());
     query.insert("format".to_string(), "BAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], true);
     assert!(result.is_ok());
@@ -572,7 +771,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -585,7 +784,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "CRAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_err());
@@ -600,7 +799,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -613,7 +812,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "CRAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], true);
     assert!(result.is_ok());
@@ -1075,7 +1274,7 @@ mod tests {
       .build()
       .unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -1088,7 +1287,7 @@ mod tests {
     query.insert("referenceName".to_string(), "chr1".to_string());
     query.insert("format".to_string(), "CRAM".to_string());
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -1097,14 +1296,14 @@ mod tests {
   #[test]
   fn validate_restrictions_path_with_leading_slash() {
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .build()
       .unwrap();
     let restrictions = AuthorizationRestrictionsBuilder::default()
       .rule(rule)
       .build()
       .unwrap();
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", HashMap::new());
+    let request = create_test_query(Endpoint::Reads, "sample1", HashMap::new());
     let result =
       Auth::validate_restrictions(restrictions, request.id(), &mut [request.clone()], false);
     assert!(result.is_ok());
@@ -1113,11 +1312,7 @@ mod tests {
   #[tokio::test]
   async fn validate_authorization_missing_auth_header() {
     let auth = create_mock_auth_with_restrictions();
-    let request = Request::new(
-      "/reads/sample1".to_string(),
-      HashMap::new(),
-      HeaderMap::new(),
-    );
+    let request = Request::new("sample1".to_string(), HashMap::new(), HeaderMap::new());
 
     let result = auth.validate_jwt(request.headers()).await;
     assert!(result.is_err());
@@ -1130,8 +1325,7 @@ mod tests {
   #[tokio::test]
   async fn validate_authorization_invalid_jwt_format() {
     let auth = create_mock_auth_with_restrictions();
-    let request =
-      create_request_with_auth_header("/reads/sample1", HashMap::new(), "invalid.jwt.token");
+    let request = create_request_with_auth_header("sample1", HashMap::new(), "invalid.jwt.token");
 
     let result = auth.validate_jwt(request.headers()).await;
     assert!(result.is_err());
@@ -1144,7 +1338,9 @@ mod tests {
   fn create_test_auth_config(public_key: Vec<u8>) -> AuthConfig {
     AuthConfigBuilder::default()
       .auth_mode(AuthMode::PublicKey(public_key))
-      .trusted_authorization_url(Uri::from_static("https://www.example.com"))
+      .authorization_url(UrlOrStatic::Url(Uri::from_static(
+        "https://www.example.com",
+      )))
       .http_client(HttpClient::new(
         ClientBuilder::new(reqwest::Client::new()).build(),
       ))
@@ -1198,7 +1394,7 @@ mod tests {
 
     let reference_restriction = reference_restriction.build().unwrap();
     let rule = AuthorizationRuleBuilder::default()
-      .path("/reads/sample1")
+      .location(test_location())
       .reference_name(reference_restriction)
       .build()
       .unwrap();
@@ -1212,7 +1408,7 @@ mod tests {
     request_start.map(|start| query.insert("start".to_string(), start.to_string()));
     request_end.map(|end| query.insert("end".to_string(), end.to_string()));
 
-    let request = create_test_query(Endpoint::Reads, "/reads/sample1", query);
+    let request = create_test_query(Endpoint::Reads, "sample1", query);
     let id = request.id().to_string();
     let mut slice = [request];
     let result = Auth::validate_restrictions(restrictions, &id, &mut slice, suppress_interval);
@@ -1223,5 +1419,13 @@ mod tests {
     }
     assert_eq!(slice.first().unwrap().interval(), expected_response.0);
     assert_eq!(slice.last().unwrap().class(), expected_response.1);
+  }
+
+  fn test_location() -> Location {
+    Location::Simple(Box::new(SimpleLocation::new(
+      Default::default(),
+      "".to_string(),
+      Some(PrefixOrId::Id("sample1".to_string())),
+    )))
   }
 }

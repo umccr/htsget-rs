@@ -18,7 +18,7 @@ use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::{AllowType, CorsConfig, TaggedAllowTypes};
 use htsget_config::config::advanced::regex_location::RegexLocation;
 use htsget_config::config::data_server::{DataServerConfig, DataServerEnabled};
-use htsget_config::config::location::{LocationEither, Locations};
+use htsget_config::config::location::{Location, Locations};
 use htsget_config::config::ticket_server::TicketServerConfig;
 use htsget_config::http::{
   CertificateKeyPair, TlsServerConfig, load_certs, load_key, tls_server_config,
@@ -105,7 +105,7 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Locations {
   );
 
   Locations::new(vec![
-    LocationEither::Regex(
+    Location::Regex(
       RegexLocation::new(
         "^1-(.*)$".parse().unwrap(),
         "$1".to_string(),
@@ -114,7 +114,7 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Locations {
       )
       .into(),
     ),
-    LocationEither::Regex(
+    Location::Regex(
       RegexLocation::new(
         "^2-(.*)$".parse().unwrap(),
         "$1".to_string(),
