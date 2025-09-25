@@ -69,9 +69,7 @@ This allows htsget-rs to serve data only when the request also contains the pref
 
 When specifying locations like this, the location is additive. That is, the request id is appended to the
 location. This means that when the user requests data at `/reads/<id>`, the server fetches data and returns tickets
-from `<location>/<id>`. Trailing 
-
-As an alternative to additive locations, a location can be specified as an exact match for a file by setting the id
+from `<location>/<id>`. As an alternative to additive locations, a location can be specified as an exact match for a file by setting the id
 field:
 
 ```toml
@@ -484,7 +482,7 @@ For example, to specify a dynamic location for VCF files separately to BAM files
   "htsgetAuth": [
     {
       "id": "dataset/001/id-bam",
-      "location": "s3://bucket-a",
+      "location": "s3://bucket-a/bam_file",
       "rules": [
         {
           "format": "BAM"
@@ -493,7 +491,7 @@ For example, to specify a dynamic location for VCF files separately to BAM files
     },
     {
       "id": "dataset/001/id-vcf",
-      "location": "s3://bucket-b",
+      "location": "s3://bucket-b/vcf_file",
       "rules": [
         {
           "format": "VCF"
