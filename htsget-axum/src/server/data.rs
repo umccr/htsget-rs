@@ -2,7 +2,7 @@
 //!
 
 use crate::error::Result;
-use crate::middleware::auth::AuthLayer;
+use crate::middleware::auth::AuthenticationLayer;
 use crate::server::{BindServer, Server, configure_cors};
 use axum::Router;
 use htsget_config::config::advanced::auth::AuthConfig;
@@ -45,18 +45,27 @@ impl DataServer {
     auth: Option<AuthConfig>,
     path: P,
   ) -> Result<Router> {
-    let router = Router::new()
-      .fallback_service(ServeDir::new(path))
-      .layer(configure_cors(cors))
-      .layer(TraceLayer::new_for_http());
+    let mut router = Router::new().fallback_service(ServeDir::new(path));
 
-    if let Some(auth) = auth {
-      Ok(router.layer(AuthLayer::from(
-        AuthBuilder::default().with_config(auth).build()?,
-      )))
+    // The auth layer needs to be added first so that layers like the CorsLayer
+    // can respond to `Options` requests first and without auth.
+    router = if let Some(auth) = auth {
+      if auth.auth_mode().is_some() {
+        router.layer(AuthenticationLayer::from(
+          AuthBuilder::default().with_config(auth).build()?,
+        ))
+      } else {
+        router
+      }
     } else {
-      Ok(router)
-    }
+      router
+    };
+
+    Ok(
+      router
+        .layer(configure_cors(cors))
+        .layer(TraceLayer::new_for_http()),
+    )
   }
 
   /// Get the local address the server has bound to.
@@ -66,7 +75,7 @@ impl DataServer {
 }
 
 impl From<DataServerConfig> for BindServer {
-  /// Returns a data server with TLS enabled if the tls config is not None or without TLS enabled
+  /// Returns a data server with TLS enabled if the http config is not None or without TLS enabled
   /// if it is None.
   fn from(config: DataServerConfig) -> Self {
     let addr = config.addr();
@@ -109,7 +118,7 @@ mod tests {
   use tokio::io::AsyncWriteExt;
 
   use htsget_config::config::Config;
-  use htsget_config::tls::TlsServerConfig;
+  use htsget_config::http::TlsServerConfig;
   use htsget_config::types::Scheme;
   use htsget_test::http::cors::{test_cors_preflight_request_uri, test_cors_simple_request_uri};
   use htsget_test::http::{
@@ -185,7 +194,7 @@ mod tests {
   impl Default for DataTestServer {
     fn default() -> Self {
       Self {
-        config: default_test_config(),
+        config: default_test_config(None),
       }
     }
   }

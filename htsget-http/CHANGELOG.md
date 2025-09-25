@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.2...htsget-http-v0.7.3) - 2025-09-03
+
+### Added
+
+- add auth logic to post requests and always allow headers to succeed
+- *(http)* implement suppressing errors in http middleware and get/post routes
+
+### Other
+
+- add more robust start/end range tests and document suppressed errors with diagrams.
+- add header query authorization test
+
+## [0.7.2](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.1...htsget-http-v0.7.2) - 2025-08-21
+
+### Other
+
+- updated the following local packages: htsget-config, htsget-search
+
+## [0.7.1](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.0...htsget-http-v0.7.1) - 2025-08-15
+
+### Fixed
+
+- data server should forward JWT token if auth is used
+
+### Other
+
+- remove duplicate changelog section
+- Merge pull request #320 from umccr/feat/auth
+
 ## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.6.0...htsget-http-v0.7.0) - 2025-08-11
 
 ### Added

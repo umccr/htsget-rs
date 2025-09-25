@@ -11,6 +11,7 @@ use crate::storage::file::File;
 use crate::storage::s3::S3;
 #[cfg(feature = "url")]
 use crate::storage::url::Url;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "experimental")]
@@ -38,7 +39,7 @@ impl ResolvedId {
 }
 
 /// Specify the storage backend to use as config values.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum Backend {
@@ -85,6 +86,17 @@ impl Backend {
       Backend::S3(_) => None,
       #[cfg(feature = "url")]
       Backend::Url(_) => None,
+    }
+  }
+
+  /// Whether the backend storage has been default generated.
+  pub fn is_defaulted(&self) -> bool {
+    match self {
+      Backend::File(file) => file.is_defaulted,
+      #[cfg(feature = "aws")]
+      Backend::S3(s3) => s3.is_defaulted,
+      #[cfg(feature = "url")]
+      Backend::Url(url) => url.is_defaulted,
     }
   }
 

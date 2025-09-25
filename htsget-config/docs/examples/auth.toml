@@ -12,23 +12,26 @@ jwks_url = "https://www.example.com/htsget"
 ## Alternatively use public key-based validation
 #public_key = "/path/to/jwt-public-key.pem"
 
-# Trusted authorization URLs
-trusted_authorization_urls = ["https://www.example.com/authorize"]
-# Optionally fetch the authorization url from the path in the JWT. Only
-# issues the request to the URL if it's also in `trusted_authorization_urls`.
-authorization_path = "$.authorization_url"
-
 validate_audience = ["htsget-server"]
 validate_issuer = ["https://www.example.com"]
 validate_subject = "htsget"
 
+# Authorization URLs, if using an authorization service.
+authorization_url = "https://www.example.com/authorize"
+# Forward the authorization header to the auth server.
+passthrough_auth = true
+## Any headers to forward
+#forward_headers = ["Content-Type"]
+
 ## Set client authentication
-#tls.key = "key.pem"
-#tls.cert = "cert.pem"
+#http.key = "key.pem"
+#http.cert = "cert.pem"
 #
 ## Set root certificates
-#tls.root_store = "root.crt"
+#http.root_store = "root.crt"
+## Disable HTTP caching
+#http.use_cache = false
 
-## It's also possible to set auth individually for the ticket and auth servers:
+## It's also possible to set auth individually for the ticket and data servers:
 #[ticket_server.auth]
 #[data_server.auth]

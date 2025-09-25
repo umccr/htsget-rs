@@ -89,8 +89,8 @@ produce minimal byte ranges. For example, consider this [file][example-file]:
 To produce the smallest byte ranges, htsget-rs needs can search through GZI files and regular index files. It does not
 read data from the underlying target file.
 
-[example-file]: ../data/bam/htsnexus_test_NA12878.bam
-[example-index]: ../data/bam/htsnexus_test_NA12878.bam.bai
+[example-file]: ../data/bam/bam/htsnexus_test_NA12878.bam
+[example-index]: ../data/bam/bam/htsnexus_test_NA12878.bam.bai
 
 ## Benchmarks
 

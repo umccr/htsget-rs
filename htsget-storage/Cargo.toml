@@ -1,6 +1,6 @@
 [package]
 name = "htsget-storage"
-version = "0.4.1"
+version = "0.4.4"
 rust-version = "1.86"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2024"
@@ -22,6 +22,7 @@ aws = [
 url = [
     "dep:bytes",
     "dep:reqwest",
+    "dep:reqwest-middleware",
     "htsget-config/url",
     "htsget-test/url"
 ]
@@ -48,6 +49,7 @@ aws-config = { version = "1", optional = true }
 
 # Url storage
 reqwest = { version = "0.12", features = ["rustls-tls", "stream"], default-features = false, optional = true }
+reqwest-middleware = { version = "0.4", optional = true }
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
@@ -58,7 +60,7 @@ thiserror = "2"
 tracing = "0.1"
 base64 = "0.22"
 
-htsget-config = { version = "0.15.1", path = "../htsget-config", default-features = false }
+htsget-config = { version = "0.17.0", path = "../htsget-config", default-features = false }
 
 [dev-dependencies]
 tower-http = { version = "0.6", features = ["fs"] }

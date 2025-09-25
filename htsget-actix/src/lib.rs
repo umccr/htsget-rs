@@ -1,5 +1,8 @@
 extern crate core;
 
+use crate::handlers::{
+  HttpVersionCompat, get, handle_response, post, reads_service_info, variants_service_info,
+};
 use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::{App, HttpRequest, HttpServer, Responder, web};
@@ -8,25 +11,20 @@ use htsget_config::config::service_info::ServiceInfo;
 use htsget_config::config::ticket_server::TicketServerConfig;
 pub use htsget_config::config::{Config, USAGE};
 use htsget_http::error::HtsGetError;
-use htsget_http::middleware::auth::AuthBuilder;
+use htsget_http::middleware::auth::{Auth, AuthBuilder};
 use htsget_search::HtsGet;
 use std::io;
 use tracing::info;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
 
-use crate::handlers::{
-  HttpVersionCompat, get, handle_response, post, reads_service_info, variants_service_info,
-};
-use crate::middleware::auth::AuthLayer;
-
 pub mod handlers;
-pub mod middleware;
 
 /// Represents the actix app state.
 pub struct AppState<H: HtsGet> {
   pub htsget: H,
   pub config_service_info: ServiceInfo,
+  pub auth: Option<Auth>,
 }
 
 /// Configure the query server.
@@ -34,11 +32,13 @@ pub fn configure_server<H: HtsGet + Clone + Send + Sync + 'static>(
   service_config: &mut web::ServiceConfig,
   htsget: H,
   config_service_info: ServiceInfo,
+  auth: Option<Auth>,
 ) {
   service_config
     .app_data(web::Data::new(AppState {
       htsget,
       config_service_info,
+      auth,
     }))
     .service(
       web::scope("/reads")
@@ -136,58 +136,46 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   config: TicketServerConfig,
   service_info: ServiceInfo,
 ) -> io::Result<Server> {
-  let app = |htsget: H, config: TicketServerConfig, service_info: ServiceInfo| {
-    App::new()
-      .configure(|service_config: &mut web::ServiceConfig| {
-        configure_server(service_config, htsget, service_info);
-      })
-      .wrap(configure_cors(config.cors().clone()))
-      .wrap(TracingLogger::default())
+  let app =
+    |htsget: H, config: TicketServerConfig, service_info: ServiceInfo, auth: Option<Auth>| {
+      App::new()
+        .configure(|service_config: &mut web::ServiceConfig| {
+          configure_server(service_config, htsget, service_info, auth);
+        })
+        .wrap(configure_cors(config.cors().clone()))
+        .wrap(TracingLogger::default())
+    };
+
+  let auth = config
+    .auth()
+    .cloned()
+    .map(|auth| AuthBuilder::default().with_config(auth).build())
+    .transpose()
+    .map_err(io::Error::other)?;
+  let addr = config.addr();
+  let config_copy = config.clone();
+  let server = HttpServer::new(move || {
+    app(
+      htsget.clone(),
+      config_copy.clone(),
+      service_info.clone(),
+      auth.clone(),
+    )
+  });
+
+  let server = match config.into_tls() {
+    None => {
+      info!("using non-TLS ticket server");
+      server.bind(addr)?
+    }
+    Some(tls) => {
+      info!("using TLS ticket server");
+      server.bind_rustls_0_23(addr, tls.into_inner())?
+    }
   };
 
-  let addr = config.addr();
-  if let Some(auth_config) = config.auth().cloned() {
-    let auth = AuthBuilder::default()
-      .with_config(auth_config)
-      .build()
-      .map_err(|err| io::Error::other(err.to_string()))?;
-    let config_copy = config.clone();
-    let server = HttpServer::new(move || {
-      app(htsget.clone(), config_copy.clone(), service_info.clone()).wrap(AuthLayer(auth.clone()))
-    });
-
-    let server = match config.into_tls() {
-      None => {
-        info!("using non-TLS ticket server");
-        server.bind(addr)?
-      }
-      Some(tls) => {
-        info!("using TLS ticket server");
-        server.bind_rustls_0_23(addr, tls.into_inner())?
-      }
-    };
-
-    info!(addresses = ?server.addrs(), "htsget query server addresses bound");
-    Ok(server.run())
-  } else {
-    let config_copy = config.clone();
-    let server =
-      HttpServer::new(move || app(htsget.clone(), config_copy.clone(), service_info.clone()));
-
-    let server = match config.into_tls() {
-      None => {
-        info!("using non-TLS ticket server");
-        server.bind(addr)?
-      }
-      Some(tls) => {
-        info!("using TLS ticket server");
-        server.bind_rustls_0_23(addr, tls.into_inner())?
-      }
-    };
-
-    info!(addresses = ?server.addrs(), "htsget query server addresses bound");
-    Ok(server.run())
-  }
+  info!(addresses = ?server.addrs(), "htsget query server addresses bound");
+  Ok(server.run())
 }
 
 #[cfg(test)]
@@ -198,8 +186,11 @@ mod tests {
   use actix_web::dev::ServiceResponse;
   use actix_web::{App, test, web};
   use async_trait::async_trait;
-  use htsget_test::http::auth::create_test_auth_config;
+  use htsget_test::http::auth::{
+    create_test_auth_config, mock_id_test, mock_prefix_test, mock_regex_test,
+  };
   use rustls::crypto::aws_lc_rs;
+  use serde_json::Value;
   use tempfile::TempDir;
 
   use crate::Config;
@@ -220,7 +211,7 @@ mod tests {
 
   struct ActixTestServer {
     config: Config,
-    auth: Option<AuthLayer>,
+    auth: Option<Auth>,
   }
 
   struct ActixTestRequest<T>(T);
@@ -262,7 +253,7 @@ mod tests {
   impl Default for ActixTestServer {
     fn default() -> Self {
       Self {
-        config: default_test_config(),
+        config: default_test_config(None),
         auth: None,
       }
     }
@@ -333,17 +324,17 @@ mod tests {
       }
     }
 
-    async fn new_with_auth(public_key: Vec<u8>) -> Self {
-      let mock_server = MockAuthServer::new().await;
-      let auth_config = create_test_auth_config(&mock_server, public_key);
+    async fn new_with_auth(public_key: Vec<u8>, suppressed: bool, mock_location: Value) -> Self {
+      let mock_server = MockAuthServer::new(mock_location).await;
+      let auth_config = create_test_auth_config(&mock_server, public_key, suppressed);
       let auth = AuthBuilder::default()
-        .with_config(auth_config)
+        .with_config(auth_config.clone())
         .build()
         .unwrap();
 
       Self {
-        config: default_test_config(),
-        auth: Some(AuthLayer(auth)),
+        config: default_test_config(Some(auth_config)),
+        auth: Some(auth),
       }
     }
 
@@ -354,17 +345,13 @@ mod tests {
             service_config,
             self.config.clone().into_locations(),
             self.config.service_info().clone(),
+            self.auth.clone(),
           );
         })
         .wrap(configure_cors(self.config.ticket_server().cors().clone()));
 
-      if let Some(ref auth) = self.auth {
-        let app = test::init_service(app.wrap(auth.clone())).await;
-        request.send_request(&app).await.map_into_boxed_body()
-      } else {
-        let app = test::init_service(app).await;
-        request.send_request(&app).await.map_into_boxed_body()
-      }
+      let app = test::init_service(app).await;
+      request.send_request(&app).await.map_into_boxed_body()
     }
   }
 
@@ -453,16 +440,59 @@ mod tests {
   async fn test_auth_insufficient_permissions() {
     let (private_key, public_key) = generate_key_pair();
 
-    let server = ActixTestServer::new_with_auth(public_key).await;
-    auth::test_auth_insufficient_permissions(&server, private_key).await;
+    let server = ActixTestServer::new_with_auth(public_key, false, mock_id_test()).await;
+    auth::test_auth_insufficient_permissions::<JsonResponse, _>(&server, private_key).await;
   }
 
   #[actix_web::test]
-  async fn test_auth_succeeds() {
+  async fn test_auth_succeeds_id() {
     let (private_key, public_key) = generate_key_pair();
 
     auth::test_auth_succeeds::<JsonResponse, _>(
-      &ActixTestServer::new_with_auth(public_key).await,
+      &ActixTestServer::new_with_auth(public_key, false, mock_id_test()).await,
+      private_key,
+    )
+    .await;
+  }
+
+  #[actix_web::test]
+  async fn test_auth_succeeds_prefix() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &ActixTestServer::new_with_auth(public_key, false, mock_prefix_test()).await,
+      private_key,
+    )
+    .await;
+  }
+
+  #[actix_web::test]
+  async fn test_auth_succeeds_regex() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &ActixTestServer::new_with_auth(public_key, false, mock_regex_test()).await,
+      private_key,
+    )
+    .await;
+  }
+
+  #[cfg(feature = "experimental")]
+  #[actix_web::test]
+  async fn test_auth_insufficient_permissions_suppressed() {
+    let (private_key, public_key) = generate_key_pair();
+
+    let server = ActixTestServer::new_with_auth(public_key, true, mock_id_test()).await;
+    auth::test_auth_insufficient_permissions::<JsonResponse, _>(&server, private_key).await;
+  }
+
+  #[cfg(feature = "experimental")]
+  #[actix_web::test]
+  async fn test_auth_succeeds_suppressed() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &ActixTestServer::new_with_auth(public_key, true, mock_id_test()).await,
       private_key,
     )
     .await;

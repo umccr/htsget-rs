@@ -3,7 +3,6 @@
 
 use crate::error::{HtsGetError, Result};
 use crate::handlers::{get, post, reads_service_info, variants_service_info};
-use crate::middleware::auth::AuthLayer;
 use crate::server::{AppState, BindServer, Server, configure_cors};
 use axum::Router;
 use axum::response::IntoResponse;
@@ -23,7 +22,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 
 impl From<TicketServerConfig> for BindServer {
-  /// Returns a ticket server with TLS enabled if the tls config is not None or without TLS enabled
+  /// Returns a ticket server with TLS enabled if the http config is not None or without TLS enabled
   /// if it is None.
   fn from(config: TicketServerConfig) -> Self {
     let addr = config.addr();
@@ -105,15 +104,15 @@ where
           .layer(TraceLayer::new_for_http())
           .layer(configure_cors(cors)),
       )
-      .with_state(AppState::new(htsget, service_info));
+      .with_state(AppState::new(
+        htsget,
+        service_info,
+        auth
+          .map(|auth| AuthBuilder::default().with_config(auth).build())
+          .transpose()?,
+      ));
 
-    if let Some(auth) = auth {
-      Ok(router.layer(AuthLayer::from(
-        AuthBuilder::default().with_config(auth).build()?,
-      )))
-    } else {
-      Ok(router)
-    }
+    Ok(router)
   }
 
   /// Get the local address the server has bound to.
@@ -152,7 +151,9 @@ mod tests {
   use htsget_config::config::Config;
   use htsget_config::storage::file::default_path;
   use htsget_config::types::JsonResponse;
-  use htsget_test::http::auth::{MockAuthServer, create_test_auth_config};
+  use htsget_test::http::auth::{
+    MockAuthServer, create_test_auth_config, mock_id_test, mock_prefix_test, mock_regex_test,
+  };
   use htsget_test::http::server::expected_url_path;
   use htsget_test::http::{
     Header, Response as TestResponse, TestRequest, TestServer, auth, config_with_tls, cors,
@@ -162,6 +163,7 @@ mod tests {
   use http::header::HeaderName;
   use http::{Method, Request};
   use rustls::crypto::aws_lc_rs;
+  use serde_json::Value;
   use tempfile::TempDir;
   use tower::ServiceExt;
 
@@ -203,7 +205,7 @@ mod tests {
   impl Default for AxumTestServer {
     fn default() -> Self {
       Self {
-        config: default_test_config(),
+        config: default_test_config(None),
       }
     }
   }
@@ -265,11 +267,10 @@ mod tests {
       }
     }
 
-    async fn new_with_auth(public_key: Vec<u8>) -> Self {
-      let mock_server = MockAuthServer::new().await;
-      let auth_config = create_test_auth_config(&mock_server, public_key);
-      let mut config = default_test_config();
-      config.ticket_server_mut().set_auth(Some(auth_config));
+    async fn new_with_auth(public_key: Vec<u8>, suppressed: bool, mock_location: Value) -> Self {
+      let mock_server = MockAuthServer::new(mock_location).await;
+      let auth_config = create_test_auth_config(&mock_server, public_key, suppressed);
+      let config = default_test_config(Some(auth_config));
 
       Self { config }
     }
@@ -376,16 +377,59 @@ mod tests {
   async fn test_auth_insufficient_permissions() {
     let (private_key, public_key) = generate_key_pair();
 
-    let server = AxumTestServer::new_with_auth(public_key).await;
-    auth::test_auth_insufficient_permissions(&server, private_key).await;
+    let server = AxumTestServer::new_with_auth(public_key, false, mock_id_test()).await;
+    auth::test_auth_insufficient_permissions::<JsonResponse, _>(&server, private_key).await;
   }
 
   #[tokio::test]
-  async fn test_auth_succeeds() {
+  async fn test_auth_succeeds_id() {
     let (private_key, public_key) = generate_key_pair();
 
     auth::test_auth_succeeds::<JsonResponse, _>(
-      &AxumTestServer::new_with_auth(public_key).await,
+      &AxumTestServer::new_with_auth(public_key, false, mock_id_test()).await,
+      private_key,
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_auth_succeeds_prefix() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &AxumTestServer::new_with_auth(public_key, false, mock_prefix_test()).await,
+      private_key,
+    )
+    .await;
+  }
+
+  #[tokio::test]
+  async fn test_auth_succeeds_regex() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &AxumTestServer::new_with_auth(public_key, false, mock_regex_test()).await,
+      private_key,
+    )
+    .await;
+  }
+
+  #[cfg(feature = "experimental")]
+  #[tokio::test]
+  async fn test_auth_insufficient_permissions_suppressed() {
+    let (private_key, public_key) = generate_key_pair();
+
+    let server = AxumTestServer::new_with_auth(public_key, true, mock_id_test()).await;
+    auth::test_auth_insufficient_permissions::<JsonResponse, _>(&server, private_key).await;
+  }
+
+  #[cfg(feature = "experimental")]
+  #[tokio::test]
+  async fn test_auth_succeeds_suppressed() {
+    let (private_key, public_key) = generate_key_pair();
+
+    auth::test_auth_succeeds::<JsonResponse, _>(
+      &AxumTestServer::new_with_auth(public_key, true, mock_id_test()).await,
       private_key,
     )
     .await;

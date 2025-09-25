@@ -24,6 +24,8 @@ pub enum HtsGetError {
   InvalidInput(String),
   #[error("InvalidRange")]
   InvalidRange(String),
+  #[error("MethodNotAllowed")]
+  MethodNotAllowed(String),
   #[error("InternalError")]
   InternalError(String),
 }
@@ -54,6 +56,7 @@ impl HtsGetError {
       HtsGetError::UnsupportedFormat(err)
       | HtsGetError::InvalidInput(err)
       | HtsGetError::InvalidRange(err) => (err, StatusCode::BAD_REQUEST),
+      HtsGetError::MethodNotAllowed(err) => (err, StatusCode::METHOD_NOT_ALLOWED),
       HtsGetError::InternalError(err) => (err, StatusCode::INTERNAL_SERVER_ERROR),
     };
 

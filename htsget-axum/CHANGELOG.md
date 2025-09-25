@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.6.1...htsget-axum-v0.6.2) - 2025-09-03
+
+### Added
+
+- add auth logic to post requests and always allow headers to succeed
+- add suppressed errors options to axum and actix ticket servers
+
+### Fixed
+
+- cors layer should run before auth to handle OPTIONS requests without authentication
+
+### Other
+
+- add more robust start/end range tests and document suppressed errors with diagrams.
+
+## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.6.0...htsget-axum-v0.6.1) - 2025-08-21
+
+### Other
+
+- update Cargo.lock dependencies
+
+## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.5.0...htsget-axum-v0.6.0) - 2025-08-15
+
+### Fixed
+
+- [**breaking**] add restrictions to file locations and ensure that the data server local path lines up as expected
+
+### Other
+
+- *(axum)* remove duplicate 0.1.0 entries
+- remove duplicate changelog section
+- Merge pull request #320 from umccr/feat/auth
+
 ## [0.5.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.4.0...htsget-axum-v0.5.0) - 2025-08-11
 
 ### Added

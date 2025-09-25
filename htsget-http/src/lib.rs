@@ -67,16 +67,36 @@ pub fn match_format(endpoint: &Endpoint, format: Option<impl Into<String>>) -> R
 fn convert_to_query(request: Request, format: Format) -> Result<Query> {
   let query = request.query().clone();
 
-  let builder = QueryBuilder::new(request, format)
-    .with_class(query.get("class"))?
-    .with_reference_name(query.get("referenceName"))
-    .with_range(query.get("start"), query.get("end"))?
-    .with_fields(query.get("fields"))
-    .with_tags(query.get("tags"), query.get("notags"))?;
+  set_query_builder(
+    QueryBuilder::new(request, format),
+    query.get("class"),
+    query.get("referenceName"),
+    query.get("fields"),
+    (query.get("tags"), query.get("notags")),
+    (query.get("start"), query.get("end")),
+    query.get("encryptionScheme"),
+  )
+}
+
+fn set_query_builder(
+  builder: QueryBuilder,
+  class: Option<impl Into<String>>,
+  reference_name: Option<impl Into<String>>,
+  fields: Option<impl Into<String>>,
+  (tags, no_tags): (Option<impl Into<String>>, Option<impl Into<String>>),
+  (start, end): (Option<impl Into<String>>, Option<impl Into<String>>),
+  _encryption_scheme: Option<impl Into<String>>,
+) -> Result<Query> {
+  let builder = builder
+    .with_class(class)?
+    .with_fields(fields)
+    .with_tags(tags, no_tags)?
+    .with_reference_name(reference_name)
+    .with_range(start, end)?;
 
   cfg_if! {
     if #[cfg(feature = "experimental")] {
-      Ok(builder.with_encryption_scheme(query.get("encryptionScheme"))?.build())
+      Ok(builder.with_encryption_scheme(_encryption_scheme)?.build())
     } else {
       Ok(builder.build())
     }
@@ -143,7 +163,7 @@ mod tests {
     );
 
     assert_eq!(
-      get(get_searcher(), request, Endpoint::Reads).await,
+      get(get_searcher(), request, Endpoint::Reads, None, None).await,
       Ok(expected_bam_json_response(expected_response_headers))
     );
   }
@@ -160,7 +180,7 @@ mod tests {
     );
 
     assert!(matches!(
-      get(get_searcher(), request, Endpoint::Reads).await,
+      get(get_searcher(), request, Endpoint::Reads, None, None).await,
       Err(HtsGetError::UnsupportedFormat(_))
     ));
   }
@@ -182,7 +202,7 @@ mod tests {
     );
 
     assert_eq!(
-      get(get_searcher(), request, Endpoint::Variants).await,
+      get(get_searcher(), request, Endpoint::Variants, None, None).await,
       Ok(expected_vcf_json_response(expected_response_headers))
     );
   }
@@ -197,13 +217,14 @@ mod tests {
       tags: None,
       notags: None,
       regions: None,
+      encryption_scheme: None,
     };
 
     let mut expected_response_headers = Headers::default();
     expected_response_headers.insert("Range".to_string(), "bytes=0-2596798".to_string());
 
     assert_eq!(
-      post(get_searcher(), body, request, Endpoint::Reads).await,
+      post(get_searcher(), body, request, Endpoint::Reads, None, None).await,
       Ok(expected_bam_json_response(expected_response_headers))
     );
   }
@@ -218,10 +239,19 @@ mod tests {
       tags: None,
       notags: None,
       regions: None,
+      encryption_scheme: None,
     };
 
     assert!(matches!(
-      post(get_searcher(), body, request, Endpoint::Variants).await,
+      post(
+        get_searcher(),
+        body,
+        request,
+        Endpoint::Variants,
+        None,
+        None
+      )
+      .await,
       Err(HtsGetError::UnsupportedFormat(_))
     ));
   }
@@ -240,13 +270,22 @@ mod tests {
         start: Some(149),
         end: Some(200),
       }]),
+      encryption_scheme: None,
     };
 
     let mut expected_response_headers = Headers::default();
     expected_response_headers.insert("Range".to_string(), "bytes=0-3493".to_string());
 
     assert_eq!(
-      post(get_searcher(), body, request, Endpoint::Variants).await,
+      post(
+        get_searcher(),
+        body,
+        request,
+        Endpoint::Variants,
+        None,
+        None
+      )
+      .await,
       Ok(expected_vcf_json_response(expected_response_headers))
     );
   }

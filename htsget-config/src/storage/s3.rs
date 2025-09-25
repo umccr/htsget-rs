@@ -3,18 +3,35 @@
 
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration struct for S3 storage.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+/// Configure the server to fetch data and return tickets from S3.
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct S3 {
+  /// The bucket to use.
   bucket: String,
+  /// The S3 endpoint to use.
   endpoint: Option<String>,
+  /// Whether path style or virtual host addressing should be used.
   path_style: bool,
+  /// Optional Crypt4GH keys to use when decrypting data.
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  #[serde(skip)]
+  pub(crate) is_defaulted: bool,
+}
+
+impl Eq for S3 {}
+
+impl PartialEq for S3 {
+  fn eq(&self, other: &Self) -> bool {
+    self.bucket == other.bucket
+      && self.endpoint == other.endpoint
+      && self.path_style == other.path_style
+  }
 }
 
 impl S3 {
@@ -26,6 +43,7 @@ impl S3 {
       path_style,
       #[cfg(feature = "experimental")]
       keys: None,
+      is_defaulted: false,
     }
   }
 
@@ -72,6 +90,14 @@ impl S3 {
   /// Get the C4GH keys.
   pub fn keys(&self) -> Option<&C4GHKeys> {
     self.keys.as_ref()
+  }
+}
+
+impl Default for S3 {
+  fn default() -> Self {
+    let mut s3 = Self::new(Default::default(), Default::default(), Default::default());
+    s3.is_defaulted = true;
+    s3
   }
 }
 

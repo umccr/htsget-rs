@@ -46,40 +46,58 @@ or on a remote HTTP server (either `http://` or `https://`):
 locations = "https://example.com"
 ```
 
-Multiple locations can be specified by providing a list and an id prefix after the location:
+For any of the above examples, htsget-rs will look for data using the id passed in the request. Locations can
+also have extra path segments to lookup nested data. For example, when using `location = "s3://bucket/dir"`,
+and the request `/reads/bam/htsnexus_test_NA12878`,  htsget-rs will search for data under
+`s3://bucket/dir/bam/htsnexus_test_NA12878.bam` and `s3://bucket/dir/bam/htsnexus_test_NA12878.bam.bai`,
+and return tickets for `s3://bucket/dir/bam/htsnexus_test_NA12878.bam`.
+
+> [!IMPORTANT]  
+> The file extension of data should not be specified in the request id and location. Any request for data will always
+> look for files with the file format extension. For example, a bam file will always use `.bam` and a VCF file will
+> always use `.vcf.gz`.
+
+Multiple locations can be specified by providing a list and an prefix after the location:
 
 ```toml
-locations = [ "file://data/bam", "file://data/cram" ]
+locations = [ { location = "file://data", prefix = "bam" }, { location = "s3://bucket", prefix = "cram" } ]
 ```
 
-This allows htsget-rs to serve data only when the request also contains the prefix:
+This allows htsget-rs to serve data only when the request also contains the prefix. For example, 
+`/reads/bam/htsnexus_test_NA12878` will go to `file://data/bam/htsnexus_test_NA12878.bam` and
+`/reads/cram/htsnexus_test_NA12878?format=CRAM'` will go to `s3://bucket/cram/htsnexus_test_NA12878.cram`.
 
-```sh
-curl 'http://localhost:8080/reads/bam/htsnexus_test_NA12878'
-curl 'http://localhost:8080/reads/cram/htsnexus_test_NA12878?format=CRAM'
-```
-
-Locations can be mixed, and don't all need to have the same directory or resource:
+When specifying locations like this, the location is additive. That is, the request id is appended to the
+location. This means that when the user requests data at `/reads/<id>`, the server fetches data and returns tickets
+from `<location>/<id>`. As an alternative to additive locations, a location can be specified as an exact match for a file by setting the id
+field:
 
 ```toml
-locations = [ "file://data/bam", "file://data/cram", "s3://bucket/vcf" ]
+locations = [ { location = "file://data/file", id = "bam_file" }, { location = "s3://bucket/file", id = "cram_file" } ]
 ```
 
-For all types of locations, the second path segment represents the prefix which the request is expected
-to contain, in order to use that location. With the above example, if the request is `/variants/vcf/<id>`, then
-the S3 location is used, and if it is `/reads/bam/<id>` or `/reads/cram/<id>`, then the file locations are used.
+Now, when a user requests data at `/reads/bam_file`, the server will use `file://data/file.bam` and
+`file://data/file.bam.bai` instead of appending the id, and similar for `/reads/cram_file`. The advantage of this is 
+that it decouples the requested id from the name of the file completely. In general, when using exact id matches,
+a request for data at `/reads/<id>` will result in fetching data and returning tickets from `<location>`.
 
-For each of the location types, the first component represents the storage location:
+For added flexibility, there is an alternative location configuration system using regex under [advanced config].
 
-```toml
-locations = [ "file://<directory>/<prefix>", "s3://<bucket>/<prefix>", "https://<endpoint>/<prefix>" ]
-```
+> [!IMPORTANT]  
+> Some parts of htsget-rs require extra feature flags for conditional compilation, that's why the examples specify
+> using `--all-features`. Notably, `--features aws` enables the `S3` location type, and `--features url`
+> enabled the remote HTTP server location type. If using a subset of features, for example S3 locations only, then
+> a single feature can be enabled instead of using `--all-features`.
 
-htsget-rs spawns a separate server process to respond to htsget tickets for file locations.
-This server's path can be set by using `data_server.local_path`. When using `file://<directory>` locations,
-the directory component must be the same as the local path so that the server has access to it. 
-It is also not possible to have different directories components when using multiple `file://<directory>`
-locations.
+### Server config
+
+htsget-rs spawn up to two server instances - the ticket server, which responds to the initial htsget request, and
+optionally, the data server, which responds to the htsget tickets if using file locations.
+
+The data server's path can be set by using `data_server.local_path`. When using `file://<directory>` locations, the
+directory component must be the same as the local path so that the server has access to it. It is also not possible to
+have different directories components when using multiple `file://<directory>` locations. This means that there can only
+be one file location directory, although there can be multiple matching prefixes or ids to control the request.
 
 The data server process can be disabled by setting it to `None` if no file locations are being used:
 
@@ -90,9 +108,9 @@ data_server = "None"
 This is automatically applied if no file locations are configured.
 
 By default, file locations specified via `file://<dir>` will use the data server scheme and
-address for ticket responses. This means that tickets will be served as `<scheme>://<addr>/reads/<id>`,
+address for ticket responses. This means that tickets will be served as `<scheme>://<addr>/<id>`,
 pointing to the data server `<scheme>` and `<addr>` automatically. For example, a default `file://data`
-location will have tickets that look like `http://127.0.0.1:8081/reads/<id>`.
+location will have tickets that look like `http://127.0.0.1:8081/<id>`.
 
 The scheme and address can be overridden for any file-based responses by setting `data_server.ticket_origin`:
 
@@ -105,16 +123,6 @@ data_server.ticket_origin = "https://example.com/"
 
 In this example, the tickets will appear as `https://example.com/<id>`. This is useful to arbitrarily route tickets to
 DNS-resolvable requests, for example, inside a docker container.
-
-> [!NOTE]  
-> For S3 locations, the bucket is not included in the request to htsget-rs. To include the bucket as well, 
-> see deriving the bucket from the first capture group in [advanced config](#bucket).
- 
-> [!IMPORTANT]  
-> Some parts of htsget-rs require extra feature flags for conditional compilation, that's why the examples specify
-> using `--all-features`. Notably, `--features aws` enables the `S3` location type, and `--features url`
-> enabled the remote HTTP server location type. If using a subset of features, for example S3 locations only, then
-> a single feature can be enabled instead of using `--all-features`.
 
 ### Server config
 
@@ -253,13 +261,13 @@ backend.path_style = true
 
 To manually configure `Url` locations, set `backend.kind = "Url"`, specify any additional options from below under the `backend` table:
 
-| Option                               | Description                                                                                                                                                   | Type                     | Default                                                                                                         |
-|--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
-| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                                                   | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                                                         | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
-| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query.                                                                           | Boolean                  | `true`                                                                                                          |
-| `header_blacklist`                   | List of headers that should not be forwarded.                                                                                                                 | Array of headers         | `[]`                                                                                                            |
-| `tls`                                | Additionally enables client authentication, or sets non-native root certificates for TLS. See [server configuration](#server-configuration) for more details. | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| Option                               | Description                                                                                                                                                                                    | Type                     | Default                                                                                                         |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
+| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                                                                                    | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                                                                                          | HTTP URL                 | `"https://127.0.0.1:8081/"`                                                                                     |
+| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query.                                                                                                            | Boolean                  | `true`                                                                                                          |
+| `header_blacklist`                   | List of headers that should not be forwarded.                                                                                                                                                  | Array of headers         | `[]`                                                                                                            |
+| `http`                               | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details. | TOML table               | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
 
 For example, the following forwards all headers to response tickets except `Host`, and constructs tickets using `https://example.com` instead of `http://localhost:8080`:
 
@@ -274,6 +282,12 @@ backend.response_url = "https://example.com"
 backend.forward_headers = true
 backend.header_blacklist = ["Host"]
 ```
+
+> [!NOTE]  
+> Calls to the url endpoint use HTTP caching from headers like cache-control and expires. Requests to the url endpoint
+> only involve the beginning of a file to obtain the header. These requests are cached in a temporary file called
+> `htsget_rs_client_cache` in the system temp directory. To disable this functionality set
+> `http.use_cache = false`.
 
 Regex-based locations also support multiple locations:
 
@@ -310,7 +324,7 @@ This component can be configured by setting the `guard` table with:
 | `allow_fields`          | Resolve the query ID if the query also contains the fields set by this option.          | Array of fields or `'All'`                                            | `'All'`                             |
 | `allow_tags`            | Resolve the query ID if the query also contains the tags set by this option.            | Array of tags or `'All'`                                              | `'All'`                             |
 | `allow_formats`         | Resolve the query ID if the query is one of the formats specified by this option.       | An array of formats containing `'BAM'`, `'CRAM'`, `'VCF'`, or `'BCF'` | `['BAM', 'CRAM', 'VCF', 'BCF']`     |
-| `allow_classes`         | Resolve the query ID if the query is one of the classes specified by this option.       | An array of classes containing eithr `'body'` or `'header'`           | `['body', 'header']`                |
+| `allow_classes`         | Resolve the query ID if the query is one of the classes specified by this option.       | An array of classes containing either `'body'` or `'header'`          | `['body', 'header']`                |
 | `allow_interval.start`  | Resolve the query ID if the query reference start position is at least this option.     | Unsigned 32-bit integer start position, 0-based, inclusive            | Not set, allows all start positions |
 | `allow_interval.end`    | Resolve the query ID if the query reference end position is at most this option.        | Unsigned 32-bit integer end position, 0-based exclusive               | Not set, allows all end positions   |
 
@@ -340,7 +354,9 @@ substitution_string = "$0"
 
 backend.kind = "Url"
 backend.url = "https://example.com"
-backend.tls.root_store = "root.crt"
+backend.http.root_store = "root.crt"
+## Disable HTTP caching.
+#backend.http.use_cache = false
 ```
 
 This project uses [rustls] for all TLS logic, and it does not depend on OpenSSL. The rustls library can be more
@@ -377,53 +393,73 @@ ticket_server.cors.expose_headers = []
 Use `"Mirror"` to mirror CORS requests, and `"All"` to allow all methods, headers, or origins. The `ticket_server` table
 above can be replaced with `data_server` to configure CORS for the data server.
 
-### JWT Authorization
+### JWT Authentication
+
+The htsget-rs ticket and data servers can be configured to validate and authenticate JWT tokens.
+
+The following options can be configured under the `auth` table to enable this:
+
+| Option                  | Description                                                                                                                                                                                      | Type             | Default                                                                                                           |
+|-------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|-------------------------------------------------------------------------------------------------------------------|
+| `jwks_url`              | The JSON web key sets url to fetch key sets validating the JWT token.                                                                                                                            | URL              | Not set, either this option or `decode_public_key` must be set to validate JWTs.                                  | 
+| `public_key`            | The path to PEM formatted public key used to decode the JWT token.                                                                                                                               | Filesystem path  | Not set, either this option `jwks_url` must be set to validate JWTs.                                              |
+| `validate_audience`     | Validate that the JWT token has the specified audience field.                                                                                                                                    | Array of strings | Optional. Does not validate the audience by default.                                                              |
+| `validate_issuer`       | Validate that the JWT token has the specified issuer field.                                                                                                                                      | Array of strings | Optional. Does not validate the issuer by default.                                                                |
+| `validate_subject`      | Validate that the JWT token has the specified subject field.                                                                                                                                     | Strings          | Optional. Does not validate the subject by default.                                                               |
+| `http`                  | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details.   | TOML table       | TLS is always allowed, however the default performs no client authentication and uses native root certificates.   |
+
+When JWT authentication is enabled, either `jwks_url` or `public_key` must be set to validate the JWT. The `auth` table
+can be set under the `data_server` or `ticket_server` table, or globally to use the same configuration for both. 
+See the [example][auth-example] configuration file in the example directory.
+
+#### Authorization
 
 One advantage of the htsget protocol is that it is possible to make decisions about which regions of files a user is allowed
-to access, as the protocol is able to return a subset of a genomic file in the URL tickets. Custom JWT authorization can be
+to access, as the protocol is able to return a subset of a genomic file in the URL tickets. Custom authorization can be
 configured to enable this.
 
 htsget-rs is a stateless service (except for caching) which means that making authorization decisions can be challenging
 there is no user tracking. To solve this, authorization is configured to call out to an arbitrary url to make decisions
-about a user. If this feature is configured, when a JWT is sent in the authorization header, htsget-rs:
+about a user. If this feature is configured, htsget-rs:
 
-1. Decodes and validates the JWT according to the config.
-2. Queries the authorization service for restrictions based on the config or JWT claims. 
+1. Decodes and validates a JWT configured above.
+2. Queries the authorization service for restrictions based on the config. 
 3. Validates the restrictions to determine if the user is authorized.
 
 The authorization server should respond with a rule set that htsget-rs can use to approve or deny the user access.
 
-The following options can be configured under the `auth` table to enable this:
+The following additional options can be configured under the `auth` table to enable this:
 
-| Option                       | Description                                                                                                                                                                                                                                                                                                                          | Type             | Default                                                                                                |
-|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|--------------------------------------------------------------------------------------------------------|
-| `jwks_url`                   | The JSON web key sets url to fetch key sets validating the JWT token.                                                                                                                                                                                                                                                                | URL              | Not set, either this option or `decode_public_key` must be set to validate JWTs.                       | 
-| `public_key`                 | The path to PEM formatted public key used to decode the JWT token.                                                                                                                                                                                                                                                                   | Filesystem path  | Not set, either this option `jwks_url` must be set to validate JWTs.                                   |
-| `validate_audience`          | Validate that the JWT token has the specified audience field.                                                                                                                                                                                                                                                                        | Array of strings | Optional. Does not validate the audience by default.                                                   |
-| `validate_issuer`            | Validate that the JWT token has the specified issuer field.                                                                                                                                                                                                                                                                          | Array of strings | Optional. Does not validate the issuer by default.                                                     |
-| `validate_subject`           | Validate that the JWT token has the specified subject field.                                                                                                                                                                                                                                                                         | Strings          | Optional. Does not validate the subject by default.                                                    |
-| `trusted_authorization_urls` | The URLs which can be called to authorize the user. If `authorization_path` is not set, the first URL in the array will be called with a GET request and the forwarded JWT. If `authorization_path` is set, then the list of URLs will be trusted as authorization sources if they are found in the JWT.                             | Array of URLs    | Not set, must be set with at least one URL.                                                            |
-| `authorization_path`         | The JSON path that finds the authorization URL in the JWT. The path should find a URL value inside the JWT claims. This allows dynamically resolving the authorization url based on the content of the JWT. This URL will be called with a GET request and the forwarded JWT and should return the htsget authorization information. | JSON path        | Optional. Uses the first value in `trusted_authorization_urls` by default.                             |
-| `tls`                        | Enables client authentication, or sets non-native root certificates for TLS when making requests. See [server configuration](#server-configuration) for more details.                                                                                                                                                                | TOML table       | Optional. Performs no client authentication and uses native root certificates for TLS client requests. |
-| `authentication_only`        | Skip the authorization service call out and only validate the JWT token. If set, this will skip the authorization flow described above, however it will still perform JWT validation.                                                                                                                                                | Boolean          | `false`                                                                                                |
+| Option              | Description                                                                                                                                                                                                    | Type                  | Default  |
+|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|----------|
+| `authorization_url` | The URL which will be called to authorize the user. A GET request will be issued to the url. Alternatively, this can be a file path to authorize users based on static config.                                 | URL                   | Not set. |
+| `forward_headers`   | For each header specified, forward any headers from the client to the authorization server. Headers are forwarded with the `Htsget-Context-` as a prefix.                                                      | Array of header names | Not set. |
+| `passthrough_auth`  | Forward the authorization header to the authorization server directly without renaming it to a `Htsget-Context-` custom header. If this is true, then the `Authorization` header is required with the request. | Boolean               | `false`  |
 
-When calling the authorization service configured using `authorization_url` or `authorization_path`, htsget-rs will
-forward the JWT inside an authorization bearer header and use a GET request. The service should respond with the
-following JSON structure, indicating whether the request is allowed, and any region restrictions (similar to the 
-[allow guard logic](#allow-guard)):
+When using the `authorization_url`, the [authentication](#jwt-authentication) config must also be set as htsget-rs will
+forward the JWT token to the authorization server so that it can make decisions about the user's authorization. If the
+`authorization_url` is a file path, then authentication doesn't need to be set.
+
+Each header in the `forward_headers` option is forwarded as a custom `Htsget-Context-<name>` header to the authorization server.
+The authorization header can be forward as though it is coming from the client by setting `forward_auth_header = true`. This is
+useful to support authenticating the original client JWT at the authorization server and can be used to set-up authorization
+flows like oauth.
+
+The authorization service should respond with the following JSON structure, indicating whether the request is allowed,
+and any region restrictions:
 
 ```json
 {
   "version": 1,
   "htsgetAuth": [
     {
-      "path": "dataset/001/id",
-      "referenceNames": [
+      "id": "dataset/001/id",
+      "rules": [
         {
-          "name": "chr1",
+          "referenceName": "chr1",
           "format": "BAM",
-          "start": 100,
-          "end": 1000
+          "start": 1000,
+          "end": 2000
         }
       ]
     }
@@ -431,10 +467,145 @@ following JSON structure, indicating whether the request is allowed, and any reg
 }
 ```
 
-The authorization server is allowed to respond with multiple paths that the user is allowed to access. Each path can 
-also be a regex that matches ids like the [regex resolvers](#regex-based-location). A full JSON schema defining this
-format is available under [auth.json][auth-json]. An [example][auth-example] configuration file is available in the
-examples directory.
+These restrictions act as a whitelist of allowed regions that the user has access to. The authorization server is
+allowed to respond with multiple paths that the user is allowed to access. A full JSON schema defining this format is
+available under [auth.json][auth-json].
+
+Each auth rule can also contain a location that has the same options as the [locations config](#quickstart). This gives
+the authorization server flexibility to specify locations dynamically on a per-request basis.
+
+For example, to specify a dynamic location for VCF files separately to BAM files:
+
+```json
+{
+  "version": 1,
+  "htsgetAuth": [
+    {
+      "id": "dataset/001/id-bam",
+      "location": "s3://bucket-a/bam_file",
+      "rules": [
+        {
+          "format": "BAM"
+        }
+      ]
+    },
+    {
+      "id": "dataset/001/id-vcf",
+      "location": "s3://bucket-b/vcf_file",
+      "rules": [
+        {
+          "format": "VCF"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Similarly to the config, prefixes can be used instead of an "id", or a full [regex location](#regex-based-location) can
+be used.
+
+> [!NOTE]  
+> Calls to both the authorization service and jwks endpoint correctly handle and support HTTP cache headers like
+> cache-control and expires. Requests are cached in a temporary file called `htsget_rs_client_cache` in the system
+> temp directory. To disable this functionality set `http.use_cache = false`.
+
+#### Suppressed errors
+
+With this authorization logic, the server will respond with a `403 Forbidden` error if any of the requested reference
+names are not allowed according to the restrictions. For example, if using the above JSON restrictions, a user
+requesting `?referenceName=chr1&format=BAM&start=500&end=1500` will receive a `403` error, even though part of the range
+is satisfiable (i.e. according to the restrictions, from `start=1000` to `end=1500`). In order to address this issue, the
+following flag can be enabled under the `auth` table:
+
+| Option            | Description                                                                                      | Type    | Default |
+|-------------------|--------------------------------------------------------------------------------------------------|---------|---------|
+| `suppress_errors` | Return any available regions according to restrictions, even if the full request is not allowed. | Boolean | `false` |
+| `add_hint`        | Add a hint to the ticket response that indicates which regions the client is allowed to view.    | Boolean | `true`  |
+
+To enable this option, htsget-rs needs to be compiled with `--features experimental` as suppressed errors lead to as
+many regions as possible being returned, which may not follow the htsget protocol. When this option is used, the
+above example with the request: `?referenceName=chr1&format=BAM&start=500&end=1500`, would return reads between `start=1000`
+and `end=1500` for the reference name. Additionally, there will be another field present in the JSON response which hints
+to clients that the full range was not satisfied because of authorization restrictions:
+
+```json
+{
+  "htsget": {
+    "format": "BAM",
+    "urls": [<list of urls...>],
+    "allowed": [
+      {
+        "name": "chr1",
+        "format": "BAM",
+        "start": 1000,
+        "end": 2000
+      }
+    ] 
+  }
+}            
+```
+
+The `allowed` field echos the rule defined in the restrictions, and allows clients to plan for a partially returned
+response. This field can be removed by setting `add_hint = false` in the `auth` table.
+
+The following diagram shows how the suppressed response behaves given restrictions based on the start and end restrictions
+and the requested range. The response shows the data that the user will receive.
+
+```
+Restriction:                 1000----------2000
+Request:             500------------1500
+Resulting response:          1000---1500
+
+Restriction:                 1000----------2000
+Request:                            1500------------2500
+Resulting response:                 1500---2000
+
+Restriction:                 1000----------2000
+Request:             500-----1000
+Resulting response:          empty header only
+```
+
+If `suppress_errors = true` was not used, all the above requests would result in an error instead.
+
+Note that when using `suppress_errors = true`, when a client is not authorization to view any of the requested regions,
+a non-error response is still returned with an empty response containing the file header. For example, if the
+client was not authorized to view `chr1` at all, the response would return urls that correspond to a valid file
+(with the file header and EOF block), but no actual reads data. Authorization error responses are still returned if the
+JWT is invalid or the client is not allowed to view the requested `<id>` path. Parameters are only checked for validity
+after authorizing the request, so invalid requests may return an unauthorized or forbidden response instead of a bad
+request if the user lacks authorization.
+
+#### Extensions
+
+> [!NOTE]  
+> The extension options should not be used unless developing custom extensions to the htsget-rs codebase to support
+> additional authorization capabilities. The options below are only useful to add out-of-band context to requests such
+> as from AWS Lambda events. When using the `htsget-lambda` crate, this option is available for all Lambda event fields.
+>
+> This can also be used for non-Lambda implementations if developing custom middleware to use with htsget-rs routers.
+
+As part the Rust [http][http] library, extensions can be added to requests before they are processed by the HTTP router.
+This is useful to add context to requests from external sources, such as AWS ApiGateway or VPC lattice Lambda events.
+These context fields can be forwarded to the authorization service to make authorization decisions about a user.
+
+Set the following in the `auth` table to use this feature:
+
+| Option               | Description                                                                                                                                                                                                                                                                                  | Type                              | Default   |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------|
+| `forward_extensions` | For each request extension specified, forward the HTTP extension to the authorization server. This can be a full JSON path to forward nested values. Extensions are forwarded as custom `Htsget-Context-<name>` headers, where each JSON path value must be assigned a name in this setting. | Array of name and JSON path pairs | Not set.  |
+
+For example, to forward the request context source VPC from a Lambda function handling [VPC lattice events](https://docs.aws.amazon.com/vpc-lattice/latest/ug/lambda-functions.html#receive-event-from-service), use the following
+setting:
+
+```toml
+[auth]
+forward_extensions = [ { json_path = '$.requestContext.identity.sourceVpcArn', name = 'SourceVpcArn'} ]
+```
+
+This would then forward the source VPC ARN to the authorization server in a header called `Htsget-Context-SourceVpcArn`.
+
+An example of this kind of implementation can be seen [here](https://github.com/umccr/htsget-deploy/tree/main/aws-vpc-lattice).
 
 [auth-json]: docs/schemas/auth.schema.json
 [auth-example]: docs/examples/auth.toml
@@ -462,7 +633,7 @@ See the MinIO deployment [example][minio-deployment] for more information on how
 
 ### Crypt4GH
 
-There is experimental support for serving [Crypt4GH][c4gh] encrypted files.
+There is experimental support for serving [Crypt4GH][c4gh] encrypted files which required compilation with `--features experimental`.
 
 This allows htsget-rs to read Crypt4GH files and serve them encrypted, directly to the client. In the process of
 serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and re-encrypt them so that the client can read
@@ -552,7 +723,8 @@ regex, and changing it by using a substitution string. Advanced configuration op
 This crate has the following features:
 * `aws`: used to enable `S3` location functionality and any other AWS features.
 * `url`: used to enable `Url` location functionality.
-* `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
+* `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`,
+                  or suppressed errors when using authorization logic.
 
 ## License
 
@@ -582,3 +754,4 @@ This project is licensed under the [MIT license][license].
 [id]: https://samtools.github.io/hts-specs/htsget.html#url-parameters
 [toml]: https://toml.io/en/
 [data]: ../data
+[http]: https://docs.rs/http/latest/http/struct.Extensions.html

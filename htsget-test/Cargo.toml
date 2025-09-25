@@ -19,6 +19,7 @@ http = [
     "dep:htsget-config",
     "dep:noodles",
     "dep:reqwest",
+    "dep:reqwest-middleware",
     "dep:tokio",
     "dep:futures",
     "dep:mime",
@@ -43,11 +44,12 @@ default = []
 
 [dependencies]
 # Server tests dependencies
-htsget-config = { version = "0.15.1", path = "../htsget-config", default-features = false, optional = true }
+htsget-config = { version = "0.17.0", path = "../htsget-config", default-features = false, optional = true }
 
 noodles = { version = "0.100", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
+reqwest-middleware = { version = "0.4", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "fs"], optional = true }
 futures = { version = "0.3", optional = true }
 async-trait = { version = "0.1", optional = true }
@@ -57,6 +59,7 @@ serde_json = { version = "1", features = ["preserve_order"], optional = true }
 serde = { version = "1", optional = true }
 base64 = { version = "0.22", optional = true }
 
+cfg-if = "1"
 tempfile = { version = "3", optional = true }
 aws-sdk-s3 = { version = "1", features = ["test-util"], optional = true }
 aws-config = { version = "1", optional = true }

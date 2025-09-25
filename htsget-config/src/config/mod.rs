@@ -4,14 +4,14 @@
 use crate::config::advanced::FormattingStyle;
 use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::data_server::{DataServerConfig, DataServerEnabled};
-use crate::config::location::{LocationEither, Locations};
+use crate::config::location::{Location, Locations};
 use crate::config::parser::from_path;
 use crate::config::service_info::ServiceInfo;
 use crate::config::ticket_server::TicketServerConfig;
 use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
+use crate::http::KeyPairScheme;
 use crate::storage::Backend;
-use crate::tls::KeyPairScheme;
 use clap::{Args as ClapArgs, Command, FromArgMatches, Parser};
 use http::header::AUTHORIZATION;
 use http::uri::Authority;
@@ -69,6 +69,7 @@ pub struct Config {
   ticket_server: TicketServerConfig,
   data_server: DataServerEnabled,
   service_info: ServiceInfo,
+  #[serde(alias = "location")]
   locations: Locations,
   formatting_style: FormattingStyle,
   #[serde(skip_serializing)]
@@ -134,7 +135,7 @@ impl Config {
   }
 
   /// Get the location.
-  pub fn locations(&self) -> &[LocationEither] {
+  pub fn locations(&self) -> &[Location] {
     self.locations.as_slice()
   }
 
@@ -185,12 +186,7 @@ impl Config {
     // Propagate global config to individual ticket and data servers.
     if let DataServerEnabled::Some(ref mut data_server_config) = config.data_server {
       if data_server_config.auth().is_none() {
-        let auth = config.auth.clone().map(|mut auth| {
-          auth.set_authentication_only(true);
-          auth
-        });
-
-        data_server_config.set_auth(auth);
+        data_server_config.set_auth(config.auth.clone());
       }
     }
     if config.ticket_server().auth().is_none() {
@@ -286,7 +282,7 @@ impl Config {
         // explicitly set.
         match location.backend_mut() {
           Backend::File(file) => {
-            if file.reset_origin {
+            if file.is_defaulted {
               file.set_scheme(scheme);
               file.set_authority(authority.clone());
               file.set_ticket_origin(ticket_origin.clone())
@@ -365,11 +361,12 @@ pub(crate) mod tests {
   use std::fmt::Display;
 
   use super::*;
-  use crate::config::advanced::auth::AuthMode;
-  use crate::config::location::Location;
+  use crate::config::advanced::auth::authorization::UrlOrStatic;
+  use crate::config::advanced::auth::jwt::AuthMode;
+  use crate::config::location::SimpleLocation;
   use crate::config::parser::from_str;
+  use crate::http::tests::with_test_certificates;
   use crate::storage::Backend;
-  use crate::tls::tests::with_test_certificates;
   use crate::types::Scheme;
   use figment::Jail;
   use http::Uri;
@@ -702,7 +699,10 @@ pub(crate) mod tests {
     test_config_from_env(
       vec![
         ("HTSGET_DATA_SERVER_ADDR", "127.0.0.1:8080"),
-        ("HTSGET_LOCATIONS", "[file://data/bam, file://data/cram]"),
+        (
+          "HTSGET_LOCATIONS",
+          "[ { location=file://data, prefix=bam }, { location=file://data, prefix=cram }]",
+        ),
       ],
       |config| {
         assert_multiple(config);
@@ -723,7 +723,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "");
+        assert_eq!(location.prefix_or_id(), None);
         assert_file_location(location, "data");
       },
     );
@@ -740,7 +740,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "");
+        assert_eq!(location.prefix_or_id(), None);
         assert!(matches!(location.backend(),
             Backend::S3(s3) if s3.bucket() == "bucket"));
       },
@@ -758,7 +758,7 @@ pub(crate) mod tests {
         assert_eq!(config.locations().len(), 1);
         let config = config.locations.into_inner();
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "");
+        assert_eq!(location.prefix_or_id(), None);
         assert!(matches!(location.backend(),
             Backend::Url(url) if url.url() == &"https://example.com".parse::<Uri>().unwrap()));
       },
@@ -770,7 +770,7 @@ pub(crate) mod tests {
     test_config_from_file(
       r#"
     data_server.addr = "127.0.0.1:8080"
-    locations = ["file://data/bam", "file://data/cram"]
+    locations = [ { location = "file://data", prefix = "bam" }, { location = "file://data", prefix = "cram" }]
     "#,
       |config| {
         assert_multiple(config);
@@ -785,22 +785,25 @@ pub(crate) mod tests {
       r#"
     data_server.addr = "127.0.0.1:8080"
     data_server.local_path = "data"
-    locations = ["file://data/bam", "file://data/cram", "s3://bucket/vcf"]
+    locations = [ { location = "file://data", prefix = "bam" }, { location = "file://data", prefix = "cram" }, { location = "s3://bucket", prefix = "vcf" } ]
     "#,
       |config| {
         assert_eq!(config.locations().len(), 3);
         let config = config.locations.into_inner();
 
         let location = config[0].as_simple().unwrap();
-        assert_eq!(location.prefix(), "bam");
+        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "bam");
         assert_file_location(location, "data");
 
         let location = config[1].as_simple().unwrap();
-        assert_eq!(location.prefix(), "cram");
+        assert_eq!(
+          location.prefix_or_id().unwrap().as_prefix().unwrap(),
+          "cram"
+        );
         assert_file_location(location, "data");
 
         let location = config[2].as_simple().unwrap();
-        assert_eq!(location.prefix(), "vcf");
+        assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "vcf");
         assert!(matches!(location.backend(),
             Backend::S3(s3) if s3.bucket() == "bucket"));
       },
@@ -813,16 +816,15 @@ pub(crate) mod tests {
       r#"
       ticket_server.auth.jwks_url = "https://www.example.com/"
       ticket_server.auth.validate_issuer = ["iss1"]
-      ticket_server.auth.trusted_authorization_urls = ["https://www.example.com"]
-      ticket_server.auth.authorization_path = "$.auth_url"
+      ticket_server.auth.authorization_url = "https://www.example.com"
       data_server.auth.jwks_url = "https://www.example.com/"
       data_server.auth.validate_audience = ["aud1"]
-      data_server.auth.trusted_authorization_urls = ["https://www.example.com"]
+      data_server.auth.authorization_url = "https://www.example.com"
       "#,
       |config| {
         let auth = config.ticket_server().auth().unwrap();
         assert_eq!(
-          auth.auth_mode(),
+          auth.auth_mode().unwrap(),
           &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
         );
         assert_eq!(
@@ -830,10 +832,9 @@ pub(crate) mod tests {
           Some(vec!["iss1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.trusted_authorization_urls(),
-          &["https://www.example.com/".parse::<Uri>().unwrap()]
+          auth.authorization_url().unwrap(),
+          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
         );
-        assert_eq!(auth.authorization_path(), Some("$.auth_url"));
         let auth = config
           .data_server()
           .as_data_server_config()
@@ -841,7 +842,7 @@ pub(crate) mod tests {
           .auth()
           .unwrap();
         assert_eq!(
-          auth.auth_mode(),
+          auth.auth_mode().unwrap(),
           &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
         );
         assert_eq!(
@@ -849,8 +850,8 @@ pub(crate) mod tests {
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.trusted_authorization_urls(),
-          &["https://www.example.com/".parse::<Uri>().unwrap()]
+          auth.authorization_url().unwrap(),
+          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
         );
       },
     );
@@ -862,12 +863,12 @@ pub(crate) mod tests {
       r#"
       auth.jwks_url = "https://www.example.com/"
       auth.validate_audience = ["aud1"]
-      auth.trusted_authorization_urls = ["https://www.example.com"]
+      auth.authorization_url = "https://www.example.com"
       "#,
       |config| {
         let auth = config.auth.unwrap();
         assert_eq!(
-          auth.auth_mode(),
+          auth.auth_mode().unwrap(),
           &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
         );
         assert_eq!(
@@ -875,8 +876,8 @@ pub(crate) mod tests {
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.trusted_authorization_urls(),
-          &["https://www.example.com/".parse::<Uri>().unwrap()]
+          auth.authorization_url().unwrap(),
+          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
         );
       },
     );
@@ -903,15 +904,18 @@ pub(crate) mod tests {
     println!("{config:#?}");
 
     let location = config[0].as_simple().unwrap();
-    assert_eq!(location.prefix(), "bam");
+    assert_eq!(location.prefix_or_id().unwrap().as_prefix().unwrap(), "bam");
     assert_file_location(location, "data");
 
     let location = config[1].as_simple().unwrap();
-    assert_eq!(location.prefix(), "cram");
+    assert_eq!(
+      location.prefix_or_id().unwrap().as_prefix().unwrap(),
+      "cram"
+    );
     assert_file_location(location, "data");
   }
 
-  fn assert_file_location(location: &Location, local_path: &str) {
+  fn assert_file_location(location: &SimpleLocation, local_path: &str) {
     assert!(matches!(location.backend(),
             Backend::File(file) if file.local_path() == local_path && file.scheme() == Scheme::Http && file.authority() == &Authority::from_static("127.0.0.1:8080")));
   }

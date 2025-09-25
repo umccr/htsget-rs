@@ -25,9 +25,9 @@ expose_headers = "All"
 [service_info]
 
 [[locations]]
-prefix = ""
+append_to = ""
 
-[locations.backend]
+[locations.location]
 kind = "File"
 scheme = "HTTP"
 authority = "127.0.0.1:8081"

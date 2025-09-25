@@ -1,6 +1,6 @@
 [package]
 name = "htsget-config"
-version = "0.15.1"
+version = "0.17.0"
 rust-version = "1.86"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2024"
@@ -37,6 +37,8 @@ rustls = "0.23"
 rustls-pki-types = "1"
 chrono = { version = "0.4", features = ["now"], default-features = false }
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+http-cache-reqwest = "0.16"
+reqwest-middleware = "0.4"
 schemars = "1"
 
 # Crypt4GH

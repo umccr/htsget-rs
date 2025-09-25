@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.2](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.1...htsget-actix-v0.11.2) - 2025-09-03
+
+### Added
+
+- add auth logic to post requests and always allow headers to succeed
+- add suppressed errors options to axum and actix ticket servers
+
+## [0.11.1](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.0...htsget-actix-v0.11.1) - 2025-08-21
+
+### Other
+
+- update Cargo.lock dependencies
+
+## [0.11.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.10.0...htsget-actix-v0.11.0) - 2025-08-15
+
+### Fixed
+
+- [**breaking**] add restrictions to file locations and ensure that the data server local path lines up as expected
+
+### Other
+
+- remove duplicate changelog section
+- Merge pull request #320 from umccr/feat/auth
+
 ## [0.10.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.9.0...htsget-actix-v0.10.0) - 2025-08-11
 
 ### Added

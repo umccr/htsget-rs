@@ -5,30 +5,50 @@ use crate::config::data_server::DataServerConfig;
 use crate::error::Error;
 use crate::error::Error::ParseError;
 use crate::error::Result;
+use crate::http::KeyPairScheme;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
-use crate::tls::KeyPairScheme;
 use crate::types::Scheme;
 use http::uri::Authority;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-/// Local file based storage.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+/// Configure the server to fetch data and return tickets from a local filesystem.
+#[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct File {
+  /// The ticket response scheme to the data server.
   scheme: Scheme,
+  /// The authority of the data server.
+  #[schemars(with = "String")]
   #[serde(with = "http_serde::authority")]
   authority: Authority,
+  /// The local path to serve files from.
   local_path: String,
+  /// The headers to add to ticket responses.
   #[serde(skip)]
   ticket_headers: Vec<String>,
+  /// Configure the server to fetch data and return tickets from S3.
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
+  /// The origin of the tickets, which can be different to the data server address.
   ticket_origin: Option<String>,
   #[serde(skip)]
-  pub(crate) reset_origin: bool,
+  pub(crate) is_defaulted: bool,
+}
+
+impl Eq for File {}
+
+impl PartialEq for File {
+  fn eq(&self, other: &Self) -> bool {
+    self.scheme == other.scheme
+      && self.authority == other.authority
+      && self.local_path == other.local_path
+      && self.ticket_headers == other.ticket_headers
+      && self.ticket_origin == other.ticket_origin
+  }
 }
 
 impl File {
@@ -42,7 +62,7 @@ impl File {
       #[cfg(feature = "experimental")]
       keys: None,
       ticket_origin: None,
-      reset_origin: false,
+      is_defaulted: false,
     }
   }
 
@@ -113,7 +133,7 @@ impl File {
 impl Default for File {
   fn default() -> Self {
     let mut file = Self::new(Scheme::Http, default_authority(), default_path().into());
-    file.reset_origin = true;
+    file.is_defaulted = true;
     file
   }
 }

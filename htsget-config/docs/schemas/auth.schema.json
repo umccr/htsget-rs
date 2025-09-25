@@ -4,6 +4,12 @@
   "description": "Authorization restrictions from an external authorization service.",
   "type": "object",
   "properties": {
+    "version": {
+      "description": "The version of the schema.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
     "htsgetAuth": {
       "description": "The authorization rules.",
       "type": "array",
@@ -11,12 +17,6 @@
         "$ref": "#/$defs/AuthorizationRule"
       },
       "minItems": 1
-    },
-    "version": {
-      "description": "The version of the schema.",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 1
     }
   },
   "additionalProperties": false,
@@ -26,12 +26,11 @@
       "description": "Individual authorization rule defining access permissions.",
       "type": "object",
       "properties": {
-        "path": {
-          "description": "The path that the authorization applies to. This should not contain the `/reads` or `/variants` component of the path, and it can be a regex.",
-          "type": "string",
-          "minLength": 1
+        "location": {
+          "description": "The location that the authorization applies to.",
+          "$ref": "#/$defs/Location"
         },
-        "referenceNames": {
+        "rules": {
           "description": "The reference name restrictions to apply to this path.",
           "type": ["array", "null"],
           "items": {
@@ -40,22 +39,278 @@
         }
       },
       "additionalProperties": false,
-      "required": ["path"]
+      "required": ["location"]
     },
-    "Format": {
-      "description": "An enumeration with all the possible formats.",
+    "Location": {
+      "description": "Either simple or regex based location.",
+      "anyOf": [
+        {
+          "description": "Use a simple location.",
+          "$ref": "#/$defs/SimpleLocation"
+        },
+        {
+          "description": "Use a regex location.",
+          "$ref": "#/$defs/RegexLocation"
+        }
+      ]
+    },
+    "SimpleLocation": {
+      "description": "A simple location config.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StringLocation"
+        }
+      ]
+    },
+    "StringLocation": {
+      "description": "Deserialize the location from a string with a protocol and either a prefix or exact id match logic.",
+      "type": "object",
+      "properties": {
+        "location": {
+          "description": "The location, which should start with `file://`, `s3://`, `http://` or `https://`.",
+          "type": ["string", "null"],
+          "default": null
+        }
+      },
+      "unevaluatedProperties": false,
+      "oneOf": [
+        {
+          "description": "Use prefix matching logic, where the requested id should start with the prefix.",
+          "type": "object",
+          "properties": {
+            "prefix": {
+              "type": "string"
+            }
+          },
+          "required": ["prefix"]
+        },
+        {
+          "description": "Use exact id matching logic, where the requested id should be equal to this id.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": ["id"]
+        }
+      ]
+    },
+    "RegexLocation": {
+      "description": "Specify that the location is a regex location that can arbitrarily map IDs using regex strings.",
+      "type": "object",
+      "properties": {
+        "regex": {
+          "description": "The regex to match the id against.",
+          "type": ["string", "null"]
+        },
+        "substitution_string": {
+          "description": "A substitution string to find the data when using a location.",
+          "type": ["string", "null"],
+          "default": null
+        },
+        "backend": {
+          "description": "The backend of the location if configured.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Backend"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "Backend": {
+      "description": "Specify the storage backend to use as config values.",
+      "oneOf": [
+        {
+          "description": "Configure the server to fetch data and return tickets from a local filesystem.",
+          "type": "object",
+          "properties": {
+            "scheme": {
+              "description": "The ticket response scheme to the data server.",
+              "$ref": "#/$defs/Scheme",
+              "default": "HTTP"
+            },
+            "authority": {
+              "description": "The authority of the data server.",
+              "type": "string",
+              "default": "127.0.0.1:8081"
+            },
+            "local_path": {
+              "description": "The local path to serve files from.",
+              "type": "string",
+              "default": "./"
+            },
+            "keys": {
+              "description": "Configure the server to fetch data and return tickets from S3.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/C4GHKeys"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "writeOnly": true
+            },
+            "ticket_origin": {
+              "description": "The origin of the tickets, which can be different to the data server address.",
+              "type": ["string", "null"],
+              "default": null
+            },
+            "kind": {
+              "type": "string",
+              "const": "File"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind"]
+        },
+        {
+          "description": "Configure the server to fetch data and return tickets from S3.",
+          "type": "object",
+          "properties": {
+            "bucket": {
+              "description": "The bucket to use.",
+              "type": "string",
+              "default": ""
+            },
+            "endpoint": {
+              "description": "The S3 endpoint to use.",
+              "type": ["string", "null"],
+              "default": null
+            },
+            "path_style": {
+              "description": "Whether path style or virtual host addressing should be used.",
+              "type": "boolean",
+              "default": false
+            },
+            "keys": {
+              "description": "Optional Crypt4GH keys to use when decrypting data.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/C4GHKeys"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "writeOnly": true
+            },
+            "kind": {
+              "type": "string",
+              "const": "S3"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind"]
+        },
+        {
+          "description": "Configure the server to reach out to a remote URL to fetch data.",
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "default": "/"
+            },
+            "response_url": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "forward_headers": {
+              "type": "boolean",
+              "default": true
+            },
+            "header_blacklist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "keys": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/C4GHKeys"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "writeOnly": true
+            },
+            "kind": {
+              "type": "string",
+              "const": "Url"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind"]
+        }
+      ]
+    },
+    "Scheme": {
+      "description": "Schemes that can be used with htsget.",
       "type": "string",
-      "enum": ["Bam", "Cram", "Vcf", "Bcf"]
+      "enum": ["HTTP", "HTTPS"]
+    },
+    "C4GHKeys": {
+      "description": "Specifies the location of a Crypt4GH key.",
+      "oneOf": [
+        {
+          "description": "Obtain keys from a local file.",
+          "type": "object",
+          "properties": {
+            "private": {
+              "description": "The path to the private key.",
+              "type": "string"
+            },
+            "public": {
+              "description": "The path to the public key.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "File"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind", "private", "public"]
+        },
+        {
+          "description": "Obtain keys from AWS secrets manager.",
+          "type": "object",
+          "properties": {
+            "private": {
+              "description": "The ARN or name of the secret holding the private key.",
+              "type": "string"
+            },
+            "public": {
+              "description": "The ARN or name of the secret holding the public key.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "SecretsManager"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind", "private", "public"]
+        }
+      ]
     },
     "ReferenceNameRestriction": {
       "description": "Restriction on genomic reference names and coordinate ranges.",
       "type": "object",
       "properties": {
-        "end": {
-          "description": "The end interval (0-based, exclusive).",
-          "type": ["integer", "null"],
-          "format": "uint32",
-          "minimum": 0
+        "referenceName": {
+          "description": "The reference name to allow. Allows all reference names if unspecified.",
+          "type": ["string", "null"]
         },
         "format": {
           "description": "The format to allow. Allows all formats if unspecified.",
@@ -68,20 +323,25 @@
             }
           ]
         },
-        "name": {
-          "description": "The reference name to allow.",
-          "type": "string",
-          "minLength": 1
-        },
         "start": {
           "description": "The start interval (0-based, inclusive).",
           "type": ["integer", "null"],
           "format": "uint32",
           "minimum": 0
+        },
+        "end": {
+          "description": "The end interval (0-based, exclusive).",
+          "type": ["integer", "null"],
+          "format": "uint32",
+          "minimum": 0
         }
       },
-      "additionalProperties": false,
-      "required": ["name"]
+      "additionalProperties": false
+    },
+    "Format": {
+      "description": "An enumeration with all the possible formats.",
+      "type": "string",
+      "enum": ["Bam", "Cram", "Vcf", "Bcf"]
     }
   }
 }

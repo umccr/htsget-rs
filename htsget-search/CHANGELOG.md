@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.4](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.11.3...htsget-search-v0.11.4) - 2025-09-03
+
+### Other
+
+- updated the following local packages: htsget-config, htsget-storage
+
+## [0.11.3](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.11.2...htsget-search-v0.11.3) - 2025-08-21
+
+### Other
+
+- updated the following local packages: htsget-config, htsget-storage
+
+## [0.11.2](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.11.1...htsget-search-v0.11.2) - 2025-08-15
+
+### Fixed
+
+- data server should forward JWT token if auth is used
+
+### Other
+
+- remove duplicate changelog section
+- Merge pull request #320 from umccr/feat/auth
+
 ## [0.11.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.11.0...htsget-search-v0.11.1) - 2025-08-11
 
 ### Other

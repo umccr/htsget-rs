@@ -2,7 +2,7 @@
 # Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/docs/examples/tls_ticket_server.toml`
 
 ticket_server.addr = "0.0.0.0:8080"
-ticket_server.cors_allow_origins = "All"
+ticket_server.cors.allow_origins = "All"
 ticket_server.tls.cert = "cert.pem"
 ticket_server.tls.key = "key.pem"
 data_server.addr = "0.0.0.0:8081"
