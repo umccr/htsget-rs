@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.3...htsget-http-v0.7.4) - 2025-09-25
+
+### Added
+
+- use prefix, id or regex based location to match authorization
+- *(config)* add dynamic location option for authorization rules
+- implement extension forwarding logic from Lambda events
+- implement header forwarding logic
+- implement new config options and refactor code for already used options
+- *(config)* start splitting out JWT authorization/authentication
+
+### Other
+
+- regenerate docs and adjust json schema definition
+- update tests based on new auth config
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into feat/generalized-auth
+
 ## [0.7.3](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.2...htsget-http-v0.7.3) - 2025-09-03
 
 ### Added

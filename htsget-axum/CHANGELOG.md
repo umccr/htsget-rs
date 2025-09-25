@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.6.2...htsget-axum-v0.7.0) - 2025-09-25
+
+### Added
+
+- implement extension forwarding logic from Lambda events
+- implement header forwarding logic
+- [**breaking**] rename tls to http for client config
+
+### Other
+
+- add integration tests for prefix, id and regex
+
 ## [0.6.2](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.6.1...htsget-axum-v0.6.2) - 2025-09-03
 
 ### Added
