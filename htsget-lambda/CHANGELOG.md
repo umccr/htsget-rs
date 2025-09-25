@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.4...htsget-lambda-v0.7.5) - 2025-09-25
+
+### Added
+
+- implement extension forwarding logic from Lambda events
+
+### Other
+
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into feature/aws-vpc-lattice-support
+
 ## [0.7.4](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.3...htsget-lambda-v0.7.4) - 2025-09-03
 
 ### Other

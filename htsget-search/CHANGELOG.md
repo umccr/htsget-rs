@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.11.4...htsget-search-v0.12.0) - 2025-09-25
+
+### Added
+
+- use prefix, id or regex based location to match authorization
+- [**breaking**] add id-based simple location and rework prefix
+
+### Other
+
+- regenerate docs and adjust json schema definition
+
 ## [0.11.4](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.11.3...htsget-search-v0.11.4) - 2025-09-03
 
 ### Other

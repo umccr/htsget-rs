@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.3](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.2...htsget-actix-v0.11.3) - 2025-09-25
+
+### Added
+
+- implement extension forwarding logic from Lambda events
+
+### Other
+
+- add integration tests for prefix, id and regex
+
 ## [0.11.2](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.1...htsget-actix-v0.11.2) - 2025-09-03
 
 ### Added
