@@ -21,7 +21,7 @@ async fn authenticate(
   headers: &HeaderMap,
   auth: Option<Auth>,
 ) -> Result<Option<(TokenData<Value>, Auth)>> {
-  if let Some(auth) = auth {
+  if let Some(mut auth) = auth {
     if auth.config().auth_mode().is_some() {
       return Ok(Some((auth.validate_jwt(headers).await?, auth)));
     }
@@ -37,7 +37,7 @@ async fn authorize(
   auth: Option<(TokenData<Value>, Auth)>,
   extensions: Option<Value>,
 ) -> Result<Option<AuthorizationRestrictions>> {
-  if let Some((_, auth)) = auth {
+  if let Some((_, mut auth)) = auth {
     let _rules = auth
       .validate_authorization(headers, path, queries, extensions)
       .await?;

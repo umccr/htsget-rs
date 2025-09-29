@@ -17,11 +17,8 @@ async fn main() -> io::Result<()> {
 
   if let Some(path) = Config::parse_args_with_command(command!())? {
     let mut config = Config::from_path(&path)?;
-
+    config.set_package_info(package_info!())?;
     config.setup_tracing()?;
-
-    let service_info = config.service_info_mut();
-    service_info.set_from_package_info(package_info!())?;
 
     debug!(config = ?config, "config parsed");
 
