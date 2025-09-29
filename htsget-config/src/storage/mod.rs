@@ -120,6 +120,16 @@ impl Backend {
     }
   }
 
+  /// Get the url variant as a mutable reference and error if it is not `Url`.
+  #[cfg(feature = "url")]
+  pub fn as_url_mut(&mut self) -> Result<&mut Url> {
+    if let Backend::Url(url) = self {
+      Ok(url)
+    } else {
+      Err(Error::ParseError("not a `File` variant".to_string()))
+    }
+  }
+
   /// Set the C4GH keys.
   #[cfg(feature = "experimental")]
   pub fn set_keys(&mut self, keys: Option<C4GHKeys>) {

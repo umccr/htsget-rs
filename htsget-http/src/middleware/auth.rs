@@ -1,7 +1,7 @@
 //! The htsget authorization middleware.
 //!
 
-use crate::HtsGetError;
+use crate::{HtsGetError, Htsget};
 use crate::error::Result as HtsGetResult;
 use crate::middleware::error::Error::AuthBuilderError;
 use crate::middleware::error::Result;
@@ -83,20 +83,40 @@ impl Auth {
   pub async fn fetch_from_url<D: DeserializeOwned>(
     &self,
     url: &str,
-    headers: HeaderMap,
+    mut headers: HeaderMap,
   ) -> HtsGetResult<D> {
+    headers.insert("User-Agent", HeaderValue::from_str("htsget-rs").unwrap());
     trace!("fetching url: {}", url);
     let err = || HtsGetError::InternalError(format!("failed to fetch data from {url}"));
+    println!("HEADERS: {:?}", headers);
     let response = self
       .config
       .http_client()
       .get(url)
-      .headers(headers)
+      .headers(headers.clone())
       .send()
       .await
-      .map_err(|_| err())?;
+      .map_err(|_| HtsGetError::InternalError(format!("failed to fetch data from {url}")))?;
+    let test = self
+        .config
+        .http_client()
+        .head("https://www.google.com")
+        .send()
+        .await
+        .map_err(|_| HtsGetError::InternalError(format!("failed to fetch data from {url}")))?;
+    println!("TEST: {:?}", test);
+    println!("ELSA: {:?}", response);
+    println!("ELSA: {:?}", String::from_utf8(response.bytes().await.map_err(|err| HtsGetError::InternalError(err.to_string()))?.to_vec()));
 
-    response.json().await.map_err(|_| err())
+    let response = self
+        .config
+        .http_client()
+        .get(url)
+        .headers(headers)
+        .send()
+        .await
+        .map_err(|_| HtsGetError::InternalError(format!("failed to fetch data from {url}")))?;
+    response.json().await.map_err(|err| HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}")))
   }
 
   /// Get a decoding key form the JWKS url.

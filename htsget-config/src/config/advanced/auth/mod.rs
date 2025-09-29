@@ -50,8 +50,13 @@ impl AuthConfig {
   }
 
   /// Get the http client.
-  pub fn http_client(&self) -> &ClientWithMiddleware {
-    &self.http_client.0
+  pub fn http_client(&mut self) -> Result<&ClientWithMiddleware> {
+    self.http_client.as_inner_built()
+  }
+
+  /// Get a mutable reference to the inner client builder.
+  pub fn inner_client_mut(&mut self) -> &mut HttpClient {
+    &mut self.http_client
   }
 
   /// Get the authorization mode.
@@ -203,7 +208,7 @@ impl AuthConfigBuilder {
       forward_extensions: self.forward_extensions,
       http_client: self
         .http_client
-        .unwrap_or(HttpClient::try_from(HttpClientConfig::default())?),
+        .unwrap_or(HttpClient::from(HttpClientConfig::default())),
       #[cfg(feature = "experimental")]
       suppress_errors: self.suppress_errors,
       #[cfg(feature = "experimental")]

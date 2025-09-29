@@ -206,7 +206,7 @@ impl From<LocationsOneOrMany> for Locations {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 struct ExtendedLocation {
-  #[serde(flatten)]
+  #[serde(flatten, alias = "backend")]
   location: StringLocation,
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
@@ -218,6 +218,7 @@ struct ExtendedLocation {
 #[serde(default, deny_unknown_fields)]
 struct StringLocation {
   /// The location, which should start with `file://`, `s3://`, `http://` or `https://`.
+  #[serde(alias = "backend")]
   location: Option<String>,
   /// The prefix or id match configuration.
   #[serde(flatten)]
@@ -228,6 +229,7 @@ struct StringLocation {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 struct MapLocation {
+  #[serde(alias = "backend")]
   location: Backend,
   append_to: String,
   prefix_or_id: Option<PrefixOrId>,

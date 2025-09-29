@@ -5,13 +5,14 @@ use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
-use reqwest::Client;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest::{Client, ClientBuilder};
+use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use std::env::temp_dir;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub mod allow_guard;
 pub mod auth;
@@ -32,26 +33,74 @@ pub enum FormattingStyle {
 }
 
 /// A wrapper around a reqwest client to support creating from config fields.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields, try_from = "HttpClientConfig")]
-pub struct HttpClient(ClientWithMiddleware);
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, from = "HttpClientConfig")]
+pub struct HttpClient {
+  use_cache: bool,
+  builder: Option<Arc<ClientBuilder>>,
+  client: Option<ClientWithMiddleware>,
+}
 
 impl HttpClient {
   /// Create a new client.
   pub fn new(client: ClientWithMiddleware) -> Self {
-    Self(client)
+    Self {
+      use_cache: false,
+      builder: None,
+      client: Some(client),
+    }
   }
 
-  /// Get the inner client value.
-  pub fn into_inner(self) -> ClientWithMiddleware {
-    self.0
+  /// Set the client from an incomplete builder.
+  pub fn new_with_builder(builder: ClientBuilder, use_cache: bool) -> Self {
+    Self {
+      use_cache,
+      builder: Some(Arc::new(builder)),
+      client: None,
+    }
+  }
+
+  /// Get the client builder.
+  pub fn builder(&mut self) -> Result<ClientBuilder> {
+    let err = || ParseError("client already built".to_string());
+    Arc::try_unwrap(self.builder.take().ok_or_else(err)?).map_err(|_| err())
+  }
+
+  /// Set the builder.
+  pub fn set_builder(&mut self, builder: ClientBuilder) {
+    self.builder = Some(Arc::new(builder));
+  }
+
+  /// Get the inner client, building it if necessary.
+  pub fn as_inner_built(&mut self) -> Result<&ClientWithMiddleware> {
+    if let Some(ref client) = self.client {
+      return Ok(client);
+    }
+
+    let inner_client = self
+      .builder()?
+      .build()
+      .map_err(|err| ParseError(format!("building http client: {err}")))?;
+    let client = if self.use_cache {
+      let client_cache = temp_dir().join("htsget_rs_client_cache");
+      reqwest_middleware::ClientBuilder::new(inner_client)
+        .with(Cache(HttpCache {
+          mode: CacheMode::Default,
+          manager: CACacheManager::new(client_cache, false),
+          options: HttpCacheOptions::default(),
+        }))
+        .build()
+    } else {
+      reqwest_middleware::ClientBuilder::new(inner_client).build()
+    };
+
+    self.client = Some(client);
+    Ok(self.client.as_ref().expect("expected client"))
   }
 }
 
-impl TryFrom<HttpClientConfig> for HttpClient {
-  type Error = Error;
-
-  fn try_from(config: HttpClientConfig) -> Result<Self> {
+impl From<HttpClientConfig> for HttpClient {
+  fn from(config: HttpClientConfig) -> Self {
     let mut builder = Client::builder();
 
     let (certs, identity, use_cache) = config.into_inner();
@@ -65,24 +114,12 @@ impl TryFrom<HttpClientConfig> for HttpClient {
       builder = builder.identity(identity);
     }
 
-    let client = builder
-      .build()
-      .map_err(|err| ParseError(format!("building http client: {err}")))?;
-
-    let client = if use_cache {
-      let client_cache = temp_dir().join("htsget_rs_client_cache");
-      ClientBuilder::new(client)
-        .with(Cache(HttpCache {
-          mode: CacheMode::Default,
-          manager: CACacheManager::new(client_cache, false),
-          options: HttpCacheOptions::default(),
-        }))
-        .build()
-    } else {
-      ClientBuilder::new(client).build()
-    };
-
-    Ok(Self::new(client))
+    let client = builder.user_agent(format!(
+      "{}/{}",
+      env!("CARGO_PKG_NAME"),
+      env!("CARGO_PKG_VERSION")
+    ));
+    Self::new_with_builder(client, use_cache)
   }
 }
 

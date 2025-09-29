@@ -6,7 +6,7 @@ use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::data_server::{DataServerConfig, DataServerEnabled};
 use crate::config::location::{Location, Locations};
 use crate::config::parser::from_path;
-use crate::config::service_info::ServiceInfo;
+use crate::config::service_info::{PackageInfo, ServiceInfo};
 use crate::config::ticket_server::TicketServerConfig;
 use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
@@ -127,6 +127,30 @@ impl Config {
   /// Get the service info config.
   pub fn service_info(&self) -> &ServiceInfo {
     &self.service_info
+  }
+
+  /// Set the package info for the config from a dependent package.
+  pub fn set_package_info(&mut self, package_info: PackageInfo) -> Result<()> {
+    let id = package_info.id.to_string();
+
+    self.service_info.set_from_package_info(package_info)?;
+
+    if let Some(ref mut auth) = self.auth {
+      let client = auth.inner_client_mut();
+      let builder = client.builder()?;
+      client.set_builder(builder.user_agent(id.to_string()));
+    };
+
+    #[cfg(feature = "url")]
+    for location in self.locations.as_mut_slice() {
+      if let Ok(url) = location.backend_mut().as_url_mut() {
+        let client = url.inner_client_mut();
+        let builder = client.builder()?;
+        client.set_builder(builder.user_agent(id.to_string()));
+      }
+    }
+
+    Ok(())
   }
 
   /// Get a mutable instance of the service info config.

@@ -27,11 +27,11 @@ macro_rules! package_info {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PackageInfo {
-  id: String,
-  name: String,
-  version: String,
-  description: String,
-  documentation_url: String,
+  pub(crate) id: String,
+  pub(crate) name: String,
+  pub(crate) version: String,
+  pub(crate) description: String,
+  pub(crate) documentation_url: String,
 }
 
 impl PackageInfo {
