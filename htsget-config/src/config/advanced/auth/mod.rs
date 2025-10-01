@@ -108,7 +108,7 @@ impl AuthConfig {
   /// Set the user-agent information from the package info.
   pub fn set_from_package_info(&mut self, info: &PackageInfo) -> Result<()> {
     let client = self.inner_client_mut();
-    let builder = client.config()?;
+    let builder = client.take_config()?;
     client.set_config(builder.with_user_agent(info.id.to_string()));
 
     Ok(())

@@ -116,7 +116,7 @@ impl Backend {
     if let Backend::Url(url) = self {
       Ok(url)
     } else {
-      Err(Error::ParseError("not a `File` variant".to_string()))
+      Err(Error::ParseError("not a `Url` variant".to_string()))
     }
   }
 
@@ -126,7 +126,7 @@ impl Backend {
     if let Backend::Url(url) = self {
       Ok(url)
     } else {
-      Err(Error::ParseError("not a `File` variant".to_string()))
+      Err(Error::ParseError("not a `Url` variant".to_string()))
     }
   }
 

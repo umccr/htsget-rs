@@ -56,8 +56,8 @@ impl HttpClient {
     }
   }
 
-  /// Get the client builder.
-  pub fn config(&mut self) -> Result<HttpClientConfig> {
+  /// Get the client builder by taking out the config value.
+  pub fn take_config(&mut self) -> Result<HttpClientConfig> {
     self
       .config
       .take()
@@ -75,7 +75,7 @@ impl HttpClient {
       return Ok(client);
     }
 
-    let config = self.config()?;
+    let config = self.take_config()?;
     let mut builder = Client::builder();
 
     let (certs, identity, use_cache, user_agent) = config.into_inner();

@@ -48,7 +48,7 @@ impl Locations {
     for location in self.as_mut_slice() {
       if let Ok(url) = location.backend_mut().as_url_mut() {
         let client = url.inner_client_mut();
-        let builder = client.config()?;
+        let builder = client.take_config()?;
         client.set_config(builder.with_user_agent(_info.id.to_string()));
       }
     }
