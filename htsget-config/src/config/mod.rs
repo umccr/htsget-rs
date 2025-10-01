@@ -149,6 +149,14 @@ impl Config {
     if let Some(ref mut auth) = self.auth {
       auth.set_from_package_info(&self.package_info)?;
     };
+    if let Some(ref mut auth) = self.ticket_server.auth {
+      auth.set_from_package_info(&self.package_info)?;
+    }
+    if let DataServerEnabled::Some(ref mut data_server_config) = self.data_server {
+      if let Some(ref mut auth) = data_server_config.auth {
+        auth.set_from_package_info(&self.package_info)?;
+      }
+    }
 
     self.locations.set_from_package_info(&self.package_info)?;
 
