@@ -50,7 +50,7 @@ pub enum Backend {
   S3(S3),
   #[cfg(feature = "url")]
   #[serde(alias = "url", alias = "URL")]
-  Url(Url),
+  Url(Box<Url>),
 }
 
 impl Backend {

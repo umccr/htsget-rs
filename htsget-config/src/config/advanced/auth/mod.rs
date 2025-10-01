@@ -7,6 +7,7 @@
 use crate::config::advanced::HttpClient;
 use crate::config::advanced::auth::authorization::{ForwardExtensions, UrlOrStatic};
 use crate::config::advanced::auth::jwt::AuthMode;
+use crate::config::service_info::PackageInfo;
 use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
 use reqwest_middleware::ClientWithMiddleware;
@@ -102,6 +103,15 @@ impl AuthConfig {
   /// Get the extensions to forward.
   pub fn forward_extensions(&self) -> &[ForwardExtensions] {
     self.forward_extensions.as_slice()
+  }
+
+  /// Set the user-agent information from the package info.
+  pub fn set_from_package_info(&mut self, info: &PackageInfo) -> Result<()> {
+    let client = self.inner_client_mut();
+    let builder = client.config()?;
+    client.set_config(builder.with_user_agent(info.id.to_string()));
+
+    Ok(())
   }
 }
 

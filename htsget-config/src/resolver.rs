@@ -152,7 +152,7 @@ impl StorageResolver for Location {
         Some(T::from_s3(s3, query).await)
       }
       #[cfg(feature = "url")]
-      Backend::Url(url_storage) => Some(T::from_url(url_storage.clone(), query).await),
+      Backend::Url(url_storage) => Some(T::from_url(*url_storage.clone(), query).await),
     }
   }
 }
@@ -339,7 +339,7 @@ mod tests {
     let regex_location = RegexLocation::new(
       "(id)-1".parse().unwrap(),
       "$1-test".to_string(),
-      Backend::Url(url_storage.clone()),
+      Backend::Url(Box::new(url_storage.clone())),
       Default::default(),
     );
     expected_resolved_request(
@@ -349,7 +349,7 @@ mod tests {
     .await;
 
     let location = SimpleLocation::new(
-      Backend::Url(url_storage),
+      Backend::Url(Box::new(url_storage)),
       "".to_string(),
       Some(PrefixOrId::Prefix("".to_string())),
     );

@@ -77,7 +77,14 @@ pub async fn run_handler(path: &Path) -> Result<(), Error> {
   let service_info = config.service_info().clone();
   let cors = config.ticket_server().cors().clone();
   let auth = config.ticket_server().auth().cloned();
-  let router = TicketServer::router(config.into_locations(), service_info, cors, auth)?;
+  let package_info = config.package_info().clone();
+  let router = TicketServer::router(
+    config.into_locations(),
+    service_info,
+    cors,
+    auth,
+    Some(package_info),
+  )?;
 
   lambda_runtime::run(Adapter::from(router)).await
 }

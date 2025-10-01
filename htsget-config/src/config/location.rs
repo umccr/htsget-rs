@@ -2,6 +2,7 @@
 //!
 
 use crate::config::advanced::regex_location::RegexLocation;
+use crate::config::service_info::PackageInfo;
 use crate::error::{Error::ParseError, Result};
 use crate::storage::Backend;
 #[cfg(feature = "experimental")]
@@ -39,6 +40,20 @@ impl Locations {
   /// Get locations as a mutable slice of `LocationEither`.
   pub fn as_mut_slice(&mut self) -> &mut [Location] {
     self.0.as_mut_slice()
+  }
+
+  /// Set the user-agent information from the package info.
+  pub fn set_from_package_info(&mut self, _info: &PackageInfo) -> Result<()> {
+    #[cfg(feature = "url")]
+    for location in self.as_mut_slice() {
+      if let Ok(url) = location.backend_mut().as_url_mut() {
+        let client = url.inner_client_mut();
+        let builder = client.config()?;
+        client.set_config(builder.with_user_agent(_info.id.to_string()));
+      }
+    }
+
+    Ok(())
   }
 }
 
@@ -378,7 +393,7 @@ impl TryFrom<String> for BackendWithAppend {
         .map_err(|err: InvalidUri| error::Error::ParseError(err.to_string()))?;
       let url = Url::new(uri.clone(), Some(uri), true, vec![], Default::default()).try_into()?;
 
-      return Ok(BackendWithAppend(Backend::Url(url), to_append));
+      return Ok(BackendWithAppend(Backend::Url(Box::new(url)), to_append));
     }
 
     Err(ParseError(

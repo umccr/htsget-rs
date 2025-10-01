@@ -16,7 +16,7 @@ use axum::Router;
 use axum::extract::Request;
 use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
-use htsget_config::config::service_info::ServiceInfo;
+use htsget_config::config::service_info::{PackageInfo, ServiceInfo};
 use htsget_config::http::TlsServerConfig;
 use htsget_config::types::Scheme;
 use htsget_http::middleware::auth::Auth;
@@ -39,15 +39,22 @@ pub struct AppState<H: HtsGet> {
   pub(crate) htsget: H,
   pub(crate) service_info: ServiceInfo,
   pub(crate) auth_middleware: Option<Auth>,
+  pub(crate) package_info: Option<PackageInfo>,
 }
 
 impl<H: HtsGet> AppState<H> {
   /// Create a new app state.
-  pub fn new(htsget: H, service_info: ServiceInfo, auth_middleware: Option<Auth>) -> Self {
+  pub fn new(
+    htsget: H,
+    service_info: ServiceInfo,
+    auth_middleware: Option<Auth>,
+    package_info: Option<PackageInfo>,
+  ) -> Self {
     Self {
       htsget,
       service_info,
       auth_middleware,
+      package_info,
     }
   }
 }
@@ -125,17 +132,24 @@ pub struct BindServer {
   scheme: Scheme,
   cors: CorsConfig,
   auth: Option<AuthConfig>,
+  package_info: Option<PackageInfo>,
 }
 
 impl BindServer {
   /// Create a new bind server instance.
-  pub fn new(addr: SocketAddr, cors: CorsConfig, auth: Option<AuthConfig>) -> Self {
+  pub fn new(
+    addr: SocketAddr,
+    cors: CorsConfig,
+    auth: Option<AuthConfig>,
+    package_info: Option<PackageInfo>,
+  ) -> Self {
     Self {
       addr,
       cert_key_pair: None,
       scheme: Scheme::Http,
       cors,
       auth,
+      package_info,
     }
   }
 
@@ -145,6 +159,7 @@ impl BindServer {
     cors: CorsConfig,
     auth: Option<AuthConfig>,
     tls: TlsServerConfig,
+    package_info: Option<PackageInfo>,
   ) -> Self {
     Self {
       addr,
@@ -152,6 +167,7 @@ impl BindServer {
       scheme: Scheme::Https,
       cors,
       auth,
+      package_info,
     }
   }
 
@@ -197,6 +213,7 @@ impl BindServer {
       service_info,
       self.cors.clone(),
       self.auth.clone(),
+      self.package_info.clone(),
     ))
   }
 

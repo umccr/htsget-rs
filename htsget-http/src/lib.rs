@@ -163,7 +163,7 @@ mod tests {
     );
 
     assert_eq!(
-      get(get_searcher(), request, Endpoint::Reads, None, None).await,
+      get(get_searcher(), request, Endpoint::Reads, None, None, None).await,
       Ok(expected_bam_json_response(expected_response_headers))
     );
   }
@@ -180,7 +180,7 @@ mod tests {
     );
 
     assert!(matches!(
-      get(get_searcher(), request, Endpoint::Reads, None, None).await,
+      get(get_searcher(), request, Endpoint::Reads, None, None, None).await,
       Err(HtsGetError::UnsupportedFormat(_))
     ));
   }
@@ -202,7 +202,15 @@ mod tests {
     );
 
     assert_eq!(
-      get(get_searcher(), request, Endpoint::Variants, None, None).await,
+      get(
+        get_searcher(),
+        request,
+        Endpoint::Variants,
+        None,
+        None,
+        None
+      )
+      .await,
       Ok(expected_vcf_json_response(expected_response_headers))
     );
   }
@@ -224,7 +232,16 @@ mod tests {
     expected_response_headers.insert("Range".to_string(), "bytes=0-2596798".to_string());
 
     assert_eq!(
-      post(get_searcher(), body, request, Endpoint::Reads, None, None).await,
+      post(
+        get_searcher(),
+        body,
+        request,
+        Endpoint::Reads,
+        None,
+        None,
+        None
+      )
+      .await,
       Ok(expected_bam_json_response(expected_response_headers))
     );
   }
@@ -248,6 +265,7 @@ mod tests {
         body,
         request,
         Endpoint::Variants,
+        None,
         None,
         None
       )
@@ -282,6 +300,7 @@ mod tests {
         body,
         request,
         Endpoint::Variants,
+        None,
         None,
         None
       )

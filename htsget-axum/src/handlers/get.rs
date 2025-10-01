@@ -26,6 +26,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
       request,
       Endpoint::Reads,
       app_state.auth_middleware,
+      app_state.package_info.as_ref(),
       extension.map(|extension| extension.0),
     )
     .await,
@@ -48,6 +49,7 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
       request,
       Endpoint::Variants,
       app_state.auth_middleware,
+      app_state.package_info.as_ref(),
       extension.map(|extension| extension.0),
     )
     .await,

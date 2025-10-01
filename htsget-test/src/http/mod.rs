@@ -178,6 +178,7 @@ fn default_test_config_params(
     Default::default(),
     default_test_resolver(addr, scheme),
     auth_config,
+    Default::default(),
   )
 }
 

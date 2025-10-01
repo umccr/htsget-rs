@@ -7,7 +7,7 @@ use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::{App, HttpRequest, HttpServer, Responder, web};
 use htsget_config::config::advanced::cors::CorsConfig;
-use htsget_config::config::service_info::ServiceInfo;
+use htsget_config::config::service_info::{PackageInfo, ServiceInfo};
 use htsget_config::config::ticket_server::TicketServerConfig;
 pub use htsget_config::config::{Config, USAGE};
 use htsget_http::error::HtsGetError;
@@ -25,6 +25,7 @@ pub struct AppState<H: HtsGet> {
   pub htsget: H,
   pub config_service_info: ServiceInfo,
   pub auth: Option<Auth>,
+  pub package_info: Option<PackageInfo>,
 }
 
 /// Configure the query server.
@@ -33,12 +34,14 @@ pub fn configure_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
   config_service_info: ServiceInfo,
   auth: Option<Auth>,
+  package_info: Option<PackageInfo>,
 ) {
   service_config
     .app_data(web::Data::new(AppState {
       htsget,
       config_service_info,
       auth,
+      package_info,
     }))
     .service(
       web::scope("/reads")
@@ -135,16 +138,26 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
   htsget: H,
   config: TicketServerConfig,
   service_info: ServiceInfo,
+  package_info: PackageInfo,
 ) -> io::Result<Server> {
-  let app =
-    |htsget: H, config: TicketServerConfig, service_info: ServiceInfo, auth: Option<Auth>| {
-      App::new()
-        .configure(|service_config: &mut web::ServiceConfig| {
-          configure_server(service_config, htsget, service_info, auth);
-        })
-        .wrap(configure_cors(config.cors().clone()))
-        .wrap(TracingLogger::default())
-    };
+  let app = |htsget: H,
+             config: TicketServerConfig,
+             service_info: ServiceInfo,
+             auth: Option<Auth>,
+             package_info: PackageInfo| {
+    App::new()
+      .configure(|service_config: &mut web::ServiceConfig| {
+        configure_server(
+          service_config,
+          htsget,
+          service_info,
+          auth,
+          Some(package_info),
+        );
+      })
+      .wrap(configure_cors(config.cors().clone()))
+      .wrap(TracingLogger::default())
+  };
 
   let auth = config
     .auth()
@@ -160,6 +173,7 @@ pub fn run_server<H: HtsGet + Clone + Send + Sync + 'static>(
       config_copy.clone(),
       service_info.clone(),
       auth.clone(),
+      package_info.clone(),
     )
   });
 
@@ -195,6 +209,7 @@ mod tests {
 
   use crate::Config;
   use htsget_axum::server::BindServer;
+  use htsget_config::package_info;
   use htsget_config::storage::file::default_path;
   use htsget_config::types::JsonResponse;
   use htsget_http::middleware::auth::AuthBuilder;
@@ -346,6 +361,7 @@ mod tests {
             self.config.clone().into_locations(),
             self.config.service_info().clone(),
             self.auth.clone(),
+            Some(package_info!()),
           );
         })
         .wrap(configure_cors(self.config.ticket_server().cors().clone()));

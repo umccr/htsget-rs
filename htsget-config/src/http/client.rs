@@ -17,6 +17,7 @@ pub struct HttpClientConfig {
   cert: Option<Vec<Certificate>>,
   identity: Option<Identity>,
   use_cache: bool,
+  user_agent: Option<String>,
 }
 
 impl Default for HttpClientConfig {
@@ -25,6 +26,7 @@ impl Default for HttpClientConfig {
       cert: None,
       identity: None,
       use_cache: true,
+      user_agent: None,
     }
   }
 }
@@ -36,12 +38,26 @@ impl HttpClientConfig {
       cert,
       identity,
       use_cache,
+      ..Default::default()
     }
   }
 
   /// Get the inner client config.
-  pub fn into_inner(self) -> (Option<Vec<Certificate>>, Option<Identity>, bool) {
-    (self.cert, self.identity, self.use_cache)
+  pub fn into_inner(
+    self,
+  ) -> (
+    Option<Vec<Certificate>>,
+    Option<Identity>,
+    bool,
+    Option<String>,
+  ) {
+    (self.cert, self.identity, self.use_cache, self.user_agent)
+  }
+
+  /// Set the user agent string.
+  pub fn with_user_agent(mut self, user_agent: String) -> Self {
+    self.user_agent = Some(user_agent);
+    self
   }
 }
 
@@ -93,7 +109,7 @@ pub(crate) mod tests {
   async fn test_tls_client_config() {
     with_test_certificates(|path, _, _| {
       let client_config = client_config_from_path(path);
-      let (certs, identity, _) = client_config.into_inner();
+      let (certs, identity, _, _) = client_config.into_inner();
 
       assert_eq!(certs.unwrap().len(), 1);
       assert!(identity.is_some());

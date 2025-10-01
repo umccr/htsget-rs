@@ -74,6 +74,8 @@ pub struct Config {
   formatting_style: FormattingStyle,
   #[serde(skip_serializing)]
   auth: Option<AuthConfig>,
+  #[serde(skip)]
+  package_info: PackageInfo,
 }
 
 impl Config {
@@ -85,6 +87,7 @@ impl Config {
     service_info: ServiceInfo,
     locations: Locations,
     auth: Option<AuthConfig>,
+    package_info: PackageInfo,
   ) -> Self {
     Self {
       formatting_style,
@@ -93,6 +96,7 @@ impl Config {
       service_info,
       locations,
       auth,
+      package_info,
     }
   }
 
@@ -124,6 +128,11 @@ impl Config {
     }
   }
 
+  /// Get the package info.
+  pub fn package_info(&self) -> &PackageInfo {
+    &self.package_info
+  }
+
   /// Get the service info config.
   pub fn service_info(&self) -> &ServiceInfo {
     &self.service_info
@@ -131,24 +140,17 @@ impl Config {
 
   /// Set the package info for the config from a dependent package.
   pub fn set_package_info(&mut self, package_info: PackageInfo) -> Result<()> {
-    let id = package_info.id.to_string();
+    self.package_info = package_info;
 
-    self.service_info.set_from_package_info(package_info)?;
+    self
+      .service_info
+      .set_from_package_info(&self.package_info)?;
 
     if let Some(ref mut auth) = self.auth {
-      let client = auth.inner_client_mut();
-      let builder = client.builder()?;
-      client.set_builder(builder.user_agent(id.to_string()));
+      auth.set_from_package_info(&self.package_info)?;
     };
 
-    #[cfg(feature = "url")]
-    for location in self.locations.as_mut_slice() {
-      if let Ok(url) = location.backend_mut().as_url_mut() {
-        let client = url.inner_client_mut();
-        let builder = client.builder()?;
-        client.set_builder(builder.user_agent(id.to_string()));
-      }
-    }
+    self.locations.set_from_package_info(&self.package_info)?;
 
     Ok(())
   }
@@ -346,6 +348,7 @@ impl Default for Config {
       service_info: Default::default(),
       locations: Default::default(),
       auth: Default::default(),
+      package_info: Default::default(),
     }
   }
 }

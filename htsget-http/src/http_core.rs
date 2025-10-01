@@ -1,4 +1,4 @@
-use crate::HtsGetError::InvalidInput;
+use crate::HtsGetError::{InternalError, InvalidInput};
 use crate::middleware::auth::Auth;
 use crate::{
   Endpoint, HtsGetError, PostRequest, Result, convert_to_query, match_format_from_query,
@@ -8,6 +8,7 @@ use cfg_if::cfg_if;
 use futures::StreamExt;
 use futures::stream::FuturesOrdered;
 use htsget_config::config::advanced::auth::AuthorizationRestrictions;
+use htsget_config::config::service_info::PackageInfo;
 use htsget_config::types::{JsonResponse, Query, Request, Response};
 use htsget_search::HtsGet;
 use http::HeaderMap;
@@ -66,6 +67,7 @@ pub async fn get(
   request: Request,
   endpoint: Endpoint,
   auth: Option<Auth>,
+  package_info: Option<&PackageInfo>,
   extensions: Option<Value>,
 ) -> Result<JsonResponse> {
   let path = request.path().to_string();
@@ -82,7 +84,12 @@ pub async fn get(
   let query = query.into_iter().next().expect("single element vector");
 
   let response = if let Some(ref rules) = rules {
-    let remote_locations = rules.clone().into_remote_locations();
+    let mut remote_locations = rules.clone().into_remote_locations();
+    if let Some(package_info) = package_info {
+      remote_locations
+        .set_from_package_info(package_info)
+        .map_err(|_| InternalError("invalid remote locations".to_string()))?;
+    }
 
     // If there are remote locations, try them first.
     match remote_locations
@@ -115,6 +122,7 @@ pub async fn post(
   request: Request,
   endpoint: Endpoint,
   auth: Option<Auth>,
+  package_info: Option<&PackageInfo>,
   extensions: Option<Value>,
 ) -> Result<JsonResponse> {
   let path = request.path().to_string();
@@ -136,7 +144,12 @@ pub async fn post(
   let mut futures = FuturesOrdered::new();
   if let Some(ref rules) = rules {
     for query in queries {
-      let remote_locations = rules.clone().into_remote_locations();
+      let mut remote_locations = rules.clone().into_remote_locations();
+      if let Some(package_info) = package_info {
+        remote_locations
+          .set_from_package_info(package_info)
+          .map_err(|_| InternalError("invalid remote locations".to_string()))?;
+      }
       let owned_searcher = searcher.clone();
 
       // If there are remote locations, try them first.
