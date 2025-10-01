@@ -29,6 +29,7 @@ pub struct AuthorizationRestrictions {
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
   /// The location that the authorization applies to.
+  #[serde(alias = "backend")]
   location: Location,
   /// The reference name restrictions to apply to this path.
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -182,6 +183,7 @@ impl AuthorizationRestrictionsBuilder {
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRuleBuilder {
   /// The location that the authorization applies to.
+  #[serde(alias = "backend")]
   location: Option<Location>,
   /// The reference name restrictions to apply to this path.
   #[serde(skip_serializing_if = "Vec::is_empty")]
