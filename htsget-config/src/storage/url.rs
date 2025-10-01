@@ -2,6 +2,9 @@
 //!
 
 use crate::config::advanced;
+use crate::config::advanced::HttpClient;
+use crate::error::Result;
+use crate::http::client::HttpClientConfig;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
 use http::Uri;
@@ -27,7 +30,7 @@ pub struct Url {
   header_blacklist: Vec<String>,
   #[serde(skip_serializing)]
   #[schemars(skip)]
-  client: ClientWithMiddleware,
+  client: HttpClient,
   /// Optional Crypt4GH keys to use when decrypting data.
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
@@ -54,7 +57,7 @@ impl Url {
     response_url: Uri,
     forward_headers: bool,
     header_blacklist: Vec<String>,
-    client: ClientWithMiddleware,
+    client: HttpClient,
   ) -> Self {
     Self {
       url,
@@ -89,8 +92,13 @@ impl Url {
   }
 
   /// Get an owned client by cloning.
-  pub fn client_cloned(&self) -> ClientWithMiddleware {
-    self.client.clone()
+  pub fn client_cloned(&mut self) -> Result<ClientWithMiddleware> {
+    self.client.as_inner_built().cloned()
+  }
+
+  /// Get a mutable reference to the inner client builder.
+  pub fn inner_client_mut(&mut self) -> &mut HttpClient {
+    &mut self.client
   }
 
   #[cfg(feature = "experimental")]
@@ -113,7 +121,7 @@ impl Default for Url {
       Default::default(),
       Default::default(),
       Default::default(),
-      Default::default(),
+      HttpClient::from(HttpClientConfig::default()),
     );
     url.is_defaulted = true;
     url

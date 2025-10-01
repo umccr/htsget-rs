@@ -48,7 +48,7 @@ pub struct DataServerConfig {
   tls: Option<TlsServerConfig>,
   cors: CorsConfig,
   #[serde(skip_serializing)]
-  auth: Option<AuthConfig>,
+  pub(crate) auth: Option<AuthConfig>,
   ticket_origin: Option<String>,
 }
 

@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 use reqwest::Client;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use std::env::temp_dir;
 use std::fs::File;
@@ -32,29 +32,53 @@ pub enum FormattingStyle {
 }
 
 /// A wrapper around a reqwest client to support creating from config fields.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields, try_from = "HttpClientConfig")]
-pub struct HttpClient(ClientWithMiddleware);
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, from = "HttpClientConfig")]
+pub struct HttpClient {
+  config: Option<HttpClientConfig>,
+  client: Option<ClientWithMiddleware>,
+}
 
 impl HttpClient {
   /// Create a new client.
   pub fn new(client: ClientWithMiddleware) -> Self {
-    Self(client)
+    Self {
+      config: None,
+      client: Some(client),
+    }
   }
 
-  /// Get the inner client value.
-  pub fn into_inner(self) -> ClientWithMiddleware {
-    self.0
+  /// Set the client from an incomplete builder.
+  pub fn new_with_config(config: HttpClientConfig) -> Self {
+    Self {
+      config: Some(config),
+      client: None,
+    }
   }
-}
 
-impl TryFrom<HttpClientConfig> for HttpClient {
-  type Error = Error;
+  /// Get the client builder by taking out the config value.
+  pub fn take_config(&mut self) -> Result<HttpClientConfig> {
+    self
+      .config
+      .take()
+      .ok_or_else(|| ParseError("client already built".to_string()))
+  }
 
-  fn try_from(config: HttpClientConfig) -> Result<Self> {
+  /// Set the builder.
+  pub fn set_config(&mut self, config: HttpClientConfig) {
+    self.config = Some(config);
+  }
+
+  /// Get the inner client, building it if necessary.
+  pub fn as_inner_built(&mut self) -> Result<&ClientWithMiddleware> {
+    if let Some(ref client) = self.client {
+      return Ok(client);
+    }
+
+    let config = self.take_config()?;
     let mut builder = Client::builder();
 
-    let (certs, identity, use_cache) = config.into_inner();
+    let (certs, identity, use_cache, user_agent) = config.into_inner();
 
     if let Some(certs) = certs {
       for cert in certs {
@@ -64,14 +88,16 @@ impl TryFrom<HttpClientConfig> for HttpClient {
     if let Some(identity) = identity {
       builder = builder.identity(identity);
     }
+    if let Some(user_agent) = user_agent {
+      builder = builder.user_agent(user_agent);
+    }
 
-    let client = builder
+    let inner_client = builder
       .build()
       .map_err(|err| ParseError(format!("building http client: {err}")))?;
-
     let client = if use_cache {
       let client_cache = temp_dir().join("htsget_rs_client_cache");
-      ClientBuilder::new(client)
+      reqwest_middleware::ClientBuilder::new(inner_client)
         .with(Cache(HttpCache {
           mode: CacheMode::Default,
           manager: CACacheManager::new(client_cache, false),
@@ -79,10 +105,17 @@ impl TryFrom<HttpClientConfig> for HttpClient {
         }))
         .build()
     } else {
-      ClientBuilder::new(client).build()
+      reqwest_middleware::ClientBuilder::new(inner_client).build()
     };
 
-    Ok(Self::new(client))
+    self.client = Some(client);
+    Ok(self.client.as_ref().expect("expected client"))
+  }
+}
+
+impl From<HttpClientConfig> for HttpClient {
+  fn from(config: HttpClientConfig) -> Self {
+    Self::new_with_config(config)
   }
 }
 

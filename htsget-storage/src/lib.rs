@@ -193,9 +193,11 @@ impl Storage {
 
   /// Create from url config.
   #[cfg(feature = "url")]
-  pub async fn from_url(url: &storage::url::Url, _query: &Query) -> Result<Storage> {
+  pub async fn from_url(mut url: storage::url::Url, _query: &Query) -> Result<Storage> {
     let storage = Storage::new(UrlStorage::new(
-      url.client_cloned(),
+      url
+        .client_cloned()
+        .map_err(|err| StorageError::InternalError(err.to_string()))?,
       url.url().clone(),
       url.response_url().clone(),
       url.forward_headers(),

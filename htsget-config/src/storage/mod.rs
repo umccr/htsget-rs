@@ -50,7 +50,7 @@ pub enum Backend {
   S3(S3),
   #[cfg(feature = "url")]
   #[serde(alias = "url", alias = "URL")]
-  Url(Url),
+  Url(Box<Url>),
 }
 
 impl Backend {
@@ -116,7 +116,17 @@ impl Backend {
     if let Backend::Url(url) = self {
       Ok(url)
     } else {
-      Err(Error::ParseError("not a `File` variant".to_string()))
+      Err(Error::ParseError("not a `Url` variant".to_string()))
+    }
+  }
+
+  /// Get the url variant as a mutable reference and error if it is not `Url`.
+  #[cfg(feature = "url")]
+  pub fn as_url_mut(&mut self) -> Result<&mut Url> {
+    if let Backend::Url(url) = self {
+      Ok(url)
+    } else {
+      Err(Error::ParseError("not a `Url` variant".to_string()))
     }
   }
 

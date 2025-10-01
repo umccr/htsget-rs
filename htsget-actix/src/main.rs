@@ -17,11 +17,8 @@ async fn main() -> io::Result<()> {
 
   if let Some(path) = Config::parse_args_with_command(command!())? {
     let mut config = Config::from_path(&path)?;
-
+    config.set_package_info(package_info!())?;
     config.setup_tracing()?;
-
-    let service_info = config.service_info_mut();
-    service_info.set_from_package_info(package_info!())?;
 
     debug!(config = ?config, "config parsed");
 
@@ -30,20 +27,29 @@ async fn main() -> io::Result<()> {
 
       let ticket_server_config = config.ticket_server().clone();
       let service_info = config.service_info().clone();
+      let package_info = config.package_info().clone();
 
       select! {
         local_server = local_server => Ok(local_server??),
         actix_server = run_server(
           config.into_locations(),
           ticket_server_config,
-          service_info
+          service_info,
+          package_info,
         )? => actix_server
       }
     } else {
       let ticket_server_config = config.ticket_server().clone();
       let service_info = config.service_info().clone();
+      let package_info = config.package_info().clone();
 
-      run_server(config.into_locations(), ticket_server_config, service_info)?.await
+      run_server(
+        config.into_locations(),
+        ticket_server_config,
+        service_info,
+        package_info,
+      )?
+      .await
     }
   } else {
     Ok(())

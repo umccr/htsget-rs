@@ -27,11 +27,11 @@ macro_rules! package_info {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Default, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PackageInfo {
-  id: String,
-  name: String,
-  version: String,
-  description: String,
-  documentation_url: String,
+  pub(crate) id: String,
+  pub(crate) name: String,
+  pub(crate) version: String,
+  pub(crate) description: String,
+  pub(crate) documentation_url: String,
 }
 
 impl PackageInfo {
@@ -124,7 +124,7 @@ impl ServiceInfo {
   }
 
   /// Set the fields from the package info if they have not already been set.
-  pub fn set_from_package_info(&mut self, info: PackageInfo) -> Result<()> {
+  pub fn set_from_package_info(&mut self, info: &PackageInfo) -> Result<()> {
     let mut package_info: HashMap<String, Value> = from_value(to_value(info)?)?;
 
     package_info.extend(self.0.drain());
@@ -175,7 +175,7 @@ mod tests {
 
   fn update_service_info(result: &mut Config) {
     let info = result.service_info_mut();
-    info.set_from_package_info(package_info!()).unwrap();
+    info.set_from_package_info(&package_info!()).unwrap();
 
     assert!(result.service_info.0.contains_key("createdAt"));
     assert!(result.service_info.0.contains_key("updatedAt"));

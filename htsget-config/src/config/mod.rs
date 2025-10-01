@@ -6,7 +6,7 @@ use crate::config::advanced::auth::{AuthConfig, AuthorizationRestrictions};
 use crate::config::data_server::{DataServerConfig, DataServerEnabled};
 use crate::config::location::{Location, Locations};
 use crate::config::parser::from_path;
-use crate::config::service_info::ServiceInfo;
+use crate::config::service_info::{PackageInfo, ServiceInfo};
 use crate::config::ticket_server::TicketServerConfig;
 use crate::error::Error::{ArgParseError, ParseError, TracingError};
 use crate::error::Result;
@@ -74,6 +74,8 @@ pub struct Config {
   formatting_style: FormattingStyle,
   #[serde(skip_serializing)]
   auth: Option<AuthConfig>,
+  #[serde(skip)]
+  package_info: PackageInfo,
 }
 
 impl Config {
@@ -85,6 +87,7 @@ impl Config {
     service_info: ServiceInfo,
     locations: Locations,
     auth: Option<AuthConfig>,
+    package_info: PackageInfo,
   ) -> Self {
     Self {
       formatting_style,
@@ -93,6 +96,7 @@ impl Config {
       service_info,
       locations,
       auth,
+      package_info,
     }
   }
 
@@ -124,9 +128,39 @@ impl Config {
     }
   }
 
+  /// Get the package info.
+  pub fn package_info(&self) -> &PackageInfo {
+    &self.package_info
+  }
+
   /// Get the service info config.
   pub fn service_info(&self) -> &ServiceInfo {
     &self.service_info
+  }
+
+  /// Set the package info for the config from a dependent package.
+  pub fn set_package_info(&mut self, package_info: PackageInfo) -> Result<()> {
+    self.package_info = package_info;
+
+    self
+      .service_info
+      .set_from_package_info(&self.package_info)?;
+
+    if let Some(ref mut auth) = self.auth {
+      auth.set_from_package_info(&self.package_info)?;
+    };
+    if let Some(ref mut auth) = self.ticket_server.auth {
+      auth.set_from_package_info(&self.package_info)?;
+    }
+    if let DataServerEnabled::Some(ref mut data_server_config) = self.data_server {
+      if let Some(ref mut auth) = data_server_config.auth {
+        auth.set_from_package_info(&self.package_info)?;
+      }
+    }
+
+    self.locations.set_from_package_info(&self.package_info)?;
+
+    Ok(())
   }
 
   /// Get a mutable instance of the service info config.
@@ -322,6 +356,7 @@ impl Default for Config {
       service_info: Default::default(),
       locations: Default::default(),
       auth: Default::default(),
+      package_info: Default::default(),
     }
   }
 }

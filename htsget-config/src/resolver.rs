@@ -27,7 +27,7 @@ pub trait ResolveResponse {
 
   /// Convert from `Url`.
   #[cfg(feature = "url")]
-  async fn from_url(url_storage: &storage::url::Url, query: &Query) -> Result<Response>;
+  async fn from_url(url_storage: storage::url::Url, query: &Query) -> Result<Response>;
 }
 
 /// A trait which uses storage to resolve requests into responses.
@@ -152,7 +152,7 @@ impl StorageResolver for Location {
         Some(T::from_s3(s3, query).await)
       }
       #[cfg(feature = "url")]
-      Backend::Url(url_storage) => Some(T::from_url(url_storage, query).await),
+      Backend::Url(url_storage) => Some(T::from_url(*url_storage.clone(), query).await),
     }
   }
 }
@@ -210,7 +210,7 @@ mod tests {
   use crate::types::Url;
   use http::uri::Authority;
   #[cfg(feature = "url")]
-  use reqwest::ClientBuilder;
+  use {crate::config::advanced::HttpClient, reqwest::ClientBuilder};
   #[cfg(feature = "aws")]
   use {
     crate::config::advanced::allow_guard::{AllowGuard, ReferenceNames},
@@ -238,7 +238,7 @@ mod tests {
     }
 
     #[cfg(feature = "url")]
-    async fn from_url(url: &storage::url::Url, query: &Query) -> Result<Response> {
+    async fn from_url(url: storage::url::Url, query: &Query) -> Result<Response> {
       Ok(Response::new(
         Bam,
         Self::format_url(url.url().to_string().strip_suffix('/').unwrap(), query.id()),
@@ -333,13 +333,13 @@ mod tests {
       "https://example.com/".parse().unwrap(),
       true,
       vec![],
-      client,
+      HttpClient::new(client),
     );
 
     let regex_location = RegexLocation::new(
       "(id)-1".parse().unwrap(),
       "$1-test".to_string(),
-      Backend::Url(url_storage.clone()),
+      Backend::Url(Box::new(url_storage.clone())),
       Default::default(),
     );
     expected_resolved_request(
@@ -349,7 +349,7 @@ mod tests {
     .await;
 
     let location = SimpleLocation::new(
-      Backend::Url(url_storage),
+      Backend::Url(Box::new(url_storage)),
       "".to_string(),
       Some(PrefixOrId::Prefix("".to_string())),
     );

@@ -95,7 +95,7 @@ impl TryFrom<Url> for storage::url::Url {
   type Error = Error;
 
   fn try_from(storage: Url) -> Result<Self> {
-    let client = HttpClient::try_from(storage.http)?.0;
+    let client = HttpClient::from(storage.http);
 
     let url_storage = Self::new(
       storage.url.clone(),

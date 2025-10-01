@@ -16,7 +16,7 @@ pub struct TicketServerConfig {
   tls: Option<TlsServerConfig>,
   cors: CorsConfig,
   #[serde(skip_serializing)]
-  auth: Option<AuthConfig>,
+  pub(crate) auth: Option<AuthConfig>,
 }
 
 impl TicketServerConfig {

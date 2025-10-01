@@ -81,7 +81,7 @@ impl Auth {
 
   /// Fetch JWKS from the authorization server.
   pub async fn fetch_from_url<D: DeserializeOwned>(
-    &self,
+    &mut self,
     url: &str,
     headers: HeaderMap,
   ) -> HtsGetResult<D> {
@@ -90,17 +90,19 @@ impl Auth {
     let response = self
       .config
       .http_client()
+      .map_err(|_| err())?
       .get(url)
       .headers(headers)
       .send()
       .await
       .map_err(|_| err())?;
+    trace!("response: {:?}", response);
 
     response.json().await.map_err(|_| err())
   }
 
   /// Get a decoding key form the JWKS url.
-  pub async fn decode_jwks(&self, jwks_url: &Uri, token: &str) -> HtsGetResult<DecodingKey> {
+  pub async fn decode_jwks(&mut self, jwks_url: &Uri, token: &str) -> HtsGetResult<DecodingKey> {
     // Decode header and get the key id.
     let header = decode_header(token)?;
     let kid = header
@@ -199,7 +201,7 @@ impl Auth {
   /// that the authorization url is trusted in the config settings before calling the
   /// service. The claims are assumed to be valid.
   pub async fn query_authorization_service(
-    &self,
+    &mut self,
     headers: &HeaderMap,
     request_extensions: Option<Value>,
   ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
@@ -325,7 +327,7 @@ impl Auth {
 
   /// Validate only the JWT without looking up restrictions and validating those. Returns the
   /// decoded JWT token.
-  pub async fn validate_jwt(&self, headers: &HeaderMap) -> HtsGetResult<TokenData<Value>> {
+  pub async fn validate_jwt(&mut self, headers: &HeaderMap) -> HtsGetResult<TokenData<Value>> {
     let auth_token = headers
       .values()
       .find_map(|value| Authorization::<Bearer>::decode(&mut [value].into_iter()).ok())
@@ -335,16 +337,22 @@ impl Auth {
 
     let decoding_key = if let Some(ref decoding_key) = self.decoding_key {
       decoding_key
+    } else if matches!(self.config.auth_mode(), Some(AuthMode::Jwks(_))) {
+      let url = if let Some(AuthMode::Jwks(uri)) = self.config.auth_mode() {
+        uri.clone()
+      } else {
+        return Err(HtsGetError::InternalError(
+          "JWT validation not set".to_string(),
+        ));
+      };
+
+      &self.decode_jwks(&url, auth_token.token()).await?
+    } else if let Some(AuthMode::PublicKey(key)) = self.config.auth_mode() {
+      &Self::decode_public_key(key)?
     } else {
-      match self.config.auth_mode() {
-        Some(AuthMode::Jwks(jwks)) => &self.decode_jwks(jwks, auth_token.token()).await?,
-        Some(AuthMode::PublicKey(public_key)) => &Self::decode_public_key(public_key)?,
-        _ => {
-          return Err(HtsGetError::InternalError(
-            "JWT validation not set".to_string(),
-          ));
-        }
-      }
+      return Err(HtsGetError::InternalError(
+        "JWT validation not set".to_string(),
+      ));
     };
 
     // Decode and validate the JWT
@@ -395,7 +403,7 @@ impl Auth {
   /// 3. Queries the authorization service for restrictions based on the config or JWT claims.
   /// 4. Validates the restrictions to determine if the user is authorized.
   pub async fn validate_authorization(
-    &self,
+    &mut self,
     headers: &HeaderMap,
     path: &str,
     queries: &mut [Query],
@@ -1311,7 +1319,7 @@ mod tests {
 
   #[tokio::test]
   async fn validate_authorization_missing_auth_header() {
-    let auth = create_mock_auth_with_restrictions();
+    let mut auth = create_mock_auth_with_restrictions();
     let request = Request::new("sample1".to_string(), HashMap::new(), HeaderMap::new());
 
     let result = auth.validate_jwt(request.headers()).await;
@@ -1324,7 +1332,7 @@ mod tests {
 
   #[tokio::test]
   async fn validate_authorization_invalid_jwt_format() {
-    let auth = create_mock_auth_with_restrictions();
+    let mut auth = create_mock_auth_with_restrictions();
     let request = create_request_with_auth_header("sample1", HashMap::new(), "invalid.jwt.token");
 
     let result = auth.validate_jwt(request.headers()).await;

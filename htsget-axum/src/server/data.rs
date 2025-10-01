@@ -83,8 +83,8 @@ impl From<DataServerConfig> for BindServer {
     let auth = config.auth().cloned();
 
     match config.into_tls() {
-      None => Self::new(addr, cors, auth),
-      Some(tls) => Self::new_with_tls(addr, cors, auth, tls),
+      None => Self::new(addr, cors, auth, None),
+      Some(tls) => Self::new_with_tls(addr, cors, auth, tls, None),
     }
   }
 }
@@ -251,6 +251,7 @@ mod tests {
       "127.0.0.1:8080".parse().unwrap(),
       CorsConfig::default(),
       None,
+      None,
     );
     assert_eq!(formatter.get_scheme(), &Scheme::Http);
   }
@@ -262,8 +263,12 @@ mod tests {
 
   #[tokio::test]
   async fn get_addr_local_addr() {
-    let mut formatter =
-      BindServer::new("127.0.0.1:0".parse().unwrap(), CorsConfig::default(), None);
+    let mut formatter = BindServer::new(
+      "127.0.0.1:0".parse().unwrap(),
+      CorsConfig::default(),
+      None,
+      None,
+    );
     let server = formatter.bind_server().await.unwrap();
     assert_eq!(formatter.get_addr(), server.local_addr().unwrap());
   }
@@ -312,6 +317,7 @@ mod tests {
       CorsConfig::default(),
       None,
       server_config,
+      None,
     )
   }
 

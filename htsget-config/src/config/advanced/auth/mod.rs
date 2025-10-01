@@ -7,6 +7,7 @@
 use crate::config::advanced::HttpClient;
 use crate::config::advanced::auth::authorization::{ForwardExtensions, UrlOrStatic};
 use crate::config::advanced::auth::jwt::AuthMode;
+use crate::config::service_info::PackageInfo;
 use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
 use reqwest_middleware::ClientWithMiddleware;
@@ -50,8 +51,13 @@ impl AuthConfig {
   }
 
   /// Get the http client.
-  pub fn http_client(&self) -> &ClientWithMiddleware {
-    &self.http_client.0
+  pub fn http_client(&mut self) -> Result<&ClientWithMiddleware> {
+    self.http_client.as_inner_built()
+  }
+
+  /// Get a mutable reference to the inner client builder.
+  pub fn inner_client_mut(&mut self) -> &mut HttpClient {
+    &mut self.http_client
   }
 
   /// Get the authorization mode.
@@ -97,6 +103,15 @@ impl AuthConfig {
   /// Get the extensions to forward.
   pub fn forward_extensions(&self) -> &[ForwardExtensions] {
     self.forward_extensions.as_slice()
+  }
+
+  /// Set the user-agent information from the package info.
+  pub fn set_from_package_info(&mut self, info: &PackageInfo) -> Result<()> {
+    let client = self.inner_client_mut();
+    let builder = client.take_config()?;
+    client.set_config(builder.with_user_agent(info.id.to_string()));
+
+    Ok(())
   }
 }
 
@@ -203,7 +218,7 @@ impl AuthConfigBuilder {
       forward_extensions: self.forward_extensions,
       http_client: self
         .http_client
-        .unwrap_or(HttpClient::try_from(HttpClientConfig::default())?),
+        .unwrap_or(HttpClient::from(HttpClientConfig::default())),
       #[cfg(feature = "experimental")]
       suppress_errors: self.suppress_errors,
       #[cfg(feature = "experimental")]

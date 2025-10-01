@@ -69,18 +69,22 @@ where
 /// Run the Lambda handler using the config file contained at the path.
 pub async fn run_handler(path: &Path) -> Result<(), Error> {
   let mut config = Config::from_path(path)?;
-
+  config.set_package_info(package_info!())?;
   config.setup_tracing()?;
-
-  let service_info = config.service_info_mut();
-  service_info.set_from_package_info(package_info!())?;
 
   debug!(config = ?config, "config parsed");
 
   let service_info = config.service_info().clone();
   let cors = config.ticket_server().cors().clone();
   let auth = config.ticket_server().auth().cloned();
-  let router = TicketServer::router(config.into_locations(), service_info, cors, auth)?;
+  let package_info = config.package_info().clone();
+  let router = TicketServer::router(
+    config.into_locations(),
+    service_info,
+    cors,
+    auth,
+    Some(package_info),
+  )?;
 
   lambda_runtime::run(Adapter::from(router)).await
 }

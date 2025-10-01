@@ -10,7 +10,7 @@ use axum::routing::get;
 use htsget_config::config::Config;
 use htsget_config::config::advanced::auth::AuthConfig;
 use htsget_config::config::advanced::cors::CorsConfig;
-use htsget_config::config::service_info::ServiceInfo;
+use htsget_config::config::service_info::{PackageInfo, ServiceInfo};
 use htsget_config::config::ticket_server::TicketServerConfig;
 use htsget_http::middleware::auth::AuthBuilder;
 use htsget_search::HtsGet;
@@ -21,17 +21,17 @@ use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-impl From<TicketServerConfig> for BindServer {
+impl From<(TicketServerConfig, PackageInfo)> for BindServer {
   /// Returns a ticket server with TLS enabled if the http config is not None or without TLS enabled
   /// if it is None.
-  fn from(config: TicketServerConfig) -> Self {
+  fn from((config, package_info): (TicketServerConfig, PackageInfo)) -> Self {
     let addr = config.addr();
     let cors = config.cors().clone();
     let auth = config.auth().cloned();
 
     match config.into_tls() {
-      None => Self::new(addr, cors, auth),
-      Some(tls) => Self::new_with_tls(addr, cors, auth, tls),
+      None => Self::new(addr, cors, auth, Some(package_info)),
+      Some(tls) => Self::new_with_tls(addr, cors, auth, tls, Some(package_info)),
     }
   }
 }
@@ -44,6 +44,7 @@ pub struct TicketServer<H> {
   service_info: ServiceInfo,
   cors: CorsConfig,
   auth: Option<AuthConfig>,
+  package_info: Option<PackageInfo>,
 }
 
 impl<H> TicketServer<H>
@@ -57,6 +58,7 @@ where
     service_info: ServiceInfo,
     cors: CorsConfig,
     auth: Option<AuthConfig>,
+    package_info: Option<PackageInfo>,
   ) -> Self {
     Self {
       server,
@@ -64,6 +66,7 @@ where
       service_info,
       cors,
       auth,
+      package_info,
     }
   }
 
@@ -76,6 +79,7 @@ where
         self.service_info,
         self.cors,
         self.auth,
+        self.package_info,
       )?)
       .await
   }
@@ -86,6 +90,7 @@ where
     service_info: ServiceInfo,
     cors: CorsConfig,
     auth: Option<AuthConfig>,
+    package_info: Option<PackageInfo>,
   ) -> Result<Router> {
     let router = Router::default()
       .route(
@@ -110,6 +115,7 @@ where
         auth
           .map(|auth| AuthBuilder::default().with_config(auth).build())
           .transpose()?,
+        package_info,
       ));
 
     Ok(router)
@@ -129,9 +135,12 @@ where
 /// Spawn a task to run the ticket server.
 pub async fn join_handle(config: Config) -> Result<JoinHandle<Result<()>>> {
   let service_info = config.service_info().clone();
-  let ticket_server = BindServer::from(config.ticket_server().clone())
-    .bind_ticket_server(config.into_locations(), service_info)
-    .await?;
+  let ticket_server = BindServer::from((
+    config.ticket_server().clone(),
+    config.package_info().clone(),
+  ))
+  .bind_ticket_server(config.into_locations(), service_info)
+  .await?;
 
   info!(address = ?ticket_server.local_addr()?, "ticket server address bound to");
 
@@ -149,6 +158,7 @@ mod tests {
   use axum::body::{Body, to_bytes};
   use axum::response::Response;
   use htsget_config::config::Config;
+  use htsget_config::package_info;
   use htsget_config::storage::file::default_path;
   use htsget_config::types::JsonResponse;
   use htsget_test::http::auth::{
@@ -281,6 +291,7 @@ mod tests {
         self.config.service_info().clone(),
         self.config.ticket_server().cors().clone(),
         self.config.ticket_server().auth().cloned(),
+        Some(package_info!()),
       )
       .unwrap();
 

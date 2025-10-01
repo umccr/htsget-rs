@@ -35,6 +35,7 @@ pub async fn reads<H: HtsGet + Clone + Send + Sync + 'static>(
       request,
       Endpoint::Reads,
       app_state.auth.clone(),
+      app_state.package_info.as_ref(),
       extension.map(|extension| extension.into_inner()),
     )
     .await,
@@ -62,6 +63,7 @@ pub async fn variants<H: HtsGet + Clone + Send + Sync + 'static>(
       request,
       Endpoint::Variants,
       app_state.auth.clone(),
+      app_state.package_info.as_ref(),
       extension.map(|extension| extension.into_inner()),
     )
     .await,

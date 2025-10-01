@@ -453,7 +453,9 @@ and any region restrictions:
   "version": 1,
   "htsgetAuth": [
     {
-      "id": "dataset/001/id",
+      "location": {
+        "id": "dataset/001/id"
+      },
       "rules": [
         {
           "referenceName": "chr1",
@@ -481,8 +483,10 @@ For example, to specify a dynamic location for VCF files separately to BAM files
   "version": 1,
   "htsgetAuth": [
     {
-      "id": "dataset/001/id-bam",
-      "location": "s3://bucket-a/bam_file",
+      "location": {
+        "id": "dataset/001/id-bam",
+        "backend": "s3://bucket-a/bam_file"
+      },
       "rules": [
         {
           "format": "BAM"
@@ -490,8 +494,10 @@ For example, to specify a dynamic location for VCF files separately to BAM files
       ]
     },
     {
-      "id": "dataset/001/id-vcf",
-      "location": "s3://bucket-b/vcf_file",
+      "location": {
+        "id": "dataset/001/id-vcf",
+        "backend": "s3://bucket-b/vcf_file"
+      },
       "rules": [
         {
           "format": "VCF"
