@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.18.0...htsget-config-v0.19.0) - 2025-10-02
+
+### Added
+
+- *(config)* add backend as alias
+- [**breaking**] use http client config before constructing it in the builder
+- *(config)* [**breaking**] add user agent option for http clients and add alias for location in response
+
+### Fixed
+
+- *(config)* set package info in all locations including sub-properties of ticket server
+
+### Other
+
+- *(config)* fix mention of authorization locations
+- *(config)* clarify docs and function names
+- *(config)* fix test case
+
 ## [0.18.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.17.0...htsget-config-v0.18.0) - 2025-09-25
 
 ### Added
