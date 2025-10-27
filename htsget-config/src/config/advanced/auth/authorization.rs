@@ -38,7 +38,7 @@ impl<'de> Deserialize<'de> for UrlOrStatic {
 }
 
 /// The extensions to pass through to the authorization server from http request extensions.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ForwardExtensions {
   json_path: String,

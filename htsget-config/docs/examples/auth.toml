@@ -22,6 +22,8 @@ authorization_url = "https://www.example.com/authorize"
 passthrough_auth = true
 ## Any headers to forward
 #forward_headers = ["Content-Type"]
+## Forward the endpoint type to the auth service.
+#forward_endpoint_type = true
 
 ## Set client authentication
 #http.key = "key.pem"
