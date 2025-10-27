@@ -213,7 +213,7 @@ impl AuthConfigBuilder {
     self
   }
 
-  /// Set whether to forward the id
+  /// Set whether to forward the id.
   pub fn forward_id(mut self, forward_id: bool) -> Self {
     self.forward_id = forward_id;
     self
