@@ -37,10 +37,11 @@ async fn authorize(
   queries: &mut [Query],
   auth: Option<(TokenData<Value>, Auth)>,
   extensions: Option<Value>,
+  endpoint: &Endpoint,
 ) -> Result<Option<AuthorizationRestrictions>> {
   if let Some((_, mut auth)) = auth {
     let _rules = auth
-      .validate_authorization(headers, path, queries, extensions)
+      .validate_authorization(headers, path, queries, extensions, endpoint)
       .await?;
     cfg_if! {
       if #[cfg(feature = "experimental")] {
@@ -77,7 +78,15 @@ pub async fn get(
 
   let format = match_format_from_query(&endpoint, request.query())?;
   let mut query = vec![convert_to_query(request, format)?];
-  let rules = authorize(&headers, &path, query.as_mut_slice(), auth, extensions).await?;
+  let rules = authorize(
+    &headers,
+    &path,
+    query.as_mut_slice(),
+    auth,
+    extensions,
+    &endpoint,
+  )
+  .await?;
 
   debug!(endpoint = ?endpoint, query = ?query, "getting GET response");
 
@@ -137,7 +146,15 @@ pub async fn post(
   }
 
   let mut queries = body.get_queries(request, &endpoint)?;
-  let rules = authorize(&headers, &path, queries.as_mut_slice(), auth, extensions).await?;
+  let rules = authorize(
+    &headers,
+    &path,
+    queries.as_mut_slice(),
+    auth,
+    extensions,
+    &endpoint,
+  )
+  .await?;
 
   debug!(endpoint = ?endpoint, queries = ?queries, "getting POST response");
 

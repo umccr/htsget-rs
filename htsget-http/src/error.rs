@@ -1,4 +1,5 @@
 use http::StatusCode;
+use http::header::{InvalidHeaderName, InvalidHeaderValue};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -82,5 +83,17 @@ impl From<HtsGetSearchError> for HtsGetError {
       HtsGetSearchError::IoError(err) | HtsGetSearchError::ParseError(err) => Self::NotFound(err),
       HtsGetSearchError::InternalError(err) => Self::InternalError(err),
     }
+  }
+}
+
+impl From<InvalidHeaderName> for HtsGetError {
+  fn from(err: InvalidHeaderName) -> Self {
+    Self::InternalError(err.to_string())
+  }
+}
+
+impl From<InvalidHeaderValue> for HtsGetError {
+  fn from(err: InvalidHeaderValue) -> Self {
+    Self::InternalError(err.to_string())
   }
 }

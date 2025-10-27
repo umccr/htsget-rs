@@ -1,10 +1,10 @@
 //! The htsget authorization middleware.
 //!
 
-use crate::HtsGetError;
 use crate::error::Result as HtsGetResult;
 use crate::middleware::error::Error::AuthBuilderError;
 use crate::middleware::error::Result;
+use crate::{Endpoint, HtsGetError};
 use cfg_if::cfg_if;
 use headers::authorization::Bearer;
 use headers::{Authorization, Header};
@@ -72,6 +72,8 @@ impl Debug for Auth {
 }
 
 const FORWARD_HEADER_PREFIX: &str = "Htsget-Context-";
+const ENDPOINT_TYPE_HEADER_NAME: &str = "Endpoint-Type";
+const ID_HEADER_NAME: &str = "Id";
 
 impl Auth {
   /// Get the config for this auth layer instance.
@@ -134,6 +136,8 @@ impl Auth {
     &self,
     request_headers: &HeaderMap,
     request_extensions: Option<Value>,
+    request_endpoint: &Endpoint,
+    id: &str,
   ) -> HtsGetResult<HeaderMap> {
     let mut forwarded_headers = if self.config.passthrough_auth() {
       let auth_header = request_headers
@@ -186,12 +190,28 @@ impl Auth {
         })?;
 
         let header_name =
-          HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, extension.name()))
-            .map_err(|err| HtsGetError::InternalError(err.to_string()))?;
-        let value = HeaderValue::from_str(value)
-          .map_err(|err| HtsGetError::InternalError(err.to_string()))?;
+          HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, extension.name()))?;
+        let value = HeaderValue::from_str(value)?;
         forwarded_headers.insert(header_name, value);
       }
+    }
+
+    if self.config.forward_endpoint_type() {
+      let header_name = HeaderName::from_str(&format!(
+        "{}{}",
+        FORWARD_HEADER_PREFIX, ENDPOINT_TYPE_HEADER_NAME
+      ))?;
+      let value = HeaderValue::from_str(&request_endpoint.to_string())?;
+
+      forwarded_headers.insert(header_name, value);
+    }
+
+    if self.config.forward_id() {
+      let header_name =
+        HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, ID_HEADER_NAME))?;
+      let value = HeaderValue::from_str(id)?;
+
+      forwarded_headers.insert(header_name, value);
     }
 
     Ok(forwarded_headers)
@@ -204,10 +224,13 @@ impl Auth {
     &mut self,
     headers: &HeaderMap,
     request_extensions: Option<Value>,
+    request_endpoint: &Endpoint,
+    id: &str,
   ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
     match self.config.authorization_url() {
       Some(UrlOrStatic::Url(uri)) => {
-        let forwarded_headers = self.forwarded_headers(headers, request_extensions)?;
+        let forwarded_headers =
+          self.forwarded_headers(headers, request_extensions, request_endpoint, id)?;
 
         self
           .fetch_from_url(&uri.to_string(), forwarded_headers)
@@ -408,9 +431,10 @@ impl Auth {
     path: &str,
     queries: &mut [Query],
     request_extensions: Option<Value>,
+    endpoint: &Endpoint,
   ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
     let restrictions = self
-      .query_authorization_service(headers, request_extensions)
+      .query_authorization_service(headers, request_extensions, endpoint, path)
       .await?;
 
     if let Some(restrictions) = restrictions {
@@ -601,7 +625,9 @@ mod tests {
       ("Custom1".parse().unwrap(), "Value".parse().unwrap()),
       ("Custom2".parse().unwrap(), "Value".parse().unwrap()),
     ]);
-    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
+    let forwarded_headers = result
+      .forwarded_headers(&request_headers, None, &Endpoint::Reads, "id")
+      .unwrap();
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([
@@ -624,7 +650,9 @@ mod tests {
       .unwrap();
     let result = AuthBuilder::default().with_config(config).build().unwrap();
 
-    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
+    let forwarded_headers = result
+      .forwarded_headers(&request_headers, None, &Endpoint::Reads, "id")
+      .unwrap();
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([
@@ -648,12 +676,13 @@ mod tests {
     let config = builder
       .clone()
       .forward_headers(vec!["Custom1".to_string()])
-      .passthrough_auth(false)
       .build()
       .unwrap();
     let result = AuthBuilder::default().with_config(config).build().unwrap();
 
-    let forwarded_headers = result.forwarded_headers(&request_headers, None).unwrap();
+    let forwarded_headers = result
+      .forwarded_headers(&request_headers, None, &Endpoint::Reads, "id")
+      .unwrap();
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([(
@@ -663,11 +692,11 @@ mod tests {
     );
 
     let config = builder
+      .clone()
       .forward_extensions(vec![ForwardExtensions::new(
         "$.Key".to_string(),
         "Custom1".to_string(),
       )])
-      .passthrough_auth(false)
       .build()
       .unwrap();
     let result = AuthBuilder::default().with_config(config).build().unwrap();
@@ -678,6 +707,8 @@ mod tests {
         Some(json!({
           "Key": "Value"
         })),
+        &Endpoint::Reads,
+        "id",
       )
       .unwrap();
     assert_eq!(
@@ -685,6 +716,38 @@ mod tests {
       HeaderMap::from_iter([(
         format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
         "Value".parse().unwrap()
+      ),])
+    );
+
+    let config = builder.clone().forward_endpoint_type(true).build().unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let forwarded_headers = result
+      .forwarded_headers(&request_headers, None, &Endpoint::Variants, "id")
+      .unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([(
+        format!("{}{}", FORWARD_HEADER_PREFIX, ENDPOINT_TYPE_HEADER_NAME)
+          .parse()
+          .unwrap(),
+        "variants".parse().unwrap()
+      ),])
+    );
+
+    let config = builder.forward_id(true).build().unwrap();
+    let result = AuthBuilder::default().with_config(config).build().unwrap();
+
+    let forwarded_headers = result
+      .forwarded_headers(&request_headers, None, &Endpoint::Variants, "id")
+      .unwrap();
+    assert_eq!(
+      forwarded_headers,
+      HeaderMap::from_iter([(
+        format!("{}{}", FORWARD_HEADER_PREFIX, ID_HEADER_NAME)
+          .parse()
+          .unwrap(),
+        "id".parse().unwrap()
       ),])
     );
   }
