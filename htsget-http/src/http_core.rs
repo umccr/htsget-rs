@@ -21,25 +21,28 @@ use tracing::instrument;
 async fn authenticate(
   headers: &HeaderMap,
   auth: Option<Auth>,
-) -> Result<Option<(TokenData<Value>, Auth)>> {
+) -> Result<Option<Auth>> {
   if let Some(mut auth) = auth {
     if auth.config().auth_mode().is_some() {
-      return Ok(Some((auth.validate_jwt(headers).await?, auth)));
+      auth.validate_jwt(headers).await?;
+      Ok(Some(auth))
+    } else {
+      Ok(Some(auth))
     }
+  } else {
+    Ok(auth)
   }
-
-  Ok(None)
 }
 
 async fn authorize(
   headers: &HeaderMap,
   path: &str,
   queries: &mut [Query],
-  auth: Option<(TokenData<Value>, Auth)>,
+  auth: Option<Auth>,
   extensions: Option<Value>,
   endpoint: &Endpoint,
 ) -> Result<Option<(AuthorizationRestrictions, bool)>> {
-  if let Some((_, mut auth)) = auth {
+  if let Some(mut auth) = auth {
     let _rules = auth
       .validate_authorization(headers, path, queries, extensions, endpoint)
       .await?;
@@ -76,6 +79,7 @@ pub async fn get(
 
   let auth = authenticate(&headers, auth).await?;
   debug!(auth = ?auth, "auth");
+  debug!("request: {:#?}", &request);
 
   let format = match_format_from_query(&endpoint, request.query())?;
   let mut query = vec![convert_to_query(request, format)?];
