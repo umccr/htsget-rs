@@ -415,19 +415,15 @@ mod tests {
       config.authorization_url().unwrap(),
       &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
     );
-    assert!(
-      config.passthrough_auth()
-    );
-    assert_eq!(
-      config.forward_headers(),
-      ["header".to_string()]
-    );
-    assert!(
-      config.forward_endpoint_type()
-    );
+    assert!(config.passthrough_auth());
+    assert_eq!(config.forward_headers(), ["header".to_string()]);
+    assert!(config.forward_endpoint_type());
     assert_eq!(
       config.forward_extensions(),
-      [ForwardExtensions::new("$.extension".to_string(), "Extension".to_string())]
+      [ForwardExtensions::new(
+        "$.extension".to_string(),
+        "Extension".to_string()
+      )]
     );
   }
 

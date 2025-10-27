@@ -9,8 +9,9 @@ use query_builder::QueryBuilder;
 pub use service_info::get_service_info_json;
 pub use service_info::{Htsget, ServiceInfo, Type};
 use std::collections::HashMap;
-use std::result;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+use std::{fmt, result};
 
 pub mod error;
 pub mod http_core;
@@ -35,6 +36,15 @@ impl FromStr for Endpoint {
       "reads" => Ok(Self::Reads),
       "variants" => Ok(Self::Variants),
       _ => Err(()),
+    }
+  }
+}
+
+impl Display for Endpoint {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Reads => write!(f, "reads"),
+      Self::Variants => write!(f, "variants"),
     }
   }
 }
