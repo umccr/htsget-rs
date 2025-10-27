@@ -29,6 +29,7 @@ pub struct AuthConfig {
   authorization_url: Option<UrlOrStatic>,
   forward_headers: Vec<String>,
   forward_endpoint_type: bool,
+  forward_id: bool,
   passthrough_auth: bool,
   forward_extensions: Vec<ForwardExtensions>,
   http_client: HttpClient,
@@ -101,6 +102,11 @@ impl AuthConfig {
     self.forward_endpoint_type
   }
 
+  /// Get whether to forward the id of the request.
+  pub fn forward_id(&self) -> bool {
+    self.forward_id
+  }
+
   /// Get whether to pass through the auth header.
   pub fn passthrough_auth(&self) -> bool {
     self.passthrough_auth
@@ -133,6 +139,7 @@ pub struct AuthConfigBuilder {
   authorization_url: Option<UrlOrStatic>,
   forward_headers: Vec<String>,
   forward_endpoint_type: bool,
+  forward_id: bool,
   passthrough_auth: bool,
   forward_extensions: Vec<ForwardExtensions>,
   #[serde(rename = "http", alias = "tls", skip_serializing)]
@@ -206,6 +213,12 @@ impl AuthConfigBuilder {
     self
   }
 
+  /// Set whether to forward the id
+  pub fn forward_id(mut self, forward_id: bool) -> Self {
+    self.forward_id = forward_id;
+    self
+  }
+
   /// Set whether to pass through auth.
   pub fn passthrough_auth(mut self, passthrough_auth: bool) -> Self {
     self.passthrough_auth = passthrough_auth;
@@ -228,6 +241,7 @@ impl AuthConfigBuilder {
       authorization_url: self.authorization_url,
       forward_headers: self.forward_headers,
       forward_endpoint_type: self.forward_endpoint_type,
+      forward_id: self.forward_id,
       passthrough_auth: self.passthrough_auth,
       forward_extensions: self.forward_extensions,
       http_client: self
@@ -254,6 +268,7 @@ impl Default for AuthConfigBuilder {
       authorization_url,
       forward_headers: vec![],
       forward_endpoint_type: false,
+      forward_id: false,
       passthrough_auth: false,
       forward_extensions: vec![],
       http_client: None,
@@ -394,6 +409,7 @@ mod tests {
       passthrough_auth = true
       forward_headers = ["header"]
       forward_endpoint_type = true
+      forward_id = true
       forward_extensions = [ { json_path = '$.extension', name = 'Extension'} ]
       "#,
     )
@@ -418,6 +434,7 @@ mod tests {
     assert!(config.passthrough_auth());
     assert_eq!(config.forward_headers(), ["header".to_string()]);
     assert!(config.forward_endpoint_type());
+    assert!(config.forward_id());
     assert_eq!(
       config.forward_extensions(),
       [ForwardExtensions::new(

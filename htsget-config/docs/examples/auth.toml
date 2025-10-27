@@ -24,6 +24,8 @@ passthrough_auth = true
 #forward_headers = ["Content-Type"]
 ## Forward the endpoint type to the auth service.
 #forward_endpoint_type = true
+## Forward the request id.
+#forward_id = true
 
 ## Set client authentication
 #http.key = "key.pem"
