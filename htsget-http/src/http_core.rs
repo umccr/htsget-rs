@@ -92,6 +92,7 @@ pub async fn get(
 
   let query = query.into_iter().next().expect("single element vector");
 
+  debug!(rules = ?rules, "rules");
   let response = if let Some(ref rules) = rules {
     let mut remote_locations = rules.clone().into_remote_locations();
     if let Some(package_info) = package_info {
@@ -99,6 +100,7 @@ pub async fn get(
         .set_from_package_info(package_info)
         .map_err(|_| InternalError("invalid remote locations".to_string()))?;
     }
+    debug!(remote_locations = ?remote_locations, "remote locations");
 
     // If there are remote locations, try them first.
     match remote_locations
@@ -159,6 +161,8 @@ pub async fn post(
   debug!(endpoint = ?endpoint, queries = ?queries, "getting POST response");
 
   let mut futures = FuturesOrdered::new();
+  debug!(rules = ?rules, "rules");
+
   if let Some(ref rules) = rules {
     for query in queries {
       let mut remote_locations = rules.clone().into_remote_locations();
@@ -168,6 +172,7 @@ pub async fn post(
           .map_err(|_| InternalError("invalid remote locations".to_string()))?;
       }
       let owned_searcher = searcher.clone();
+      debug!(remote_locations = ?remote_locations, "remote locations");
 
       // If there are remote locations, try them first.
       futures.push_back(tokio::spawn(async move {
