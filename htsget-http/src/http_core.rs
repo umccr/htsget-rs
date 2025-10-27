@@ -38,7 +38,7 @@ async fn authorize(
   auth: Option<(TokenData<Value>, Auth)>,
   extensions: Option<Value>,
   endpoint: &Endpoint,
-) -> Result<Option<AuthorizationRestrictions>> {
+) -> Result<Option<(AuthorizationRestrictions, bool)>> {
   if let Some((_, mut auth)) = auth {
     let _rules = auth
       .validate_authorization(headers, path, queries, extensions, endpoint)
@@ -46,12 +46,12 @@ async fn authorize(
     cfg_if! {
       if #[cfg(feature = "experimental")] {
         if auth.config().add_hint() {
-          Ok(_rules)
+          Ok(_rules.map(|rules| (rules, true)))
         } else {
-          Ok(None)
+          Ok(_rules.map(|rules| (rules, false)))
         }
       } else {
-        Ok(None)
+        Ok(_rules.map(|rules| (rules, false)))
       }
     }
   } else {
@@ -75,6 +75,7 @@ pub async fn get(
   let headers = request.headers().clone();
 
   let auth = authenticate(&headers, auth).await?;
+  debug!(auth = ?auth, "auth");
 
   let format = match_format_from_query(&endpoint, request.query())?;
   let mut query = vec![convert_to_query(request, format)?];
@@ -93,7 +94,7 @@ pub async fn get(
   let query = query.into_iter().next().expect("single element vector");
 
   debug!(rules = ?rules, "rules");
-  let response = if let Some(ref rules) = rules {
+  let response = if let Some((ref rules, _)) = rules {
     let mut remote_locations = rules.clone().into_remote_locations();
     if let Some(package_info) = package_info {
       remote_locations
@@ -117,7 +118,11 @@ pub async fn get(
 
   cfg_if! {
     if #[cfg(feature = "experimental")] {
-      Ok(response.with_allowed(rules.map(|r| r.into_rules())))
+      let allowed = match rules {
+        Some((rules, add_hint)) if add_hint => Some(rules.into_rules()),
+        _ => None
+      };
+      Ok(response.with_allowed(allowed))
     } else {
       Ok(response)
     }
@@ -140,6 +145,7 @@ pub async fn post(
   let headers = request.headers().clone();
 
   let auth = authenticate(&headers, auth).await?;
+  debug!(auth = ?auth, "auth");
 
   if !request.query().is_empty() {
     return Err(InvalidInput(
@@ -163,7 +169,7 @@ pub async fn post(
   let mut futures = FuturesOrdered::new();
   debug!(rules = ?rules, "rules");
 
-  if let Some(ref rules) = rules {
+  if let Some((ref rules, _)) = rules {
     for query in queries {
       let mut remote_locations = rules.clone().into_remote_locations();
       if let Some(package_info) = package_info {
@@ -203,7 +209,11 @@ pub async fn post(
     JsonResponse::from(merge_responses(responses).expect("expected at least one response"));
   cfg_if! {
     if #[cfg(feature = "experimental")] {
-      Ok(response.with_allowed(rules.map(|r| r.into_rules())))
+      let allowed = match rules {
+        Some((rules, add_hint)) if add_hint => Some(rules.into_rules()),
+        _ => None
+      };
+      Ok(response.with_allowed(allowed))
     } else {
       Ok(response)
     }

@@ -20,6 +20,7 @@ pub async fn reads<H: HtsGet + Send + Sync + 'static>(
 ) -> impl IntoResponse {
   let request = extract_request(query, path, headers);
 
+  println!("{:#?}", app_state.auth_middleware);
   handle_response(
     get(
       app_state.htsget,

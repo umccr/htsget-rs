@@ -22,7 +22,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
-use tracing::trace;
+use tracing::{debug, trace};
 
 /// The authorization middleware builder.
 #[derive(Default, Debug)]
@@ -436,6 +436,8 @@ impl Auth {
     let restrictions = self
       .query_authorization_service(headers, request_extensions, endpoint, path)
       .await?;
+
+    debug!(restrictions = ?restrictions, "restrictions");
 
     if let Some(restrictions) = restrictions {
       cfg_if! {
