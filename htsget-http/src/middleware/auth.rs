@@ -94,11 +94,22 @@ impl Auth {
       .http_client()
       .map_err(|_| err())?
       .get(url)
-      .headers(headers)
+      .headers(headers.clone())
       .send()
       .await
       .map_err(|_| err())?;
     trace!("response: {:?}", response);
+    let response_1 = self
+        .config
+        .http_client()
+        .map_err(|_| err())?
+        .get(url)
+        .headers(headers)
+        .send()
+        .await
+        .map_err(|_| err())?;
+    let json = response_1.json::<Value>().await.map_err(|_| err())?;
+    trace!("value: {:?}", json);
 
     response.json().await.map_err(|_| err())
   }
