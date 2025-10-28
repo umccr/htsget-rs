@@ -3,6 +3,7 @@ use http::header::{InvalidHeaderName, InvalidHeaderValue};
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::HtsGetError::InternalError;
 use htsget_config::types::HtsGetError as HtsGetSearchError;
 
 pub type Result<T> = core::result::Result<T, HtsGetError>;
@@ -95,5 +96,25 @@ impl From<InvalidHeaderName> for HtsGetError {
 impl From<InvalidHeaderValue> for HtsGetError {
   fn from(err: InvalidHeaderValue) -> Self {
     Self::InternalError(err.to_string())
+  }
+}
+
+impl From<reqwest_middleware::Error> for HtsGetError {
+  fn from(err: reqwest_middleware::Error) -> Self {
+    match err {
+      reqwest_middleware::Error::Middleware(err) => InternalError(err.to_string()),
+      reqwest_middleware::Error::Reqwest(err) => err
+        .status()
+        .map(|status| match status {
+          StatusCode::UNAUTHORIZED => HtsGetError::InvalidAuthentication(err.to_string()),
+          StatusCode::FORBIDDEN => HtsGetError::PermissionDenied(err.to_string()),
+          StatusCode::NOT_FOUND => HtsGetError::NotFound(err.to_string()),
+          StatusCode::PAYLOAD_TOO_LARGE => HtsGetError::PayloadTooLarge(err.to_string()),
+          StatusCode::BAD_REQUEST => HtsGetError::InvalidInput(err.to_string()),
+          StatusCode::METHOD_NOT_ALLOWED => HtsGetError::MethodNotAllowed(err.to_string()),
+          _ => HtsGetError::InternalError(err.to_string()),
+        })
+        .unwrap_or(HtsGetError::InternalError(err.to_string())),
+    }
   }
 }

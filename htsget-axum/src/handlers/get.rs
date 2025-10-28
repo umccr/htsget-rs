@@ -1,3 +1,4 @@
+use super::{extract_request, handle_response};
 use crate::server::AppState;
 use axum::Extension;
 use axum::extract::{Path, Query, State};
@@ -8,7 +9,6 @@ use http::HeaderMap;
 use serde_json::Value;
 use std::collections::HashMap;
 use tracing::debug;
-use super::{extract_request, handle_response};
 
 /// GET request reads endpoint.
 pub async fn reads<H: HtsGet + Send + Sync + 'static>(

@@ -12,16 +12,12 @@ use htsget_config::config::service_info::PackageInfo;
 use htsget_config::types::{JsonResponse, Query, Request, Response};
 use htsget_search::HtsGet;
 use http::HeaderMap;
-use jsonwebtoken::TokenData;
 use serde_json::Value;
 use tokio::select;
 use tracing::debug;
 use tracing::instrument;
 
-async fn authenticate(
-  headers: &HeaderMap,
-  auth: Option<Auth>,
-) -> Result<Option<Auth>> {
+async fn authenticate(headers: &HeaderMap, auth: Option<Auth>) -> Result<Option<Auth>> {
   if let Some(mut auth) = auth {
     if auth.config().auth_mode().is_some() {
       auth.validate_jwt(headers).await?;

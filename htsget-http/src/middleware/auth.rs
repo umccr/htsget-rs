@@ -88,30 +88,25 @@ impl Auth {
     headers: HeaderMap,
   ) -> HtsGetResult<D> {
     trace!("fetching url: {}", url);
-    let err = || HtsGetError::InternalError(format!("failed to fetch data from {url}"));
     let response = self
       .config
       .http_client()
-      .map_err(|_| err())?
+      .map_err(|err| HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}")))?
       .get(url)
       .headers(headers.clone())
       .send()
-      .await
-      .map_err(|_| err())?;
+      .await?;
     trace!("response: {:?}", response);
-    let response_1 = self
-        .config
-        .http_client()
-        .map_err(|_| err())?
-        .get(url)
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|_| err())?;
-    let json = response_1.json::<Value>().await.map_err(|_| err())?;
-    trace!("value: {:?}", json);
 
-    response.json().await.map_err(|_| err())
+    let value = response.json::<Value>().await.map_err(|err| {
+      HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}"))
+    })?;
+    match serde_json::from_value::<D>(value.clone()) {
+      Ok(response) => Ok(response),
+      Err(_) => Err(HtsGetError::InternalError(format!(
+        "unexpected JSON: {value}"
+      ))),
+    }
   }
 
   /// Get a decoding key form the JWKS url.
