@@ -1,7 +1,7 @@
 //! The htsget authorization middleware.
 //!
 
-use crate::error::Result as HtsGetResult;
+use crate::error::{Result as HtsGetResult, WrappedHtsGetError};
 use crate::middleware::error::Error::AuthBuilderError;
 use crate::middleware::error::Result;
 use crate::{Endpoint, HtsGetError};
@@ -98,14 +98,22 @@ impl Auth {
       .await?;
     trace!("response: {:?}", response);
 
+    let status = response.status();
+
+    // Forward a valid htsget error if that's what the backend returns.
     let value = response.json::<Value>().await.map_err(|err| {
       HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}"))
     })?;
+    trace!("value: {}", value);
+
     match serde_json::from_value::<D>(value.clone()) {
       Ok(response) => Ok(response),
-      Err(_) => Err(HtsGetError::InternalError(format!(
-        "unexpected JSON: {value}"
-      ))),
+      Err(_) => match serde_json::from_value::<WrappedHtsGetError>(value.clone()) {
+        Ok(err) => Err(HtsGetError::Wrapped(err, status)),
+        Err(_) => Err(HtsGetError::InternalError(format!(
+          "failed to fetch data from {url}: {value}"
+        ))),
+      },
     }
   }
 

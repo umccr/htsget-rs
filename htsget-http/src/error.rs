@@ -1,6 +1,6 @@
 use http::StatusCode;
 use http::header::{InvalidHeaderName, InvalidHeaderValue};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::HtsGetError::InternalError;
@@ -30,18 +30,20 @@ pub enum HtsGetError {
   MethodNotAllowed(String),
   #[error("InternalError")]
   InternalError(String),
+  #[error("Wrapped")]
+  Wrapped(WrappedHtsGetError, StatusCode),
 }
 
 /// A helper struct implementing [serde's Serialize trait](Serialize) to allow
 /// easily converting HtsGetErrors to JSON
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct JsonHtsGetError {
   error: String,
   message: String,
 }
 
 /// The "htsget" container wrapping the actual error response above
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct WrappedHtsGetError {
   htsget: JsonHtsGetError,
 }
@@ -60,6 +62,7 @@ impl HtsGetError {
       | HtsGetError::InvalidRange(err) => (err, StatusCode::BAD_REQUEST),
       HtsGetError::MethodNotAllowed(err) => (err, StatusCode::METHOD_NOT_ALLOWED),
       HtsGetError::InternalError(err) => (err, StatusCode::INTERNAL_SERVER_ERROR),
+      HtsGetError::Wrapped(err, status) => return (err.clone(), *status),
     };
 
     (
