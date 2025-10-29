@@ -1,10 +1,8 @@
+use htsget_config::types::HtsGetError as HtsGetSearchError;
 use http::StatusCode;
 use http::header::{InvalidHeaderName, InvalidHeaderValue};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use crate::HtsGetError::InternalError;
-use htsget_config::types::HtsGetError as HtsGetSearchError;
 
 pub type Result<T> = core::result::Result<T, HtsGetError>;
 
@@ -105,7 +103,7 @@ impl From<InvalidHeaderValue> for HtsGetError {
 impl From<reqwest_middleware::Error> for HtsGetError {
   fn from(err: reqwest_middleware::Error) -> Self {
     match err {
-      reqwest_middleware::Error::Middleware(err) => InternalError(err.to_string()),
+      reqwest_middleware::Error::Middleware(err) => HtsGetError::InternalError(err.to_string()),
       reqwest_middleware::Error::Reqwest(err) => err
         .status()
         .map(|status| match status {

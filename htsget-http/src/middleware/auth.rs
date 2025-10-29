@@ -93,7 +93,7 @@ impl Auth {
       .http_client()
       .map_err(|err| HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}")))?
       .get(url)
-      .headers(headers.clone())
+      .headers(headers)
       .send()
       .await?;
     trace!("response: {:?}", response);
@@ -117,7 +117,7 @@ impl Auth {
     }
   }
 
-  /// Get a decoding key form the JWKS url.
+  /// Get a decoding key from the JWKS url.
   pub async fn decode_jwks(&mut self, jwks_url: &Uri, token: &str) -> HtsGetResult<DecodingKey> {
     // Decode header and get the key id.
     let header = decode_header(token)?;
