@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.1...htsget-storage-v0.5.2) - 2025-10-29
+
+### Other
+
+- updated the following local packages: htsget-config
+
 ## [0.5.1](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.0...htsget-storage-v0.5.1) - 2025-10-27
 
 ### Added

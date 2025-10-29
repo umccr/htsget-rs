@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.12.0...htsget-actix-v0.12.1) - 2025-10-29
+
+### Other
+
+- update Cargo.lock dependencies
+
 ## [0.12.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.3...htsget-actix-v0.12.0) - 2025-10-27
 
 ### Added
