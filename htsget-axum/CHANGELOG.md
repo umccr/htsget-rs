@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.8.0...htsget-axum-v0.8.1) - 2025-10-29
+
+### Added
+
+- *(http)* forward error context and code with better message
+
+### Fixed
+
+- *(http)* authorization and authentication should be independent
+- *(http)* add hint should be separate to remote location search
+
+### Other
+
+- Merge pull request #341 from umccr/fix/test-elsa-integration
+- remove debug statements and revert lambda http dependency
+
 ## [0.8.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.7.0...htsget-axum-v0.8.0) - 2025-10-27
 
 ### Added

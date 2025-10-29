@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.6](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.5...htsget-lambda-v0.7.6) - 2025-10-29
+
+### Fixed
+
+- *(lambda)* path context dependency
+- *(http)* authorization and authentication should be independent
+
+### Other
+
+- Merge pull request #341 from umccr/fix/test-elsa-integration
+- remove debug statements and revert lambda http dependency
+
 ## [0.7.5](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.4...htsget-lambda-v0.7.5) - 2025-09-25
 
 ### Added

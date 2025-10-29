@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.8.0...htsget-http-v0.8.1) - 2025-10-29
+
+### Added
+
+- *(http)* forward a wrapped error completely
+- *(http)* forward error context and code with better message
+
+### Fixed
+
+- *(lambda)* path context dependency
+- *(http)* authorization and authentication should be independent
+- *(http)* add hint should be separate to remote location search
+- *(http)* debug remote locations
+
+### Other
+
+- Merge pull request #341 from umccr/fix/test-elsa-integration
+- remove unused clone
+- remove debug statements and revert lambda http dependency
+
 ## [0.8.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.4...htsget-http-v0.8.0) - 2025-10-27
 
 ### Added
