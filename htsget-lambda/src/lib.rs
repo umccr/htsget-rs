@@ -59,6 +59,7 @@ where
     let mut event: Request = lambda_request.into();
 
     // After creating the request event, add the original request as an extension.
+    debug!(original_request = ?original_request, "original_request");
     event.extensions_mut().insert(original_request);
 
     let fut = Box::pin(self.service.call(event.with_lambda_context(req.context)));

@@ -438,10 +438,6 @@ The following additional options can be configured under the `auth` table to ena
 | `forward_id`            | Forwards the id of the request in a header called `Htsget-Context-Id`. The value of this header will be request path without the `/reads/` or `/variants/` component. For example, if a request path is `/reads/<id>`, this header will have the same value as `<id>`. | Boolean               | `false`  |
 | `passthrough_auth`      | Forward the authorization header to the authorization server directly without renaming it to a `Htsget-Context-` custom header. If this is true, then the `Authorization` header is required with the request.                                                         | Boolean               | `false`  |
 
-When using the `authorization_url`, the [authentication](#jwt-authentication) config must also be set as htsget-rs will
-forward the JWT token to the authorization server so that it can make decisions about the user's authorization. If the
-`authorization_url` is a file path, then authentication doesn't need to be set.
-
 Each header in the `forward_headers` option is forwarded as a custom `Htsget-Context-<name>` header to the authorization server.
 The authorization header can be forward as though it is coming from the client by setting `forward_auth_header = true`. This is
 useful to support authenticating the original client JWT at the authorization server and can be used to set-up authorization

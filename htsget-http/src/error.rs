@@ -1,9 +1,8 @@
+use htsget_config::types::HtsGetError as HtsGetSearchError;
 use http::StatusCode;
 use http::header::{InvalidHeaderName, InvalidHeaderValue};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use htsget_config::types::HtsGetError as HtsGetSearchError;
 
 pub type Result<T> = core::result::Result<T, HtsGetError>;
 
@@ -29,18 +28,20 @@ pub enum HtsGetError {
   MethodNotAllowed(String),
   #[error("InternalError")]
   InternalError(String),
+  #[error("Wrapped")]
+  Wrapped(WrappedHtsGetError, StatusCode),
 }
 
 /// A helper struct implementing [serde's Serialize trait](Serialize) to allow
 /// easily converting HtsGetErrors to JSON
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct JsonHtsGetError {
   error: String,
   message: String,
 }
 
 /// The "htsget" container wrapping the actual error response above
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct WrappedHtsGetError {
   htsget: JsonHtsGetError,
 }
@@ -59,6 +60,7 @@ impl HtsGetError {
       | HtsGetError::InvalidRange(err) => (err, StatusCode::BAD_REQUEST),
       HtsGetError::MethodNotAllowed(err) => (err, StatusCode::METHOD_NOT_ALLOWED),
       HtsGetError::InternalError(err) => (err, StatusCode::INTERNAL_SERVER_ERROR),
+      HtsGetError::Wrapped(err, status) => return (err.clone(), *status),
     };
 
     (
@@ -95,5 +97,25 @@ impl From<InvalidHeaderName> for HtsGetError {
 impl From<InvalidHeaderValue> for HtsGetError {
   fn from(err: InvalidHeaderValue) -> Self {
     Self::InternalError(err.to_string())
+  }
+}
+
+impl From<reqwest_middleware::Error> for HtsGetError {
+  fn from(err: reqwest_middleware::Error) -> Self {
+    match err {
+      reqwest_middleware::Error::Middleware(err) => HtsGetError::InternalError(err.to_string()),
+      reqwest_middleware::Error::Reqwest(err) => err
+        .status()
+        .map(|status| match status {
+          StatusCode::UNAUTHORIZED => HtsGetError::InvalidAuthentication(err.to_string()),
+          StatusCode::FORBIDDEN => HtsGetError::PermissionDenied(err.to_string()),
+          StatusCode::NOT_FOUND => HtsGetError::NotFound(err.to_string()),
+          StatusCode::PAYLOAD_TOO_LARGE => HtsGetError::PayloadTooLarge(err.to_string()),
+          StatusCode::BAD_REQUEST => HtsGetError::InvalidInput(err.to_string()),
+          StatusCode::METHOD_NOT_ALLOWED => HtsGetError::MethodNotAllowed(err.to_string()),
+          _ => HtsGetError::InternalError(err.to_string()),
+        })
+        .unwrap_or(HtsGetError::InternalError(err.to_string())),
+    }
   }
 }

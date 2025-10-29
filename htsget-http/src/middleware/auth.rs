@@ -1,7 +1,7 @@
 //! The htsget authorization middleware.
 //!
 
-use crate::error::Result as HtsGetResult;
+use crate::error::{Result as HtsGetResult, WrappedHtsGetError};
 use crate::middleware::error::Error::AuthBuilderError;
 use crate::middleware::error::Result;
 use crate::{Endpoint, HtsGetError};
@@ -22,7 +22,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
-use tracing::trace;
+use tracing::{debug, trace};
 
 /// The authorization middleware builder.
 #[derive(Default, Debug)]
@@ -88,22 +88,36 @@ impl Auth {
     headers: HeaderMap,
   ) -> HtsGetResult<D> {
     trace!("fetching url: {}", url);
-    let err = || HtsGetError::InternalError(format!("failed to fetch data from {url}"));
     let response = self
       .config
       .http_client()
-      .map_err(|_| err())?
+      .map_err(|err| HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}")))?
       .get(url)
       .headers(headers)
       .send()
-      .await
-      .map_err(|_| err())?;
+      .await?;
     trace!("response: {:?}", response);
 
-    response.json().await.map_err(|_| err())
+    let status = response.status();
+
+    // Forward a valid htsget error if that's what the backend returns.
+    let value = response.json::<Value>().await.map_err(|err| {
+      HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}"))
+    })?;
+    trace!("value: {}", value);
+
+    match serde_json::from_value::<D>(value.clone()) {
+      Ok(response) => Ok(response),
+      Err(_) => match serde_json::from_value::<WrappedHtsGetError>(value.clone()) {
+        Ok(err) => Err(HtsGetError::Wrapped(err, status)),
+        Err(_) => Err(HtsGetError::InternalError(format!(
+          "failed to fetch data from {url}: {value}"
+        ))),
+      },
+    }
   }
 
-  /// Get a decoding key form the JWKS url.
+  /// Get a decoding key from the JWKS url.
   pub async fn decode_jwks(&mut self, jwks_url: &Uri, token: &str) -> HtsGetResult<DecodingKey> {
     // Decode header and get the key id.
     let header = decode_header(token)?;
@@ -436,6 +450,8 @@ impl Auth {
     let restrictions = self
       .query_authorization_service(headers, request_extensions, endpoint, path)
       .await?;
+
+    debug!(restrictions = ?restrictions, "restrictions");
 
     if let Some(restrictions) = restrictions {
       cfg_if! {

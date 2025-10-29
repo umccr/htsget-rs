@@ -12,46 +12,45 @@ use htsget_config::config::service_info::PackageInfo;
 use htsget_config::types::{JsonResponse, Query, Request, Response};
 use htsget_search::HtsGet;
 use http::HeaderMap;
-use jsonwebtoken::TokenData;
 use serde_json::Value;
 use tokio::select;
 use tracing::debug;
 use tracing::instrument;
 
-async fn authenticate(
-  headers: &HeaderMap,
-  auth: Option<Auth>,
-) -> Result<Option<(TokenData<Value>, Auth)>> {
+async fn authenticate(headers: &HeaderMap, auth: Option<Auth>) -> Result<Option<Auth>> {
   if let Some(mut auth) = auth {
     if auth.config().auth_mode().is_some() {
-      return Ok(Some((auth.validate_jwt(headers).await?, auth)));
+      auth.validate_jwt(headers).await?;
+      Ok(Some(auth))
+    } else {
+      Ok(Some(auth))
     }
+  } else {
+    Ok(auth)
   }
-
-  Ok(None)
 }
 
 async fn authorize(
   headers: &HeaderMap,
   path: &str,
   queries: &mut [Query],
-  auth: Option<(TokenData<Value>, Auth)>,
+  auth: Option<Auth>,
   extensions: Option<Value>,
   endpoint: &Endpoint,
-) -> Result<Option<AuthorizationRestrictions>> {
-  if let Some((_, mut auth)) = auth {
+) -> Result<Option<(AuthorizationRestrictions, bool)>> {
+  if let Some(mut auth) = auth {
     let _rules = auth
       .validate_authorization(headers, path, queries, extensions, endpoint)
       .await?;
     cfg_if! {
       if #[cfg(feature = "experimental")] {
         if auth.config().add_hint() {
-          Ok(_rules)
+          Ok(_rules.map(|rules| (rules, true)))
         } else {
-          Ok(None)
+          Ok(_rules.map(|rules| (rules, false)))
         }
       } else {
-        Ok(None)
+        Ok(_rules.map(|rules| (rules, false)))
       }
     }
   } else {
@@ -75,6 +74,7 @@ pub async fn get(
   let headers = request.headers().clone();
 
   let auth = authenticate(&headers, auth).await?;
+  debug!(auth = ?auth, "auth");
 
   let format = match_format_from_query(&endpoint, request.query())?;
   let mut query = vec![convert_to_query(request, format)?];
@@ -92,13 +92,15 @@ pub async fn get(
 
   let query = query.into_iter().next().expect("single element vector");
 
-  let response = if let Some(ref rules) = rules {
+  debug!(rules = ?rules, "rules");
+  let response = if let Some((ref rules, _)) = rules {
     let mut remote_locations = rules.clone().into_remote_locations();
     if let Some(package_info) = package_info {
       remote_locations
         .set_from_package_info(package_info)
         .map_err(|_| InternalError("invalid remote locations".to_string()))?;
     }
+    debug!(remote_locations = ?remote_locations, "remote locations");
 
     // If there are remote locations, try them first.
     match remote_locations
@@ -115,7 +117,11 @@ pub async fn get(
 
   cfg_if! {
     if #[cfg(feature = "experimental")] {
-      Ok(response.with_allowed(rules.map(|r| r.into_rules())))
+      let allowed = match rules {
+        Some((rules, add_hint)) if add_hint => Some(rules.into_rules()),
+        _ => None
+      };
+      Ok(response.with_allowed(allowed))
     } else {
       Ok(response)
     }
@@ -138,6 +144,7 @@ pub async fn post(
   let headers = request.headers().clone();
 
   let auth = authenticate(&headers, auth).await?;
+  debug!(auth = ?auth, "auth");
 
   if !request.query().is_empty() {
     return Err(InvalidInput(
@@ -159,7 +166,9 @@ pub async fn post(
   debug!(endpoint = ?endpoint, queries = ?queries, "getting POST response");
 
   let mut futures = FuturesOrdered::new();
-  if let Some(ref rules) = rules {
+  debug!(rules = ?rules, "rules");
+
+  if let Some((ref rules, _)) = rules {
     for query in queries {
       let mut remote_locations = rules.clone().into_remote_locations();
       if let Some(package_info) = package_info {
@@ -168,6 +177,7 @@ pub async fn post(
           .map_err(|_| InternalError("invalid remote locations".to_string()))?;
       }
       let owned_searcher = searcher.clone();
+      debug!(remote_locations = ?remote_locations, "remote locations");
 
       // If there are remote locations, try them first.
       futures.push_back(tokio::spawn(async move {
@@ -198,7 +208,11 @@ pub async fn post(
     JsonResponse::from(merge_responses(responses).expect("expected at least one response"));
   cfg_if! {
     if #[cfg(feature = "experimental")] {
-      Ok(response.with_allowed(rules.map(|r| r.into_rules())))
+      let allowed = match rules {
+        Some((rules, add_hint)) if add_hint => Some(rules.into_rules()),
+        _ => None
+      };
+      Ok(response.with_allowed(allowed))
     } else {
       Ok(response)
     }
