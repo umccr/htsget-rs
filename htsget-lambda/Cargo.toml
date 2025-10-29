@@ -23,8 +23,8 @@ default = []
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 rustls = "0.23"
-lambda_http = { version = "0.17", git = "https://github.com/mmalenic/aws-lambda-rust-runtime.git", branch = "fix/path-context" }
-aws_lambda_events = { version = "0.18", git = "https://github.com/mmalenic/aws-lambda-rust-runtime.git", branch = "fix/path-context" }
+lambda_http = { version = "0.17", git = "https://github.com/andrewpatto/aws-lambda-rust-runtime.git", branch = "feature/lattice-support-http" }
+aws_lambda_events = { version = "0.18", git = "https://github.com/andrewpatto/aws-lambda-rust-runtime.git", branch = "feature/lattice-support-http" }
 tracing = "0.1"
 futures = "0.3"
 serde_json = "1"

@@ -8,7 +8,6 @@ use htsget_search::HtsGet;
 use http::HeaderMap;
 use serde_json::Value;
 use std::collections::HashMap;
-use tracing::debug;
 
 /// GET request reads endpoint.
 pub async fn reads<H: HtsGet + Send + Sync + 'static>(
@@ -41,10 +40,6 @@ pub async fn variants<H: HtsGet + Send + Sync + 'static>(
   extension: Option<Extension<Value>>,
   State(app_state): State<AppState<H>>,
 ) -> impl IntoResponse {
-  debug!("query {:?}", request);
-  debug!("path {:?}", path);
-  debug!("headers {:?}", headers);
-
   let request = extract_request(request, path, headers);
 
   handle_response(

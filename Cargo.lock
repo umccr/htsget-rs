@@ -954,7 +954,7 @@ dependencies = [
 [[package]]
 name = "aws_lambda_events"
 version = "0.18.0"
-source = "git+https://github.com/mmalenic/aws-lambda-rust-runtime.git?branch=fix%2Fpath-context#f7af05c88b7b0e189295cfc33459671e053be399"
+source = "git+https://github.com/andrewpatto/aws-lambda-rust-runtime.git?branch=feature%2Flattice-support-http#336c29a138082cb009375e7ebad1adf99694c79a"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -3186,7 +3186,7 @@ dependencies = [
 [[package]]
 name = "lambda_http"
 version = "0.17.0"
-source = "git+https://github.com/mmalenic/aws-lambda-rust-runtime.git?branch=fix%2Fpath-context#f7af05c88b7b0e189295cfc33459671e053be399"
+source = "git+https://github.com/andrewpatto/aws-lambda-rust-runtime.git?branch=feature%2Flattice-support-http#336c29a138082cb009375e7ebad1adf99694c79a"
 dependencies = [
  "aws_lambda_events",
  "bytes",
@@ -3210,7 +3210,7 @@ dependencies = [
 [[package]]
 name = "lambda_runtime"
 version = "0.14.4"
-source = "git+https://github.com/mmalenic/aws-lambda-rust-runtime.git?branch=fix%2Fpath-context#f7af05c88b7b0e189295cfc33459671e053be399"
+source = "git+https://github.com/andrewpatto/aws-lambda-rust-runtime.git?branch=feature%2Flattice-support-http#336c29a138082cb009375e7ebad1adf99694c79a"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -3234,7 +3234,7 @@ dependencies = [
 [[package]]
 name = "lambda_runtime_api_client"
 version = "0.12.4"
-source = "git+https://github.com/mmalenic/aws-lambda-rust-runtime.git?branch=fix%2Fpath-context#f7af05c88b7b0e189295cfc33459671e053be399"
+source = "git+https://github.com/andrewpatto/aws-lambda-rust-runtime.git?branch=feature%2Flattice-support-http#336c29a138082cb009375e7ebad1adf99694c79a"
 dependencies = [
  "bytes",
  "futures-channel",

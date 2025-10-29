@@ -75,7 +75,6 @@ pub async fn get(
 
   let auth = authenticate(&headers, auth).await?;
   debug!(auth = ?auth, "auth");
-  debug!("request: {:#?}", &request);
 
   let format = match_format_from_query(&endpoint, request.query())?;
   let mut query = vec![convert_to_query(request, format)?];
