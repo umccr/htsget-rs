@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.3...htsget-actix-v0.12.0) - 2025-10-27
+
+### Added
+
+- [**breaking**] use http client config before constructing it in the builder
+- use config user-agent for call-outs to authorization server
+
 ## [0.11.3](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.11.2...htsget-actix-v0.11.3) - 2025-09-25
 
 ### Added

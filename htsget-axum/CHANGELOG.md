@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.7.0...htsget-axum-v0.8.0) - 2025-10-27
+
+### Added
+
+- [**breaking**] use http client config before constructing it in the builder
+- use config user-agent for call-outs to authorization server
+
 ## [0.7.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.6.2...htsget-axum-v0.7.0) - 2025-09-25
 
 ### Added

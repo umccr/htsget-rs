@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.4...htsget-http-v0.8.0) - 2025-10-27
+
+### Added
+
+- *(http)* implement the forward id logic
+- *(http)* implement forward extension type logic
+- [**breaking**] use http client config before constructing it in the builder
+- use config user-agent for call-outs to authorization server
+- *(config)* [**breaking**] add user agent option for http clients and add alias for location in response
+
 ## [0.7.4](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.7.3...htsget-http-v0.7.4) - 2025-09-25
 
 ### Added

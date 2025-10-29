@@ -1,6 +1,6 @@
 [package]
 name = "htsget-search"
-version = "0.12.0"
+version = "0.12.1"
 rust-version = "1.86"
 authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2024"
@@ -43,8 +43,8 @@ noodles = { version = "0.100", features = ["async", "core", "bgzf", "bam", "bcf"
 http = "1"
 tracing = "0.1"
 
-htsget-config = { version = "0.18.0", path = "../htsget-config", default-features = false }
-htsget-storage = { version = "0.5.0", path = "../htsget-storage", default-features = false }
+htsget-config = { version = "0.19.0", path = "../htsget-config", default-features = false }
+htsget-storage = { version = "0.5.1", path = "../htsget-storage", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"
