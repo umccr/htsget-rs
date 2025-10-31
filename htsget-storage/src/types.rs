@@ -102,8 +102,12 @@ impl BytesPosition {
     self
   }
 
-  pub fn with_end(mut self, end: u64) -> Self {
-    self.end = Some(end);
+  pub fn with_end(self, end: u64) -> Self {
+    self.set_end(Some(end))
+  }
+
+  pub fn set_end(mut self, end: Option<u64>) -> Self {
+    self.end = end;
     self
   }
 

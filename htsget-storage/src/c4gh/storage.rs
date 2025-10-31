@@ -83,15 +83,19 @@ impl C4GHStorage {
 
   /// Get a C4GH object and decrypt it if it is not an index.
   pub async fn get_object(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
-    if Format::is_index(key) {
-      return self.inner.get(key, options).await;
-    }
-
-    let data = self
-      .state
-      .get(&Self::format_key(key))
-      .ok_or_else(|| InternalError("missing key from state".to_string()))?
-      .clone();
+    let c4gh_key = Self::format_key(key);
+    let data = if Format::is_index(key) {
+      match self.state.get(&c4gh_key) {
+        Some(data) => data.clone(),
+        None => return self.inner.get(key, options).await,
+      }
+    } else {
+      self
+        .state
+        .get(&c4gh_key)
+        .ok_or_else(|| InternalError("missing key from state".to_string()))?
+        .clone()
+    };
 
     Ok(Streamable::from_async_read(Cursor::new(
       data.decrypted_data.into_inner(),
@@ -104,23 +108,32 @@ impl C4GHStorage {
     key: &str,
     mut options: GetOptions<'_>,
   ) -> Result<u64> {
-    if Format::is_index(key) {
-      return self.inner.head(key, (&options).into()).await;
-    }
-
-    let key = Self::format_key(key);
-
-    // Get the file size.
-    let encrypted_file_size = self.inner.head(&key, (&options).into()).await?;
-
+    let c4gh_key = Self::format_key(key);
     let mut c4gh_header_options = options.clone();
-    c4gh_header_options.range.end = Some(min(MAX_C4GH_HEADER_SIZE, encrypted_file_size));
+    // If the key is an index, first try fetching it encrypted.
+    let encrypted_file_size = if Format::is_index(key) {
+      let a = self.inner.head(&c4gh_key, (&options).into()).await;
+      match a {
+        Ok(encrypted_file_size) => {
+          // Always get the full index file.
+          c4gh_header_options.range.end = Some(encrypted_file_size);
+          encrypted_file_size
+        }
+        // Otherwise, fallback on the non-encrypted index.
+        Err(_) => return self.inner.head(key, (&options).into()).await,
+      }
+    } else {
+      // Get the file size.
+      let encrypted_file_size = self.inner.head(&c4gh_key, (&options).into()).await?;
+      c4gh_header_options.range.end = Some(min(MAX_C4GH_HEADER_SIZE, encrypted_file_size));
+      encrypted_file_size
+    };
 
     // Also need to determine the header size.
     let mut buf = vec![];
     self
       .inner
-      .get(&key, c4gh_header_options)
+      .get(&c4gh_key, c4gh_header_options)
       .await?
       .take(MAX_C4GH_HEADER_SIZE)
       .read_to_end(&mut buf)
@@ -151,7 +164,7 @@ impl C4GHStorage {
 
       self
         .inner
-        .get(&key, options)
+        .get(&c4gh_key, options)
         .await?
         .read_to_end(&mut remaining)
         .await?;
@@ -167,7 +180,7 @@ impl C4GHStorage {
       decrypted_data,
     };
 
-    self.state.insert(key, state);
+    self.state.insert(c4gh_key, state);
 
     Ok(unencrypted_file_size)
   }

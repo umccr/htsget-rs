@@ -683,8 +683,9 @@ backend.keys.private = "private_key_secret_name" # pragma: allowlist secret
 backend.keys.public = "public_key_secret_name"
 ```
 
-The htsget-rs server expects the Crypt4GH file to end with `.c4gh`, and the index file to be unencrypted. See the [`data/c4gh`][data-c4gh] for examples of file structure.
-Any of the storage types are supported, i.e. `Local`, `S3`, or `Url`.
+The htsget-rs server expects the Crypt4GH file to end with `.c4gh`. Index files can also be encrypted and must end
+with `.c4gh`. See the [`data/c4gh`][data-c4gh] for examples of file structure. Any of the storage types are supported,
+i.e. `Local`, `S3`, or `Url`.
 
 ### Log formatting
  
