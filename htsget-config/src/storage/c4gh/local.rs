@@ -22,12 +22,12 @@ impl C4GHLocal {
   }
 
   /// Get the private key if this is a local private key.
-  pub async fn into_private_key(self) -> Result<Vec<u8>> {
+  pub fn into_private_key(self) -> Result<Vec<u8>> {
     Ok(get_private_key(self.key, Ok("".to_string()))?)
   }
 
   /// Get the public key if this is a local public key.
-  pub async fn into_public_key(self) -> Result<Vec<u8>> {
+  pub fn into_public_key(self) -> Result<Vec<u8>> {
     Ok(get_public_key(self.key)?)
   }
 }

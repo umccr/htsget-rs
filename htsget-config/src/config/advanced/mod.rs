@@ -1,6 +1,7 @@
 //! Configuration options that are advanced in the documentation.
 //!
 
+use crate::config::service_info::PackageInfo;
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
@@ -19,6 +20,9 @@ pub mod cors;
 pub mod regex_location;
 #[cfg(feature = "url")]
 pub mod url;
+
+/// The prefix used for context header values.
+pub const CONTEXT_HEADER_PREFIX: &str = "Htsget-Context-";
 
 /// Determines which tracing formatting style to use.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default)]
@@ -110,6 +114,14 @@ impl HttpClient {
 
     self.client = Some(client);
     Ok(self.client.as_ref().expect("expected client"))
+  }
+
+  /// Set the user-agent information from the package info.
+  pub fn set_from_package_info(&mut self, info: &PackageInfo) -> Result<()> {
+    let builder = self.take_config()?;
+    self.set_config(builder.with_user_agent(info.id.to_string()));
+
+    Ok(())
   }
 }
 

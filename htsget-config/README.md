@@ -685,6 +685,24 @@ backend.keys.public.kind = "SecretsManager"
 backend.keys.public.key = "public_key_secret_name"
 ```
 
+The public key of the recipient can also be fetched from an incoming request header. To use this functionality,
+set the `kind` to `Header`, without setting any `key` field. This is only supported for the public key. When using
+this option, htsget-rs expects the recipient's PEM-formatted public key to be present in a header called
+`Htsget-Context-Public-Key`.
+
+For example:
+
+```toml
+[[locations]]
+regex = ".*"
+substitution_string = "$0"
+backend.kind = "File"
+
+backend.keys.private.kind = "File"
+backend.keys.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.keys.public.kind = "Header"
+```
+
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`. Index files can also be encrypted and must end
 with `.c4gh`. See the [`data/c4gh`][data-c4gh] for examples of file structure. Any of the storage types are supported,
 i.e. `Local`, `S3`, or `Url`.

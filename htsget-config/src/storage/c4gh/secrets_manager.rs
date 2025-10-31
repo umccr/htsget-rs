@@ -11,7 +11,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
-use tempfile::TempDir;
+use tempfile::NamedTempFile;
 
 /// Specify keys on AWS secrets manager.
 #[derive(JsonSchema, Deserialize, Debug, Clone)]
@@ -66,24 +66,23 @@ impl C4GHSecretsManager {
   pub async fn into_private_key(self) -> Result<Vec<u8>> {
     let client = self.client().await;
 
-    // Should not have to do this, but the Crypt4GH library expects a path.
-    let tmp = TempDir::new()?;
-    let private_key = tmp.path().join("private_key");
-    Self::write_to_file(&private_key, self.key, &client).await?;
+    let tmp = NamedTempFile::new()?;
+    Self::write_to_file(tmp.path(), self.key, &client).await?;
 
-    Ok(get_private_key(private_key, Ok("".to_string()))?)
+    Ok(get_private_key(
+      tmp.path().to_path_buf(),
+      Ok("".to_string()),
+    )?)
   }
 
   /// Get the public key if this is a local public key.
   pub async fn into_public_key(self) -> Result<Vec<u8>> {
     let client = self.client().await;
 
-    // Should not have to do this, but the Crypt4GH library expects a path.
-    let tmp = TempDir::new()?;
-    let public_key = tmp.path().join("public_key");
-    Self::write_to_file(&public_key, self.key, &client).await?;
+    let tmp = NamedTempFile::new()?;
+    Self::write_to_file(tmp.path(), self.key, &client).await?;
 
-    Ok(get_public_key(public_key)?)
+    Ok(get_public_key(tmp.path().to_path_buf())?)
   }
 }
 
@@ -115,7 +114,7 @@ mod tests {
       public: C4GHKeyType::SecretsManager(secrets_manager_public),
     };
     let keys: C4GHKeys = location.try_into().unwrap();
-    let keys = keys.keys().await.unwrap();
+    let (keys, _) = keys.into_inner().await.unwrap();
 
     assert_eq!(keys.len(), 1);
   }

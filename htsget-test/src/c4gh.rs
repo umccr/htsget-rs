@@ -68,5 +68,5 @@ pub async fn get_decryption_keys() -> Vec<Keys> {
   ))
   .unwrap();
 
-  keys.keys().await.unwrap()
+  keys.into_inner().await.unwrap().0
 }
