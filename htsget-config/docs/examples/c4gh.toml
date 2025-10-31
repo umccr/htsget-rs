@@ -9,11 +9,13 @@ regex = ".*"
 substitution_string = "$0"
 backend.kind = "File"
 
-backend.keys.kind = "File"
-backend.keys.private = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
-backend.keys.public = "data/c4gh/keys/alice.pub"
+backend.keys.private.kind = "File"
+backend.keys.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.keys.public.kind = "File"
+backend.keys.public.key = "data/c4gh/keys/alice.pub"
 
 ## Or, use AWS secrets manager to store keys.
-#backend.keys.kind = "SecretsManager"
-#backend.keys.private = "htsget/test_c4gh_private_key" # pragma: allowlist secret
-#backend.keys.public = "htsget/test_c4gh_public_key"
+#backend.keys.private.kind = "SecretsManager"
+#backend.keys.private.key = "htsget/test_c4gh_private_key" # pragma: allowlist secret
+#backend.keys.public.kind = "SecretsManager"
+#backend.keys.public.key = "htsget/test_c4gh_public_key"

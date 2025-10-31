@@ -1,7 +1,7 @@
 use crate::util::default_dir;
 use crypt4gh::keys::{get_private_key, get_public_key};
 use crypt4gh::{Keys, decrypt, encrypt};
-use htsget_config::storage::c4gh::{C4GHKeys, local::C4GHLocal};
+use htsget_config::storage::c4gh::{C4GHKeyLocation, C4GHKeyType, C4GHKeys, local::C4GHLocal};
 use std::collections::HashSet;
 use std::io::{BufReader, BufWriter, Cursor};
 
@@ -62,7 +62,11 @@ pub fn encrypt_data(data: &[u8]) -> Vec<u8> {
 pub async fn get_decryption_keys() -> Vec<Keys> {
   let private_key = default_dir().join("data/c4gh/keys/bob.sec");
   let public_key = default_dir().join("data/c4gh/keys/alice.pub");
-  let keys = C4GHKeys::try_from(C4GHLocal::new(private_key, public_key)).unwrap();
+  let keys = C4GHKeys::try_from(C4GHKeyLocation::new(
+    C4GHKeyType::new_file(C4GHLocal::new(private_key)),
+    C4GHKeyType::new_file(C4GHLocal::new(public_key)),
+  ))
+  .unwrap();
 
   keys.keys().await.unwrap()
 }

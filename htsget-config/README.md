@@ -644,30 +644,32 @@ serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and r
 them. When the client receives byte ranges from htsget-rs and concatenates them, the output bytes will be Crypt4GH encrypted,
 and will need to be decrypted before they can be read. All file formats (BAM, CRAM, VCF, and BCF) are supported using Crypt4GH.
 
-To use this feature, set `keys.kind = "File"` under the `location` table to specify the private and public keys:
+To use this feature, set the following options under `keys`:
 
-| Option    | Description                                                                                                                                                                            | Type              | Default |
-|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|---------|
-| `private` | The path to PEM formatted private key which htsget-rs uses to decrypt Crypt4GH data.                                                                                                   | Filesystem path   | Not Set | 
-| `public`  | The path to the PEM formatted public key which the recipient of the data will use. This is what the client will use to decrypt the returned data, using the corresponding private key. | Filesystem path   | Not Set |
+| Option    | Description                                                                                                                                                                  | Type                              | Default |
+|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|---------|
+| `private` | The PEM formatted private key which htsget-rs uses to decrypt Crypt4GH data.                                                                                                 | Object, specify `key` and `kind`. | Not Set | 
+| `public`  | The PEM formatted public key which the recipient of the data will use. This is what the client will use to decrypt the returned data, using their corresponding private key. | Object, specify `key` and `kind`. | Not Set |
 
-For example:
+Each option should have `key` and `kind` specified individually, dependent on where the key is sourced from.
+
+For example, to source a private or public key from the local filesystem, use the `File` kind:
 
 ```toml
 [[locations]]
 regex = ".*"
 substitution_string = "$0"
-
 backend.kind = "File"
 
-backend.keys.kind = "File"
-backend.keys.private = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
-backend.keys.public = "data/c4gh/keys/alice.pub"
+backend.keys.private.kind = "File"
+backend.keys.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.keys.public.kind = "File"
+backend.keys.public.key = "data/c4gh/keys/alice.pub"
 ```
 
-Keys can also be retrieved from [AWS Secrets Manager][secrets-manager]. Compile with the `aws` feature flag and specify `keys.kind = "SecretsManager"` under
-`location` to fetch keys from Secrets Manager. When using Secrets Manager, the `private` and `public`
-correspond to ARNs or secret names in Secrets Manager storing PEM formatted keys.
+Keys can also be retrieved from [AWS Secrets Manager][secrets-manager]. Compile with the `aws` feature flag and specify
+`SecretsManager` as the key `kind`. When using Secrets Manager, the option corresponds to ARNs or secret names in
+Secrets Manager storing PEM formatted keys.
 
 For example:
 
@@ -675,12 +677,12 @@ For example:
 [[locations]]
 regex = ".*"
 substitution_string = "$0"
-
 backend.kind = "File"
 
-backend.keys.kind = "SecretsManager"
-backend.keys.private = "private_key_secret_name" # pragma: allowlist secret
-backend.keys.public = "public_key_secret_name"
+backend.keys.private.kind = "SecretsManager"
+backend.keys.private.key = "private_key_secret_name" # pragma: allowlist secret
+backend.keys.public.kind = "SecretsManager"
+backend.keys.public.key = "public_key_secret_name"
 ```
 
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`. Index files can also be encrypted and must end

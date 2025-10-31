@@ -11,6 +11,7 @@ use futures_util::FutureExt;
 use futures_util::future::{BoxFuture, Shared};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use std::pin::Pin;
 use tokio::task::{JoinError, JoinHandle};
 
 pub mod local;
@@ -62,23 +63,11 @@ impl From<Crypt4GHError> for Error {
   }
 }
 
-impl TryFrom<C4GHKeyLocation> for C4GHKeys {
-  type Error = Error;
-
-  fn try_from(location: C4GHKeyLocation) -> Result<Self> {
-    match location {
-      C4GHKeyLocation::File(file) => file.try_into(),
-      #[cfg(feature = "aws")]
-      C4GHKeyLocation::SecretsManager(secrets_manager) => secrets_manager.try_into(),
-    }
-  }
-}
-
 /// Specifies the location of a Crypt4GH key.
 #[derive(JsonSchema, Deserialize, Debug, Clone)]
 #[serde(tag = "kind", deny_unknown_fields)]
 #[non_exhaustive]
-pub enum C4GHKeyLocation {
+pub enum C4GHKeyType {
   /// Obtain keys from a local file.
   #[serde(alias = "file", alias = "FILE")]
   File(C4GHLocal),
@@ -86,4 +75,55 @@ pub enum C4GHKeyLocation {
   #[cfg(feature = "aws")]
   #[serde(alias = "secretsmanager", alias = "SECRETSMANAGER")]
   SecretsManager(C4GHSecretsManager),
+}
+
+impl C4GHKeyType {
+  /// Create a key type from a local file.
+  pub fn new_file(file: C4GHLocal) -> Self {
+    Self::File(file)
+  }
+
+  /// Create a key type from AWS secrets manager.
+  #[cfg(feature = "aws")]
+  pub fn new_secrets_manager(secrets_manager: C4GHSecretsManager) -> Self {
+    Self::SecretsManager(secrets_manager)
+  }
+}
+
+#[derive(JsonSchema, Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct C4GHKeyLocation {
+  private: C4GHKeyType,
+  public: C4GHKeyType,
+}
+
+impl C4GHKeyLocation {
+  /// Create a new C4GH location.
+  pub fn new(private: C4GHKeyType, public: C4GHKeyType) -> Self {
+    Self { private, public }
+  }
+}
+
+impl TryFrom<C4GHKeyLocation> for C4GHKeys {
+  type Error = Error;
+
+  fn try_from(location: C4GHKeyLocation) -> Result<Self> {
+    let private_key: Pin<Box<dyn Future<Output = _> + Send>> = match location.private {
+      C4GHKeyType::File(file) => Box::pin(file.into_private_key()),
+      #[cfg(feature = "aws")]
+      C4GHKeyType::SecretsManager(secrets_manager) => Box::pin(secrets_manager.into_private_key()),
+    };
+    let recipient_public: Pin<Box<dyn Future<Output = _> + Send>> = match location.public {
+      C4GHKeyType::File(file) => Box::pin(file.into_public_key()),
+      #[cfg(feature = "aws")]
+      C4GHKeyType::SecretsManager(secrets_manager) => Box::pin(secrets_manager.into_public_key()),
+    };
+
+    Ok(C4GHKeys::from_join_handle(tokio::spawn(async move {
+      let private_key = private_key.await?;
+      let recipient_public = recipient_public.await?;
+
+      Ok(C4GHKeys::from_key_pair(private_key, recipient_public))
+    })))
+  }
 }
