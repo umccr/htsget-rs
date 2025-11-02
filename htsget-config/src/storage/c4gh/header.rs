@@ -2,6 +2,10 @@
 //!
 
 use crate::config::advanced::CONTEXT_HEADER_PREFIX;
+use crate::types::HtsGetError;
+use crate::types::HtsGetError::InvalidInput;
+use base64::Engine;
+use base64::engine::general_purpose;
 use crypt4gh::keys::get_public_key;
 use http::HeaderMap;
 use schemars::JsonSchema;
@@ -16,12 +20,17 @@ pub struct C4GHHeader;
 
 impl C4GHHeader {
   /// Get the public key from the header.
-  pub fn get_public_key(self, headers: &HeaderMap) -> Option<Vec<u8>> {
-    let public_key = headers.get(format!("{CONTEXT_HEADER_PREFIX}Public-Key"))?;
+  pub fn get_public_key(self, headers: &HeaderMap) -> Result<Vec<u8>, HtsGetError> {
+    let public_key = headers
+      .get(format!("{CONTEXT_HEADER_PREFIX}Public-Key"))
+      .ok_or_else(|| InvalidInput("failed to get public key".to_string()))?;
+    let public_key = general_purpose::STANDARD
+      .decode(public_key.as_ref())
+      .map_err(|err| InvalidInput(err.to_string()))?;
 
-    let tmp = NamedTempFile::new().ok()?;
-    fs::write(tmp.path(), public_key).ok();
+    let tmp = NamedTempFile::new()?;
+    fs::write(tmp.path(), public_key)?;
 
-    get_public_key(tmp.path().to_path_buf()).ok()
+    get_public_key(tmp.path().to_path_buf()).map_err(|err| InvalidInput(err.to_string()))
   }
 }

@@ -688,7 +688,7 @@ backend.keys.public.key = "public_key_secret_name"
 The public key of the recipient can also be fetched from an incoming request header. To use this functionality,
 set the `kind` to `Header`, without setting any `key` field. This is only supported for the public key. When using
 this option, htsget-rs expects the recipient's PEM-formatted public key to be present in a header called
-`Htsget-Context-Public-Key`.
+`Htsget-Context-Public-Key`. The public key must also be base64 encoded with newlines included.
 
 For example:
 

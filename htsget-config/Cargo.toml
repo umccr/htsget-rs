@@ -40,6 +40,7 @@ reqwest = { version = "0.12", features = ["rustls-tls"], default-features = fals
 http-cache-reqwest = "0.16"
 reqwest-middleware = "0.4"
 schemars = "1"
+base64 = "0.22"
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }

@@ -147,11 +147,7 @@ impl Storage {
           .map_err(|err| StorageError::InternalError(err.to_string()))?;
 
         if let Some(using_header) = using_header {
-          let public_key = using_header
-            .get_public_key(query.request().headers())
-            .ok_or_else(|| {
-              StorageError::InvalidInput("failed to get public key from header".to_string())
-            })?;
+          let public_key = using_header.get_public_key(query.request().headers())?;
           c4gh_keys
             .iter_mut()
             .for_each(|key| key.recipient_pubkey = public_key.clone());

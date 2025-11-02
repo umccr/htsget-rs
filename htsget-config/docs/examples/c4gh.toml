@@ -11,11 +11,14 @@ backend.kind = "File"
 
 backend.keys.private.kind = "File"
 backend.keys.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
-backend.keys.public.kind = "File"
-backend.keys.public.key = "data/c4gh/keys/alice.pub"
+#backend.keys.public.kind = "File"
+#backend.keys.public.key = "data/c4gh/keys/alice.pub"
 
 ## Or, use AWS secrets manager to store keys.
 #backend.keys.private.kind = "SecretsManager"
 #backend.keys.private.key = "htsget/test_c4gh_private_key" # pragma: allowlist secret
 #backend.keys.public.kind = "SecretsManager"
 #backend.keys.public.key = "htsget/test_c4gh_public_key"
+
+## Or, get the public key from a `Htsget-Context-Public-Key` header.
+backend.keys.public.kind = "Header"

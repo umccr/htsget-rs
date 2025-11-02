@@ -70,6 +70,18 @@ impl From<StorageError> for HtsGetError {
   }
 }
 
+impl From<HtsGetError> for StorageError {
+  fn from(err: HtsGetError) -> Self {
+    match err {
+      HtsGetError::NotFound(err) => Self::KeyNotFound(err),
+      HtsGetError::UnsupportedFormat(err) => Self::UnsupportedFormat(err),
+      HtsGetError::InvalidInput(err) | HtsGetError::InvalidRange(err) => Self::InvalidInput(err),
+      HtsGetError::IoError(err) => Self::IoError(err.to_string(), io::Error::other(err)),
+      HtsGetError::ParseError(err) | HtsGetError::InternalError(err) => Self::InternalError(err),
+    }
+  }
+}
+
 impl From<StorageError> for io::Error {
   fn from(err: StorageError) -> Self {
     match err {

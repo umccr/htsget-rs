@@ -2487,6 +2487,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-secretsmanager",
  "aws-smithy-mocks",
+ "base64 0.22.1",
  "cfg-if",
  "chrono",
  "clap",
