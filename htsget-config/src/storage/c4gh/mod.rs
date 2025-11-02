@@ -15,9 +15,8 @@ use serde::Deserialize;
 use std::pin::Pin;
 use tokio::task::{JoinError, JoinHandle};
 
+pub mod header;
 pub mod local;
-
-mod header;
 #[cfg(feature = "aws")]
 pub mod secrets_manager;
 

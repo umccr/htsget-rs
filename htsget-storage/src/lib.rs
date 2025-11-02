@@ -318,12 +318,15 @@ impl UrlFormatter for storage::file::File {
 
 #[cfg(test)]
 mod tests {
-  use crate::local::FileStorage;
-  use htsget_config::types::Scheme;
-  use htsget_test::util::default_dir_data;
-  use http::uri::Authority;
-
   use super::*;
+  use crate::local::FileStorage;
+  use htsget_config::config::advanced::CONTEXT_HEADER_PREFIX;
+  use htsget_config::storage::c4gh::header::C4GHHeader;
+  use htsget_config::types::{Request, Scheme};
+  use htsget_test::util::{default_dir, default_dir_data};
+  use http::uri::Authority;
+  use http::{HeaderMap, HeaderName};
+  use tokio::fs;
 
   #[test]
   fn data_url() {
@@ -372,6 +375,36 @@ mod tests {
       Some(EncryptionScheme::C4GH),
       storage.clone(),
       &Default::default(),
+    )
+    .await;
+    assert!(result.is_ok());
+
+    let result = Storage::from_c4gh_keys(None, None, storage.clone(), &Default::default()).await;
+    assert!(result.is_ok());
+
+    let public_key = fs::read_to_string(default_dir().join("data/c4gh/keys/alice.pub"))
+      .await
+      .unwrap();
+    let encoded_key = general_purpose::STANDARD.encode(public_key);
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+      format!("{CONTEXT_HEADER_PREFIX}Public-Key")
+        .parse::<HeaderName>()
+        .unwrap(),
+      encoded_key.parse().unwrap(),
+    );
+    let query = Query::new(
+      "id".to_string(),
+      Format::Bam,
+      Request::new("id".to_string(), Default::default(), headers),
+    );
+    let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let result = Storage::from_c4gh_keys(
+      Some(&C4GHKeys::from_join_handle(keys, Some(C4GHHeader))),
+      Some(EncryptionScheme::C4GH),
+      storage.clone(),
+      &query,
     )
     .await;
     assert!(result.is_ok());
