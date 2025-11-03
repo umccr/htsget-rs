@@ -21,9 +21,8 @@ pub struct C4GHHeader;
 impl C4GHHeader {
   /// Get the public key from the header.
   pub fn get_public_key(self, headers: &HeaderMap) -> Result<Vec<u8>, HtsGetError> {
-    let public_key = headers
-      .get(format!("{CONTEXT_HEADER_PREFIX}Public-Key"))
-      .ok_or_else(|| InvalidInput("failed to get public key".to_string()))?;
+    let header_name = format!("{CONTEXT_HEADER_PREFIX}Public-Key");
+    let public_key = headers.get(&header_name).ok_or(InvalidInput(header_name))?;
     let public_key = general_purpose::STANDARD
       .decode(public_key.as_ref())
       .map_err(|err| InvalidInput(err.to_string()))?;

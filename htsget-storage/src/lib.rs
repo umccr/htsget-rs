@@ -320,13 +320,18 @@ impl UrlFormatter for storage::file::File {
 mod tests {
   use super::*;
   use crate::local::FileStorage;
-  use htsget_config::config::advanced::CONTEXT_HEADER_PREFIX;
-  use htsget_config::storage::c4gh::header::C4GHHeader;
-  use htsget_config::types::{Request, Scheme};
-  use htsget_test::util::{default_dir, default_dir_data};
+  use htsget_config::types::Scheme;
+  use htsget_test::util::default_dir_data;
   use http::uri::Authority;
-  use http::{HeaderMap, HeaderName};
-  use tokio::fs;
+  #[cfg(feature = "experimental")]
+  use {
+    htsget_config::config::advanced::CONTEXT_HEADER_PREFIX,
+    htsget_config::storage::c4gh::header::C4GHHeader,
+    htsget_config::types::Request,
+    htsget_test::util::default_dir,
+    http::{HeaderMap, HeaderName},
+    tokio::fs,
+  };
 
   #[test]
   fn data_url() {

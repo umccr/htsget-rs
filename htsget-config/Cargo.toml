@@ -13,7 +13,7 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config", "dep:tempfile"]
 url = []
-experimental = ["dep:crypt4gh", "dep:tokio", "dep:futures-util"]
+experimental = ["dep:crypt4gh", "dep:tokio", "dep:futures-util", "dep:tempfile"]
 default = []
 
 [dependencies]
