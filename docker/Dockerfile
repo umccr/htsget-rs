@@ -1,4 +1,4 @@
-FROM rust:1.88-slim AS builder
+FROM rust:1.91-slim AS builder
 
 LABEL org.opencontainers.image.source=https://github.com/umccr/htsget-rs
 LABEL org.opencontainers.image.url=https://github.com/umccr/htsget-rs/pkgs/container/htsget-rs

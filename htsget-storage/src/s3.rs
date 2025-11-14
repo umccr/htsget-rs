@@ -142,10 +142,10 @@ impl S3Storage {
   }
 
   fn check_restore_header(restore_header: Option<String>, class: StorageClass) -> Retrieval {
-    if let Some(restore) = restore_header {
-      if restore.contains("ongoing-request=\"false\"") {
-        return Immediate(class);
-      }
+    if let Some(restore) = restore_header
+      && restore.contains("ongoing-request=\"false\"")
+    {
+      return Immediate(class);
     }
     Delayed(class)
   }

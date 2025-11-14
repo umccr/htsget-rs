@@ -261,17 +261,27 @@
     },
     "C4GHKeys": {
       "description": "Specifies the location of a Crypt4GH key.",
+      "type": "object",
+      "properties": {
+        "private": {
+          "$ref": "#/$defs/C4GHKeyType"
+        },
+        "public": {
+          "$ref": "#/$defs/C4GHKeyType"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["private", "public"]
+    },
+    "C4GHKeyType": {
+      "description": "Specifies the location of a Crypt4GH key.",
       "oneOf": [
         {
           "description": "Obtain keys from a local file.",
           "type": "object",
           "properties": {
-            "private": {
-              "description": "The path to the private key.",
-              "type": "string"
-            },
-            "public": {
-              "description": "The path to the public key.",
+            "key": {
+              "description": "The path to the key.",
               "type": "string"
             },
             "kind": {
@@ -280,18 +290,14 @@
             }
           },
           "additionalProperties": false,
-          "required": ["kind", "private", "public"]
+          "required": ["kind", "key"]
         },
         {
           "description": "Obtain keys from AWS secrets manager.",
           "type": "object",
           "properties": {
-            "private": {
-              "description": "The ARN or name of the secret holding the private key.",
-              "type": "string"
-            },
-            "public": {
-              "description": "The ARN or name of the secret holding the public key.",
+            "key": {
+              "description": "The ARN or name of the secret holding the private or public key.",
               "type": "string"
             },
             "kind": {
@@ -300,7 +306,19 @@
             }
           },
           "additionalProperties": false,
-          "required": ["kind", "private", "public"]
+          "required": ["kind", "key"]
+        },
+        {
+          "description": "Obtain keys from a header that comes with the request.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "Header"
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
         }
       ]
     },

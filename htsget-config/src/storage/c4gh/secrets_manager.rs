@@ -3,38 +3,30 @@
 
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
-use crate::storage::c4gh::C4GHKeys;
 use aws_config::{BehaviorVersion, load_defaults};
 use aws_sdk_secretsmanager::Client;
 use aws_sdk_secretsmanager::error::SdkError;
-use crypt4gh::Keys;
 use crypt4gh::keys::{get_private_key, get_public_key};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
-use tempfile::TempDir;
+use tempfile::NamedTempFile;
 
 /// Specify keys on AWS secrets manager.
 #[derive(JsonSchema, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct C4GHSecretsManager {
-  /// The ARN or name of the secret holding the private key.
-  private: String,
-  /// The ARN or name of the secret holding the public key.
-  public: String,
+  /// The ARN or name of the secret holding the private or public key.
+  key: String,
   #[serde(skip)]
   client: Option<Client>,
 }
 
 impl C4GHSecretsManager {
   /// Create a new C4GH secrets manager key storage.
-  pub fn new(private: String, public: String) -> Self {
-    Self {
-      private,
-      public,
-      client: None,
-    }
+  pub fn new(key: String) -> Self {
+    Self { key, client: None }
   }
 
   /// Set the client.
@@ -61,26 +53,36 @@ impl C4GHSecretsManager {
     Ok(fs::write(to, data)?)
   }
 
-  /// Retrieve the C4GH keys from secrets manager.
-  pub async fn get_keys(self) -> Result<Vec<Keys>> {
-    let client = if let Some(client) = self.client {
+  /// Get the client to use for fetching keys.
+  pub async fn client(&self) -> Client {
+    if let Some(client) = self.client.clone() {
       client
     } else {
       Client::new(&load_defaults(BehaviorVersion::latest()).await)
-    };
+    }
+  }
 
-    // Should not have to do this, but the Crypt4GH library expects a path.
-    let tmp = TempDir::new()?;
-    let private_key = tmp.path().join("private_key");
-    Self::write_to_file(&private_key, self.private, &client).await?;
+  /// Get the private key if this is a local private key.
+  pub async fn into_private_key(self) -> Result<Vec<u8>> {
+    let client = self.client().await;
 
-    let recipient_public_key = tmp.path().join("public_key");
-    Self::write_to_file(&recipient_public_key, self.public, &client).await?;
+    let tmp = NamedTempFile::new()?;
+    Self::write_to_file(tmp.path(), self.key, &client).await?;
 
-    let private_key = get_private_key(private_key, Ok("".to_string()))?;
-    let recipient_public_key = get_public_key(recipient_public_key)?;
+    Ok(get_private_key(
+      tmp.path().to_path_buf(),
+      Ok("".to_string()),
+    )?)
+  }
 
-    Ok(C4GHKeys::from_key_pair(private_key, recipient_public_key))
+  /// Get the public key if this is a local public key.
+  pub async fn into_public_key(self) -> Result<Vec<u8>> {
+    let client = self.client().await;
+
+    let tmp = NamedTempFile::new()?;
+    Self::write_to_file(tmp.path(), self.key, &client).await?;
+
+    Ok(get_public_key(tmp.path().to_path_buf())?)
   }
 }
 
@@ -90,36 +92,29 @@ impl<T> From<SdkError<T>> for Error {
   }
 }
 
-impl TryFrom<C4GHSecretsManager> for C4GHKeys {
-  type Error = Error;
-
-  fn try_from(secrets_manager: C4GHSecretsManager) -> Result<Self> {
-    Ok(C4GHKeys::from_join_handle(tokio::spawn(
-      secrets_manager.get_keys(),
-    )))
-  }
-}
-
 #[cfg(test)]
 mod tests {
+  use super::*;
+  use crate::storage::c4gh::{C4GHKeyLocation, C4GHKeyType, C4GHKeys};
   use aws_sdk_secretsmanager::operation::get_secret_value::GetSecretValueOutput;
   use aws_sdk_secretsmanager::primitives::Blob;
   use aws_smithy_mocks::{Rule, RuleMode, mock, mock_client};
   use std::fs::read;
   use std::path::PathBuf;
 
-  use super::*;
-
   async fn test_get_keys(rules: &[&Rule]) {
     let client = mock_client!(aws_sdk_secretsmanager, RuleMode::Sequential, rules);
 
-    let secrets_manager_config = C4GHSecretsManager::new(
-      "private_key".to_string(),
-      "recipient_public_key".to_string(),
-    )
-    .with_client(client);
-    let keys: C4GHKeys = secrets_manager_config.try_into().unwrap();
-    let keys = keys.keys().await.unwrap();
+    let secrets_manager_private =
+      C4GHSecretsManager::new("private_key".to_string()).with_client(client.clone());
+    let secrets_manager_public =
+      C4GHSecretsManager::new("recipient_public_key".to_string()).with_client(client);
+    let location = C4GHKeyLocation {
+      private: C4GHKeyType::SecretsManager(secrets_manager_private),
+      public: C4GHKeyType::SecretsManager(secrets_manager_public),
+    };
+    let keys: C4GHKeys = location.try_into().unwrap();
+    let (keys, _) = keys.into_inner().await.unwrap();
 
     assert_eq!(keys.len(), 1);
   }

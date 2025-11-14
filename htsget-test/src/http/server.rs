@@ -60,10 +60,10 @@ pub async fn test_response<R>(
 /// Get the expected url path from the formatter.
 pub fn expected_url_path(config: &Config, local_addr: SocketAddr) -> String {
   let mut scheme = "http";
-  if let DataServerEnabled::Some(server) = config.data_server() {
-    if server.tls().is_some() {
-      scheme = "https";
-    }
+  if let DataServerEnabled::Some(server) = config.data_server()
+    && server.tls().is_some()
+  {
+    scheme = "https";
   }
   format!("{scheme}://{local_addr}")
 }

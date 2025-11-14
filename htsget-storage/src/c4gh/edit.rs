@@ -144,7 +144,7 @@ impl<'a> EditHeader<'a> {
           }
 
           // If the last edit is a discard, then carry this over into the next iteration.
-          let next_discard = if positions.len() % 2 == 0 {
+          let next_discard = if positions.len().is_multiple_of(2) {
             0
           } else {
             positions.pop().unwrap_or(0)

@@ -261,10 +261,20 @@ where
           )));
         }
 
+        self
+          .preprocess(&query, None, &query.format().fmt_index(query.id()))
+          .await?;
         let index = self.read_index(&query).await?;
+
         let header_end = self.get_header_end_offset(&index).await?;
 
-        self.preprocess(&query, header_end).await?;
+        self
+          .preprocess(
+            &query,
+            Some(header_end),
+            &query.format().fmt_file(query.id()),
+          )
+          .await?;
 
         let mut byte_ranges = match query.reference_name().as_ref() {
           None => self.get_byte_ranges_for_all(&query).await?,
@@ -309,7 +319,13 @@ where
         let index = self.read_index(&query).await?;
         let header_end = self.get_header_end_offset(&index).await?;
 
-        self.preprocess(&query, header_end).await?;
+        self
+          .preprocess(
+            &query,
+            Some(header_end),
+            &query.format().fmt_file(query.id()),
+          )
+          .await?;
 
         let (_, mut reader) = self.get_header(&query, header_end).await?;
 
@@ -330,14 +346,14 @@ where
     }
   }
 
-  async fn preprocess(&mut self, query: &Query, header_end: u64) -> Result<()> {
+  async fn preprocess(&mut self, query: &Query, end: Option<u64>, key: &str) -> Result<()> {
     Ok(
       self
         .mut_storage()
         .preprocess(
-          &query.format().fmt_file(query.id()),
+          key,
           GetOptions::new(
-            BytesPosition::default().with_end(header_end),
+            BytesPosition::default().set_end(end),
             query.request().headers(),
           ),
         )

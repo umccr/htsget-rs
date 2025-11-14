@@ -136,16 +136,28 @@ impl Storage {
     keys: Option<&C4GHKeys>,
     encryption_scheme: Option<EncryptionScheme>,
     storage: Storage,
+    query: &Query,
   ) -> Result<Storage> {
     match (keys, encryption_scheme) {
-      (Some(keys), Some(EncryptionScheme::C4GH)) => Ok(Storage::new(C4GHStorage::new_box(
-        keys
+      (Some(keys), Some(EncryptionScheme::C4GH)) => {
+        let (mut c4gh_keys, using_header) = keys
           .clone()
-          .keys()
+          .into_inner()
           .await
-          .map_err(|err| StorageError::InternalError(err.to_string()))?,
-        storage.into_inner(),
-      ))),
+          .map_err(|err| StorageError::InternalError(err.to_string()))?;
+
+        if let Some(using_header) = using_header {
+          let public_key = using_header.get_public_key(query.request().headers())?;
+          c4gh_keys
+            .iter_mut()
+            .for_each(|key| key.recipient_pubkey = public_key.clone());
+        }
+
+        Ok(Storage::new(C4GHStorage::new_box(
+          c4gh_keys,
+          storage.into_inner(),
+        )))
+      }
       (None, Some(EncryptionScheme::C4GH)) => Err(StorageError::UnsupportedFormat(
         "C4GH keys have not been configured for this id".to_string(),
       )),
@@ -163,7 +175,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(file.keys(), _query.encryption_scheme(), storage).await
+        Self::from_c4gh_keys(file.keys(), _query.encryption_scheme(), storage, _query).await
       } else {
         Ok(storage)
       }
@@ -184,7 +196,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(s3.keys(), _query.encryption_scheme(), storage).await
+        Self::from_c4gh_keys(s3.keys(), _query.encryption_scheme(), storage, _query).await
       } else {
         Ok(storage)
       }
@@ -206,7 +218,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(url.keys(), _query.encryption_scheme(), storage).await
+        Self::from_c4gh_keys(url.keys(), _query.encryption_scheme(), storage, _query).await
       } else {
         Ok(storage)
       }
@@ -306,12 +318,20 @@ impl UrlFormatter for storage::file::File {
 
 #[cfg(test)]
 mod tests {
+  use super::*;
   use crate::local::FileStorage;
   use htsget_config::types::Scheme;
   use htsget_test::util::default_dir_data;
   use http::uri::Authority;
-
-  use super::*;
+  #[cfg(feature = "experimental")]
+  use {
+    htsget_config::config::advanced::CONTEXT_HEADER_PREFIX,
+    htsget_config::storage::c4gh::header::C4GHHeader,
+    htsget_config::types::Request,
+    htsget_test::util::default_dir,
+    http::{HeaderMap, HeaderName},
+    tokio::fs,
+  };
 
   #[test]
   fn data_url() {
@@ -356,17 +376,54 @@ mod tests {
     );
 
     let result = Storage::from_c4gh_keys(
-      Some(&C4GHKeys::from_join_handle(keys)),
+      Some(&C4GHKeys::from_join_handle(keys, None)),
       Some(EncryptionScheme::C4GH),
       storage.clone(),
+      &Default::default(),
     )
     .await;
     assert!(result.is_ok());
 
-    let result = Storage::from_c4gh_keys(None, None, storage.clone()).await;
+    let result = Storage::from_c4gh_keys(None, None, storage.clone(), &Default::default()).await;
     assert!(result.is_ok());
 
-    let result = Storage::from_c4gh_keys(None, Some(EncryptionScheme::C4GH), storage).await;
+    let public_key = fs::read_to_string(default_dir().join("data/c4gh/keys/alice.pub"))
+      .await
+      .unwrap();
+    let encoded_key = general_purpose::STANDARD.encode(public_key);
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+      format!("{CONTEXT_HEADER_PREFIX}Public-Key")
+        .parse::<HeaderName>()
+        .unwrap(),
+      encoded_key.parse().unwrap(),
+    );
+    let query = Query::new(
+      "id".to_string(),
+      Format::Bam,
+      Request::new("id".to_string(), Default::default(), headers),
+    );
+    let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let result = Storage::from_c4gh_keys(
+      Some(&C4GHKeys::from_join_handle(keys, Some(C4GHHeader))),
+      Some(EncryptionScheme::C4GH),
+      storage.clone(),
+      &query,
+    )
+    .await;
+    assert!(result.is_ok());
+
+    let result = Storage::from_c4gh_keys(None, None, storage.clone(), &Default::default()).await;
+    assert!(result.is_ok());
+
+    let result = Storage::from_c4gh_keys(
+      None,
+      Some(EncryptionScheme::C4GH),
+      storage,
+      &Default::default(),
+    )
+    .await;
     assert!(matches!(result, Err(StorageError::UnsupportedFormat(_))));
   }
 

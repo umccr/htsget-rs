@@ -1,8 +1,7 @@
 //! Local C4GH key storage.
 //!
 
-use crate::error::{Error, Result};
-use crate::storage::c4gh::C4GHKeys;
+use crate::error::Result;
 use crypt4gh::keys::{get_private_key, get_public_key};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -12,30 +11,24 @@ use std::path::PathBuf;
 #[derive(JsonSchema, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct C4GHLocal {
-  /// The path to the private key.
-  private: PathBuf,
-  /// The path to the public key.
-  public: PathBuf,
+  /// The path to the key.
+  key: PathBuf,
 }
 
 impl C4GHLocal {
   /// Create a new local C4GH key storage.
-  pub fn new(private: PathBuf, public: PathBuf) -> Self {
-    Self { private, public }
+  pub fn new(key: PathBuf) -> Self {
+    Self { key }
   }
-}
 
-impl TryFrom<C4GHLocal> for C4GHKeys {
-  type Error = Error;
+  /// Get the private key if this is a local private key.
+  pub fn into_private_key(self) -> Result<Vec<u8>> {
+    Ok(get_private_key(self.key, Ok("".to_string()))?)
+  }
 
-  fn try_from(local: C4GHLocal) -> Result<Self> {
-    let private_key = get_private_key(local.private, Ok("".to_string()))?;
-    let recipient_public_key = get_public_key(local.public)?;
-
-    let handle =
-      tokio::spawn(async move { Ok(C4GHKeys::from_key_pair(private_key, recipient_public_key)) });
-
-    Ok(C4GHKeys::from_join_handle(handle))
+  /// Get the public key if this is a local public key.
+  pub fn into_public_key(self) -> Result<Vec<u8>> {
+    Ok(get_public_key(self.key)?)
   }
 }
 
@@ -78,9 +71,10 @@ mod tests {
         {}
 
         [locations.backend.keys]
-        kind = "File"
-        private = "{}"
-        public = "{}"
+        private.kind = "File"
+        private.key = "{}"
+        public.kind = "File"
+        public.key = "{}"
         "#,
         storage_config,
         private_key.to_string_lossy(),

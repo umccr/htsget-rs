@@ -8,6 +8,7 @@ use crate::{Endpoint, HtsGetError};
 use cfg_if::cfg_if;
 use headers::authorization::Bearer;
 use headers::{Authorization, Header};
+use htsget_config::config::advanced::CONTEXT_HEADER_PREFIX;
 use htsget_config::config::advanced::auth::authorization::UrlOrStatic;
 use htsget_config::config::advanced::auth::jwt::AuthMode;
 use htsget_config::config::advanced::auth::response::AuthorizationRestrictionsBuilder;
@@ -71,7 +72,6 @@ impl Debug for Auth {
   }
 }
 
-const FORWARD_HEADER_PREFIX: &str = "Htsget-Context-";
 const ENDPOINT_TYPE_HEADER_NAME: &str = "Endpoint-Type";
 const ID_HEADER_NAME: &str = "Id";
 
@@ -174,7 +174,7 @@ impl Auth {
         .iter()
         .find_map(|(name, value)| {
           if header.to_lowercase() == name.as_str().to_lowercase() {
-            return match HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, name)) {
+            return match HeaderName::from_str(&format!("{}{}", CONTEXT_HEADER_PREFIX, name)) {
               Ok(header) => Some(Ok((header, value))),
               Err(err) => Some(Err(HtsGetError::InternalError(err.to_string()))),
             };
@@ -204,7 +204,7 @@ impl Auth {
         })?;
 
         let header_name =
-          HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, extension.name()))?;
+          HeaderName::from_str(&format!("{}{}", CONTEXT_HEADER_PREFIX, extension.name()))?;
         let value = HeaderValue::from_str(value)?;
         forwarded_headers.insert(header_name, value);
       }
@@ -213,7 +213,7 @@ impl Auth {
     if self.config.forward_endpoint_type() {
       let header_name = HeaderName::from_str(&format!(
         "{}{}",
-        FORWARD_HEADER_PREFIX, ENDPOINT_TYPE_HEADER_NAME
+        CONTEXT_HEADER_PREFIX, ENDPOINT_TYPE_HEADER_NAME
       ))?;
       let value = HeaderValue::from_str(&request_endpoint.to_string())?;
 
@@ -222,7 +222,7 @@ impl Auth {
 
     if self.config.forward_id() {
       let header_name =
-        HeaderName::from_str(&format!("{}{}", FORWARD_HEADER_PREFIX, ID_HEADER_NAME))?;
+        HeaderName::from_str(&format!("{}{}", CONTEXT_HEADER_PREFIX, ID_HEADER_NAME))?;
       let value = HeaderValue::from_str(id)?;
 
       forwarded_headers.insert(header_name, value);
@@ -329,10 +329,11 @@ impl Auth {
             restriction.interval().contains_interval(query.interval())
           };
 
-          if let Some(interval_match) = interval_match {
-            if name_match && format_match {
-              return Some(interval_match);
-            }
+          if let Some(interval_match) = interval_match
+            && name_match
+            && format_match
+          {
+            return Some(interval_match);
           }
 
           None
@@ -648,7 +649,7 @@ mod tests {
       forwarded_headers,
       HeaderMap::from_iter([
         (
-          format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+          format!("{}Custom1", CONTEXT_HEADER_PREFIX).parse().unwrap(),
           "Value".parse().unwrap()
         ),
         (
@@ -673,11 +674,11 @@ mod tests {
       forwarded_headers,
       HeaderMap::from_iter([
         (
-          format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+          format!("{}Custom1", CONTEXT_HEADER_PREFIX).parse().unwrap(),
           "Value".parse().unwrap()
         ),
         (
-          format!("{}Authorization", FORWARD_HEADER_PREFIX)
+          format!("{}Authorization", CONTEXT_HEADER_PREFIX)
             .parse()
             .unwrap(),
           "Bearer Value".parse().unwrap()
@@ -702,7 +703,7 @@ mod tests {
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([(
-        format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+        format!("{}Custom1", CONTEXT_HEADER_PREFIX).parse().unwrap(),
         "Value".parse().unwrap()
       ),])
     );
@@ -730,7 +731,7 @@ mod tests {
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([(
-        format!("{}Custom1", FORWARD_HEADER_PREFIX).parse().unwrap(),
+        format!("{}Custom1", CONTEXT_HEADER_PREFIX).parse().unwrap(),
         "Value".parse().unwrap()
       ),])
     );
@@ -744,7 +745,7 @@ mod tests {
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([(
-        format!("{}{}", FORWARD_HEADER_PREFIX, ENDPOINT_TYPE_HEADER_NAME)
+        format!("{}{}", CONTEXT_HEADER_PREFIX, ENDPOINT_TYPE_HEADER_NAME)
           .parse()
           .unwrap(),
         "variants".parse().unwrap()
@@ -760,7 +761,7 @@ mod tests {
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([(
-        format!("{}{}", FORWARD_HEADER_PREFIX, ID_HEADER_NAME)
+        format!("{}{}", CONTEXT_HEADER_PREFIX, ID_HEADER_NAME)
           .parse()
           .unwrap(),
         "id".parse().unwrap()

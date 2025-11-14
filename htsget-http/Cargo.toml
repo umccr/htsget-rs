@@ -1,7 +1,7 @@
 [package]
 name = "htsget-http"
 version = "0.8.1"
-rust-version = "1.86"
+rust-version = "1.88"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2024"
 license = "MIT"
@@ -31,7 +31,7 @@ cfg-if = "1"
 # JWT middleware
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 reqwest-middleware = "0.4"
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 jsonpath-rust = "1"
 regex = "1"
 headers = "0.4"
