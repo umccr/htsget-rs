@@ -69,10 +69,10 @@ impl<T, Tagged> AllowType<T, Tagged> {
     F: FnOnce(U) -> U,
     Tagged: Eq,
   {
-    if let Self::Tagged(tagged) = self {
-      if tagged == tagged_type {
-        return func(builder);
-      }
+    if let Self::Tagged(tagged) = self
+      && tagged == tagged_type
+    {
+      return func(builder);
     }
 
     builder

@@ -183,10 +183,10 @@ impl Interval {
 
   /// Is this a valid interval, i.e. is the start range less than the end range.
   pub fn is_valid(&self) -> bool {
-    if let (Some(ref start), Some(ref end)) = (self.start, self.end) {
-      if start >= end {
-        return false;
-      }
+    if let (Some(ref start), Some(ref end)) = (self.start, self.end)
+      && start >= end
+    {
+      return false;
     }
 
     true

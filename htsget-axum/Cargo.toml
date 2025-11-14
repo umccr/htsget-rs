@@ -1,7 +1,7 @@
 [package]
 name = "htsget-axum"
 version = "0.8.1"
-rust-version = "1.86"
+rust-version = "1.88"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -41,10 +41,10 @@ hyper-util = "0.1"
 tower-http = { version = "0.6", features = ["trace", "cors", "fs"] }
 http = "1"
 axum = { version = "0.8", features = ["http2"] }
-axum-extra = { version = "0.10", features = ["erased-json", "typed-header"] }
+axum-extra = { version = "0.12", features = ["erased-json", "typed-header"] }
 tower = { version = "0.5", features = ["make", "util"] }
 futures = { version = "0.3" }
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 
 # Async
 tokio-rustls = "0.26"

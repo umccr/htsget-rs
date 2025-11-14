@@ -152,10 +152,10 @@ impl Config {
     if let Some(ref mut auth) = self.ticket_server.auth {
       auth.set_from_package_info(&self.package_info)?;
     }
-    if let DataServerEnabled::Some(ref mut data_server_config) = self.data_server {
-      if let Some(ref mut auth) = data_server_config.auth {
-        auth.set_from_package_info(&self.package_info)?;
-      }
+    if let DataServerEnabled::Some(ref mut data_server_config) = self.data_server
+      && let Some(ref mut auth) = data_server_config.auth
+    {
+      auth.set_from_package_info(&self.package_info)?;
     }
 
     self.locations.set_from_package_info(&self.package_info)?;
@@ -218,10 +218,10 @@ impl Config {
     let mut config: Self = from_path(path)?;
 
     // Propagate global config to individual ticket and data servers.
-    if let DataServerEnabled::Some(ref mut data_server_config) = config.data_server {
-      if data_server_config.auth().is_none() {
-        data_server_config.set_auth(config.auth.clone());
-      }
+    if let DataServerEnabled::Some(ref mut data_server_config) = config.data_server
+      && data_server_config.auth().is_none()
+    {
+      data_server_config.set_auth(config.auth.clone());
     }
     if config.ticket_server().auth().is_none() {
       config.ticket_server.set_auth(config.auth.clone());

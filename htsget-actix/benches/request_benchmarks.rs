@@ -126,10 +126,10 @@ fn query_server_until_response(url: &reqwest::Url) {
   let client = Client::new();
   for _ in 0..120 {
     sleep(Duration::from_secs(1));
-    if let Err(err) = client.get(url.clone()).send() {
-      if err.is_connect() {
-        continue;
-      }
+    if let Err(err) = client.get(url.clone()).send()
+      && err.is_connect()
+    {
+      continue;
     }
     break;
   }

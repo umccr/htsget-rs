@@ -329,10 +329,11 @@ impl Auth {
             restriction.interval().contains_interval(query.interval())
           };
 
-          if let Some(interval_match) = interval_match {
-            if name_match && format_match {
-              return Some(interval_match);
-            }
+          if let Some(interval_match) = interval_match
+            && name_match
+            && format_match
+          {
+            return Some(interval_match);
           }
 
           None

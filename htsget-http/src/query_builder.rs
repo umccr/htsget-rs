@@ -104,12 +104,11 @@ impl QueryBuilder {
     }
 
     if let (Some(start), Some(end)) = &(self.query.interval().start(), self.query.interval().end())
+      && start > end
     {
-      if start > end {
-        return Err(HtsGetError::InvalidRange(format!(
-          "end is greater than start (`{start}` > `{end}`)"
-        )));
-      }
+      return Err(HtsGetError::InvalidRange(format!(
+        "end is greater than start (`{start}` > `{end}`)"
+      )));
     }
 
     Ok(self)

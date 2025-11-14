@@ -641,25 +641,24 @@ mod tests {
         assert_eq!(result.len(), 2);
         if let (Location::Simple(location1), Location::Simple(location2)) =
           (result.first().unwrap(), result.get(1).unwrap())
+          && let (Backend::S3(s31), Backend::S3(s32)) = (location1.backend(), location2.backend())
         {
-          if let (Backend::S3(s31), Backend::S3(s32)) = (location1.backend(), location2.backend()) {
-            return (
-              s31.bucket().to_string(),
-              location1
-                .prefix_or_id()
-                .unwrap()
-                .as_prefix()
-                .unwrap()
-                .to_string(),
-              s32.bucket().to_string(),
-              location2
-                .prefix_or_id()
-                .unwrap()
-                .as_prefix()
-                .unwrap()
-                .to_string(),
-            );
-          }
+          return (
+            s31.bucket().to_string(),
+            location1
+              .prefix_or_id()
+              .unwrap()
+              .as_prefix()
+              .unwrap()
+              .to_string(),
+            s32.bucket().to_string(),
+            location2
+              .prefix_or_id()
+              .unwrap()
+              .as_prefix()
+              .unwrap()
+              .to_string(),
+          );
         }
 
         panic!();
@@ -685,27 +684,25 @@ mod tests {
         assert_eq!(result.len(), 2);
         if let (Location::Simple(location1), Location::Simple(location2)) =
           (result.first().unwrap(), result.get(1).unwrap())
-        {
-          if let (Backend::Url(url1), Backend::Url(url2)) =
+          && let (Backend::Url(url1), Backend::Url(url2)) =
             (location1.backend(), location2.backend())
-          {
-            return (
-              url1.url().to_string(),
-              location1
-                .prefix_or_id()
-                .unwrap()
-                .as_prefix()
-                .unwrap()
-                .to_string(),
-              url2.url().to_string(),
-              location2
-                .prefix_or_id()
-                .unwrap()
-                .as_prefix()
-                .unwrap()
-                .to_string(),
-            );
-          }
+        {
+          return (
+            url1.url().to_string(),
+            location1
+              .prefix_or_id()
+              .unwrap()
+              .as_prefix()
+              .unwrap()
+              .to_string(),
+            url2.url().to_string(),
+            location2
+              .prefix_or_id()
+              .unwrap()
+              .as_prefix()
+              .unwrap()
+              .to_string(),
+          );
         }
 
         panic!();

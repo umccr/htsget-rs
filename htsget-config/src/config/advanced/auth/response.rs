@@ -275,10 +275,10 @@ impl ReferenceNameRestrictionBuilder {
 
   /// Build the `ReferenceNameRestriction`.
   pub fn build(self) -> Result<ReferenceNameRestriction> {
-    if let (Some(ref start), Some(ref end)) = (self.start, self.end) {
-      if start >= end {
-        return Err(BuilderError("start must be less than end".to_string()));
-      }
+    if let (Some(ref start), Some(ref end)) = (self.start, self.end)
+      && start >= end
+    {
+      return Err(BuilderError("start must be less than end".to_string()));
     }
 
     Ok(ReferenceNameRestriction {
