@@ -88,17 +88,26 @@ impl UrlStorage {
     let range = BytesRange::from(&position).to_string();
     let request = headers
       .iter()
-      .fold(request, |acc, (key, value)| acc.header(key, value))
+      .fold(request, |acc, (key, value)| acc.header(key, value));
+
+    let request = if !range.is_empty() {
+      request.header(RANGE, &range)
+    } else {
+      request
+    };
+
+    let request = request
       .header(RANGE, &range)
       .body(vec![])
       .map_err(|err| UrlParseError(err.to_string()))?;
-    let request = request
-      .try_into()
-      .map_err(|err| InternalError(format!("failed to create http request: {err}")))?;
 
     let response = self
       .client
-      .execute(request)
+      .execute(
+        request
+          .try_into()
+          .map_err(|err| InternalError(format!("failed to create http request: {err}")))?,
+      )
       .await
       .map_err(|err| KeyNotFound(format!("{err} with key {key}")))?;
 
