@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.8.1...htsget-http-v0.8.2) - 2025-12-01
+
+### Added
+
+- *(config)* add option to fetch recipient public key from a header
+
+### Other
+
+- update dependencies
+- update dependencies, clippy warnings
+
 ## [0.8.1](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.8.0...htsget-http-v0.8.1) - 2025-10-29
 
 ### Added

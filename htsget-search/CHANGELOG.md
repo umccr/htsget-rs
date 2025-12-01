@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.3](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.2...htsget-search-v0.12.3) - 2025-12-01
+
+### Added
+
+- *(storage)* allow index files to also be encrypted
+
+### Other
+
+- update dependencies
+- update dependencies, clippy warnings
+
 ## [0.12.2](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.1...htsget-search-v0.12.2) - 2025-10-29
 
 ### Other
