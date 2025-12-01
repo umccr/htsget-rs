@@ -13,7 +13,7 @@ use htsget_config::error;
 use http::HeaderMap;
 use tokio::fs;
 use tokio::fs::File;
-use tokio::io::AsyncSeekExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tracing::debug;
 use tracing::instrument;
 use url::Url;
@@ -97,11 +97,17 @@ impl<T: UrlFormatter + Send + Sync + Debug + Clone + 'static> StorageTrait for F
 
     // Need to ensure range options are considered for local files.
     let mut file = self.get(key).await?;
-    file
-      .seek(SeekFrom::Start(options.range.start.unwrap_or(0)))
-      .await?;
+    let start = options.range.start.unwrap_or(0);
+    let seek = file.seek(SeekFrom::Start(start)).await?;
 
-    Ok(Streamable::from_async_read(file))
+    if let Some(end) = options.range.end {
+      let file = file.take(end.checked_sub(seek).ok_or_else(|| {
+        StorageError::InternalError("subtraction overflow in local storage get".to_string())
+      })?);
+      Ok(Streamable::from_async_read(file))
+    } else {
+      Ok(Streamable::from_async_read(file))
+    }
   }
 
   /// Get a url for the file at key.
