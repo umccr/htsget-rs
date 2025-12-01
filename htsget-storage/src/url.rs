@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
 use futures_util::TryStreamExt;
-use http::header::CONTENT_LENGTH;
+use http::header::{CONTENT_LENGTH, RANGE};
 use http::{HeaderMap, Method, Request, Uri};
 use pin_project_lite::pin_project;
 use reqwest_middleware::ClientWithMiddleware;
@@ -89,16 +89,17 @@ impl UrlStorage {
     let request = headers
       .iter()
       .fold(request, |acc, (key, value)| acc.header(key, value))
-      .header("Range", &range)
+      .header(RANGE, &range)
       .body(vec![])
       .map_err(|err| UrlParseError(err.to_string()))?;
+    let request = request
+        .try_into()
+        .map_err(|err| InternalError(format!("failed to create http request: {err}")))?;
 
     let response = self
       .client
       .execute(
-        request
-          .try_into()
-          .map_err(|err| InternalError(format!("failed to create http request: {err}")))?,
+        request,
       )
       .await
       .map_err(|err| KeyNotFound(format!("{err} with key {key}")))?;
