@@ -16,6 +16,7 @@ use tracing::{debug, instrument};
 use htsget_config::error;
 
 use crate::StorageError::{InternalError, KeyNotFound, ResponseError, UrlParseError};
+use crate::types::{BytesPosition, BytesRange};
 use crate::{
   GetOptions, HeadOptions, RangeUrlOptions, Result, StorageError, StorageMiddleware, StorageTrait,
 };
@@ -75,18 +76,20 @@ impl UrlStorage {
   pub async fn send_request<K: AsRef<str> + Send>(
     &self,
     key: K,
+    position: BytesPosition,
     headers: &HeaderMap,
     method: Method,
   ) -> Result<reqwest::Response> {
     let key = key.as_ref();
     let url = self.get_url_from_key(key)?;
 
-    println!("url: {url:?}");
     let request = Request::builder().method(method).uri(&url);
 
+    let range = BytesRange::from(&position).to_string();
     let request = headers
       .iter()
       .fold(request, |acc, (key, value)| acc.header(key, value))
+      .header("Range", &range)
       .body(vec![])
       .map_err(|err| UrlParseError(err.to_string()))?;
 
@@ -114,6 +117,8 @@ impl UrlStorage {
     key: K,
     options: RangeUrlOptions<'_>,
   ) -> Result<HtsGetUrl> {
+    let response_headers = self.remove_blacklisted_headers(options.response_headers().clone());
+
     let url = self.get_response_url_from_key(key)?.into_parts();
     let url = Uri::from_parts(url)
       .map_err(|err| InternalError(format!("failed to convert to uri from parts: {err}")))?;
@@ -121,8 +126,7 @@ impl UrlStorage {
     let mut url = HtsGetUrl::new(url.to_string());
     if self.forward_headers {
       url = url.with_headers(
-        options
-          .response_headers()
+        (&response_headers)
           .try_into()
           .map_err(|err: error::Error| StorageError::InvalidInput(err.to_string()))?,
       )
@@ -135,18 +139,24 @@ impl UrlStorage {
   pub async fn head_key<K: AsRef<str> + Send>(
     &self,
     key: K,
-    headers: &HeaderMap,
+    options: HeadOptions<'_>,
   ) -> Result<reqwest::Response> {
-    self.send_request(key, headers, Method::HEAD).await
+    let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
+    self
+      .send_request(key, Default::default(), &request_headers, Method::HEAD)
+      .await
   }
 
   /// Get the key.
   pub async fn get_key<K: AsRef<str> + Send>(
     &self,
     key: K,
-    headers: &HeaderMap,
+    options: GetOptions<'_>,
   ) -> Result<reqwest::Response> {
-    self.send_request(key, headers, Method::GET).await
+    let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
+    self
+      .send_request(key, options.range, &request_headers, Method::GET)
+      .await
   }
 }
 
@@ -182,8 +192,7 @@ impl StorageTrait for UrlStorage {
   async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
     debug!(calling_from = ?self, key, "getting file with key {:?}", key);
 
-    let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
-    let response = self.get_key(key.to_string(), &request_headers).await?;
+    let response = self.get_key(key.to_string(), options).await?;
 
     Ok(Streamable::from_async_read(StreamReader::new(
       UrlStream::new(Box::new(response.bytes_stream().map_err(|err| {
@@ -196,16 +205,12 @@ impl StorageTrait for UrlStorage {
   async fn range_url(&self, key: &str, options: RangeUrlOptions<'_>) -> Result<HtsGetUrl> {
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
 
-    let response_headers = self.remove_blacklisted_headers(options.response_headers().clone());
-    let new_options = RangeUrlOptions::new(options.range().clone(), &response_headers);
-
-    self.format_url(key, new_options)
+    self.format_url(key, options)
   }
 
   #[instrument(level = "trace", skip(self))]
   async fn head(&self, key: &str, options: HeadOptions<'_>) -> Result<u64> {
-    let request_headers = self.remove_blacklisted_headers(options.request_headers().clone());
-    let head = self.head_key(key, &request_headers).await?;
+    let head = self.head_key(key, options).await?;
 
     let len = head
       .headers()
@@ -244,9 +249,9 @@ pub(crate) mod tests {
 
   use htsget_config::types::Headers;
 
-  use crate::local::tests::create_local_test_files;
-
   use super::*;
+  use crate::local::tests::create_local_test_files;
+  use crate::types::GetOptions;
 
   #[test]
   fn get_url_from_key() {
@@ -313,7 +318,7 @@ pub(crate) mod tests {
 
       let response = String::from_utf8(
         storage
-          .send_request("assets/key1", headers, Method::GET)
+          .send_request("assets/key1", Default::default(), headers, Method::GET)
           .await
           .unwrap()
           .bytes()
@@ -335,7 +340,7 @@ pub(crate) mod tests {
 
       let response = String::from_utf8(
         storage
-          .get_key("assets/key1", headers)
+          .get_key("assets/key1", GetOptions::new_with_default_range(headers))
           .await
           .unwrap()
           .bytes()
@@ -356,7 +361,7 @@ pub(crate) mod tests {
       let headers = test_headers(&mut headers);
 
       let response: u64 = storage
-        .get_key("assets/key1", headers)
+        .get_key("assets/key1", GetOptions::new_with_default_range(headers))
         .await
         .unwrap()
         .headers()
