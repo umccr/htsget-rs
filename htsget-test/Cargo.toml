@@ -43,10 +43,7 @@ experimental = ["dep:crypt4gh", "dep:htsget-config", "htsget-config/experimental
 default = []
 
 [dependencies]
-# Server tests dependencies
-htsget-config = { version = "0.19.1", path = "../htsget-config", default-features = false, optional = true }
-
-noodles = { version = "0.101", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
+noodles = { version = "0.102", optional = true, features = ["async", "bgzf", "vcf", "cram", "bcf", "bam", "fasta"] }
 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 reqwest-middleware = { version = "0.4", optional = true }
@@ -79,3 +76,6 @@ chrono = { version = "0.4", features = ["serde"], optional = true }
 # Default dependencies
 rcgen = "0.14"
 thiserror = "2"
+
+# Server tests dependencies
+htsget-config = { version = "0.19.1", path = "../htsget-config", default-features = false, optional = true }

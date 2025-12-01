@@ -93,14 +93,12 @@ impl UrlStorage {
       .body(vec![])
       .map_err(|err| UrlParseError(err.to_string()))?;
     let request = request
-        .try_into()
-        .map_err(|err| InternalError(format!("failed to create http request: {err}")))?;
+      .try_into()
+      .map_err(|err| InternalError(format!("failed to create http request: {err}")))?;
 
     let response = self
       .client
-      .execute(
-        request,
-      )
+      .execute(request)
       .await
       .map_err(|err| KeyNotFound(format!("{err} with key {key}")))?;
 
