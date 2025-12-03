@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.3...htsget-storage-v0.5.4) - 2025-12-03
+
+### Fixed
+
+- *(storage)* remove double range for header
+
 ## [0.5.3](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.2...htsget-storage-v0.5.3) - 2025-12-01
 
 ### Added

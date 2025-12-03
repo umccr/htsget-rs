@@ -1,6 +1,6 @@
 [package]
 name = "htsget-http"
-version = "0.8.2"
+version = "0.8.3"
 rust-version = "1.88"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2024"
@@ -34,7 +34,7 @@ jsonpath-rust = "1"
 regex = "1"
 headers = "0.4"
 
-htsget-search = { version = "0.12.3", path = "../htsget-search", default-features = false }
+htsget-search = { version = "0.12.4", path = "../htsget-search", default-features = false }
 htsget-config = { version = "0.20.0", path = "../htsget-config", default-features = false }
 
 [dev-dependencies]
