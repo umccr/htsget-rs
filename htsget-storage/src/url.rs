@@ -97,7 +97,6 @@ impl UrlStorage {
     };
 
     let request = request
-      .header(RANGE, &range)
       .body(vec![])
       .map_err(|err| UrlParseError(err.to_string()))?;
 

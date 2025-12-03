@@ -97,8 +97,8 @@ impl Debug for Storage {
 
 #[async_trait]
 impl StorageMiddleware for Storage {
-  async fn preprocess(&mut self, _key: &str, _options: GetOptions<'_>) -> Result<()> {
-    self.inner.preprocess(_key, _options).await
+  async fn preprocess(&mut self, key: &str, options: GetOptions<'_>) -> Result<()> {
+    self.inner.preprocess(key, options).await
   }
 
   async fn postprocess(
