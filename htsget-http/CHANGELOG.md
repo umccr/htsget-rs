@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.8.2...htsget-http-v0.8.3) - 2025-12-03
+
+### Other
+
+- updated the following local packages: htsget-search
+
 ## [0.8.2](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.8.1...htsget-http-v0.8.2) - 2025-12-01
 
 ### Added

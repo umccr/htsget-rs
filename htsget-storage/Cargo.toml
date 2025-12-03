@@ -1,6 +1,6 @@
 [package]
 name = "htsget-storage"
-version = "0.5.3"
+version = "0.5.4"
 rust-version = "1.88"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2024"
