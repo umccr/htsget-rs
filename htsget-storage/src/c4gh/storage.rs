@@ -112,8 +112,7 @@ impl C4GHStorage {
     let mut c4gh_header_options = options.clone();
     // If the key is an index, first try fetching it encrypted.
     let encrypted_file_size = if Format::is_index(key) {
-      let a = self.inner.head(&c4gh_key, (&options).into()).await;
-      match a {
+      match self.inner.head(&c4gh_key, (&options).into()).await {
         Ok(encrypted_file_size) => {
           // Always get the full index file.
           c4gh_header_options.range.end = Some(encrypted_file_size);
