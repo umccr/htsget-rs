@@ -31,6 +31,7 @@ use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, ReadBuf};
+use tracing::info;
 
 #[cfg(feature = "experimental")]
 pub mod c4gh;
@@ -153,6 +154,8 @@ impl Storage {
             .for_each(|key| key.recipient_pubkey = public_key.clone());
         }
 
+        info!("attempting to use Crypt4GH data");
+
         Ok(Storage::new(C4GHStorage::new_box(
           c4gh_keys,
           storage.into_inner(),
@@ -161,7 +164,10 @@ impl Storage {
       (None, Some(EncryptionScheme::C4GH)) => Err(StorageError::UnsupportedFormat(
         "C4GH keys have not been configured for this id".to_string(),
       )),
-      _ => Ok(storage),
+      _ => {
+        info!("attempting to use non-encrypted data");
+        Ok(storage)
+      },
     }
   }
 
