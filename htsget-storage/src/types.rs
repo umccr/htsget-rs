@@ -71,12 +71,12 @@ impl From<&BytesRange> for String {
 
 impl Display for BytesRange {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    let start = self
-      .start
-      .map(|start| start.to_string())
-      .unwrap_or_else(|| "0".to_string());
-    let end = self.end.map(|end| end.to_string()).unwrap_or_default();
-    write!(f, "bytes={start}-{end}")
+    match (self.start, self.end) {
+      (Some(start), Some(end)) => write!(f, "bytes={start}-{end}"),
+      (Some(0), None) | (None, None) => write!(f, ""),
+      (Some(start), None) => write!(f, "bytes={start}-"),
+      (None, Some(end)) => write!(f, "bytes=0-{end}"),
+    }
   }
 }
 
