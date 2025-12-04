@@ -84,7 +84,7 @@ impl Search<ReferenceSequence<LinearIndex>, Index, AsyncReader, Header> for BamS
 
   #[instrument(level = "trace", skip(self, index, header, query))]
   async fn get_byte_ranges_for_reference_name(
-    &self,
+    &mut self,
     reference_name: String,
     index: &Index,
     header: &Header,
@@ -128,7 +128,7 @@ impl SearchReads<ReferenceSequence<LinearIndex>, Index, AsyncReader, Header> for
   }
 
   async fn get_byte_ranges_for_reference_sequence(
-    &self,
+    &mut self,
     ref_seq_id: usize,
     query: &Query,
     index: &Index,

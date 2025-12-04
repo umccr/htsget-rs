@@ -53,7 +53,7 @@ impl Search<ReferenceSequence<BinnedIndex>, Index, AsyncReader, Header> for BcfS
 
   #[instrument(level = "trace", skip(self, index, header, query))]
   async fn get_byte_ranges_for_reference_name(
-    &self,
+    &mut self,
     reference_name: String,
     index: &Index,
     header: &Header,

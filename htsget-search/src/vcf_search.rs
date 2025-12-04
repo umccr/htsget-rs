@@ -57,7 +57,7 @@ impl Search<ReferenceSequence<LinearIndex>, Index, AsyncReader, Header> for VcfS
 
   #[instrument(level = "trace", skip(self, index, query))]
   async fn get_byte_ranges_for_reference_name(
-    &self,
+    &mut self,
     reference_name: String,
     index: &Index,
     _header: &Header,
