@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.4...htsget-storage-v0.5.5) - 2025-12-05
+
+### Added
+
+- feat!(search): support C4GH encrypted GZI files
+
+### Other
+
+- *(storage)* add log statement for the kind of data requested
+- *(storage)* rework the formatting of bytes position to avoid an unnecessary bytes=0-
+
 ## [0.5.4](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.3...htsget-storage-v0.5.4) - 2025-12-03
 
 ### Fixed
