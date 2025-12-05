@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.20.0...htsget-config-v0.20.1) - 2025-12-05
+
+### Other
+
+- *(config)* describe the `encryptionScheme` parameter in the config docs
+
 ## [0.20.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.19.1...htsget-config-v0.20.0) - 2025-12-01
 
 ### Added
