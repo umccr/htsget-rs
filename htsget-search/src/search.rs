@@ -148,7 +148,7 @@ where
 
   /// Get reads ranges for a reference sequence implementation.
   async fn get_byte_ranges_for_reference_sequence(
-    &self,
+    &mut self,
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
@@ -156,7 +156,7 @@ where
 
   ///Get reads for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name_reads(
-    &self,
+    &mut self,
     reference_name: &str,
     index: &Index,
     header: &Header,
@@ -205,7 +205,7 @@ where
 
   /// Get ranges for a given reference name and an optional sequence range.
   async fn get_byte_ranges_for_reference_name(
-    &self,
+    &mut self,
     reference_name: String,
     index: &Index,
     header: &Header,
@@ -482,7 +482,7 @@ where
   /// Get ranges for a reference sequence for the bgzf format.
   #[instrument(level = "trace", skip_all)]
   async fn get_byte_ranges_for_reference_sequence_bgzf(
-    &self,
+    &mut self,
     query: &Query,
     ref_seq_id: usize,
     index: &Index<I>,
@@ -498,6 +498,9 @@ where
       Ok(chunks)
     });
 
+    self
+      .preprocess(query, None, &query.format().fmt_gzi(query.id())?)
+      .await?;
     let gzi_data = self
       .get_storage()
       .get(
@@ -505,6 +508,7 @@ where
         GetOptions::new_with_default_range(query.request().headers()),
       )
       .await;
+
     let byte_ranges: Vec<BytesPosition> = match gzi_data {
       Ok(gzi_data) => {
         let span = trace_span!("reading gzi");

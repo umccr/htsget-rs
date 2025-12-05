@@ -6,9 +6,7 @@ on:
       - main
 
 permissions:
-  # deployments permission to deploy GitHub pages website
   deployments: write
-  # contents permission to update benchmark contents in gh-pages branch
   contents: write
 
 jobs:
@@ -19,32 +17,25 @@ jobs:
         rust: [stable]
         os: [ubuntu-latest]
     steps:
+      - name: Cache
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: toolchain
         with:
           toolchain: ${{ matrix.rust }}
-      - run: rustup override set ${{ steps.toolchain.outputs.name }}
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: build-cache
-          save-if: false
+      - name: Install binstall
+        uses: cargo-bins/cargo-binstall@main
       - name: Install cargo-criterion
-        uses: baptiste0928/cargo-install@v3
-        with:
-          crate: cargo-criterion
+        run: cargo binstall cargo-criterion
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
-      - name: Store search benchmark result
-        uses: brainstorm/github-action-benchmark@cargo-criterion-v3
+      - name: Run benchmark
+        run: cargo bench -- --output-format bencher | tee output.txt
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
         with:
-          name: Search benchmark
-          tool: "cargo-criterion"
-          output-file-path: search-benchmarks-output.json
-          native-benchmark-data-dir-path: target/criterion
-          fail-on-alert: false
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
+          tool: "cargo"
+          output-file-path: output.txt

@@ -637,7 +637,12 @@ See the MinIO deployment [example][minio-deployment] for more information on how
 
 ### Crypt4GH
 
-There is experimental support for serving [Crypt4GH][c4gh] encrypted files which required compilation with `--features experimental`.
+There is experimental support for serving [Crypt4GH][c4gh] encrypted files which requires compilation with `--features experimental`.
+
+> [!IMPORTANT]  
+> To use this feature a new query parameter must be used. The htsget-rs server expects `encryptionScheme=C4GH` to be
+> set as a query parameter in order to serve Crypt4GH encrypted files. By default, if this parameter is not used, the
+> server will attempt to return non-encrypted data for the requested `<id>`.
 
 This allows htsget-rs to read Crypt4GH files and serve them encrypted, directly to the client. In the process of
 serving the data, htsget-rs will decrypt the headers of the Crypt4GH files and re-encrypt them so that the client can read

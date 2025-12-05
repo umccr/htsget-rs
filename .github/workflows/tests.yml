@@ -25,14 +25,13 @@ jobs:
       - name: Cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: toolchain
         with:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
-      - run: rustup override set ${{ steps.toolchain.outputs.name }}
       - name: Install pre-commit
         run: pip3 install pre-commit
       - name: Run pre-commit

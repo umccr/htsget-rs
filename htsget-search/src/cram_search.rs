@@ -114,7 +114,7 @@ impl SearchReads<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   }
 
   async fn get_byte_ranges_for_reference_sequence(
-    &self,
+    &mut self,
     ref_seq_id: usize,
     query: &Query,
     index: &Index,
@@ -145,7 +145,7 @@ impl Search<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   }
 
   async fn get_byte_ranges_for_reference_name(
-    &self,
+    &mut self,
     reference_name: String,
     index: &Index,
     header: &Header,
