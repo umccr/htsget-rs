@@ -31,17 +31,11 @@ jobs:
         id: toolchain
         with:
           toolchain: ${{ matrix.rust }}
-      - name: Build all features
-        run: cargo build --all-targets --all-features
-      - name: Build no default features
-        run: cargo build --all-targets --no-default-features
-      - name: Build aws
-        run: cargo build --all-targets --features aws
-      - name: Show disk usage
-        run: df -h
-      - name: Top-level directories
-        run: du -h -d1 / | sort -hr | head -n 20
-      - name: Detailed file sizes
-        run: find / -type f -exec du -h {} + 2>/dev/null | sort -hr | head -n 1000
-      - name: Build url
-        run: cargo build --all-targets --features url
+      - name: Check all features
+        run: cargo check --all-targets --all-features
+      - name: Check no default features
+        run: cargo check --all-targets --no-default-features
+      - name: Check aws
+        run: cargo check --all-targets --features aws
+      - name: Check url
+        run: cargo check --all-targets --features url
