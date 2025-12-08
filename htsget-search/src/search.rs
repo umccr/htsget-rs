@@ -498,9 +498,9 @@ where
       Ok(chunks)
     });
 
-    self
+    let preprocess = self
       .preprocess(query, None, &query.format().fmt_gzi(query.id())?)
-      .await?;
+      .await;
     let gzi_data = self
       .get_storage()
       .get(
@@ -509,8 +509,8 @@ where
       )
       .await;
 
-    let byte_ranges: Vec<BytesPosition> = match gzi_data {
-      Ok(gzi_data) => {
+    let byte_ranges: Vec<BytesPosition> = match (preprocess, gzi_data) {
+      (Ok(_), Ok(gzi_data)) => {
         let span = trace_span!("reading gzi");
         let gzi: Result<Vec<u64>> = async {
           trace!(id = ?query.id(), "reading gzi");
@@ -534,7 +534,7 @@ where
           .bytes_positions_from_chunks(query, chunks?.into_iter(), gzi?.into_iter())
           .await?
       }
-      Err(_) => {
+      _ => {
         self
           .bytes_positions_from_chunks(
             query,
