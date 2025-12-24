@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.5](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.4...htsget-search-v0.12.5) - 2025-12-24
+
+### Added
+
+- feat!(search): support C4GH encrypted GZI files
+
+### Fixed
+
+- *(search)* preprocess on gzi should fallback to non-encrypted gzi
+
+### Other
+
+- remove documentation to have it automatically point to crate docs
+- update deps, removing bincode and updating noodles to 0.104
+
 ## [0.12.4](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.3...htsget-search-v0.12.4) - 2025-12-03
 
 ### Other

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.9](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.8...htsget-lambda-v0.7.9) - 2025-12-24
+
+### Other
+
+- remove documentation to have it automatically point to crate docs
+
 ## [0.7.8](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.7...htsget-lambda-v0.7.8) - 2025-12-03
 
 ### Other
