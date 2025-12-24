@@ -29,7 +29,7 @@ jobs:
       - name: Install binstall
         uses: cargo-bins/cargo-binstall@main
       - name: Install cargo-criterion
-        run: cargo binstall cargo-criterion
+        run: cargo binstall --no-confirm cargo-criterion
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
       - name: Store search benchmark result
