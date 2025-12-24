@@ -32,10 +32,13 @@ jobs:
         run: cargo binstall cargo-criterion
       - name: Run search benchmarks
         run: cargo criterion --bench search-benchmarks --message-format=json -- LIGHT 1> search-benchmarks-output.json
-      - name: Run benchmark
-        run: cargo bench -- --output-format bencher | tee output.txt
-      - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
+      - name: Store search benchmark result
+        uses: brainstorm/github-action-benchmark@cargo-criterion-v3
         with:
-          tool: "cargo"
-          output-file-path: output.txt
+          name: Search benchmark
+          tool: "cargo-criterion"
+          output-file-path: search-benchmarks-output.json
+          native-benchmark-data-dir-path: target/criterion
+          fail-on-alert: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
