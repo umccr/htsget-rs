@@ -6,7 +6,6 @@ authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>
 edition = "2024"
 license = "MIT"
 description = "Crate for handling HTTP in htsget-rs."
-documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-http/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-http/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
