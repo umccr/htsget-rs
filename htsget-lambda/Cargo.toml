@@ -6,7 +6,6 @@ authors = ["Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainsto
 edition = "2024"
 license = "MIT"
 description = "A cloud-based instance of htsget-rs using AWS Lambda, which serves data according to the htsget protocol."
-documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-lambda/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-lambda/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 

@@ -6,7 +6,6 @@ authors = ["Christian Perez Llamas <chrispz@gmail.com>", "Marko Malenic <mmaleni
 edition = "2024"
 description = "The primary mechanism by which htsget-rs interacts with, and processes bioinformatics files. It does this by using noodles to query files and their indices."
 license = "MIT"
-documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
@@ -37,7 +36,7 @@ futures-util = "0.3"
 async-trait = "0.1"
 
 # Noodles
-noodles = { version = "0.102", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
+noodles = { version = "0.104", features = ["async", "core", "bgzf", "bam", "bcf", "cram", "csi", "sam", "tabix", "vcf"] }
 
 # Error control, tracing, config
 http = "1"

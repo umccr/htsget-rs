@@ -6,7 +6,6 @@ authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>
 edition = "2024"
 description = "Used to configure htsget-rs by using a config file or reading environment variables."
 license = "MIT"
-documentation = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
 homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-config/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
@@ -19,7 +18,7 @@ default = []
 [dependencies]
 thiserror = "2"
 async-trait = "0.1"
-noodles = { version = "0.102", features = ["core"] }
+noodles = { version = "0.104", features = ["core"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_regex = "1"

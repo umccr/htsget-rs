@@ -81,12 +81,8 @@ impl DeserializedHeader {
 
         bytes.extend(length_buffer);
 
-        let (length, _) =
-          bincode::decode_from_slice::<u32, _>(&length_buffer, bincode::config::legacy())
-            .map_err(|e| Crypt4GHError::ParseHeaderPacketLengthError(e.into()))?;
-
+        let length = u32::from_le_bytes(length_buffer);
         header_lengths += length;
-
         let length = length - 4;
 
         // Get data

@@ -214,15 +214,16 @@ impl ReadRecords {
         self.iterate_records(reader.records(&header)).await
       }
       Format::Vcf => {
-        let mut reader =
-          vcf::AsyncReader::new(bgzf::r#async::io::Reader::new(self.merged_bytes.as_slice()));
+        let mut reader = vcf::r#async::io::Reader::new(bgzf::r#async::io::Reader::new(
+          self.merged_bytes.as_slice(),
+        ));
         let header = reader.read_header().await.map_err(TestError::read_record)?;
         println!("{header:#?}");
 
         self.iterate_records(reader.records()).await
       }
       Format::Bcf => {
-        let mut reader = bcf::AsyncReader::new(self.merged_bytes.as_slice());
+        let mut reader = bcf::r#async::io::Reader::new(self.merged_bytes.as_slice());
         reader.read_header().await.map_err(TestError::read_record)?;
 
         self.iterate_records(reader.records()).await

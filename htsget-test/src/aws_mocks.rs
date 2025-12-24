@@ -39,7 +39,7 @@ pub async fn run_s3_test_server<F, Fut>(
     service.set_auth(auth);
     service.set_host(host);
 
-    s3s_aws::Client::from(service.build().into_shared())
+    s3s_aws::Client::from(service.build())
   };
 
   let sdk_config = SdkConfig::builder()
