@@ -26,7 +26,7 @@ url = [
     "htsget-config/url",
     "htsget-test/url"
 ]
-experimental = ["dep:crypt4gh", "dep:bincode", "htsget-config/experimental", "htsget-test/experimental"]
+experimental = ["dep:crypt4gh", "htsget-config/experimental", "htsget-test/experimental"]
 default = []
 
 [dependencies]
@@ -53,7 +53,6 @@ reqwest-middleware = { version = "0.4", optional = true }
 
 # Crypt4GH
 crypt4gh = { version = "0.4", git = "https://github.com/EGA-archive/crypt4gh-rust", optional = true }
-bincode = { version = "2", features = ["serde"], optional = true }
 
 # Error control, tracing, config
 thiserror = "2"

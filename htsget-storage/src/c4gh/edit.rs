@@ -5,8 +5,7 @@ use crate::c4gh::DeserializedHeader;
 use crate::error::{Result, StorageError};
 use crypt4gh::Keys;
 use crypt4gh::error::Crypt4GHError;
-use crypt4gh::error::Crypt4GHError::InvalidPacketType;
-use crypt4gh::header::{HeaderInfo, encrypt, make_packet_data_edit_list, make_packet_data_enc};
+use crypt4gh::header::{encrypt, make_packet_data_edit_list, make_packet_data_enc};
 use std::collections::HashSet;
 use tokio::io;
 
@@ -206,15 +205,12 @@ impl<'a> EditHeader<'a> {
 
     let mut current_len = header_info.packets_count;
     current_len += 1 + header_packets.len() as u32;
-
-    let header_info = HeaderInfo {
-      magic_number: header_info.magic_number,
-      version: header_info.version,
-      packets_count: current_len,
-    };
-
-    let header_info_bytes = bincode::serde::encode_to_vec(&header_info, bincode::config::legacy())
-      .map_err(|_| InvalidPacketType)?;
+    let header_info_bytes = [
+      header_info.magic_number.as_slice(),
+      header_info.version.to_le_bytes().as_slice(),
+      current_len.to_le_bytes().as_slice(),
+    ]
+    .concat();
 
     Ok(
       (

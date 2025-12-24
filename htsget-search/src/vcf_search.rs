@@ -23,7 +23,7 @@ use crate::{Format, Query, Result};
 use htsget_storage::types::BytesPosition;
 use htsget_storage::{Storage, Streamable};
 
-type AsyncReader = vcf::AsyncReader<bgzf::r#async::io::Reader<Streamable>>;
+type AsyncReader = vcf::r#async::io::Reader<bgzf::r#async::io::Reader<Streamable>>;
 
 /// Allows searching through vcf files.
 pub struct VcfSearch {

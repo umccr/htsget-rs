@@ -19,7 +19,7 @@ use crate::{Format, Query, Result};
 use htsget_storage::types::BytesPosition;
 use htsget_storage::{Storage, Streamable};
 
-type AsyncReader = bcf::AsyncReader<bgzf::r#async::io::Reader<Streamable>>;
+type AsyncReader = bcf::r#async::io::Reader<bgzf::r#async::io::Reader<Streamable>>;
 
 /// Allows searching through bcf files.
 pub struct BcfSearch {
