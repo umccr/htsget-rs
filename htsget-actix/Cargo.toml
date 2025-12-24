@@ -1,6 +1,6 @@
 [package]
 name = "htsget-actix"
-version = "0.12.3"
+version = "0.12.4"
 rust-version = "1.88"
 authors = ["Daniel del Castillo de la Rosa <delcastillodelarosadaniel@gmail.com>", "Marko Malenic <mmalenic1@gmail.com>", "Roman Valls Guimera <brainstorm@nopcode.org>"]
 edition = "2024"
@@ -39,10 +39,10 @@ axum = { version = "0.8", features = ["http2"] }
 tracing-actix-web = "0.7"
 tracing = "0.1"
 
-htsget-http = { version = "0.8.3", path = "../htsget-http", default-features = false }
-htsget-search = { version = "0.12.4", path = "../htsget-search", default-features = false }
-htsget-config = { version = "0.20.0", path = "../htsget-config", default-features = false }
-htsget-axum = { version = "0.8.3", path = "../htsget-axum", default-features = false }
+htsget-http = { version = "0.8.4", path = "../htsget-http", default-features = false }
+htsget-search = { version = "0.12.5", path = "../htsget-search", default-features = false }
+htsget-config = { version = "0.20.1", path = "../htsget-config", default-features = false }
+htsget-axum = { version = "0.8.4", path = "../htsget-axum", default-features = false }
 
 [dev-dependencies]
 htsget-test = { path = "../htsget-test", features = ["http"], default-features = false }
