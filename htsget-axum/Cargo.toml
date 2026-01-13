@@ -1,6 +1,6 @@
 [package]
 name = "htsget-axum"
-version = "0.8.4"
+version = "0.8.5"
 rust-version = "1.88"
 authors = ["Marko Malenic <mmalenic1@gmail.com>"]
 edition = "2024"
