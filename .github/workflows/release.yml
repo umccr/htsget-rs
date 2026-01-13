@@ -20,6 +20,8 @@ jobs:
           fetch-depth: 0
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
       - name: Run release-plz
         uses: MarcoIeni/release-plz-action@v0.5
         env:
