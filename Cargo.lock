@@ -2430,7 +2430,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-actix"
-version = "0.12.4"
+version = "0.12.5"
 dependencies = [
  "actix-cors",
  "actix-utils",
@@ -2458,7 +2458,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-axum"
-version = "0.8.4"
+version = "0.8.5"
 dependencies = [
  "async-trait",
  "axum",
@@ -2547,7 +2547,7 @@ dependencies = [
 
 [[package]]
 name = "htsget-lambda"
-version = "0.7.9"
+version = "0.7.10"
 dependencies = [
  "aws_lambda_events",
  "futures",
