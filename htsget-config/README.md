@@ -651,10 +651,11 @@ and will need to be decrypted before they can be read. All file formats (BAM, CR
 
 To use this feature, set the following options under `keys`:
 
-| Option    | Description                                                                                                                                                                  | Type                              | Default |
-|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|---------|
-| `private` | The PEM formatted private key which htsget-rs uses to decrypt Crypt4GH data.                                                                                                 | Object, specify `key` and `kind`. | Not Set | 
-| `public`  | The PEM formatted public key which the recipient of the data will use. This is what the client will use to decrypt the returned data, using their corresponding private key. | Object, specify `key` and `kind`. | Not Set |
+| Option           | Description                                                                                                                                                                  | Type                              | Default |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|---------|
+| `server.private` | The PEM formatted private key which htsget-rs uses to decrypt Crypt4GH data.                                                                                                 | Object, specify `key` and `kind`. | Not Set | 
+| `server.public`  | The PEM formatted public key which htsget-rs uses to decrypt Crypt4GH data.                                                                                                  | Object, specify `key` and `kind`. | Not Set |
+| `client.public`  | The PEM formatted public key which the recipient of the data will use. This is what the client will use to decrypt the returned data, using their corresponding private key. | Object, specify `key` and `kind`. | Not Set |
 
 Each option should have `key` and `kind` specified individually, dependent on where the key is sourced from.
 
@@ -666,10 +667,12 @@ regex = ".*"
 substitution_string = "$0"
 backend.kind = "File"
 
-backend.keys.private.kind = "File"
-backend.keys.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
-backend.keys.public.kind = "File"
-backend.keys.public.key = "data/c4gh/keys/alice.pub"
+backend.keys.server.private.kind = "File"
+backend.keys.server.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.keys.server.public.kind = "File"
+backend.keys.server.public.key = "data/c4gh/keys/bob.pub"
+backend.keys.client.public.kind = "File"
+backend.keys.client.public.key = "data/c4gh/keys/alice.pub"
 ```
 
 Keys can also be retrieved from [AWS Secrets Manager][secrets-manager]. Compile with the `aws` feature flag and specify
@@ -684,15 +687,17 @@ regex = ".*"
 substitution_string = "$0"
 backend.kind = "File"
 
-backend.keys.private.kind = "SecretsManager"
-backend.keys.private.key = "private_key_secret_name" # pragma: allowlist secret
-backend.keys.public.kind = "SecretsManager"
-backend.keys.public.key = "public_key_secret_name"
+backend.keys.server.private.kind = "SecretsManager"
+backend.keys.server.private.key = "private_key_secret_name" # pragma: allowlist secret
+backend.keys.server.public.kind = "SecretsManager"
+backend.keys.server.public.key = "public_key_secret_name"
+backend.keys.client.public.kind = "SecretsManager"
+backend.keys.client.public.key = "client_public_key_secret_name"
 ```
 
 The public key of the recipient can also be fetched from an incoming request header. To use this functionality,
-set the `kind` to `Header`, without setting any `key` field. This is only supported for the public key. When using
-this option, htsget-rs expects the recipient's PEM-formatted public key to be present in a header called
+set the `kind` to `Header`, without setting any `key` field. This is only supported for the public key of the client.
+When using this option, htsget-rs expects the recipient's PEM-formatted public key to be present in a header called
 `Htsget-Context-Public-Key`. The public key must also be base64 encoded with newlines included.
 
 For example:
@@ -703,9 +708,11 @@ regex = ".*"
 substitution_string = "$0"
 backend.kind = "File"
 
-backend.keys.private.kind = "File"
-backend.keys.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
-backend.keys.public.kind = "Header"
+backend.keys.server.private.kind = "File"
+backend.keys.server.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.keys.server.public.kind = "File"
+backend.keys.server.public.key = "data/c4gh/keys/bob.pub"
+backend.keys.client.public.kind = "Header"
 ```
 
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`. Index files can also be encrypted and must end
