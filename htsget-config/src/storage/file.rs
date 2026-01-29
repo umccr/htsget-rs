@@ -93,6 +93,12 @@ impl File {
     self.keys.as_ref()
   }
 
+  #[cfg(feature = "experimental")]
+  /// Get the C4GH keys as an owned value.
+  pub fn into_keys(self) -> Option<C4GHKeys> {
+    self.keys
+  }
+
   /// Get the ticket origin.
   pub fn ticket_origin(&self) -> Option<&str> {
     self.ticket_origin.as_deref()

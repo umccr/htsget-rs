@@ -103,14 +103,14 @@ mod tests {
   use std::path::PathBuf;
 
   async fn test_get_keys(rules: &[&Rule]) {
-    let client = mock_client!(aws_sdk_secretsmanager, RuleMode::Sequential, rules);
+    let client = mock_client!(aws_sdk_secretsmanager, RuleMode::MatchAny, rules);
 
     let secrets_manager_private =
       C4GHSecretsManager::new("private_key".to_string()).with_client(client.clone());
     let secrets_manager_public =
       C4GHSecretsManager::new("server_public_key".to_string()).with_client(client.clone());
     let secrets_manager_client =
-        C4GHSecretsManager::new("client_public_key".to_string()).with_client(client);
+      C4GHSecretsManager::new("client_public_key".to_string()).with_client(client);
     let location = C4GHKeySet {
       server: C4GHKeyLocation {
         private: Some(C4GHKeyType::SecretsManager(secrets_manager_private)),
@@ -119,7 +119,7 @@ mod tests {
       client: C4GHKeyLocation {
         private: None,
         public: C4GHKeyType::SecretsManager(secrets_manager_client),
-      }
+      },
     };
     let keys: C4GHKeys = location.try_into().unwrap();
     let (server_keys, client_keys, _) = keys.into_inner().await.unwrap();
@@ -154,14 +154,19 @@ mod tests {
           .build()
       });
     let get_client_public_key = mock!(Client::get_secret_value)
-        .match_requests(|req| req.secret_id() == Some("client_public_key"))
-        .then_output(move || {
-          GetSecretValueOutput::builder()
-              .secret_string(String::from_utf8(client_public_key.clone()).unwrap())
-              .build()
-        });
+      .match_requests(|req| req.secret_id() == Some("client_public_key"))
+      .then_output(move || {
+        GetSecretValueOutput::builder()
+          .secret_string(String::from_utf8(client_public_key.clone()).unwrap())
+          .build()
+      });
 
-    test_get_keys(&[&get_private_key, &get_recipient_public_key, &get_client_public_key]).await;
+    test_get_keys(&[
+      &get_private_key,
+      &get_recipient_public_key,
+      &get_client_public_key,
+    ])
+    .await;
   }
 
   #[tokio::test]
@@ -182,7 +187,7 @@ mod tests {
           .secret_binary(Blob::new(private_key.clone()))
           .build()
       });
-    let get_recipient_public_key = mock!(Client::get_secret_value)
+    let get_public_key = mock!(Client::get_secret_value)
       .match_requests(|req| req.secret_id() == Some("server_public_key"))
       .then_output(move || {
         GetSecretValueOutput::builder()
@@ -190,13 +195,13 @@ mod tests {
           .build()
       });
     let get_recipient_public_key = mock!(Client::get_secret_value)
-        .match_requests(|req| req.secret_id() == Some("client_public_key"))
-        .then_output(move || {
-          GetSecretValueOutput::builder()
-              .secret_binary(Blob::new(client_public_key.clone()))
-              .build()
-        });
+      .match_requests(|req| req.secret_id() == Some("client_public_key"))
+      .then_output(move || {
+        GetSecretValueOutput::builder()
+          .secret_binary(Blob::new(client_public_key.clone()))
+          .build()
+      });
 
-    test_get_keys(&[&get_private_key, &get_recipient_public_key, &get_recipient_public_key]).await;
+    test_get_keys(&[&get_private_key, &get_public_key, &get_recipient_public_key]).await;
   }
 }

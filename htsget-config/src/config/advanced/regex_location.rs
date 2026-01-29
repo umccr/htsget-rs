@@ -76,6 +76,11 @@ impl RegexLocation {
     &mut self.backend
   }
 
+  /// Get the backend from the location.
+  pub fn into_backend(self) -> Backend {
+    self.backend
+  }
+
   /// Get the allow guard.
   pub fn guard(&self) -> Option<&AllowGuard> {
     self.guard.as_ref()

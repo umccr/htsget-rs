@@ -37,8 +37,7 @@ mod tests {
   use crate::config::Config;
   use crate::config::tests::test_config_from_file;
   use crate::storage::Backend;
-  use std::fs::copy;
-  use std::path::PathBuf;
+  use crate::storage::c4gh::tests::copy_c4gh_keys;
   use tempfile::TempDir;
 
   fn test_c4gh_storage_config<F>(storage_config: &str, test_fn: F)
@@ -46,20 +45,7 @@ mod tests {
     F: Fn(Config),
   {
     let tmp = TempDir::new().unwrap();
-    let private_key = tmp.path().join("bob.sec");
-    let recipient_public_key = tmp.path().join("alice.pub");
-
-    let parent = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-      .parent()
-      .unwrap()
-      .to_path_buf();
-
-    copy(parent.join("data/c4gh/keys/bob.sec"), &private_key).unwrap();
-    copy(
-      parent.join("data/c4gh/keys/alice.pub"),
-      &recipient_public_key,
-    )
-    .unwrap();
+    let (private_key, server_public_key, client_public_key) = copy_c4gh_keys(tmp.path());
 
     test_config_from_file(
       &format!(
@@ -71,14 +57,17 @@ mod tests {
         {}
 
         [locations.backend.keys]
-        private.kind = "File"
-        private.key = "{}"
-        public.kind = "File"
-        public.key = "{}"
+        server.private.kind = "File"
+        server.private.key = "{}"
+        server.public.kind = "File"
+        server.public.key = "{}"
+        client.public.kind = "File"
+        client.public.key = "{}"
         "#,
         storage_config,
         private_key.to_string_lossy(),
-        recipient_public_key.to_string_lossy()
+        server_public_key.to_string_lossy(),
+        client_public_key.to_string_lossy()
       ),
       |config| {
         test_fn(config);
