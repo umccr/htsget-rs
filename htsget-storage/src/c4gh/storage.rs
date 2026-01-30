@@ -285,9 +285,14 @@ impl C4GHStorage {
       ),
     ];
 
-    blocks.extend(DataBlock::from_bytes_positions(BytesPosition::merge_all(
-      encrypted_positions,
-    )));
+    let inner = self
+      .inner
+      .postprocess(
+        key,
+        BytesPositionOptions::new(encrypted_positions, options.headers),
+      )
+      .await?;
+    blocks.extend(inner);
 
     Ok(blocks)
   }
@@ -296,8 +301,8 @@ impl C4GHStorage {
 #[async_trait]
 impl StorageMiddleware for C4GHStorage {
   async fn preprocess(&mut self, key: &str, options: GetOptions<'_>) -> Result<()> {
-    self.preprocess_for_state(key, options).await?;
-    Ok(())
+    self.preprocess_for_state(key, options.clone()).await?;
+    self.inner.preprocess(key, options).await
   }
 
   async fn postprocess(
