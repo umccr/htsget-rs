@@ -40,7 +40,8 @@ pub struct C4GHState {
 /// Implementation for the [StorageTrait] trait using the local file system for accessing Crypt4GH
 /// encrypted files. [T] is the type of the server struct, which is used for formatting urls.
 pub struct C4GHStorage {
-  keys: Vec<Keys>,
+  server_decryption_keys: Vec<Keys>,
+  client_encryption_keys: Vec<Keys>,
   inner: Box<dyn StorageTrait + Send + Sync + 'static>,
   state: HashMap<String, C4GHState>,
 }
@@ -48,7 +49,8 @@ pub struct C4GHStorage {
 impl Clone for C4GHStorage {
   fn clone(&self) -> Self {
     Self {
-      keys: self.keys.clone(),
+      server_decryption_keys: self.server_decryption_keys.clone(),
+      client_encryption_keys: self.client_encryption_keys.clone(),
       inner: self.inner.clone_box(),
       state: self.state.clone(),
     }
@@ -63,14 +65,27 @@ impl Debug for C4GHStorage {
 
 impl C4GHStorage {
   /// Create a new storage from a storage trait.
-  pub fn new(keys: Vec<Keys>, inner: impl StorageTrait + Send + Sync + 'static) -> Self {
-    Self::new_box(keys, Box::new(inner))
+  pub fn new(
+    server_decryption_keys: Vec<Keys>,
+    client_encryption_keys: Vec<Keys>,
+    inner: impl StorageTrait + Send + Sync + 'static,
+  ) -> Self {
+    Self::new_box(
+      server_decryption_keys,
+      client_encryption_keys,
+      Box::new(inner),
+    )
   }
 
   /// Create a new value from a boxed storage trait.
-  pub fn new_box(keys: Vec<Keys>, inner: Box<dyn StorageTrait + Send + Sync + 'static>) -> Self {
+  pub fn new_box(
+    server_decryption_keys: Vec<Keys>,
+    client_encryption_keys: Vec<Keys>,
+    inner: Box<dyn StorageTrait + Send + Sync + 'static>,
+  ) -> Self {
     Self {
-      keys,
+      server_decryption_keys,
+      client_encryption_keys,
       inner,
       state: Default::default(),
     }
@@ -140,7 +155,8 @@ impl C4GHStorage {
 
     let mut reader = BufReader::new(buf.as_slice());
 
-    let deserialized_header = DeserializedHeader::from_buffer(&mut reader, &self.keys)?;
+    let deserialized_header =
+      DeserializedHeader::from_buffer(&mut reader, &self.server_decryption_keys)?;
     let unencrypted_file_size =
       to_unencrypted_file_size(encrypted_file_size, deserialized_header.header_size);
 
@@ -248,7 +264,7 @@ impl C4GHStorage {
     let (header_info, reencrypted_bytes, edit_list_packet) = EditHeader::new(
       unencrypted_positions,
       clamped_positions,
-      &self.keys,
+      &self.client_encryption_keys,
       &state.deserialized_header,
     )
     .reencrypt_header()?
@@ -332,7 +348,7 @@ mod tests {
   #[cfg(feature = "url")]
   use crate::url::tests::{test_headers, with_url_test_server};
   use htsget_config::types::Headers;
-  use htsget_test::c4gh::{encrypt_data, get_decryption_keys};
+  use htsget_test::c4gh::{encrypt_data, get_decryption_keys, get_encryption_keys};
   use http::HeaderMap;
   use std::future::Future;
   use std::path::Path;
@@ -615,7 +631,12 @@ mod tests {
   {
     with_local_storage(|storage, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(get_decryption_keys().await, storage)).await;
+      test(C4GHStorage::new(
+        get_decryption_keys().await,
+        get_encryption_keys().await,
+        storage,
+      ))
+      .await;
     })
     .await;
   }
@@ -628,7 +649,12 @@ mod tests {
   {
     with_aws_s3_storage(|storage, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(get_decryption_keys().await, storage)).await;
+      test(C4GHStorage::new(
+        get_decryption_keys().await,
+        get_encryption_keys().await,
+        storage,
+      ))
+      .await;
     })
     .await;
   }
@@ -641,7 +667,15 @@ mod tests {
   {
     with_url_test_server(|storage, url, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(get_decryption_keys().await, storage), url).await;
+      test(
+        C4GHStorage::new(
+          get_decryption_keys().await,
+          get_encryption_keys().await,
+          storage,
+        ),
+        url,
+      )
+      .await;
     })
     .await;
   }

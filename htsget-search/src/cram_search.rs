@@ -277,6 +277,7 @@ mod tests {
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
     htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
+    htsget_test::c4gh::get_encryption_keys,
   };
 
   const DATA_LOCATION: &str = "data/cram";
@@ -598,7 +599,11 @@ mod tests {
   #[tokio::test]
   async fn search_all_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(get_decryption_keys().await, storage);
+      let storage = C4GHStorage::new(
+        get_decryption_keys().await,
+        get_encryption_keys().await,
+        storage,
+      );
       let mut search = CramSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram);
       let response = search.search(query).await.unwrap();
@@ -617,7 +622,11 @@ mod tests {
   #[tokio::test]
   async fn search_range_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(get_decryption_keys().await, storage);
+      let storage = C4GHStorage::new(
+        get_decryption_keys().await,
+        get_encryption_keys().await,
+        storage,
+      );
       let mut search = CramSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Cram)
         .with_reference_name("11")

@@ -142,15 +142,15 @@ impl Storage {
   ) -> Result<Storage> {
     match (keys, encryption_scheme) {
       (Some(keys), Some(EncryptionScheme::C4GH)) => {
-        let (mut c4gh_keys, using_header) = keys
+        let (server_decryption_keys, mut client_encryption_keys, client_using_header) = keys
           .clone()
           .into_inner()
           .await
           .map_err(|err| StorageError::InternalError(err.to_string()))?;
 
-        if let Some(using_header) = using_header {
-          let public_key = using_header.get_public_key(query.request().headers())?;
-          c4gh_keys
+        if let Some(client_using_header) = client_using_header {
+          let public_key = client_using_header.get_public_key(query.request().headers())?;
+          client_encryption_keys
             .iter_mut()
             .for_each(|key| key.recipient_pubkey = public_key.clone());
         }
@@ -158,7 +158,8 @@ impl Storage {
         debug!("attempting to fetch Crypt4GH data");
 
         Ok(Storage::new(C4GHStorage::new_box(
-          c4gh_keys,
+          server_decryption_keys,
+          client_encryption_keys,
           storage.into_inner(),
         )))
       }
@@ -377,13 +378,14 @@ mod tests {
   #[cfg(feature = "experimental")]
   #[tokio::test]
   async fn from_c4gh_keys() {
-    let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let server_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let client_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
     let storage = Storage::new(
       FileStorage::new(default_dir_data(), storage::file::File::default(), vec![]).unwrap(),
     );
 
     let result = Storage::from_c4gh_keys(
-      Some(&C4GHKeys::from_join_handle(keys, None)),
+      Some(&C4GHKeys::from_join_handle(server_keys, client_keys, None)),
       Some(EncryptionScheme::C4GH),
       storage.clone(),
       &Default::default(),
@@ -411,9 +413,16 @@ mod tests {
       Format::Bam,
       Request::new("id".to_string(), Default::default(), headers),
     );
-    let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+
+    let server_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let client_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+
     let result = Storage::from_c4gh_keys(
-      Some(&C4GHKeys::from_join_handle(keys, Some(C4GHHeader))),
+      Some(&C4GHKeys::from_join_handle(
+        server_keys,
+        client_keys,
+        Some(C4GHHeader),
+      )),
       Some(EncryptionScheme::C4GH),
       storage.clone(),
       &query,

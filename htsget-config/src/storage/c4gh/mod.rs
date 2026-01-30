@@ -140,6 +140,13 @@ pub struct C4GHKeySet {
   client: C4GHKeyLocation,
 }
 
+impl C4GHKeySet {
+  /// Create a new key set.
+  pub fn new(server: C4GHKeyLocation, client: C4GHKeyLocation) -> Self {
+    Self { server, client }
+  }
+}
+
 impl TryFrom<C4GHKeySet> for C4GHKeys {
   type Error = Error;
 

@@ -133,6 +133,7 @@ pub(crate) mod tests {
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
     htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
+    htsget_test::c4gh::get_encryption_keys,
   };
 
   const VCF_LOCATION: &str = "data/vcf";
@@ -402,7 +403,11 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_all_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(get_decryption_keys().await, storage);
+      let storage = C4GHStorage::new(
+        get_decryption_keys().await,
+        get_encryption_keys().await,
+        storage,
+      );
       let mut search = VcfSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("spec-v4.3", Format::Vcf);
       let response = search.search(query).await.unwrap();
@@ -418,7 +423,11 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn search_all_range_c4gh() {
     with_local_storage_c4gh(|storage| async move {
-      let storage = C4GHStorage::new(get_decryption_keys().await, storage);
+      let storage = C4GHStorage::new(
+        get_decryption_keys().await,
+        get_encryption_keys().await,
+        storage,
+      );
       let mut search = VcfSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("spec-v4.3", Format::Vcf)
         .with_reference_name("20")
