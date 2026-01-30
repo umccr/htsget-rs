@@ -141,6 +141,12 @@ impl Default for Url {
       Default::default(),
       HttpClient::from(HttpClientConfig::default()),
     );
+
+    #[cfg(feature = "experimental")]
+    {
+      url = url.set_forward_public_key(true);
+    }
+
     url.is_defaulted = true;
     url
   }

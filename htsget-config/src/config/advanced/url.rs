@@ -143,6 +143,12 @@ impl Default for Url {
       Default::default(),
       Default::default(),
     );
+
+    #[cfg(feature = "experimental")]
+    {
+      url = url.set_forward_public_key(true);
+    }
+
     url.is_defaulted = true;
     url
   }
