@@ -31,8 +31,6 @@ pub struct Url {
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
-  #[cfg(feature = "experimental")]
-  forward_public_key: bool,
   #[serde(skip)]
   pub(crate) is_defaulted: bool,
 }
@@ -55,8 +53,6 @@ impl Url {
       #[cfg(feature = "experimental")]
       keys: None,
       is_defaulted: false,
-      #[cfg(feature = "experimental")]
-      forward_public_key: false,
     }
   }
 
@@ -92,19 +88,6 @@ impl Url {
   #[cfg(feature = "experimental")]
   pub fn keys(&self) -> Option<&C4GHKeys> {
     self.keys.as_ref()
-  }
-
-  /// Set whether to forward the public key in a context header.
-  #[cfg(feature = "experimental")]
-  pub fn set_forward_public_key(mut self, forward_public_key: bool) -> Self {
-    self.forward_public_key = forward_public_key;
-    self
-  }
-
-  /// Whether to forward the public key in a context header.
-  #[cfg(feature = "experimental")]
-  pub fn forward_public_key(&self) -> bool {
-    self.forward_public_key
   }
 }
 
@@ -143,11 +126,6 @@ impl Default for Url {
       Default::default(),
       Default::default(),
     );
-
-    #[cfg(feature = "experimental")]
-    {
-      url = url.set_forward_public_key(true);
-    }
 
     url.is_defaulted = true;
     url

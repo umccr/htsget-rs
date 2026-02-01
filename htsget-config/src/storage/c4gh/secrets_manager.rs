@@ -126,9 +126,10 @@ mod tests {
         private: None,
         public: C4GHKeyType::SecretsManager(secrets_manager_client),
       },
+      forward_public_key: true,
     };
     let keys: C4GHKeys = location.try_into().unwrap();
-    let (server_keys, client_keys, _, _) = keys.into_inner().await.unwrap();
+    let (server_keys, client_keys, _, _, _) = keys.into_inner().await.unwrap();
 
     assert_eq!(server_keys.len(), 1);
     assert_eq!(client_keys.len(), 1);

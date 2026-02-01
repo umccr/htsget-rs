@@ -32,6 +32,7 @@ pub struct C4GHKeys {
   client_key_from_header: Option<C4GHHeader>,
   #[schemars(skip)]
   encoded_server_public_key: Shared<BoxFuture<'static, Result<String>>>,
+  forward_public_key: bool,
 }
 
 impl C4GHKeys {
@@ -42,13 +43,15 @@ impl C4GHKeys {
     Vec<crypt4gh::Keys>,
     Vec<crypt4gh::Keys>,
     Option<C4GHHeader>,
-    Shared<BoxFuture<'static, Result<String>>>,
+    String,
+    bool,
   )> {
     Ok((
       self.server_decryption_keys.await?,
       self.client_encryption_keys.await?,
       self.client_key_from_header,
-      self.encoded_server_public_key,
+      self.encoded_server_public_key.await?,
+      self.forward_public_key,
     ))
   }
 
@@ -67,6 +70,7 @@ impl C4GHKeys {
     client_keys: JoinHandle<Result<Vec<crypt4gh::Keys>>>,
     client_key_from_header: Option<C4GHHeader>,
     encoded_server_public_key: JoinHandle<Result<String>>,
+    forward_public_key: bool,
   ) -> Self {
     Self {
       server_decryption_keys: server_keys.map(|value| value?).boxed().shared(),
@@ -76,6 +80,7 @@ impl C4GHKeys {
         .map(|value| value?)
         .boxed()
         .shared(),
+      forward_public_key,
     }
   }
 }
@@ -151,12 +156,23 @@ impl C4GHKeyLocation {
 pub struct C4GHKeySet {
   server: C4GHKeyLocation,
   client: C4GHKeyLocation,
+  /// Whether to forward the C4GH public key in a context header.
+  #[serde(default = "default_forward_public_key")]
+  forward_public_key: bool,
+}
+
+fn default_forward_public_key() -> bool {
+  true
 }
 
 impl C4GHKeySet {
   /// Create a new key set.
-  pub fn new(server: C4GHKeyLocation, client: C4GHKeyLocation) -> Self {
-    Self { server, client }
+  pub fn new(server: C4GHKeyLocation, client: C4GHKeyLocation, forward_public_key: bool) -> Self {
+    Self {
+      server,
+      client,
+      forward_public_key,
+    }
   }
 }
 
@@ -243,6 +259,7 @@ impl TryFrom<C4GHKeySet> for C4GHKeys {
       }),
       client_key_from_header,
       tokio::spawn(encoded_public_key),
+      location.forward_public_key,
     ))
   }
 }

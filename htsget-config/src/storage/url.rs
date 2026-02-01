@@ -35,9 +35,6 @@ pub struct Url {
   #[cfg(feature = "experimental")]
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
-  /// Whether to forward the C4GH public key in a context header.
-  #[cfg(feature = "experimental")]
-  forward_public_key: bool,
   #[serde(skip)]
   pub(crate) is_defaulted: bool,
 }
@@ -70,8 +67,6 @@ impl Url {
       client,
       #[cfg(feature = "experimental")]
       keys: None,
-      #[cfg(feature = "experimental")]
-      forward_public_key: false,
       is_defaulted: false,
     }
   }
@@ -117,19 +112,6 @@ impl Url {
   pub fn keys(&self) -> Option<&C4GHKeys> {
     self.keys.as_ref()
   }
-
-  /// Set whether to forward the public key in a context header.
-  #[cfg(feature = "experimental")]
-  pub fn set_forward_public_key(mut self, forward_public_key: bool) -> Self {
-    self.forward_public_key = forward_public_key;
-    self
-  }
-
-  /// Whether to forward the public key in a context header.
-  #[cfg(feature = "experimental")]
-  pub fn forward_public_key(&self) -> bool {
-    self.forward_public_key
-  }
 }
 
 impl Default for Url {
@@ -141,11 +123,6 @@ impl Default for Url {
       Default::default(),
       HttpClient::from(HttpClientConfig::default()),
     );
-
-    #[cfg(feature = "experimental")]
-    {
-      url = url.set_forward_public_key(true);
-    }
 
     url.is_defaulted = true;
     url
