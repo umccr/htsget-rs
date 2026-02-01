@@ -30,17 +30,25 @@ pub struct C4GHKeys {
   #[schemars(with = "C4GHKeyLocation")]
   client_encryption_keys: Shared<BoxFuture<'static, Result<Vec<crypt4gh::Keys>>>>,
   client_key_from_header: Option<C4GHHeader>,
+  #[schemars(skip)]
+  encoded_server_public_key: Shared<BoxFuture<'static, Result<String>>>,
 }
 
 impl C4GHKeys {
   /// Get the inner values.
   pub async fn into_inner(
     self,
-  ) -> Result<(Vec<crypt4gh::Keys>, Vec<crypt4gh::Keys>, Option<C4GHHeader>)> {
+  ) -> Result<(
+    Vec<crypt4gh::Keys>,
+    Vec<crypt4gh::Keys>,
+    Option<C4GHHeader>,
+    Shared<BoxFuture<'static, Result<String>>>,
+  )> {
     Ok((
       self.server_decryption_keys.await?,
       self.client_encryption_keys.await?,
       self.client_key_from_header,
+      self.encoded_server_public_key,
     ))
   }
 
@@ -58,11 +66,16 @@ impl C4GHKeys {
     server_keys: JoinHandle<Result<Vec<crypt4gh::Keys>>>,
     client_keys: JoinHandle<Result<Vec<crypt4gh::Keys>>>,
     client_key_from_header: Option<C4GHHeader>,
+    encoded_server_public_key: JoinHandle<Result<String>>,
   ) -> Self {
     Self {
       server_decryption_keys: server_keys.map(|value| value?).boxed().shared(),
       client_encryption_keys: client_keys.map(|value| value?).boxed().shared(),
       client_key_from_header,
+      encoded_server_public_key: encoded_server_public_key
+        .map(|value| value?)
+        .boxed()
+        .shared(),
     }
   }
 }
@@ -164,14 +177,34 @@ impl TryFrom<C4GHKeySet> for C4GHKeys {
         _ => Err(ParseError("missing server private key".to_string())),
       }
     };
-    let extract_public_key = |public_key| -> (Pin<Box<dyn Future<Output = _> + Send>>, _) {
+    let extract_public_key = |public_key| -> (
+      Pin<Box<dyn Future<Output = _> + Send>>,
+      Pin<Box<dyn Future<Output = _> + Send>>,
+      _,
+    ) {
       match public_key {
-        C4GHKeyType::File(file) => (Box::pin(async { file.into_public_key() }), None),
+        C4GHKeyType::File(file) => {
+          let file_copy = file.clone();
+          (
+            Box::pin(async move { file_copy.public_key_encoded() }),
+            Box::pin(async { file.into_public_key() }),
+            None,
+          )
+        }
         #[cfg(feature = "aws")]
         C4GHKeyType::SecretsManager(secrets_manager) => {
-          (Box::pin(secrets_manager.into_public_key()), None)
+          let secrets_manager_copy = secrets_manager.clone();
+          (
+            Box::pin(async move { secrets_manager_copy.public_key_encoded().await }),
+            Box::pin(secrets_manager.into_public_key()),
+            None,
+          )
         }
-        C4GHKeyType::Header(using_header) => (Box::pin(async { Ok(vec![]) }), Some(using_header)),
+        C4GHKeyType::Header(using_header) => (
+          Box::pin(async { Ok("".to_string()) }),
+          Box::pin(async { Ok(vec![]) }),
+          Some(using_header),
+        ),
       }
     };
 
@@ -184,13 +217,14 @@ impl TryFrom<C4GHKeySet> for C4GHKeys {
       ));
     }
 
-    let (server_public_key, server_key_from_header) = extract_public_key(location.server.public);
+    let (encoded_public_key, server_public_key, server_key_from_header) =
+      extract_public_key(location.server.public);
     if server_key_from_header.is_some() {
       return Err(ParseError(
         "the server's public key cannot be specified using a header".to_string(),
       ));
     }
-    let (client_public_key, client_key_from_header) = extract_public_key(location.client.public);
+    let (_, client_public_key, client_key_from_header) = extract_public_key(location.client.public);
 
     Ok(C4GHKeys::from_join_handle(
       tokio::spawn(async move {
@@ -208,6 +242,7 @@ impl TryFrom<C4GHKeySet> for C4GHKeys {
         ))
       }),
       client_key_from_header,
+      tokio::spawn(encoded_public_key),
     ))
   }
 }

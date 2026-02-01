@@ -5,6 +5,7 @@ use crate::error::Result;
 use crypt4gh::keys::{get_private_key, get_public_key};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use std::fs;
 use std::path::PathBuf;
 
 /// Specify keys from a local file.
@@ -26,7 +27,13 @@ impl C4GHLocal {
     Ok(get_private_key(self.key, Ok("".to_string()))?)
   }
 
-  /// Get the public key if this is a local public key.
+  /// Get the public key as an encoded string without decoding the inner base64 data.
+  pub fn public_key_encoded(&self) -> Result<String> {
+    Ok(fs::read_to_string(&self.key)?)
+  }
+
+  /// Get the public key if this is a local public key as a pair containing the inner
+  /// decoded key bytes and a String with the encoded file data.
   pub fn into_public_key(self) -> Result<Vec<u8>> {
     Ok(get_public_key(self.key)?)
   }
