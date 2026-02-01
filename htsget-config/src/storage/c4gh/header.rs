@@ -38,9 +38,8 @@ impl C4GHHeader {
     get_public_key(tmp.path().to_path_buf()).map_err(|err| InvalidInput(err.to_string()))
   }
 
-  // /// Encode a public key using base64.
-  // pub fn encode_public_key(keys: Keys) -> Result<String, HtsGetError> {
-  //   let public_key = general_purpose::STANDARD
-  //       .encode(public_key);
-  // }
+  /// Encode a public key using base64.
+  pub fn encode_public_key(public_key: String) -> String {
+    general_purpose::STANDARD.encode(public_key)
+  }
 }
