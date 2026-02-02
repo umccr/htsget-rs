@@ -39,7 +39,7 @@ impl C4GHHeader {
   }
 
   /// Encode a public key using base64.
-  pub fn encode_public_key(public_key: String) -> String {
+  pub fn base64_public_key(public_key: impl AsRef<[u8]>) -> String {
     general_purpose::STANDARD.encode(public_key)
   }
 }

@@ -129,6 +129,7 @@ pub(crate) mod tests {
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::search::SearchAll;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+  use htsget_test::c4gh::get_encoded_public_key;
   #[cfg(feature = "experimental")]
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
@@ -407,6 +408,8 @@ pub(crate) mod tests {
         get_decryption_keys().await,
         get_encryption_keys().await,
         storage,
+        true,
+        get_encoded_public_key(),
       );
       let mut search = VcfSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("spec-v4.3", Format::Vcf);
@@ -427,6 +430,8 @@ pub(crate) mod tests {
         get_decryption_keys().await,
         get_encryption_keys().await,
         storage,
+        true,
+        get_encoded_public_key(),
       );
       let mut search = VcfSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("spec-v4.3", Format::Vcf)

@@ -153,6 +153,7 @@ pub(crate) mod tests {
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+  use htsget_test::c4gh::get_encoded_public_key;
   use htsget_test::http::concat::ConcatResponse;
   use std::future::Future;
   #[cfg(feature = "experimental")]
@@ -606,6 +607,8 @@ pub(crate) mod tests {
         get_decryption_keys().await,
         get_encryption_keys().await,
         storage,
+        true,
+        get_encoded_public_key(),
       );
       let mut search = BamSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam);
@@ -629,6 +632,8 @@ pub(crate) mod tests {
         get_decryption_keys().await,
         get_encryption_keys().await,
         storage,
+        true,
+        get_encoded_public_key(),
       );
       let mut search = BamSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("htsnexus_test_NA12878", Format::Bam)

@@ -142,7 +142,13 @@ impl Storage {
   ) -> Result<Storage> {
     match (keys, encryption_scheme) {
       (Some(keys), Some(EncryptionScheme::C4GH)) => {
-        let (server_decryption_keys, mut client_encryption_keys, client_using_header) = keys
+        let (
+          server_decryption_keys,
+          mut client_encryption_keys,
+          client_using_header,
+          encoded_public_key,
+          forward_public_key,
+        ) = keys
           .clone()
           .into_inner()
           .await
@@ -161,6 +167,8 @@ impl Storage {
           server_decryption_keys,
           client_encryption_keys,
           storage.into_inner(),
+          forward_public_key,
+          encoded_public_key,
         )))
       }
       (None, Some(EncryptionScheme::C4GH)) => Err(StorageError::UnsupportedFormat(
@@ -333,7 +341,6 @@ mod tests {
   use http::uri::Authority;
   #[cfg(feature = "experimental")]
   use {
-    htsget_config::config::advanced::CONTEXT_HEADER_PREFIX,
     htsget_config::storage::c4gh::header::C4GHHeader,
     htsget_config::types::Request,
     htsget_test::util::default_dir,
@@ -380,12 +387,19 @@ mod tests {
   async fn from_c4gh_keys() {
     let server_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
     let client_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let encoded_public_key = tokio::spawn(async { Ok("".to_string()) });
     let storage = Storage::new(
       FileStorage::new(default_dir_data(), storage::file::File::default(), vec![]).unwrap(),
     );
 
     let result = Storage::from_c4gh_keys(
-      Some(&C4GHKeys::from_join_handle(server_keys, client_keys, None)),
+      Some(&C4GHKeys::from_join_handle(
+        server_keys,
+        client_keys,
+        None,
+        encoded_public_key,
+        true,
+      )),
       Some(EncryptionScheme::C4GH),
       storage.clone(),
       &Default::default(),
@@ -403,7 +417,7 @@ mod tests {
 
     let mut headers = HeaderMap::new();
     headers.insert(
-      format!("{CONTEXT_HEADER_PREFIX}Public-Key")
+      C4GHHeader::format_header_name()
         .parse::<HeaderName>()
         .unwrap(),
       encoded_key.parse().unwrap(),
@@ -416,12 +430,15 @@ mod tests {
 
     let server_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
     let client_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let encoded_public_key = tokio::spawn(async { Ok("".to_string()) });
 
     let result = Storage::from_c4gh_keys(
       Some(&C4GHKeys::from_join_handle(
         server_keys,
         client_keys,
         Some(C4GHHeader),
+        encoded_public_key,
+        true,
       )),
       Some(EncryptionScheme::C4GH),
       storage.clone(),

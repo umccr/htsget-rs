@@ -118,6 +118,7 @@ mod tests {
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::search::SearchAll;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
+  use htsget_test::c4gh::get_encoded_public_key;
   #[cfg(feature = "experimental")]
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
@@ -394,6 +395,8 @@ mod tests {
         get_decryption_keys().await,
         get_encryption_keys().await,
         storage,
+        true,
+        get_encoded_public_key(),
       );
       let mut search = BcfSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("sample1-bcbio-cancer", Format::Bcf);
@@ -417,6 +420,8 @@ mod tests {
         get_decryption_keys().await,
         get_encryption_keys().await,
         storage,
+        true,
+        get_encoded_public_key(),
       );
       let mut search = BcfSearch::new(Storage::new(storage));
       let query = Query::new_with_default_request("sample1-bcbio-cancer", Format::Bcf)

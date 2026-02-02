@@ -16,7 +16,10 @@ use crate::{
 use async_trait::async_trait;
 use crypt4gh::Keys;
 use crypt4gh::error::Crypt4GHError;
+use htsget_config::storage::c4gh::header::C4GHHeader;
+use htsget_config::types::HtsGetError::InvalidInput;
 use htsget_config::types::{Class, Format, Url};
+use http::HeaderName;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -44,6 +47,8 @@ pub struct C4GHStorage {
   client_encryption_keys: Vec<Keys>,
   inner: Box<dyn StorageTrait + Send + Sync + 'static>,
   state: HashMap<String, C4GHState>,
+  forward_public_key: bool,
+  encoded_public_key: String,
 }
 
 impl Clone for C4GHStorage {
@@ -53,6 +58,8 @@ impl Clone for C4GHStorage {
       client_encryption_keys: self.client_encryption_keys.clone(),
       inner: self.inner.clone_box(),
       state: self.state.clone(),
+      forward_public_key: self.forward_public_key,
+      encoded_public_key: self.encoded_public_key.clone(),
     }
   }
 }
@@ -69,11 +76,15 @@ impl C4GHStorage {
     server_decryption_keys: Vec<Keys>,
     client_encryption_keys: Vec<Keys>,
     inner: impl StorageTrait + Send + Sync + 'static,
+    forward_public_key: bool,
+    encoded_public_key: String,
   ) -> Self {
     Self::new_box(
       server_decryption_keys,
       client_encryption_keys,
       Box::new(inner),
+      forward_public_key,
+      encoded_public_key,
     )
   }
 
@@ -82,12 +93,16 @@ impl C4GHStorage {
     server_decryption_keys: Vec<Keys>,
     client_encryption_keys: Vec<Keys>,
     inner: Box<dyn StorageTrait + Send + Sync + 'static>,
+    forward_public_key: bool,
+    encoded_public_key: String,
   ) -> Self {
     Self {
       server_decryption_keys,
       client_encryption_keys,
       inner,
       state: Default::default(),
+      forward_public_key,
+      encoded_public_key,
     }
   }
 
@@ -98,6 +113,18 @@ impl C4GHStorage {
 
   /// Get a C4GH object and decrypt it if it is not an index.
   pub async fn get_object(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
+    if self.forward_public_key {
+      let mut headers = options.request_headers().clone();
+      headers.insert(
+        C4GHHeader::format_header_name()
+          .parse::<HeaderName>()
+          .map_err(|_| InternalError("parsing header name".to_string()))?,
+        C4GHHeader::base64_public_key(&self.encoded_public_key)
+          .parse()
+          .map_err(|err| InvalidInput(format!("encoding public key: {}", err)))?,
+      );
+    }
+
     let c4gh_key = Self::format_key(key);
     let data = if Format::is_index(key) {
       match self.state.get(&c4gh_key) {
@@ -353,7 +380,9 @@ mod tests {
   #[cfg(feature = "url")]
   use crate::url::tests::{test_headers, with_url_test_server};
   use htsget_config::types::Headers;
-  use htsget_test::c4gh::{encrypt_data, get_decryption_keys, get_encryption_keys};
+  use htsget_test::c4gh::{
+    encrypt_data, get_decryption_keys, get_encoded_public_key, get_encryption_keys,
+  };
   use http::HeaderMap;
   use std::future::Future;
   use std::path::Path;
@@ -640,6 +669,8 @@ mod tests {
         get_decryption_keys().await,
         get_encryption_keys().await,
         storage,
+        true,
+        get_encoded_public_key(),
       ))
       .await;
     })
@@ -658,6 +689,8 @@ mod tests {
         get_decryption_keys().await,
         get_encryption_keys().await,
         storage,
+        true,
+        get_encoded_public_key(),
       ))
       .await;
     })
@@ -677,6 +710,8 @@ mod tests {
           get_decryption_keys().await,
           get_encryption_keys().await,
           storage,
+          true,
+          get_encoded_public_key(),
         ),
         url,
       )

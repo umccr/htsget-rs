@@ -5,6 +5,7 @@ use htsget_config::storage::c4gh::{
   C4GHKeyLocation, C4GHKeySet, C4GHKeyType, C4GHKeys, local::C4GHLocal,
 };
 use std::collections::HashSet;
+use std::fs;
 use std::io::{BufReader, BufWriter, Cursor};
 use std::path::PathBuf;
 
@@ -69,6 +70,7 @@ fn create_key_set(private_key: PathBuf, public_key: PathBuf) -> C4GHKeys {
   C4GHKeys::try_from(C4GHKeySet::new(
     C4GHKeyLocation::new(Some(private.clone()), public.clone()),
     C4GHKeyLocation::new(None, public),
+    true,
   ))
   .unwrap()
 }
@@ -93,4 +95,9 @@ pub async fn get_encryption_keys() -> Vec<Keys> {
     .await
     .unwrap()
     .1
+}
+
+pub fn get_encoded_public_key() -> String {
+  let public_key = default_dir().join("data/c4gh/keys/bob.pub");
+  fs::read_to_string(public_key).unwrap()
 }

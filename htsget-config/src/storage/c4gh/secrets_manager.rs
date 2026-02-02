@@ -65,7 +65,7 @@ impl C4GHSecretsManager {
   /// Get the public key as a string without decoding the inner base64 data.
   pub async fn public_key_encoded(&self) -> Result<String> {
     let data = Self::get_secret(&self.client().await, &self.key).await?;
-    Ok(String::from_utf8(data).map_err(|err| ParseError(err.to_string()))?)
+    String::from_utf8(data).map_err(|err| ParseError(err.to_string()))
   }
 
   /// Get the private key if this is a local private key.
