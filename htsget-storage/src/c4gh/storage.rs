@@ -318,14 +318,14 @@ impl C4GHStorage {
       ),
     ];
 
-    let inner = self
+    let postprocessed_blocks = self
       .inner
       .postprocess(
         key,
         BytesPositionOptions::new(encrypted_positions, options.headers),
       )
       .await?;
-    blocks.extend(inner);
+    blocks.extend(postprocessed_blocks);
 
     Ok(blocks)
   }

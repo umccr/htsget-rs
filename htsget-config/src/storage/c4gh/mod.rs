@@ -226,14 +226,14 @@ impl TryFrom<C4GHKeySet> for C4GHKeys {
 
     Ok(C4GHKeys::from_join_handle(
       tokio::spawn(async move {
-        // Server decrypts using it's own private key and public key.
+        // Server decrypts using its own private key and public key.
         Ok(C4GHKeys::from_key_pair(
           server_decryption_private.await?,
           server_public_key.await?,
         ))
       }),
       tokio::spawn(async move {
-        // Server encrypts using it's own private key for the client who is the recipient.
+        // Server encrypts using its own private key for the client who is the recipient.
         Ok(C4GHKeys::from_key_pair(
           server_encryption_private.await?,
           client_public_key.await?,

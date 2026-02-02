@@ -32,8 +32,7 @@ impl C4GHLocal {
     Ok(fs::read(&self.key)?)
   }
 
-  /// Get the public key if this is a local public key as a pair containing the inner
-  /// decoded key bytes and a String with the encoded file data.
+  /// Get the public key if this is a local public key.
   pub fn into_public_key(self) -> Result<Vec<u8>> {
     Ok(get_public_key(self.key)?)
   }
