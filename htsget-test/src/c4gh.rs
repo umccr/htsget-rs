@@ -70,7 +70,6 @@ fn create_key_set(private_key: PathBuf, public_key: PathBuf) -> C4GHKeys {
   C4GHKeys::try_from(C4GHKeySet::new(
     C4GHKeyLocation::new(Some(private.clone()), public.clone()),
     C4GHKeyLocation::new(None, public),
-    true,
   ))
   .unwrap()
 }

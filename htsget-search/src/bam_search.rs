@@ -153,14 +153,13 @@ pub(crate) mod tests {
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Body, Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-  use htsget_test::c4gh::get_encoded_public_key;
   use htsget_test::http::concat::ConcatResponse;
   use std::future::Future;
   #[cfg(feature = "experimental")]
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
     htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
-    htsget_test::c4gh::get_encryption_keys,
+    htsget_test::c4gh::get_encoded_public_key, htsget_test::c4gh::get_encryption_keys,
   };
 
   const DATA_LOCATION: &str = "data/bam";

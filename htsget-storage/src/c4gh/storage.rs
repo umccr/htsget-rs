@@ -111,8 +111,8 @@ impl C4GHStorage {
     format!("{key}.c4gh")
   }
 
-  /// Get a C4GH object and decrypt it if it is not an index.
-  pub async fn get_object(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
+  /// Apply the server's `Htsget-Context-Public-Key` header if forwarding the public key.
+  pub fn apply_public_key_header<'a>(&self, mut options: GetOptions<'a>) -> Result<GetOptions<'a>> {
     if self.forward_public_key {
       let mut headers = options.request_headers().clone();
       headers.insert(
@@ -123,7 +123,15 @@ impl C4GHStorage {
           .parse()
           .map_err(|err| InvalidInput(format!("encoding public key: {}", err)))?,
       );
+      options.set_request_headers(headers);
     }
+
+    Ok(options)
+  }
+
+  /// Get a C4GH object and decrypt it if it is not an index.
+  pub async fn get_object(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
+    let options = self.apply_public_key_header(options)?;
 
     let c4gh_key = Self::format_key(key);
     let data = if Format::is_index(key) {
@@ -145,11 +153,9 @@ impl C4GHStorage {
   }
 
   /// Get the size of the unencrypted object and update state.
-  pub async fn preprocess_for_state(
-    &mut self,
-    key: &str,
-    mut options: GetOptions<'_>,
-  ) -> Result<u64> {
+  pub async fn preprocess_for_state(&mut self, key: &str, options: GetOptions<'_>) -> Result<u64> {
+    let mut options = self.apply_public_key_header(options)?;
+
     let c4gh_key = Self::format_key(key);
     let mut c4gh_header_options = options.clone();
     // If the key is an index, first try fetching it encrypted.

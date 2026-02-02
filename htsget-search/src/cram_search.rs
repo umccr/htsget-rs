@@ -273,12 +273,11 @@ mod tests {
   use crate::from_storage::tests::with_aws_storage_fn;
   use crate::from_storage::tests::with_local_storage_fn;
   use crate::{Class::Header, Headers, HtsGetError::NotFound, Response, Url};
-  use htsget_test::c4gh::get_encoded_public_key;
   #[cfg(feature = "experimental")]
   use {
     crate::from_storage::tests::with_local_storage_c4gh,
     htsget_storage::c4gh::storage::C4GHStorage, htsget_test::c4gh::get_decryption_keys,
-    htsget_test::c4gh::get_encryption_keys,
+    htsget_test::c4gh::get_encoded_public_key, htsget_test::c4gh::get_encryption_keys,
   };
 
   const DATA_LOCATION: &str = "data/cram";
