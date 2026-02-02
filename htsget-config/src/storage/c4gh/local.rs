@@ -28,8 +28,8 @@ impl C4GHLocal {
   }
 
   /// Get the public key as an encoded string without decoding the inner base64 data.
-  pub fn public_key_encoded(&self) -> Result<String> {
-    Ok(fs::read_to_string(&self.key)?)
+  pub fn public_key_encoded(&self) -> Result<Vec<u8>> {
+    Ok(fs::read(&self.key)?)
   }
 
   /// Get the public key if this is a local public key as a pair containing the inner

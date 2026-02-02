@@ -7,7 +7,19 @@ data_server.addr = "127.0.0.1:8081"
 [[locations]]
 regex = ".*"
 substitution_string = "$0"
-backend.kind = "File"
+
+backend.kind = "Url"
+backend.url = "http://localhost:8083/"
+backend.response_url = "http://localhost:8083/"
+
+## If using `Url` storage, setting this option ensures that htsget-rs forwards its own public key in a
+## header called `Htsget-Context-Public-Key`.
+#backend.forward_public_key = true
+
+#backend.keys.private.kind = "File"
+#backend.keys.private.key = "/home/karl/repos/other/htsget-rs/data/c4gh/keys/bob.sec" # pragma: allowlist secret
+#backend.keys.public.kind = "File"
+#backend.keys.public.key = "/home/karl/repos/other/htsget-rs/data/c4gh/keys/bob.pub"
 
 backend.keys.server.private.kind = "File"
 backend.keys.server.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret

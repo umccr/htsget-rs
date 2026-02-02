@@ -63,9 +63,8 @@ impl C4GHSecretsManager {
   }
 
   /// Get the public key as a string without decoding the inner base64 data.
-  pub async fn public_key_encoded(&self) -> Result<String> {
-    let data = Self::get_secret(&self.client().await, &self.key).await?;
-    String::from_utf8(data).map_err(|err| ParseError(err.to_string()))
+  pub async fn public_key_encoded(&self) -> Result<Vec<u8>> {
+    Self::get_secret(&self.client().await, &self.key).await
   }
 
   /// Get the private key if this is a local private key.
@@ -126,10 +125,9 @@ mod tests {
         private: None,
         public: C4GHKeyType::SecretsManager(secrets_manager_client),
       },
-      forward_public_key: true,
     };
     let keys: C4GHKeys = location.try_into().unwrap();
-    let (server_keys, client_keys, _, _, _) = keys.into_inner().await.unwrap();
+    let (server_keys, client_keys, _, _) = keys.into_inner().await.unwrap();
 
     assert_eq!(server_keys.len(), 1);
     assert_eq!(client_keys.len(), 1);

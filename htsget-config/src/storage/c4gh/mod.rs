@@ -31,8 +31,7 @@ pub struct C4GHKeys {
   client_encryption_keys: Shared<BoxFuture<'static, Result<Vec<crypt4gh::Keys>>>>,
   client_key_from_header: Option<C4GHHeader>,
   #[schemars(skip)]
-  encoded_server_public_key: Shared<BoxFuture<'static, Result<String>>>,
-  forward_public_key: bool,
+  encoded_server_public_key: Shared<BoxFuture<'static, Result<Vec<u8>>>>,
 }
 
 impl C4GHKeys {
@@ -43,15 +42,13 @@ impl C4GHKeys {
     Vec<crypt4gh::Keys>,
     Vec<crypt4gh::Keys>,
     Option<C4GHHeader>,
-    String,
-    bool,
+    Vec<u8>,
   )> {
     Ok((
       self.server_decryption_keys.await?,
       self.client_encryption_keys.await?,
       self.client_key_from_header,
       self.encoded_server_public_key.await?,
-      self.forward_public_key,
     ))
   }
 
@@ -69,8 +66,7 @@ impl C4GHKeys {
     server_keys: JoinHandle<Result<Vec<crypt4gh::Keys>>>,
     client_keys: JoinHandle<Result<Vec<crypt4gh::Keys>>>,
     client_key_from_header: Option<C4GHHeader>,
-    encoded_server_public_key: JoinHandle<Result<String>>,
-    forward_public_key: bool,
+    encoded_server_public_key: JoinHandle<Result<Vec<u8>>>,
   ) -> Self {
     Self {
       server_decryption_keys: server_keys.map(|value| value?).boxed().shared(),
@@ -80,7 +76,6 @@ impl C4GHKeys {
         .map(|value| value?)
         .boxed()
         .shared(),
-      forward_public_key,
     }
   }
 }
@@ -156,23 +151,12 @@ impl C4GHKeyLocation {
 pub struct C4GHKeySet {
   server: C4GHKeyLocation,
   client: C4GHKeyLocation,
-  /// Whether to forward the C4GH public key in a context header.
-  #[serde(default = "default_forward_public_key")]
-  forward_public_key: bool,
-}
-
-fn default_forward_public_key() -> bool {
-  true
 }
 
 impl C4GHKeySet {
   /// Create a new key set.
-  pub fn new(server: C4GHKeyLocation, client: C4GHKeyLocation, forward_public_key: bool) -> Self {
-    Self {
-      server,
-      client,
-      forward_public_key,
-    }
+  pub fn new(server: C4GHKeyLocation, client: C4GHKeyLocation) -> Self {
+    Self { server, client }
   }
 }
 
@@ -193,11 +177,9 @@ impl TryFrom<C4GHKeySet> for C4GHKeys {
         _ => Err(ParseError("missing server private key".to_string())),
       }
     };
-    let extract_public_key = |public_key| -> (
-      Pin<Box<dyn Future<Output = _> + Send>>,
-      Pin<Box<dyn Future<Output = _> + Send>>,
-      _,
-    ) {
+
+    type PublicKeyFuture = Pin<Box<dyn Future<Output = Result<Vec<u8>>> + Send>>;
+    let extract_public_key = |public_key| -> (PublicKeyFuture, PublicKeyFuture, _) {
       match public_key {
         C4GHKeyType::File(file) => {
           let file_copy = file.clone();
@@ -217,7 +199,7 @@ impl TryFrom<C4GHKeySet> for C4GHKeys {
           )
         }
         C4GHKeyType::Header(using_header) => (
-          Box::pin(async { Ok("".to_string()) }),
+          Box::pin(async { Ok(vec![]) }),
           Box::pin(async { Ok(vec![]) }),
           Some(using_header),
         ),
@@ -259,7 +241,6 @@ impl TryFrom<C4GHKeySet> for C4GHKeys {
       }),
       client_key_from_header,
       tokio::spawn(encoded_public_key),
-      location.forward_public_key,
     ))
   }
 }
