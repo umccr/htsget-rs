@@ -16,7 +16,10 @@ use crate::{
 use async_trait::async_trait;
 use crypt4gh::Keys;
 use crypt4gh::error::Crypt4GHError;
+use htsget_config::storage::c4gh::header::C4GHHeader;
+use htsget_config::types::HtsGetError::InvalidInput;
 use htsget_config::types::{Class, Format, Url};
+use http::HeaderName;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -40,17 +43,23 @@ pub struct C4GHState {
 /// Implementation for the [StorageTrait] trait using the local file system for accessing Crypt4GH
 /// encrypted files. [T] is the type of the server struct, which is used for formatting urls.
 pub struct C4GHStorage {
-  keys: Vec<Keys>,
+  server_decryption_keys: Vec<Keys>,
+  client_encryption_keys: Vec<Keys>,
   inner: Box<dyn StorageTrait + Send + Sync + 'static>,
   state: HashMap<String, C4GHState>,
+  forward_public_key: bool,
+  encoded_public_key: String,
 }
 
 impl Clone for C4GHStorage {
   fn clone(&self) -> Self {
     Self {
-      keys: self.keys.clone(),
+      server_decryption_keys: self.server_decryption_keys.clone(),
+      client_encryption_keys: self.client_encryption_keys.clone(),
       inner: self.inner.clone_box(),
       state: self.state.clone(),
+      forward_public_key: self.forward_public_key,
+      encoded_public_key: self.encoded_public_key.clone(),
     }
   }
 }
@@ -63,16 +72,37 @@ impl Debug for C4GHStorage {
 
 impl C4GHStorage {
   /// Create a new storage from a storage trait.
-  pub fn new(keys: Vec<Keys>, inner: impl StorageTrait + Send + Sync + 'static) -> Self {
-    Self::new_box(keys, Box::new(inner))
+  pub fn new(
+    server_decryption_keys: Vec<Keys>,
+    client_encryption_keys: Vec<Keys>,
+    inner: impl StorageTrait + Send + Sync + 'static,
+    forward_public_key: bool,
+    encoded_public_key: String,
+  ) -> Self {
+    Self::new_box(
+      server_decryption_keys,
+      client_encryption_keys,
+      Box::new(inner),
+      forward_public_key,
+      encoded_public_key,
+    )
   }
 
   /// Create a new value from a boxed storage trait.
-  pub fn new_box(keys: Vec<Keys>, inner: Box<dyn StorageTrait + Send + Sync + 'static>) -> Self {
+  pub fn new_box(
+    server_decryption_keys: Vec<Keys>,
+    client_encryption_keys: Vec<Keys>,
+    inner: Box<dyn StorageTrait + Send + Sync + 'static>,
+    forward_public_key: bool,
+    encoded_public_key: String,
+  ) -> Self {
     Self {
-      keys,
+      server_decryption_keys,
+      client_encryption_keys,
       inner,
       state: Default::default(),
+      forward_public_key,
+      encoded_public_key,
     }
   }
 
@@ -81,8 +111,28 @@ impl C4GHStorage {
     format!("{key}.c4gh")
   }
 
+  /// Apply the server's `Htsget-Context-Public-Key` header if forwarding the public key.
+  pub fn apply_public_key_header<'a>(&self, mut options: GetOptions<'a>) -> Result<GetOptions<'a>> {
+    if self.forward_public_key {
+      let mut headers = options.request_headers().clone();
+      headers.insert(
+        C4GHHeader::format_header_name()
+          .parse::<HeaderName>()
+          .map_err(|_| InternalError("parsing header name".to_string()))?,
+        C4GHHeader::base64_public_key(&self.encoded_public_key)
+          .parse()
+          .map_err(|err| InvalidInput(format!("encoding public key: {}", err)))?,
+      );
+      options.set_request_headers(headers);
+    }
+
+    Ok(options)
+  }
+
   /// Get a C4GH object and decrypt it if it is not an index.
   pub async fn get_object(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
+    let options = self.apply_public_key_header(options)?;
+
     let c4gh_key = Self::format_key(key);
     let data = if Format::is_index(key) {
       match self.state.get(&c4gh_key) {
@@ -103,11 +153,9 @@ impl C4GHStorage {
   }
 
   /// Get the size of the unencrypted object and update state.
-  pub async fn preprocess_for_state(
-    &mut self,
-    key: &str,
-    mut options: GetOptions<'_>,
-  ) -> Result<u64> {
+  pub async fn preprocess_for_state(&mut self, key: &str, options: GetOptions<'_>) -> Result<u64> {
+    let mut options = self.apply_public_key_header(options)?;
+
     let c4gh_key = Self::format_key(key);
     let mut c4gh_header_options = options.clone();
     // If the key is an index, first try fetching it encrypted.
@@ -140,7 +188,8 @@ impl C4GHStorage {
 
     let mut reader = BufReader::new(buf.as_slice());
 
-    let deserialized_header = DeserializedHeader::from_buffer(&mut reader, &self.keys)?;
+    let deserialized_header =
+      DeserializedHeader::from_buffer(&mut reader, &self.server_decryption_keys)?;
     let unencrypted_file_size =
       to_unencrypted_file_size(encrypted_file_size, deserialized_header.header_size);
 
@@ -248,7 +297,7 @@ impl C4GHStorage {
     let (header_info, reencrypted_bytes, edit_list_packet) = EditHeader::new(
       unencrypted_positions,
       clamped_positions,
-      &self.keys,
+      &self.client_encryption_keys,
       &state.deserialized_header,
     )
     .reencrypt_header()?
@@ -269,9 +318,14 @@ impl C4GHStorage {
       ),
     ];
 
-    blocks.extend(DataBlock::from_bytes_positions(BytesPosition::merge_all(
-      encrypted_positions,
-    )));
+    let postprocessed_blocks = self
+      .inner
+      .postprocess(
+        key,
+        BytesPositionOptions::new(encrypted_positions, options.headers),
+      )
+      .await?;
+    blocks.extend(postprocessed_blocks);
 
     Ok(blocks)
   }
@@ -280,8 +334,8 @@ impl C4GHStorage {
 #[async_trait]
 impl StorageMiddleware for C4GHStorage {
   async fn preprocess(&mut self, key: &str, options: GetOptions<'_>) -> Result<()> {
-    self.preprocess_for_state(key, options).await?;
-    Ok(())
+    self.preprocess_for_state(key, options.clone()).await?;
+    self.inner.preprocess(key, options).await
   }
 
   async fn postprocess(
@@ -332,7 +386,9 @@ mod tests {
   #[cfg(feature = "url")]
   use crate::url::tests::{test_headers, with_url_test_server};
   use htsget_config::types::Headers;
-  use htsget_test::c4gh::{encrypt_data, get_decryption_keys};
+  use htsget_test::c4gh::{
+    encrypt_data, get_decryption_keys, get_encoded_public_key, get_encryption_keys,
+  };
   use http::HeaderMap;
   use std::future::Future;
   use std::path::Path;
@@ -615,7 +671,14 @@ mod tests {
   {
     with_local_storage(|storage, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(get_decryption_keys().await, storage)).await;
+      test(C4GHStorage::new(
+        get_decryption_keys().await,
+        get_encryption_keys().await,
+        storage,
+        true,
+        get_encoded_public_key(),
+      ))
+      .await;
     })
     .await;
   }
@@ -628,7 +691,14 @@ mod tests {
   {
     with_aws_s3_storage(|storage, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(get_decryption_keys().await, storage)).await;
+      test(C4GHStorage::new(
+        get_decryption_keys().await,
+        get_encryption_keys().await,
+        storage,
+        true,
+        get_encoded_public_key(),
+      ))
+      .await;
     })
     .await;
   }
@@ -641,7 +711,17 @@ mod tests {
   {
     with_url_test_server(|storage, url, base_path| async move {
       create_encrypted_files(&base_path).await;
-      test(C4GHStorage::new(get_decryption_keys().await, storage), url).await;
+      test(
+        C4GHStorage::new(
+          get_decryption_keys().await,
+          get_encryption_keys().await,
+          storage,
+          true,
+          get_encoded_public_key(),
+        ),
+        url,
+      )
+      .await;
     })
     .await;
   }

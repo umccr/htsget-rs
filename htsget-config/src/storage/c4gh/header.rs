@@ -19,9 +19,14 @@ use tempfile::NamedTempFile;
 pub struct C4GHHeader;
 
 impl C4GHHeader {
+  /// Returns `Htsget-Context-Public-Key`.
+  pub fn format_header_name() -> String {
+    format!("{CONTEXT_HEADER_PREFIX}Public-Key")
+  }
+
   /// Get the public key from the header.
   pub fn get_public_key(self, headers: &HeaderMap) -> Result<Vec<u8>, HtsGetError> {
-    let header_name = format!("{CONTEXT_HEADER_PREFIX}Public-Key");
+    let header_name = Self::format_header_name();
     let public_key = headers.get(&header_name).ok_or(InvalidInput(header_name))?;
     let public_key = general_purpose::STANDARD
       .decode(public_key.as_ref())
@@ -31,5 +36,10 @@ impl C4GHHeader {
     fs::write(tmp.path(), public_key)?;
 
     get_public_key(tmp.path().to_path_buf()).map_err(|err| InvalidInput(err.to_string()))
+  }
+
+  /// Encode a public key using base64.
+  pub fn base64_public_key(public_key: impl AsRef<[u8]>) -> String {
+    general_purpose::STANDARD.encode(public_key)
   }
 }

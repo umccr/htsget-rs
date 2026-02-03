@@ -96,6 +96,14 @@ impl Location {
     }
   }
 
+  /// Take the backend from the location.
+  pub fn into_backend(self) -> Backend {
+    match self {
+      Location::Simple(location) => location.into_backend(),
+      Location::Regex(location) => location.into_backend(),
+    }
+  }
+
   /// Get the simple location variant, returning an error otherwise.
   pub fn as_simple(&self) -> Result<&SimpleLocation> {
     if let Location::Simple(simple) = self {
@@ -196,6 +204,11 @@ impl SimpleLocation {
   /// Get the additional path to append to resolve the id.
   pub fn to_append(&self) -> &str {
     &self.to_append
+  }
+
+  /// Take the backend from the location.
+  pub fn into_backend(self) -> Backend {
+    self.backend
   }
 }
 

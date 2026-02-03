@@ -10,6 +10,8 @@ pub use htsget_config::types::{
 use crate::c4gh::storage::C4GHStorage;
 use crate::error::Result;
 use crate::error::StorageError;
+#[cfg(feature = "experimental")]
+use crate::error::StorageError::InvalidInput;
 use crate::local::FileStorage;
 #[cfg(feature = "aws")]
 use crate::s3::S3Storage;
@@ -139,27 +141,38 @@ impl Storage {
     encryption_scheme: Option<EncryptionScheme>,
     storage: Storage,
     query: &Query,
+    forward_public_key: bool,
   ) -> Result<Storage> {
     match (keys, encryption_scheme) {
       (Some(keys), Some(EncryptionScheme::C4GH)) => {
-        let (mut c4gh_keys, using_header) = keys
+        let (
+          server_decryption_keys,
+          mut client_encryption_keys,
+          client_using_header,
+          encoded_public_key,
+        ) = keys
           .clone()
           .into_inner()
           .await
           .map_err(|err| StorageError::InternalError(err.to_string()))?;
 
-        if let Some(using_header) = using_header {
-          let public_key = using_header.get_public_key(query.request().headers())?;
-          c4gh_keys
+        if let Some(client_using_header) = client_using_header {
+          let public_key = client_using_header.get_public_key(query.request().headers())?;
+          client_encryption_keys
             .iter_mut()
             .for_each(|key| key.recipient_pubkey = public_key.clone());
         }
 
         debug!("attempting to fetch Crypt4GH data");
 
+        let encoded_public_key =
+          String::from_utf8(encoded_public_key).map_err(|err| InvalidInput(err.to_string()))?;
         Ok(Storage::new(C4GHStorage::new_box(
-          c4gh_keys,
+          server_decryption_keys,
+          client_encryption_keys,
           storage.into_inner(),
+          forward_public_key,
+          encoded_public_key,
         )))
       }
       (None, Some(EncryptionScheme::C4GH)) => Err(StorageError::UnsupportedFormat(
@@ -182,7 +195,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(file.keys(), _query.encryption_scheme(), storage, _query).await
+        Self::from_c4gh_keys(file.keys(), _query.encryption_scheme(), storage, _query, false).await
       } else {
         Ok(storage)
       }
@@ -203,7 +216,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(s3.keys(), _query.encryption_scheme(), storage, _query).await
+        Self::from_c4gh_keys(s3.keys(), _query.encryption_scheme(), storage, _query, false).await
       } else {
         Ok(storage)
       }
@@ -225,7 +238,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(url.keys(), _query.encryption_scheme(), storage, _query).await
+        Self::from_c4gh_keys(url.keys(), _query.encryption_scheme(), storage, _query, url.forward_public_key()).await
       } else {
         Ok(storage)
       }
@@ -332,7 +345,6 @@ mod tests {
   use http::uri::Authority;
   #[cfg(feature = "experimental")]
   use {
-    htsget_config::config::advanced::CONTEXT_HEADER_PREFIX,
     htsget_config::storage::c4gh::header::C4GHHeader,
     htsget_config::types::Request,
     htsget_test::util::default_dir,
@@ -377,21 +389,30 @@ mod tests {
   #[cfg(feature = "experimental")]
   #[tokio::test]
   async fn from_c4gh_keys() {
-    let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let server_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let client_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let encoded_public_key = tokio::spawn(async { Ok(vec![]) });
     let storage = Storage::new(
       FileStorage::new(default_dir_data(), storage::file::File::default(), vec![]).unwrap(),
     );
 
     let result = Storage::from_c4gh_keys(
-      Some(&C4GHKeys::from_join_handle(keys, None)),
+      Some(&C4GHKeys::from_join_handle(
+        server_keys,
+        client_keys,
+        None,
+        encoded_public_key,
+      )),
       Some(EncryptionScheme::C4GH),
       storage.clone(),
       &Default::default(),
+      true,
     )
     .await;
     assert!(result.is_ok());
 
-    let result = Storage::from_c4gh_keys(None, None, storage.clone(), &Default::default()).await;
+    let result =
+      Storage::from_c4gh_keys(None, None, storage.clone(), &Default::default(), true).await;
     assert!(result.is_ok());
 
     let public_key = fs::read_to_string(default_dir().join("data/c4gh/keys/alice.pub"))
@@ -401,7 +422,7 @@ mod tests {
 
     let mut headers = HeaderMap::new();
     headers.insert(
-      format!("{CONTEXT_HEADER_PREFIX}Public-Key")
+      C4GHHeader::format_header_name()
         .parse::<HeaderName>()
         .unwrap(),
       encoded_key.parse().unwrap(),
@@ -411,17 +432,28 @@ mod tests {
       Format::Bam,
       Request::new("id".to_string(), Default::default(), headers),
     );
-    let keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+
+    let server_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let client_keys = tokio::spawn(async { Ok(C4GHKeys::from_key_pair(vec![], vec![])) });
+    let encoded_public_key = tokio::spawn(async { Ok(vec![]) });
+
     let result = Storage::from_c4gh_keys(
-      Some(&C4GHKeys::from_join_handle(keys, Some(C4GHHeader))),
+      Some(&C4GHKeys::from_join_handle(
+        server_keys,
+        client_keys,
+        Some(C4GHHeader),
+        encoded_public_key,
+      )),
       Some(EncryptionScheme::C4GH),
       storage.clone(),
       &query,
+      true,
     )
     .await;
     assert!(result.is_ok());
 
-    let result = Storage::from_c4gh_keys(None, None, storage.clone(), &Default::default()).await;
+    let result =
+      Storage::from_c4gh_keys(None, None, storage.clone(), &Default::default(), true).await;
     assert!(result.is_ok());
 
     let result = Storage::from_c4gh_keys(
@@ -429,6 +461,7 @@ mod tests {
       Some(EncryptionScheme::C4GH),
       storage,
       &Default::default(),
+      true,
     )
     .await;
     assert!(matches!(result, Err(StorageError::UnsupportedFormat(_))));

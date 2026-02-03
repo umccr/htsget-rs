@@ -1,5 +1,6 @@
 use htsget_config::types::{Class, Headers, Url};
 use http::HeaderMap;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -205,14 +206,14 @@ impl BytesPosition {
 #[derive(Debug, Clone)]
 pub struct GetOptions<'a> {
   pub(crate) range: BytesPosition,
-  pub(crate) request_headers: &'a HeaderMap,
+  pub(crate) request_headers: Cow<'a, HeaderMap>,
 }
 
 impl<'a> GetOptions<'a> {
   pub fn new(range: BytesPosition, request_headers: &'a HeaderMap) -> Self {
     Self {
       range,
-      request_headers,
+      request_headers: Cow::Borrowed(request_headers),
     }
   }
 
@@ -236,8 +237,13 @@ impl<'a> GetOptions<'a> {
   }
 
   /// Get the request headers.
-  pub fn request_headers(&self) -> &'a HeaderMap {
-    self.request_headers
+  pub fn request_headers(&self) -> &HeaderMap {
+    self.request_headers.as_ref()
+  }
+
+  /// Set the request headers from an owned value.
+  pub fn set_request_headers(&mut self, request_headers: HeaderMap) {
+    self.request_headers = Cow::Owned(request_headers);
   }
 }
 

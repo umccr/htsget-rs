@@ -244,6 +244,10 @@
               ],
               "writeOnly": true
             },
+            "forward_public_key": {
+              "type": "boolean",
+              "default": true
+            },
             "kind": {
               "type": "string",
               "const": "Url"
@@ -263,15 +267,36 @@
       "description": "Specifies the location of a Crypt4GH key.",
       "type": "object",
       "properties": {
+        "server": {
+          "$ref": "#/$defs/C4GHKeyLocation"
+        },
+        "client": {
+          "$ref": "#/$defs/C4GHKeyLocation"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["server", "client"]
+    },
+    "C4GHKeyLocation": {
+      "description": "The specific location for a private and public key pair. If the private key is\nunspecified then the public key is used for encryption, otherwise decryption is\nused.",
+      "type": "object",
+      "properties": {
         "private": {
-          "$ref": "#/$defs/C4GHKeyType"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/C4GHKeyType"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "public": {
           "$ref": "#/$defs/C4GHKeyType"
         }
       },
       "additionalProperties": false,
-      "required": ["private", "public"]
+      "required": ["public"]
     },
     "C4GHKeyType": {
       "description": "Specifies the location of a Crypt4GH key.",

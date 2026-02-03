@@ -62,6 +62,11 @@ impl C4GHSecretsManager {
     }
   }
 
+  /// Get the public key as a string without decoding the inner base64 data.
+  pub async fn public_key_encoded(&self) -> Result<Vec<u8>> {
+    Self::get_secret(&self.client().await, &self.key).await
+  }
+
   /// Get the private key if this is a local private key.
   pub async fn into_private_key(self) -> Result<Vec<u8>> {
     let client = self.client().await;
@@ -95,7 +100,7 @@ impl<T> From<SdkError<T>> for Error {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::storage::c4gh::{C4GHKeyLocation, C4GHKeyType, C4GHKeys};
+  use crate::storage::c4gh::{C4GHKeyLocation, C4GHKeySet, C4GHKeyType, C4GHKeys};
   use aws_sdk_secretsmanager::operation::get_secret_value::GetSecretValueOutput;
   use aws_sdk_secretsmanager::primitives::Blob;
   use aws_smithy_mocks::{Rule, RuleMode, mock, mock_client};
@@ -103,20 +108,29 @@ mod tests {
   use std::path::PathBuf;
 
   async fn test_get_keys(rules: &[&Rule]) {
-    let client = mock_client!(aws_sdk_secretsmanager, RuleMode::Sequential, rules);
+    let client = mock_client!(aws_sdk_secretsmanager, RuleMode::MatchAny, rules);
 
     let secrets_manager_private =
       C4GHSecretsManager::new("private_key".to_string()).with_client(client.clone());
     let secrets_manager_public =
-      C4GHSecretsManager::new("recipient_public_key".to_string()).with_client(client);
-    let location = C4GHKeyLocation {
-      private: C4GHKeyType::SecretsManager(secrets_manager_private),
-      public: C4GHKeyType::SecretsManager(secrets_manager_public),
+      C4GHSecretsManager::new("server_public_key".to_string()).with_client(client.clone());
+    let secrets_manager_client =
+      C4GHSecretsManager::new("client_public_key".to_string()).with_client(client);
+    let location = C4GHKeySet {
+      server: C4GHKeyLocation {
+        private: Some(C4GHKeyType::SecretsManager(secrets_manager_private)),
+        public: C4GHKeyType::SecretsManager(secrets_manager_public),
+      },
+      client: C4GHKeyLocation {
+        private: None,
+        public: C4GHKeyType::SecretsManager(secrets_manager_client),
+      },
     };
     let keys: C4GHKeys = location.try_into().unwrap();
-    let (keys, _) = keys.into_inner().await.unwrap();
+    let (server_keys, client_keys, _, _) = keys.into_inner().await.unwrap();
 
-    assert_eq!(keys.len(), 1);
+    assert_eq!(server_keys.len(), 1);
+    assert_eq!(client_keys.len(), 1);
   }
 
   #[tokio::test]
@@ -127,7 +141,8 @@ mod tests {
       .to_path_buf();
 
     let private_key = read(parent.join("data/c4gh/keys/bob.sec")).unwrap();
-    let recipient_public_key = read(parent.join("data/c4gh/keys/alice.pub")).unwrap();
+    let server_public_key = read(parent.join("data/c4gh/keys/bob.pub")).unwrap();
+    let client_public_key = read(parent.join("data/c4gh/keys/alice.pub")).unwrap();
 
     let get_private_key = mock!(Client::get_secret_value)
       .match_requests(|req| req.secret_id() == Some("private_key"))
@@ -137,14 +152,26 @@ mod tests {
           .build()
       });
     let get_recipient_public_key = mock!(Client::get_secret_value)
-      .match_requests(|req| req.secret_id() == Some("recipient_public_key"))
+      .match_requests(|req| req.secret_id() == Some("server_public_key"))
       .then_output(move || {
         GetSecretValueOutput::builder()
-          .secret_string(String::from_utf8(recipient_public_key.clone()).unwrap())
+          .secret_string(String::from_utf8(server_public_key.clone()).unwrap())
+          .build()
+      });
+    let get_client_public_key = mock!(Client::get_secret_value)
+      .match_requests(|req| req.secret_id() == Some("client_public_key"))
+      .then_output(move || {
+        GetSecretValueOutput::builder()
+          .secret_string(String::from_utf8(client_public_key.clone()).unwrap())
           .build()
       });
 
-    test_get_keys(&[&get_private_key, &get_recipient_public_key]).await;
+    test_get_keys(&[
+      &get_private_key,
+      &get_recipient_public_key,
+      &get_client_public_key,
+    ])
+    .await;
   }
 
   #[tokio::test]
@@ -155,7 +182,8 @@ mod tests {
       .to_path_buf();
 
     let private_key = read(parent.join("data/c4gh/keys/bob.sec")).unwrap();
-    let recipient_public_key = read(parent.join("data/c4gh/keys/alice.pub")).unwrap();
+    let server_public_key = read(parent.join("data/c4gh/keys/bob.pub")).unwrap();
+    let client_public_key = read(parent.join("data/c4gh/keys/alice.pub")).unwrap();
 
     let get_private_key = mock!(Client::get_secret_value)
       .match_requests(|req| req.secret_id() == Some("private_key"))
@@ -164,14 +192,21 @@ mod tests {
           .secret_binary(Blob::new(private_key.clone()))
           .build()
       });
-    let get_recipient_public_key = mock!(Client::get_secret_value)
-      .match_requests(|req| req.secret_id() == Some("recipient_public_key"))
+    let get_public_key = mock!(Client::get_secret_value)
+      .match_requests(|req| req.secret_id() == Some("server_public_key"))
       .then_output(move || {
         GetSecretValueOutput::builder()
-          .secret_binary(Blob::new(recipient_public_key.clone()))
+          .secret_binary(Blob::new(server_public_key.clone()))
+          .build()
+      });
+    let get_recipient_public_key = mock!(Client::get_secret_value)
+      .match_requests(|req| req.secret_id() == Some("client_public_key"))
+      .then_output(move || {
+        GetSecretValueOutput::builder()
+          .secret_binary(Blob::new(client_public_key.clone()))
           .build()
       });
 
-    test_get_keys(&[&get_private_key, &get_recipient_public_key]).await;
+    test_get_keys(&[&get_private_key, &get_public_key, &get_recipient_public_key]).await;
   }
 }

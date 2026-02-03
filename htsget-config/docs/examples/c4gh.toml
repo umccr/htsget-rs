@@ -7,18 +7,34 @@ data_server.addr = "127.0.0.1:8081"
 [[locations]]
 regex = ".*"
 substitution_string = "$0"
-backend.kind = "File"
 
-backend.keys.private.kind = "File"
-backend.keys.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.kind = "Url"
+backend.url = "http://localhost:8083/"
+backend.response_url = "http://localhost:8083/"
+
+## If using `Url` storage, setting this option ensures that htsget-rs forwards its own public key in a
+## header called `Htsget-Context-Public-Key`.
+#backend.forward_public_key = true
+
+#backend.keys.private.kind = "File"
+#backend.keys.private.key = "/home/karl/repos/other/htsget-rs/data/c4gh/keys/bob.sec" # pragma: allowlist secret
 #backend.keys.public.kind = "File"
-#backend.keys.public.key = "data/c4gh/keys/alice.pub"
+#backend.keys.public.key = "/home/karl/repos/other/htsget-rs/data/c4gh/keys/bob.pub"
+
+backend.keys.server.private.kind = "File"
+backend.keys.server.private.key = "data/c4gh/keys/bob.sec" # pragma: allowlist secret
+backend.keys.server.public.kind = "File"
+backend.keys.server.public.key = "data/c4gh/keys/bob.pub"
+backend.keys.client.public.kind = "File"
+backend.keys.client.public.key = "data/c4gh/keys/alice.pub"
 
 ## Or, use AWS secrets manager to store keys.
-#backend.keys.private.kind = "SecretsManager"
-#backend.keys.private.key = "htsget/test_c4gh_private_key" # pragma: allowlist secret
-#backend.keys.public.kind = "SecretsManager"
-#backend.keys.public.key = "htsget/test_c4gh_public_key"
+#backend.keys.server.private.kind = "SecretsManager"
+#backend.keys.server.private.key = "htsget/test_c4gh_private_key" # pragma: allowlist secret
+#backend.keys.server.public.kind = "SecretsManager"
+#backend.keys.server.public.key = "htsget/test_c4gh_public_key"
+#backend.keys.client.public.kind = "SecretsManager"
+#backend.keys.client.public.key = "htsget/test_c4gh_client_public_key"
 
 ## Or, get the public key from a `Htsget-Context-Public-Key` header.
-backend.keys.public.kind = "Header"
+#backend.keys.client.public.kind = "Header"
