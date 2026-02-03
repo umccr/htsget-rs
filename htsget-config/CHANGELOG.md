@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.20.1...htsget-config-v0.21.0) - 2026-02-03
+
+### Added
+
+- *(config)* separate out forward_public_key option to url storage instead
+- implement forwarding server's public key separately to the client public key
+- *(config)* add function to encode public key into a header
+- *(config)* add encoded public key to c4gh config
+- implement separate client and server keys on storage side
+- *(config)* add option to forward public keys when using url storage
+- *(config)* allow different C4GH keys for the client and server to be configured
+
+### Other
+
+- schema style
+- doc fixes and style
+- *(config)* move forward_public_key to c4gh config
+- *(config)* document the forward_public_key option
+- specify options for different client/server keys
+- add key set tests for client and server keys
+
 ## [0.20.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.20.0...htsget-config-v0.20.1) - 2025-12-24
 
 ### Other

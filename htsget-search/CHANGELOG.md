@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.6](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.5...htsget-search-v0.12.6) - 2026-02-03
+
+### Added
+
+- implement logic forwarding server's public key
+- implement forwarding server's public key separately to the client public key
+- implement separate client and server keys on storage side
+
 ## [0.12.5](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.4...htsget-search-v0.12.5) - 2025-12-24
 
 ### Added
