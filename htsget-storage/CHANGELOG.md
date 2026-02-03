@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.5...htsget-storage-v0.5.6) - 2026-02-03
+
+### Added
+
+- implement logic forwarding server's public key
+- implement forwarding server's public key separately to the client public key
+- implement separate client and server keys on storage side
+
+### Fixed
+
+- *(storage)* call inner pre-process and post-process for C4GH storage
+
+### Other
+
+- doc fixes and style
+
 ## [0.5.5](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.4...htsget-storage-v0.5.5) - 2025-12-24
 
 ### Added
