@@ -25,6 +25,7 @@ url = [
     "htsget-config/url",
     "htsget-test/url"
 ]
+resolver = []
 experimental = ["dep:crypt4gh", "htsget-config/experimental", "htsget-test/experimental"]
 default = []
 

@@ -22,6 +22,9 @@ pub mod s3;
 #[cfg(feature = "url")]
 pub mod url;
 
+#[cfg(feature = "resolver")]
+pub mod resolver;
+
 /// A new type representing a resolved id.
 #[derive(Debug)]
 pub struct ResolvedId(String);

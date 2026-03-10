@@ -21,6 +21,7 @@ url = [
     "htsget-config/url",
     "htsget-test/url"
 ]
+resolver = []
 experimental = [
     "htsget-storage/experimental",
     "htsget-config/experimental",

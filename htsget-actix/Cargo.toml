@@ -12,6 +12,7 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 aws = ["htsget-config/aws", "htsget-search/aws", "htsget-http/aws", "htsget-axum/aws", "htsget-test/aws"]
 url = ["htsget-config/url", "htsget-search/url", "htsget-http/url", "htsget-axum/url", "htsget-test/url"]
+resolver = []
 experimental = [
     "htsget-config/experimental",
     "htsget-search/experimental",

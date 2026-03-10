@@ -23,6 +23,7 @@ url = [
     "htsget-test/url",
     "htsget-http/url"
 ]
+resolver = []
 experimental = [
     "htsget-config/experimental",
     "htsget-search/experimental",

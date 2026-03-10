@@ -38,6 +38,8 @@ aws = [
     "htsget-config?/aws"
 ]
 url = ["htsget-config?/url"]
+resolver = []
+
 experimental = ["dep:crypt4gh", "dep:htsget-config", "htsget-config/experimental"]
 default = []
 
