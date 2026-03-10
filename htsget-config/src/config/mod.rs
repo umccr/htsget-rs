@@ -326,6 +326,8 @@ impl Config {
           Backend::S3(_) => {}
           #[cfg(feature = "url")]
           Backend::Url(_) => {}
+          #[cfg(feature = "resolve")]
+          Backend::Resolve(_) => {}
         }
 
         // Ensure authorization header gets forwarded if the data server has authorization set.

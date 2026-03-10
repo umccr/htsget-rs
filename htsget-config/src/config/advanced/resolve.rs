@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// in that it calls out to an endpoint and uses json path to determine the concrete data locations.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
-pub struct Resolver {
+pub struct Resolve {
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   resolve_from: Uri,
@@ -38,7 +38,7 @@ pub struct Resolver {
   pub(crate) is_defaulted: bool,
 }
 
-impl Resolver {
+impl Resolve {
   /// Create a new resolver storage.
   pub fn new(
     resolve_from: Uri,
@@ -122,10 +122,10 @@ impl Resolver {
   }
 }
 
-impl TryFrom<Resolver> for storage::resolver::Resolver {
+impl TryFrom<Resolve> for storage::resolve::Resolve {
   type Error = Error;
 
-  fn try_from(storage: Resolver) -> Result<Self> {
+  fn try_from(storage: Resolve) -> Result<Self> {
     let client = HttpClient::from(storage.http);
 
     let url_storage = Self::new(
@@ -151,7 +151,7 @@ impl TryFrom<Resolver> for storage::resolver::Resolver {
   }
 }
 
-impl Default for Resolver {
+impl Default for Resolve {
   fn default() -> Self {
     let mut url = Self::new(
       Default::default(),
@@ -196,7 +196,7 @@ mod tests {
         false,
         vec!["Host".to_string()],
       ),
-      |result: Resolver| {
+      |result: Resolve| {
         (
           result.resolve_from().to_string(),
           result.response_path().map(String::from),

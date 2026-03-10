@@ -18,8 +18,8 @@ pub mod allow_guard;
 pub mod auth;
 pub mod cors;
 pub mod regex_location;
-#[cfg(feature = "resolver")]
-pub mod resolver;
+#[cfg(feature = "resolve")]
+pub mod resolve;
 #[cfg(feature = "url")]
 pub mod url;
 

@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 
 /// Configure the server to resolve content endpoints from a Url.
 #[derive(JsonSchema, Deserialize, Serialize, Debug, Clone)]
-#[serde(try_from = "advanced::resolver::Resolver", deny_unknown_fields)]
-pub struct Resolver {
+#[serde(try_from = "advanced::resolve::Resolve", deny_unknown_fields)]
+pub struct Resolve {
   /// The URL to resolve from.
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
@@ -45,9 +45,9 @@ pub struct Resolver {
   pub(crate) is_defaulted: bool,
 }
 
-impl Eq for Resolver {}
+impl Eq for Resolve {}
 
-impl PartialEq for Resolver {
+impl PartialEq for Resolve {
   fn eq(&self, other: &Self) -> bool {
     self.resolve_from == other.resolve_from
       && self.content_path == other.content_path
@@ -58,7 +58,7 @@ impl PartialEq for Resolver {
   }
 }
 
-impl Resolver {
+impl Resolve {
   /// Create a new resolver storage client.
   pub fn new(
     resolve_from: Uri,
@@ -156,7 +156,7 @@ impl Resolver {
   }
 }
 
-impl Default for Resolver {
+impl Default for Resolve {
   fn default() -> Self {
     let mut resolver = Self::new(
       Default::default(),
