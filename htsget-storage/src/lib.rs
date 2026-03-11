@@ -13,6 +13,8 @@ use crate::error::StorageError;
 #[cfg(feature = "experimental")]
 use crate::error::StorageError::InvalidInput;
 use crate::local::FileStorage;
+#[cfg(feature = "resolve")]
+use crate::resolve::ResolveStorage;
 #[cfg(feature = "aws")]
 use crate::s3::S3Storage;
 use crate::types::{BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions};
@@ -40,6 +42,8 @@ use tracing::debug;
 pub mod c4gh;
 pub mod error;
 pub mod local;
+#[cfg(feature = "resolve")]
+pub mod resolve;
 #[cfg(feature = "aws")]
 pub mod s3;
 pub mod types;
@@ -239,6 +243,33 @@ impl Storage {
     cfg_if! {
       if #[cfg(feature = "experimental")] {
         Self::from_c4gh_keys(url.keys(), _query.encryption_scheme(), storage, _query, url.forward_public_key()).await
+      } else {
+        Ok(storage)
+      }
+    }
+  }
+
+  /// Create from resolve config.
+  #[cfg(feature = "resolve")]
+  pub async fn from_resolve(
+    mut resolve: storage::resolve::Resolve,
+    _query: &Query,
+  ) -> Result<Storage> {
+    let storage = Storage::new(ResolveStorage::new(
+      resolve
+        .client_cloned()
+        .map_err(|err| StorageError::InternalError(err.to_string()))?,
+      resolve.resolve_from().clone(),
+      resolve.content_path().to_string(),
+      resolve.size_path().map(String::from),
+      resolve.response_path().map(String::from),
+      resolve.forward_headers(),
+      resolve.header_blacklist().to_vec(),
+    ));
+
+    cfg_if! {
+      if #[cfg(feature = "experimental")] {
+        Self::from_c4gh_keys(resolve.keys(), _query.encryption_scheme(), storage, _query, resolve.forward_public_key()).await
       } else {
         Ok(storage)
       }
