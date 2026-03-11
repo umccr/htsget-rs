@@ -69,6 +69,16 @@ impl ResolveResponse for HtsGetFromStorage {
     let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
   }
+
+  #[cfg(feature = "resolve")]
+  async fn from_resolve(
+    resolve_storage: storage::resolve::Resolve,
+    query: &Query,
+  ) -> Result<Response> {
+    let storage = Storage::from_resolve(resolve_storage, query).await;
+    let searcher = HtsGetFromStorage::new(storage?);
+    searcher.search(query.clone()).await
+  }
 }
 
 impl HtsGetFromStorage {
