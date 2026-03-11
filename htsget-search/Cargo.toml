@@ -10,23 +10,10 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-search/README.md
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-aws = [
-    "htsget-storage/aws",
-    "htsget-config/aws",
-    "htsget-test/aws",
-    "htsget-test/aws"
-]
-url = [
-    "htsget-storage/url",
-    "htsget-config/url",
-    "htsget-test/url"
-]
-resolver = []
-experimental = [
-    "htsget-storage/experimental",
-    "htsget-config/experimental",
-    "htsget-test/experimental"
-]
+aws = ["htsget-storage/aws", "htsget-config/aws", "htsget-test/aws"]
+url = ["htsget-storage/url", "htsget-config/url", "htsget-test/url"]
+resolve = ["htsget-storage/resolve", "htsget-config/resolve", "htsget-test/resolve", "url"]
+experimental = ["htsget-storage/experimental", "htsget-config/experimental", "htsget-test/experimental"]
 default = []
 
 [dependencies]

@@ -162,7 +162,7 @@ impl StorageResolver for Location {
       Backend::Url(url_storage) => Some(T::from_url(*url_storage.clone(), query).await),
       #[cfg(feature = "resolve")]
       Backend::Resolve(resolve_storage) => {
-        Some(T::from_resolve(resolve_storage.clone(), query).await)
+        Some(T::from_resolve(*resolve_storage.clone(), query).await)
       }
     }
   }

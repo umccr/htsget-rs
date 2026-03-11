@@ -1,7 +1,7 @@
 //! Storage backends.
 //!
 
-#[cfg(any(feature = "url", feature = "aws"))]
+#[cfg(any(feature = "url", feature = "aws", feature = "resolve"))]
 use crate::error::Error;
 use crate::error::Result;
 #[cfg(feature = "experimental")]
@@ -57,7 +57,7 @@ pub enum Backend {
   Url(Box<Url>),
   #[cfg(feature = "resolve")]
   #[serde(alias = "resolve", alias = "RESOLVE")]
-  Resolve(Resolve),
+  Resolve(Box<Resolve>),
 }
 
 impl Backend {

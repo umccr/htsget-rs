@@ -12,12 +12,8 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 aws = ["htsget-axum/aws", "htsget-config/aws", "htsget-http/aws"]
 url = ["htsget-axum/url", "htsget-config/url", "htsget-http/url"]
-resolver = []
-experimental = [
-    "htsget-axum/experimental",
-    "htsget-config/experimental",
-    "htsget-http/experimental"
-]
+resolve = ["htsget-axum/resolve", "htsget-config/resolve", "htsget-http/resolve", "url"]
+experimental = ["htsget-axum/experimental", "htsget-config/experimental", "htsget-http/experimental"]
 default = []
 
 [dependencies]

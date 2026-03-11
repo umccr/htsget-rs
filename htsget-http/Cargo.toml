@@ -12,7 +12,7 @@ repository = "https://github.com/umccr/htsget-rs"
 [features]
 aws = ["htsget-config/aws", "htsget-search/aws", "htsget-test/aws"]
 url = ["htsget-config/url", "htsget-search/url", "htsget-test/url"]
-resolver = []
+resolve = ["htsget-config/resolve", "htsget-search/resolve", "htsget-test/resolve", "url"]
 experimental = ["htsget-config/experimental", "htsget-search/experimental", "htsget-test/experimental"]
 default = []
 

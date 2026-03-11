@@ -10,20 +10,9 @@ homepage = "https://github.com/umccr/htsget-rs/blob/main/htsget-axum/README.md"
 repository = "https://github.com/umccr/htsget-rs"
 
 [features]
-aws = [
-    "htsget-config/aws",
-    "htsget-search/aws",
-    "htsget-test/aws",
-    "htsget-test/aws",
-    "htsget-http/aws"
-]
-url = [
-    "htsget-config/url",
-    "htsget-search/url",
-    "htsget-test/url",
-    "htsget-http/url"
-]
-resolver = []
+aws = ["htsget-config/aws", "htsget-search/aws", "htsget-test/aws", "htsget-http/aws"]
+url = ["htsget-config/url", "htsget-search/url", "htsget-test/url", "htsget-http/url"]
+resolve = ["htsget-config/resolve", "htsget-search/resolve", "htsget-test/resolve", "htsget-http/resolve", "url"]
 experimental = [
     "htsget-config/experimental",
     "htsget-search/experimental",
