@@ -13,7 +13,7 @@ use crate::error::StorageError;
 #[cfg(feature = "experimental")]
 use crate::error::StorageError::InvalidInput;
 use crate::local::FileStorage;
-#[cfg(feature = "resolve")]
+#[cfg(feature = "url")]
 use crate::resolve::ResolveStorage;
 #[cfg(feature = "aws")]
 use crate::s3::S3Storage;
@@ -42,7 +42,7 @@ use tracing::debug;
 pub mod c4gh;
 pub mod error;
 pub mod local;
-#[cfg(feature = "resolve")]
+#[cfg(feature = "url")]
 pub mod resolve;
 #[cfg(feature = "aws")]
 pub mod s3;
@@ -250,7 +250,7 @@ impl Storage {
   }
 
   /// Create from resolve config.
-  #[cfg(feature = "resolve")]
+  #[cfg(feature = "url")]
   pub async fn from_resolve(
     mut resolve: storage::resolve::Resolve,
     _query: &Query,

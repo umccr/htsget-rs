@@ -326,7 +326,7 @@ impl Config {
           Backend::S3(_) => {}
           #[cfg(feature = "url")]
           Backend::Url(_) => {}
-          #[cfg(feature = "resolve")]
+          #[cfg(feature = "url")]
           Backend::Resolve(_) => {}
         }
 

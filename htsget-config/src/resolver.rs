@@ -30,7 +30,7 @@ pub trait ResolveResponse {
   async fn from_url(url_storage: storage::url::Url, query: &Query) -> Result<Response>;
 
   /// Convert from `Resolve`.
-  #[cfg(feature = "resolve")]
+  #[cfg(feature = "url")]
   async fn from_resolve(
     resolve_storage: storage::resolve::Resolve,
     query: &Query,
@@ -160,7 +160,7 @@ impl StorageResolver for Location {
       }
       #[cfg(feature = "url")]
       Backend::Url(url_storage) => Some(T::from_url(*url_storage.clone(), query).await),
-      #[cfg(feature = "resolve")]
+      #[cfg(feature = "url")]
       Backend::Resolve(resolve_storage) => {
         Some(T::from_resolve(*resolve_storage.clone(), query).await)
       }
@@ -256,7 +256,7 @@ mod tests {
       ))
     }
 
-    #[cfg(feature = "resolve")]
+    #[cfg(feature = "url")]
     async fn from_resolve(
       resolve_storage: storage::resolve::Resolve,
       query: &Query,

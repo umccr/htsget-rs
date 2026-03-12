@@ -70,7 +70,7 @@ impl ResolveResponse for HtsGetFromStorage {
     searcher.search(query.clone()).await
   }
 
-  #[cfg(feature = "resolve")]
+  #[cfg(feature = "url")]
   async fn from_resolve(
     resolve_storage: storage::resolve::Resolve,
     query: &Query,

@@ -25,7 +25,6 @@ url = [
     "htsget-config/url",
     "htsget-test/url"
 ]
-resolve = ["dep:serde_json", "dep:jsonpath-rust", "htsget-config/resolve", "htsget-test/resolve", "url"]
 experimental = ["dep:crypt4gh", "htsget-config/experimental", "htsget-test/experimental"]
 default = []
 

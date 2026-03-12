@@ -1,13 +1,13 @@
 //! Storage backends.
 //!
 
-#[cfg(any(feature = "url", feature = "aws", feature = "resolve"))]
+#[cfg(any(feature = "url", feature = "aws"))]
 use crate::error::Error;
 use crate::error::Result;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
 use crate::storage::file::File;
-#[cfg(feature = "resolve")]
+#[cfg(feature = "url")]
 use crate::storage::resolve::Resolve;
 #[cfg(feature = "aws")]
 use crate::storage::s3::S3;
@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "experimental")]
 pub mod c4gh;
 pub mod file;
-#[cfg(feature = "resolve")]
+#[cfg(feature = "url")]
 pub mod resolve;
 #[cfg(feature = "aws")]
 pub mod s3;
@@ -55,7 +55,7 @@ pub enum Backend {
   #[cfg(feature = "url")]
   #[serde(alias = "url", alias = "URL")]
   Url(Box<Url>),
-  #[cfg(feature = "resolve")]
+  #[cfg(feature = "url")]
   #[serde(alias = "resolve", alias = "RESOLVE")]
   Resolve(Box<Resolve>),
 }
@@ -69,7 +69,7 @@ impl Backend {
       Backend::S3(_) => Err(Error::ParseError("not a `File` variant".to_string())),
       #[cfg(feature = "url")]
       Backend::Url(_) => Err(Error::ParseError("not a `File` variant".to_string())),
-      #[cfg(feature = "resolve")]
+      #[cfg(feature = "url")]
       Backend::Resolve(_) => Err(Error::ParseError("not a `File` variant".to_string())),
     }
   }
@@ -84,7 +84,7 @@ impl Backend {
       Backend::S3(_) => {}
       #[cfg(feature = "url")]
       Backend::Url(_) => {}
-      #[cfg(feature = "resolve")]
+      #[cfg(feature = "url")]
       Backend::Resolve(_) => {}
     }
   }
@@ -97,7 +97,7 @@ impl Backend {
       Backend::S3(_) => None,
       #[cfg(feature = "url")]
       Backend::Url(_) => None,
-      #[cfg(feature = "resolve")]
+      #[cfg(feature = "url")]
       Backend::Resolve(_) => None,
     }
   }
@@ -110,7 +110,7 @@ impl Backend {
       Backend::S3(s3) => s3.is_defaulted,
       #[cfg(feature = "url")]
       Backend::Url(url) => url.is_defaulted,
-      #[cfg(feature = "resolve")]
+      #[cfg(feature = "url")]
       Backend::Resolve(resolve) => resolve.is_defaulted,
     }
   }
@@ -146,7 +146,7 @@ impl Backend {
   }
 
   /// Get the resolve variant and error if it is not `Resolve`.
-  #[cfg(feature = "resolve")]
+  #[cfg(feature = "url")]
   pub fn as_resolve(&self) -> Result<&Resolve> {
     if let Backend::Resolve(resolve) = self {
       Ok(resolve)
@@ -156,7 +156,7 @@ impl Backend {
   }
 
   /// Get the resolve variant as a mutable reference and error if it is not `Resolve`.
-  #[cfg(feature = "resolve")]
+  #[cfg(feature = "url")]
   pub fn as_resolve_mut(&mut self) -> Result<&mut Resolve> {
     if let Backend::Resolve(resolve) = self {
       Ok(resolve)
@@ -174,7 +174,7 @@ impl Backend {
       Backend::S3(s3) => s3.set_keys(keys),
       #[cfg(feature = "url")]
       Backend::Url(url) => url.set_keys(keys),
-      #[cfg(feature = "resolve")]
+      #[cfg(feature = "url")]
       Backend::Resolve(resolve) => resolve.set_keys(keys),
     }
   }
