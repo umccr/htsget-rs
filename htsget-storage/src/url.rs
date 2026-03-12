@@ -126,6 +126,13 @@ impl UrlClient {
       .and_then(|content_length| content_length.parse().ok())
       .ok_or_else(|| ResponseError("failed to get content length from head response".to_string()))
   }
+
+  /// Append the requested key to the url.
+  pub fn append_key_to_url<K: AsRef<str>>(&self, base: &Uri, key: K) -> Result<Uri> {
+    format!("{}{}", base, key.as_ref())
+      .parse::<Uri>()
+      .map_err(|err| UrlParseError(err.to_string()))
+  }
 }
 
 /// A storage struct which derives data from HTTP URLs.
@@ -154,16 +161,12 @@ impl UrlStorage {
 
   /// Get a url from the key.
   pub fn get_url_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<Uri> {
-    format!("{}{}", self.url, key.as_ref())
-      .parse::<Uri>()
-      .map_err(|err| UrlParseError(err.to_string()))
+    self.url_client.append_key_to_url(&self.url, key)
   }
 
-  /// Get a url from the key.
+  /// Get the response url from the key.
   pub fn get_response_url_from_key<K: AsRef<str> + Send>(&self, key: K) -> Result<Uri> {
-    format!("{}{}", self.response_url, key.as_ref())
-      .parse::<Uri>()
-      .map_err(|err| UrlParseError(err.to_string()))
+    self.url_client.append_key_to_url(&self.response_url, key)
   }
 
   /// Get the head from the key.
@@ -550,7 +553,7 @@ pub(crate) mod tests {
     );
   }
 
-  fn test_client() -> ClientWithMiddleware {
+  pub(crate) fn test_client() -> ClientWithMiddleware {
     reqwest_middleware::ClientBuilder::new(ClientBuilder::new().build().unwrap()).build()
   }
 
@@ -563,7 +566,10 @@ pub(crate) mod tests {
     with_test_server(base_path.path(), test).await;
   }
 
-  async fn test_auth(request: Request<Body>, next: Next) -> result::Result<Response, StatusCode> {
+  pub(crate) async fn test_auth(
+    request: Request<Body>,
+    next: Next,
+  ) -> result::Result<Response, StatusCode> {
     let auth_header = request
       .headers()
       .get(AUTHORIZATION)
@@ -614,7 +620,7 @@ pub(crate) mod tests {
     headers
   }
 
-  fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions<'_> {
+  pub(crate) fn test_range_options(headers: &mut HeaderMap) -> RangeUrlOptions<'_> {
     let headers = test_headers(headers);
     RangeUrlOptions::new_with_default_range(headers)
   }

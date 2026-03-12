@@ -10,7 +10,7 @@ use jsonpath_rust::JsonPath;
 use reqwest_middleware::ClientWithMiddleware;
 use tracing::{debug, instrument};
 
-use crate::StorageError::{ResponseError, UrlParseError};
+use crate::StorageError::ResponseError;
 use crate::url::{UrlClient, UrlStream};
 use crate::{GetOptions, HeadOptions, RangeUrlOptions, Result, StorageMiddleware, StorageTrait};
 use crate::{Streamable, Url as HtsGetUrl};
@@ -47,9 +47,7 @@ impl ResolveStorage {
 
   /// Get a url from the key.
   pub fn get_endpoint_url<K: AsRef<str>>(&self, key: K) -> Result<Uri> {
-    format!("{}{}", self.resolve_from, key.as_ref())
-      .parse::<Uri>()
-      .map_err(|err| UrlParseError(err.to_string()))
+    self.url_client.append_key_to_url(&self.resolve_from, key)
   }
 
   /// Fetch the JSON data from the resolve endpoint and query and parse the JSON path value.
@@ -74,25 +72,35 @@ impl ResolveStorage {
         ))
       })?;
 
-    response
-      .query(query)
-      .map_err(|err| {
-        ResponseError(format!(
-          "querying JSON path response from {}: {}",
-          self.resolve_from, err
-        ))
-      })?
-      .first()
+    // Get the queried value.
+    let query_response = response.query(query).map_err(|err| {
+      ResponseError(format!(
+        "querying JSON path response from {}: {}",
+        self.resolve_from, err
+      ))
+    })?;
+
+    // First valid query result.
+    let first_value = query_response.first().ok_or_else(|| {
+      ResponseError(format!(
+        "fetching single JSON value from {}",
+        self.resolve_from
+      ))
+    })?;
+
+    // Convert possible numbers to parsable strings in order to support a number or
+    // a string from the response.
+    let convert_to_string = first_value
+      .as_u64()
+      .or_else(|| first_value.as_i64().and_then(|n| u64::try_from(n).ok()))
+      .map(|n| n.to_string())
+      .or_else(|| first_value.as_str().map(|n| n.to_string()));
+
+    // Parse the result.
+    convert_to_string
       .ok_or_else(|| {
         ResponseError(format!(
-          "fetching single JSON value from {}",
-          self.resolve_from
-        ))
-      })?
-      .as_str()
-      .ok_or_else(|| {
-        ResponseError(format!(
-          "content path is not a string when resolving from {}",
+          "path is not a string when resolving from {}",
           self.resolve_from
         ))
       })?
@@ -163,9 +171,16 @@ impl ResolveStorage {
   ) -> Result<HtsGetUrl> {
     if let Some(ref response_path) = self.response_path {
       let response_url = self
-        .resolve_endpoint(key, options.response_headers().clone(), response_path)
+        .resolve_endpoint(
+          key.as_ref(),
+          options.response_headers().clone(),
+          response_path,
+        )
         .await?;
-      self.url_client.format_url(response_url, options)
+      self.url_client.format_url(
+        self.url_client.append_key_to_url(&response_url, key)?,
+        options,
+      )
     } else {
       self
         .url_client
@@ -202,5 +217,277 @@ impl StorageTrait for ResolveStorage {
 
     debug!(calling_from = ?self, size, "size of key is {}", size);
     Ok(size)
+  }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+  use axum::extract::Path as AxumPath;
+  use axum::routing::get;
+  use axum::{Json, Router, middleware};
+  use htsget_config::types::Headers;
+  use http::header::AUTHORIZATION;
+  use serde_json::json;
+  use std::future::Future;
+  use std::path::{Path, PathBuf};
+  use std::str::FromStr;
+  use std::vec;
+  use tokio::io::AsyncReadExt;
+  use tokio::net::TcpListener;
+  use tower_http::services::ServeDir;
+
+  use super::*;
+  use crate::local::tests::create_local_test_files;
+  use crate::types::GetOptions;
+  use crate::url::tests::{test_auth, test_client, test_headers, test_range_options};
+
+  fn test_storage(uri: Uri) -> ResolveStorage {
+    ResolveStorage::new(
+      test_client(),
+      uri,
+      "$.content".to_string(),
+      Some("$.size".to_string()),
+      Some("$.response".to_string()),
+      true,
+      vec![],
+    )
+  }
+
+  #[test]
+  fn get_endpoint_from_key() {
+    let storage = test_storage("https://example.com".parse().unwrap());
+    assert_eq!(
+      storage.get_endpoint_url("assets/key1").unwrap(),
+      Uri::from_str("https://example.com/assets/key1").unwrap()
+    );
+  }
+
+  #[tokio::test]
+  async fn get_key() {
+    with_resolve_test_server(|storage, _, _| async move {
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
+
+      let response = String::from_utf8(
+        storage
+          .get_key("key1", GetOptions::new_with_default_range(headers))
+          .await
+          .unwrap()
+          .bytes()
+          .await
+          .unwrap()
+          .to_vec(),
+      )
+      .unwrap();
+      assert_eq!(response, "value1");
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn object_size() {
+    with_resolve_test_server(|mut storage, _, _| async move {
+      storage.size_path = None;
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
+
+      let response = storage
+        .object_size("key1", HeadOptions::new(headers))
+        .await
+        .unwrap();
+      assert_eq!(response, 6);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn object_size_path_set() {
+    with_resolve_test_server(test_object_size).await;
+  }
+
+  #[tokio::test]
+  async fn object_size_path_set_text_size() {
+    with_resolve_test_server_text_size(test_object_size).await;
+  }
+
+  #[tokio::test]
+  async fn get_storage() {
+    with_resolve_test_server(|storage, _, _| async move {
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
+      let options = GetOptions::new_with_default_range(headers);
+
+      let mut reader = storage.get("key1", options).await.unwrap();
+
+      let mut response = [0; 6];
+      reader.read_exact(&mut response).await.unwrap();
+
+      assert_eq!(String::from_utf8(response.to_vec()).unwrap(), "value1");
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn range_url_storage() {
+    with_resolve_test_server(|mut storage, url, _| async move {
+      storage.response_path = None;
+      let mut headers = HeaderMap::default();
+      let options = test_range_options(&mut headers);
+
+      assert_eq!(
+        storage.range_url("key1", options).await.unwrap(),
+        HtsGetUrl::new(format!("{url}/key1"))
+          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+      );
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn head_storage() {
+    with_resolve_test_server(|storage, _, _| async move {
+      let mut headers = HeaderMap::default();
+      let headers = test_headers(&mut headers);
+      let options = HeadOptions::new(headers);
+
+      assert_eq!(storage.head("key1", options).await.unwrap(), 3);
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn format_key() {
+    with_resolve_test_server(|mut storage, url, _| async move {
+      storage.response_path = None;
+      let mut headers = HeaderMap::default();
+      let options = test_range_options(&mut headers);
+
+      assert_eq!(
+        storage.format_key("key1", options).await.unwrap(),
+        HtsGetUrl::new(format!("{url}/key1"))
+          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+      );
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn format_key_path_set() {
+    with_resolve_test_server(|storage, _, _| async move {
+      let mut headers = HeaderMap::default();
+      let options = test_range_options(&mut headers);
+
+      assert_eq!(
+        storage.format_key("key1", options).await.unwrap(),
+        HtsGetUrl::new("https://example.com/key1".to_string())
+          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+      );
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn format_key_no_headers() {
+    with_resolve_test_server(|mut storage, _, _| async move {
+      storage.url_client = UrlClient::new(test_client(), false, vec![]);
+      let mut headers = HeaderMap::default();
+      let options = test_range_options(&mut headers);
+
+      assert_eq!(
+        storage.format_key("key1", options).await.unwrap(),
+        HtsGetUrl::new("https://example.com/key1".to_string())
+      );
+    })
+    .await;
+  }
+
+  async fn test_object_size(storage: ResolveStorage, _url: String, _path: PathBuf) {
+    let mut headers = HeaderMap::default();
+    let headers = test_headers(&mut headers);
+
+    let response = storage
+      .object_size("key1", HeadOptions::new(headers))
+      .await
+      .unwrap();
+    assert_eq!(response, 3);
+  }
+
+  pub(crate) async fn with_resolve_test_server<F, Fut>(test: F)
+  where
+    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let (_, base_path) = create_local_test_files().await;
+    with_test_server(base_path.path(), test).await;
+  }
+
+  pub(crate) async fn with_resolve_test_server_text_size<F, Fut>(test: F)
+  where
+    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let (_, base_path) = create_local_test_files().await;
+    with_test_server_text_size(base_path.path(), test).await;
+  }
+
+  async fn with_test_server_impl<F, Fut>(server_base_path: &Path, test: F, size: serde_json::Value)
+  where
+    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let url = format!("http://{addr}");
+    let url_clone = url.clone();
+
+    let path = server_base_path.to_str().unwrap();
+    let router = Router::new()
+      .nest_service("/assets", ServeDir::new(path))
+      .route(
+        "/{id}",
+        get(|AxumPath(id): AxumPath<String>| async move {
+          Json(json!({
+            "content": format!("{}/assets/{}", url_clone, id),
+            "size": size,
+            "response": "https://example.com"
+          }))
+        }),
+      )
+      .route_layer(middleware::from_fn(test_auth));
+
+    tokio::spawn(async move { axum::serve(listener, router.into_make_service()).await });
+
+    test(
+      test_storage(url.parse().unwrap()),
+      url,
+      server_base_path.to_path_buf(),
+    )
+    .await;
+  }
+
+  pub(crate) async fn with_test_server<F, Fut>(server_base_path: &Path, test: F)
+  where
+    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_test_server_impl(
+      server_base_path,
+      test,
+      serde_json::Value::Number(serde_json::Number::from_u128(3).unwrap()),
+    )
+    .await;
+  }
+
+  pub(crate) async fn with_test_server_text_size<F, Fut>(server_base_path: &Path, test: F)
+  where
+    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    Fut: Future<Output = ()>,
+  {
+    with_test_server_impl(
+      server_base_path,
+      test,
+      serde_json::Value::String("3".to_string()),
+    )
+    .await;
   }
 }
