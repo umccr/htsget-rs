@@ -12,10 +12,10 @@ use reqwest_middleware::ClientWithMiddleware;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configure the server to resolve content endpoints from a Url.
+/// Configure the server to resolve endpoints from a Url using json path.
 #[derive(JsonSchema, Deserialize, Serialize, Debug, Clone)]
-#[serde(try_from = "advanced::resolve::Resolve", deny_unknown_fields)]
-pub struct Resolve {
+#[serde(try_from = "advanced::json_path::JsonPath", deny_unknown_fields)]
+pub struct JsonPath {
   /// The URL to resolve from.
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
@@ -45,9 +45,9 @@ pub struct Resolve {
   pub(crate) is_defaulted: bool,
 }
 
-impl Eq for Resolve {}
+impl Eq for JsonPath {}
 
-impl PartialEq for Resolve {
+impl PartialEq for JsonPath {
   fn eq(&self, other: &Self) -> bool {
     self.resolve_from == other.resolve_from
       && self.content_path == other.content_path
@@ -58,8 +58,8 @@ impl PartialEq for Resolve {
   }
 }
 
-impl Resolve {
-  /// Create a new resolver storage client.
+impl JsonPath {
+  /// Create a new json path storage.
   pub fn new(
     resolve_from: Uri,
     content_path: String,
@@ -156,9 +156,9 @@ impl Resolve {
   }
 }
 
-impl Default for Resolve {
+impl Default for JsonPath {
   fn default() -> Self {
-    let mut resolver = Self::new(
+    let mut json_path = Self::new(
       Default::default(),
       Default::default(),
       Default::default(),
@@ -170,10 +170,10 @@ impl Default for Resolve {
 
     #[cfg(feature = "experimental")]
     {
-      resolver.set_forward_public_key(true);
+      json_path.set_forward_public_key(true);
     }
 
-    resolver.is_defaulted = true;
-    resolver
+    json_path.is_defaulted = true;
+    json_path
   }
 }

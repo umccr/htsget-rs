@@ -8,7 +8,7 @@ use crate::error::Result;
 use crate::storage::c4gh::C4GHKeys;
 use crate::storage::file::File;
 #[cfg(feature = "url")]
-use crate::storage::resolve::Resolve;
+use crate::storage::json_path::JsonPath;
 #[cfg(feature = "aws")]
 use crate::storage::s3::S3;
 #[cfg(feature = "url")]
@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 pub mod c4gh;
 pub mod file;
 #[cfg(feature = "url")]
-pub mod resolve;
+pub mod json_path;
 #[cfg(feature = "aws")]
 pub mod s3;
 #[cfg(feature = "url")]
@@ -56,8 +56,8 @@ pub enum Backend {
   #[serde(alias = "url", alias = "URL")]
   Url(Box<Url>),
   #[cfg(feature = "url")]
-  #[serde(alias = "resolve", alias = "RESOLVE")]
-  Resolve(Box<Resolve>),
+  #[serde(alias = "json_path", alias = "JSON_PATH")]
+  JsonPath(Box<JsonPath>),
 }
 
 impl Backend {
@@ -70,7 +70,7 @@ impl Backend {
       #[cfg(feature = "url")]
       Backend::Url(_) => Err(Error::ParseError("not a `File` variant".to_string())),
       #[cfg(feature = "url")]
-      Backend::Resolve(_) => Err(Error::ParseError("not a `File` variant".to_string())),
+      Backend::JsonPath(_) => Err(Error::ParseError("not a `File` variant".to_string())),
     }
   }
 
@@ -85,7 +85,7 @@ impl Backend {
       #[cfg(feature = "url")]
       Backend::Url(_) => {}
       #[cfg(feature = "url")]
-      Backend::Resolve(_) => {}
+      Backend::JsonPath(_) => {}
     }
   }
 
@@ -98,7 +98,7 @@ impl Backend {
       #[cfg(feature = "url")]
       Backend::Url(_) => None,
       #[cfg(feature = "url")]
-      Backend::Resolve(_) => None,
+      Backend::JsonPath(_) => None,
     }
   }
 
@@ -111,7 +111,7 @@ impl Backend {
       #[cfg(feature = "url")]
       Backend::Url(url) => url.is_defaulted,
       #[cfg(feature = "url")]
-      Backend::Resolve(resolve) => resolve.is_defaulted,
+      Backend::JsonPath(json_path) => json_path.is_defaulted,
     }
   }
 
@@ -145,23 +145,23 @@ impl Backend {
     }
   }
 
-  /// Get the resolve variant and error if it is not `Resolve`.
+  /// Get the json path variant and error if it is not `JsonPath`.
   #[cfg(feature = "url")]
-  pub fn as_resolve(&self) -> Result<&Resolve> {
-    if let Backend::Resolve(resolve) = self {
-      Ok(resolve)
+  pub fn as_json_path(&self) -> Result<&JsonPath> {
+    if let Backend::JsonPath(json_path) = self {
+      Ok(json_path)
     } else {
-      Err(Error::ParseError("not a `Resolve` variant".to_string()))
+      Err(Error::ParseError("not a `JsonPath` variant".to_string()))
     }
   }
 
-  /// Get the resolve variant as a mutable reference and error if it is not `Resolve`.
+  /// Get the json path variant as a mutable reference and error if it is not `JsonPath`.
   #[cfg(feature = "url")]
-  pub fn as_resolve_mut(&mut self) -> Result<&mut Resolve> {
-    if let Backend::Resolve(resolve) = self {
-      Ok(resolve)
+  pub fn as_json_path_mut(&mut self) -> Result<&mut JsonPath> {
+    if let Backend::JsonPath(json_path) = self {
+      Ok(json_path)
     } else {
-      Err(Error::ParseError("not a `Resolve` variant".to_string()))
+      Err(Error::ParseError("not a `JsonPath` variant".to_string()))
     }
   }
 
@@ -175,7 +175,7 @@ impl Backend {
       #[cfg(feature = "url")]
       Backend::Url(url) => url.set_keys(keys),
       #[cfg(feature = "url")]
-      Backend::Resolve(resolve) => resolve.set_keys(keys),
+      Backend::JsonPath(json_path) => json_path.set_keys(keys),
     }
   }
 }

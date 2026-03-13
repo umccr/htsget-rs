@@ -71,11 +71,11 @@ impl ResolveResponse for HtsGetFromStorage {
   }
 
   #[cfg(feature = "url")]
-  async fn from_resolve(
-    resolve_storage: storage::resolve::Resolve,
+  async fn from_json_path(
+    json_path_storage: storage::json_path::JsonPath,
     query: &Query,
   ) -> Result<Response> {
-    let storage = Storage::from_resolve(resolve_storage, query).await;
+    let storage = Storage::from_json_path(json_path_storage, query).await;
     let searcher = HtsGetFromStorage::new(storage?);
     searcher.search(query.clone()).await
   }

@@ -1,4 +1,4 @@
-//! Defines the `ResolveStorage` storage backend.
+//! Defines the `JsonPath` storage backend.
 //!
 
 use std::fmt::{Debug, Display};
@@ -15,9 +15,9 @@ use crate::url::{UrlClient, UrlStream};
 use crate::{GetOptions, HeadOptions, RangeUrlOptions, Result, StorageMiddleware, StorageTrait};
 use crate::{Streamable, Url as HtsGetUrl};
 
-/// A storage struct which derives data from a resolve endpoint URL.
+/// A storage struct which derives data from an endpoint URL using json path.
 #[derive(Debug, Clone)]
-pub struct ResolveStorage {
+pub struct JsonPathStorage {
   url_client: UrlClient,
   resolve_from: Uri,
   content_path: String,
@@ -25,8 +25,8 @@ pub struct ResolveStorage {
   response_path: Option<String>,
 }
 
-impl ResolveStorage {
-  /// Construct a new `ResolveStorage`.
+impl JsonPathStorage {
+  /// Construct a new `JsonPathStorage`.
   pub fn new(
     client: ClientWithMiddleware,
     resolve_from: Uri,
@@ -50,7 +50,7 @@ impl ResolveStorage {
     self.url_client.append_key_to_url(&self.resolve_from, key)
   }
 
-  /// Fetch the JSON data from the resolve endpoint and query and parse the JSON path value.
+  /// Fetch the JSON data from the endpoint and query and parse the JSON path value.
   pub async fn resolve_endpoint<T, K>(&self, key: K, headers: HeaderMap, query: &str) -> Result<T>
   where
     K: AsRef<str>,
@@ -100,7 +100,7 @@ impl ResolveStorage {
     convert_to_string
       .ok_or_else(|| {
         ResponseError(format!(
-          "path is not a string when resolving from {}",
+          "path is not a string when fetching from {}",
           self.resolve_from
         ))
       })?
@@ -190,10 +190,10 @@ impl ResolveStorage {
 }
 
 #[async_trait]
-impl StorageMiddleware for ResolveStorage {}
+impl StorageMiddleware for JsonPathStorage {}
 
 #[async_trait]
-impl StorageTrait for ResolveStorage {
+impl StorageTrait for JsonPathStorage {
   #[instrument(level = "trace", skip(self))]
   async fn get(&self, key: &str, options: GetOptions<'_>) -> Result<Streamable> {
     debug!(calling_from = ?self, key, "getting url with key {:?}", key);
@@ -241,8 +241,8 @@ pub(crate) mod tests {
   use crate::types::GetOptions;
   use crate::url::tests::{test_auth, test_client, test_headers, test_range_options};
 
-  fn test_storage(uri: Uri) -> ResolveStorage {
-    ResolveStorage::new(
+  fn test_storage(uri: Uri) -> JsonPathStorage {
+    JsonPathStorage::new(
       test_client(),
       uri,
       "$.content".to_string(),
@@ -264,7 +264,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn get_key() {
-    with_resolve_test_server(|storage, _, _| async move {
+    with_json_path_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
 
@@ -286,7 +286,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn object_size() {
-    with_resolve_test_server(|mut storage, _, _| async move {
+    with_json_path_test_server(|mut storage, _, _| async move {
       storage.size_path = None;
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
@@ -302,17 +302,17 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn object_size_path_set() {
-    with_resolve_test_server(test_object_size).await;
+    with_json_path_test_server(test_object_size).await;
   }
 
   #[tokio::test]
   async fn object_size_path_set_text_size() {
-    with_resolve_test_server_text_size(test_object_size).await;
+    with_json_path_server_text_size(test_object_size).await;
   }
 
   #[tokio::test]
   async fn get_storage() {
-    with_resolve_test_server(|storage, _, _| async move {
+    with_json_path_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
       let options = GetOptions::new_with_default_range(headers);
@@ -329,7 +329,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn range_url_storage() {
-    with_resolve_test_server(|mut storage, url, _| async move {
+    with_json_path_test_server(|mut storage, url, _| async move {
       storage.response_path = None;
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
@@ -345,7 +345,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn head_storage() {
-    with_resolve_test_server(|storage, _, _| async move {
+    with_json_path_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let headers = test_headers(&mut headers);
       let options = HeadOptions::new(headers);
@@ -357,7 +357,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn format_key() {
-    with_resolve_test_server(|mut storage, url, _| async move {
+    with_json_path_test_server(|mut storage, url, _| async move {
       storage.response_path = None;
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
@@ -373,7 +373,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn format_key_path_set() {
-    with_resolve_test_server(|storage, _, _| async move {
+    with_json_path_test_server(|storage, _, _| async move {
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
 
@@ -388,7 +388,7 @@ pub(crate) mod tests {
 
   #[tokio::test]
   async fn format_key_no_headers() {
-    with_resolve_test_server(|mut storage, _, _| async move {
+    with_json_path_test_server(|mut storage, _, _| async move {
       storage.url_client = UrlClient::new(test_client(), false, vec![]);
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
@@ -401,7 +401,7 @@ pub(crate) mod tests {
     .await;
   }
 
-  async fn test_object_size(storage: ResolveStorage, _url: String, _path: PathBuf) {
+  async fn test_object_size(storage: JsonPathStorage, _url: String, _path: PathBuf) {
     let mut headers = HeaderMap::default();
     let headers = test_headers(&mut headers);
 
@@ -412,18 +412,18 @@ pub(crate) mod tests {
     assert_eq!(response, 3);
   }
 
-  pub(crate) async fn with_resolve_test_server<F, Fut>(test: F)
+  pub(crate) async fn with_json_path_test_server<F, Fut>(test: F)
   where
-    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    F: FnOnce(JsonPathStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
     with_test_server(base_path.path(), test).await;
   }
 
-  pub(crate) async fn with_resolve_test_server_text_size<F, Fut>(test: F)
+  pub(crate) async fn with_json_path_server_text_size<F, Fut>(test: F)
   where
-    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    F: FnOnce(JsonPathStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
@@ -432,7 +432,7 @@ pub(crate) mod tests {
 
   async fn with_test_server_impl<F, Fut>(server_base_path: &Path, test: F, size: serde_json::Value)
   where
-    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    F: FnOnce(JsonPathStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -467,7 +467,7 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_test_server<F, Fut>(server_base_path: &Path, test: F)
   where
-    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    F: FnOnce(JsonPathStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     with_test_server_impl(
@@ -480,7 +480,7 @@ pub(crate) mod tests {
 
   pub(crate) async fn with_test_server_text_size<F, Fut>(server_base_path: &Path, test: F)
   where
-    F: FnOnce(ResolveStorage, String, PathBuf) -> Fut,
+    F: FnOnce(JsonPathStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     with_test_server_impl(

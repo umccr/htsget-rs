@@ -12,9 +12,9 @@ use crate::error::Result;
 use crate::error::StorageError;
 #[cfg(feature = "experimental")]
 use crate::error::StorageError::InvalidInput;
-use crate::local::FileStorage;
 #[cfg(feature = "url")]
-use crate::resolve::ResolveStorage;
+use crate::json_path::JsonPathStorage;
+use crate::local::FileStorage;
 #[cfg(feature = "aws")]
 use crate::s3::S3Storage;
 use crate::types::{BytesPositionOptions, DataBlock, GetOptions, HeadOptions, RangeUrlOptions};
@@ -41,9 +41,9 @@ use tracing::debug;
 #[cfg(feature = "experimental")]
 pub mod c4gh;
 pub mod error;
-pub mod local;
 #[cfg(feature = "url")]
-pub mod resolve;
+pub mod json_path;
+pub mod local;
 #[cfg(feature = "aws")]
 pub mod s3;
 pub mod types;
@@ -249,27 +249,27 @@ impl Storage {
     }
   }
 
-  /// Create from resolve config.
+  /// Create from json path config.
   #[cfg(feature = "url")]
-  pub async fn from_resolve(
-    mut resolve: storage::resolve::Resolve,
+  pub async fn from_json_path(
+    mut json_path: storage::json_path::JsonPath,
     _query: &Query,
   ) -> Result<Storage> {
-    let storage = Storage::new(ResolveStorage::new(
-      resolve
+    let storage = Storage::new(JsonPathStorage::new(
+      json_path
         .client_cloned()
         .map_err(|err| StorageError::InternalError(err.to_string()))?,
-      resolve.resolve_from().clone(),
-      resolve.content_path().to_string(),
-      resolve.size_path().map(String::from),
-      resolve.response_path().map(String::from),
-      resolve.forward_headers(),
-      resolve.header_blacklist().to_vec(),
+      json_path.resolve_from().clone(),
+      json_path.content_path().to_string(),
+      json_path.size_path().map(String::from),
+      json_path.response_path().map(String::from),
+      json_path.forward_headers(),
+      json_path.header_blacklist().to_vec(),
     ));
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(resolve.keys(), _query.encryption_scheme(), storage, _query, resolve.forward_public_key()).await
+        Self::from_c4gh_keys(json_path.keys(), _query.encryption_scheme(), storage, _query, json_path.forward_public_key()).await
       } else {
         Ok(storage)
       }

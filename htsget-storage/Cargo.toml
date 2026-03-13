@@ -22,6 +22,8 @@ url = [
     "dep:bytes",
     "dep:reqwest",
     "dep:reqwest-middleware",
+    "dep:serde_json",
+    "dep:jsonpath-rust",
     "htsget-config/url",
     "htsget-test/url"
 ]
@@ -49,8 +51,6 @@ aws-config = { version = "1", optional = true }
 # Url storage
 reqwest = { version = "0.12", features = ["rustls-tls", "stream"], default-features = false, optional = true }
 reqwest-middleware = { version = "0.4", optional = true }
-
-# Resolve storage
 serde_json = { version = "1", default-features = false, optional = true }
 jsonpath-rust = { version = "1", default-features = false, optional = true }
 

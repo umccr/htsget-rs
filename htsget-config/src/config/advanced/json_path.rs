@@ -1,4 +1,4 @@
-//! The config for resolver locations.
+//! The config for json path locations.
 //!
 
 use crate::config::advanced::HttpClient;
@@ -13,11 +13,10 @@ use http::Uri;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Options for resolving config data from a remote endpoint. This is different to `Url` storage
-/// in that it calls out to an endpoint and uses json path to determine the concrete data locations.
+/// Options for getting config data from a remote endpoint using json path.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
-pub struct Resolve {
+pub struct JsonPath {
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   resolve_from: Uri,
@@ -38,8 +37,8 @@ pub struct Resolve {
   pub(crate) is_defaulted: bool,
 }
 
-impl Resolve {
-  /// Create a new resolver storage.
+impl JsonPath {
+  /// Create a new json path storage.
   pub fn new(
     resolve_from: Uri,
     content_path: String,
@@ -122,10 +121,10 @@ impl Resolve {
   }
 }
 
-impl TryFrom<Resolve> for storage::resolve::Resolve {
+impl TryFrom<JsonPath> for storage::json_path::JsonPath {
   type Error = Error;
 
-  fn try_from(storage: Resolve) -> Result<Self> {
+  fn try_from(storage: JsonPath) -> Result<Self> {
     let client = HttpClient::from(storage.http);
 
     let url_storage = Self::new(
@@ -151,7 +150,7 @@ impl TryFrom<Resolve> for storage::resolve::Resolve {
   }
 }
 
-impl Default for Resolve {
+impl Default for JsonPath {
   fn default() -> Self {
     let mut url = Self::new(
       Default::default(),
@@ -178,7 +177,7 @@ mod tests {
   use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
   #[test]
-  fn resolver_backend() {
+  fn json_path_backend() {
     test_serialize_and_deserialize(
       r#"
       resolve_from = "https://example.com"
@@ -196,7 +195,7 @@ mod tests {
         false,
         vec!["Host".to_string()],
       ),
-      |result: Resolve| {
+      |result: JsonPath| {
         (
           result.resolve_from().to_string(),
           result.response_path().map(String::from),
