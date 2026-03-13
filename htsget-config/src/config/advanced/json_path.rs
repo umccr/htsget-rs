@@ -16,9 +16,9 @@ use std::fmt::Display;
 use std::{fmt, result};
 
 /// Either a JSON path or a url.
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JsonPathOrUrl {
-  Url(#[schemars(with = "String")] Uri),
+  Url(Uri),
   JsonPath(String),
 }
 
@@ -73,6 +73,7 @@ pub struct JsonPath {
   resolve_from: Uri,
   content_path: String,
   size_path: Option<String>,
+  #[schemars(with = "Option<String>")]
   response_path: Option<JsonPathOrUrl>,
   forward_headers: bool,
   header_blacklist: Vec<String>,

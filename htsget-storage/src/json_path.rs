@@ -152,14 +152,10 @@ impl JsonPathStorage {
       .resolve_endpoint(key, options.request_headers().clone(), &self.content_path)
       .await?;
 
+    let headers = options.request_headers().clone();
     self
       .url_client
-      .send_request(
-        content_url,
-        Default::default(),
-        options.request_headers().clone(),
-        Method::GET,
-      )
+      .send_request(content_url, options.range, headers, Method::GET)
       .await
   }
 
@@ -187,9 +183,11 @@ impl JsonPathStorage {
         }
       }
     } else {
-      self
-        .url_client
-        .format_url(self.get_endpoint_url(key)?, options)
+      let content_url = self
+        .resolve_endpoint(key, options.response_headers().clone(), &self.content_path)
+        .await?;
+
+      self.url_client.format_url(content_url, options)
     }
   }
 }
@@ -468,9 +466,9 @@ pub(crate) mod tests {
         "/{id}",
         get(|AxumPath(id): AxumPath<String>| async move {
           Json(json!({
-            "content": format!("{}/assets/{}", url_clone, id),
+            "content": format!("{url_clone}/assets/{id}"),
             "size": size,
-            "response": "https://example.com"
+            "response": format!("https://example.com/{id}")
           }))
         }),
       )

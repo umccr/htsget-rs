@@ -27,6 +27,7 @@ pub struct JsonPath {
   /// content path url.
   size_path: Option<String>,
   /// The json path for the response tickets.
+  #[schemars(with = "Option<String>")]
   response_path: Option<JsonPathOrUrl>,
   /// Whether to forward client headers to the remote URL.
   forward_headers: bool,
