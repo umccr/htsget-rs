@@ -801,7 +801,11 @@ backend.keys.client.public.kind = "Header"
 
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`. Index files can also be encrypted and must end
 with `.c4gh`. See the [`data/c4gh`][data-c4gh] for examples of file structure. Any of the storage types are supported,
-i.e. `Local`, `S3`, or `Url`.
+i.e. `Local`, `S3`, `Url` or `JsonPath`.
+
+> [!NOTE]  
+> If using `JsonPath` locations and setting the `size_path` [option](#size_path), the returned file size should be the 
+> size of the encrypted file, as that's what htsget-rs is expecting as a response. 
 
 ### Log formatting
  

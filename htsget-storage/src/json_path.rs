@@ -183,10 +183,7 @@ impl JsonPathStorage {
             )
             .await?;
 
-          self.url_client.format_url(
-            response_url,
-            options,
-          )
+          self.url_client.format_url(response_url, options)
         }
       }
     } else {
