@@ -339,7 +339,7 @@ pub(crate) mod tests {
 
       assert_eq!(
         storage.range_url("key1", options).await.unwrap(),
-        HtsGetUrl::new(format!("{url}/key1"))
+        HtsGetUrl::new(format!("{url}/assets/key1"))
           .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
       );
     })
@@ -367,7 +367,7 @@ pub(crate) mod tests {
 
       assert_eq!(
         storage.format_key("key1", options).await.unwrap(),
-        HtsGetUrl::new(format!("{url}/key1"))
+        HtsGetUrl::new(format!("{url}/assets/key1"))
           .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
       );
     })
