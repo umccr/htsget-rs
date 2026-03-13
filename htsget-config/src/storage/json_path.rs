@@ -3,6 +3,7 @@
 
 use crate::config::advanced;
 use crate::config::advanced::HttpClient;
+use crate::config::advanced::json_path::JsonPathOrUrl;
 use crate::error::Result;
 use crate::http::client::HttpClientConfig;
 #[cfg(feature = "experimental")]
@@ -26,7 +27,7 @@ pub struct JsonPath {
   /// content path url.
   size_path: Option<String>,
   /// The json path for the response tickets.
-  response_path: Option<String>,
+  response_path: Option<JsonPathOrUrl>,
   /// Whether to forward client headers to the remote URL.
   forward_headers: bool,
   /// Headers to not forward to the remote URL even if `forward_headers` is true.
@@ -64,7 +65,7 @@ impl JsonPath {
     resolve_from: Uri,
     content_path: String,
     size_path: Option<String>,
-    response_path: Option<String>,
+    response_path: Option<JsonPathOrUrl>,
     forward_headers: bool,
     header_blacklist: Vec<String>,
     client: HttpClient,
@@ -101,8 +102,8 @@ impl JsonPath {
   }
 
   /// Get the response path.
-  pub fn response_path(&self) -> Option<&str> {
-    self.response_path.as_deref()
+  pub fn response_path(&self) -> Option<&JsonPathOrUrl> {
+    self.response_path.as_ref()
   }
 
   /// Whether to forward headers in the url tickets.

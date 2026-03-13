@@ -11,7 +11,58 @@ use crate::storage::c4gh::C4GHKeys;
 use cfg_if::cfg_if;
 use http::Uri;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use std::fmt::Display;
+use std::{fmt, result};
+
+/// Either a JSON path or a url.
+#[derive(Debug, Clone, PartialEq, Eq, JsonSchema)]
+pub enum JsonPathOrUrl {
+  Url(#[schemars(with = "String")] Uri),
+  JsonPath(String),
+}
+
+impl Display for JsonPathOrUrl {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let s = match self {
+      JsonPathOrUrl::Url(url) => &url.to_string(),
+      JsonPathOrUrl::JsonPath(url) => url.as_str(),
+    };
+    f.write_str(s)
+  }
+}
+
+impl Default for JsonPathOrUrl {
+  fn default() -> Self {
+    Self::JsonPath("$".to_string())
+  }
+}
+
+impl<'de> Deserialize<'de> for JsonPathOrUrl {
+  fn deserialize<D>(deserializer: D) -> result::Result<JsonPathOrUrl, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    let url_or_json_path = String::deserialize(deserializer)?;
+
+    if url_or_json_path.starts_with("$") {
+      Ok(JsonPathOrUrl::JsonPath(url_or_json_path))
+    } else {
+      Ok(JsonPathOrUrl::Url(
+        url_or_json_path.parse().map_err(de::Error::custom)?,
+      ))
+    }
+  }
+}
+
+impl Serialize for JsonPathOrUrl {
+  fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    self.to_string().serialize(serializer)
+  }
+}
 
 /// Options for getting config data from a remote endpoint using json path.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
@@ -22,7 +73,7 @@ pub struct JsonPath {
   resolve_from: Uri,
   content_path: String,
   size_path: Option<String>,
-  response_path: Option<String>,
+  response_path: Option<JsonPathOrUrl>,
   forward_headers: bool,
   header_blacklist: Vec<String>,
   #[schemars(skip)]
@@ -43,7 +94,7 @@ impl JsonPath {
     resolve_from: Uri,
     content_path: String,
     size_path: Option<String>,
-    response_path: Option<String>,
+    response_path: Option<JsonPathOrUrl>,
     forward_headers: bool,
     header_blacklist: Vec<String>,
     http: HttpClientConfig,
@@ -80,8 +131,8 @@ impl JsonPath {
   }
 
   /// Get the response path.
-  pub fn response_path(&self) -> Option<&str> {
-    self.response_path.as_deref()
+  pub fn response_path(&self) -> Option<&JsonPathOrUrl> {
+    self.response_path.as_ref()
   }
 
   /// Whether headers received in a query request should be
@@ -176,6 +227,7 @@ impl Default for JsonPath {
 mod tests {
   use super::*;
   use crate::config::tests::test_serialize_and_deserialize;
+
   #[test]
   fn json_path_backend() {
     test_serialize_and_deserialize(
@@ -189,22 +241,56 @@ mod tests {
       "#,
       (
         "https://example.com/".to_string(),
-        Some("$.response".to_string()),
+        Some(JsonPathOrUrl::JsonPath("$.response".to_string())),
         "$.content".to_string(),
         Some("$.size".to_string()),
         false,
         vec!["Host".to_string()],
       ),
-      |result: JsonPath| {
-        (
-          result.resolve_from().to_string(),
-          result.response_path().map(String::from),
-          result.content_path().to_string(),
-          result.size_path().map(String::from),
-          result.forward_headers(),
-          result.header_blacklist,
-        )
-      },
+      get_result_values,
     );
+  }
+
+  #[test]
+  fn json_path_backend_url_response() {
+    test_serialize_and_deserialize(
+      r#"
+      resolve_from = "https://example.com"
+      response_path = "https://example.com"
+      content_path = "$.content"
+      size_path = "$.size"
+      forward_headers = false
+      header_blacklist = ["Host"]
+      "#,
+      (
+        "https://example.com/".to_string(),
+        Some(JsonPathOrUrl::Url("https://example.com".parse().unwrap())),
+        "$.content".to_string(),
+        Some("$.size".to_string()),
+        false,
+        vec!["Host".to_string()],
+      ),
+      get_result_values,
+    );
+  }
+
+  fn get_result_values(
+    result: JsonPath,
+  ) -> (
+    String,
+    Option<JsonPathOrUrl>,
+    String,
+    Option<String>,
+    bool,
+    Vec<String>,
+  ) {
+    (
+      result.resolve_from().to_string(),
+      result.response_path().cloned(),
+      result.content_path().to_string(),
+      result.size_path().map(|value| value.to_string()),
+      result.forward_headers(),
+      result.header_blacklist,
+    )
   }
 }

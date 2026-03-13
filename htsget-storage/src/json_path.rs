@@ -4,16 +4,16 @@
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
 
-use async_trait::async_trait;
-use http::{HeaderMap, Method, Uri};
-use jsonpath_rust::JsonPath;
-use reqwest_middleware::ClientWithMiddleware;
-use tracing::{debug, instrument};
-
 use crate::StorageError::ResponseError;
 use crate::url::{UrlClient, UrlStream};
 use crate::{GetOptions, HeadOptions, RangeUrlOptions, Result, StorageMiddleware, StorageTrait};
 use crate::{Streamable, Url as HtsGetUrl};
+use async_trait::async_trait;
+use htsget_config::config::advanced::json_path::JsonPathOrUrl;
+use http::{HeaderMap, Method, Uri};
+use jsonpath_rust::JsonPath;
+use reqwest_middleware::ClientWithMiddleware;
+use tracing::{debug, instrument};
 
 /// A storage struct which derives data from an endpoint URL using json path.
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ pub struct JsonPathStorage {
   resolve_from: Uri,
   content_path: String,
   size_path: Option<String>,
-  response_path: Option<String>,
+  response_path: Option<JsonPathOrUrl>,
 }
 
 impl JsonPathStorage {
@@ -32,7 +32,7 @@ impl JsonPathStorage {
     resolve_from: Uri,
     content_path: String,
     size_path: Option<String>,
-    response_path: Option<String>,
+    response_path: Option<JsonPathOrUrl>,
     forward_headers: bool,
     header_blacklist: Vec<String>,
   ) -> Self {
@@ -170,17 +170,25 @@ impl JsonPathStorage {
     options: RangeUrlOptions<'_>,
   ) -> Result<HtsGetUrl> {
     if let Some(ref response_path) = self.response_path {
-      let response_url = self
-        .resolve_endpoint(
-          key.as_ref(),
-          options.response_headers().clone(),
-          response_path,
-        )
-        .await?;
-      self.url_client.format_url(
-        self.url_client.append_key_to_url(&response_url, key)?,
-        options,
-      )
+      match response_path {
+        JsonPathOrUrl::Url(url) => self
+          .url_client
+          .format_url(self.url_client.append_key_to_url(url, key)?, options),
+        JsonPathOrUrl::JsonPath(response_path) => {
+          let response_url = self
+            .resolve_endpoint(
+              key.as_ref(),
+              options.response_headers().clone(),
+              response_path,
+            )
+            .await?;
+
+          self.url_client.format_url(
+            response_url,
+            options,
+          )
+        }
+      }
     } else {
       self
         .url_client
@@ -247,7 +255,7 @@ pub(crate) mod tests {
       uri,
       "$.content".to_string(),
       Some("$.size".to_string()),
-      Some("$.response".to_string()),
+      Some(JsonPathOrUrl::JsonPath("$.response".to_string())),
       true,
       vec![],
     )
@@ -377,11 +385,7 @@ pub(crate) mod tests {
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
 
-      assert_eq!(
-        storage.format_key("key1", options).await.unwrap(),
-        HtsGetUrl::new("https://example.com/key1".to_string())
-          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
-      );
+      test_format_key(storage, options).await;
     })
     .await;
   }
@@ -399,6 +403,26 @@ pub(crate) mod tests {
       );
     })
     .await;
+  }
+
+  #[tokio::test]
+  async fn format_key_url_response_path() {
+    with_json_path_test_server(|mut storage, _, _| async move {
+      storage.response_path = Some(JsonPathOrUrl::Url("https://example.com".parse().unwrap()));
+      let mut headers = HeaderMap::default();
+      let options = test_range_options(&mut headers);
+
+      test_format_key(storage, options).await;
+    })
+    .await;
+  }
+
+  async fn test_format_key(storage: JsonPathStorage, options: RangeUrlOptions<'_>) {
+    assert_eq!(
+      storage.format_key("key1", options).await.unwrap(),
+      HtsGetUrl::new("https://example.com/key1".to_string())
+        .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+    );
   }
 
   async fn test_object_size(storage: JsonPathStorage, _url: String, _path: PathBuf) {
