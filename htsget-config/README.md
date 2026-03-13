@@ -86,8 +86,8 @@ For added flexibility, there is an alternative location configuration system usi
 > [!IMPORTANT]  
 > Some parts of htsget-rs require extra feature flags for conditional compilation, that's why the examples specify
 > using `--all-features`. Notably, `--features aws` enables the `S3` location type, and `--features url`
-> enabled the remote HTTP server location type. If using a subset of features, for example S3 locations only, then
-> a single feature can be enabled instead of using `--all-features`.
+> enabled the remote HTTP server location type and indirect JSON locations. If using a subset of features, for example
+> S3 locations only, then a single feature can be enabled instead of using `--all-features`.
 
 ### Server config
 
@@ -214,7 +214,10 @@ substitution_string = '$group1/data/$group2'
 This would mean that a request to `http://localhost:8080/reads/some_id/file` would search for files at `some_id/data/file.bam`.
 
 The regex locations also have access to further configuration of storage locations for `file://`, `s3://`, or `http://`
-locations. These are called `File`, `S3`, and `Url` respectively.
+locations. These are called `File`, `S3`, and `Url` respectively. There is another type of `Url` storage called
+[`JsonPath`](#jsonpath-locations) that cannot be configured using the simplified location syntax.
+
+#### File locations
 
 To manually configure `File` locations, set `backend.kind = "File"`, and specify any additional options from below the `backend` table:
 
@@ -239,6 +242,8 @@ backend.authority = "127.0.0.1:8000"
 backend.local_path = "path"
 ```
 
+#### S3 locations
+
 To manually configure `S3` locations, set `backend.kind = "S3"`, and specify options from below under the `backend` table:
 
 | Option                             | Description                                                                                                                                                                   | Type    | Default                                                                                                                  |
@@ -259,16 +264,21 @@ backend.bucket = "bucket"
 backend.path_style = true
 ```
 
-To manually configure `Url` locations, set `backend.kind = "Url"`, specify any additional options from below under the `backend` table:
+#### Url locations
 
-| Option                               | Description                                                                                                                                                                                                                                                                                                                                                                                                         | Type             | Default                                                                                                         |
-|--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|-----------------------------------------------------------------------------------------------------------------|
-| <span id="url">`url`</span>          | The URL to fetch data from.                                                                                                                                                                                                                                                                                                                                                                                         | HTTP URL         | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="url">`response_url`</span> | The URL to return to the client for fetching tickets.                                                                                                                                                                                                                                                                                                                                                               | HTTP URL         | `"https://127.0.0.1:8081/"`                                                                                     |
-| `forward_headers`                    | When constructing the URL tickets, copy HTTP headers received in the initial query.                                                                                                                                                                                                                                                                                                                                 | Boolean          | `true`                                                                                                          |
-| `header_blacklist`                   | List of headers that should not be forwarded.                                                                                                                                                                                                                                                                                                                                                                       | Array of headers | `[]`                                                                                                            |
-| `http`                               | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details.                                                                                                                                                                                                                      | TOML table       | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
-| `forward_public_key`                 | If using Crypt4GH, this will forward the server's public key to the remote URL in a header called `Htsget-Context-Public-Key`. The public key is base64 encoded with newlines included. See the [Crypt4GH](#crypt4gh) section for more details. Note that if the client's key is also using the `Header` type, this will overwrite the `Htsget-Context-Public-Key` from the client if `forward_headers` is enabled. | Boolean          | `true`                                                                                                          |
+There are two types remote URL locations, `Url` and [`JsonPath`](#jsonpath-locations). The following options document the first type, which is
+analogous to using a `http://` or `https://` prefix for the simplified location syntax.
+
+To manually configure `Url` locations, set `backend.kind = "Url"` and specify any additional options from below under the `backend` table:
+
+| Option                                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                         | Type             | Default                                                                                                         |
+|-----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|-----------------------------------------------------------------------------------------------------------------|
+| <span id="url">`url`</span>                               | The URL to fetch data from.                                                                                                                                                                                                                                                                                                                                                                                         | HTTP URL         | `"https://127.0.0.1:8081/"`                                                                                     |
+| <span id="response_url">`response_url`</span>             | The URL to return to the client for fetching tickets.                                                                                                                                                                                                                                                                                                                                                               | HTTP URL         | `"https://127.0.0.1:8081/"`                                                                                     |
+| <span id="forward_headers">`forward_headers`</span>       | When constructing the URL tickets, copy HTTP headers received in the initial query.                                                                                                                                                                                                                                                                                                                                 | Boolean          | `true`                                                                                                          |
+| <span id="header_blacklist">`header_blacklist`</span>     | List of headers that should not be forwarded.                                                                                                                                                                                                                                                                                                                                                                       | Array of headers | `[]`                                                                                                            |
+| <span id="http">`http`</span>                             | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details.                                                                                                                                                                                                                      | TOML table       | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| <span id="forward_public_key">`forward_public_key`</span> | If using Crypt4GH, this will forward the server's public key to the remote URL in a header called `Htsget-Context-Public-Key`. The public key is base64 encoded with newlines included. See the [Crypt4GH](#crypt4gh) section for more details. Note that if the client's key is also using the `Header` type, this will overwrite the `Htsget-Context-Public-Key` from the client if `forward_headers` is enabled. | Boolean          | `true`                                                                                                          |
 
 For example, the following forwards all headers to response tickets except `Host`, and constructs tickets using `https://example.com` instead of `http://localhost:8080`:
 
@@ -284,11 +294,84 @@ backend.forward_headers = true
 backend.header_blacklist = ["Host"]
 ```
 
+#### JsonPath locations
+
+The second type of remote URL location is a `JsonPath` location. This location cannot be configured using the simplified
+scheme-based config.
+
+The `JsonPath` location is an indirect form of remote URL locations that involves an initial call-out request followed up
+by subsequent requests to fetch data. When configured, htsget-rs will split data access into two parts. First, it fetches
+the configured `resolve_from` URL and expects a JSON response to be returned. Then, based on the configured JSON paths,
+it will query the JSON response to find where to fetch the content from based on the `content_path`.
+
+Since the initial request contains the htsget `<id>` that the client passed in, this split allows the responding service
+to more arbitrarily map the `<id>` to a content url that should be returned to htsget-rs for follow-up requests.
+
+To configure `JsonPath` locations, set `backend.kind = "json_path"` and specify any additional options from below under the `backend` table:
+
+| Option               | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Type                  | Default                                                                                                         |
+|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------|
+| `resolve_from`       | The URL to fetch the initial JSON response from. This will receive the htsget `<id>` in the request.                                                                                                                                                                                                                                                                                                                                                                                          | HTTP URL              | `"https://127.0.0.1:8081/"`                                                                                     |
+| `content_path`       | The JSON path query to determine the follow-up request for content. This must result in a complete URL that points to the required file. It will be called directly by htsget-rs without appending an `<id>`.                                                                                                                                                                                                                                                                                 | JSON path             | `"$"`                                                                                                           |
+| `size_path`          | The JSON path query to determine the size of the file. This is used to avoid an extra `HEAD` request on the content URL and is optional, as htsget-rs requires this to determine byte ranges internally.                                                                                                                                                                                                                                                                                      | JSON path             | Not set, by default, an additional `HEAD` request on the content URL will be used to determine the file size.   |
+| `response_path`      | The JSON path query used to determine the URL that the client receives in the tickets. This must result in a complete URL that points to the required file for the client which htsget-rs will use without appending the `<id>`. This is optional, and defaults to the same URL as determined by the `content_path` (which does get the `<id>` appended). Alternatively, this can also be a hard-coded URL that behaves the same as the `Url` storage `response_url` [option](#response_url). | JSON path or HTTP URL | Not set, defaults to the content URL wit the `<id>` appended.                                                   |
+| `forward_headers`    | When constructing the URL tickets, copy HTTP headers received in the initial query. This is the same as the `Url` storage [option](#forward_headers).                                                                                                                                                                                                                                                                                                                                         | Boolean               | `true`                                                                                                          |
+| `header_blacklist`   | List of headers that should not be forwarded. This is the same as the `Url` storage [option](#header_blacklist).                                                                                                                                                                                                                                                                                                                                                                              | Array of headers      | `[]`                                                                                                            |
+| `http`               | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details. This is the same as the `Url` storage [option](#http).                                                                                                                                                                                                                                         | TOML table            | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| `forward_public_key` | If using Crypt4GH, this will forward the server's public key to the remote URL in a header called `Htsget-Context-Public-Key`. The public key is base64 encoded with newlines included. See the [Crypt4GH](#crypt4gh) section for more details. Note that if the client's key is also using the `Header` type, this will overwrite the `Htsget-Context-Public-Key` from the client if `forward_headers` is enabled. This is the same as the `Url` storage [option](#forward_public_key).      | Boolean               | `true`                                                                                                          |
+
+For example, the following calls out to `http://localhost:8080/<id>` and expects a JSON response at `$.content`, `$.size` and `$.response` to follow-up:
+
+```toml
+[[locations]]
+regex = ".*"
+substitution_string = "$0"
+
+backend.kind = "JsonPath"
+backend.resolve_from = "http://localhost:8080"
+backend.content_path = "$.content"
+backend.size_path = "$.size"
+backend.response_path = "$.response"
+backend.forward_headers = true
+backend.header_blacklist = ["Host"]
+```
+
+With the above config, the initial request to `http://localhost:8080/<id>` will expect a JSON response that looks like:
+
+```json
+{
+  "content": "https://example.com/file.bam",
+  "size": 1000,
+  "response": "https://example.com/file.bam"
+}
+```
+
+Then, htsget-rs will fetch data from `https://example.com/file.bam`, and return URL tickets to the client that look like:
+
+```json
+{
+  "htsget": {
+    "format": "BAM",
+    "urls": [
+      {
+        "url": "https://example.com/file.bam",
+        "headers": {
+          "Range": "bytes=0-123"
+        }
+      },
+      ...
+    ]
+  }
+}                       
+```
+
 > [!NOTE]  
-> Calls to the url endpoint use HTTP caching from headers like cache-control and expires. Requests to the url endpoint
-> only involve the beginning of a file to obtain the header. These requests are cached in a temporary file called
-> `htsget_rs_client_cache` in the system temp directory. To disable this functionality set
-> `http.use_cache = false`.
+> Calls to the url endpoint for both `Url` and `JsonPath` locations use HTTP caching from headers like cache-control
+> and expires. Requests to the url endpoint only involve the beginning of a file to obtain the header. These requests
+> are cached in a temporary file called `htsget_rs_client_cache` in the system temp directory. To disable this
+> functionality set `http.use_cache = false`.
+
+#### Multiple locations
 
 Regex-based locations also support multiple locations:
 
@@ -760,7 +843,7 @@ regex, and changing it by using a substitution string. Advanced configuration op
 
 This crate has the following features:
 * `aws`: used to enable `S3` location functionality and any other AWS features.
-* `url`: used to enable `Url` location functionality.
+* `url`: used to enable `Url` and `JsonPath` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`,
                   or suppressed errors when using authorization logic.
 
