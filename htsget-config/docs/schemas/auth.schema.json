@@ -273,14 +273,7 @@
               "default": null
             },
             "response_path": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/JsonPathOrUrl"
-                },
-                {
-                  "type": "null"
-                }
-              ],
+              "type": ["string", "null"],
               "default": null
             },
             "forward_headers": {
@@ -404,31 +397,6 @@
             }
           },
           "required": ["kind"],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "JsonPathOrUrl": {
-      "description": "Either a JSON path or a url.",
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "Url": {
-              "type": "string"
-            }
-          },
-          "required": ["Url"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "JsonPath": {
-              "type": "string"
-            }
-          },
-          "required": ["JsonPath"],
           "additionalProperties": false
         }
       ]
