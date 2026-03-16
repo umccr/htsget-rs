@@ -3,7 +3,6 @@
 
 use crate::config::advanced;
 use crate::config::advanced::HttpClient;
-use crate::config::advanced::json_path::JsonPathOrUrl;
 use crate::error::Result;
 use crate::http::client::HttpClientConfig;
 #[cfg(feature = "experimental")]
@@ -12,6 +11,31 @@ use http::Uri;
 use reqwest_middleware::ClientWithMiddleware;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::Display;
+
+/// Either a JSON path or a url.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JsonPathOrUrl {
+  Url(#[serde(with = "http_serde::uri")] Uri),
+  JsonPath(String),
+}
+
+impl Display for JsonPathOrUrl {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let s = match self {
+      JsonPathOrUrl::Url(url) => &url.to_string(),
+      JsonPathOrUrl::JsonPath(url) => url.as_str(),
+    };
+    f.write_str(s)
+  }
+}
+
+impl Default for JsonPathOrUrl {
+  fn default() -> Self {
+    Self::JsonPath("$".to_string())
+  }
+}
 
 /// Configure the server to resolve endpoints from a Url using json path.
 #[derive(JsonSchema, Deserialize, Serialize, Debug, Clone)]

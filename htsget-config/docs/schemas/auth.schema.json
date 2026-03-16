@@ -262,7 +262,7 @@
           "properties": {
             "resolve_from": {
               "type": "string",
-              "default": "/"
+              "default": ""
             },
             "content_path": {
               "type": "string",
@@ -273,6 +273,10 @@
               "default": null
             },
             "response_path": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "response_url": {
               "type": ["string", "null"],
               "default": null
             },

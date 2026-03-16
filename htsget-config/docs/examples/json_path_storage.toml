@@ -16,8 +16,8 @@ backend.resolve_from = "http://127.0.0.1:8081"
 backend.content_path = "$.content"
 backend.size_path = "$.size"
 backend.response_path = "$.response"
-### Or hard-code the response path as a URL
-##backend.response_path = "https://example.com"
+## Or hard-code the response path as a URL
+#backend.response_url = "https://example.com"
 
 backend.forward_headers = true
 
