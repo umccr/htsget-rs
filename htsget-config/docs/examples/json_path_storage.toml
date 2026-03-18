@@ -1,0 +1,32 @@
+# An example for a server which uses json path storage.
+# Run with `cargo run -p htsget-axum --all-features -- --config htsget-config/docs/examples/json_path_storage.toml`
+# in the project directory.
+
+ticket_server.addr = "127.0.0.1:8082"
+ticket_server.cors.allow_origins = "All"
+
+data_server = "None"
+
+[[locations]]
+regex = ".*"
+substitution_string = "$0"
+
+backend.kind = "json_path"
+backend.resolve_from = "http://127.0.0.1:8081"
+backend.content_path = "$.content"
+backend.size_path = "$.size"
+backend.response_path = "$.response"
+## Or hard-code the response path as a URL
+#backend.response_url = "https://example.com"
+
+backend.forward_headers = true
+
+# Set client authentication
+#backend.http.key = "key.pem"
+#backend.http.cert = "cert.pem"
+
+# Set root certificates
+#backend.http.root_store = "root.crt"
+
+# Disable HTTP caching
+#backend.http.use_cache = false

@@ -17,6 +17,8 @@ use std::path::PathBuf;
 pub mod allow_guard;
 pub mod auth;
 pub mod cors;
+#[cfg(feature = "url")]
+pub mod json_path;
 pub mod regex_location;
 #[cfg(feature = "url")]
 pub mod url;

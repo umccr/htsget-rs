@@ -325,7 +325,7 @@ impl Config {
           #[cfg(feature = "aws")]
           Backend::S3(_) => {}
           #[cfg(feature = "url")]
-          Backend::Url(_) => {}
+          Backend::Url(_) | Backend::JsonPath(_) => {}
         }
 
         // Ensure authorization header gets forwarded if the data server has authorization set.
@@ -415,6 +415,7 @@ pub(crate) mod tests {
     V: Display,
     F: Fn(Config),
   {
+    #[allow(clippy::result_large_err)]
     Jail::expect_with(|jail| {
       let file = "test.toml";
 

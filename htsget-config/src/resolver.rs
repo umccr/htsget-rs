@@ -28,6 +28,13 @@ pub trait ResolveResponse {
   /// Convert from `Url`.
   #[cfg(feature = "url")]
   async fn from_url(url_storage: storage::url::Url, query: &Query) -> Result<Response>;
+
+  /// Convert from `JsonPath`.
+  #[cfg(feature = "url")]
+  async fn from_json_path(
+    json_path_storage: storage::json_path::JsonPath,
+    query: &Query,
+  ) -> Result<Response>;
 }
 
 /// A trait which uses storage to resolve requests into responses.
@@ -153,6 +160,10 @@ impl StorageResolver for Location {
       }
       #[cfg(feature = "url")]
       Backend::Url(url_storage) => Some(T::from_url(*url_storage.clone(), query).await),
+      #[cfg(feature = "url")]
+      Backend::JsonPath(resolve_storage) => {
+        Some(T::from_json_path(*resolve_storage.clone(), query).await)
+      }
     }
   }
 }
@@ -242,6 +253,24 @@ mod tests {
       Ok(Response::new(
         Bam,
         Self::format_url(url.url().to_string().strip_suffix('/').unwrap(), query.id()),
+      ))
+    }
+
+    #[cfg(feature = "url")]
+    async fn from_json_path(
+      resolve_storage: storage::json_path::JsonPath,
+      query: &Query,
+    ) -> Result<Response> {
+      Ok(Response::new(
+        Bam,
+        Self::format_url(
+          resolve_storage
+            .resolve_from()
+            .to_string()
+            .strip_suffix('/')
+            .unwrap(),
+          query.id(),
+        ),
       ))
     }
   }

@@ -255,6 +255,64 @@
           },
           "additionalProperties": false,
           "required": ["kind"]
+        },
+        {
+          "description": "Configure the server to resolve endpoints from a Url using json path.",
+          "type": "object",
+          "properties": {
+            "resolve_from": {
+              "type": "string",
+              "default": ""
+            },
+            "content_path": {
+              "type": "string",
+              "default": ""
+            },
+            "size_path": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "response_path": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "response_url": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "forward_headers": {
+              "type": "boolean",
+              "default": true
+            },
+            "header_blacklist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "keys": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/C4GHKeys"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "writeOnly": true
+            },
+            "forward_public_key": {
+              "type": "boolean",
+              "default": true
+            },
+            "kind": {
+              "type": "string",
+              "const": "JsonPath"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind"]
         }
       ]
     },
