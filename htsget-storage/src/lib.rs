@@ -236,8 +236,8 @@ impl Storage {
         .map_err(|err| StorageError::InternalError(err.to_string()))?,
       url.url().clone(),
       url.response_url().clone(),
-      url.forward_headers(),
-      url.header_blacklist().to_vec(),
+      url.forward_headers_backend().to_vec(),
+      url.reflect_headers_client().to_vec(),
     ));
 
     cfg_if! {
@@ -263,8 +263,8 @@ impl Storage {
       json_path.content_path().to_string(),
       json_path.size_path().map(|value| value.to_string()),
       json_path.response_path().cloned(),
-      json_path.forward_headers(),
-      json_path.header_blacklist().to_vec(),
+      json_path.forward_headers_backend().to_vec(),
+      json_path.reflect_headers_client().to_vec(),
     ));
 
     cfg_if! {

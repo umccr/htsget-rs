@@ -21,35 +21,58 @@ use crate::{
   GetOptions, HeadOptions, RangeUrlOptions, Result, StorageError, StorageMiddleware, StorageTrait,
 };
 use crate::{Streamable, Url as HtsGetUrl};
+use wildmatch::WildMatch;
 
 /// A wrapper around a HTTP client to perform requests when htsget-rs acts as a client.
 #[derive(Debug, Clone)]
 pub struct UrlClient {
   client: ClientWithMiddleware,
-  forward_headers: bool,
-  header_blacklist: Vec<String>,
+  forward_headers_backend: Vec<WildMatch>,
+  reflect_headers_client: Vec<WildMatch>,
 }
 
 impl UrlClient {
   /// Construct a new `UrlClient`.
   pub fn new(
     client: ClientWithMiddleware,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
+    forward_headers_backend: Vec<String>,
+    reflect_headers_client: Vec<String>,
   ) -> Self {
+    let map_filters = |filters: Vec<String>| filters.iter().map(|f| WildMatch::new(f)).collect();
     Self {
       client,
-      forward_headers,
-      header_blacklist,
+      forward_headers_backend: map_filters(forward_headers_backend),
+      reflect_headers_client: map_filters(reflect_headers_client),
     }
   }
 
-  /// Remove blacklisted headers from the incoming headers.
-  pub fn remove_blacklisted_headers(&self, mut headers: HeaderMap) -> HeaderMap {
-    for blacklisted_header in &self.header_blacklist {
-      headers.remove(blacklisted_header);
+  /// Filter a header map, keeping only headers whose names match at least one of the given patterns.
+  fn filter_headers(headers: HeaderMap, patterns: &[WildMatch]) -> HeaderMap {
+    if patterns.is_empty() {
+      return HeaderMap::new();
     }
+
     headers
+        .into_iter()
+        .filter_map(|(name, value)| {
+          let name = name?;
+          if patterns.iter().any(|pattern| pattern.matches(name.as_str())) {
+            Some((name, value))
+          } else {
+            None
+          }
+        })
+        .collect()
+  }
+
+  /// Filter headers to only those matching the `forward_headers_backend` patterns.
+  pub fn filter_forward_headers(&self, headers: HeaderMap) -> HeaderMap {
+    Self::filter_headers(headers, &self.forward_headers_backend)
+  }
+
+  /// Filter headers to only those matching the `reflect_headers_client` patterns.
+  pub fn filter_reflect_headers(&self, headers: HeaderMap) -> HeaderMap {
+    Self::filter_headers(headers, &self.reflect_headers_client)
   }
 
   /// Construct and send a request according to htsget positions and headers.
@@ -60,7 +83,7 @@ impl UrlClient {
     headers: HeaderMap,
     method: Method,
   ) -> Result<reqwest::Response> {
-    let request_headers = self.remove_blacklisted_headers(headers);
+    let request_headers = self.filter_forward_headers(headers);
     let request = Request::builder().method(method).uri(&request_url);
 
     let range = BytesRange::from(&position).to_string();
@@ -100,13 +123,13 @@ impl UrlClient {
 
   /// Construct htsget tickets to return to the client.
   pub fn format_url(&self, returned_url: Uri, options: RangeUrlOptions<'_>) -> Result<HtsGetUrl> {
-    let response_headers = self.remove_blacklisted_headers(options.response_headers().clone());
+    let response_headers = self.filter_reflect_headers(options.response_headers().clone());
 
     let url = Uri::from_parts(returned_url.into_parts())
       .map_err(|err| InternalError(format!("failed to convert to uri from parts: {err}")))?;
 
     let mut url = HtsGetUrl::new(url.to_string());
-    if self.forward_headers {
+    if !response_headers.is_empty() {
       url = url.with_headers(
         (&response_headers)
           .try_into()
@@ -149,13 +172,13 @@ impl UrlStorage {
     client: ClientWithMiddleware,
     url: Uri,
     response_url: Uri,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
+    forward_headers_backend: Vec<String>,
+    reflect_headers_client: Vec<String>,
   ) -> Self {
     Self {
       url,
       response_url,
-      url_client: UrlClient::new(client, forward_headers, header_blacklist),
+      url_client: UrlClient::new(client, forward_headers_backend, reflect_headers_client),
     }
   }
 
@@ -298,8 +321,8 @@ pub(crate) mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
-      true,
-      vec![],
+      vec!["*".to_string()],
+      vec!["*".to_string()],
     );
 
     assert_eq!(
@@ -314,8 +337,8 @@ pub(crate) mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
-      true,
-      vec![],
+      vec!["*".to_string()],
+      vec!["*".to_string()],
     );
 
     assert_eq!(
@@ -325,8 +348,12 @@ pub(crate) mod tests {
   }
 
   #[test]
-  fn remove_blacklisted_headers() {
-    let storage = UrlClient::new(test_client(), true, vec![HOST.to_string()]);
+  fn filter_forward_headers_wildcard() {
+    let storage = UrlClient::new(
+      test_client(),
+      vec!["authorization".to_string()],
+      vec!["*".to_string()],
+    );
 
     let mut headers = HeaderMap::default();
     headers.insert(
@@ -338,9 +365,10 @@ pub(crate) mod tests {
       HeaderValue::from_str("secret").unwrap(),
     );
 
-    let headers = storage.remove_blacklisted_headers(headers.clone());
+    let headers = storage.filter_forward_headers(headers);
 
     assert_eq!(headers.len(), 1);
+    assert!(headers.get(AUTHORIZATION).is_some());
   }
 
   #[tokio::test]
@@ -439,8 +467,8 @@ pub(crate) mod tests {
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        true,
-        vec![],
+        vec!["*".to_string()],
+        vec!["*".to_string()],
       );
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
@@ -455,14 +483,14 @@ pub(crate) mod tests {
   }
 
   #[tokio::test]
-  async fn range_url_storage_blacklisted_headers() {
+  async fn range_url_storage_filtered_headers() {
     with_url_test_server(|_, url, _| async move {
       let storage = UrlStorage::new(
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        true,
-        vec![HOST.to_string()],
+        vec!["*".to_string()],
+        vec!["authorization".to_string()],
       );
 
       let mut headers = HeaderMap::default();
@@ -500,8 +528,8 @@ pub(crate) mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
-      true,
-      vec![],
+      vec!["*".to_string()],
+      vec!["*".to_string()],
     );
 
     let mut headers = HeaderMap::default();
@@ -520,8 +548,8 @@ pub(crate) mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("http://example.com").unwrap(),
-      true,
-      vec![],
+      vec!["*".to_string()],
+      vec!["*".to_string()],
     );
 
     let mut headers = HeaderMap::default();
@@ -540,7 +568,7 @@ pub(crate) mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8081").unwrap(),
-      false,
+      vec![],
       vec![],
     );
 
@@ -603,7 +631,7 @@ pub(crate) mod tests {
         test_client(),
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
-        false,
+        vec!["*".to_string()],
         vec![],
       ),
       url,

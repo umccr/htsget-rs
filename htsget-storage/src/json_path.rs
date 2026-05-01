@@ -33,11 +33,11 @@ impl JsonPathStorage {
     content_path: String,
     size_path: Option<String>,
     response_path: Option<JsonPathOrUrl>,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
+    forward_headers_backend: Vec<String>,
+    reflect_headers_client: Vec<String>,
   ) -> Self {
     Self {
-      url_client: UrlClient::new(client, forward_headers, header_blacklist),
+      url_client: UrlClient::new(client, forward_headers_backend, reflect_headers_client),
       resolve_from,
       content_path,
       size_path,
@@ -251,8 +251,8 @@ pub(crate) mod tests {
       "$.content".to_string(),
       Some("$.size".to_string()),
       Some(JsonPathOrUrl::JsonPath("$.response".to_string())),
-      true,
-      vec![],
+      vec!["*".to_string()],
+      vec!["*".to_string()],
     )
   }
 
@@ -388,7 +388,7 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn format_key_no_headers() {
     with_json_path_test_server(|mut storage, _, _| async move {
-      storage.url_client = UrlClient::new(test_client(), false, vec![]);
+      storage.url_client = UrlClient::new(test_client(), vec!["*".to_string()], vec![]);
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
 

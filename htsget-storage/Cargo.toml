@@ -63,6 +63,7 @@ tracing = "0.1"
 base64 = "0.22"
 
 htsget-config = { version = "0.21.0", path = "../htsget-config", default-features = false }
+wildmatch = "2.6.1"
 
 [dev-dependencies]
 tower-http = { version = "0.6", features = ["fs"] }
