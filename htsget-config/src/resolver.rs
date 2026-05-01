@@ -360,7 +360,7 @@ mod tests {
     let url_storage = storage::url::Url::new(
       "https://example.com/".parse().unwrap(),
       "https://example.com/".parse().unwrap(),
-      true,
+      vec![],
       vec![],
       HttpClient::new(client),
     );

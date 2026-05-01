@@ -23,8 +23,8 @@ pub struct Url {
   #[schemars(with = "Option::<String>")]
   #[serde(with = "http_serde::option::uri")]
   response_url: Option<Uri>,
-  forward_headers: bool,
-  header_blacklist: Vec<String>,
+  forward_headers_backend: Vec<String>,
+  reflect_headers_client: Vec<String>,
   #[schemars(skip)]
   #[serde(alias = "tls", skip_serializing)]
   http: HttpClientConfig,
@@ -42,15 +42,15 @@ impl Url {
   pub fn new(
     url: Uri,
     response_url: Option<Uri>,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
+    forward_headers_backend: Vec<String>,
+    reflect_headers_client: Vec<String>,
     http: HttpClientConfig,
   ) -> Self {
     Self {
       url,
       response_url,
-      forward_headers,
-      header_blacklist,
+      forward_headers_backend,
+      reflect_headers_client,
       http,
       #[cfg(feature = "experimental")]
       keys: None,
@@ -70,10 +70,14 @@ impl Url {
     self.response_url.as_ref()
   }
 
-  /// Whether headers received in a query request should be
-  /// included in the returned data block tickets.
-  pub fn forward_headers(&self) -> bool {
-    self.forward_headers
+  /// Get the headers forwarded to the backend storage server.
+  pub fn forward_headers_backend(&self) -> &[String] {
+    &self.forward_headers_backend
+  }
+
+  /// Get the headers reflected back to the client in tickets.
+  pub fn reflect_headers_client(&self) -> &[String] {
+    &self.reflect_headers_client
   }
 
   /// Get the http client config.
@@ -116,8 +120,8 @@ impl TryFrom<Url> for storage::url::Url {
     let url_storage = Self::new(
       storage.url.clone(),
       storage.response_url.unwrap_or(storage.url),
-      storage.forward_headers,
-      storage.header_blacklist,
+      storage.forward_headers_backend,
+      storage.reflect_headers_client,
       client,
     );
 
@@ -139,7 +143,7 @@ impl Default for Url {
     let mut url = Self::new(
       Default::default(),
       Default::default(),
-      true,
+      Default::default(),
       Default::default(),
       Default::default(),
     );
@@ -159,21 +163,21 @@ mod tests {
       r#"
       url = "https://example.com"
       response_url = "https://example.com"
-      forward_headers = false
-      header_blacklist = ["Host"]
+      forward_headers_backend = ["Authorization"]
+      reflect_headers_client = ["Authorization"]
       "#,
       (
         "https://example.com/".to_string(),
         "https://example.com/".to_string(),
-        false,
-        vec!["Host".to_string()],
+        vec!["Authorization".to_string()],
+        vec!["Authorization".to_string()],
       ),
       |result: Url| {
         (
           result.url().to_string(),
           result.response_url().unwrap().to_string(),
-          result.forward_headers(),
-          result.header_blacklist,
+          result.forward_headers_backend,
+          result.reflect_headers_client,
         )
       },
     );

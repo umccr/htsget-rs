@@ -24,8 +24,8 @@ pub struct JsonPath {
   size_path: Option<String>,
   response_path: Option<String>,
   response_url: Option<String>,
-  forward_headers: bool,
-  header_blacklist: Vec<String>,
+  forward_headers_backend: Vec<String>,
+  reflect_headers_client: Vec<String>,
   #[schemars(skip)]
   #[serde(alias = "tls", skip_serializing)]
   http: HttpClientConfig,
@@ -46,8 +46,8 @@ impl JsonPath {
     size_path: Option<String>,
     response_path: Option<String>,
     response_url: Option<String>,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
+    forward_headers_backend: Vec<String>,
+    reflect_headers_client: Vec<String>,
   ) -> Self {
     Self {
       resolve_from,
@@ -55,8 +55,8 @@ impl JsonPath {
       size_path,
       response_path,
       response_url,
-      forward_headers,
-      header_blacklist,
+      forward_headers_backend,
+      reflect_headers_client,
       http: HttpClientConfig::default(),
       #[cfg(feature = "experimental")]
       keys: None,
@@ -91,10 +91,14 @@ impl JsonPath {
     self.response_url.as_deref()
   }
 
-  /// Whether headers received in a query request should be
-  /// included in the returned data block tickets.
-  pub fn forward_headers(&self) -> bool {
-    self.forward_headers
+  /// Get the headers forwarded to the backend storage server.
+  pub fn forward_headers_backend(&self) -> &[String] {
+    &self.forward_headers_backend
+  }
+
+  /// Get the headers reflected back to the client in tickets.
+  pub fn reflect_headers_client(&self) -> &[String] {
+    &self.reflect_headers_client
   }
 
   /// Get the http client config.
@@ -156,8 +160,8 @@ impl TryFrom<JsonPath> for storage::json_path::JsonPath {
       storage.content_path,
       storage.size_path,
       response_url,
-      storage.forward_headers,
-      storage.header_blacklist,
+      storage.forward_headers_backend,
+      storage.reflect_headers_client,
       client,
     );
 
@@ -182,7 +186,7 @@ impl Default for JsonPath {
       Default::default(),
       Default::default(),
       Default::default(),
-      true,
+      Default::default(),
       Default::default(),
     );
 
@@ -204,16 +208,16 @@ mod tests {
       response_path = "$.response"
       content_path = "$.content"
       size_path = "$.size"
-      forward_headers = false
-      header_blacklist = ["Host"]
+      forward_headers_backend = ["Authorization"]
+      reflect_headers_client = ["Authorization"]
       "#,
       Ok((
         "https://example.com/".to_string(),
         Some(JsonPathOrUrl::JsonPath("$.response".to_string())),
         "$.content".to_string(),
         Some("$.size".to_string()),
-        false,
-        vec!["Host".to_string()],
+        vec!["Authorization".to_string()],
+        vec!["Authorization".to_string()],
       )),
       get_result_values,
     );
@@ -227,16 +231,16 @@ mod tests {
       response_url = "https://example.com"
       content_path = "$.content"
       size_path = "$.size"
-      forward_headers = false
-      header_blacklist = ["Host"]
+      forward_headers_backend = ["Authorization"]
+      reflect_headers_client = ["Authorization"]
       "#,
       Ok((
         "https://example.com/".to_string(),
         Some(JsonPathOrUrl::Url("https://example.com".parse().unwrap())),
         "$.content".to_string(),
         Some("$.size".to_string()),
-        false,
-        vec!["Host".to_string()],
+        vec!["Authorization".to_string()],
+        vec!["Authorization".to_string()],
       )),
       get_result_values,
     );
@@ -251,8 +255,8 @@ mod tests {
       response_path = "$.response"
       content_path = "$.content"
       size_path = "$.size"
-      forward_headers = false
-      header_blacklist = ["Host"]
+      forward_headers_backend = ["Authorization"]
+      reflect_headers_client = ["Authorization"]
       "#,
       (),
       |result| {
@@ -267,7 +271,7 @@ mod tests {
     Option<JsonPathOrUrl>,
     String,
     Option<String>,
-    bool,
+    Vec<String>,
     Vec<String>,
   )>;
 
@@ -278,8 +282,8 @@ mod tests {
       result.response_path().cloned(),
       result.content_path().to_string(),
       result.size_path().map(|value| value.to_string()),
-      result.forward_headers(),
-      result.header_blacklist().to_vec(),
+      result.forward_headers_backend().to_vec(),
+      result.reflect_headers_client().to_vec(),
     ))
   }
 }

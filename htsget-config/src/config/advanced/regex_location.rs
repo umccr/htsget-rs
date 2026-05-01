@@ -207,7 +207,8 @@ mod tests {
       substitution_string = "$0"
       backend.kind = "Url"
       backend.url = "http://localhost:8080"
-      backend.forward_headers = false
+      backend.forward_headers_backend = []
+      backend.reflect_headers_client = []
     "#,
       (
         "prefix/(?P<key>.*)$".to_string(),

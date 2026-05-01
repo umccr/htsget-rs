@@ -404,7 +404,7 @@ impl TryFrom<String> for BackendWithAppend {
       let uri: Uri = uri
         .parse()
         .map_err(|err: InvalidUri| error::Error::ParseError(err.to_string()))?;
-      let url = Url::new(uri.clone(), Some(uri), true, vec![], Default::default()).try_into()?;
+      let url = Url::new(uri.clone(), Some(uri), vec![], vec![], Default::default()).try_into()?;
 
       return Ok(BackendWithAppend(Backend::Url(Box::new(url)), to_append));
     }

@@ -53,10 +53,10 @@ pub struct JsonPath {
   /// The json path for the response tickets.
   #[schemars(with = "Option<String>")]
   response_path: Option<JsonPathOrUrl>,
-  /// Whether to forward client headers to the remote URL.
-  forward_headers: bool,
-  /// Headers to not forward to the remote URL even if `forward_headers` is true.
-  header_blacklist: Vec<String>,
+  /// Headers that are forwarded to the backend storage server.
+  forward_headers_backend: Vec<String>,
+  /// Headers that are reflected back to the client in tickets.
+  reflect_headers_client: Vec<String>,
   #[serde(skip_serializing)]
   #[schemars(skip)]
   client: HttpClient,
@@ -79,8 +79,8 @@ impl PartialEq for JsonPath {
       && self.content_path == other.content_path
       && self.size_path == other.size_path
       && self.response_path == other.response_path
-      && self.forward_headers == other.forward_headers
-      && self.header_blacklist == other.header_blacklist
+      && self.forward_headers_backend == other.forward_headers_backend
+      && self.reflect_headers_client == other.reflect_headers_client
   }
 }
 
@@ -91,8 +91,8 @@ impl JsonPath {
     content_path: String,
     size_path: Option<String>,
     response_path: Option<JsonPathOrUrl>,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
+    forward_headers_backend: Vec<String>,
+    reflect_headers_client: Vec<String>,
     client: HttpClient,
   ) -> Self {
     Self {
@@ -100,8 +100,8 @@ impl JsonPath {
       content_path,
       size_path,
       response_path,
-      forward_headers,
-      header_blacklist,
+      forward_headers_backend,
+      reflect_headers_client,
       client,
       #[cfg(feature = "experimental")]
       keys: None,
@@ -131,14 +131,14 @@ impl JsonPath {
     self.response_path.as_ref()
   }
 
-  /// Whether to forward headers in the url tickets.
-  pub fn forward_headers(&self) -> bool {
-    self.forward_headers
+  /// Get the headers forwarded to the backend storage server.
+  pub fn forward_headers_backend(&self) -> &[String] {
+    &self.forward_headers_backend
   }
 
-  /// Get the headers that should not be forwarded.
-  pub fn header_blacklist(&self) -> &[String] {
-    &self.header_blacklist
+  /// Get the headers reflected back to the client in tickets.
+  pub fn reflect_headers_client(&self) -> &[String] {
+    &self.reflect_headers_client
   }
 
   /// Get an owned client by cloning.

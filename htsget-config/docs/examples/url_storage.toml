@@ -21,7 +21,8 @@ locations = "https://127.0.0.1:8081"
 #backend.kind = "Url"
 #backend.url = "http://127.0.0.1:8081"
 #backend.response_url = "https://127.0.0.1:8081"
-#backend.forward_headers = true
+#backend.forward_headers_backend = ["Authorization"]
+#backend.reflect_headers_client = ["Authorization"]
 #
 ## Set client authentication
 #backend.http.key = "key.pem"
