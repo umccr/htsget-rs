@@ -21,8 +21,12 @@ locations = "https://127.0.0.1:8081"
 #backend.kind = "Url"
 #backend.url = "http://127.0.0.1:8081"
 #backend.response_url = "https://127.0.0.1:8081"
-#backend.forward_headers_backend = ["Authorization", "Content-*"]
-#backend.reflect_headers_client = ["Authorization", "Content-*"]
+#backend.allow_headers_backend = ["Authorization", "Content-*"]
+#backend.allow_headers_client = ["Authorization", "Content-*"]
+#
+## Optionally denylist headers. These get applied after the allowlist.
+#backend.deny_headers_backend = ["X-Internal-*"]
+#backend.deny_headers_client = ["X-Internal-*"]
 #
 ## Set client authentication
 #backend.http.key = "key.pem"
