@@ -23,8 +23,10 @@ pub struct Url {
   #[schemars(with = "Option::<String>")]
   #[serde(with = "http_serde::option::uri")]
   response_url: Option<Uri>,
-  forward_headers_backend: Vec<String>,
-  reflect_headers_client: Vec<String>,
+  allow_headers_backend: Vec<String>,
+  deny_headers_backend: Vec<String>,
+  allow_headers_client: Vec<String>,
+  deny_headers_client: Vec<String>,
   #[schemars(skip)]
   #[serde(alias = "tls", skip_serializing)]
   http: HttpClientConfig,
@@ -42,15 +44,19 @@ impl Url {
   pub fn new(
     url: Uri,
     response_url: Option<Uri>,
-    forward_headers_backend: Vec<String>,
-    reflect_headers_client: Vec<String>,
+    allow_headers_backend: Vec<String>,
+    deny_headers_backend: Vec<String>,
+    allow_headers_client: Vec<String>,
+    deny_headers_client: Vec<String>,
     http: HttpClientConfig,
   ) -> Self {
     Self {
       url,
       response_url,
-      forward_headers_backend,
-      reflect_headers_client,
+      allow_headers_backend,
+      deny_headers_backend,
+      allow_headers_client,
+      deny_headers_client,
       http,
       #[cfg(feature = "experimental")]
       keys: None,
@@ -71,13 +77,25 @@ impl Url {
   }
 
   /// Get the headers forwarded to the backend storage server. Supports wildcards using `*` and `?`.
-  pub fn forward_headers_backend(&self) -> &[String] {
-    &self.forward_headers_backend
+  pub fn allow_headers_backend(&self) -> &[String] {
+    &self.allow_headers_backend
+  }
+
+  /// Get the headers blocked from being forwarded to the backend server. Supports wildcards
+  /// using `*` and `?`.
+  pub fn deny_headers_backend(&self) -> &[String] {
+    &self.deny_headers_backend
   }
 
   /// Get the headers reflected back to the client in tickets. Supports wildcards using `*` and `?`.
-  pub fn reflect_headers_client(&self) -> &[String] {
-    &self.reflect_headers_client
+  pub fn allow_headers_client(&self) -> &[String] {
+    &self.allow_headers_client
+  }
+
+  /// Get the headers blocked from being reflected back to the client in tickets. Supports
+  /// wildcards using `*` and `?`.
+  pub fn deny_headers_client(&self) -> &[String] {
+    &self.deny_headers_client
   }
 
   /// Get the http client config.
@@ -120,8 +138,10 @@ impl TryFrom<Url> for storage::url::Url {
     let url_storage = Self::new(
       storage.url.clone(),
       storage.response_url.unwrap_or(storage.url),
-      storage.forward_headers_backend,
-      storage.reflect_headers_client,
+      storage.allow_headers_backend,
+      storage.deny_headers_backend,
+      storage.allow_headers_client,
+      storage.deny_headers_client,
       client,
     );
 
@@ -144,7 +164,9 @@ impl Default for Url {
       Default::default(),
       Default::default(),
       vec!["*".to_string()],
+      vec![],
       vec!["*".to_string()],
+      vec![],
       Default::default(),
     );
 
@@ -163,21 +185,27 @@ mod tests {
       r#"
       url = "https://example.com"
       response_url = "https://example.com"
-      forward_headers_backend = ["Authorization"]
-      reflect_headers_client = ["Authorization"]
+      allow_headers_backend = ["Authorization"]
+      deny_headers_backend = ["X-Internal-*"]
+      allow_headers_client = ["Authorization"]
+      deny_headers_client = ["X-Internal-*"]
       "#,
       (
         "https://example.com/".to_string(),
         "https://example.com/".to_string(),
         vec!["Authorization".to_string()],
+        vec!["X-Internal-*".to_string()],
         vec!["Authorization".to_string()],
+        vec!["X-Internal-*".to_string()],
       ),
       |result: Url| {
         (
           result.url().to_string(),
           result.response_url().unwrap().to_string(),
-          result.forward_headers_backend,
-          result.reflect_headers_client,
+          result.allow_headers_backend,
+          result.deny_headers_backend,
+          result.allow_headers_client,
+          result.deny_headers_client,
         )
       },
     );

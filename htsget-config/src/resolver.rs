@@ -362,6 +362,8 @@ mod tests {
       "https://example.com/".parse().unwrap(),
       vec![],
       vec![],
+      vec![],
+      vec![],
       HttpClient::new(client),
     );
 

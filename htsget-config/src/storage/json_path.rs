@@ -54,9 +54,13 @@ pub struct JsonPath {
   #[schemars(with = "Option<String>")]
   response_path: Option<JsonPathOrUrl>,
   /// Headers that are forwarded to the backend storage server. Supports wildcards using `*` and `?`.
-  forward_headers_backend: Vec<String>,
+  allow_headers_backend: Vec<String>,
+  /// Headers that are not forwarded to the backend storage server. Supports wildcards using `*` and `?`.
+  deny_headers_backend: Vec<String>,
   /// Headers that are reflected back to the client in tickets. Supports wildcards using `*` and `?`.
-  reflect_headers_client: Vec<String>,
+  allow_headers_client: Vec<String>,
+  /// Headers that are not reflected back to the client in tickets. Supports wildcards using `*` and `?`.
+  deny_headers_client: Vec<String>,
   #[serde(skip_serializing)]
   #[schemars(skip)]
   client: HttpClient,
@@ -79,8 +83,10 @@ impl PartialEq for JsonPath {
       && self.content_path == other.content_path
       && self.size_path == other.size_path
       && self.response_path == other.response_path
-      && self.forward_headers_backend == other.forward_headers_backend
-      && self.reflect_headers_client == other.reflect_headers_client
+      && self.allow_headers_backend == other.allow_headers_backend
+      && self.deny_headers_backend == other.deny_headers_backend
+      && self.allow_headers_client == other.allow_headers_client
+      && self.deny_headers_client == other.deny_headers_client
   }
 }
 
@@ -91,8 +97,8 @@ impl JsonPath {
     content_path: String,
     size_path: Option<String>,
     response_path: Option<JsonPathOrUrl>,
-    forward_headers_backend: Vec<String>,
-    reflect_headers_client: Vec<String>,
+    allow_headers_backend: Vec<String>,
+    allow_headers_client: Vec<String>,
     client: HttpClient,
   ) -> Self {
     Self {
@@ -100,8 +106,10 @@ impl JsonPath {
       content_path,
       size_path,
       response_path,
-      forward_headers_backend,
-      reflect_headers_client,
+      allow_headers_backend,
+      deny_headers_backend: vec![],
+      allow_headers_client,
+      deny_headers_client: vec![],
       client,
       #[cfg(feature = "experimental")]
       keys: None,
@@ -109,6 +117,16 @@ impl JsonPath {
       forward_public_key: true,
       is_defaulted: false,
     }
+  }
+
+  /// Set the headers blocked from being forwarded to the backend server.
+  pub fn set_deny_headers_backend(&mut self, deny_headers_backend: Vec<String>) {
+    self.deny_headers_backend = deny_headers_backend;
+  }
+
+  /// Set the headers blocked from being reflected back to the client.
+  pub fn set_deny_headers_client(&mut self, deny_headers_client: Vec<String>) {
+    self.deny_headers_client = deny_headers_client;
   }
 
   /// Get the resolve API url.
@@ -133,14 +151,26 @@ impl JsonPath {
 
   /// Get the headers forwarded to the backend storage server. A wildcard value of "*" forwards
   /// all headers. Defaults to `["*"]`.
-  pub fn forward_headers_backend(&self) -> &[String] {
-    &self.forward_headers_backend
+  pub fn allow_headers_backend(&self) -> &[String] {
+    &self.allow_headers_backend
+  }
+
+  /// Get the headers blocked from being forwarded to the backend storage server. Supports wildcards
+  /// using `*` and `?`. Defaults to `[]`.
+  pub fn deny_headers_backend(&self) -> &[String] {
+    &self.deny_headers_backend
   }
 
   /// Get the headers reflected back to the client in tickets. A wildcard value of "*" reflects
   /// all headers. Defaults to `["*"]`.
-  pub fn reflect_headers_client(&self) -> &[String] {
-    &self.reflect_headers_client
+  pub fn allow_headers_client(&self) -> &[String] {
+    &self.allow_headers_client
+  }
+
+  /// Get the headers blocked from being reflected back to the client in tickets. Supports wildcards
+  /// using `*` and `?`. Defaults to `[]`.
+  pub fn deny_headers_client(&self) -> &[String] {
+    &self.deny_headers_client
   }
 
   /// Get an owned client by cloning.
