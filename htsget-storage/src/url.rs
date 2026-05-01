@@ -53,16 +53,19 @@ impl UrlClient {
     }
 
     headers
-        .into_iter()
-        .filter_map(|(name, value)| {
-          let name = name?;
-          if patterns.iter().any(|pattern| pattern.matches(name.as_str())) {
-            Some((name, value))
-          } else {
-            None
-          }
-        })
-        .collect()
+      .into_iter()
+      .filter_map(|(name, value)| {
+        let name = name?;
+        if patterns
+          .iter()
+          .any(|pattern| pattern.matches(name.as_str()))
+        {
+          Some((name, value))
+        } else {
+          None
+        }
+      })
+      .collect()
   }
 
   /// Filter headers to only those matching the `forward_headers_backend` patterns.
@@ -299,6 +302,7 @@ pub(crate) mod tests {
   use std::{result, vec};
 
   use axum::body::Body;
+  use axum::extract::State;
   use axum::middleware::Next;
   use axum::response::Response;
   use axum::{Router, middleware};
@@ -348,177 +352,255 @@ pub(crate) mod tests {
   }
 
   #[test]
-  fn filter_forward_headers_wildcard() {
+  fn filter_wildcard_headers() {
     let storage = UrlClient::new(
       test_client(),
       vec!["authorization".to_string()],
       vec!["*".to_string()],
     );
-
     let mut headers = HeaderMap::default();
     headers.insert(
       HeaderName::from_str(HOST.as_str()).unwrap(),
       HeaderValue::from_str("example.com").unwrap(),
     );
+    let result = storage.filter_forward_headers(headers.clone());
+    assert!(result.is_empty());
+    let result = storage.filter_reflect_headers(headers.clone());
+    assert_eq!(result.len(), 1);
+    assert!(result.get(HOST).is_some());
+
     headers.insert(
       HeaderName::from_str(AUTHORIZATION.as_str()).unwrap(),
       HeaderValue::from_str("secret").unwrap(),
     );
+    let result = storage.filter_forward_headers(headers.clone());
+    assert_eq!(result.len(), 1);
+    assert!(result.get(AUTHORIZATION).is_some());
+    let result = storage.filter_reflect_headers(headers.clone());
+    assert_eq!(result.len(), 2);
+    assert!(result.get(AUTHORIZATION).is_some());
+    assert!(result.get(HOST).is_some());
 
-    let headers = storage.filter_forward_headers(headers);
+    let storage = UrlClient::new(
+      test_client(),
+      vec!["auth*".to_string()],
+      vec!["hos?".to_string()],
+    );
+    let mut headers = HeaderMap::default();
+    headers.insert(HOST, HeaderValue::from_str("example.com").unwrap());
+    let result = storage.filter_forward_headers(headers.clone());
+    assert!(result.is_empty());
+    let result = storage.filter_reflect_headers(headers.clone());
+    assert_eq!(result.len(), 1);
+    assert!(result.get(HOST).is_some());
 
-    assert_eq!(headers.len(), 1);
-    assert!(headers.get(AUTHORIZATION).is_some());
+    headers.insert(AUTHORIZATION, HeaderValue::from_str("secret").unwrap());
+    let result = storage.filter_forward_headers(headers.clone());
+    assert_eq!(result.len(), 1);
+    assert!(result.get(AUTHORIZATION).is_some());
+    let result = storage.filter_reflect_headers(headers.clone());
+    assert_eq!(result.len(), 1);
+    assert!(result.get(HOST).is_some());
+  }
+
+  #[tokio::test]
+  async fn send_request_filter_headers() {
+    // The test server middleware asserts that the headers reach the backend.
+    for forward in [WildMatch::new("authorization"), WildMatch::new("auth*")] {
+      with_url_test_server(
+        |mut storage, _, _| async move {
+          let mut headers = HeaderMap::default();
+          headers.insert(HOST, HeaderValue::from_str("example.com").unwrap());
+          let headers = test_headers(&mut headers);
+
+          storage.url_client.forward_headers_backend = vec![forward];
+
+          storage
+            .url_client
+            .send_request(
+              storage.get_url_from_key("assets/key1").unwrap(),
+              Default::default(),
+              headers.clone(),
+              Method::GET,
+            )
+            .await
+            .unwrap();
+        },
+        vec![AUTHORIZATION],
+      )
+      .await;
+    }
   }
 
   #[tokio::test]
   async fn send_request() {
-    with_url_test_server(|storage, _, _| async move {
-      let mut headers = HeaderMap::default();
-      let headers = test_headers(&mut headers);
+    with_url_test_server(
+      |storage, _, _| async move {
+        let mut headers = HeaderMap::default();
+        let headers = test_headers(&mut headers);
 
-      let response = String::from_utf8(
-        storage
-          .url_client
-          .send_request(
-            storage.get_url_from_key("assets/key1").unwrap(),
-            Default::default(),
-            headers.clone(),
-            Method::GET,
-          )
-          .await
-          .unwrap()
-          .bytes()
-          .await
-          .unwrap()
-          .to_vec(),
-      )
-      .unwrap();
-      assert_eq!(response, "value1");
-    })
+        let response = String::from_utf8(
+          storage
+            .url_client
+            .send_request(
+              storage.get_url_from_key("assets/key1").unwrap(),
+              Default::default(),
+              headers.clone(),
+              Method::GET,
+            )
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap()
+            .to_vec(),
+        )
+        .unwrap();
+        assert_eq!(response, "value1");
+      },
+      vec![],
+    )
     .await;
   }
 
   #[tokio::test]
   async fn get_key() {
-    with_url_test_server(|storage, _, _| async move {
-      let mut headers = HeaderMap::default();
-      let headers = test_headers(&mut headers);
+    with_url_test_server(
+      |storage, _, _| async move {
+        let mut headers = HeaderMap::default();
+        let headers = test_headers(&mut headers);
 
-      let response = String::from_utf8(
-        storage
-          .get_key("assets/key1", GetOptions::new_with_default_range(headers))
-          .await
-          .unwrap()
-          .bytes()
-          .await
-          .unwrap()
-          .to_vec(),
-      )
-      .unwrap();
-      assert_eq!(response, "value1");
-    })
+        let response = String::from_utf8(
+          storage
+            .get_key("assets/key1", GetOptions::new_with_default_range(headers))
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap()
+            .to_vec(),
+        )
+        .unwrap();
+        assert_eq!(response, "value1");
+      },
+      vec![],
+    )
     .await;
   }
 
   #[tokio::test]
   async fn head_key() {
-    with_url_test_server(|storage, _, _| async move {
-      let mut headers = HeaderMap::default();
-      let headers = test_headers(&mut headers);
+    with_url_test_server(
+      |storage, _, _| async move {
+        let mut headers = HeaderMap::default();
+        let headers = test_headers(&mut headers);
 
-      let response: u64 = storage
-        .get_key("assets/key1", GetOptions::new_with_default_range(headers))
-        .await
-        .unwrap()
-        .headers()
-        .get(CONTENT_LENGTH)
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .parse()
-        .unwrap();
-      assert_eq!(response, 6);
-    })
+        let response: u64 = storage
+          .get_key("assets/key1", GetOptions::new_with_default_range(headers))
+          .await
+          .unwrap()
+          .headers()
+          .get(CONTENT_LENGTH)
+          .unwrap()
+          .to_str()
+          .unwrap()
+          .parse()
+          .unwrap();
+        assert_eq!(response, 6);
+      },
+      vec![],
+    )
     .await;
   }
 
   #[tokio::test]
   async fn get_storage() {
-    with_url_test_server(|storage, _, _| async move {
-      let mut headers = HeaderMap::default();
-      let headers = test_headers(&mut headers);
-      let options = GetOptions::new_with_default_range(headers);
+    with_url_test_server(
+      |storage, _, _| async move {
+        let mut headers = HeaderMap::default();
+        let headers = test_headers(&mut headers);
+        let options = GetOptions::new_with_default_range(headers);
 
-      let mut reader = storage.get("assets/key1", options).await.unwrap();
+        let mut reader = storage.get("assets/key1", options).await.unwrap();
 
-      let mut response = [0; 6];
-      reader.read_exact(&mut response).await.unwrap();
+        let mut response = [0; 6];
+        reader.read_exact(&mut response).await.unwrap();
 
-      assert_eq!(String::from_utf8(response.to_vec()).unwrap(), "value1");
-    })
+        assert_eq!(String::from_utf8(response.to_vec()).unwrap(), "value1");
+      },
+      vec![],
+    )
     .await;
   }
 
   #[tokio::test]
   async fn range_url_storage() {
-    with_url_test_server(|_, url, _| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        vec!["*".to_string()],
-        vec!["*".to_string()],
-      );
-      let mut headers = HeaderMap::default();
-      let options = test_range_options(&mut headers);
+    with_url_test_server(
+      |_, url, _| async move {
+        let storage = UrlStorage::new(
+          test_client(),
+          Uri::from_str(&url).unwrap(),
+          Uri::from_str(&url).unwrap(),
+          vec!["*".to_string()],
+          vec!["*".to_string()],
+        );
+        let mut headers = HeaderMap::default();
+        let options = test_range_options(&mut headers);
 
-      assert_eq!(
-        storage.range_url("assets/key1", options).await.unwrap(),
-        HtsGetUrl::new(format!("{url}/assets/key1"))
-          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
-      );
-    })
+        assert_eq!(
+          storage.range_url("assets/key1", options).await.unwrap(),
+          HtsGetUrl::new(format!("{url}/assets/key1"))
+            .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+        );
+      },
+      vec![],
+    )
     .await;
   }
 
   #[tokio::test]
   async fn range_url_storage_filtered_headers() {
-    with_url_test_server(|_, url, _| async move {
-      let storage = UrlStorage::new(
-        test_client(),
-        Uri::from_str(&url).unwrap(),
-        Uri::from_str(&url).unwrap(),
-        vec!["*".to_string()],
-        vec!["authorization".to_string()],
-      );
+    with_url_test_server(
+      |_, url, _| async move {
+        let storage = UrlStorage::new(
+          test_client(),
+          Uri::from_str(&url).unwrap(),
+          Uri::from_str(&url).unwrap(),
+          vec!["*".to_string()],
+          vec!["authorization".to_string()],
+        );
 
-      let mut headers = HeaderMap::default();
-      headers.insert(
-        HeaderName::from_str(HOST.as_str()).unwrap(),
-        HeaderValue::from_str("example.com").unwrap(),
-      );
+        let mut headers = HeaderMap::default();
+        headers.insert(
+          HeaderName::from_str(HOST.as_str()).unwrap(),
+          HeaderValue::from_str("example.com").unwrap(),
+        );
 
-      let options = test_range_options(&mut headers);
+        let options = test_range_options(&mut headers);
 
-      assert_eq!(
-        storage.range_url("assets/key1", options).await.unwrap(),
-        HtsGetUrl::new(format!("{url}/assets/key1"))
-          .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
-      );
-    })
+        assert_eq!(
+          storage.range_url("assets/key1", options).await.unwrap(),
+          HtsGetUrl::new(format!("{url}/assets/key1"))
+            .with_headers(Headers::default().with_header(AUTHORIZATION.as_str(), "secret"))
+        );
+      },
+      vec![],
+    )
     .await;
   }
 
   #[tokio::test]
   async fn head_storage() {
-    with_url_test_server(|storage, _, _| async move {
-      let mut headers = HeaderMap::default();
-      let headers = test_headers(&mut headers);
-      let options = HeadOptions::new(headers);
+    with_url_test_server(
+      |storage, _, _| async move {
+        let mut headers = HeaderMap::default();
+        let headers = test_headers(&mut headers);
+        let options = HeadOptions::new(headers);
 
-      assert_eq!(storage.head("assets/key1", options).await.unwrap(), 6);
-    })
+        assert_eq!(storage.head("assets/key1", options).await.unwrap(), 6);
+      },
+      vec![],
+    )
     .await;
   }
 
@@ -585,13 +667,13 @@ pub(crate) mod tests {
     reqwest_middleware::ClientBuilder::new(ClientBuilder::new().build().unwrap()).build()
   }
 
-  pub(crate) async fn with_url_test_server<F, Fut>(test: F)
+  pub(crate) async fn with_url_test_server<F, Fut>(test: F, expected_headers: Vec<HeaderName>)
   where
     F: FnOnce(UrlStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let (_, base_path) = create_local_test_files().await;
-    with_test_server(base_path.path(), test).await;
+    with_test_server(base_path.path(), test, expected_headers).await;
   }
 
   pub(crate) async fn test_auth(
@@ -609,14 +691,40 @@ pub(crate) mod tests {
     }
   }
 
-  pub(crate) async fn with_test_server<F, Fut>(server_base_path: &Path, test: F)
-  where
+  pub(crate) async fn with_test_server<F, Fut>(
+    server_base_path: &Path,
+    test: F,
+    expected_headers: Vec<HeaderName>,
+  ) where
     F: FnOnce(UrlStorage, String, PathBuf) -> Fut,
     Fut: Future<Output = ()>,
   {
     let path = server_base_path.to_str().unwrap();
     let router = Router::new()
       .nest_service("/assets", ServeDir::new(path))
+      .route_layer(middleware::from_fn_with_state(
+        expected_headers,
+        |State(headers): State<Vec<HeaderName>>, req: Request<Body>, next: Next| async move {
+          if !headers.is_empty() {
+            let mut req_headers = req
+              .headers()
+              .keys()
+              .map(|h| h.as_str().to_string())
+              .filter(|h| !&["host", "accept"].contains(&h.as_str()))
+              .collect::<Vec<_>>();
+            req_headers.sort();
+            let mut expected_headers = headers
+              .into_iter()
+              .map(|h| h.as_str().to_string())
+              .collect::<Vec<_>>();
+            expected_headers.sort();
+
+            assert_eq!(req_headers, expected_headers);
+          }
+
+          next.run(req).await
+        },
+      ))
       .route_layer(middleware::from_fn(test_auth));
 
     // TODO fix this in htsget-test to bind and return tcp listener.
