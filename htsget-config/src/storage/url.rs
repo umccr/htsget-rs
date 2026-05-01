@@ -24,9 +24,9 @@ pub struct Url {
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   response_url: Uri,
-  /// Headers that are forwarded to the backend storage server.
+  /// Headers that are forwarded to the backend storage server. Supports wildcards using `*` and `?`.
   forward_headers_backend: Vec<String>,
-  /// Headers that are reflected back to the client in tickets.
+  /// Headers that are reflected back to the client in tickets. Supports wildcards using `*` and `?`.
   reflect_headers_client: Vec<String>,
   #[serde(skip_serializing)]
   #[schemars(skip)]
@@ -86,12 +86,12 @@ impl Url {
     &self.response_url
   }
 
-  /// Get the headers forwarded to the backend storage server.
+  /// Get the headers forwarded to the backend storage server. Supports wildcards using `*` and `?`.
   pub fn forward_headers_backend(&self) -> &[String] {
     &self.forward_headers_backend
   }
 
-  /// Get the headers reflected back to the client in tickets.
+  /// Get the headers reflected back to the client in tickets. Supports wildcards using `*` and `?`.
   pub fn reflect_headers_client(&self) -> &[String] {
     &self.reflect_headers_client
   }
@@ -142,8 +142,8 @@ impl Default for Url {
     let mut url = Self::new(
       Default::default(),
       Default::default(),
-      Default::default(),
-      Default::default(),
+      vec!["*".to_string()],
+      vec!["*".to_string()],
       HttpClient::from(HttpClientConfig::default()),
     );
 
