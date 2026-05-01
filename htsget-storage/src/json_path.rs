@@ -33,16 +33,34 @@ impl JsonPathStorage {
     content_path: String,
     size_path: Option<String>,
     response_path: Option<JsonPathOrUrl>,
-    forward_headers_backend: Vec<String>,
-    reflect_headers_client: Vec<String>,
+    allow_headers_backend: Vec<String>,
+    allow_headers_client: Vec<String>,
   ) -> Self {
     Self {
-      url_client: UrlClient::new(client, forward_headers_backend, reflect_headers_client),
+      url_client: UrlClient::new(
+        client,
+        allow_headers_backend,
+        vec![],
+        allow_headers_client,
+        vec![],
+      ),
       resolve_from,
       content_path,
       size_path,
       response_path,
     }
+  }
+
+  /// Set the headers blocked from being forwarded to the backend server.
+  pub fn set_deny_headers_backend(&mut self, deny_headers_backend: Vec<String>) {
+    self
+      .url_client
+      .set_deny_headers_backend(deny_headers_backend);
+  }
+
+  /// Set the headers blocked from being reflected back to the client.
+  pub fn set_deny_headers_client(&mut self, deny_headers_client: Vec<String>) {
+    self.url_client.set_deny_headers_client(deny_headers_client);
   }
 
   /// Get a url from the key.
@@ -388,7 +406,8 @@ pub(crate) mod tests {
   #[tokio::test]
   async fn format_key_no_headers() {
     with_json_path_test_server(|mut storage, _, _| async move {
-      storage.url_client = UrlClient::new(test_client(), vec!["*".to_string()], vec![]);
+      storage.url_client =
+        UrlClient::new(test_client(), vec!["*".to_string()], vec![], vec![], vec![]);
       let mut headers = HeaderMap::default();
       let options = test_range_options(&mut headers);
 

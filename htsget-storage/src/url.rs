@@ -27,28 +27,35 @@ use wildmatch::WildMatch;
 #[derive(Debug, Clone)]
 pub struct UrlClient {
   client: ClientWithMiddleware,
-  forward_headers_backend: Vec<WildMatch>,
-  reflect_headers_client: Vec<WildMatch>,
+  allow_headers_backend: Vec<WildMatch>,
+  deny_headers_backend: Vec<WildMatch>,
+  allow_headers_client: Vec<WildMatch>,
+  deny_headers_client: Vec<WildMatch>,
 }
 
 impl UrlClient {
   /// Construct a new `UrlClient`.
   pub fn new(
     client: ClientWithMiddleware,
-    forward_headers_backend: Vec<String>,
-    reflect_headers_client: Vec<String>,
+    allow_headers_backend: Vec<String>,
+    deny_headers_backend: Vec<String>,
+    allow_headers_client: Vec<String>,
+    deny_headers_client: Vec<String>,
   ) -> Self {
     let map_filters = |filters: Vec<String>| filters.iter().map(|f| WildMatch::new(f)).collect();
     Self {
       client,
-      forward_headers_backend: map_filters(forward_headers_backend),
-      reflect_headers_client: map_filters(reflect_headers_client),
+      allow_headers_backend: map_filters(allow_headers_backend),
+      deny_headers_backend: map_filters(deny_headers_backend),
+      allow_headers_client: map_filters(allow_headers_client),
+      deny_headers_client: map_filters(deny_headers_client),
     }
   }
 
-  /// Filter a header map, keeping only headers whose names match at least one of the given patterns.
-  fn filter_headers(headers: HeaderMap, patterns: &[WildMatch]) -> HeaderMap {
-    if patterns.is_empty() {
+  /// Filter a header map, keeping only headers whose names match at least one of the allow
+  /// patterns and do not match any of the deny patterns.
+  fn filter_headers(headers: HeaderMap, allow: &[WildMatch], deny: &[WildMatch]) -> HeaderMap {
+    if allow.is_empty() {
       return HeaderMap::new();
     }
 
@@ -56,9 +63,9 @@ impl UrlClient {
       .into_iter()
       .filter_map(|(name, value)| {
         let name = name?;
-        if patterns
-          .iter()
-          .any(|pattern| pattern.matches(name.as_str()))
+        let name_str = name.as_str();
+        if allow.iter().any(|pattern| pattern.matches(name_str))
+          && !deny.iter().any(|pattern| pattern.matches(name_str))
         {
           Some((name, value))
         } else {
@@ -68,14 +75,40 @@ impl UrlClient {
       .collect()
   }
 
-  /// Filter headers to only those matching the `forward_headers_backend` patterns.
-  pub fn filter_forward_headers(&self, headers: HeaderMap) -> HeaderMap {
-    Self::filter_headers(headers, &self.forward_headers_backend)
+  /// Set the headers blocked from being forwarded to the backend storage server.
+  pub fn set_deny_headers_backend(&mut self, deny_headers_backend: Vec<String>) {
+    self.deny_headers_backend = deny_headers_backend
+      .iter()
+      .map(|f| WildMatch::new(f))
+      .collect();
   }
 
-  /// Filter headers to only those matching the `reflect_headers_client` patterns.
+  /// Set the headers blocked from being reflected back to the client in tickets.
+  pub fn set_deny_headers_client(&mut self, deny_headers_client: Vec<String>) {
+    self.deny_headers_client = deny_headers_client
+      .iter()
+      .map(|f| WildMatch::new(f))
+      .collect();
+  }
+
+  /// Filter headers to only those matching the `allow_headers_backend` patterns and not matching
+  /// the `deny_headers_backend` patterns.
+  pub fn filter_forward_headers(&self, headers: HeaderMap) -> HeaderMap {
+    Self::filter_headers(
+      headers,
+      &self.allow_headers_backend,
+      &self.deny_headers_backend,
+    )
+  }
+
+  /// Filter headers to only those matching the `allow_headers_client` patterns and not matching
+  /// the `deny_headers_client` patterns.
   pub fn filter_reflect_headers(&self, headers: HeaderMap) -> HeaderMap {
-    Self::filter_headers(headers, &self.reflect_headers_client)
+    Self::filter_headers(
+      headers,
+      &self.allow_headers_client,
+      &self.deny_headers_client,
+    )
   }
 
   /// Construct and send a request according to htsget positions and headers.
@@ -175,13 +208,21 @@ impl UrlStorage {
     client: ClientWithMiddleware,
     url: Uri,
     response_url: Uri,
-    forward_headers_backend: Vec<String>,
-    reflect_headers_client: Vec<String>,
+    allow_headers_backend: Vec<String>,
+    deny_headers_backend: Vec<String>,
+    allow_headers_client: Vec<String>,
+    deny_headers_client: Vec<String>,
   ) -> Self {
     Self {
       url,
       response_url,
-      url_client: UrlClient::new(client, forward_headers_backend, reflect_headers_client),
+      url_client: UrlClient::new(
+        client,
+        allow_headers_backend,
+        deny_headers_backend,
+        allow_headers_client,
+        deny_headers_client,
+      ),
     }
   }
 
@@ -326,7 +367,9 @@ pub(crate) mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
       vec!["*".to_string()],
+      vec![],
       vec!["*".to_string()],
+      vec![],
     );
 
     assert_eq!(
@@ -342,7 +385,9 @@ pub(crate) mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
       vec!["*".to_string()],
+      vec![],
       vec!["*".to_string()],
+      vec![],
     );
 
     assert_eq!(
@@ -356,7 +401,9 @@ pub(crate) mod tests {
     let storage = UrlClient::new(
       test_client(),
       vec!["authorization".to_string()],
+      vec![],
       vec!["*".to_string()],
+      vec![],
     );
     let mut headers = HeaderMap::default();
     headers.insert(
@@ -384,7 +431,9 @@ pub(crate) mod tests {
     let storage = UrlClient::new(
       test_client(),
       vec!["auth*".to_string()],
+      vec![],
       vec!["hos?".to_string()],
+      vec![],
     );
     let mut headers = HeaderMap::default();
     headers.insert(HOST, HeaderValue::from_str("example.com").unwrap());
@@ -403,6 +452,49 @@ pub(crate) mod tests {
     assert!(result.get(HOST).is_some());
   }
 
+  #[test]
+  fn filter_denylist_headers() {
+    let storage = UrlClient::new(
+      test_client(),
+      vec!["*".to_string()],
+      vec!["authorization".to_string()],
+      vec!["*".to_string()],
+      vec!["x-internal-*".to_string()],
+    );
+
+    let mut headers = HeaderMap::default();
+    headers.insert(HOST, HeaderValue::from_str("example.com").unwrap());
+    headers.insert(AUTHORIZATION, HeaderValue::from_str("secret").unwrap());
+    headers.insert(
+      HeaderName::from_str("x-internal-trace").unwrap(),
+      HeaderValue::from_str("trace").unwrap(),
+    );
+
+    let result = storage.filter_forward_headers(headers.clone());
+    assert_eq!(result.len(), 2);
+    assert!(result.get(AUTHORIZATION).is_none());
+    assert!(result.get(HOST).is_some());
+    assert!(result.get("x-internal-trace").is_some());
+
+    let result = storage.filter_reflect_headers(headers.clone());
+    assert_eq!(result.len(), 2);
+    assert!(result.get(AUTHORIZATION).is_some());
+    assert!(result.get(HOST).is_some());
+    assert!(result.get("x-internal-trace").is_none());
+
+    let storage = UrlClient::new(
+      test_client(),
+      vec!["authorization".to_string()],
+      vec!["authorization".to_string()],
+      vec!["*".to_string()],
+      vec!["*".to_string()],
+    );
+    let result = storage.filter_forward_headers(headers.clone());
+    assert!(result.is_empty());
+    let result = storage.filter_reflect_headers(headers);
+    assert!(result.is_empty());
+  }
+
   #[tokio::test]
   async fn send_request_filter_headers() {
     // The test server middleware asserts that the headers reach the backend.
@@ -413,7 +505,7 @@ pub(crate) mod tests {
           headers.insert(HOST, HeaderValue::from_str("example.com").unwrap());
           let headers = test_headers(&mut headers);
 
-          storage.url_client.forward_headers_backend = vec![forward];
+          storage.url_client.allow_headers_backend = vec![forward];
 
           storage
             .url_client
@@ -542,7 +634,9 @@ pub(crate) mod tests {
           Uri::from_str(&url).unwrap(),
           Uri::from_str(&url).unwrap(),
           vec!["*".to_string()],
+          vec![],
           vec!["*".to_string()],
+          vec![],
         );
         let mut headers = HeaderMap::default();
         let options = test_range_options(&mut headers);
@@ -567,7 +661,9 @@ pub(crate) mod tests {
           Uri::from_str(&url).unwrap(),
           Uri::from_str(&url).unwrap(),
           vec!["*".to_string()],
+          vec![],
           vec!["authorization".to_string()],
+          vec![],
         );
 
         let mut headers = HeaderMap::default();
@@ -611,7 +707,9 @@ pub(crate) mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8080").unwrap(),
       vec!["*".to_string()],
+      vec![],
       vec!["*".to_string()],
+      vec![],
     );
 
     let mut headers = HeaderMap::default();
@@ -631,7 +729,9 @@ pub(crate) mod tests {
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("http://example.com").unwrap(),
       vec!["*".to_string()],
+      vec![],
       vec!["*".to_string()],
+      vec![],
     );
 
     let mut headers = HeaderMap::default();
@@ -650,6 +750,8 @@ pub(crate) mod tests {
       test_client(),
       Uri::from_str("https://example.com").unwrap(),
       Uri::from_str("https://localhost:8081").unwrap(),
+      vec![],
+      vec![],
       vec![],
       vec![],
     );
@@ -740,6 +842,8 @@ pub(crate) mod tests {
         Uri::from_str(&url).unwrap(),
         Uri::from_str(&url).unwrap(),
         vec!["*".to_string()],
+        vec![],
+        vec![],
         vec![],
       ),
       url,
