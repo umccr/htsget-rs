@@ -66,20 +66,17 @@ impl UrlClient {
       return HeaderMap::new();
     }
 
-    headers
-      .into_iter()
-      .filter_map(|(name, value)| {
-        let name = name?;
-        let name_str = name.as_str();
-        if allow.iter().any(|pattern| pattern.matches(name_str))
-          && !deny.iter().any(|pattern| pattern.matches(name_str))
-        {
-          Some((name, value))
-        } else {
-          None
-        }
-      })
-      .collect()
+    let mut keep = false;
+    let mut result = HeaderMap::new();
+    result.extend(headers.into_iter().filter_map(|(name, value)| {
+      if let Some(n) = name.as_ref() {
+        let name_str = n.as_str();
+        keep = allow.iter().any(|pattern| pattern.matches(name_str))
+          && !deny.iter().any(|pattern| pattern.matches(name_str));
+      }
+      keep.then_some((name, value))
+    }));
+    result
   }
 
   /// Set the headers blocked from being forwarded to the backend storage server.
@@ -531,6 +528,55 @@ pub(crate) mod tests {
     assert!(result.get(HOST).is_some());
     assert!(result.get("x-custom-trace").is_some());
     assert!(result.get("x-internal-debug").is_some());
+  }
+
+  #[test]
+  fn filter_repeated_header() {
+    let storage = UrlClient::new(
+      test_client(),
+      vec!["accept".to_string()],
+      vec![],
+      vec!["x-internal".to_string()],
+      vec![],
+    );
+
+    let mut headers = HeaderMap::default();
+    headers.append(
+      HeaderName::from_str("accept").unwrap(),
+      HeaderValue::from_str("text/html").unwrap(),
+    );
+    headers.append(
+      HeaderName::from_str("accept").unwrap(),
+      HeaderValue::from_str("application/json").unwrap(),
+    );
+    headers.append(HOST, HeaderValue::from_str("example.com").unwrap());
+    headers.append(
+      HeaderName::from_str("x-internal").unwrap(),
+      HeaderValue::from_str("a").unwrap(),
+    );
+    headers.append(
+      HeaderName::from_str("x-internal").unwrap(),
+      HeaderValue::from_str("b").unwrap(),
+    );
+
+    let result = storage.filter_forward_headers(headers.clone());
+    let accept_values: Vec<_> = result
+      .get_all("accept")
+      .iter()
+      .map(|v| v.to_str().unwrap().to_string())
+      .collect();
+    assert_eq!(accept_values, vec!["text/html", "application/json"]);
+    assert_eq!(result.get_all("x-internal").iter().count(), 0);
+    assert!(result.get(HOST).is_none());
+
+    let result = storage.filter_reflect_headers(headers);
+    let cookie_values: Vec<_> = result
+      .get_all("x-internal")
+      .iter()
+      .map(|v| v.to_str().unwrap().to_string())
+      .collect();
+    assert_eq!(cookie_values, vec!["a", "b"]);
+    assert_eq!(result.get_all("accept").iter().count(), 0);
   }
 
   #[tokio::test]
