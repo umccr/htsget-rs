@@ -407,9 +407,9 @@ impl TryFrom<String> for BackendWithAppend {
       let url = Url::new(
         uri.clone(),
         Some(uri),
+        vec!["*".to_string()],
         vec![],
-        vec![],
-        vec![],
+        vec!["*".to_string()],
         vec![],
         Default::default(),
       )
@@ -709,6 +709,13 @@ mod tests {
           && let (Backend::Url(url1), Backend::Url(url2)) =
             (location1.backend(), location2.backend())
         {
+          for url in [url1, url2] {
+            assert_eq!(url.allow_headers_backend(), &["*".to_string()]);
+            assert_eq!(url.allow_headers_client(), &["*".to_string()]);
+            assert!(url.deny_headers_backend().is_empty());
+            assert!(url.deny_headers_client().is_empty());
+          }
+
           return (
             url1.url().to_string(),
             location1
