@@ -236,8 +236,10 @@ impl Storage {
         .map_err(|err| StorageError::InternalError(err.to_string()))?,
       url.url().clone(),
       url.response_url().clone(),
-      url.forward_headers(),
-      url.header_blacklist().to_vec(),
+      url.allow_headers_backend().to_vec(),
+      url.deny_headers_backend().to_vec(),
+      url.allow_headers_client().to_vec(),
+      url.deny_headers_client().to_vec(),
     ));
 
     cfg_if! {
@@ -255,7 +257,7 @@ impl Storage {
     mut json_path: storage::json_path::JsonPath,
     _query: &Query,
   ) -> Result<Storage> {
-    let storage = Storage::new(JsonPathStorage::new(
+    let mut json_path_storage = JsonPathStorage::new(
       json_path
         .client_cloned()
         .map_err(|err| StorageError::InternalError(err.to_string()))?,
@@ -263,9 +265,12 @@ impl Storage {
       json_path.content_path().to_string(),
       json_path.size_path().map(|value| value.to_string()),
       json_path.response_path().cloned(),
-      json_path.forward_headers(),
-      json_path.header_blacklist().to_vec(),
-    ));
+      json_path.allow_headers_backend().to_vec(),
+      json_path.allow_headers_client().to_vec(),
+    );
+    json_path_storage.set_deny_headers_backend(json_path.deny_headers_backend().to_vec());
+    json_path_storage.set_deny_headers_client(json_path.deny_headers_client().to_vec());
+    let storage = Storage::new(json_path_storage);
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {

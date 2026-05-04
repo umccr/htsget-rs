@@ -19,7 +19,13 @@ backend.response_path = "$.response"
 ## Or hard-code the response path as a URL
 #backend.response_url = "https://example.com"
 
-backend.forward_headers = true
+# Allow only specific headers to reach the backend server and be reflected back to the client.
+backend.allow_headers_backend = ["Authorization"]
+backend.allow_headers_client = ["Authorization"]
+
+# Optionally denylist headers. These get applied after the allowlist.
+#backend.deny_headers_backend = ["X-Internal-*"]
+#backend.deny_headers_client = ["X-Internal-*"]
 
 # Set client authentication
 #backend.http.key = "key.pem"

@@ -709,20 +709,23 @@ mod tests {
     F: FnOnce(C4GHStorage, String) -> Fut,
     Fut: Future<Output = ()>,
   {
-    with_url_test_server(|storage, url, base_path| async move {
-      create_encrypted_files(&base_path).await;
-      test(
-        C4GHStorage::new(
-          get_decryption_keys().await,
-          get_encryption_keys().await,
-          storage,
-          true,
-          get_encoded_public_key(),
-        ),
-        url,
-      )
-      .await;
-    })
+    with_url_test_server(
+      |storage, url, base_path| async move {
+        create_encrypted_files(&base_path).await;
+        test(
+          C4GHStorage::new(
+            get_decryption_keys().await,
+            get_encryption_keys().await,
+            storage,
+            true,
+            get_encoded_public_key(),
+          ),
+          url,
+        )
+        .await;
+      },
+      vec![],
+    )
     .await;
   }
 }

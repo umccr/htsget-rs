@@ -115,7 +115,10 @@ mod tests {
         kind = "Url"
         url = "https://example.com/"
         response_url = "https://example.com/"
-        forward_headers = false
+        allow_headers_backend = []
+        allow_headers_client = []
+        deny_headers_backend = []
+        deny_headers_client = []
         "#,
       |config| {
         assert!(matches!(

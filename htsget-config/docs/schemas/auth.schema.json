@@ -222,11 +222,28 @@
               "type": ["string", "null"],
               "default": null
             },
-            "forward_headers": {
-              "type": "boolean",
-              "default": true
+            "allow_headers_backend": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": ["*"]
             },
-            "header_blacklist": {
+            "deny_headers_backend": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "allow_headers_client": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": ["*"]
+            },
+            "deny_headers_client": {
               "type": "array",
               "items": {
                 "type": "string"
@@ -280,11 +297,28 @@
               "type": ["string", "null"],
               "default": null
             },
-            "forward_headers": {
-              "type": "boolean",
-              "default": true
+            "allow_headers_backend": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": ["*"]
             },
-            "header_blacklist": {
+            "deny_headers_backend": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "allow_headers_client": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": ["*"]
+            },
+            "deny_headers_client": {
               "type": "array",
               "items": {
                 "type": "string"

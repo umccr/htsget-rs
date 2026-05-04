@@ -24,8 +24,10 @@ pub struct JsonPath {
   size_path: Option<String>,
   response_path: Option<String>,
   response_url: Option<String>,
-  forward_headers: bool,
-  header_blacklist: Vec<String>,
+  allow_headers_backend: Vec<String>,
+  deny_headers_backend: Vec<String>,
+  allow_headers_client: Vec<String>,
+  deny_headers_client: Vec<String>,
   #[schemars(skip)]
   #[serde(alias = "tls", skip_serializing)]
   http: HttpClientConfig,
@@ -46,8 +48,8 @@ impl JsonPath {
     size_path: Option<String>,
     response_path: Option<String>,
     response_url: Option<String>,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
+    allow_headers_backend: Vec<String>,
+    allow_headers_client: Vec<String>,
   ) -> Self {
     Self {
       resolve_from,
@@ -55,8 +57,10 @@ impl JsonPath {
       size_path,
       response_path,
       response_url,
-      forward_headers,
-      header_blacklist,
+      allow_headers_backend,
+      deny_headers_backend: vec![],
+      allow_headers_client,
+      deny_headers_client: vec![],
       http: HttpClientConfig::default(),
       #[cfg(feature = "experimental")]
       keys: None,
@@ -64,6 +68,16 @@ impl JsonPath {
       #[cfg(feature = "experimental")]
       forward_public_key: true,
     }
+  }
+
+  /// Set the headers blocked from forwarding to the backend server.
+  pub fn set_deny_headers_backend(&mut self, deny_headers_backend: Vec<String>) {
+    self.deny_headers_backend = deny_headers_backend;
+  }
+
+  /// Set the headers blocked from being reflected back to the client.
+  pub fn set_deny_headers_client(&mut self, deny_headers_client: Vec<String>) {
+    self.deny_headers_client = deny_headers_client;
   }
 
   /// Get the resolve API url.
@@ -91,10 +105,24 @@ impl JsonPath {
     self.response_url.as_deref()
   }
 
-  /// Whether headers received in a query request should be
-  /// included in the returned data block tickets.
-  pub fn forward_headers(&self) -> bool {
-    self.forward_headers
+  /// Get the headers forwarded to the backend storage server. Supports wildcards using `*` and `?`.
+  pub fn allow_headers_backend(&self) -> &[String] {
+    &self.allow_headers_backend
+  }
+
+  /// Get the headers blocked from being forwarded to the backend storage server. Supports wildcards using `*` and `?`.
+  pub fn deny_headers_backend(&self) -> &[String] {
+    &self.deny_headers_backend
+  }
+
+  /// Get the headers reflected back to the client in tickets. Supports wildcards using `*` and `?`.
+  pub fn allow_headers_client(&self) -> &[String] {
+    &self.allow_headers_client
+  }
+
+  /// Get the headers blocked from being reflected back to the client in tickets. Supports wildcards using `*` and `?`.
+  pub fn deny_headers_client(&self) -> &[String] {
+    &self.deny_headers_client
   }
 
   /// Get the http client config.
@@ -151,19 +179,20 @@ impl TryFrom<JsonPath> for storage::json_path::JsonPath {
       }
     };
 
-    let url_storage = Self::new(
+    let mut url_storage = Self::new(
       storage.resolve_from.parse().map_err(map_err)?,
       storage.content_path,
       storage.size_path,
       response_url,
-      storage.forward_headers,
-      storage.header_blacklist,
+      storage.allow_headers_backend,
+      storage.allow_headers_client,
       client,
     );
+    url_storage.set_deny_headers_backend(storage.deny_headers_backend);
+    url_storage.set_deny_headers_client(storage.deny_headers_client);
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        let mut url_storage = url_storage;
         url_storage.set_keys(storage.keys);
         url_storage.set_forward_public_key(storage.forward_public_key);
         Ok(url_storage)
@@ -182,8 +211,8 @@ impl Default for JsonPath {
       Default::default(),
       Default::default(),
       Default::default(),
-      true,
-      Default::default(),
+      vec!["*".to_string()],
+      vec!["*".to_string()],
     );
 
     url.is_defaulted = true;
@@ -204,16 +233,20 @@ mod tests {
       response_path = "$.response"
       content_path = "$.content"
       size_path = "$.size"
-      forward_headers = false
-      header_blacklist = ["Host"]
+      allow_headers_backend = ["Authorization"]
+      deny_headers_backend = ["X-Internal-*"]
+      allow_headers_client = ["Authorization"]
+      deny_headers_client = ["X-Internal-*"]
       "#,
       Ok((
         "https://example.com/".to_string(),
         Some(JsonPathOrUrl::JsonPath("$.response".to_string())),
         "$.content".to_string(),
         Some("$.size".to_string()),
-        false,
-        vec!["Host".to_string()],
+        vec!["Authorization".to_string()],
+        vec!["X-Internal-*".to_string()],
+        vec!["Authorization".to_string()],
+        vec!["X-Internal-*".to_string()],
       )),
       get_result_values,
     );
@@ -227,16 +260,20 @@ mod tests {
       response_url = "https://example.com"
       content_path = "$.content"
       size_path = "$.size"
-      forward_headers = false
-      header_blacklist = ["Host"]
+      allow_headers_backend = ["Authorization"]
+      deny_headers_backend = ["X-Internal-*"]
+      allow_headers_client = ["Authorization"]
+      deny_headers_client = ["X-Internal-*"]
       "#,
       Ok((
         "https://example.com/".to_string(),
         Some(JsonPathOrUrl::Url("https://example.com".parse().unwrap())),
         "$.content".to_string(),
         Some("$.size".to_string()),
-        false,
-        vec!["Host".to_string()],
+        vec!["Authorization".to_string()],
+        vec!["X-Internal-*".to_string()],
+        vec!["Authorization".to_string()],
+        vec!["X-Internal-*".to_string()],
       )),
       get_result_values,
     );
@@ -251,8 +288,10 @@ mod tests {
       response_path = "$.response"
       content_path = "$.content"
       size_path = "$.size"
-      forward_headers = false
-      header_blacklist = ["Host"]
+      allow_headers_backend = ["Authorization"]
+      deny_headers_backend = ["X-Internal-*"]
+      allow_headers_client = ["Authorization"]
+      deny_headers_client = ["X-Internal-*"]
       "#,
       (),
       |result| {
@@ -267,7 +306,9 @@ mod tests {
     Option<JsonPathOrUrl>,
     String,
     Option<String>,
-    bool,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
     Vec<String>,
   )>;
 
@@ -278,8 +319,10 @@ mod tests {
       result.response_path().cloned(),
       result.content_path().to_string(),
       result.size_path().map(|value| value.to_string()),
-      result.forward_headers(),
-      result.header_blacklist().to_vec(),
+      result.allow_headers_backend().to_vec(),
+      result.deny_headers_backend().to_vec(),
+      result.allow_headers_client().to_vec(),
+      result.deny_headers_client().to_vec(),
     ))
   }
 }

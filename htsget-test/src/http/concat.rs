@@ -71,8 +71,7 @@ impl ConcatResponse {
                     HeaderValue::from_str(&value).map_err(TestError::concat_response)?,
                   ))
                 })
-                .collect::<Result<Vec<(HeaderName, HeaderValue)>>>()?
-                .into_iter(),
+                .collect::<Result<Vec<(HeaderName, HeaderValue)>>>()?,
             ))
             .send()
             .await

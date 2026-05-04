@@ -24,10 +24,14 @@ pub struct Url {
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   response_url: Uri,
-  /// Whether to forward client headers to the remote URL.
-  forward_headers: bool,
-  /// Headers to not forward to the remote URL even if `forward_headers` is true.
-  header_blacklist: Vec<String>,
+  /// Headers that are forwarded to the backend storage server. Supports wildcards using `*` and `?`.
+  allow_headers_backend: Vec<String>,
+  /// Headers that are not forwarded to the backend storage server. Supports wildcards using `*` and `?`.
+  deny_headers_backend: Vec<String>,
+  /// Headers that are reflected back to the client in tickets. Supports wildcards using `*` and `?`.
+  allow_headers_client: Vec<String>,
+  /// Headers that are not reflected back to the client in tickets. Supports wildcards using `*` and `?`.
+  deny_headers_client: Vec<String>,
   #[serde(skip_serializing)]
   #[schemars(skip)]
   client: HttpClient,
@@ -48,8 +52,10 @@ impl PartialEq for Url {
   fn eq(&self, other: &Self) -> bool {
     self.url == other.url
       && self.response_url == other.response_url
-      && self.forward_headers == other.forward_headers
-      && self.header_blacklist == other.header_blacklist
+      && self.allow_headers_backend == other.allow_headers_backend
+      && self.deny_headers_backend == other.deny_headers_backend
+      && self.allow_headers_client == other.allow_headers_client
+      && self.deny_headers_client == other.deny_headers_client
   }
 }
 
@@ -58,15 +64,19 @@ impl Url {
   pub fn new(
     url: Uri,
     response_url: Uri,
-    forward_headers: bool,
-    header_blacklist: Vec<String>,
+    allow_headers_backend: Vec<String>,
+    deny_headers_backend: Vec<String>,
+    allow_headers_client: Vec<String>,
+    deny_headers_client: Vec<String>,
     client: HttpClient,
   ) -> Self {
     Self {
       url,
       response_url,
-      forward_headers,
-      header_blacklist,
+      allow_headers_backend,
+      deny_headers_backend,
+      allow_headers_client,
+      deny_headers_client,
       client,
       #[cfg(feature = "experimental")]
       keys: None,
@@ -86,14 +96,26 @@ impl Url {
     &self.response_url
   }
 
-  /// Whether to forward headers in the url tickets.
-  pub fn forward_headers(&self) -> bool {
-    self.forward_headers
+  /// Get the headers forwarded to the backend storage server. Supports wildcards using `*` and `?`.
+  pub fn allow_headers_backend(&self) -> &[String] {
+    &self.allow_headers_backend
   }
 
-  /// Get the headers that should not be forwarded.
-  pub fn header_blacklist(&self) -> &[String] {
-    &self.header_blacklist
+  /// Get the headers blocked from being forwarded to the backend storage server. Supports
+  /// wildcards using `*` and `?`.
+  pub fn deny_headers_backend(&self) -> &[String] {
+    &self.deny_headers_backend
+  }
+
+  /// Get the headers reflected back to the client in tickets. Supports wildcards using `*` and `?`.
+  pub fn allow_headers_client(&self) -> &[String] {
+    &self.allow_headers_client
+  }
+
+  /// Get the headers blocked from being reflected back to the client in tickets. Supports
+  /// wildcards using `*` and `?`.
+  pub fn deny_headers_client(&self) -> &[String] {
+    &self.deny_headers_client
   }
 
   /// Get an owned client by cloning.
@@ -142,8 +164,10 @@ impl Default for Url {
     let mut url = Self::new(
       Default::default(),
       Default::default(),
-      Default::default(),
-      Default::default(),
+      vec!["*".to_string()],
+      vec![],
+      vec!["*".to_string()],
+      vec![],
       HttpClient::from(HttpClientConfig::default()),
     );
 
