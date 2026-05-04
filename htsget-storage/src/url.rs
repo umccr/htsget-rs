@@ -42,14 +42,21 @@ impl UrlClient {
     allow_headers_client: Vec<String>,
     deny_headers_client: Vec<String>,
   ) -> Self {
-    let map_filters = |filters: Vec<String>| filters.iter().map(|f| WildMatch::new(f)).collect();
     Self {
       client,
-      allow_headers_backend: map_filters(allow_headers_backend),
-      deny_headers_backend: map_filters(deny_headers_backend),
-      allow_headers_client: map_filters(allow_headers_client),
-      deny_headers_client: map_filters(deny_headers_client),
+      allow_headers_backend: Self::map_filters(allow_headers_backend),
+      deny_headers_backend: Self::map_filters(deny_headers_backend),
+      allow_headers_client: Self::map_filters(allow_headers_client),
+      deny_headers_client: Self::map_filters(deny_headers_client),
     }
+  }
+
+  /// Compile filter patterns, ensure case insensitivity of headers is preserved.
+  fn map_filters(filters: Vec<String>) -> Vec<WildMatch> {
+    filters
+      .iter()
+      .map(|f| WildMatch::new(&f.to_lowercase()))
+      .collect()
   }
 
   /// Filter a header map, keeping only headers whose names match at least one of the allow
@@ -77,18 +84,12 @@ impl UrlClient {
 
   /// Set the headers blocked from being forwarded to the backend storage server.
   pub fn set_deny_headers_backend(&mut self, deny_headers_backend: Vec<String>) {
-    self.deny_headers_backend = deny_headers_backend
-      .iter()
-      .map(|f| WildMatch::new(f))
-      .collect();
+    self.deny_headers_backend = Self::map_filters(deny_headers_backend);
   }
 
   /// Set the headers blocked from being reflected back to the client in tickets.
   pub fn set_deny_headers_client(&mut self, deny_headers_client: Vec<String>) {
-    self.deny_headers_client = deny_headers_client
-      .iter()
-      .map(|f| WildMatch::new(f))
-      .collect();
+    self.deny_headers_client = Self::map_filters(deny_headers_client);
   }
 
   /// Filter headers to only those matching the `allow_headers_backend` patterns and not matching
@@ -493,6 +494,43 @@ pub(crate) mod tests {
     assert!(result.is_empty());
     let result = storage.filter_reflect_headers(headers);
     assert!(result.is_empty());
+  }
+
+  #[test]
+  fn filter_mixed_case_patterns() {
+    let storage = UrlClient::new(
+      test_client(),
+      vec!["Authorization".to_string(), "X-Custom-*".to_string()],
+      vec!["X-Internal-*".to_string()],
+      vec!["*".to_string()],
+      vec!["AUTHORIZATION".to_string()],
+    );
+
+    let mut headers = HeaderMap::default();
+    headers.insert(HOST, HeaderValue::from_str("example.com").unwrap());
+    headers.insert(AUTHORIZATION, HeaderValue::from_str("secret").unwrap());
+    headers.insert(
+      HeaderName::from_str("x-custom-trace").unwrap(),
+      HeaderValue::from_str("trace").unwrap(),
+    );
+    headers.insert(
+      HeaderName::from_str("x-internal-debug").unwrap(),
+      HeaderValue::from_str("debug").unwrap(),
+    );
+
+    let result = storage.filter_forward_headers(headers.clone());
+    assert_eq!(result.len(), 2);
+    assert!(result.get(AUTHORIZATION).is_some());
+    assert!(result.get("x-custom-trace").is_some());
+    assert!(result.get(HOST).is_none());
+    assert!(result.get("x-internal-debug").is_none());
+
+    let result = storage.filter_reflect_headers(headers);
+    assert_eq!(result.len(), 3);
+    assert!(result.get(AUTHORIZATION).is_none());
+    assert!(result.get(HOST).is_some());
+    assert!(result.get("x-custom-trace").is_some());
+    assert!(result.get("x-internal-debug").is_some());
   }
 
   #[tokio::test]
