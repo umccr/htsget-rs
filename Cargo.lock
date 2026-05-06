@@ -2499,6 +2499,7 @@ dependencies = [
  "crypt4gh",
  "figment",
  "futures-util",
+ "heck",
  "http 1.4.0",
  "http-cache-reqwest",
  "http-serde",
