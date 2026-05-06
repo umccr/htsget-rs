@@ -208,6 +208,80 @@ impl ContextExtension {
   }
 }
 
+/// How to interpret a fetched object.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(try_from = "ParseRaw")]
+pub enum Parse {
+  /// The incoming object is raw bytes, with the option to override the ticket URL.
+  Bytes { ticket_url: Option<Uri> },
+  /// The incoming object is JSON, where JSONPath specifies how to find the data and location.
+  JsonPath {
+    content_path: String,
+    size_path: Option<String>,
+    ticket: Option<TicketSource>,
+  },
+}
+
+/// Where the URL tickets come from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TicketSource {
+  /// Take the URL ticket from a JSONPath.
+  JsonPath { path: String },
+  /// Use a static URL for tickets.
+  Url {
+    url: Uri,
+  },
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum ParseRaw {
+  Bytes {
+    #[serde(default, with = "http_serde::option::uri")]
+    ticket_url: Option<Uri>,
+  },
+  JsonPath {
+    content_path: String,
+    #[serde(default)]
+    size_path: Option<String>,
+    #[serde(default)]
+    ticket_path: Option<String>,
+    #[serde(default, with = "http_serde::option::uri")]
+    ticket_url: Option<Uri>,
+  },
+}
+
+impl TryFrom<ParseRaw> for Parse {
+  type Error = Error;
+
+  fn try_from(raw: ParseRaw) -> Result<Self> {
+    match raw {
+      ParseRaw::Bytes { ticket_url } => Ok(Parse::Bytes { ticket_url }),
+      ParseRaw::JsonPath {
+        content_path,
+        size_path,
+        ticket_path,
+        ticket_url,
+      } => {
+        let ticket = match (ticket_path, ticket_url) {
+          (None, None) => None,
+          (None, Some(url)) => Some(TicketSource::Url { url }),
+          (Some(path), None) => Some(TicketSource::JsonPath { path }),
+          (Some(_), Some(_)) => return Err(ParseError(
+            "cannot specify both `ticket_path` and `ticket_url`".to_string(),
+          ))
+        };
+
+        Ok(Parse::JsonPath {
+          content_path,
+          size_path,
+          ticket,
+        })
+      }
+    }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -278,5 +352,89 @@ mod tests {
 
     let toml = r#"json_path = "$.""#;
     assert!(toml::from_str::<ContextExtension>(toml).is_err());
+  }
+
+  #[test]
+  fn parse_bytes() {
+    let toml = r#"kind = "bytes""#;
+    let parse = toml::from_str(toml).unwrap();
+    assert!(matches!(parse, Parse::Bytes { ticket_url: None }));
+
+    let toml = r#"
+      kind = "bytes"
+      ticket_url = "https://example.com"
+    "#;
+    let parse = toml::from_str(toml).unwrap();
+    match parse {
+      Parse::Bytes { ticket_url } => {
+        assert_eq!(ticket_url.unwrap().to_string(), "https://example.com/");
+      }
+      _ => panic!(),
+    }
+  }
+
+  #[test]
+  fn parse_json_path() {
+    let toml = r#"
+      kind = "json_path"
+      content_path = "$.content"
+      size_path    = "$.size"
+      ticket_path  = "$.response"
+    "#;
+    let parse = toml::from_str(toml).unwrap();
+    match parse {
+      Parse::JsonPath {
+        content_path,
+        size_path,
+        ticket,
+      } => {
+        assert_eq!(content_path, "$.content");
+        assert_eq!(size_path.as_deref(), Some("$.size"));
+        assert_eq!(
+          ticket,
+          Some(TicketSource::JsonPath { path: "$.response".to_string()} ),
+        );
+      }
+      _ => panic!(),
+    }
+
+    let toml = r#"
+      kind = "json_path"
+      content_path = "$.content"
+      ticket_url  = "https://example.com"
+    "#;
+    let parse = toml::from_str(toml).unwrap();
+    match parse {
+      Parse::JsonPath { ticket, .. } => {
+        assert_eq!(
+          ticket,
+          Some(TicketSource::Url { url: "https://example.com".parse().unwrap()} ),
+        );
+      }
+      _ => panic!(),
+    }
+
+    let toml = r#"
+      kind = "json_path"
+      content_path = "$.content"
+    "#;
+    let parse = toml::from_str(toml).unwrap();
+    match parse {
+      Parse::JsonPath { ticket, .. } => {
+        assert!(
+          ticket.is_none(),
+        );
+      }
+      _ => panic!(),
+    }
+
+    let toml = r#"
+      kind = "json_path"
+      content_path = "$.content"
+      ticket_path  = "$.response"
+      ticket_url  = "https://example.com"
+    "#;
+    let parse = toml::from_str::<Parse>(toml);
+    assert!(parse.is_err());
   }
 }
