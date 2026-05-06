@@ -282,6 +282,27 @@ impl TryFrom<ParseRaw> for Parse {
   }
 }
 
+
+/// Which headers from the response to echo back to the client in the ticket.
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(deny_unknown_fields, default)]
+pub struct Reflect {
+  headers: HeaderRules,
+}
+
+impl Reflect {
+  /// Create a new reflect config.
+  pub fn new(headers: HeaderRules) -> Self {
+    Self { headers }
+  }
+
+  /// Header rules.
+  pub fn headers(&self) -> &HeaderRules {
+    &self.headers
+  }
+}
+
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -436,5 +457,20 @@ mod tests {
     "#;
     let parse = toml::from_str::<Parse>(toml);
     assert!(parse.is_err());
+  }
+
+  #[test]
+  fn reflect_default() {
+    let reflect: Reflect = toml::from_str("").unwrap();
+    assert!(reflect.headers().allow().is_empty());
+    assert!(reflect.headers().deny().is_empty());
+
+    let toml = r#"
+      headers.allow = ["Authorization"]
+      headers.deny  = ["X-Custom-*"]
+    "#;
+    let reflect: Reflect = toml::from_str(toml).unwrap();
+    assert_eq!(reflect.headers().allow(), &["Authorization".to_string()]);
+    assert_eq!(reflect.headers().deny(), &["X-Custom-*".to_string()]);
   }
 }
