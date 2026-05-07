@@ -1,16 +1,20 @@
 //! JWT authorization configuration and response structures.
 //!
-//! This module provides configuration structures for JWT token validation and authorization
-//! service integration, enabling fine-grained access control over genomic data.
+//! Provides JWT validation and authorization config for accessing
+//! data.
 //!
 
+use crate::config::advanced::auth::authorization::{
+  AuthorizationSource, AuthorizationSourceBuilder,
+};
+use crate::config::advanced::auth::jwt::{JwtKey, JwtKeyBuilder};
 use crate::config::advanced::HttpClient;
-use crate::config::advanced::auth::authorization::{ForwardExtensions, UrlOrStatic};
-use crate::config::advanced::auth::jwt::AuthMode;
+use crate::config::advanced::callout::{Callout, Forward};
 use crate::config::service_info::PackageInfo;
+use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
-use reqwest_middleware::ClientWithMiddleware;
+use http::Uri;
 pub use response::{AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction};
 use serde::Deserialize;
 
@@ -18,21 +22,15 @@ pub mod authorization;
 pub mod jwt;
 pub mod response;
 
-/// Configuration for JWT authorization.
+/// Auth configuration using JWT validation with optional authorization.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields, try_from = "AuthConfigBuilder")]
+#[serde(try_from = "AuthConfigBuilder")]
 pub struct AuthConfig {
-  auth_mode: Option<AuthMode>,
+  jwt: Option<JwtKey>,
   validate_audience: Option<Vec<String>>,
   validate_issuer: Option<Vec<String>>,
   validate_subject: Option<String>,
-  authorization_url: Option<UrlOrStatic>,
-  forward_headers: Vec<String>,
-  forward_endpoint_type: bool,
-  forward_id: bool,
-  passthrough_auth: bool,
-  forward_extensions: Vec<ForwardExtensions>,
-  http_client: HttpClient,
+  authorization: Option<AuthorizationSource>,
   #[cfg(feature = "experimental")]
   suppress_errors: bool,
   #[cfg(feature = "experimental")]
@@ -40,6 +38,41 @@ pub struct AuthConfig {
 }
 
 impl AuthConfig {
+  /// JWT key source.
+  pub fn jwt(&self) -> Option<&JwtKey> {
+    self.jwt.as_ref()
+  }
+
+  /// Mutable JWT key source.
+  pub fn jwt_mut(&mut self) -> Option<&mut JwtKey> {
+    self.jwt.as_mut()
+  }
+
+  /// Audiences to validate.
+  pub fn validate_audience(&self) -> Option<&[String]> {
+    self.validate_audience.as_deref()
+  }
+
+  /// Issuers to validate.
+  pub fn validate_issuer(&self) -> Option<&[String]> {
+    self.validate_issuer.as_deref()
+  }
+
+  /// Subject to validate.
+  pub fn validate_subject(&self) -> Option<&str> {
+    self.validate_subject.as_deref()
+  }
+
+  /// Authorization source.
+  pub fn authorization(&self) -> Option<&AuthorizationSource> {
+    self.authorization.as_ref()
+  }
+
+  /// Mutable authorization source.
+  pub fn authorization_mut(&mut self) -> Option<&mut AuthorizationSource> {
+    self.authorization.as_mut()
+  }
+
   /// Whether to suppress errors and return any available regions.
   #[cfg(feature = "experimental")]
   pub fn suppress_errors(&self) -> bool {
@@ -52,94 +85,35 @@ impl AuthConfig {
     self.add_hint
   }
 
-  /// Get the http client.
-  pub fn http_client(&mut self) -> Result<&ClientWithMiddleware> {
-    self.http_client.as_inner_built()
-  }
-
-  /// Get a mutable reference to the inner client builder.
-  pub fn inner_client_mut(&mut self) -> &mut HttpClient {
-    &mut self.http_client
-  }
-
-  /// Get the authorization mode.
-  pub fn auth_mode(&self) -> Option<&AuthMode> {
-    self.auth_mode.as_ref()
-  }
-
-  /// Get the authorization mode.
-  pub fn auth_mode_mut(&mut self) -> Option<&mut AuthMode> {
-    self.auth_mode.as_mut()
-  }
-
-  /// Get the validate audience list.
-  pub fn validate_audience(&self) -> Option<&[String]> {
-    self.validate_audience.as_deref()
-  }
-
-  /// Get the validate issuer list.
-  pub fn validate_issuer(&self) -> Option<&[String]> {
-    self.validate_issuer.as_deref()
-  }
-
-  /// Get the validate issuer list.
-  pub fn validate_subject(&self) -> Option<&str> {
-    self.validate_subject.as_deref()
-  }
-
-  /// Get the authorization url.
-  pub fn authorization_url(&self) -> Option<&UrlOrStatic> {
-    self.authorization_url.as_ref()
-  }
-
-  /// Get the headers to forward.
-  pub fn forward_headers(&self) -> &[String] {
-    self.forward_headers.as_slice()
-  }
-
-  /// Get whether to forward the endpoint type of the request.
-  pub fn forward_endpoint_type(&self) -> bool {
-    self.forward_endpoint_type
-  }
-
-  /// Get whether to forward the id of the request.
-  pub fn forward_id(&self) -> bool {
-    self.forward_id
-  }
-
-  /// Get whether to pass through the auth header.
-  pub fn passthrough_auth(&self) -> bool {
-    self.passthrough_auth
-  }
-
-  /// Get the extensions to forward.
-  pub fn forward_extensions(&self) -> &[ForwardExtensions] {
-    self.forward_extensions.as_slice()
-  }
-
-  /// Set the user-agent information from the package info.
+  /// Set the user-agent on every internal HTTP client.
   pub fn set_from_package_info(&mut self, info: &PackageInfo) -> Result<()> {
-    self.inner_client_mut().set_from_package_info(info)
+    if let Some(callout) = self.jwt.as_mut().and_then(JwtKey::jwks_mut) {
+      callout.http_mut().set_from_package_info(info)?;
+    }
+    if let Some(callout) = self
+      .authorization
+      .as_mut()
+      .and_then(AuthorizationSource::callout_mut)
+    {
+      callout.http_mut().set_from_package_info(info)?;
+    }
+    Ok(())
   }
 }
 
 /// Builder for `AuthConfig`.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct AuthConfigBuilder {
-  #[serde(flatten, skip_serializing)]
-  auth_mode: Option<AuthMode>,
+  jwt: Option<JwtKeyBuilder>,
+  #[serde(default, with = "http_serde::option::uri")]
+  jwks_url: Option<Uri>,
+  #[serde(skip)]
+  jwt_raw: Option<JwtKey>,
   validate_audience: Option<Vec<String>>,
   validate_issuer: Option<Vec<String>>,
   validate_subject: Option<String>,
-  authorization_url: Option<UrlOrStatic>,
-  forward_headers: Vec<String>,
-  forward_endpoint_type: bool,
-  forward_id: bool,
-  passthrough_auth: bool,
-  forward_extensions: Vec<ForwardExtensions>,
-  #[serde(rename = "http", alias = "tls", skip_serializing)]
-  http_client: Option<HttpClient>,
+  authorization: Option<AuthorizationSourceBuilder>,
   #[cfg(feature = "experimental")]
   suppress_errors: bool,
   #[cfg(feature = "experimental")]
@@ -147,29 +121,21 @@ pub struct AuthConfigBuilder {
 }
 
 impl AuthConfigBuilder {
-  /// Set the HTTP client.
-  pub fn http_client(mut self, http_client: HttpClient) -> Self {
-    self.http_client = Some(http_client);
+  /// Set the JWT key from a builder.
+  pub fn jwt(mut self, jwt: JwtKeyBuilder) -> Self {
+    self.jwt = Some(jwt);
     self
   }
 
-  /// Suppress errors and return any allowed regions if available.
-  #[cfg(feature = "experimental")]
-  pub fn suppress_errors(mut self, suppress_errors: bool) -> Self {
-    self.suppress_errors = suppress_errors;
+  /// Set a JWT key directly.
+  pub fn jwt_raw(mut self, jwt: JwtKey) -> Self {
+    self.jwt_raw = Some(jwt);
     self
   }
 
-  /// Add a hint that shows the client which regions are allowed in ticket responses.
-  #[cfg(feature = "experimental")]
-  pub fn add_hint(mut self, add_hint: bool) -> Self {
-    self.add_hint = add_hint;
-    self
-  }
-
-  /// Set the auth mode.
-  pub fn auth_mode(mut self, auth_mode: AuthMode) -> Self {
-    self.auth_mode = Some(auth_mode);
+  /// Set the JWKS URL using default callout settings
+  pub fn jwks_url(mut self, url: Uri) -> Self {
+    self.jwks_url = Some(url);
     self
   }
 
@@ -191,88 +157,57 @@ impl AuthConfigBuilder {
     self
   }
 
-  /// Set the authorization url.
-  pub fn authorization_url(mut self, authorization_url: UrlOrStatic) -> Self {
-    self.authorization_url = Some(authorization_url);
+  /// Set the authorization source.
+  pub fn authorization(mut self, authorization: AuthorizationSourceBuilder) -> Self {
+    self.authorization = Some(authorization);
     self
   }
 
-  /// Set the headers to forward.
-  pub fn forward_headers(mut self, forward_headers: Vec<String>) -> Self {
-    self.forward_headers = forward_headers;
+  /// Suppress errors and return any allowed regions if available.
+  #[cfg(feature = "experimental")]
+  pub fn suppress_errors(mut self, suppress_errors: bool) -> Self {
+    self.suppress_errors = suppress_errors;
     self
   }
 
-  /// Set whether to forward the endpoint type.
-  pub fn forward_endpoint_type(mut self, forward_endpoint_type: bool) -> Self {
-    self.forward_endpoint_type = forward_endpoint_type;
-    self
-  }
-
-  /// Set whether to forward the id.
-  pub fn forward_id(mut self, forward_id: bool) -> Self {
-    self.forward_id = forward_id;
-    self
-  }
-
-  /// Set whether to pass through auth.
-  pub fn passthrough_auth(mut self, passthrough_auth: bool) -> Self {
-    self.passthrough_auth = passthrough_auth;
-    self
-  }
-
-  /// Set the extensions to forward
-  pub fn forward_extensions(mut self, forward_extensions: Vec<ForwardExtensions>) -> Self {
-    self.forward_extensions = forward_extensions;
+  /// Add a hint that shows the client which regions are allowed in ticket responses.
+  #[cfg(feature = "experimental")]
+  pub fn add_hint(mut self, add_hint: bool) -> Self {
+    self.add_hint = add_hint;
     self
   }
 
   /// Build the auth config.
   pub fn build(self) -> Result<AuthConfig> {
+    let jwt = match (self.jwt, self.jwks_url, self.jwt_raw) {
+      (None, None, None) => None,
+      (Some(builder), None, None) => Some(builder.build()?),
+      (None, Some(url), None) => Some(JwtKey::Jwks(Callout::new(
+        url,
+        HttpClient::from(HttpClientConfig::default()),
+        Forward::default(),
+      ))),
+      (None, None, Some(key)) => Some(key),
+      _ => {
+        return Err(ParseError(
+          "specify only one of `jwt`, `jwks_url`, or `jwt_raw`".to_string(),
+        ));
+      }
+    };
+
+    let authorization = self.authorization.map(|b| b.build()).transpose()?;
+
     Ok(AuthConfig {
-      auth_mode: self.auth_mode,
+      jwt,
       validate_audience: self.validate_audience,
       validate_issuer: self.validate_issuer,
       validate_subject: self.validate_subject,
-      authorization_url: self.authorization_url,
-      forward_headers: self.forward_headers,
-      forward_endpoint_type: self.forward_endpoint_type,
-      forward_id: self.forward_id,
-      passthrough_auth: self.passthrough_auth,
-      forward_extensions: self.forward_extensions,
-      http_client: self
-        .http_client
-        .unwrap_or(HttpClient::from(HttpClientConfig::default())),
+      authorization,
       #[cfg(feature = "experimental")]
       suppress_errors: self.suppress_errors,
       #[cfg(feature = "experimental")]
       add_hint: self.add_hint,
     })
-  }
-}
-
-impl Default for AuthConfigBuilder {
-  fn default() -> Self {
-    // Satisfy https://rust-lang.github.io/rust-clippy/master/index.html#derivable_impls
-    // when `experimental` is not enabled.
-    let authorization_url = None;
-    Self {
-      auth_mode: None,
-      validate_audience: None,
-      validate_issuer: None,
-      validate_subject: None,
-      authorization_url,
-      forward_headers: vec![],
-      forward_endpoint_type: false,
-      forward_id: false,
-      passthrough_auth: false,
-      forward_extensions: vec![],
-      http_client: None,
-      #[cfg(feature = "experimental")]
-      suppress_errors: false,
-      #[cfg(feature = "experimental")]
-      add_hint: true,
-    }
   }
 }
 
@@ -293,74 +228,94 @@ mod tests {
   use crate::config::location::{Location, PrefixOrId, SimpleLocation};
   use crate::http::tests::with_test_certificates;
   use crate::storage::Backend;
-  use http::Uri;
   use serde_json::to_string;
   use std::io::Write;
   use tempfile::NamedTempFile;
 
   #[test]
+  fn auth_config_jwks_url() {
+    let config: AuthConfig = toml::from_str(r#"jwks_url = "https://example.com/jwks""#).unwrap();
+    let callout = config.jwt().unwrap().jwks().unwrap();
+    assert_eq!(callout.url().to_string(), "https://example.com/jwks");
+  }
+
+  #[test]
+  fn auth_config_jwks_full() {
+    let config: AuthConfig = toml::from_str(
+      r#"
+      [jwt]
+      kind = "jwks"
+      url  = "https://example.com/jwks"
+
+      [jwt.forward]
+      headers.allow = ["Authorization"]
+      "#,
+    )
+    .unwrap();
+    let callout = config.jwt().unwrap().jwks().unwrap();
+    assert_eq!(callout.url().to_string(), "https://example.com/jwks");
+    assert_eq!(
+      callout.forward().headers().allow(),
+      &["Authorization".to_string()]
+    );
+  }
+
+  #[test]
   fn auth_config_public_key() {
     with_test_certificates(|path, _, _| {
       let key_path = path.join("key.pem");
-
       let config: AuthConfig = toml::from_str(&format!(
         r#"
-        public_key = "{}"
+        [jwt]
+        kind = "public_key"
+        path = "{}"
         "#,
         key_path.to_string_lossy()
       ))
       .unwrap();
-
-      assert!(matches!(
-        config.auth_mode().unwrap(),
-        AuthMode::PublicKey(_)
-      ));
+      assert!(config.jwt().unwrap().public_key().is_some());
     });
   }
 
   #[test]
-  fn auth_config_no_mode() {
-    let config = toml::from_str::<AuthConfig>(
+  fn auth_config_rejects_duplicate() {
+    let result = toml::from_str::<AuthConfig>(
       r#"
-      validate_audience = ["aud1", "aud2"]
-      validate_issuer = ["iss1"]
-      validate_subject = sub
+      jwks_url = "https://example.com/jwks"
+
+      [jwt]
+      kind = "jwks"
+      url  = "https://example.com/jwks"
       "#,
     );
-    assert!(config.is_err());
+    assert!(result.is_err());
   }
 
   #[test]
-  fn auth_config_both_modes() {
-    let config = toml::from_str::<AuthConfig>(
-      r#"
-      jwks_url = "https://www.example.com"
-      public_key = "public_key"
-      validate_audience = ["aud1", "aud2"]
-      validate_issuer = ["iss1"]
-      validate_subject = sub
-      "#,
-    );
-    assert!(config.is_err());
-  }
-
-  #[test]
-  fn auth_config_no_authentication() {
+  fn auth_config_only_authorization() {
     let config: AuthConfig = toml::from_str(
       r#"
-      authorization_url = "https://www.example.com"
+      [authorization]
+      kind = "callout"
+      url  = "https://example.com/auth"
       "#,
     )
     .unwrap();
-
+    assert!(config.jwt().is_none());
     assert_eq!(
-      config.authorization_url().unwrap(),
-      &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
+      config
+        .authorization()
+        .unwrap()
+        .callout()
+        .unwrap()
+        .url()
+        .to_string(),
+      "https://example.com/auth"
     );
   }
 
   #[test]
-  fn auth_config_static_auth() {
+  fn auth_config_authorization_static() {
     let mut temp = NamedTempFile::new().unwrap();
     let restrictions = AuthorizationRestrictionsBuilder::default()
       .rule(
@@ -381,62 +336,66 @@ mod tests {
 
     let config: AuthConfig = toml::from_str(&format!(
       r#"
-      authorization_url = "file://{}"
+      [authorization]
+      kind = "static"
+      path = "{}"
       "#,
       temp.path().to_string_lossy()
     ))
     .unwrap();
 
     assert_eq!(
-      config.authorization_url().unwrap(),
-      &UrlOrStatic::Static(restrictions)
+      config.authorization().unwrap().static_restrictions(),
+      Some(&restrictions)
     );
   }
 
   #[test]
-  fn auth_config() {
+  fn auth_config_full() {
     let config: AuthConfig = toml::from_str(
       r#"
-      jwks_url = "https://www.example.com"
+      jwks_url = "https://www.example.com/jwks"
       validate_audience = ["aud1", "aud2"]
       validate_issuer = ["iss1"]
       validate_subject = "sub"
-      authorization_url = "https://www.example.com"
-      passthrough_auth = true
-      forward_headers = ["header"]
-      forward_endpoint_type = true
-      forward_id = true
-      forward_extensions = [ { json_path = '$.extension', name = 'Extension'} ]
+
+      [authorization]
+      kind = "callout"
+      url  = "https://www.example.com/auth"
+
+      [authorization.forward]
+      headers.allow = ["Authorization", "X-Custom"]
+
+      [authorization.forward.context]
+      endpoint_type = true
+      id = true
+      extensions = [{ json_path = "$.extension" }]
       "#,
     )
     .unwrap();
 
+    let jwks = config.jwt().unwrap().jwks().unwrap();
+    assert_eq!(jwks.url().to_string(), "https://www.example.com/jwks");
+    assert_eq!(config.validate_audience().unwrap(), &["aud1", "aud2"]);
+    assert_eq!(config.validate_issuer().unwrap(), &["iss1"]);
+    assert_eq!(config.validate_subject(), Some("sub"));
+
+    let authz = config.authorization().unwrap().callout().unwrap();
+    assert_eq!(authz.url().to_string(), "https://www.example.com/auth");
     assert_eq!(
-      config.auth_mode().unwrap(),
-      &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+      authz.forward().headers().allow(),
+      &["Authorization".to_string(), "X-Custom".to_string()]
+    );
+    assert!(authz.forward().context().endpoint_type());
+    assert!(authz.forward().context().id());
+    assert_eq!(authz.forward().context().extensions().len(), 1);
+    assert_eq!(
+      authz.forward().context().extensions()[0].json_path(),
+      "$.extension"
     );
     assert_eq!(
-      config.validate_audience().unwrap().to_vec(),
-      vec!["aud1".to_string(), "aud2".to_string()]
-    );
-    assert_eq!(
-      config.validate_issuer().unwrap().to_vec(),
-      vec!["iss1".to_string()]
-    );
-    assert_eq!(
-      config.authorization_url().unwrap(),
-      &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
-    );
-    assert!(config.passthrough_auth());
-    assert_eq!(config.forward_headers(), ["header".to_string()]);
-    assert!(config.forward_endpoint_type());
-    assert!(config.forward_id());
-    assert_eq!(
-      config.forward_extensions(),
-      [ForwardExtensions::new(
-        "$.extension".to_string(),
-        "Extension".to_string()
-      )]
+      authz.forward().context().extensions()[0].name(),
+      "Extension"
     );
   }
 
@@ -446,9 +405,6 @@ mod tests {
     let config: AuthConfig = toml::from_str(
       r#"
       jwks_url = "https://www.example.com"
-      validate_audience = ["aud1", "aud2"]
-      validate_issuer = ["iss1"]
-      authorization_url = "https://www.example.com"
       add_hint = false
       suppress_errors = true
       "#,
@@ -457,27 +413,5 @@ mod tests {
 
     assert!(!config.add_hint());
     assert!(config.suppress_errors());
-  }
-
-  #[test]
-  fn test_authorization_restrictions_builder() {
-    let rule = AuthConfigBuilder::default()
-      .auth_mode(AuthMode::Jwks("https://www.example.com/".parse().unwrap()))
-      .authorization_url(UrlOrStatic::Url(
-        "https://www.example.com".parse::<Uri>().unwrap(),
-      ))
-      .build()
-      .unwrap();
-    assert_eq!(
-      rule.authorization_url.as_ref().unwrap(),
-      &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
-    );
-    assert_eq!(
-      rule.clone().auth_mode.unwrap(),
-      AuthMode::Jwks("https://www.example.com/".parse().unwrap())
-    );
-    assert_eq!(rule.validate_audience(), None);
-    assert_eq!(rule.validate_issuer(), None);
-    assert_eq!(rule.validate_subject(), None);
   }
 }

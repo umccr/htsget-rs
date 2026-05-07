@@ -2521,6 +2521,7 @@ dependencies = [
  "toml 0.9.10+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
+ "wildmatch",
 ]
 
 [[package]]

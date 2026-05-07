@@ -396,14 +396,13 @@ pub(crate) mod tests {
   use std::fmt::Display;
 
   use super::*;
-  use crate::config::advanced::auth::authorization::UrlOrStatic;
-  use crate::config::advanced::auth::jwt::AuthMode;
   use crate::config::location::SimpleLocation;
   use crate::config::parser::from_str;
   use crate::http::tests::with_test_certificates;
   use crate::storage::Backend;
   use crate::types::Scheme;
   use figment::Jail;
+  #[cfg(feature = "url")]
   use http::Uri;
   use http::uri::Authority;
   use serde::de::DeserializeOwned;
@@ -852,24 +851,30 @@ pub(crate) mod tests {
       r#"
       ticket_server.auth.jwks_url = "https://www.example.com/"
       ticket_server.auth.validate_issuer = ["iss1"]
-      ticket_server.auth.authorization_url = "https://www.example.com"
+      ticket_server.auth.authorization = { kind = "callout", url = "https://www.example.com" }
       data_server.auth.jwks_url = "https://www.example.com/"
       data_server.auth.validate_audience = ["aud1"]
-      data_server.auth.authorization_url = "https://www.example.com"
+      data_server.auth.authorization = { kind = "callout", url = "https://www.example.com" }
       "#,
       |config| {
         let auth = config.ticket_server().auth().unwrap();
         assert_eq!(
-          auth.auth_mode().unwrap(),
-          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+          auth.jwt().unwrap().jwks().unwrap().url().to_string(),
+          "https://www.example.com/"
         );
         assert_eq!(
           auth.validate_issuer(),
           Some(vec!["iss1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url().unwrap(),
-          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
+          auth
+            .authorization()
+            .unwrap()
+            .callout()
+            .unwrap()
+            .url()
+            .to_string(),
+          "https://www.example.com/"
         );
         let auth = config
           .data_server()
@@ -878,16 +883,22 @@ pub(crate) mod tests {
           .auth()
           .unwrap();
         assert_eq!(
-          auth.auth_mode().unwrap(),
-          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+          auth.jwt().unwrap().jwks().unwrap().url().to_string(),
+          "https://www.example.com/"
         );
         assert_eq!(
           auth.validate_audience(),
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url().unwrap(),
-          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
+          auth
+            .authorization()
+            .unwrap()
+            .callout()
+            .unwrap()
+            .url()
+            .to_string(),
+          "https://www.example.com/"
         );
       },
     );
@@ -899,21 +910,27 @@ pub(crate) mod tests {
       r#"
       auth.jwks_url = "https://www.example.com/"
       auth.validate_audience = ["aud1"]
-      auth.authorization_url = "https://www.example.com"
+      auth.authorization = { kind = "callout", url = "https://www.example.com" }
       "#,
       |config| {
         let auth = config.auth.unwrap();
         assert_eq!(
-          auth.auth_mode().unwrap(),
-          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+          auth.jwt().unwrap().jwks().unwrap().url().to_string(),
+          "https://www.example.com/"
         );
         assert_eq!(
           auth.validate_audience(),
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url().unwrap(),
-          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
+          auth
+            .authorization()
+            .unwrap()
+            .callout()
+            .unwrap()
+            .url()
+            .to_string(),
+          "https://www.example.com/"
         );
       },
     );

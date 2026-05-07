@@ -1,63 +1,70 @@
-//! Config for handling the authorization flow.
+//! Authorization source config.
 //!
 
 use crate::config::advanced::auth::AuthorizationRestrictions;
-use http::Uri;
-use serde::de::Error;
-use serde::{Deserialize, Deserializer, Serialize};
+use crate::config::advanced::callout::Callout;
+use crate::error::Error::ParseError;
+use crate::error::Result;
+use serde::Deserialize;
 use std::fs::File;
 use std::io::Read;
+use std::path::PathBuf;
 
-/// The authorization restrictions to fetch from either a URL or a hard-coded
-/// static config.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum UrlOrStatic {
-  Url(Uri),
+/// Where authorization restrictions come from, either the remote server or a static file.
+#[derive(Debug, Clone)]
+pub enum AuthorizationSource {
+  Callout(Callout),
   Static(AuthorizationRestrictions),
 }
 
-impl<'de> Deserialize<'de> for UrlOrStatic {
-  fn deserialize<D>(deserializer: D) -> Result<UrlOrStatic, D::Error>
-  where
-    D: Deserializer<'de>,
-  {
-    let uri = String::deserialize(deserializer)?;
+impl AuthorizationSource {
+  /// Get the callout if the type is a `Callout`.
+  pub fn callout(&self) -> Option<&Callout> {
+    match self {
+      Self::Callout(callout) => Some(callout),
+      Self::Static(_) => None,
+    }
+  }
 
-    if uri.to_lowercase().starts_with("http://") || uri.to_lowercase().starts_with("https://") {
-      Ok(UrlOrStatic::Url(uri.parse().map_err(Error::custom)?))
-    } else {
-      let mut auth_rules =
-        File::open(uri.strip_prefix("file://").unwrap_or(&uri)).map_err(Error::custom)?;
-      let mut buf = vec![];
-      auth_rules.read_to_end(&mut buf).map_err(Error::custom)?;
-      Ok(UrlOrStatic::Static(
-        serde_json::from_slice(buf.as_slice()).map_err(Error::custom)?,
-      ))
+  /// Get a mutable reference to the callout, if the type is a `Callout`.
+  pub fn callout_mut(&mut self) -> Option<&mut Callout> {
+    match self {
+      Self::Callout(callout) => Some(callout),
+      Self::Static(_) => None,
+    }
+  }
+
+  /// Get the static restrictions if the type is `Static`.
+  pub fn static_restrictions(&self) -> Option<&AuthorizationRestrictions> {
+    match self {
+      Self::Static(restrictions) => Some(restrictions),
+      Self::Callout(_) => None,
     }
   }
 }
 
-/// The extensions to pass through to the authorization server from http request extensions.
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ForwardExtensions {
-  json_path: String,
-  name: String,
+/// Builder for `AuthorizationSource`.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum AuthorizationSourceBuilder {
+  Callout(Callout),
+  Static { path: PathBuf },
 }
 
-impl ForwardExtensions {
-  /// Create a new forward extensions config.
-  pub fn new(json_path: String, name: String) -> Self {
-    Self { json_path, name }
-  }
+impl AuthorizationSourceBuilder {
+  /// Build an `AuthorizationSource`.
+  pub fn build(self) -> Result<AuthorizationSource> {
+    match self {
+      Self::Callout(callout) => Ok(AuthorizationSource::Callout(callout)),
+      Self::Static { path } => {
+        let mut buf = vec![];
+        File::open(&path)?.read_to_end(&mut buf)?;
 
-  /// Get the JSON path to fetch for the extension.
-  pub fn json_path(&self) -> &str {
-    &self.json_path
-  }
+        let restrictions: AuthorizationRestrictions = serde_json::from_slice(&buf)
+          .map_err(|err| ParseError(format!("parsing {}: {err}", path.display())))?;
 
-  /// Get the name of the header.
-  pub fn name(&self) -> &str {
-    &self.name
+        Ok(AuthorizationSource::Static(restrictions))
+      }
+    }
   }
 }
