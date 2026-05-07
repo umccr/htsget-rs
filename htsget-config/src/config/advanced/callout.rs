@@ -6,8 +6,9 @@ use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
 use heck::ToTrainCase;
-use http::Uri;
+use http::{HeaderMap, Uri};
 use serde::{Deserialize, Serialize};
+use wildmatch::WildMatch;
 
 /// A callout to a remote server.
 #[derive(Deserialize, Debug, Clone)]
@@ -101,6 +102,36 @@ impl HeaderRules {
   /// Deny patterns.
   pub fn deny(&self) -> &[String] {
     &self.deny
+  }
+
+  /// Filter a header map, keeping only headers whose names match at least one of the allow
+  /// patterns and do not match any of the deny patterns.
+  pub fn filter(&self, headers: &HeaderMap) -> HeaderMap {
+    let allow: Vec<_> = self
+      .allow
+      .iter()
+      .map(|p| WildMatch::new(&p.to_lowercase()))
+      .collect();
+    let deny: Vec<_> = self
+      .deny
+      .iter()
+      .map(|p| WildMatch::new(&p.to_lowercase()))
+      .collect();
+
+    if allow.is_empty() {
+      return HeaderMap::new();
+    }
+
+    let mut result = HeaderMap::new();
+    for (name, value) in headers {
+      let lowered = name.as_str().to_lowercase();
+      if allow.iter().any(|p| p.matches(&lowered))
+        && !deny.iter().any(|p| p.matches(&lowered))
+      {
+        result.insert(name, value.clone());
+      }
+    }
+    result
   }
 }
 
