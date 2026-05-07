@@ -268,7 +268,7 @@ mod tests {
         r#"
         [jwt]
         kind = "public_key"
-        path = "{}"
+        path = '{}'
         "#,
         key_path.to_string_lossy()
       ))
@@ -338,7 +338,7 @@ mod tests {
       r#"
       [authorization]
       kind = "static"
-      path = "{}"
+      path = '{}'
       "#,
       temp.path().to_string_lossy()
     ))
