@@ -305,7 +305,7 @@ mod tests {
 
       let config: AuthConfig = toml::from_str(&format!(
         r#"
-        public_key = "{}"
+        public_key = '{}'
         "#,
         key_path.to_string_lossy()
       ))
@@ -381,7 +381,7 @@ mod tests {
 
     let config: AuthConfig = toml::from_str(&format!(
       r#"
-      authorization_url = "file://{}"
+      authorization_url = 'file://{}'
       "#,
       temp.path().to_string_lossy()
     ))
