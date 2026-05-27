@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.21.0...htsget-config-v0.22.0) - 2026-05-27
+
+### Added
+
+- *(config)* add denylist options for backend/client headers
+- *(storage)* filter-based approach for allowlist, and test case coverage
+- *(config)* allow greater control of headers forwarded for url and json path storage
+- add option to hard-code the response url for json path storage
+- *(config)* link up feature flags and box backend type
+- *(config)* add `ResolveResponse` variant and `Backend` types for resolver storage
+- add resolver storage and new feature flag
+
+### Fixed
+
+- *(config)* default uri to allow all
+- *(storage)* adjust case sensitivity for header name matches
+- *(storage)* get key range and format key defaults
+
+### Other
+
+- *(htsget-test)* remove s3s and use aws-smithy-mocks instead
+- bump deps, including lambda runtime away from fork
+- *(config)* update docs for allow and deny list headers
+- *(config)* clarify wildcard matching for header forwarding
+- *(config)* [**breaking**] introduce separate response_path and response_url options
+- regenerate schema file
+- *(config)* clarify crypt4gh file size
+- *(config)* document json path storage
+- [**breaking**] rename resolve storage to json path storage for added clarity
+- [**breaking**] resolve feature is nearly entirely dependent on url feature so there's no need to have it
+
 ## [0.21.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.20.1...htsget-config-v0.21.0) - 2026-02-03
 
 ### Added
