@@ -64,11 +64,11 @@ mod tests {
 
         [locations.backend.keys]
         server.private.kind = "File"
-        server.private.key = "{}"
+        server.private.key = '{}'
         server.public.kind = "File"
-        server.public.key = "{}"
+        server.public.key = '{}'
         client.public.kind = "File"
-        client.public.key = "{}"
+        client.public.key = '{}'
         "#,
         storage_config,
         private_key.to_string_lossy(),

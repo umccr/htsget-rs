@@ -344,7 +344,7 @@ pub(crate) mod tests {
           GetOptions::new_with_default_range(&Default::default()),
         )
         .await;
-      assert!(matches!(result, Err(StorageError::AwsS3Error(_, _))));
+      assert!(matches!(result, Err(StorageError::KeyNotFound(_))));
     })
     .await;
   }
