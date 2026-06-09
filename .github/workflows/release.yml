@@ -13,17 +13,56 @@ jobs:
       id-token: write
     name: Release-plz
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release-plz.outputs.releases_created }}
+      releases: ${{ steps.release-plz.outputs.releases }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
       - name: Run release-plz
+        id: release-plz
         uses: MarcoIeni/release-plz-action@v0.5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  # Build the htsget-lambda deployment artifact whenever release-plz publishes `htsget-lambda`
+  lambda-artifact:
+    name: Publish htsget-lambda
+    needs: release
+    # Run only when this release actually included htsget-lambda.
+    if: ${{ needs.release.outputs.releases_created == 'true' && contains(fromJSON(needs.release.outputs.releases).*.package_name, 'htsget-lambda') }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install cargo-lambda and Zig
+        run: pip3 install cargo-lambda ziglang
+
+      - name: Build htsget-lambda (arm64)
+        env:
+          RUSTFLAGS: "-C target-cpu=neoverse-n1"
+          CARGO_PROFILE_RELEASE_LTO: "true"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+        run: |
+          cargo lambda build \
+            --release \
+            --arm64 \
+            --package htsget-lambda \
+            --features aws,url,experimental \
+            --output-format zip
+
+      - name: Attach artifact to the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASES: ${{ needs.release.outputs.releases }}
+        run: |
+          tag=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "htsget-lambda") | .tag')
+          gh release upload "$tag" target/lambda/htsget-lambda/bootstrap.zip --clobber
