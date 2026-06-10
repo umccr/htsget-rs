@@ -32,13 +32,23 @@ jobs:
 
   # Build the htsget-lambda deployment artifact whenever release-plz publishes `htsget-lambda`
   lambda-artifact:
-    name: Publish htsget-lambda
+    name: Publish htsget-lambda (${{ matrix.arch }})
     needs: release
     # Run only when this release actually included htsget-lambda.
     if: ${{ needs.release.outputs.releases_created == 'true' && contains(fromJSON(needs.release.outputs.releases).*.package_name, 'htsget-lambda') }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            build-flag: --arm64
+            target-cpu: neoverse-n1
+          - arch: x86_64
+            build-flag: --x86-64
+            target-cpu: x86-64-v3
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -46,23 +56,26 @@ jobs:
       - name: Install cargo-lambda and Zig
         run: pip3 install cargo-lambda ziglang
 
-      - name: Build htsget-lambda (arm64)
+      - name: Build htsget-lambda for ${{ matrix.arch }}
         env:
-          RUSTFLAGS: "-C target-cpu=neoverse-n1"
+          RUSTFLAGS: "-C target-cpu=${{ matrix.target-cpu }}"
           CARGO_PROFILE_RELEASE_LTO: "true"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_STRIP: "symbols"
         run: |
           cargo lambda build \
             --release \
-            --arm64 \
+            ${{ matrix.build-flag }} \
             --package htsget-lambda \
-            --features aws,url,experimental \
+            --all-features \
             --output-format zip
 
       - name: Attach artifact to the GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASES: ${{ needs.release.outputs.releases }}
+          ARCH: ${{ matrix.arch }}
         run: |
           tag=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "htsget-lambda") | .tag')
-          gh release upload "$tag" target/lambda/htsget-lambda/bootstrap.zip --clobber
+          mv target/lambda/htsget-lambda/bootstrap.zip "$tag-$ARCH.zip"
+          gh release upload "$tag" "$tag-$ARCH.zip" --clobber
