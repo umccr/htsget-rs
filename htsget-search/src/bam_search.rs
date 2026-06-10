@@ -52,8 +52,8 @@ impl BgzfSearch<LinearIndex, AsyncReader, Header> for BamSearch {
 
     Ok(vec![
       BytesPosition::default()
-        .with_start(start.compressed())
-        .with_end(self.position_at_eof(query).await?)
+        .with_start(start.compressed())?
+        .with_end(self.position_at_eof(query).await?)?
         .with_class(Body),
     ])
   }

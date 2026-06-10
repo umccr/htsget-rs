@@ -120,7 +120,7 @@ impl UrlClient {
     let request_headers = self.filter_forward_headers(headers);
     let request = Request::builder().method(method).uri(&request_url);
 
-    let range = BytesRange::from(&position).to_string();
+    let range = BytesRange::try_from(&position)?.to_string();
     let request = request_headers
       .iter()
       .fold(request, |acc, (key, value)| acc.header(key, value));
@@ -171,7 +171,7 @@ impl UrlClient {
       )
     }
 
-    Ok(options.apply(url))
+    options.apply(url)
   }
 
   /// Extract the object size from a response.

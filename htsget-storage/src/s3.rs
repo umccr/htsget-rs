@@ -83,7 +83,7 @@ impl S3Storage {
       .get_object()
       .bucket(&self.bucket)
       .key(key.as_ref());
-    let response = Self::apply_range(response, range);
+    let response = Self::apply_range(response, range)?;
     Ok(
       response
         .presigned(
@@ -150,12 +150,15 @@ impl S3Storage {
     Delayed(class)
   }
 
-  fn apply_range(builder: GetObjectFluentBuilder, range: &BytesPosition) -> GetObjectFluentBuilder {
-    let range: String = String::from(&BytesRange::from(range));
+  fn apply_range(
+    builder: GetObjectFluentBuilder,
+    range: &BytesPosition,
+  ) -> Result<GetObjectFluentBuilder> {
+    let range: String = String::from(&BytesRange::try_from(range)?);
     if range.is_empty() {
-      builder
+      Ok(builder)
     } else {
-      builder.range(range)
+      Ok(builder.range(range))
     }
   }
 
@@ -177,7 +180,7 @@ impl S3Storage {
       .get_object()
       .bucket(&self.bucket)
       .key(key.as_ref());
-    let response = Self::apply_range(response, options.range());
+    let response = Self::apply_range(response, options.range())?;
     Ok(
       response
         .send()
@@ -260,7 +263,7 @@ impl StorageTrait for S3Storage {
   #[instrument(level = "trace", skip(self))]
   async fn range_url(&self, key: &str, options: RangeUrlOptions<'_>) -> Result<Url> {
     let presigned_url = self.s3_presign_url(key, options.range()).await?;
-    let url = options.apply(Url::new(presigned_url));
+    let url = options.apply(Url::new(presigned_url))?;
 
     debug!(calling_from = ?self, key, ?url, "getting url with key {:?}", key);
     Ok(url)
@@ -375,7 +378,7 @@ pub(crate) mod tests {
         .range_url(
           "key2",
           RangeUrlOptions::new(
-            BytesPosition::new(Some(7), Some(9), None),
+            BytesPosition::new(Some(7), Some(9), None).unwrap(),
             &Default::default(),
           ),
         )
@@ -401,7 +404,10 @@ pub(crate) mod tests {
       let result = storage
         .range_url(
           "key2",
-          RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
+          RangeUrlOptions::new(
+            BytesPosition::new(Some(7), None, None).unwrap(),
+            &Default::default(),
+          ),
         )
         .await
         .unwrap();

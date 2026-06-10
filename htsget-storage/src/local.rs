@@ -97,10 +97,10 @@ impl<T: UrlFormatter + Send + Sync + Debug + Clone + 'static> StorageTrait for F
 
     // Need to ensure range options are considered for local files.
     let mut file = self.get(key).await?;
-    let start = options.range.start.unwrap_or(0);
+    let start = options.range().get_start().unwrap_or(0);
     let seek = file.seek(SeekFrom::Start(start)).await?;
 
-    if let Some(end) = options.range.end {
+    if let Some(end) = options.range().get_end() {
       let file = file.take(end.checked_sub(seek).ok_or_else(|| {
         StorageError::InternalError("subtraction overflow in local storage get".to_string())
       })?);
@@ -146,7 +146,7 @@ impl<T: UrlFormatter + Send + Sync + Debug + Clone + 'static> StorageTrait for F
           .map_err(|err: error::Error| StorageError::InvalidInput(err.to_string()))?,
       );
     }
-    let url = options.apply(url);
+    let url = options.apply(url)?;
 
     debug!(calling_from = ?self, key = key, ?url, "getting url with key {:?}", key);
 
@@ -302,7 +302,7 @@ pub(crate) mod tests {
         &storage,
         "folder/../key1",
         RangeUrlOptions::new(
-          BytesPosition::new(Some(7), Some(10), None),
+          BytesPosition::new(Some(7), Some(10), None).unwrap(),
           &Default::default(),
         ),
       )
@@ -320,7 +320,10 @@ pub(crate) mod tests {
       let result = StorageTrait::range_url(
         &storage,
         "folder/../key1",
-        RangeUrlOptions::new(BytesPosition::new(Some(7), None, None), &Default::default()),
+        RangeUrlOptions::new(
+          BytesPosition::new(Some(7), None, None).unwrap(),
+          &Default::default(),
+        ),
       )
       .await;
       let expected = Url::new("http://127.0.0.1:8081/key1")
