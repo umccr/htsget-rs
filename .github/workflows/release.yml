@@ -78,4 +78,4 @@ jobs:
         run: |
           tag=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "htsget-lambda") | .tag')
           mv target/lambda/htsget-lambda/bootstrap.zip "$tag-$ARCH.zip"
-          gh release upload "$tag" "$tag-$ARCH.zip" --clobber
+          gh release upload "$tag" "$tag-$ARCH.zip"
