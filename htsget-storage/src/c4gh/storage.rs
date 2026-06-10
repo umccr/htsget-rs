@@ -162,8 +162,12 @@ impl C4GHStorage {
     let encrypted_file_size = if Format::is_index(key) {
       match self.inner.head(&c4gh_key, (&options).into()).await {
         Ok(encrypted_file_size) => {
-          // Always get the full index file.
-          c4gh_header_options.range.end = Some(encrypted_file_size);
+          // Always get the full index file. A zero file size fetches the whole file rather than
+          // using an empty range.
+          c4gh_header_options.range = c4gh_header_options
+            .range()
+            .clone()
+            .set_end((encrypted_file_size > 0).then_some(encrypted_file_size))?;
           encrypted_file_size
         }
         // Otherwise, fallback on the non-encrypted index.
@@ -172,7 +176,12 @@ impl C4GHStorage {
     } else {
       // Get the file size.
       let encrypted_file_size = self.inner.head(&c4gh_key, (&options).into()).await?;
-      c4gh_header_options.range.end = Some(min(MAX_C4GH_HEADER_SIZE, encrypted_file_size));
+      // A zero header end fetches the whole file rather than using an empty range.
+      let header_end = min(MAX_C4GH_HEADER_SIZE, encrypted_file_size);
+      c4gh_header_options.range = c4gh_header_options
+        .range()
+        .clone()
+        .set_end((header_end > 0).then_some(header_end))?;
       encrypted_file_size
     };
 
@@ -198,24 +207,31 @@ impl C4GHStorage {
 
     if encrypted_file_size > MAX_C4GH_HEADER_SIZE {
       let end = unencrypted_to_next_data_block(
-        options.range.end.unwrap_or(encrypted_file_size),
+        options.range().get_end().unwrap_or(encrypted_file_size),
         deserialized_header.header_size,
         encrypted_file_size,
       );
-      options.range.start = Some(MAX_C4GH_HEADER_SIZE);
 
-      if end < MAX_C4GH_HEADER_SIZE {
-        options.range.end = None;
+      let range_end = if end < MAX_C4GH_HEADER_SIZE {
+        None
       } else {
-        options.range.end = Some(min(end, encrypted_file_size));
-      }
+        Some(min(end, encrypted_file_size))
+      };
+      options.range = BytesPosition::default()
+        .with_start(MAX_C4GH_HEADER_SIZE)?
+        .set_end(range_end)?;
 
-      self
-        .inner
-        .get(&c4gh_key, options)
-        .await?
-        .read_to_end(&mut remaining)
-        .await?;
+      // A range selecting no bytes means there is nothing remaining to fetch.
+      // This could occur if encrypted_file_size == MAX_C4GH_HEADER_SIZE which would
+      // mean nothing needs to be fetched.
+      if !options.range().is_empty() {
+        self
+          .inner
+          .get(&c4gh_key, options)
+          .await?
+          .read_to_end(&mut remaining)
+          .await?;
+      }
     }
 
     let mut reader = reader.chain(BufReader::new(remaining.as_slice()));
@@ -244,8 +260,8 @@ impl C4GHStorage {
       .get(&Self::format_key(key))
       .ok_or_else(|| InternalError("missing key from state".to_string()))?;
 
-    let default_start = |pos: &BytesPosition| pos.start.unwrap_or_default();
-    let default_end = |pos: &BytesPosition| pos.end.unwrap_or(state.unencrypted_file_size);
+    let default_start = |pos: &BytesPosition| pos.get_start().unwrap_or_default();
+    let default_end = |pos: &BytesPosition| pos.get_end().unwrap_or(state.unencrypted_file_size);
 
     let header_size = state.deserialized_header.header_size;
     let encrypted_file_size = state.encrypted_file_size;
@@ -256,33 +272,43 @@ impl C4GHStorage {
     let mut clamped_positions = vec![];
     // Positions from the reference frame of someone merging bytes from htsget.
     let mut encrypted_positions = vec![];
-    for mut pos in options.positions {
+    for pos in options.positions {
       let start = default_start(&pos);
       let end = default_end(&pos);
+      let class = pos.get_class();
 
-      pos.start = Some(start);
-      pos.end = Some(end);
-      unencrypted_positions.push(pos.clone());
+      let pos = BytesPosition::new(Some(start), Some(end), class)?;
+      // Positions selecting no bytes do nothing in terms of the data blocks or edit lists, and
+      // should be removed before they are processed.
+      if pos.is_empty() {
+        continue;
+      }
 
-      pos.start = Some(unencrypted_clamp(start, header_size, encrypted_file_size));
-      pos.end = Some(unencrypted_clamp_next(
-        end,
-        header_size,
-        encrypted_file_size,
-      ));
-      clamped_positions.push(pos.clone());
+      unencrypted_positions.push(pos);
 
-      pos.start = Some(unencrypted_to_data_block(
-        start,
-        header_size,
-        encrypted_file_size,
-      ));
-      pos.end = Some(unencrypted_to_next_data_block(
-        end,
-        header_size,
-        encrypted_file_size,
-      ));
-      encrypted_positions.push(pos);
+      clamped_positions.push(BytesPosition::new(
+        Some(unencrypted_clamp(start, header_size, encrypted_file_size)),
+        Some(unencrypted_clamp_next(
+          end,
+          header_size,
+          encrypted_file_size,
+        )),
+        class,
+      )?);
+
+      encrypted_positions.push(BytesPosition::new(
+        Some(unencrypted_to_data_block(
+          start,
+          header_size,
+          encrypted_file_size,
+        )),
+        Some(unencrypted_to_next_data_block(
+          end,
+          header_size,
+          encrypted_file_size,
+        )),
+        class,
+      )?);
     }
 
     let unencrypted_positions = BytesPosition::merge_all(unencrypted_positions)
@@ -309,8 +335,8 @@ impl C4GHStorage {
       DataBlock::Data(header_info, Some(Class::Header)),
       DataBlock::Range(
         BytesPosition::default()
-          .with_start(header_info_size)
-          .with_end(current_header_size),
+          .with_start(header_info_size)?
+          .with_end(current_header_size)?,
       ),
       DataBlock::Data(
         [edit_list_packet, reencrypted_bytes].concat(),
@@ -596,7 +622,13 @@ mod tests {
       .postprocess(
         key,
         BytesPositionOptions::new(
-          vec![BytesPosition::default().with_start(0).with_end(6)],
+          vec![
+            BytesPosition::default()
+              .with_start(0)
+              .unwrap()
+              .with_end(6)
+              .unwrap(),
+          ],
           headers,
         ),
       )
@@ -612,11 +644,11 @@ mod tests {
     );
     assert_eq!(
       blocks[1],
-      DataBlock::Range(BytesPosition::new(Some(16), Some(124), None))
+      DataBlock::Range(BytesPosition::new(Some(16), Some(124), None).unwrap())
     );
     assert_eq!(
       blocks[3],
-      DataBlock::Range(BytesPosition::new(Some(124), Some(158), None))
+      DataBlock::Range(BytesPosition::new(Some(124), Some(158), None).unwrap())
     );
   }
 
@@ -628,7 +660,13 @@ mod tests {
       .postprocess(
         key,
         BytesPositionOptions::new(
-          vec![BytesPosition::default().with_start(0).with_end(6)],
+          vec![
+            BytesPosition::default()
+              .with_start(0)
+              .unwrap()
+              .with_end(6)
+              .unwrap(),
+          ],
           headers,
         ),
       )
