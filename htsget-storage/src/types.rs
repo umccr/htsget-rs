@@ -1,3 +1,4 @@
+use crate::error::{Result, StorageError};
 use htsget_config::types::{Class, Headers, Url};
 use http::HeaderMap;
 use std::borrow::Cow;
@@ -20,6 +21,14 @@ impl DataBlock {
       .into_iter()
       .map(DataBlock::Range)
       .collect()
+  }
+
+  /// Check whether this block is empty.
+  pub fn is_empty(&self) -> bool {
+    match self {
+      DataBlock::Range(range) => range.is_empty(),
+      DataBlock::Data(data, _) => data.is_empty(),
+    }
   }
 
   /// Update the classes of all blocks so that they all contain a class, or None. Does not merge
@@ -49,9 +58,9 @@ impl DataBlock {
 /// with a mix of header and body bytes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BytesPosition {
-  pub(crate) start: Option<u64>,
-  pub(crate) end: Option<u64>,
-  pub(crate) class: Option<Class>,
+  start: Option<u64>,
+  end: Option<u64>,
+  class: Option<Class>,
 }
 
 /// A bytes range has an inclusive start and end value. This is analogous to http bytes ranges.
@@ -81,9 +90,17 @@ impl Display for BytesRange {
   }
 }
 
-impl From<&BytesPosition> for BytesRange {
-  fn from(pos: &BytesPosition) -> Self {
-    Self::new(pos.start, pos.end.map(|value| value - 1))
+impl TryFrom<&BytesPosition> for BytesRange {
+  type Error = StorageError;
+
+  fn try_from(pos: &BytesPosition) -> Result<Self> {
+    if pos.is_empty() {
+      return Err(StorageError::InternalError(format!(
+        "cannot convert a bytes position with no bytes to a bytes range: {pos:?}"
+      )));
+    }
+
+    Ok(Self::new(pos.start, pos.end.map(|value| value - 1)))
   }
 }
 
@@ -94,22 +111,38 @@ impl BytesRange {
 }
 
 impl BytesPosition {
-  pub fn new(start: Option<u64>, end: Option<u64>, class: Option<Class>) -> Self {
-    Self { start, end, class }
+  /// Create a new bytes position. Returns an error if the end is less than the start.
+  /// An empty `BytesPosition` is allowed by setting the start and end to the same value.
+  pub fn new(start: Option<u64>, end: Option<u64>, class: Option<Class>) -> Result<Self> {
+    Self { start, end, class }.validate()
   }
 
-  pub fn with_start(mut self, start: u64) -> Self {
+  /// Validate that the end is greater than the start.
+  fn validate(self) -> Result<Self> {
+    if self
+      .end
+      .is_some_and(|end| end < self.start.unwrap_or_default())
+    {
+      return Err(StorageError::InternalError(format!(
+        "invalid bytes position {self:?}"
+      )));
+    }
+
+    Ok(self)
+  }
+
+  pub fn with_start(mut self, start: u64) -> Result<Self> {
     self.start = Some(start);
-    self
+    self.validate()
   }
 
-  pub fn with_end(self, end: u64) -> Self {
+  pub fn with_end(self, end: u64) -> Result<Self> {
     self.set_end(Some(end))
   }
 
-  pub fn set_end(mut self, end: Option<u64>) -> Self {
+  pub fn set_end(mut self, end: Option<u64>) -> Result<Self> {
     self.end = end;
-    self
+    self.validate()
   }
 
   pub fn with_class(self, class: Class) -> Self {
@@ -127,6 +160,17 @@ impl BytesPosition {
 
   pub fn get_end(&self) -> Option<u64> {
     self.end
+  }
+
+  pub fn get_class(&self) -> Option<Class> {
+    self.class
+  }
+
+  /// Check whether this position selects no bytes, i.e. the end == start.
+  pub fn is_empty(&self) -> bool {
+    self
+      .end
+      .is_some_and(|end| end == self.start.unwrap_or_default())
   }
 
   pub fn overlaps(&self, range: &BytesPosition) -> bool {
@@ -167,6 +211,8 @@ impl BytesPosition {
   /// Merge ranges, assuming ending byte ranges are exclusive.
   #[instrument(level = "trace", ret)]
   pub fn merge_all(mut ranges: Vec<BytesPosition>) -> Vec<BytesPosition> {
+    ranges.retain(|range| !range.is_empty());
+
     if ranges.len() < 2 {
       ranges
     } else {
@@ -221,9 +267,11 @@ impl<'a> GetOptions<'a> {
     Self::new(Default::default(), request_headers)
   }
 
-  pub fn with_max_length(mut self, max_length: u64) -> Self {
-    self.range = BytesPosition::default().with_start(0).with_end(max_length);
-    self
+  pub fn with_max_length(mut self, max_length: u64) -> Result<Self> {
+    self.range = BytesPosition::default()
+      .with_start(0)?
+      .with_end(max_length)?;
+    Ok(self)
   }
 
   pub fn with_range(mut self, range: BytesPosition) -> Self {
@@ -302,8 +350,8 @@ impl<'a> RangeUrlOptions<'a> {
     self
   }
 
-  pub fn apply(self, url: Url) -> Url {
-    let range: String = String::from(&BytesRange::from(self.range()));
+  pub fn apply(self, url: Url) -> Result<Url> {
+    let range: String = String::from(&BytesRange::try_from(self.range())?);
 
     let url = if range.is_empty() {
       url
@@ -311,7 +359,7 @@ impl<'a> RangeUrlOptions<'a> {
       url.add_headers(Headers::default().with_header("Range", range))
     };
 
-    url.set_class(self.range().class)
+    Ok(url.set_class(self.range().class))
   }
 
   /// Get the range.
@@ -359,194 +407,194 @@ mod tests {
   fn bytes_range_overlapping_and_merge() {
     let test_cases = vec![
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(Some(3), Some(5), None),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(Some(3), Some(5), None).unwrap(),
         None,
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(Some(3), None, None),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(Some(3), None, None).unwrap(),
         None,
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(Some(2), Some(4), None),
-        Some(BytesPosition::new(None, Some(4), None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        Some(BytesPosition::new(None, Some(4), None).unwrap()),
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(Some(2), None, None),
-        Some(BytesPosition::new(None, None, None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        Some(BytesPosition::new(None, None, None).unwrap()),
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(Some(1), Some(3), None),
-        Some(BytesPosition::new(None, Some(3), None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(Some(1), Some(3), None).unwrap(),
+        Some(BytesPosition::new(None, Some(3), None).unwrap()),
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(Some(1), None, None),
-        Some(BytesPosition::new(None, None, None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(Some(1), None, None).unwrap(),
+        Some(BytesPosition::new(None, None, None).unwrap()),
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(Some(0), Some(2), None),
-        Some(BytesPosition::new(None, Some(2), None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(Some(0), Some(2), None).unwrap(),
+        Some(BytesPosition::new(None, Some(2), None).unwrap()),
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(None, Some(2), None),
-        Some(BytesPosition::new(None, Some(2), None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        Some(BytesPosition::new(None, Some(2), None).unwrap()),
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(Some(0), Some(1), None),
-        Some(BytesPosition::new(None, Some(2), None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(Some(0), Some(1), None).unwrap(),
+        Some(BytesPosition::new(None, Some(2), None).unwrap()),
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(None, Some(1), None),
-        Some(BytesPosition::new(None, Some(2), None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(None, Some(1), None).unwrap(),
+        Some(BytesPosition::new(None, Some(2), None).unwrap()),
       ),
       (
-        BytesPosition::new(None, Some(2), None),
-        BytesPosition::new(None, None, None),
-        Some(BytesPosition::new(None, None, None)),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        BytesPosition::new(None, None, None).unwrap(),
+        Some(BytesPosition::new(None, None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(6), Some(8), None),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(6), Some(8), None).unwrap(),
         None,
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(6), None, None),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(6), None, None).unwrap(),
         None,
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(4), Some(6), None),
-        Some(BytesPosition::new(Some(2), Some(6), None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(4), Some(6), None).unwrap(),
+        Some(BytesPosition::new(Some(2), Some(6), None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(4), None, None),
-        Some(BytesPosition::new(Some(2), None, None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(4), None, None).unwrap(),
+        Some(BytesPosition::new(Some(2), None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(3), Some(5), None),
-        Some(BytesPosition::new(Some(2), Some(5), None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(3), Some(5), None).unwrap(),
+        Some(BytesPosition::new(Some(2), Some(5), None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(3), None, None),
-        Some(BytesPosition::new(Some(2), None, None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(3), None, None).unwrap(),
+        Some(BytesPosition::new(Some(2), None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(2), Some(3), None),
-        Some(BytesPosition::new(Some(2), Some(4), None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(2), Some(3), None).unwrap(),
+        Some(BytesPosition::new(Some(2), Some(4), None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(None, Some(3), None),
-        Some(BytesPosition::new(None, Some(4), None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(None, Some(3), None).unwrap(),
+        Some(BytesPosition::new(None, Some(4), None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(1), Some(3), None),
-        Some(BytesPosition::new(Some(1), Some(4), None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(1), Some(3), None).unwrap(),
+        Some(BytesPosition::new(Some(1), Some(4), None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(None, Some(3), None),
-        Some(BytesPosition::new(None, Some(4), None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(None, Some(3), None).unwrap(),
+        Some(BytesPosition::new(None, Some(4), None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(0), Some(2), None),
-        Some(BytesPosition::new(Some(0), Some(4), None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(0), Some(2), None).unwrap(),
+        Some(BytesPosition::new(Some(0), Some(4), None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(None, Some(2), None),
-        Some(BytesPosition::new(None, Some(4), None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        Some(BytesPosition::new(None, Some(4), None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(Some(0), Some(1), None),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(Some(0), Some(1), None).unwrap(),
         None,
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(None, Some(1), None),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(None, Some(1), None).unwrap(),
         None,
       ),
       (
-        BytesPosition::new(Some(2), Some(4), None),
-        BytesPosition::new(None, None, None),
-        Some(BytesPosition::new(None, None, None)),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        BytesPosition::new(None, None, None).unwrap(),
+        Some(BytesPosition::new(None, None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(Some(4), Some(6), None),
-        Some(BytesPosition::new(Some(2), None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(Some(4), Some(6), None).unwrap(),
+        Some(BytesPosition::new(Some(2), None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(Some(4), None, None),
-        Some(BytesPosition::new(Some(2), None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(Some(4), None, None).unwrap(),
+        Some(BytesPosition::new(Some(2), None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(Some(2), Some(4), None),
-        Some(BytesPosition::new(Some(2), None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(Some(2), Some(4), None).unwrap(),
+        Some(BytesPosition::new(Some(2), None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(Some(2), None, None),
-        Some(BytesPosition::new(Some(2), None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        Some(BytesPosition::new(Some(2), None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(Some(1), Some(3), None),
-        Some(BytesPosition::new(Some(1), None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(Some(1), Some(3), None).unwrap(),
+        Some(BytesPosition::new(Some(1), None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(None, Some(3), None),
-        Some(BytesPosition::new(None, None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(None, Some(3), None).unwrap(),
+        Some(BytesPosition::new(None, None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(Some(0), Some(2), None),
-        Some(BytesPosition::new(Some(0), None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(Some(0), Some(2), None).unwrap(),
+        Some(BytesPosition::new(Some(0), None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(None, Some(2), None),
-        Some(BytesPosition::new(None, None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(None, Some(2), None).unwrap(),
+        Some(BytesPosition::new(None, None, None).unwrap()),
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(Some(0), Some(1), None),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(Some(0), Some(1), None).unwrap(),
         None,
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(None, Some(1), None),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(None, Some(1), None).unwrap(),
         None,
       ),
       (
-        BytesPosition::new(Some(2), None, None),
-        BytesPosition::new(None, None, None),
-        Some(BytesPosition::new(None, None, None)),
+        BytesPosition::new(Some(2), None, None).unwrap(),
+        BytesPosition::new(None, None, None).unwrap(),
+        Some(BytesPosition::new(None, None, None).unwrap()),
       ),
       (
-        BytesPosition::new(None, None, None),
-        BytesPosition::new(None, None, None),
-        Some(BytesPosition::new(None, None, None)),
+        BytesPosition::new(None, None, None).unwrap(),
+        BytesPosition::new(None, None, None).unwrap(),
+        Some(BytesPosition::new(None, None, None).unwrap()),
       ),
     ];
 
@@ -570,6 +618,68 @@ mod tests {
   }
 
   #[test]
+  fn bytes_range_merge_all_removes_empty_positions() {
+    assert_eq!(
+      BytesPosition::merge_all(vec![
+        BytesPosition::new(Some(0), Some(0), None).unwrap(),
+        BytesPosition::new(Some(5), Some(5), None).unwrap(),
+        BytesPosition::new(Some(1), Some(2), None).unwrap(),
+      ]),
+      vec![BytesPosition::new(Some(1), Some(2), None).unwrap()]
+    );
+  }
+
+  #[test]
+  fn bytes_position_is_empty() {
+    assert!(
+      BytesPosition::new(Some(0), Some(0), None)
+        .unwrap()
+        .is_empty()
+    );
+    assert!(BytesPosition::new(None, Some(0), None).unwrap().is_empty());
+    assert!(
+      !BytesPosition::new(Some(0), Some(1), None)
+        .unwrap()
+        .is_empty()
+    );
+    assert!(!BytesPosition::new(Some(1), None, None).unwrap().is_empty());
+    assert!(!BytesPosition::new(None, None, None).unwrap().is_empty());
+  }
+
+  #[test]
+  fn bytes_position_end_less_than_start() {
+    assert!(BytesPosition::new(Some(2), Some(1), None).is_err());
+    assert!(BytesPosition::new(None, Some(1), None).is_ok());
+    assert!(
+      BytesPosition::default()
+        .with_end(2)
+        .unwrap()
+        .with_start(3)
+        .is_err()
+    );
+    assert!(
+      BytesPosition::default()
+        .with_start(3)
+        .unwrap()
+        .with_end(2)
+        .is_err()
+    );
+    assert!(
+      BytesPosition::default()
+        .with_start(3)
+        .unwrap()
+        .set_end(Some(2))
+        .is_err()
+    );
+  }
+
+  #[test]
+  fn bytes_range_try_from_empty_position() {
+    assert!(BytesRange::try_from(&BytesPosition::new(Some(5), Some(5), None).unwrap()).is_err());
+    assert!(BytesRange::try_from(&BytesPosition::new(None, Some(0), None).unwrap()).is_err());
+  }
+
+  #[test]
   fn bytes_range_merge_all_when_list_has_one_range() {
     assert_eq!(
       BytesPosition::merge_all(vec![BytesPosition::default()]),
@@ -581,10 +691,10 @@ mod tests {
   fn bytes_position_merge_class_header() {
     assert_eq!(
       BytesPosition::merge_all(vec![
-        BytesPosition::new(None, Some(1), Some(Class::Header)),
-        BytesPosition::new(None, Some(2), Some(Class::Header))
+        BytesPosition::new(None, Some(1), Some(Class::Header)).unwrap(),
+        BytesPosition::new(None, Some(2), Some(Class::Header)).unwrap()
       ]),
-      vec![BytesPosition::new(None, Some(2), Some(Class::Header))]
+      vec![BytesPosition::new(None, Some(2), Some(Class::Header)).unwrap()]
     );
   }
 
@@ -592,10 +702,10 @@ mod tests {
   fn bytes_position_merge_class_body() {
     assert_eq!(
       BytesPosition::merge_all(vec![
-        BytesPosition::new(None, Some(1), Some(Class::Body)),
-        BytesPosition::new(None, Some(3), Some(Class::Body))
+        BytesPosition::new(None, Some(1), Some(Class::Body)).unwrap(),
+        BytesPosition::new(None, Some(3), Some(Class::Body)).unwrap()
       ]),
-      vec![BytesPosition::new(None, Some(3), Some(Class::Body))]
+      vec![BytesPosition::new(None, Some(3), Some(Class::Body)).unwrap()]
     );
   }
 
@@ -603,10 +713,10 @@ mod tests {
   fn bytes_position_merge_class_none() {
     assert_eq!(
       BytesPosition::merge_all(vec![
-        BytesPosition::new(Some(1), Some(2), None),
-        BytesPosition::new(Some(2), Some(3), None)
+        BytesPosition::new(Some(1), Some(2), None).unwrap(),
+        BytesPosition::new(Some(2), Some(3), None).unwrap()
       ]),
-      vec![BytesPosition::new(Some(1), Some(3), None)]
+      vec![BytesPosition::new(Some(1), Some(3), None).unwrap()]
     );
   }
 
@@ -614,43 +724,43 @@ mod tests {
   fn bytes_position_merge_class_different() {
     assert_eq!(
       BytesPosition::merge_all(vec![
-        BytesPosition::new(Some(1), Some(2), Some(Class::Header)),
-        BytesPosition::new(Some(2), Some(3), Some(Class::Body))
+        BytesPosition::new(Some(1), Some(2), Some(Class::Header)).unwrap(),
+        BytesPosition::new(Some(2), Some(3), Some(Class::Body)).unwrap()
       ]),
-      vec![BytesPosition::new(Some(1), Some(3), None)]
+      vec![BytesPosition::new(Some(1), Some(3), None).unwrap()]
     );
   }
 
   #[test]
   fn bytes_range_merge_all_when_list_has_many_ranges() {
     let ranges = vec![
-      BytesPosition::new(None, Some(1), None),
-      BytesPosition::new(Some(1), Some(2), None),
-      BytesPosition::new(Some(5), Some(6), None),
-      BytesPosition::new(Some(5), Some(8), None),
-      BytesPosition::new(Some(6), Some(7), None),
-      BytesPosition::new(Some(4), Some(5), None),
-      BytesPosition::new(Some(3), Some(6), None),
-      BytesPosition::new(Some(10), Some(12), None),
-      BytesPosition::new(Some(10), Some(12), None),
-      BytesPosition::new(Some(10), Some(14), None),
-      BytesPosition::new(Some(14), Some(15), None),
-      BytesPosition::new(Some(12), Some(16), None),
-      BytesPosition::new(Some(17), Some(19), None),
-      BytesPosition::new(Some(21), Some(23), None),
-      BytesPosition::new(Some(18), Some(22), None),
-      BytesPosition::new(Some(24), None, None),
-      BytesPosition::new(Some(24), Some(30), None),
-      BytesPosition::new(Some(31), Some(33), None),
-      BytesPosition::new(Some(35), None, None),
+      BytesPosition::new(None, Some(1), None).unwrap(),
+      BytesPosition::new(Some(1), Some(2), None).unwrap(),
+      BytesPosition::new(Some(5), Some(6), None).unwrap(),
+      BytesPosition::new(Some(5), Some(8), None).unwrap(),
+      BytesPosition::new(Some(6), Some(7), None).unwrap(),
+      BytesPosition::new(Some(4), Some(5), None).unwrap(),
+      BytesPosition::new(Some(3), Some(6), None).unwrap(),
+      BytesPosition::new(Some(10), Some(12), None).unwrap(),
+      BytesPosition::new(Some(10), Some(12), None).unwrap(),
+      BytesPosition::new(Some(10), Some(14), None).unwrap(),
+      BytesPosition::new(Some(14), Some(15), None).unwrap(),
+      BytesPosition::new(Some(12), Some(16), None).unwrap(),
+      BytesPosition::new(Some(17), Some(19), None).unwrap(),
+      BytesPosition::new(Some(21), Some(23), None).unwrap(),
+      BytesPosition::new(Some(18), Some(22), None).unwrap(),
+      BytesPosition::new(Some(24), None, None).unwrap(),
+      BytesPosition::new(Some(24), Some(30), None).unwrap(),
+      BytesPosition::new(Some(31), Some(33), None).unwrap(),
+      BytesPosition::new(Some(35), None, None).unwrap(),
     ];
 
     let expected_ranges = vec![
-      BytesPosition::new(None, Some(2), None),
-      BytesPosition::new(Some(3), Some(8), None),
-      BytesPosition::new(Some(10), Some(16), None),
-      BytesPosition::new(Some(17), Some(23), None),
-      BytesPosition::new(Some(24), None, None),
+      BytesPosition::new(None, Some(2), None).unwrap(),
+      BytesPosition::new(Some(3), Some(8), None).unwrap(),
+      BytesPosition::new(Some(10), Some(16), None).unwrap(),
+      BytesPosition::new(Some(17), Some(23), None).unwrap(),
+      BytesPosition::new(Some(24), None, None).unwrap(),
     ];
 
     assert_eq!(BytesPosition::merge_all(ranges), expected_ranges);
@@ -658,7 +768,7 @@ mod tests {
 
   #[test]
   fn bytes_position_new() {
-    let result = BytesPosition::new(Some(1), Some(2), Some(Class::Header));
+    let result = BytesPosition::new(Some(1), Some(2), Some(Class::Header)).unwrap();
     assert_eq!(result.start, Some(1));
     assert_eq!(result.end, Some(2));
     assert_eq!(result.class, Some(Class::Header));
@@ -666,13 +776,13 @@ mod tests {
 
   #[test]
   fn bytes_position_with_start() {
-    let result = BytesPosition::default().with_start(1);
+    let result = BytesPosition::default().with_start(1).unwrap();
     assert_eq!(result.start, Some(1));
   }
 
   #[test]
   fn bytes_position_with_end() {
-    let result = BytesPosition::default().with_end(1);
+    let result = BytesPosition::default().with_end(1).unwrap();
     assert_eq!(result.end, Some(1));
   }
 
@@ -691,7 +801,7 @@ mod tests {
   #[test]
   fn data_block_update_classes_all_some() {
     let blocks = DataBlock::update_classes(vec![
-      DataBlock::Range(BytesPosition::new(None, Some(1), Some(Class::Body))),
+      DataBlock::Range(BytesPosition::new(None, Some(1), Some(Class::Body)).unwrap()),
       DataBlock::Data(vec![], Some(Class::Header)),
     ]);
     for block in blocks {
@@ -706,7 +816,7 @@ mod tests {
   #[test]
   fn data_block_update_classes_one_none() {
     let blocks = DataBlock::update_classes(vec![
-      DataBlock::Range(BytesPosition::new(None, Some(1), Some(Class::Body))),
+      DataBlock::Range(BytesPosition::new(None, Some(1), Some(Class::Body)).unwrap()),
       DataBlock::Data(vec![], None),
     ]);
     for block in blocks {
@@ -721,18 +831,36 @@ mod tests {
   #[test]
   fn data_block_from_bytes_positions() {
     let blocks = DataBlock::from_bytes_positions(vec![
-      BytesPosition::new(None, Some(1), None),
-      BytesPosition::new(Some(1), Some(2), None),
+      BytesPosition::new(None, Some(1), None).unwrap(),
+      BytesPosition::new(Some(1), Some(2), None).unwrap(),
     ]);
     assert_eq!(
       blocks,
-      vec![DataBlock::Range(BytesPosition::new(None, Some(2), None))]
+      vec![DataBlock::Range(
+        BytesPosition::new(None, Some(2), None).unwrap()
+      )]
     );
   }
 
   #[test]
+  fn data_block_from_empty_bytes_positions() {
+    let blocks =
+      DataBlock::from_bytes_positions(vec![BytesPosition::new(Some(0), Some(0), None).unwrap()]);
+    assert_eq!(blocks, vec![]);
+  }
+
+  #[test]
+  fn data_block_is_empty() {
+    assert!(DataBlock::Range(BytesPosition::new(Some(0), Some(0), None).unwrap()).is_empty());
+    assert!(DataBlock::Data(vec![], None).is_empty());
+    assert!(!DataBlock::Range(BytesPosition::new(Some(0), Some(1), None).unwrap()).is_empty());
+    assert!(!DataBlock::Data(vec![0], None).is_empty());
+  }
+
+  #[test]
   fn byte_range_from_byte_position() {
-    let result: BytesRange = BytesRange::from(&BytesPosition::default().with_start(5).with_end(10));
+    let result =
+      BytesRange::try_from(&BytesPosition::new(Some(5), Some(10), None).unwrap()).unwrap();
     let expected = BytesRange::new(Some(5), Some(9));
     assert_eq!(result, expected);
   }
@@ -740,10 +868,12 @@ mod tests {
   #[test]
   fn get_options_with_max_length() {
     let request_headers = Default::default();
-    let result = GetOptions::new_with_default_range(&request_headers).with_max_length(1);
+    let result = GetOptions::new_with_default_range(&request_headers)
+      .with_max_length(1)
+      .unwrap();
     assert_eq!(
       result.range(),
-      &BytesPosition::default().with_start(0).with_end(1)
+      &BytesPosition::new(Some(0), Some(1), None).unwrap()
     );
   }
 
@@ -751,10 +881,10 @@ mod tests {
   fn get_options_with_range() {
     let request_headers = Default::default();
     let result = GetOptions::new_with_default_range(&request_headers)
-      .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
+      .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)).unwrap());
     assert_eq!(
       result.range(),
-      &BytesPosition::new(Some(5), Some(11), Some(Class::Header))
+      &BytesPosition::new(Some(5), Some(11), Some(Class::Header)).unwrap()
     );
   }
 
@@ -762,20 +892,21 @@ mod tests {
   fn url_options_with_range() {
     let request_headers = Default::default();
     let result = RangeUrlOptions::new_with_default_range(&request_headers)
-      .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)));
+      .with_range(BytesPosition::new(Some(5), Some(11), Some(Class::Header)).unwrap());
     assert_eq!(
       result.range(),
-      &BytesPosition::new(Some(5), Some(11), Some(Class::Header))
+      &BytesPosition::new(Some(5), Some(11), Some(Class::Header)).unwrap()
     );
   }
 
   #[test]
   fn url_options_apply_with_bytes_range() {
     let result = RangeUrlOptions::new(
-      BytesPosition::new(Some(5), Some(11), Some(Class::Header)),
+      BytesPosition::new(Some(5), Some(11), Some(Class::Header)).unwrap(),
       &Default::default(),
     )
-    .apply(Url::new(""));
+    .apply(Url::new(""))
+    .unwrap();
     println!("{result:?}");
     assert_eq!(
       result,
@@ -787,17 +918,20 @@ mod tests {
 
   #[test]
   fn url_options_apply_no_bytes_range() {
-    let result = RangeUrlOptions::new_with_default_range(&Default::default()).apply(Url::new(""));
+    let result = RangeUrlOptions::new_with_default_range(&Default::default())
+      .apply(Url::new(""))
+      .unwrap();
     assert_eq!(result, Url::new(""));
   }
 
   #[test]
   fn url_options_apply_with_headers() {
     let result = RangeUrlOptions::new(
-      BytesPosition::new(Some(5), Some(11), Some(Class::Header)),
+      BytesPosition::new(Some(5), Some(11), Some(Class::Header)).unwrap(),
       &Default::default(),
     )
-    .apply(Url::new("").with_headers(Headers::default().with_header("header", "value")));
+    .apply(Url::new("").with_headers(Headers::default().with_header("header", "value")))
+    .unwrap();
     println!("{result:?}");
 
     assert_eq!(
