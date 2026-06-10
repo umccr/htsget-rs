@@ -113,10 +113,11 @@ where
     })?;
 
     Ok(
-      BytesPosition::default()
-        .with_start(start)?
-        .with_end(file_size)?
-        .set_class(class),
+      BytesPosition::builder()
+        .with_start(start)
+        .with_end(file_size)
+        .set_class(class)
+        .build()?,
     )
   }
 }
@@ -361,7 +362,7 @@ where
         .preprocess(
           key,
           GetOptions::new(
-            BytesPosition::default().set_end(end)?,
+            BytesPosition::builder().set_end(end).build()?,
             query.request().headers(),
           ),
         )
@@ -424,7 +425,7 @@ where
   async fn get_header(&self, query: &Query, offset: u64) -> Result<(Header, Reader)> {
     trace!("getting header");
     let get_options = GetOptions::new(
-      BytesPosition::default().with_end(offset)?,
+      BytesPosition::builder().with_end(offset).build()?,
       query.request().headers(),
     );
 
@@ -578,10 +579,11 @@ where
 
     let mut append_position = |chunk: Chunk, end: u64| -> Result<()> {
       bytes_positions.push(
-        BytesPosition::default()
-          .with_start(chunk.start().compressed())?
-          .with_end(end)?
-          .with_class(Body),
+        BytesPosition::builder()
+          .with_start(chunk.start().compressed())
+          .with_end(end)
+          .with_class(Body)
+          .build()?,
       );
 
       Ok(())
@@ -643,7 +645,9 @@ where
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?)?,
+      BytesPosition::builder()
+        .with_end(self.position_at_eof(query).await?)
+        .build()?,
     ])
   }
 
@@ -704,10 +708,11 @@ where
     };
 
     Ok(
-      BytesPosition::default()
-        .with_start(0)?
-        .with_end(next_block_index)?
-        .with_class(Header),
+      BytesPosition::builder()
+        .with_start(0)
+        .with_end(next_block_index)
+        .with_class(Header)
+        .build()?,
     )
   }
 

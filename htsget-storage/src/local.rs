@@ -302,7 +302,11 @@ pub(crate) mod tests {
         &storage,
         "folder/../key1",
         RangeUrlOptions::new(
-          BytesPosition::new(Some(7), Some(10), None).unwrap(),
+          BytesPosition::builder()
+            .with_start(7)
+            .with_end(10)
+            .build()
+            .unwrap(),
           &Default::default(),
         ),
       )
@@ -321,7 +325,7 @@ pub(crate) mod tests {
         &storage,
         "folder/../key1",
         RangeUrlOptions::new(
-          BytesPosition::new(Some(7), None, None).unwrap(),
+          BytesPosition::builder().with_start(7).build().unwrap(),
           &Default::default(),
         ),
       )

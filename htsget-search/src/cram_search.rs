@@ -45,7 +45,9 @@ impl SearchAll<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   #[instrument(level = "trace", skip_all, ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?)?,
+      BytesPosition::builder()
+        .with_end(self.position_at_eof(query).await?)
+        .build()?,
     ])
   }
 
@@ -71,9 +73,10 @@ impl SearchAll<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
     _query: &Query,
   ) -> Result<BytesPosition> {
     Ok(
-      BytesPosition::default()
-        .with_end(self.get_header_end_offset(index).await?)?
-        .with_class(HtsGetHeader),
+      BytesPosition::builder()
+        .with_end(self.get_header_end_offset(index).await?)
+        .with_class(HtsGetHeader)
+        .build()?,
     )
   }
 
@@ -251,10 +254,11 @@ impl CramSearch {
 
     if seq_start <= record_end && seq_end >= record_start {
       Ok(Some(
-        BytesPosition::default()
-          .with_start(record.offset())?
-          .with_end(next)?
-          .with_class(Body),
+        BytesPosition::builder()
+          .with_start(record.offset())
+          .with_end(next)
+          .with_class(Body)
+          .build()?,
       ))
     } else {
       Ok(None)

@@ -378,7 +378,11 @@ pub(crate) mod tests {
         .range_url(
           "key2",
           RangeUrlOptions::new(
-            BytesPosition::new(Some(7), Some(9), None).unwrap(),
+            BytesPosition::builder()
+              .with_start(7)
+              .with_end(9)
+              .build()
+              .unwrap(),
             &Default::default(),
           ),
         )
@@ -405,7 +409,7 @@ pub(crate) mod tests {
         .range_url(
           "key2",
           RangeUrlOptions::new(
-            BytesPosition::new(Some(7), None, None).unwrap(),
+            BytesPosition::builder().with_start(7).build().unwrap(),
             &Default::default(),
           ),
         )

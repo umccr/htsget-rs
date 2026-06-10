@@ -162,12 +162,11 @@ impl C4GHStorage {
     let encrypted_file_size = if Format::is_index(key) {
       match self.inner.head(&c4gh_key, (&options).into()).await {
         Ok(encrypted_file_size) => {
-          // Always get the full index file. A zero file size fetches the whole file rather than
-          // using an empty range.
-          c4gh_header_options.range = c4gh_header_options
-            .range()
-            .clone()
-            .set_end((encrypted_file_size > 0).then_some(encrypted_file_size))?;
+          // Always get the full index file from the start. A zero file size fetches the whole file
+          // rather than using an empty range.
+          c4gh_header_options.range = BytesPosition::builder()
+            .set_end((encrypted_file_size > 0).then_some(encrypted_file_size))
+            .build()?;
           encrypted_file_size
         }
         // Otherwise, fallback on the non-encrypted index.
@@ -176,12 +175,12 @@ impl C4GHStorage {
     } else {
       // Get the file size.
       let encrypted_file_size = self.inner.head(&c4gh_key, (&options).into()).await?;
-      // A zero header end fetches the whole file rather than using an empty range.
+      // Fetch the header region from the start. A zero header end fetches the whole file rather
+      // than using an empty range.
       let header_end = min(MAX_C4GH_HEADER_SIZE, encrypted_file_size);
-      c4gh_header_options.range = c4gh_header_options
-        .range()
-        .clone()
-        .set_end((header_end > 0).then_some(header_end))?;
+      c4gh_header_options.range = BytesPosition::builder()
+        .set_end((header_end > 0).then_some(header_end))
+        .build()?;
       encrypted_file_size
     };
 
@@ -217,9 +216,10 @@ impl C4GHStorage {
       } else {
         Some(min(end, encrypted_file_size))
       };
-      options.range = BytesPosition::default()
-        .with_start(MAX_C4GH_HEADER_SIZE)?
-        .set_end(range_end)?;
+      options.range = BytesPosition::builder()
+        .with_start(MAX_C4GH_HEADER_SIZE)
+        .set_end(range_end)
+        .build()?;
 
       // A range selecting no bytes means there is nothing remaining to fetch.
       // This could occur if encrypted_file_size == MAX_C4GH_HEADER_SIZE which would
@@ -277,7 +277,11 @@ impl C4GHStorage {
       let end = default_end(&pos);
       let class = pos.get_class();
 
-      let pos = BytesPosition::new(Some(start), Some(end), class)?;
+      let pos = BytesPosition::builder()
+        .with_start(start)
+        .with_end(end)
+        .set_class(class)
+        .build()?;
       // Positions selecting no bytes do nothing in terms of the data blocks or edit lists, and
       // should be removed before they are processed.
       if pos.is_empty() {
@@ -286,29 +290,33 @@ impl C4GHStorage {
 
       unencrypted_positions.push(pos);
 
-      clamped_positions.push(BytesPosition::new(
-        Some(unencrypted_clamp(start, header_size, encrypted_file_size)),
-        Some(unencrypted_clamp_next(
-          end,
-          header_size,
-          encrypted_file_size,
-        )),
-        class,
-      )?);
+      clamped_positions.push(
+        BytesPosition::builder()
+          .with_start(unencrypted_clamp(start, header_size, encrypted_file_size))
+          .with_end(unencrypted_clamp_next(
+            end,
+            header_size,
+            encrypted_file_size,
+          ))
+          .set_class(class)
+          .build()?,
+      );
 
-      encrypted_positions.push(BytesPosition::new(
-        Some(unencrypted_to_data_block(
-          start,
-          header_size,
-          encrypted_file_size,
-        )),
-        Some(unencrypted_to_next_data_block(
-          end,
-          header_size,
-          encrypted_file_size,
-        )),
-        class,
-      )?);
+      encrypted_positions.push(
+        BytesPosition::builder()
+          .with_start(unencrypted_to_data_block(
+            start,
+            header_size,
+            encrypted_file_size,
+          ))
+          .with_end(unencrypted_to_next_data_block(
+            end,
+            header_size,
+            encrypted_file_size,
+          ))
+          .set_class(class)
+          .build()?,
+      );
     }
 
     let unencrypted_positions = BytesPosition::merge_all(unencrypted_positions)
@@ -334,9 +342,10 @@ impl C4GHStorage {
     let mut blocks = vec![
       DataBlock::Data(header_info, Some(Class::Header)),
       DataBlock::Range(
-        BytesPosition::default()
-          .with_start(header_info_size)?
-          .with_end(current_header_size)?,
+        BytesPosition::builder()
+          .with_start(header_info_size)
+          .with_end(current_header_size)
+          .build()?,
       ),
       DataBlock::Data(
         [edit_list_packet, reencrypted_bytes].concat(),
@@ -456,7 +465,7 @@ mod tests {
     })
     .await;
   }
-  
+
   #[cfg(feature = "aws")]
   #[tokio::test]
   async fn preprocess_zero_size_s3_storage() {
@@ -642,10 +651,10 @@ mod tests {
         key,
         BytesPositionOptions::new(
           vec![
-            BytesPosition::default()
+            BytesPosition::builder()
               .with_start(0)
-              .unwrap()
               .with_end(6)
+              .build()
               .unwrap(),
           ],
           headers,
@@ -663,11 +672,23 @@ mod tests {
     );
     assert_eq!(
       blocks[1],
-      DataBlock::Range(BytesPosition::new(Some(16), Some(124), None).unwrap())
+      DataBlock::Range(
+        BytesPosition::builder()
+          .with_start(16)
+          .with_end(124)
+          .build()
+          .unwrap()
+      )
     );
     assert_eq!(
       blocks[3],
-      DataBlock::Range(BytesPosition::new(Some(124), Some(158), None).unwrap())
+      DataBlock::Range(
+        BytesPosition::builder()
+          .with_start(124)
+          .with_end(158)
+          .build()
+          .unwrap()
+      )
     );
   }
 
@@ -680,10 +701,10 @@ mod tests {
         key,
         BytesPositionOptions::new(
           vec![
-            BytesPosition::default()
+            BytesPosition::builder()
               .with_start(0)
-              .unwrap()
               .with_end(6)
+              .build()
               .unwrap(),
           ],
           headers,
@@ -749,8 +770,8 @@ mod tests {
     );
 
     storage
-        .preprocess(key, GetOptions::new_with_default_range(&Default::default()))
-        .await
+      .preprocess(key, GetOptions::new_with_default_range(&Default::default()))
+      .await
   }
 
   #[cfg(feature = "aws")]
