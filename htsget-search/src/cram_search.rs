@@ -648,6 +648,17 @@ mod tests {
     .await;
   }
 
+  #[tokio::test]
+  async fn get_eof_byte_positions_smaller_than_marker() {
+    with_local_storage(|storage| async move {
+      let search = CramSearch::new(storage);
+      let result = search.get_eof_byte_positions(10);
+      assert!(matches!(result, Some(Err(_))));
+      None
+    })
+    .await;
+  }
+
   async fn with_local_storage<F, Fut>(test: F)
   where
     F: FnOnce(Storage) -> Fut,

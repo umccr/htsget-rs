@@ -449,6 +449,25 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn preprocess_zero_size_local_storage() {
+    with_local_storage(|storage, base_path| async move {
+      write(base_path.join("folder/key.c4gh"), b"").await.unwrap();
+      assert!(preprocess_zero_size(storage, "folder/key").await.is_err());
+    })
+    .await;
+  }
+  
+  #[cfg(feature = "aws")]
+  #[tokio::test]
+  async fn preprocess_zero_size_s3_storage() {
+    with_aws_s3_storage(|storage, base_path| async move {
+      write(base_path.join("folder/key.c4gh"), b"").await.unwrap();
+      assert!(preprocess_zero_size(storage, "key").await.is_err());
+    })
+    .await;
+  }
+
+  #[tokio::test]
   async fn test_get_local_storage() {
     with_local_c4gh_storage(|mut storage| async move {
       test_get(&mut storage, "folder/key", &Default::default()).await
@@ -715,6 +734,23 @@ mod tests {
       .await;
     })
     .await;
+  }
+
+  async fn preprocess_zero_size(
+    storage: impl StorageTrait + Send + Sync + 'static,
+    key: &str,
+  ) -> Result<()> {
+    let mut storage = C4GHStorage::new(
+      get_decryption_keys().await,
+      get_encryption_keys().await,
+      storage,
+      true,
+      get_encoded_public_key(),
+    );
+
+    storage
+        .preprocess(key, GetOptions::new_with_default_range(&Default::default()))
+        .await
   }
 
   #[cfg(feature = "aws")]
