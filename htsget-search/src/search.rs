@@ -96,23 +96,28 @@ where
   /// Get the eof bytes positions converting from a data block.
   fn get_eof_byte_positions(&self, file_size: u64) -> Option<Result<BytesPosition>> {
     if let Some(DataBlock::Data(data, class)) = self.get_eof_data_block() {
-      let data_len =
-        u64::try_from(data.len()).map_err(|err| HtsGetError::InvalidInput(err.to_string()));
-
-      return match data_len {
-        Ok(data_len) => {
-          let bytes_position = BytesPosition::default()
-            .with_start(file_size - data_len)
-            .with_end(file_size);
-          let bytes_position = bytes_position.set_class(class);
-
-          Some(Ok(bytes_position))
-        }
-        Err(err) => Some(Err(err)),
-      };
+      return Some(Self::eof_position(file_size, &data, class));
     }
 
     None
+  }
+
+  /// Compute the bytes position of the eof data block.
+  fn eof_position(file_size: u64, data: &[u8], class: Option<Class>) -> Result<BytesPosition> {
+    let data_len =
+      u64::try_from(data.len()).map_err(|err| HtsGetError::InvalidInput(err.to_string()))?;
+    let start = file_size.checked_sub(data_len).ok_or_else(|| {
+      HtsGetError::io_error(format!(
+        "file size `{file_size}` is smaller than file length"
+      ))
+    })?;
+
+    Ok(
+      BytesPosition::default()
+        .with_start(start)?
+        .with_end(file_size)?
+        .set_class(class),
+    )
   }
 }
 
@@ -225,11 +230,14 @@ where
   #[instrument(level = "trace", skip(self), ret)]
   async fn position_at_eof(&self, query: &Query) -> Result<u64> {
     let file_size = self.file_size(query).await?;
-    Ok(
-      file_size
-        - u64::try_from(self.get_eof_marker().len())
-          .map_err(|err| HtsGetError::InvalidInput(err.to_string()))?,
-    )
+    let eof_len = u64::try_from(self.get_eof_marker().len())
+      .map_err(|err| HtsGetError::InvalidInput(err.to_string()))?;
+
+    file_size.checked_sub(eof_len).ok_or_else(|| {
+      HtsGetError::io_error(format!(
+        "file size `{file_size}` is smaller than the eof marker"
+      ))
+    })
   }
 
   /// Read the index from the key.
@@ -353,7 +361,7 @@ where
         .preprocess(
           key,
           GetOptions::new(
-            BytesPosition::default().set_end(end),
+            BytesPosition::default().set_end(end)?,
             query.request().headers(),
           ),
         )
@@ -379,6 +387,12 @@ where
     trace!("building response");
     let mut urls = vec![];
     let storage = self.get_storage();
+
+    // Blocks with no bytes cannot have a range header.
+    let byte_ranges = byte_ranges
+      .into_iter()
+      .filter(|block| !block.is_empty())
+      .collect();
 
     for block in DataBlock::update_classes(byte_ranges) {
       match block {
@@ -410,7 +424,7 @@ where
   async fn get_header(&self, query: &Query, offset: u64) -> Result<(Header, Reader)> {
     trace!("getting header");
     let get_options = GetOptions::new(
-      BytesPosition::default().with_end(offset),
+      BytesPosition::default().with_end(offset)?,
       query.request().headers(),
     );
 
@@ -562,19 +576,21 @@ where
     let mut bytes_positions = Vec::new();
     let mut maybe_end: Option<u64> = None;
 
-    let mut append_position = |chunk: Chunk, end: u64| {
+    let mut append_position = |chunk: Chunk, end: u64| -> Result<()> {
       bytes_positions.push(
         BytesPosition::default()
-          .with_start(chunk.start().compressed())
-          .with_end(end)
+          .with_start(chunk.start().compressed())?
+          .with_end(end)?
           .with_class(Body),
       );
+
+      Ok(())
     };
 
     for chunk in chunks {
       match maybe_end {
         Some(pos) if pos > chunk.end().compressed() => {
-          append_position(chunk, pos);
+          append_position(chunk, pos)?;
           continue;
         }
         _ => {}
@@ -594,7 +610,7 @@ where
         Some(pos) => pos,
       };
 
-      append_position(chunk, end);
+      append_position(chunk, end)?;
     }
 
     Ok(bytes_positions)
@@ -627,7 +643,7 @@ where
   #[instrument(level = "debug", skip(self), ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?),
+      BytesPosition::default().with_end(self.position_at_eof(query).await?)?,
     ])
   }
 
@@ -689,8 +705,8 @@ where
 
     Ok(
       BytesPosition::default()
-        .with_start(0)
-        .with_end(next_block_index)
+        .with_start(0)?
+        .with_end(next_block_index)?
         .with_class(Header),
     )
   }
