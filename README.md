@@ -39,6 +39,9 @@ Htsget-rs is configured using environment variables or config files, see [htsget
 ### Cloud
 
 Cloud-based htsget-rs uses [htsget-lambda]. For an example deployment of this crate using CDK see [htsget-deploy].
+Pre-built Lambda deployment packages for `arm64` and `x86_64` are attached to each `htsget-lambda` [release][releases].
+
+[releases]: https://github.com/umccr/htsget-rs/releases
 
 ## Protocol
 

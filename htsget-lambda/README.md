@@ -27,12 +27,16 @@ This crate can be deployed to AWS as a Lambda function, or interacted with local
 for more details. Note, this crate does not use any configuration relating to the local data server. CORS configuration
 uses values from the ticket server config. See [htsget-config] for more information about configuration.
 
+Pre-built Lambda deployment packages are attached to each `htsget-lambda` [release][releases] as
+`htsget-lambda-v<version>-<arch>.zip` files for `arm64` and `x86_64`.
+
 See [htsget-search] for details on how to structure files.
 
 [cargo-lambda]: https://github.com/cargo-lambda/cargo-lambda
 [htsget-deploy]: https://github.com/umccr/htsget-deploy
 [htsget-search]: ../htsget-search
 [htsget-config]: ../htsget-config
+[releases]: https://github.com/umccr/htsget-rs/releases
 
 ### As a library
 
@@ -42,7 +46,7 @@ library code, and it instead uses `htsget-axum`. Please use that crate for funct
 #### Feature flags
 
 This crate has the following features:
-* `s3`: used to enable `S3` location functionality and any other AWS features.
+* `aws`: used to enable `S3` location functionality and any other AWS features.
 * `url`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 
