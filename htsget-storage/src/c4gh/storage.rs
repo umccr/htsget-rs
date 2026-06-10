@@ -392,8 +392,7 @@ mod tests {
   use http::HeaderMap;
   use std::future::Future;
   use std::path::Path;
-  use tokio::fs::{File, read};
-  use tokio::io::AsyncWriteExt;
+  use tokio::fs::{read, write};
 
   #[tokio::test]
   async fn test_preprocess_local_storage() {
@@ -656,10 +655,7 @@ mod tests {
     let data = read(base_path.join("folder/../key1")).await.unwrap();
     let data = encrypt_data(&data);
 
-    File::create(base_path.join("folder/key.c4gh"))
-      .await
-      .unwrap()
-      .write_all(&data)
+    write(base_path.join("folder/key.c4gh"), &data)
       .await
       .unwrap();
   }
