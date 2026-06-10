@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.6...htsget-search-v0.13.0) - 2026-06-10
+
+### Added
+
+- *(search)* implement `from_resolve` for htsget search
+- *(config)* link up feature flags and box backend type
+- add resolver storage and new feature flag
+
+### Other
+
+- bump deps, including lambda runtime away from fork
+- [**breaking**] rename resolve storage to json path storage for added clarity
+- [**breaking**] resolve feature is nearly entirely dependent on url feature so there's no need to have it
+
 ## [0.12.6](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.5...htsget-search-v0.12.6) - 2026-02-03
 
 ### Added

@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.6...htsget-storage-v0.6.0) - 2026-06-10
+
+### Added
+
+- *(storage)* implement denylist headers
+- *(storage)* filter-based approach for allowlist, and test case coverage
+- *(storage)* add wildcard filtering for headers
+- add option to hard-code the response url for json path storage
+- *(storage)* implement resolve storage type
+- *(config)* link up feature flags and box backend type
+- add resolver storage and new feature flag
+
+### Fixed
+
+- *(config)* default uri to allow all
+- *(storage)* consider `None` value header names
+- *(storage)* adjust case sensitivity for header name matches
+- *(storage)* get key range and format key defaults
+
+### Other
+
+- *(htsget-test)* remove s3s and use aws-smithy-mocks instead
+- *(config)* [**breaking**] introduce separate response_path and response_url options
+- *(storage)* fix range url test case with content url default result
+- *(config)* clarify crypt4gh file size
+- [**breaking**] rename resolve storage to json path storage for added clarity
+- [**breaking**] resolve feature is nearly entirely dependent on url feature so there's no need to have it
+- *(storage)* implement tests for resolve storage
+- *(storage)* [**breaking**] split out the url client from the storage to be re-used by resolve storage
+
 ## [0.5.6](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.5...htsget-storage-v0.5.6) - 2026-02-03
 
 ### Added
