@@ -250,7 +250,7 @@ struct StringLocation {
   location: Option<String>,
   /// The prefix or id match configuration.
   #[serde(flatten)]
-  prefix_or_id: PrefixOrId,
+  prefix_or_id: Option<PrefixOrId>,
 }
 
 /// Deserialize the location from a map with regular field and values.
@@ -312,7 +312,7 @@ impl TryFrom<LocationWrapper> for SimpleLocation {
         Ok(SimpleLocation::new(
           backend.0,
           backend.1,
-          Some(wrapper.prefix_or_id),
+          wrapper.prefix_or_id,
         ))
       }
       LocationWrapper::Map(wrapper) => Ok(SimpleLocation::new(
@@ -325,10 +325,10 @@ impl TryFrom<LocationWrapper> for SimpleLocation {
           if #[cfg(feature = "experimental")] {
             let mut backend: BackendWithAppend = wrapper.location.location.unwrap_or_default().try_into()?;
             backend.0.set_keys(wrapper.keys);
-            Ok(SimpleLocation::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
+            Ok(SimpleLocation::new(backend.0, backend.1, wrapper.location.prefix_or_id))
           } else {
             let backend: BackendWithAppend = wrapper.location.location.unwrap_or_default().try_into()?;
-            Ok(SimpleLocation::new(backend.0, backend.1, Some(wrapper.location.prefix_or_id)))
+            Ok(SimpleLocation::new(backend.0, backend.1, wrapper.location.prefix_or_id))
           }
         }
       }
@@ -461,6 +461,17 @@ mod tests {
     test_serialize_and_deserialize(
       r#"
       locations = "file://path/"
+      "#,
+      ("path".to_string(), "".to_string(), None),
+      |result: Config| assert_file_location(result),
+    );
+  }
+
+  #[test]
+  fn location_map_no_prefix() {
+    test_serialize_and_deserialize(
+      r#"
+      locations = [ { location = "file://path" } ]
       "#,
       ("path".to_string(), "".to_string(), None),
       |result: Config| assert_file_location(result),
@@ -680,6 +691,33 @@ mod tests {
               .as_prefix()
               .unwrap()
               .to_string(),
+          );
+        }
+
+        panic!();
+      },
+    );
+  }
+
+  #[cfg(feature = "aws")]
+  #[test]
+  fn location_s3_map_no_prefix() {
+    test_serialize_and_deserialize(
+      r#"
+      locations = [ { location = "s3://bucket" } ]
+      "#,
+      ("bucket".to_string(), None),
+      |result: Config| {
+        let result = result.locations.0;
+        assert_eq!(result.len(), 1);
+        if let Location::Simple(location) = result.first().unwrap()
+          && let Backend::S3(s3) = location.backend()
+        {
+          return (
+            s3.bucket().to_string(),
+            location
+              .prefix_or_id()
+              .and_then(|prefix| prefix.as_prefix().map(|prefix| prefix.to_string())),
           );
         }
 
