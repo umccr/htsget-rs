@@ -73,27 +73,32 @@
         }
       },
       "unevaluatedProperties": false,
-      "oneOf": [
+      "anyOf": [
         {
-          "description": "Use prefix matching logic, where the requested id should start with the prefix.",
-          "type": "object",
-          "properties": {
-            "prefix": {
-              "type": "string"
+          "oneOf": [
+            {
+              "description": "Use prefix matching logic, where the requested id should start with the prefix.",
+              "type": "object",
+              "properties": {
+                "prefix": {
+                  "type": "string"
+                }
+              },
+              "required": ["prefix"]
+            },
+            {
+              "description": "Use exact id matching logic, where the requested id should be equal to this id.",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              },
+              "required": ["id"]
             }
-          },
-          "required": ["prefix"]
+          ]
         },
-        {
-          "description": "Use exact id matching logic, where the requested id should be equal to this id.",
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            }
-          },
-          "required": ["id"]
-        }
+        {}
       ]
     },
     "RegexLocation": {
