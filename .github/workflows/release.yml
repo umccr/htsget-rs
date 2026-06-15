@@ -16,6 +16,7 @@ jobs:
     outputs:
       releases_created: ${{ steps.release-plz.outputs.releases_created }}
       releases: ${{ steps.release-plz.outputs.releases }}
+      htsget-lambda-tag: ${{ steps.lambda-tag.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -29,13 +30,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+      - name: Resolve htsget-lambda tag
+        id: lambda-tag
+        if: ${{ steps.release-plz.outputs.releases_created == 'true' }}
+        env:
+          RELEASES: ${{ steps.release-plz.outputs.releases }}
+        run: |
+          tag=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "htsget-lambda") | .tag')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   # Build the htsget-lambda deployment artifact whenever release-plz publishes `htsget-lambda`
   lambda-artifact:
     name: Publish htsget-lambda (${{ matrix.arch }})
     needs: release
     # Run only when this release actually included htsget-lambda.
-    if: ${{ needs.release.outputs.releases_created == 'true' && contains(fromJSON(needs.release.outputs.releases).*.package_name, 'htsget-lambda') }}
+    if: ${{ needs.release.outputs.htsget-lambda-tag != '' }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -73,9 +82,28 @@ jobs:
       - name: Attach artifact to the GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASES: ${{ needs.release.outputs.releases }}
+          TAG: ${{ needs.release.outputs.htsget-lambda-tag }}
           ARCH: ${{ matrix.arch }}
         run: |
-          tag=$(echo "$RELEASES" | jq -r '.[] | select(.package_name == "htsget-lambda") | .tag')
-          mv target/lambda/htsget-lambda/bootstrap.zip "$tag-$ARCH.zip"
-          gh release upload "$tag" "$tag-$ARCH.zip"
+          mv target/lambda/htsget-lambda/bootstrap.zip "$TAG-$ARCH.zip"
+          gh release upload "$TAG" "$TAG-$ARCH.zip"
+
+  # Notify the deployment repo that a new htsget-lambda release is ready.
+  notify-deploy:
+    name: Trigger deployment
+    needs: [release, lambda-artifact]
+    runs-on: ubuntu-latest
+    permissions: {}
+    env:
+      # The deployment repo to notify.
+      DEPLOY_REPO: umccr/htsget-pipeline
+    steps:
+      - name: Send htsget-lambda dispatch
+        # Run only when this release actually included htsget-lambda.
+        if: ${{ needs.release.outputs.htsget-lambda-tag != '' }}
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ secrets.HTSGET_RS_DISPATCH_TOKEN }}
+          repository: ${{ env.DEPLOY_REPO }}
+          event-type: htsget-lambda-release
+          client-payload: '{"tag": "${{ needs.release.outputs.htsget-lambda-tag }}"}'
