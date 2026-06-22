@@ -71,4 +71,4 @@ rcgen = "0.14"
 thiserror = "2"
 
 # Server tests dependencies
-htsget-config = { version = "0.22.0", path = "../htsget-config", default-features = false, optional = true }
+htsget-config = { version = "0.22.1", path = "../htsget-config", default-features = false, optional = true }

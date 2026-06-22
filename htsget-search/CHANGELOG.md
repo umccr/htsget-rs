@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.13.0...htsget-search-v0.13.1) - 2026-06-22
+
+### Fixed
+
+- search should perform checked_sub and not construct empty bytes ranges
+
+### Other
+
+- Merge pull request #364 from umccr/feat/pipeline-deploy
+- add a BytesPositionBuilder
+- add tests targetting invalid files
+- adjust code to use new bytes position construction
+
 ## [0.13.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.12.6...htsget-search-v0.13.0) - 2026-06-10
 
 ### Added

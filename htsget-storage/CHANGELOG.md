@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.6.0...htsget-storage-v0.6.1) - 2026-06-22
+
+### Fixed
+
+- c4gh storage now checks for empty ranges before proceeding
+
+### Other
+
+- Merge pull request #364 from umccr/feat/pipeline-deploy
+- add a BytesPositionBuilder
+- add tests targetting invalid files
+- adjust code to use new bytes position construction
+- add constraint to BytesPosition and BytesRange that disallows end < start
+- remove instances of File::create and write_all with plain write
+
 ## [0.6.0](https://github.com/umccr/htsget-rs/compare/htsget-storage-v0.5.6...htsget-storage-v0.6.0) - 2026-06-10
 
 ### Added
