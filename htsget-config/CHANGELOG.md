@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.22.0...htsget-config-v0.22.1) - 2026-06-22
+
+### Added
+
+- allow no prefix on locations config
+
+### Other
+
+- update schema
+
 ## [0.22.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.21.0...htsget-config-v0.22.0) - 2026-06-10
 
 ### Added
