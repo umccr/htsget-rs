@@ -13,7 +13,7 @@ use std::path::PathBuf;
 /// Where authorization restrictions come from, either the remote server or a static file.
 #[derive(Debug, Clone)]
 pub enum AuthorizationSource {
-  Callout(Callout),
+  Callout(Box<Callout>),
   Static(AuthorizationRestrictions),
 }
 
@@ -47,7 +47,7 @@ impl AuthorizationSource {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AuthorizationSourceBuilder {
-  Callout(Callout),
+  Callout(Box<Callout>),
   Static { path: PathBuf },
 }
 

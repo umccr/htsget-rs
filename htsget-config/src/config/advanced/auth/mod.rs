@@ -4,11 +4,11 @@
 //! data.
 //!
 
+use crate::config::advanced::HttpClient;
 use crate::config::advanced::auth::authorization::{
   AuthorizationSource, AuthorizationSourceBuilder,
 };
 use crate::config::advanced::auth::jwt::{JwtKey, JwtKeyBuilder};
-use crate::config::advanced::HttpClient;
 use crate::config::advanced::callout::{Callout, Forward};
 use crate::config::service_info::PackageInfo;
 use crate::error::Error::ParseError;
@@ -182,11 +182,11 @@ impl AuthConfigBuilder {
     let jwt = match (self.jwt, self.jwks_url, self.jwt_raw) {
       (None, None, None) => None,
       (Some(builder), None, None) => Some(builder.build()?),
-      (None, Some(url), None) => Some(JwtKey::Jwks(Callout::new(
+      (None, Some(url), None) => Some(JwtKey::Jwks(Box::new(Callout::new(
         url,
         HttpClient::from(HttpClientConfig::default()),
         Forward::default(),
-      ))),
+      )))),
       (None, None, Some(key)) => Some(key),
       _ => {
         return Err(ParseError(

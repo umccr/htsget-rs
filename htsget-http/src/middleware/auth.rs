@@ -210,13 +210,8 @@ impl Auth {
   ) -> HtsGetResult<Option<AuthorizationRestrictions>> {
     match self.config.authorization_mut() {
       Some(AuthorizationSource::Callout(callout)) => {
-        let forwarded_headers = Self::forwarded_headers(
-          callout,
-          headers,
-          request_extensions,
-          request_endpoint,
-          id,
-        )?;
+        let forwarded_headers =
+          Self::forwarded_headers(callout, headers, request_extensions, request_endpoint, id)?;
 
         Self::fetch_from_callout(callout, forwarded_headers)
           .await
@@ -660,14 +655,8 @@ mod tests {
       HeaderRules::default(),
       ContextRules::new(true, false, vec![]),
     ));
-    let forwarded_headers = Auth::forwarded_headers(
-      &callout,
-      &request_headers,
-      None,
-      &Endpoint::Variants,
-      "id",
-    )
-    .unwrap();
+    let forwarded_headers =
+      Auth::forwarded_headers(&callout, &request_headers, None, &Endpoint::Variants, "id").unwrap();
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([(
@@ -683,14 +672,8 @@ mod tests {
       HeaderRules::default(),
       ContextRules::new(false, true, vec![]),
     ));
-    let forwarded_headers = Auth::forwarded_headers(
-      &callout,
-      &request_headers,
-      None,
-      &Endpoint::Variants,
-      "id",
-    )
-    .unwrap();
+    let forwarded_headers =
+      Auth::forwarded_headers(&callout, &request_headers, None, &Endpoint::Variants, "id").unwrap();
     assert_eq!(
       forwarded_headers,
       HeaderMap::from_iter([(
@@ -1367,11 +1350,11 @@ mod tests {
   fn create_test_auth_config(public_key: Vec<u8>) -> AuthConfig {
     AuthConfigBuilder::default()
       .jwt_raw(JwtKey::PublicKey(public_key))
-      .authorization(AuthorizationSourceBuilder::Callout(Callout::new(
+      .authorization(AuthorizationSourceBuilder::Callout(Box::new(Callout::new(
         Uri::from_static("https://www.example.com"),
         HttpClient::from(HttpClientConfig::default()),
         Forward::default(),
-      )))
+      ))))
       .build()
       .unwrap()
   }

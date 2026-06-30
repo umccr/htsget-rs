@@ -11,7 +11,7 @@ use std::path::PathBuf;
 /// static public key.
 #[derive(Debug, Clone)]
 pub enum JwtKey {
-  Jwks(Callout),
+  Jwks(Box<Callout>),
   PublicKey(Vec<u8>),
 }
 
@@ -45,7 +45,7 @@ impl JwtKey {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum JwtKeyBuilder {
-  Jwks(Callout),
+  Jwks(Box<Callout>),
   PublicKey { path: PathBuf },
 }
 

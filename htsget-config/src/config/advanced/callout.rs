@@ -7,6 +7,7 @@ use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
 use heck::ToTrainCase;
 use http::{HeaderMap, Uri};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use wildmatch::WildMatch;
 
@@ -56,7 +57,7 @@ impl Callout {
 /// Forward data from the client request to the callout server. This includes
 /// headers from the client, and htsget-specific context, i.e. endpoint, id,
 /// extensions, etc.
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(deny_unknown_fields, default)]
 pub struct Forward {
   headers: HeaderRules,
@@ -81,7 +82,7 @@ impl Forward {
 }
 
 /// Allow and deny rules for header names. Both lists support `*` and `?`.
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(deny_unknown_fields, default)]
 pub struct HeaderRules {
   allow: Vec<String>,
@@ -125,9 +126,7 @@ impl HeaderRules {
     let mut result = HeaderMap::new();
     for (name, value) in headers {
       let lowered = name.as_str().to_lowercase();
-      if allow.iter().any(|p| p.matches(&lowered))
-        && !deny.iter().any(|p| p.matches(&lowered))
-      {
+      if allow.iter().any(|p| p.matches(&lowered)) && !deny.iter().any(|p| p.matches(&lowered)) {
         result.insert(name, value.clone());
       }
     }
@@ -139,7 +138,7 @@ impl HeaderRules {
 ///
 /// These values are derived from the kind of request to htsget, like the endpoint and
 /// id. Headers are inserted with a `Htsget-Context-` prefix.
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(deny_unknown_fields, default)]
 pub struct ContextRules {
   endpoint_type: bool,
@@ -178,14 +177,14 @@ impl ContextRules {
 ///
 /// `name` is optional. When omitted, it is derived from the JSONPath by applying case conversion
 /// on the components. E.g. `$.user.custom_id` becomes `Htsget-Context-User-Custom-Id`.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields, try_from = "ContextExtensionRaw")]
 pub struct ContextExtension {
   json_path: String,
   name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ContextExtensionRaw {
   json_path: String,
@@ -240,8 +239,8 @@ impl ContextExtension {
 }
 
 /// How to interpret a fetched object.
-#[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "ParseRaw")]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(try_from = "ParseRaw", into = "ParseRaw")]
 pub enum Parse {
   /// The incoming object is raw bytes, with the option to override the ticket URL.
   Bytes { ticket_url: Option<Uri> },
@@ -253,22 +252,37 @@ pub enum Parse {
   },
 }
 
+impl JsonSchema for Parse {
+  fn schema_name() -> std::borrow::Cow<'static, str> {
+    ParseRaw::schema_name()
+  }
+
+  fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    ParseRaw::json_schema(generator)
+  }
+}
+
+impl Default for Parse {
+  fn default() -> Self {
+    Parse::Bytes { ticket_url: None }
+  }
+}
+
 /// Where the URL tickets come from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TicketSource {
   /// Take the URL ticket from a JSONPath.
   JsonPath { path: String },
   /// Use a static URL for tickets.
-  Url {
-    url: Uri,
-  },
+  Url { url: Uri },
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-enum ParseRaw {
+pub(crate) enum ParseRaw {
   Bytes {
     #[serde(default, with = "http_serde::option::uri")]
+    #[schemars(with = "Option<String>")]
     ticket_url: Option<Uri>,
   },
   JsonPath {
@@ -278,8 +292,34 @@ enum ParseRaw {
     #[serde(default)]
     ticket_path: Option<String>,
     #[serde(default, with = "http_serde::option::uri")]
+    #[schemars(with = "Option<String>")]
     ticket_url: Option<Uri>,
   },
+}
+
+impl From<Parse> for ParseRaw {
+  fn from(parse: Parse) -> Self {
+    match parse {
+      Parse::Bytes { ticket_url } => ParseRaw::Bytes { ticket_url },
+      Parse::JsonPath {
+        content_path,
+        size_path,
+        ticket,
+      } => {
+        let (ticket_path, ticket_url) = match ticket {
+          None => (None, None),
+          Some(TicketSource::JsonPath { path }) => (Some(path), None),
+          Some(TicketSource::Url { url }) => (None, Some(url)),
+        };
+        ParseRaw::JsonPath {
+          content_path,
+          size_path,
+          ticket_path,
+          ticket_url,
+        }
+      }
+    }
+  }
 }
 
 impl TryFrom<ParseRaw> for Parse {
@@ -298,9 +338,11 @@ impl TryFrom<ParseRaw> for Parse {
           (None, None) => None,
           (None, Some(url)) => Some(TicketSource::Url { url }),
           (Some(path), None) => Some(TicketSource::JsonPath { path }),
-          (Some(_), Some(_)) => return Err(ParseError(
-            "cannot specify both `ticket_path` and `ticket_url`".to_string(),
-          ))
+          (Some(_), Some(_)) => {
+            return Err(ParseError(
+              "cannot specify both `ticket_path` and `ticket_url`".to_string(),
+            ));
+          }
         };
 
         Ok(Parse::JsonPath {
@@ -313,9 +355,8 @@ impl TryFrom<ParseRaw> for Parse {
   }
 }
 
-
 /// Which headers from the response to echo back to the client in the ticket.
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, Default, PartialEq, Eq)]
 #[serde(deny_unknown_fields, default)]
 pub struct Reflect {
   headers: HeaderRules,
@@ -332,7 +373,6 @@ impl Reflect {
     &self.headers
   }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -444,7 +484,9 @@ mod tests {
         assert_eq!(size_path.as_deref(), Some("$.size"));
         assert_eq!(
           ticket,
-          Some(TicketSource::JsonPath { path: "$.response".to_string()} ),
+          Some(TicketSource::JsonPath {
+            path: "$.response".to_string()
+          }),
         );
       }
       _ => panic!(),
@@ -460,7 +502,9 @@ mod tests {
       Parse::JsonPath { ticket, .. } => {
         assert_eq!(
           ticket,
-          Some(TicketSource::Url { url: "https://example.com".parse().unwrap()} ),
+          Some(TicketSource::Url {
+            url: "https://example.com".parse().unwrap()
+          }),
         );
       }
       _ => panic!(),
@@ -473,9 +517,7 @@ mod tests {
     let parse = toml::from_str(toml).unwrap();
     match parse {
       Parse::JsonPath { ticket, .. } => {
-        assert!(
-          ticket.is_none(),
-        );
+        assert!(ticket.is_none(),);
       }
       _ => panic!(),
     }

@@ -6,6 +6,7 @@ use axum::extract::State;
 use axum::{Router, http::StatusCode, response::Json, routing::get};
 use cfg_if::cfg_if;
 use chrono::{Duration, Utc};
+use htsget_config::config::advanced::HttpClient;
 use htsget_config::config::advanced::auth::authorization::AuthorizationSourceBuilder;
 use htsget_config::config::advanced::auth::jwt::JwtKey;
 use htsget_config::config::advanced::auth::response::{
@@ -15,7 +16,6 @@ use htsget_config::config::advanced::auth::{
   AuthConfig, AuthConfigBuilder, AuthorizationRestrictions,
 };
 use htsget_config::config::advanced::callout::{Callout, Forward};
-use htsget_config::config::advanced::HttpClient;
 use htsget_config::config::location::{Location, PrefixOrId, SimpleLocation};
 use htsget_config::http::client::HttpClientConfig;
 use htsget_config::storage::Backend;
@@ -114,11 +114,11 @@ pub fn create_test_auth_config(
     .validate_audience(vec!["test-audience".to_string()])
     .validate_issuer(vec!["test-issuer".to_string()])
     .validate_subject("test-subject".to_string())
-    .authorization(AuthorizationSourceBuilder::Callout(Callout::new(
+    .authorization(AuthorizationSourceBuilder::Callout(Box::new(Callout::new(
       mock_server.uri(),
       HttpClient::from(HttpClientConfig::default()),
       Forward::default(),
-    )));
+    ))));
 
   cfg_if! {
     if #[cfg(feature = "experimental")] {

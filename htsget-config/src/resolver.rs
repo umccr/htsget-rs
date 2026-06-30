@@ -35,6 +35,10 @@ pub trait ResolveResponse {
     json_path_storage: storage::json_path::JsonPath,
     query: &Query,
   ) -> Result<Response>;
+
+  /// Convert from `Http`.
+  #[cfg(feature = "url")]
+  async fn from_http(http_storage: storage::http::Http, query: &Query) -> Result<Response>;
 }
 
 /// A trait which uses storage to resolve requests into responses.
@@ -164,6 +168,8 @@ impl StorageResolver for Location {
       Backend::JsonPath(resolve_storage) => {
         Some(T::from_json_path(*resolve_storage.clone(), query).await)
       }
+      #[cfg(feature = "url")]
+      Backend::Http(http_storage) => Some(T::from_http(*http_storage.clone(), query).await),
     }
   }
 }
@@ -272,6 +278,13 @@ mod tests {
           query.id(),
         ),
       ))
+    }
+
+    #[cfg(feature = "url")]
+    async fn from_http(http_storage: storage::http::Http, query: &Query) -> Result<Response> {
+      let url = http_storage.url().to_string();
+      let prefix = url.strip_suffix('/').unwrap_or(&url);
+      Ok(Response::new(Bam, Self::format_url(prefix, query.id())))
     }
   }
 
