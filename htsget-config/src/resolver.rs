@@ -1,6 +1,5 @@
 //! Resolvers map ids to storage locations.
 
-use crate::config::advanced::allow_guard::QueryAllowed;
 use crate::config::advanced::regex_location::RegexLocation;
 use crate::config::location::{Location, Locations, PrefixOrId};
 use crate::storage;
@@ -106,15 +105,7 @@ impl IdResolver for Location {
       },
       Location::Regex(regex_location) => {
         if regex_location.regex().is_match(query.id()) {
-          if let Some(guard) = regex_location.guard() {
-            if guard.query_allowed(query) {
-              replace(regex_location)
-            } else {
-              None
-            }
-          } else {
-            replace(regex_location)
-          }
+          replace(regex_location)
         } else {
           None
         }
@@ -228,12 +219,6 @@ mod tests {
   use http::uri::Authority;
   #[cfg(feature = "url")]
   use {crate::config::advanced::HttpClient, reqwest::ClientBuilder};
-  #[cfg(feature = "aws")]
-  use {
-    crate::config::advanced::allow_guard::{AllowGuard, ReferenceNames},
-    crate::types::{Class, Fields, Interval, Tags},
-    std::collections::HashSet,
-  };
 
   struct TestResolveResponse;
 
@@ -306,7 +291,6 @@ mod tests {
       "id".parse().unwrap(),
       "$0-test".to_string(),
       Backend::File(file.clone()),
-      Default::default(),
     );
     expected_resolved_request(vec![regex_location.into()], "127.0.0.1:8080/id-test-1").await;
 
@@ -326,7 +310,6 @@ mod tests {
       "(id)-1".parse().unwrap(),
       "$1-test".to_string(),
       Backend::S3(s3_storage.clone()),
-      Default::default(),
     );
     expected_resolved_request(vec![regex_location.into()], "id2/id-test").await;
 
@@ -345,7 +328,6 @@ mod tests {
       "(id)-1".parse().unwrap(),
       "$1-test".to_string(),
       Backend::S3(storage::s3::S3::default()),
-      Default::default(),
     );
     expected_resolved_request(vec![regex_location.clone().into()], "id/id-test").await;
 
@@ -353,7 +335,6 @@ mod tests {
       "^(id)-(?P<key>.*)$".parse().unwrap(),
       "$key".to_string(),
       Backend::S3(storage::s3::S3::default()),
-      Default::default(),
     );
     expected_resolved_request(vec![regex_location.clone().into()], "id/1").await;
 
@@ -384,7 +365,6 @@ mod tests {
       "(id)-1".parse().unwrap(),
       "$1-test".to_string(),
       Backend::Url(Box::new(url_storage.clone())),
-      Default::default(),
     );
     expected_resolved_request(
       vec![regex_location.clone().into()],
@@ -407,13 +387,11 @@ mod tests {
         "^(id-1)(.*)$".parse().unwrap(),
         "$1-test-1".to_string(),
         Default::default(),
-        Default::default(),
       )
       .into(),
       RegexLocation::new(
         "^(id-2)(.*)$".parse().unwrap(),
         "$1-test-2".to_string(),
-        Default::default(),
         Default::default(),
       )
       .into(),
@@ -544,23 +522,6 @@ mod tests {
   }
 
   #[test]
-  fn config_resolvers_guard_file() {
-    test_config_from_file(
-      r#"
-      [[locations]]
-      regex = "regex"
-
-      [locations.guard]
-      allow_formats = ["BAM"]
-      "#,
-      |config| {
-        let regex = config.locations().first().unwrap().as_regex().unwrap();
-        assert_eq!(regex.guard().unwrap().allow_formats(), &vec![Bam]);
-      },
-    );
-  }
-
-  #[test]
   fn config_resolvers_env() {
     test_config_from_env(vec![("HTSGET_LOCATIONS", "[{regex=regex}]")], |config| {
       let regex = config.locations().first().unwrap().as_regex().unwrap();
@@ -575,20 +536,9 @@ mod tests {
       vec![(
         "HTSGET_LOCATIONS",
         "[{ regex=regex, substitution_string=substitution_string, \
-        backend={ kind=S3, bucket=bucket }, \
-        guard={ allow_reference_names=[chr1], allow_fields=[QNAME], allow_tags=[RG], \
-        allow_formats=[BAM], allow_classes=[body], allow_interval={ start=100, \
-        end=1000 } } }]",
+        backend={ kind=S3, bucket=bucket } }]",
       )],
       |config| {
-        let allow_guard = AllowGuard::new(
-          ReferenceNames::List(HashSet::from_iter(vec!["chr1".to_string()])),
-          Fields::List(HashSet::from_iter(vec!["QNAME".to_string()])),
-          Tags::List(HashSet::from_iter(vec!["RG".to_string()])),
-          vec![Bam],
-          vec![Class::Body],
-          Interval::new(Some(100), Some(1000)),
-        );
         let resolver = config.locations().first().unwrap();
         let expected_storage = storage::s3::S3::new("bucket".to_string(), None, false);
         let Backend::S3(storage) = resolver.backend() else {
@@ -602,7 +552,6 @@ mod tests {
         let regex = config.locations().first().unwrap().as_regex().unwrap();
         assert_eq!(regex.regex().to_string(), "regex");
         assert_eq!(regex.substitution_string(), "substitution_string");
-        assert_eq!(regex.guard().unwrap(), &allow_guard);
       },
     );
   }

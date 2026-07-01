@@ -400,38 +400,6 @@ If there is an overlap in regex matches, the first location specified will be th
 
 Additional config file examples are available under [`example/config-files`][examples-config-files].
 
-### Allow guard
-
-Additionally, locations support resolving IDs based on the other fields present in a query.
-This is useful to allow the location to match an ID only if a particular set of query parameters are also present.
-
-This component can be configured by setting the `guard` table with:
-
-| Option                  | Description                                                                             | Type                                                                  | Default                             |
-|-------------------------|-----------------------------------------------------------------------------------------|-----------------------------------------------------------------------|-------------------------------------|
-| `allow_reference_names` | Resolve the query ID if the query also contains the reference names set by this option. | Array of reference names or `'All'`                                   | `'All'`                             | 
-| `allow_fields`          | Resolve the query ID if the query also contains the fields set by this option.          | Array of fields or `'All'`                                            | `'All'`                             |
-| `allow_tags`            | Resolve the query ID if the query also contains the tags set by this option.            | Array of tags or `'All'`                                              | `'All'`                             |
-| `allow_formats`         | Resolve the query ID if the query is one of the formats specified by this option.       | An array of formats containing `'BAM'`, `'CRAM'`, `'VCF'`, or `'BCF'` | `['BAM', 'CRAM', 'VCF', 'BCF']`     |
-| `allow_classes`         | Resolve the query ID if the query is one of the classes specified by this option.       | An array of classes containing either `'body'` or `'header'`          | `['body', 'header']`                |
-| `allow_interval.start`  | Resolve the query ID if the query reference start position is at least this option.     | Unsigned 32-bit integer start position, 0-based, inclusive            | Not set, allows all start positions |
-| `allow_interval.end`    | Resolve the query ID if the query reference end position is at most this option.        | Unsigned 32-bit integer end position, 0-based exclusive               | Not set, allows all end positions   |
-
-For example, match only if the request queries `chr1` with positions between `100` and `1000`:
-
-```toml
-[[locations]]
-regex = ".*"
-substitution_string = "$0"
-
-backend.kind = "S3"
-backend.bucket = "bucket"
-
-guard.allow_reference_names = ["chr1"]
-guard.allow_interval.start = 100
-guard.allow_interval.end = 1000
-```
-
 ### Server configuration
 
 To use custom root certificates for `Url` locations, set the following:

@@ -555,7 +555,6 @@ mod tests {
         Regex::new("sample(.+)").unwrap(),
         "".to_string(),
         Default::default(),
-        Default::default(),
       ))))
       .reference_name(reference_restriction)
       .build()
