@@ -214,8 +214,9 @@ substitution_string = '$group1/data/$group2'
 This would mean that a request to `http://localhost:8080/reads/some_id/file` would search for files at `some_id/data/file.bam`.
 
 The regex locations also have access to further configuration of storage locations for `file://`, `s3://`, or `http://`
-locations. These are called `File`, `S3`, and `Url` respectively. There is another type of `Url` storage called
-[`JsonPath`](#jsonpath-locations) that cannot be configured using the simplified location syntax.
+locations. These are called `File`, `S3`, and `Url` respectively. The `Url` backend can fetch raw bytes directly, or
+perform an indirect [JSONPath](#parse-options) call-out. The JSONPath callout cannot be configured using the
+simplified location syntax.
 
 #### File locations
 
@@ -266,23 +267,44 @@ backend.path_style = true
 
 #### Url locations
 
-There are two types remote URL locations, `Url` and [`JsonPath`](#jsonpath-locations). The following options document the first type, which is
-analogous to using a `http://` or `https://` prefix for the simplified location syntax.
+Remote data served over HTTP is configured with the `Url` backend. This is analogous to using a `http://` or `https://`
+prefix in the simplified location syntax, but has the full set of options. The `Url` backend contains two kinds
+of modes. Setting `parse.kind = "bytes"` fetches raw bytes directly from a URL, which is the same as the simplified syntax.
+Or, setting `parse.kind = "json_path"` performs a call-out that returns a JSON manifest describing where the data lives.
 
-To manually configure `Url` locations, set `backend.kind = "Url"` and specify any additional options from below under the `backend` table:
+To manually configure `Url` locations, set `backend.kind = "Url"` and specify any additional options from below under
+the `backend` table:
 
-| Option                                                           | Description                                                                                                                                                                                                                                                                                                                                                                                                                           | Type             | Default                                                                                                         |
-|------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|-----------------------------------------------------------------------------------------------------------------|
-| <span id="url">`url`</span>                                      | The URL to fetch data from.                                                                                                                                                                                                                                                                                                                                                                                                           | HTTP URL         | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="response_url">`response_url`</span>                    | The URL to return to the client for fetching tickets.                                                                                                                                                                                                                                                                                                                                                                                 | HTTP URL         | `"https://127.0.0.1:8081/"`                                                                                     |
-| <span id="allow_headers_backend">`allow_headers_backend`</span>  | List of headers to forward from the client request to the backend storage server. Supports wildcards, e.g. a wildcard value of `"*"` forwards all headers. This acts as an allowlist, which by default allows any headers. Headers not listed here will not pass through. Independent of this allowlist, the underlying HTTP client always sends a `Host` and `Accept` header.                                                        | Array of headers | `["*"]`                                                                                                         |
-| <span id="deny_headers_backend">`deny_headers_backend`</span>    | List of headers to block from being forwarded to the backend storage server. Supports wildcards. This acts as a denylist that is applied after `allow_headers_backend`. A header passes through only if it matches the allowlist and does not match the denylist. By default the denylist is empty.                                                                                                                                   | Array of headers | `[]`                                                                                                            |
-| <span id="allow_headers_client">`allow_headers_client`</span>    | List of headers to reflect back to the client in the returned data block tickets. Supports wildcards, e.g. a wildcard value of `"*"` reflects all headers. This acts as an allowlist, which by default allows any headers. Headers not listed here will not pass through.                                                                                                                                                             | Array of headers | `["*"]`                                                                                                         |
-| <span id="deny_headers_client">`deny_headers_client`</span>      | List of headers to block from being reflected back to the client in tickets. Supports wildcards. This acts as a denylist that is applied after `allow_headers_client`. A header is reflected only if it matches the allowlist and does not match the denylist. By default the denylist is empty.                                                                                                                                      | Array of headers | `[]`                                                                                                            |
-| <span id="http">`http`</span>                                    | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details.                                                                                                                                                                                                                                        | TOML table       | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
-| <span id="forward_public_key">`forward_public_key`</span>        | If using Crypt4GH, this will forward the server's public key to the remote URL in a header called `Htsget-Context-Public-Key`. The public key is base64 encoded with newlines included. See the [Crypt4GH](#crypt4gh) section for more details. Note that if the client's key is also using the `Header` type, this will overwrite the `Htsget-Context-Public-Key` from the client if `allow_headers_client` contains client headers. | Boolean          | `true`                                                                                                          |
+| Option                                                    | Description                                                                                                                                                                                                                                          | Type       | Default                                                                                                         |
+|-----------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------|
+| <span id="url">`url`</span>                               | The URL to fetch data from. For `json_path`, this is the URL that receives the initial call-out request with the htsget `<id>` appended.                                                                                                             | HTTP URL   | `"https://127.0.0.1:8081/"`                                                                                     |
+| <span id="parse">`parse`</span>                           | How to interpret the response from `url`. Set `parse.kind` to either `"bytes"` or `"json_path"`. See [parse options](#parse-options) below.                                                                                                         | TOML table | `{ kind = "bytes" }`                                                                                            |
+| <span id="forward">`forward`</span>                       | What request data to forward to the backend. Set `forward.headers.allow` and `forward.headers.deny` to control which client headers are forwarded. Both support wildcards, e.g. `"*"`. `forward.context` forwards htsget-specific context headers.  | TOML table | No headers forwarded, no context headers.                                                                       |
+| <span id="reflect">`reflect`</span>                       | What response data to reflect back to the client in tickets. Set `reflect.headers.allow` and `reflect.headers.deny` to control which backend response headers are echoed to the client. Both support wildcards.                                     | TOML table | No headers reflected.                                                                                            |
+| <span id="http">`http`</span>                             | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details.                                                      | TOML table | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
+| <span id="forward_public_key">`forward_public_key`</span> | If using Crypt4GH, this will forward the server's public key to the remote URL in a header called `Htsget-Context-Public-Key`. The public key is base64 encoded with newlines included. See the [Crypt4GH](#crypt4gh) section for more details.       | Boolean    | `true`                                                                                                          |
 
-For example, the following forwards the `Authorization` header to the backend and reflects it back in tickets, and constructs tickets using `https://example.com` instead of `http://localhost:8080`:
+##### Parse options
+
+When `parse.kind = "bytes"`, htsget-rs fetches raw bytes directly from `url`:
+
+| Option              | Description                                                                                            | Type     | Default                     |
+|---------------------|-------------------------------------------------------------------------------------------------------|----------|-----------------------------|
+| `parse.ticket_url`  | Optionally override the URL returned to the client in tickets. By default the client receives `url`.  | HTTP URL | Not set, defaults to `url`. |
+
+When `parse.kind = "json_path"`, htsget-rs first fetches `url`, with the htsget `<id>` appended and expects a JSON
+response. It then queries that JSON using JSONPath to locate the data. Since the
+initial request contains the htsget `<id>`, this allows the responding service to map the `<id>` to an arbitrary content URL:
+
+| Option                | Description                                                                                                                                                                                  | Type     | Default                                                                                       |
+|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------|
+| `parse.content_path`  | The JSONPath query used to locate the data URL in the JSON response. This must result in a complete URL that points to the required file. It is called directly without appending an `<id>`. | JSONPath | Required.                                                                                     |
+| `parse.size_path`     | The JSONPath query used to locate the size of the file. This avoids an extra `HEAD` request on the content URL.                                                                             | JSONPath | Not set, an additional `HEAD` request on the content URL is used to determine the file size.  |
+| `parse.ticket_path`   | The JSONPath query used to locate the URL that the client receives in tickets. Mutually exclusive with `parse.ticket_url`.                                                                  | JSONPath | Not set, defaults to the content URL.                                                         |
+| `parse.ticket_url`    | Alternatively to `parse.ticket_path`, a hard-coded URL that the client receives in tickets. Mutually exclusive with `parse.ticket_path`.                                                    | HTTP URL | Not set, defaults to the content URL.                                                         |
+
+For example, the following fetches raw bytes, forwards the `Authorization` header to the backend and reflects it back in
+tickets, and constructs tickets using `https://example.com` instead of `http://localhost:8080`:
 
 ```toml
 [[locations]]
@@ -291,55 +313,28 @@ substitution_string = "$0"
 
 backend.kind = "Url"
 backend.url = "http://localhost:8080"
-backend.response_url = "https://example.com"
-backend.allow_headers_backend = ["Authorization"]
-backend.allow_headers_client = ["Authorization"]
+backend.parse.kind = "bytes"
+backend.parse.ticket_url = "https://example.com"
+backend.forward.headers.allow = ["Authorization"]
+backend.reflect.headers.allow = ["Authorization"]
 ```
 
-#### JsonPath locations
-
-The second type of remote URL location is a `JsonPath` location. This location cannot be configured using the simplified
-scheme-based config.
-
-The `JsonPath` location is an indirect form of remote URL locations that involves an initial call-out request followed up
-by subsequent requests to fetch data. When configured, htsget-rs will split data access into two parts. First, it fetches
-the configured `resolve_from` URL and expects a JSON response to be returned. Then it will query the JSON response to
-find information for constructing the htsget response using `content_path`, `size_path` and `response_path`. These three
-options are JSON path queries that fetch data from the JSON response obtained from `resolve_from`.
-
-Since the initial request contains the htsget `<id>` that the client passed in, this split allows the responding service
-to more arbitrarily map the `<id>` to a content url that should be returned to htsget-rs for follow-up requests.
-
-To configure `JsonPath` locations, set `backend.kind = "json_path"` and specify any additional options from below under the `backend` table:
-
-| Option                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Type                 | Default                                                                                                         |
-|--------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------------|
-| `resolve_from`           | The URL to fetch the initial JSON response from. This will receive the htsget `<id>` in the request.                                                                                                                                                                                                                                                                                                                                                                                                       | HTTP URL             | `"https://127.0.0.1:8081/"`                                                                                     |
-| `content_path`           | The JSON path query to determine the follow-up request for content. This must result in a complete URL that points to the required file. It will be called directly by htsget-rs without appending an `<id>`.                                                                                                                                                                                                                                                                                              | JSON path            | `"$"`                                                                                                           |
-| `size_path`              | The JSON path query to determine the size of the file. This is used to avoid an extra `HEAD` request on the content URL and is optional, as htsget-rs requires this to determine byte ranges internally.                                                                                                                                                                                                                                                                                                   | JSON path            | Not set, by default, an additional `HEAD` request on the content URL will be used to determine the file size.   |
-| `response_path`          | The JSON path query used to determine the URL that the client receives in the tickets. This must result in a complete URL that points to the required file for the client which htsget-rs will use without appending the `<id>`. This is optional, and defaults to the same URL as determined by the `content_path` (which does get the `<id>` appended).                                                                                                                                                  | JSON path            | Not set, defaults to the content URL.                                                                           |
-| `response_url`           | Alternatively to the `response_path`, a hard-coded URL can be set with this option, that behaves the same as the `Url` storage `response_url` [option](#response_url).                                                                                                                                                                                                                                                                                                                                     | HTTP URL             | Not set, defaults to using the `response_path`.                                                                 |
-| `allow_headers_backend`  | List of headers to forward from the client request to the backend storage server. Supports wildcards, e.g. a wildcard value of `"*"` forwards all headers. The `Host` and `Accept` caveats also apply here — see the `Url` storage [option](#allow_headers_backend).                                                                                                                                                                                                                                       | Array of headers     | `["*"]`                                                                                                         |
-| `deny_headers_backend`   | List of headers to block from being forwarded to the backend storage server. Supports wildcards. Behaves the same as the `Url` storage [option](#deny_headers_backend).                                                                                                                                                                                                                                                                                                                                    | Array of headers     | `[]`                                                                                                            |
-| `allow_headers_client`   | List of headers to reflect back to the client in the returned data block tickets. Supports wildcards, e.g. a wildcard value of `"*"` reflects all headers. This is the same as the `Url` storage [option](#allow_headers_client).                                                                                                                                                                                                                                                                          | Array of headers     | `["*"]`                                                                                                         |
-| `deny_headers_client`    | List of headers to block from being reflected back to the client in tickets. Supports wildcards. Behaves the same as the `Url` storage [option](#deny_headers_client).                                                                                                                                                                                                                                                                                                                                     | Array of headers     | `[]`                                                                                                            |
-| `http`                   | Additionally enables client authentication, or sets non-native root certificates for TLS, or disables HTTP header caching. See [server configuration](#server-configuration) for more details. This is the same as the `Url` storage [option](#http).                                                                                                                                                                                                                                                      | TOML table           | TLS is always allowed, however the default performs no client authentication and uses native root certificates. |
-| `forward_public_key`     | If using Crypt4GH, this will forward the server's public key to the remote URL in a header called `Htsget-Context-Public-Key`. The public key is base64 encoded with newlines included. See the [Crypt4GH](#crypt4gh) section for more details. Note that if the client's key is also using the `Header` type, this will overwrite the `Htsget-Context-Public-Key` from the client if `allow_headers_client` contains client headers. This is the same as the `Url` storage [option](#forward_public_key). | Boolean              | `true`                                                                                                          |
-
-For example, the following calls out to `http://localhost:8080/<id>` and expects a JSON response at `$.content`, `$.size` and `$.response` to follow-up:
+For a JSONPath location, the following calls out to `http://localhost:8080/<id>` and expects a JSON response with
+`$.content`, `$.size` and `$.response` to follow up:
 
 ```toml
 [[locations]]
 regex = ".*"
 substitution_string = "$0"
 
-backend.kind = "JsonPath"
-backend.resolve_from = "http://localhost:8080"
-backend.content_path = "$.content"
-backend.size_path = "$.size"
-backend.response_path = "$.response"
-backend.allow_headers_backend = ["Authorization"]
-backend.allow_headers_client = ["Authorization"]
+backend.kind = "Url"
+backend.url = "http://localhost:8080"
+backend.parse.kind = "json_path"
+backend.parse.content_path = "$.content"
+backend.parse.size_path = "$.size"
+backend.parse.ticket_path = "$.response"
+backend.forward.headers.allow = ["Authorization"]
+backend.reflect.headers.allow = ["Authorization"]
 ```
 
 With the above config, the initial request to `http://localhost:8080/<id>` will expect a JSON response that looks like:
@@ -372,7 +367,7 @@ Then, htsget-rs will fetch data from `https://example.com/file.bam`, and return 
 ```
 
 > [!NOTE]  
-> Calls to the url endpoint for both `Url` and `JsonPath` locations use HTTP caching from headers like cache-control
+> Calls to the url endpoint for `Url` locations use HTTP caching from headers like cache-control
 > and expires. Requests to the url endpoint only involve the beginning of a file to obtain the header. These requests
 > are cached in a temporary file called `htsget_rs_client_cache` in the system temp directory. To disable this
 > functionality set `http.use_cache = false`.
@@ -429,7 +424,7 @@ openssl req -x509 -noenc -subj '/CN=localhost' -newkey rsa -keyout root.key -out
 # Create a certificate signing request
 openssl req -noenc -newkey rsa -keyout key.pem -out server.csr -subj '/CN=localhost' -addext subjectAltName=DNS:localhost
 
-# Create the `Url` server's certificate
+# Create the backend server's certificate
 openssl x509 -req -in server.csr -CA root.crt -CAkey root.key -days 365 -out cert.pem -copy_extensions copy
 
 # An additional client certificate signing request and certificate can be created in the same way as the server
@@ -774,10 +769,10 @@ backend.keys.client.public.kind = "Header"
 
 The htsget-rs server expects the Crypt4GH file to end with `.c4gh`. Index files can also be encrypted and must end
 with `.c4gh`. See the [`data/c4gh`][data-c4gh] for examples of file structure. Any of the storage types are supported,
-i.e. `Local`, `S3`, `Url` or `JsonPath`.
+i.e. `File`, `S3` or `Url`.
 
 > [!NOTE]  
-> If using `JsonPath` locations and setting the `size_path` [option](#size_path), the returned file size should be the 
+> If using a `Url` location with `parse.kind = "json_path"` and setting the `size_path` [option](#parse-options), the returned file size should be the 
 > size of the encrypted file, as that's what htsget-rs is expecting as a response. 
 
 ### Log formatting
@@ -820,7 +815,7 @@ regex, and changing it by using a substitution string. Advanced configuration op
 
 This crate has the following features:
 * `aws`: used to enable `S3` location functionality and any other AWS features.
-* `url`: used to enable `Url` and `JsonPath` location functionality.
+* `url`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`,
                   or suppressed errors when using authorization logic.
 

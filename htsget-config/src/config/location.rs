@@ -14,7 +14,14 @@ use cfg_if::cfg_if;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "url")]
-use {crate::config::advanced::url::Url, http::Uri, http::uri::InvalidUri};
+use {
+  crate::config::advanced::HttpClient,
+  crate::config::advanced::callout::{Forward, HeaderRules, Parse, Reflect},
+  crate::http::client::HttpClientConfig,
+  crate::storage::url::Url,
+  http::Uri,
+  http::uri::InvalidUri,
+};
 
 /// The locations of data.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -405,15 +412,15 @@ impl TryFrom<String> for BackendWithAppend {
         .parse()
         .map_err(|err: InvalidUri| error::Error::ParseError(err.to_string()))?;
       let url = Url::new(
-        uri.clone(),
-        Some(uri),
-        vec!["*".to_string()],
-        vec![],
-        vec!["*".to_string()],
-        vec![],
-        Default::default(),
-      )
-      .try_into()?;
+        uri,
+        Parse::Bytes { ticket_url: None },
+        Forward::new(
+          HeaderRules::new(vec!["*".to_string()], vec![]),
+          Default::default(),
+        ),
+        Reflect::new(HeaderRules::new(vec!["*".to_string()], vec![])),
+        HttpClient::from(HttpClientConfig::default()),
+      );
 
       return Ok(BackendWithAppend(Backend::Url(Box::new(url)), to_append));
     }
@@ -710,10 +717,10 @@ mod tests {
             (location1.backend(), location2.backend())
         {
           for url in [url1, url2] {
-            assert_eq!(url.allow_headers_backend(), &["*".to_string()]);
-            assert_eq!(url.allow_headers_client(), &["*".to_string()]);
-            assert!(url.deny_headers_backend().is_empty());
-            assert!(url.deny_headers_client().is_empty());
+            assert_eq!(url.forward().headers().allow(), &["*".to_string()]);
+            assert_eq!(url.reflect().headers().allow(), &["*".to_string()]);
+            assert!(url.forward().headers().deny().is_empty());
+            assert!(url.reflect().headers().deny().is_empty());
           }
 
           return (

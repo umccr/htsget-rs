@@ -1,4 +1,6 @@
-# An example for a server which uses url storage with data located at "http://localhost:3000".
+# An example for a server which uses URL storage with data located at "https://127.0.0.1:8081".
+# The URL backend fetches data over HTTP: use `parse.kind = "bytes"` to fetch raw bytes, or
+# `parse.kind = "json_path"` to read a JSON manifest using JSONPath.
 # Run with
 # `cargo run -p htsget-axum --all-features -- --config htsget-config/docs/examples/url_storage.toml`
 # in the project directory.
@@ -11,22 +13,39 @@ ticket_server.tls.key = "key.pem"
 
 data_server = "None"
 
+# The simplest configuration fetches raw bytes and forwards/reflects all headers.
 locations = "https://127.0.0.1:8081"
 
-## Or, set using regex locations
+## Or, set using regex locations and the `Url` backend directly.
 #[[locations]]
 #regex = ".*"
 #substitution_string = "$0"
 #
 #backend.kind = "Url"
-#backend.url = "http://127.0.0.1:8081"
-#backend.response_url = "https://127.0.0.1:8081"
-#backend.allow_headers_backend = ["Authorization", "Content-*"]
-#backend.allow_headers_client = ["Authorization", "Content-*"]
+#backend.url = "https://127.0.0.1:8081"
 #
+## Fetch raw bytes from `url`.
+#backend.parse.kind = "bytes"
+## Optionally override the URL used in returned tickets.
+#backend.parse.ticket_url = "https://127.0.0.1:8081"
+#
+## Or, read a JSON manifest and locate the data using JSONPath.
+#backend.parse.kind = "json_path"
+#backend.parse.content_path = "$.content"
+#backend.parse.size_path = "$.size"
+## Take the ticket URL from a JSONPath...
+#backend.parse.ticket_path = "$.response"
+## ...or hard-code it as a static URL (mutually exclusive with `ticket_path`).
+#backend.parse.ticket_url = "https://example.com"
+#
+## Forward matching request headers to the backend server.
+#backend.forward.headers.allow = ["Authorization", "Content-*"]
 ## Optionally denylist headers. These get applied after the allowlist.
-#backend.deny_headers_backend = ["X-Internal-*"]
-#backend.deny_headers_client = ["X-Internal-*"]
+#backend.forward.headers.deny = ["X-Internal-*"]
+#
+## Reflect matching response headers back to the client in tickets.
+#backend.reflect.headers.allow = ["Authorization", "Content-*"]
+#backend.reflect.headers.deny = ["X-Internal-*"]
 #
 ## Set client authentication
 #backend.http.key = "key.pem"

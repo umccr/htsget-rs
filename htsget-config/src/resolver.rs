@@ -27,17 +27,6 @@ pub trait ResolveResponse {
   /// Convert from `Url`.
   #[cfg(feature = "url")]
   async fn from_url(url_storage: storage::url::Url, query: &Query) -> Result<Response>;
-
-  /// Convert from `JsonPath`.
-  #[cfg(feature = "url")]
-  async fn from_json_path(
-    json_path_storage: storage::json_path::JsonPath,
-    query: &Query,
-  ) -> Result<Response>;
-
-  /// Convert from `Http`.
-  #[cfg(feature = "url")]
-  async fn from_http(http_storage: storage::http::Http, query: &Query) -> Result<Response>;
 }
 
 /// A trait which uses storage to resolve requests into responses.
@@ -155,12 +144,6 @@ impl StorageResolver for Location {
       }
       #[cfg(feature = "url")]
       Backend::Url(url_storage) => Some(T::from_url(*url_storage.clone(), query).await),
-      #[cfg(feature = "url")]
-      Backend::JsonPath(resolve_storage) => {
-        Some(T::from_json_path(*resolve_storage.clone(), query).await)
-      }
-      #[cfg(feature = "url")]
-      Backend::Http(http_storage) => Some(T::from_http(*http_storage.clone(), query).await),
     }
   }
 }
@@ -218,7 +201,11 @@ mod tests {
   use crate::types::Url;
   use http::uri::Authority;
   #[cfg(feature = "url")]
-  use {crate::config::advanced::HttpClient, reqwest::ClientBuilder};
+  use {
+    crate::config::advanced::HttpClient,
+    crate::config::advanced::callout::{Forward, HeaderRules, Parse, Reflect},
+    reqwest::ClientBuilder,
+  };
 
   struct TestResolveResponse;
 
@@ -240,34 +227,8 @@ mod tests {
     }
 
     #[cfg(feature = "url")]
-    async fn from_url(url: storage::url::Url, query: &Query) -> Result<Response> {
-      Ok(Response::new(
-        Bam,
-        Self::format_url(url.url().to_string().strip_suffix('/').unwrap(), query.id()),
-      ))
-    }
-
-    #[cfg(feature = "url")]
-    async fn from_json_path(
-      resolve_storage: storage::json_path::JsonPath,
-      query: &Query,
-    ) -> Result<Response> {
-      Ok(Response::new(
-        Bam,
-        Self::format_url(
-          resolve_storage
-            .resolve_from()
-            .to_string()
-            .strip_suffix('/')
-            .unwrap(),
-          query.id(),
-        ),
-      ))
-    }
-
-    #[cfg(feature = "url")]
-    async fn from_http(http_storage: storage::http::Http, query: &Query) -> Result<Response> {
-      let url = http_storage.url().to_string();
+    async fn from_url(url_storage: storage::url::Url, query: &Query) -> Result<Response> {
+      let url = url_storage.url().to_string();
       let prefix = url.strip_suffix('/').unwrap_or(&url);
       Ok(Response::new(Bam, Self::format_url(prefix, query.id())))
     }
@@ -353,11 +314,9 @@ mod tests {
       reqwest_middleware::ClientBuilder::new(ClientBuilder::new().build().unwrap()).build();
     let url_storage = storage::url::Url::new(
       "https://example.com/".parse().unwrap(),
-      "https://example.com/".parse().unwrap(),
-      vec![],
-      vec![],
-      vec![],
-      vec![],
+      Parse::Bytes { ticket_url: None },
+      Forward::new(HeaderRules::new(vec![], vec![]), Default::default()),
+      Reflect::new(HeaderRules::new(vec![], vec![])),
       HttpClient::new(client),
     );
 

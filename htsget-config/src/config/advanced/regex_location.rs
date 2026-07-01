@@ -191,10 +191,6 @@ mod tests {
       substitution_string = "$0"
       backend.kind = "Url"
       backend.url = "http://localhost:8080"
-      backend.allow_headers_backend = []
-      backend.allow_headers_client = []
-      backend.deny_headers_backend = []
-      backend.deny_headers_client = []
     "#,
       (
         "prefix/(?P<key>.*)$".to_string(),

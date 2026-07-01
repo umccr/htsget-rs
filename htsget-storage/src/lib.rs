@@ -227,52 +227,28 @@ impl Storage {
     }
   }
 
-  /// Create from url config.
-  #[cfg(feature = "url")]
-  pub async fn from_url(mut url: storage::url::Url, _query: &Query) -> Result<Storage> {
-    let storage = Storage::new(UrlStorage::new(
-      url
-        .client_cloned()
-        .map_err(|err| StorageError::InternalError(err.to_string()))?,
-      url.url().clone(),
-      url.response_url().clone(),
-      url.allow_headers_backend().to_vec(),
-      url.deny_headers_backend().to_vec(),
-      url.allow_headers_client().to_vec(),
-      url.deny_headers_client().to_vec(),
-    ));
-
-    cfg_if! {
-      if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(url.keys(), _query.encryption_scheme(), storage, _query, url.forward_public_key()).await
-      } else {
-        Ok(storage)
-      }
-    }
-  }
-
-  /// Create from http config, converting to either a  [`UrlStorage`] or a
+  /// Create from url config, converting to either a  [`UrlStorage`] or a
   /// [`JsonPathStorage`] on parsing.
   #[cfg(feature = "url")]
-  pub async fn from_http(mut http: storage::http::Http, _query: &Query) -> Result<Storage> {
+  pub async fn from_url(mut url: storage::url::Url, _query: &Query) -> Result<Storage> {
     use htsget_config::config::advanced::callout::{Parse, TicketSource};
-    use htsget_config::storage::json_path::JsonPathOrUrl;
+    use htsget_config::storage::url::JsonPathOrUrl;
 
-    let client = http
+    let client = url
       .client_cloned()
       .map_err(|err| StorageError::InternalError(err.to_string()))?;
 
-    let allow_headers_backend = http.forward().headers().allow().to_vec();
-    let deny_headers_backend = http.forward().headers().deny().to_vec();
-    let allow_headers_client = http.reflect().headers().allow().to_vec();
-    let deny_headers_client = http.reflect().headers().deny().to_vec();
+    let allow_headers_backend = url.forward().headers().allow().to_vec();
+    let deny_headers_backend = url.forward().headers().deny().to_vec();
+    let allow_headers_client = url.reflect().headers().allow().to_vec();
+    let deny_headers_client = url.reflect().headers().deny().to_vec();
 
-    let storage = match http.parse().clone() {
+    let storage = match url.parse().clone() {
       Parse::Bytes { ticket_url } => {
-        let response_url = ticket_url.unwrap_or_else(|| http.url().clone());
+        let response_url = ticket_url.unwrap_or_else(|| url.url().clone());
         Storage::new(UrlStorage::new(
           client,
-          http.url().clone(),
+          url.url().clone(),
           response_url,
           allow_headers_backend,
           deny_headers_backend,
@@ -291,7 +267,7 @@ impl Storage {
         });
         let mut json_path_storage = JsonPathStorage::new(
           client,
-          http.url().clone(),
+          url.url().clone(),
           content_path,
           size_path,
           response_path,
@@ -306,37 +282,7 @@ impl Storage {
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(http.keys(), _query.encryption_scheme(), storage, _query, http.forward_public_key()).await
-      } else {
-        Ok(storage)
-      }
-    }
-  }
-
-  /// Create from json path config.
-  #[cfg(feature = "url")]
-  pub async fn from_json_path(
-    mut json_path: storage::json_path::JsonPath,
-    _query: &Query,
-  ) -> Result<Storage> {
-    let mut json_path_storage = JsonPathStorage::new(
-      json_path
-        .client_cloned()
-        .map_err(|err| StorageError::InternalError(err.to_string()))?,
-      json_path.resolve_from().clone(),
-      json_path.content_path().to_string(),
-      json_path.size_path().map(|value| value.to_string()),
-      json_path.response_path().cloned(),
-      json_path.allow_headers_backend().to_vec(),
-      json_path.allow_headers_client().to_vec(),
-    );
-    json_path_storage.set_deny_headers_backend(json_path.deny_headers_backend().to_vec());
-    json_path_storage.set_deny_headers_client(json_path.deny_headers_client().to_vec());
-    let storage = Storage::new(json_path_storage);
-
-    cfg_if! {
-      if #[cfg(feature = "experimental")] {
-        Self::from_c4gh_keys(json_path.keys(), _query.encryption_scheme(), storage, _query, json_path.forward_public_key()).await
+        Self::from_c4gh_keys(url.keys(), _query.encryption_scheme(), storage, _query, url.forward_public_key()).await
       } else {
         Ok(storage)
       }

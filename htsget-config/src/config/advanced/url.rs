@@ -1,7 +1,8 @@
-//! The config for remote URL server locations.
+//! The config for the URL backend.
 //!
 
 use crate::config::advanced::HttpClient;
+use crate::config::advanced::callout::{Forward, Parse, Reflect};
 use crate::error::Error;
 use crate::error::Result;
 use crate::http::client::HttpClientConfig;
@@ -13,20 +14,16 @@ use http::Uri;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Options for the remote URL server config.
+/// Options for the URL backend.
 #[derive(JsonSchema, Serialize, Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Url {
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   url: Uri,
-  #[schemars(with = "Option::<String>")]
-  #[serde(with = "http_serde::option::uri")]
-  response_url: Option<Uri>,
-  allow_headers_backend: Vec<String>,
-  deny_headers_backend: Vec<String>,
-  allow_headers_client: Vec<String>,
-  deny_headers_client: Vec<String>,
+  parse: Parse,
+  forward: Forward,
+  reflect: Reflect,
   #[schemars(skip)]
   #[serde(alias = "tls", skip_serializing)]
   http: HttpClientConfig,
@@ -40,65 +37,49 @@ pub struct Url {
 }
 
 impl Url {
-  /// Create a new url storage.
+  /// Create a new URL backend.
   pub fn new(
     url: Uri,
-    response_url: Option<Uri>,
-    allow_headers_backend: Vec<String>,
-    deny_headers_backend: Vec<String>,
-    allow_headers_client: Vec<String>,
-    deny_headers_client: Vec<String>,
+    parse: Parse,
+    forward: Forward,
+    reflect: Reflect,
     http: HttpClientConfig,
   ) -> Self {
     Self {
       url,
-      response_url,
-      allow_headers_backend,
-      deny_headers_backend,
-      allow_headers_client,
-      deny_headers_client,
+      parse,
+      forward,
+      reflect,
       http,
       #[cfg(feature = "experimental")]
       keys: None,
-      is_defaulted: false,
       #[cfg(feature = "experimental")]
       forward_public_key: true,
+      is_defaulted: false,
     }
   }
 
-  /// Get the url called when resolving the query.
+  /// The URL to fetch from.
   pub fn url(&self) -> &Uri {
     &self.url
   }
 
-  /// Get the response url which is returned to the client.
-  pub fn response_url(&self) -> Option<&Uri> {
-    self.response_url.as_ref()
+  /// How to interpret the response.
+  pub fn parse(&self) -> &Parse {
+    &self.parse
   }
 
-  /// Get the headers forwarded to the backend storage server. Supports wildcards using `*` and `?`.
-  pub fn allow_headers_backend(&self) -> &[String] {
-    &self.allow_headers_backend
+  /// What to forward to the backend.
+  pub fn forward(&self) -> &Forward {
+    &self.forward
   }
 
-  /// Get the headers blocked from being forwarded to the backend server. Supports wildcards
-  /// using `*` and `?`.
-  pub fn deny_headers_backend(&self) -> &[String] {
-    &self.deny_headers_backend
+  /// What to reflect back to the client.
+  pub fn reflect(&self) -> &Reflect {
+    &self.reflect
   }
 
-  /// Get the headers reflected back to the client in tickets. Supports wildcards using `*` and `?`.
-  pub fn allow_headers_client(&self) -> &[String] {
-    &self.allow_headers_client
-  }
-
-  /// Get the headers blocked from being reflected back to the client in tickets. Supports
-  /// wildcards using `*` and `?`.
-  pub fn deny_headers_client(&self) -> &[String] {
-    &self.deny_headers_client
-  }
-
-  /// Get the http client config.
+  /// Get the HTTP client config.
   pub fn http(&self) -> &HttpClientConfig {
     &self.http
   }
@@ -132,27 +113,19 @@ impl Url {
 impl TryFrom<Url> for storage::url::Url {
   type Error = Error;
 
-  fn try_from(storage: Url) -> Result<Self> {
-    let client = HttpClient::from(storage.http);
+  fn try_from(url: Url) -> Result<Self> {
+    let client = HttpClient::from(url.http);
 
-    let url_storage = Self::new(
-      storage.url.clone(),
-      storage.response_url.unwrap_or(storage.url),
-      storage.allow_headers_backend,
-      storage.deny_headers_backend,
-      storage.allow_headers_client,
-      storage.deny_headers_client,
-      client,
-    );
+    let storage = Self::new(url.url, url.parse, url.forward, url.reflect, client);
 
     cfg_if! {
       if #[cfg(feature = "experimental")] {
-        let mut url_storage = url_storage;
-        url_storage.set_keys(storage.keys);
-        url_storage.set_forward_public_key(storage.forward_public_key);
-        Ok(url_storage)
+        let mut storage = storage;
+        storage.set_keys(url.keys);
+        storage.set_forward_public_key(url.forward_public_key);
+        Ok(storage)
       } else {
-        Ok(url_storage)
+        Ok(storage)
       }
     }
   }
@@ -163,10 +136,8 @@ impl Default for Url {
     let mut url = Self::new(
       Default::default(),
       Default::default(),
-      vec!["*".to_string()],
-      vec![],
-      vec!["*".to_string()],
-      vec![],
+      Default::default(),
+      Default::default(),
       Default::default(),
     );
 
@@ -178,34 +149,122 @@ impl Default for Url {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::config::advanced::callout::{HeaderRules, TicketSource};
   use crate::config::tests::test_serialize_and_deserialize;
+
   #[test]
-  fn url_backend() {
+  fn url_backend_bytes_default() {
+    let url: Url = toml::from_str(
+      r#"
+      url = "https://example.com"
+      "#,
+    )
+    .unwrap();
+    assert_eq!(url.url().to_string(), "https://example.com/");
+    assert!(matches!(url.parse(), Parse::Bytes { ticket_url: None }));
+  }
+
+  #[test]
+  fn url_backend_bytes_ticket() {
+    let url: Url = toml::from_str(
+      r#"
+      url = "https://example.com"
+
+      [parse]
+      kind = "bytes"
+      ticket_url = "https://tickets.example.com"
+      "#,
+    )
+    .unwrap();
+    match url.parse() {
+      Parse::Bytes {
+        ticket_url: Some(uri),
+      } => assert_eq!(uri.to_string(), "https://tickets.example.com/"),
+      _ => panic!("expected Bytes with ticket_url"),
+    }
+  }
+
+  #[test]
+  fn url_backend_json_path() {
+    let url: Url = toml::from_str(
+      r#"
+      url = "https://example.com"
+
+      [parse]
+      kind = "json_path"
+      content_path = "$.url"
+      size_path = "$.size"
+      ticket_path = "$.ticket"
+      "#,
+    )
+    .unwrap();
+    match url.parse() {
+      Parse::JsonPath {
+        content_path,
+        size_path,
+        ticket: Some(TicketSource::JsonPath { path }),
+      } => {
+        assert_eq!(content_path, "$.url");
+        assert_eq!(size_path.as_deref(), Some("$.size"));
+        assert_eq!(path, "$.ticket");
+      }
+      _ => panic!("expected JsonPath"),
+    }
+  }
+
+  #[test]
+  fn url_backend_forward_reflect() {
+    let url: Url = toml::from_str(
+      r#"
+      url = "https://example.com"
+
+      [forward]
+      headers.allow = ["Authorization"]
+
+      [reflect]
+      headers.allow = ["X-Etag"]
+      "#,
+    )
+    .unwrap();
+    assert_eq!(
+      url.forward().headers().allow(),
+      &["Authorization".to_string()]
+    );
+    assert_eq!(url.reflect().headers().allow(), &["X-Etag".to_string()]);
+  }
+
+  #[test]
+  fn url_round_trip() {
     test_serialize_and_deserialize(
       r#"
       url = "https://example.com"
-      response_url = "https://example.com"
-      allow_headers_backend = ["Authorization"]
-      deny_headers_backend = ["X-Internal-*"]
-      allow_headers_client = ["Authorization"]
-      deny_headers_client = ["X-Internal-*"]
+
+      [parse]
+      kind = "json_path"
+      content_path = "$.url"
+
+      [forward]
+      headers.allow = ["Authorization"]
+
+      [reflect]
+      headers.allow = ["X-Etag"]
       "#,
       (
         "https://example.com/".to_string(),
-        "https://example.com/".to_string(),
-        vec!["Authorization".to_string()],
-        vec!["X-Internal-*".to_string()],
-        vec!["Authorization".to_string()],
-        vec!["X-Internal-*".to_string()],
+        "$.url".to_string(),
+        HeaderRules::new(vec!["Authorization".to_string()], vec![]),
+        HeaderRules::new(vec!["X-Etag".to_string()], vec![]),
       ),
       |result: Url| {
+        let content_path = match result.parse() {
+          Parse::JsonPath { content_path, .. } => content_path.clone(),
+          _ => panic!(),
+        };
         (
           result.url().to_string(),
-          result.response_url().unwrap().to_string(),
-          result.allow_headers_backend,
-          result.deny_headers_backend,
-          result.allow_headers_client,
-          result.deny_headers_client,
+          content_path,
+          result.forward().headers().clone(),
+          result.reflect().headers().clone(),
         )
       },
     );

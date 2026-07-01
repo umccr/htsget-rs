@@ -8,24 +8,15 @@ use crate::error::Result;
 use crate::storage::c4gh::C4GHKeys;
 use crate::storage::file::File;
 #[cfg(feature = "url")]
-use crate::storage::http::Http;
-#[cfg(feature = "url")]
-use crate::storage::json_path::JsonPath;
-
+use crate::storage::url::Url;
 #[cfg(feature = "aws")]
 use crate::storage::s3::S3;
-#[cfg(feature = "url")]
-use crate::storage::url::Url;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "experimental")]
 pub mod c4gh;
 pub mod file;
-#[cfg(feature = "url")]
-pub mod http;
-#[cfg(feature = "url")]
-pub mod json_path;
 #[cfg(feature = "aws")]
 pub mod s3;
 #[cfg(feature = "url")]
@@ -60,12 +51,6 @@ pub enum Backend {
   #[cfg(feature = "url")]
   #[serde(alias = "url", alias = "URL")]
   Url(Box<Url>),
-  #[cfg(feature = "url")]
-  #[serde(alias = "json_path", alias = "JSON_PATH")]
-  JsonPath(Box<JsonPath>),
-  #[cfg(feature = "url")]
-  #[serde(alias = "http", alias = "HTTP")]
-  Http(Box<Http>),
 }
 
 impl Backend {
@@ -77,10 +62,6 @@ impl Backend {
       Backend::S3(_) => Err(Error::ParseError("not a `File` variant".to_string())),
       #[cfg(feature = "url")]
       Backend::Url(_) => Err(Error::ParseError("not a `File` variant".to_string())),
-      #[cfg(feature = "url")]
-      Backend::JsonPath(_) => Err(Error::ParseError("not a `File` variant".to_string())),
-      #[cfg(feature = "url")]
-      Backend::Http(_) => Err(Error::ParseError("not a `File` variant".to_string())),
     }
   }
 
@@ -94,10 +75,6 @@ impl Backend {
       Backend::S3(_) => {}
       #[cfg(feature = "url")]
       Backend::Url(_) => {}
-      #[cfg(feature = "url")]
-      Backend::JsonPath(_) => {}
-      #[cfg(feature = "url")]
-      Backend::Http(_) => {}
     }
   }
 
@@ -109,10 +86,6 @@ impl Backend {
       Backend::S3(_) => None,
       #[cfg(feature = "url")]
       Backend::Url(_) => None,
-      #[cfg(feature = "url")]
-      Backend::JsonPath(_) => None,
-      #[cfg(feature = "url")]
-      Backend::Http(_) => None,
     }
   }
 
@@ -124,10 +97,6 @@ impl Backend {
       Backend::S3(s3) => s3.is_defaulted,
       #[cfg(feature = "url")]
       Backend::Url(url) => url.is_defaulted,
-      #[cfg(feature = "url")]
-      Backend::JsonPath(json_path) => json_path.is_defaulted,
-      #[cfg(feature = "url")]
-      Backend::Http(http) => http.is_defaulted,
     }
   }
 
@@ -161,46 +130,6 @@ impl Backend {
     }
   }
 
-  /// Get the json path variant and error if it is not `JsonPath`.
-  #[cfg(feature = "url")]
-  pub fn as_json_path(&self) -> Result<&JsonPath> {
-    if let Backend::JsonPath(json_path) = self {
-      Ok(json_path)
-    } else {
-      Err(Error::ParseError("not a `JsonPath` variant".to_string()))
-    }
-  }
-
-  /// Get the json path variant as a mutable reference and error if it is not `JsonPath`.
-  #[cfg(feature = "url")]
-  pub fn as_json_path_mut(&mut self) -> Result<&mut JsonPath> {
-    if let Backend::JsonPath(json_path) = self {
-      Ok(json_path)
-    } else {
-      Err(Error::ParseError("not a `JsonPath` variant".to_string()))
-    }
-  }
-
-  /// Get the http variant and error if it is not `Http`.
-  #[cfg(feature = "url")]
-  pub fn as_http(&self) -> Result<&Http> {
-    if let Backend::Http(http) = self {
-      Ok(http)
-    } else {
-      Err(Error::ParseError("not a `Http` variant".to_string()))
-    }
-  }
-
-  /// Get the http variant as a mutable reference and error if it is not `Http`.
-  #[cfg(feature = "url")]
-  pub fn as_http_mut(&mut self) -> Result<&mut Http> {
-    if let Backend::Http(http) = self {
-      Ok(http)
-    } else {
-      Err(Error::ParseError("not a `Http` variant".to_string()))
-    }
-  }
-
   /// Set the C4GH keys.
   #[cfg(feature = "experimental")]
   pub fn set_keys(&mut self, keys: Option<C4GHKeys>) {
@@ -210,10 +139,6 @@ impl Backend {
       Backend::S3(s3) => s3.set_keys(keys),
       #[cfg(feature = "url")]
       Backend::Url(url) => url.set_keys(keys),
-      #[cfg(feature = "url")]
-      Backend::JsonPath(json_path) => json_path.set_keys(keys),
-      #[cfg(feature = "url")]
-      Backend::Http(http) => http.set_keys(keys),
     }
   }
 }

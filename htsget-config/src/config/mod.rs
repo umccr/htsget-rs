@@ -325,7 +325,7 @@ impl Config {
           #[cfg(feature = "aws")]
           Backend::S3(_) => {}
           #[cfg(feature = "url")]
-          Backend::Url(_) | Backend::JsonPath(_) | Backend::Http(_) => {}
+          Backend::Url(_) => {}
         }
 
         // Ensure authorization header gets forwarded if the data server has authorization set.
