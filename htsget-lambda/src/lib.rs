@@ -6,7 +6,8 @@ use futures::TryFuture;
 use htsget_axum::server::ticket::TicketServer;
 use htsget_config::config::Config;
 use htsget_config::package_info;
-use lambda_http::request::LambdaRequest;
+use lambda_http::http::Uri;
+use lambda_http::request::{LambdaRequest, RequestContext};
 use lambda_http::{
   Error, IntoResponse, LambdaEvent, Request, RequestExt, Service, TransformResponse, lambda_runtime,
 };
@@ -58,6 +59,8 @@ where
     let request_origin = lambda_request.request_origin();
     let mut event: Request = lambda_request.into();
 
+    strip_stage_from_path(&mut event);
+
     // After creating the request event, add the original request as an extension.
     debug!(original_request = ?original_request, "original_request");
     event.extensions_mut().insert(original_request);
@@ -65,6 +68,37 @@ where
     let fut = Box::pin(self.service.call(event.with_lambda_context(req.context)));
     TransformResponse::Request(request_origin, fut)
   }
+}
+
+/// Strip the API Gateway stage from the start of the request path so that routing works correctly.
+fn strip_stage_from_path(event: &mut Request) {
+  let stage = match event.request_context_ref() {
+    Some(RequestContext::ApiGatewayV1(context)) => context.stage.as_deref(),
+    Some(RequestContext::ApiGatewayV2(context)) => context.stage.as_deref(),
+    _ => None,
+  };
+
+  let Some(stage) = stage.filter(|stage| *stage != "$default") else {
+    return;
+  };
+
+  let stripped = match event.uri().path().strip_prefix(&format!("/{stage}")) {
+    Some("") => "/",
+    Some(rest) if rest.starts_with('/') => rest,
+    _ => return,
+  };
+
+  let path_and_query = match event.uri().query() {
+    Some(query) => format!("{stripped}?{query}"),
+    None => stripped.to_string(),
+  };
+
+  let mut parts = event.uri().clone().into_parts();
+  let path_and_query = path_and_query
+    .parse()
+    .expect("expected valid path and query from a valid uri");
+  parts.path_and_query = Some(path_and_query);
+  *event.uri_mut() = Uri::from_parts(parts).expect("expected valid parts from a valid uri");
 }
 
 /// Run the Lambda handler using the config file contained at the path.
@@ -88,4 +122,64 @@ pub async fn run_handler(path: &Path) -> Result<(), Error> {
   )?;
 
   lambda_runtime::run(Adapter::from(router)).await
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use aws_lambda_events::apigw::{ApiGatewayProxyRequestContext, ApiGatewayV2httpRequestContext};
+  use lambda_http::Body;
+
+  fn v1_request(uri: &str, stage: Option<&str>) -> Request {
+    let mut context = ApiGatewayProxyRequestContext::default();
+    context.stage = stage.map(|stage| stage.to_string());
+    request(uri).with_request_context(RequestContext::ApiGatewayV1(context))
+  }
+
+  fn v2_request(uri: &str, stage: Option<&str>) -> Request {
+    let mut context = ApiGatewayV2httpRequestContext::default();
+    context.stage = stage.map(|stage| stage.to_string());
+    request(uri).with_request_context(RequestContext::ApiGatewayV2(context))
+  }
+
+  fn request(uri: &str) -> Request {
+    lambda_http::http::Request::builder()
+      .uri(uri)
+      .body(Body::Empty)
+      .unwrap()
+  }
+
+  fn strip(mut event: Request) -> String {
+    strip_stage_from_path(&mut event);
+    event.uri().to_string()
+  }
+
+  #[test]
+  fn strip_stage() {
+    assert_eq!(
+      strip(v1_request("/prod/reads/id", Some("prod"))),
+      "/reads/id"
+    );
+    assert_eq!(
+      strip(v2_request("/prod/reads/id", Some("prod"))),
+      "/reads/id"
+    );
+
+    assert_eq!(
+      strip(v1_request("/prod/reads/id?format=BAM", Some("prod"))),
+      "/reads/id?format=BAM"
+    );
+    assert_eq!(strip(v1_request("/prod", Some("prod"))), "/");
+    assert_eq!(strip(request("/prod/reads/id")), "/prod/reads/id");
+    assert_eq!(
+      strip(v1_request("/reads/id", Some("$default"))),
+      "/reads/id"
+    );
+    assert_eq!(strip(v1_request("/reads/id", None)), "/reads/id");
+    assert_eq!(
+      strip(v1_request("/production/reads/id", Some("prod"))),
+      "/production/reads/id"
+    );
+    assert_eq!(strip(v1_request("/reads/id", Some("prod"))), "/reads/id");
+  }
 }

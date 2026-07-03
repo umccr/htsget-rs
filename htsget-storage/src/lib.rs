@@ -350,7 +350,7 @@ pub trait StorageMiddleware {
     positions_options: BytesPositionOptions<'_>,
   ) -> Result<Vec<DataBlock>> {
     Ok(DataBlock::from_bytes_positions(
-      positions_options.merge_all().into_inner(),
+      positions_options.into_inner(),
     ))
   }
 }

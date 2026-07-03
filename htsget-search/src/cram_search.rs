@@ -45,7 +45,9 @@ impl SearchAll<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
   #[instrument(level = "trace", skip_all, ret)]
   async fn get_byte_ranges_for_all(&self, query: &Query) -> Result<Vec<BytesPosition>> {
     Ok(vec![
-      BytesPosition::default().with_end(self.position_at_eof(query).await?),
+      BytesPosition::builder()
+        .with_end(self.position_at_eof(query).await?)
+        .build()?,
     ])
   }
 
@@ -71,9 +73,10 @@ impl SearchAll<PhantomData<Self>, Index, AsyncReader, Header> for CramSearch {
     _query: &Query,
   ) -> Result<BytesPosition> {
     Ok(
-      BytesPosition::default()
+      BytesPosition::builder()
         .with_end(self.get_header_end_offset(index).await?)
-        .with_class(HtsGetHeader),
+        .with_class(HtsGetHeader)
+        .build()?,
     )
   }
 
@@ -251,10 +254,11 @@ impl CramSearch {
 
     if seq_start <= record_end && seq_end >= record_start {
       Ok(Some(
-        BytesPosition::default()
+        BytesPosition::builder()
           .with_start(record.offset())
           .with_end(next)
-          .with_class(Body),
+          .with_class(Body)
+          .build()?,
       ))
     } else {
       Ok(None)
@@ -644,6 +648,17 @@ mod tests {
         "htsnexus_test_NA12878.cram.c4gh".to_string(),
         (response, Body).into(),
       ))
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn get_eof_byte_positions_smaller_than_marker() {
+    with_local_storage(|storage| async move {
+      let search = CramSearch::new(storage);
+      let result = search.get_eof_byte_positions(10);
+      assert!(matches!(result, Some(Err(_))));
+      None
     })
     .await;
   }

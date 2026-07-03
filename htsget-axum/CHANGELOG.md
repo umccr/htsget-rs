@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.9.0...htsget-axum-v0.9.1) - 2026-06-22
+
+### Other
+
+- Merge pull request #364 from umccr/feat/pipeline-deploy
+- remove instances of File::create and write_all with plain write
+
+## [0.9.0](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.8.6...htsget-axum-v0.9.0) - 2026-06-10
+
+### Added
+
+- *(config)* link up feature flags and box backend type
+- add resolver storage and new feature flag
+
+### Other
+
+- [**breaking**] resolve feature is nearly entirely dependent on url feature so there's no need to have it
+
 ## [0.8.6](https://github.com/umccr/htsget-rs/compare/htsget-axum-v0.8.5...htsget-axum-v0.8.6) - 2026-02-03
 
 ### Other

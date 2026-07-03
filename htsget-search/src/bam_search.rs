@@ -51,10 +51,11 @@ impl BgzfSearch<LinearIndex, AsyncReader, Header> for BamSearch {
     };
 
     Ok(vec![
-      BytesPosition::default()
+      BytesPosition::builder()
         .with_start(start.compressed())
         .with_end(self.position_at_eof(query).await?)
-        .with_class(Body),
+        .with_class(Body)
+        .build()?,
     ])
   }
 
@@ -647,6 +648,17 @@ pub(crate) mod tests {
         "htsnexus_test_NA12878.bam.c4gh".to_string(),
         (response, Body).into(),
       ))
+    })
+    .await;
+  }
+
+  #[tokio::test]
+  async fn get_eof_byte_positions_smaller_than_marker() {
+    with_local_storage(|storage| async move {
+      let search = BamSearch::new(storage);
+      let result = search.get_eof_byte_positions(10);
+      assert!(matches!(result, Some(Err(_))));
+      None
     })
     .await;
   }

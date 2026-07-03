@@ -819,6 +819,22 @@ pub(crate) mod tests {
     );
   }
 
+  #[cfg(feature = "aws")]
+  #[test]
+  fn simple_locations_s3_env() {
+    test_config_from_env(
+      vec![("HTSGET_LOCATIONS", "[{location=s3://bucket}]")],
+      |config| {
+        assert_eq!(config.locations().len(), 1);
+        let config = config.locations.into_inner();
+        let location = config[0].as_simple().unwrap();
+        assert_eq!(location.prefix_or_id(), None);
+        assert!(matches!(location.backend(),
+            Backend::S3(s3) if s3.bucket() == "bucket"));
+      },
+    );
+  }
+
   #[cfg(feature = "url")]
   #[test]
   fn simple_locations_url() {

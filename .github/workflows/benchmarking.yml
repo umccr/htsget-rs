@@ -14,18 +14,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        rust: [stable]
         os: [ubuntu-latest]
     steps:
       - name: Cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: Check out
         uses: actions/checkout@v6
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        id: toolchain
-        with:
-          toolchain: ${{ matrix.rust }}
       - name: Install binstall
         uses: cargo-bins/cargo-binstall@main
       - name: Install cargo-criterion

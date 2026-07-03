@@ -23,16 +23,39 @@ This crate is used for running a cloud-based instance of htsget-rs. It:
 
 ## Usage
 
-This crate can be deployed to AWS as a Lambda function, or interacted with locally using [cargo-lambda]. See the [htsget-deploy] 
-for more details. Note, this crate does not use any configuration relating to the local data server. CORS configuration
-uses values from the ticket server config. See [htsget-config] for more information about configuration.
+This crate is intended to be deployed to AWS as a Lambda function. It is configured in the same
+way as [htsget-axum], by using the [htsget-config]. However, given that it is a Lambda function, environment
+based config is recommended over TOML files.
+
+Pre-built Lambda deployment packages are attached to each `htsget-lambda` [release][releases] as
+`htsget-lambda-v<version>-<arch>.zip` files for `arm64` and `x86_64`.
 
 See [htsget-search] for details on how to structure files.
+
+#### Development
+
+This crate can be locally compiled and tested using [cargo-lambda]. For example, run the function
+locally:
+
+```sh
+cargo lambda watch -p htsget-lambda
+```
+
+Then query it through the local URL:
+
+```sh
+curl localhost:9000/lambda-url/htsget-lambda/reads/service-info
+```
+
+Environment variables can be set when using [cargo-lambda]. `cargo lambda invoke`
+can be used to send raw Lambda events such as API Gateway requests to the function.
 
 [cargo-lambda]: https://github.com/cargo-lambda/cargo-lambda
 [htsget-deploy]: https://github.com/umccr/htsget-deploy
 [htsget-search]: ../htsget-search
 [htsget-config]: ../htsget-config
+[htsget-axum]: ../htsget-axum
+[releases]: https://github.com/umccr/htsget-rs/releases
 
 ### As a library
 
@@ -42,7 +65,7 @@ library code, and it instead uses `htsget-axum`. Please use that crate for funct
 #### Feature flags
 
 This crate has the following features:
-* `s3`: used to enable `S3` location functionality and any other AWS features.
+* `aws`: used to enable `S3` location functionality and any other AWS features.
 * `url`: used to enable `Url` location functionality.
 * `experimental`: used to enable experimental features that aren't necessarily part of the htsget spec, such as Crypt4GH support through `C4GHStorage`.
 

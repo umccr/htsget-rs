@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.8.0...htsget-lambda-v0.8.1) - 2026-06-22
+
+### Other
+
+- update Cargo.lock dependencies
+
+## [0.8.0](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.11...htsget-lambda-v0.8.0) - 2026-06-10
+
+### Added
+
+- *(lambda)* add a stage strip function which takes the place of
+- *(config)* link up feature flags and box backend type
+- add resolver storage and new feature flag
+
+### Other
+
+- remove --clobber and update htsget-lambda docs
+- bump deps, including lambda runtime away from fork
+- [**breaking**] resolve feature is nearly entirely dependent on url feature so there's no need to have it
+
 ## [0.7.11](https://github.com/umccr/htsget-rs/compare/htsget-lambda-v0.7.10...htsget-lambda-v0.7.11) - 2026-02-03
 
 ### Other

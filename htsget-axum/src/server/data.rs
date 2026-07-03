@@ -114,8 +114,7 @@ mod tests {
   use reqwest::{Client, ClientBuilder, RequestBuilder};
   use rustls::crypto::aws_lc_rs;
   use tempfile::{TempDir, tempdir};
-  use tokio::fs::{File, create_dir};
-  use tokio::io::AsyncWriteExt;
+  use tokio::fs::{create_dir, write};
 
   use htsget_config::config::Config;
   use htsget_config::http::TlsServerConfig;
@@ -360,19 +359,11 @@ mod tests {
     let value1 = b"value1";
     let key2 = "key2";
     let value2 = b"value2";
-    File::create(base_path.path().join(key1))
-      .await
-      .unwrap()
-      .write_all(value1)
-      .await
-      .unwrap();
+    write(base_path.path().join(key1), value1).await.unwrap();
     create_dir(base_path.path().join(folder_name))
       .await
       .unwrap();
-    File::create(base_path.path().join(folder_name).join(key2))
-      .await
-      .unwrap()
-      .write_all(value2)
+    write(base_path.path().join(folder_name).join(key2), value2)
       .await
       .unwrap();
 
