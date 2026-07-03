@@ -158,11 +158,6 @@
               ],
               "writeOnly": true
             },
-            "ticket_origin": {
-              "description": "The origin of the tickets, which can be different to the data server address.",
-              "type": ["string", "null"],
-              "default": null
-            },
             "kind": {
               "type": "string",
               "const": "File"

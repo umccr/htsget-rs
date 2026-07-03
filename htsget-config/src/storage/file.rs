@@ -34,6 +34,8 @@ pub struct File {
   #[serde(skip_serializing)]
   keys: Option<C4GHKeys>,
   /// The origin of the tickets, which can be different to the data server address.
+  /// This is not configured on the backend and is populated from `data_server.ticket_origin`.
+  #[serde(skip)]
   ticket_origin: Option<String>,
   #[serde(skip)]
   pub(crate) is_defaulted: bool,
@@ -198,5 +200,18 @@ mod tests {
         )
       },
     );
+  }
+
+  #[test]
+  fn file_backend_rejects_ticket_origin() {
+    let result = toml::from_str::<File>(
+      r#"
+      scheme = "Https"
+      authority = "127.0.0.1:8083"
+      local_path = "path"
+      ticket_origin = "https://example.com"
+      "#,
+    );
+    assert!(result.is_err());
   }
 }

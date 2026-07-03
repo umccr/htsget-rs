@@ -6,36 +6,53 @@ data_server.addr = "127.0.0.1:8081"
 
 locations = "file://data"
 
-# JWT authorization configuration.
+# JWT authentication and authorization configuration.
 [auth]
-jwks_url = "https://www.example.com/htsget"
-## Alternatively use public key-based validation
-#public_key = "/path/to/jwt-public-key.pem"
+# The JWT signing key source, either a JWKS endpoint or a static PEM public key.
+jwt = { kind = "jwks", url = "https://www.example.com/jwks" }
+## Alternatively, validate against a static public key:
+#jwt = { kind = "public_key", path = "/path/to/jwt-public-key.pem" }
 
+# Optional JWT claim validation.
 validate_audience = ["htsget-server"]
 validate_issuer = ["https://www.example.com"]
 validate_subject = "htsget"
 
-# Authorization URLs, if using an authorization service.
-authorization_url = "https://www.example.com/authorize"
-# Forward the authorization header to the auth server.
-passthrough_auth = true
-## Any headers to forward
-#forward_headers = ["Content-Type"]
-## Forward the endpoint type to the auth service.
-#forward_endpoint_type = true
-## Forward the request id.
-#forward_id = true
+## HTTP client options for the JWKS endpoint. These can be set under any callout, e.g. `jwt` or `authorization`.
+#[auth.jwt.http]
+#cert = "cert.pem"
+#key = "key.pem"
+#root_store = "root.crt"
+#use_cache = false
 
-## Set client authentication
-#http.key = "key.pem"
-#http.cert = "cert.pem"
-#
-## Set root certificates
-#http.root_store = "root.crt"
-## Disable HTTP caching
-#http.use_cache = false
+# Authorization restrictions from a remote callout service.
+[auth.authorization]
+kind = "callout"
+url = "https://www.example.com/authorize"
 
-## It's also possible to set auth individually for the ticket and data servers:
+## Alternatively, load static restrictions from a JSON file:
+#[auth.authorization]
+#kind = "static"
+#path = "/path/to/restrictions.json"
+
+# What to forward from the client request to the authorization callout.
+[auth.authorization.forward]
+## Header name patterns to forward to the callout, which supports `*` and `?` wildcards.
+## Forwarded headers keep their original names.
+headers.allow = ["Authorization"]
+## Header name patterns to never forward.
+#headers.deny = ["X-Internal-*"]
+
+# Htsget-specific context to add to the callout request. These are added with a `Htsget-Context-` header prefix.
+[auth.authorization.forward.context]
+## Forward the endpoint type, i.e. `reads` or `variants` as `Htsget-Context-Endpoint-Type`.
+endpoint_type = true
+## Forward the request id as `Htsget-Context-Id`.
+id = true
+## Derive extra context headers from request extensions using JSONPath. When `name` is
+## omitted it is derived from the path, e.g. `$.user.id` becomes `Htsget-Context-User-Id`.
+#extensions = [{ json_path = "$.user.id" }]
+
+## Auth can also be set individually for the ticket and data servers instead of globally:
 #[ticket_server.auth]
 #[data_server.auth]

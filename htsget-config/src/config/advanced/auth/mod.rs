@@ -4,17 +4,13 @@
 //! data.
 //!
 
-use crate::config::advanced::HttpClient;
 use crate::config::advanced::auth::authorization::{
   AuthorizationSource, AuthorizationSourceBuilder,
 };
 use crate::config::advanced::auth::jwt::{JwtKey, JwtKeyBuilder};
-use crate::config::advanced::callout::{Callout, Forward};
 use crate::config::service_info::PackageInfo;
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
-use crate::http::client::HttpClientConfig;
-use http::Uri;
 pub use response::{AuthorizationRestrictions, AuthorizationRule, ReferenceNameRestriction};
 use serde::Deserialize;
 
@@ -106,8 +102,6 @@ impl AuthConfig {
 #[serde(deny_unknown_fields, default)]
 pub struct AuthConfigBuilder {
   jwt: Option<JwtKeyBuilder>,
-  #[serde(default, with = "http_serde::option::uri")]
-  jwks_url: Option<Uri>,
   #[serde(skip)]
   jwt_raw: Option<JwtKey>,
   validate_audience: Option<Vec<String>>,
@@ -130,12 +124,6 @@ impl AuthConfigBuilder {
   /// Set a JWT key directly.
   pub fn jwt_raw(mut self, jwt: JwtKey) -> Self {
     self.jwt_raw = Some(jwt);
-    self
-  }
-
-  /// Set the JWKS URL using default callout settings
-  pub fn jwks_url(mut self, url: Uri) -> Self {
-    self.jwks_url = Some(url);
     self
   }
 
@@ -179,18 +167,13 @@ impl AuthConfigBuilder {
 
   /// Build the auth config.
   pub fn build(self) -> Result<AuthConfig> {
-    let jwt = match (self.jwt, self.jwks_url, self.jwt_raw) {
-      (None, None, None) => None,
-      (Some(builder), None, None) => Some(builder.build()?),
-      (None, Some(url), None) => Some(JwtKey::Jwks(Box::new(Callout::new(
-        url,
-        HttpClient::from(HttpClientConfig::default()),
-        Forward::default(),
-      )))),
-      (None, None, Some(key)) => Some(key),
-      _ => {
+    let jwt = match (self.jwt, self.jwt_raw) {
+      (None, None) => None,
+      (Some(builder), None) => Some(builder.build()?),
+      (None, Some(key)) => Some(key),
+      (Some(_), Some(_)) => {
         return Err(ParseError(
-          "specify only one of `jwt`, `jwks_url`, or `jwt_raw`".to_string(),
+          "specify only one of `jwt` or `jwt_raw`".to_string(),
         ));
       }
     };
@@ -234,7 +217,8 @@ mod tests {
 
   #[test]
   fn auth_config_jwks_url() {
-    let config: AuthConfig = toml::from_str(r#"jwks_url = "https://example.com/jwks""#).unwrap();
+    let config: AuthConfig =
+      toml::from_str(r#"jwt = { kind = "jwks", url = "https://example.com/jwks" }"#).unwrap();
     let callout = config.jwt().unwrap().jwks().unwrap();
     assert_eq!(callout.url().to_string(), "https://example.com/jwks");
   }
@@ -279,15 +263,12 @@ mod tests {
 
   #[test]
   fn auth_config_rejects_duplicate() {
-    let result = toml::from_str::<AuthConfig>(
-      r#"
-      jwks_url = "https://example.com/jwks"
-
-      [jwt]
-      kind = "jwks"
-      url  = "https://example.com/jwks"
-      "#,
-    );
+    let result = AuthConfigBuilder::default()
+      .jwt(JwtKeyBuilder::PublicKey {
+        path: "key.pem".into(),
+      })
+      .jwt_raw(JwtKey::PublicKey(vec![1, 2, 3]))
+      .build();
     assert!(result.is_err());
   }
 
@@ -354,7 +335,7 @@ mod tests {
   fn auth_config_full() {
     let config: AuthConfig = toml::from_str(
       r#"
-      jwks_url = "https://www.example.com/jwks"
+      jwt = { kind = "jwks", url = "https://www.example.com/jwks" }
       validate_audience = ["aud1", "aud2"]
       validate_issuer = ["iss1"]
       validate_subject = "sub"
@@ -404,7 +385,7 @@ mod tests {
   fn auth_config_experimental() {
     let config: AuthConfig = toml::from_str(
       r#"
-      jwks_url = "https://www.example.com"
+      jwt = { kind = "jwks", url = "https://www.example.com" }
       add_hint = false
       suppress_errors = true
       "#,

@@ -1,11 +1,8 @@
 //! TLS configuration related to HTTP clients.
 //!
 
-use crate::config::advanced::Bytes;
-use crate::error::Error::IoError;
 use crate::error::{Error, Result};
-use crate::http::RootCertStorePair;
-use crate::http::load_certs;
+use crate::http::{RootCertStorePair, load_reqwest_certs, load_reqwest_identity};
 use reqwest::{Certificate, Identity};
 use serde::Deserialize;
 
@@ -67,31 +64,8 @@ impl TryFrom<RootCertStorePair> for HttpClientConfig {
   fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
     let (key_pair, root_store, use_cache) = root_store_pair.into_inner();
 
-    let cert = root_store
-      .clone()
-      .map(|cert_path| {
-        let certs = load_certs(cert_path)?;
-
-        certs
-          .into_iter()
-          .map(|cert| {
-            Certificate::from_der(&cert)
-              .map_err(|err| IoError(format!("failed to read certificate from pem: {err}")))
-          })
-          .collect::<Result<Vec<_>>>()
-      })
-      .transpose()?;
-
-    let identity = key_pair
-      .clone()
-      .map(|pair| {
-        let key = Bytes::try_from(pair.key)?.into_inner();
-        let certs = Bytes::try_from(pair.cert)?.into_inner();
-
-        Identity::from_pem(&[certs, key].concat())
-          .map_err(|err| IoError(format!("failed to load pkcs8 pem identity: {err}")))
-      })
-      .transpose()?;
+    let cert = root_store.map(load_reqwest_certs).transpose()?;
+    let identity = key_pair.as_ref().map(load_reqwest_identity).transpose()?;
 
     Ok(Self::new(cert, identity, use_cache))
   }

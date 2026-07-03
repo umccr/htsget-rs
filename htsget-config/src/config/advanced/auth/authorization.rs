@@ -1,13 +1,12 @@
 //! Authorization source config.
 //!
 
+use crate::config::advanced::Bytes;
 use crate::config::advanced::auth::AuthorizationRestrictions;
 use crate::config::advanced::callout::Callout;
 use crate::error::Error::ParseError;
 use crate::error::Result;
 use serde::Deserialize;
-use std::fs::File;
-use std::io::Read;
 use std::path::PathBuf;
 
 /// Where authorization restrictions come from, either the remote server or a static file.
@@ -57,8 +56,7 @@ impl AuthorizationSourceBuilder {
     match self {
       Self::Callout(callout) => Ok(AuthorizationSource::Callout(callout)),
       Self::Static { path } => {
-        let mut buf = vec![];
-        File::open(&path)?.read_to_end(&mut buf)?;
+        let buf = Bytes::try_from(path.clone())?.into_inner();
 
         let restrictions: AuthorizationRestrictions = serde_json::from_slice(&buf)
           .map_err(|err| ParseError(format!("parsing {}: {err}", path.display())))?;
