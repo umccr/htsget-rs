@@ -7,10 +7,10 @@ use crate::error::Result;
 #[cfg(feature = "experimental")]
 use crate::storage::c4gh::C4GHKeys;
 use crate::storage::file::File;
-#[cfg(feature = "url")]
-use crate::storage::url::Url;
 #[cfg(feature = "aws")]
 use crate::storage::s3::S3;
+#[cfg(feature = "url")]
+use crate::storage::url::Url;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

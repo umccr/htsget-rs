@@ -736,7 +736,7 @@ pub(crate) mod tests {
   fn parse_example_auth_config() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/examples/auth.toml");
     let config = Config::from_path(&path).unwrap();
-    
+
     let auth = config.ticket_server().auth().unwrap();
     assert!(auth.jwt().and_then(|jwt| jwt.jwks()).is_some());
     assert!(
