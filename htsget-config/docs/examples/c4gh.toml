@@ -10,9 +10,9 @@ substitution_string = "$0"
 
 backend.kind = "Url"
 backend.url = "http://localhost:8083/"
-backend.response_url = "http://localhost:8083/"
+backend.parse.kind = "bytes"
 
-## If using `Url` storage, setting this option ensures that htsget-rs forwards its own public key in a
+## Setting this option ensures that htsget-rs forwards its own public key in a
 ## header called `Htsget-Context-Public-Key`.
 #backend.forward_public_key = true
 

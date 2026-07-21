@@ -1,7 +1,6 @@
 //! Set the location using a regex and substitution values.
 //!
 
-use crate::config::advanced::allow_guard::AllowGuard;
 use crate::config::location::Location;
 use crate::storage::Backend;
 use regex::Regex;
@@ -22,8 +21,6 @@ pub struct RegexLocation {
   /// The backend of the location if configured.
   #[schemars(with = "Option::<Backend>", default = "default_schema_none")]
   backend: Backend,
-  #[schemars(skip)]
-  guard: Option<AllowGuard>,
 }
 
 fn default_schema_none() -> Option<String> {
@@ -35,24 +32,17 @@ impl PartialEq for RegexLocation {
   fn eq(&self, other: &Self) -> bool {
     self.substitution_string == other.substitution_string
       && self.backend == other.backend
-      && self.guard == other.guard
       && self.regex.to_string() == other.regex.to_string()
   }
 }
 
 impl RegexLocation {
   /// Create a new regex location.
-  pub fn new(
-    regex: Regex,
-    substitution_string: String,
-    backend: Backend,
-    guard: Option<AllowGuard>,
-  ) -> Self {
+  pub fn new(regex: Regex, substitution_string: String, backend: Backend) -> Self {
     Self {
       regex,
       substitution_string,
       backend,
-      guard,
     }
   }
 
@@ -80,11 +70,6 @@ impl RegexLocation {
   pub fn into_backend(self) -> Backend {
     self.backend
   }
-
-  /// Get the allow guard.
-  pub fn guard(&self) -> Option<&AllowGuard> {
-    self.guard.as_ref()
-  }
 }
 
 impl Default for RegexLocation {
@@ -92,7 +77,6 @@ impl Default for RegexLocation {
     Self::new(
       ".*".parse().expect("expected valid regex"),
       "$0".to_string(),
-      Default::default(),
       Default::default(),
     )
   }
@@ -207,10 +191,6 @@ mod tests {
       substitution_string = "$0"
       backend.kind = "Url"
       backend.url = "http://localhost:8080"
-      backend.allow_headers_backend = []
-      backend.allow_headers_client = []
-      backend.deny_headers_backend = []
-      backend.deny_headers_client = []
     "#,
       (
         "prefix/(?P<key>.*)$".to_string(),

@@ -1,50 +1,60 @@
-//! JWT authentication config.
+//! JWT key config.
 //!
 
 use crate::config::advanced::Bytes;
-use crate::error::Error;
-use crate::error::Error::ParseError;
+use crate::config::advanced::callout::Callout;
 use crate::error::Result;
-use http::Uri;
 use serde::Deserialize;
 use std::path::PathBuf;
 
-/// The method for authorization, either using a JWKS url or a public key.
-#[derive(Deserialize, Debug, Clone, Eq, PartialEq)]
-#[serde(
-  deny_unknown_fields,
-  try_from = "AuthModeSerde",
-  into = "AuthModeSerde"
-)]
-pub enum AuthMode {
-  Jwks(Uri),
+/// The source for the JWT signing key, either a JWKS endpoint or a
+/// static public key.
+#[derive(Debug, Clone)]
+pub enum JwtKey {
+  Jwks(Box<Callout>),
   PublicKey(Vec<u8>),
 }
 
-/// Used to deserialize into the `AuthMode` struct.
-#[derive(Deserialize, Debug, Clone, Eq, PartialEq, Default)]
-#[serde(deny_unknown_fields, default)]
-struct AuthModeSerde {
-  #[serde(with = "http_serde::option::uri")]
-  jwks_url: Option<Uri>,
-  public_key: Option<PathBuf>,
+impl JwtKey {
+  /// Get the JWKS callout if the type is `Jwks`.
+  pub fn jwks(&self) -> Option<&Callout> {
+    match self {
+      Self::Jwks(callout) => Some(callout),
+      Self::PublicKey(_) => None,
+    }
+  }
+
+  /// Get a mutable reference to the JWKS callout if the type is `Jwks`.
+  pub fn jwks_mut(&mut self) -> Option<&mut Callout> {
+    match self {
+      Self::Jwks(callout) => Some(callout),
+      Self::PublicKey(_) => None,
+    }
+  }
+
+  /// Get the public key bytes if the type is `PublicKey`.
+  pub fn public_key(&self) -> Option<&[u8]> {
+    match self {
+      Self::PublicKey(key) => Some(key),
+      Self::Jwks(_) => None,
+    }
+  }
 }
 
-impl TryFrom<AuthModeSerde> for AuthMode {
-  type Error = Error;
+/// Builder for `JwtKey`.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum JwtKeyBuilder {
+  Jwks(Box<Callout>),
+  PublicKey { path: PathBuf },
+}
 
-  fn try_from(mode: AuthModeSerde) -> Result<Self> {
-    match (mode.jwks_url, mode.public_key) {
-      (None, None) => Err(ParseError(
-        "Either 'jwks_url' or 'public_key' must be set".to_string(),
-      )),
-      (Some(_), Some(_)) => Err(ParseError(
-        "Cannot set both 'jwks_url' and 'public_key'".to_string(),
-      )),
-      (Some(jwks_url), None) => Ok(AuthMode::Jwks(jwks_url)),
-      (None, Some(public_key)) => Ok(AuthMode::PublicKey(
-        Bytes::try_from(public_key)?.into_inner(),
-      )),
+impl JwtKeyBuilder {
+  /// Build the `JwtKey`.
+  pub fn build(self) -> Result<JwtKey> {
+    match self {
+      Self::Jwks(callout) => Ok(JwtKey::Jwks(callout)),
+      Self::PublicKey { path } => Ok(JwtKey::PublicKey(Bytes::try_from(path)?.into_inner())),
     }
   }
 }

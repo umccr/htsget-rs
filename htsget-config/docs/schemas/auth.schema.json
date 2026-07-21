@@ -163,11 +163,6 @@
               ],
               "writeOnly": true
             },
-            "ticket_origin": {
-              "description": "The origin of the tickets, which can be different to the data server address.",
-              "type": ["string", "null"],
-              "default": null
-            },
             "kind": {
               "type": "string",
               "const": "File"
@@ -216,44 +211,42 @@
           "required": ["kind"]
         },
         {
-          "description": "Configure the server to reach out to a remote URL to fetch data.",
+          "description": "URL-backed storage. Replaces the previous `url` and `json_path` backends.",
           "type": "object",
           "properties": {
             "url": {
               "type": "string",
               "default": "/"
             },
-            "response_url": {
-              "type": ["string", "null"],
-              "default": null
+            "parse": {
+              "$ref": "#/$defs/ParseRaw",
+              "default": {
+                "kind": "bytes",
+                "ticket_url": null
+              }
             },
-            "allow_headers_backend": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": ["*"]
+            "forward": {
+              "$ref": "#/$defs/Forward",
+              "default": {
+                "headers": {
+                  "allow": [],
+                  "deny": []
+                },
+                "context": {
+                  "endpoint_type": false,
+                  "id": false,
+                  "extensions": []
+                }
+              }
             },
-            "deny_headers_backend": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": []
-            },
-            "allow_headers_client": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": ["*"]
-            },
-            "deny_headers_client": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": []
+            "reflect": {
+              "$ref": "#/$defs/Reflect",
+              "default": {
+                "headers": {
+                  "allow": [],
+                  "deny": []
+                }
+              }
             },
             "keys": {
               "anyOf": [
@@ -273,81 +266,6 @@
             "kind": {
               "type": "string",
               "const": "Url"
-            }
-          },
-          "additionalProperties": false,
-          "required": ["kind"]
-        },
-        {
-          "description": "Configure the server to resolve endpoints from a Url using json path.",
-          "type": "object",
-          "properties": {
-            "resolve_from": {
-              "type": "string",
-              "default": ""
-            },
-            "content_path": {
-              "type": "string",
-              "default": ""
-            },
-            "size_path": {
-              "type": ["string", "null"],
-              "default": null
-            },
-            "response_path": {
-              "type": ["string", "null"],
-              "default": null
-            },
-            "response_url": {
-              "type": ["string", "null"],
-              "default": null
-            },
-            "allow_headers_backend": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": ["*"]
-            },
-            "deny_headers_backend": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": []
-            },
-            "allow_headers_client": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": ["*"]
-            },
-            "deny_headers_client": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": []
-            },
-            "keys": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/C4GHKeys"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "writeOnly": true
-            },
-            "forward_public_key": {
-              "type": "boolean",
-              "default": true
-            },
-            "kind": {
-              "type": "string",
-              "const": "JsonPath"
             }
           },
           "additionalProperties": false,
@@ -443,6 +361,145 @@
           "additionalProperties": false
         }
       ]
+    },
+    "ParseRaw": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ticket_url": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "kind": {
+              "type": "string",
+              "const": "bytes"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "content_path": {
+              "type": "string"
+            },
+            "size_path": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "ticket_path": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "ticket_url": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "kind": {
+              "type": "string",
+              "const": "json_path"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind", "content_path"]
+        }
+      ]
+    },
+    "Forward": {
+      "description": "Forward data from the client request to the callout server. This includes\nheaders from the client, and htsget-specific context, i.e. endpoint, id,\nextensions, etc.",
+      "type": "object",
+      "properties": {
+        "headers": {
+          "$ref": "#/$defs/HeaderRules",
+          "default": {
+            "allow": [],
+            "deny": []
+          }
+        },
+        "context": {
+          "$ref": "#/$defs/ContextRules",
+          "default": {
+            "endpoint_type": false,
+            "id": false,
+            "extensions": []
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "HeaderRules": {
+      "description": "Allow and deny rules for header names. Both lists support `*` and `?`.",
+      "type": "object",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "deny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContextRules": {
+      "description": "The htsget-specific header values to insert into the callout request.\n\nThese values are derived from the kind of request to htsget, like the endpoint and\nid. Headers are inserted with a `Htsget-Context-` prefix.",
+      "type": "object",
+      "properties": {
+        "endpoint_type": {
+          "type": "boolean",
+          "default": false
+        },
+        "id": {
+          "type": "boolean",
+          "default": false
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContextExtension"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContextExtension": {
+      "description": "A header derived by using JSONPath on the request's extension, e.g. from Lambda contexts\nor other axum extensions.\n\n`name` is optional. When omitted, it is derived from the JSONPath by applying case conversion\non the components. E.g. `$.user.custom_id` becomes `Htsget-Context-User-Custom-Id`.",
+      "type": "object",
+      "properties": {
+        "json_path": {
+          "type": "string"
+        },
+        "name": {
+          "type": ["string", "null"],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": ["json_path"]
+    },
+    "Reflect": {
+      "description": "Which headers from the response to echo back to the client in the ticket.",
+      "type": "object",
+      "properties": {
+        "headers": {
+          "$ref": "#/$defs/HeaderRules",
+          "default": {
+            "allow": [],
+            "deny": []
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "ReferenceNameRestriction": {
       "description": "Restriction on genomic reference names and coordinate ranges.",

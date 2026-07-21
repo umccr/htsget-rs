@@ -110,7 +110,6 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Locations {
         "^1-(.*)$".parse().unwrap(),
         "$1".to_string(),
         Backend::File(local_storage.clone()),
-        Default::default(),
       )
       .into(),
     ),
@@ -119,7 +118,6 @@ pub fn default_test_resolver(addr: SocketAddr, scheme: Scheme) -> Locations {
         "^2-(.*)$".parse().unwrap(),
         "$1".to_string(),
         Backend::File(local_storage.clone()),
-        Default::default(),
       )
       .into(),
     ),

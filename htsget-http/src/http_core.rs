@@ -19,7 +19,7 @@ use tracing::instrument;
 
 async fn authenticate(headers: &HeaderMap, auth: Option<Auth>) -> Result<Option<Auth>> {
   if let Some(mut auth) = auth {
-    if auth.config().auth_mode().is_some() {
+    if auth.config().jwt().is_some() {
       auth.validate_jwt(headers).await?;
       Ok(Some(auth))
     } else {

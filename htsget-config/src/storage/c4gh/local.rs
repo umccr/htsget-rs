@@ -114,11 +114,7 @@ mod tests {
       r#"
         kind = "Url"
         url = "https://example.com/"
-        response_url = "https://example.com/"
-        allow_headers_backend = []
-        allow_headers_client = []
-        deny_headers_backend = []
-        deny_headers_client = []
+        parse.kind = "bytes"
         "#,
       |config| {
         assert!(matches!(

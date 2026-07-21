@@ -146,14 +146,17 @@ impl Config {
       .service_info
       .set_from_package_info(&self.package_info)?;
 
-    if let Some(ref mut auth) = self.auth {
-      auth.set_from_package_info(&self.package_info)?;
+    let data_server_auth = match &mut self.data_server {
+      DataServerEnabled::Some(config) => config.auth.as_mut(),
+      DataServerEnabled::None(_) => None,
     };
-    if let Some(ref mut auth) = self.ticket_server.auth {
-      auth.set_from_package_info(&self.package_info)?;
-    }
-    if let DataServerEnabled::Some(ref mut data_server_config) = self.data_server
-      && let Some(ref mut auth) = data_server_config.auth
+    for auth in [
+      self.auth.as_mut(),
+      self.ticket_server.auth.as_mut(),
+      data_server_auth,
+    ]
+    .into_iter()
+    .flatten()
     {
       auth.set_from_package_info(&self.package_info)?;
     }
@@ -316,16 +319,16 @@ impl Config {
         // explicitly set.
         match location.backend_mut() {
           Backend::File(file) => {
+            file.set_ticket_origin(ticket_origin.clone());
             if file.is_defaulted {
               file.set_scheme(scheme);
               file.set_authority(authority.clone());
-              file.set_ticket_origin(ticket_origin.clone())
             }
           }
           #[cfg(feature = "aws")]
           Backend::S3(_) => {}
           #[cfg(feature = "url")]
-          Backend::Url(_) | Backend::JsonPath(_) => {}
+          Backend::Url(_) => {}
         }
 
         // Ensure authorization header gets forwarded if the data server has authorization set.
@@ -396,14 +399,13 @@ pub(crate) mod tests {
   use std::fmt::Display;
 
   use super::*;
-  use crate::config::advanced::auth::authorization::UrlOrStatic;
-  use crate::config::advanced::auth::jwt::AuthMode;
   use crate::config::location::SimpleLocation;
   use crate::config::parser::from_str;
   use crate::http::tests::with_test_certificates;
   use crate::storage::Backend;
   use crate::types::Scheme;
   use figment::Jail;
+  #[cfg(feature = "url")]
   use http::Uri;
   use http::uri::Authority;
   use serde::de::DeserializeOwned;
@@ -731,6 +733,40 @@ pub(crate) mod tests {
   }
 
   #[test]
+  fn parse_example_auth_config() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/examples/auth.toml");
+    let config = Config::from_path(&path).unwrap();
+
+    let auth = config.ticket_server().auth().unwrap();
+    assert!(auth.jwt().and_then(|jwt| jwt.jwks()).is_some());
+    assert!(
+      auth
+        .authorization()
+        .and_then(|source| source.callout())
+        .is_some()
+    );
+  }
+
+  #[test]
+  fn data_server_ticket_origin_propagates_to_file_backend() {
+    test_config_from_file(
+      r#"
+    data_server.addr = "127.0.0.1:8080"
+    data_server.local_path = "data"
+    data_server.ticket_origin = "https://example.com/"
+
+    locations = "file://data"
+    "#,
+      |config| {
+        let locations = config.locations.into_inner();
+        let backend = locations[0].as_simple().unwrap().backend();
+        assert!(matches!(backend,
+            Backend::File(file) if file.ticket_origin() == Some("https://example.com/")));
+      },
+    );
+  }
+
+  #[test]
   fn simple_locations_env() {
     test_config_from_env(
       vec![
@@ -866,26 +902,32 @@ pub(crate) mod tests {
   fn config_server_auth() {
     test_config_from_file(
       r#"
-      ticket_server.auth.jwks_url = "https://www.example.com/"
+      ticket_server.auth.jwt = { kind = "jwks", url = "https://www.example.com/" }
       ticket_server.auth.validate_issuer = ["iss1"]
-      ticket_server.auth.authorization_url = "https://www.example.com"
-      data_server.auth.jwks_url = "https://www.example.com/"
+      ticket_server.auth.authorization = { kind = "callout", url = "https://www.example.com" }
+      data_server.auth.jwt = { kind = "jwks", url = "https://www.example.com/" }
       data_server.auth.validate_audience = ["aud1"]
-      data_server.auth.authorization_url = "https://www.example.com"
+      data_server.auth.authorization = { kind = "callout", url = "https://www.example.com" }
       "#,
       |config| {
         let auth = config.ticket_server().auth().unwrap();
         assert_eq!(
-          auth.auth_mode().unwrap(),
-          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+          auth.jwt().unwrap().jwks().unwrap().url().to_string(),
+          "https://www.example.com/"
         );
         assert_eq!(
           auth.validate_issuer(),
           Some(vec!["iss1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url().unwrap(),
-          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
+          auth
+            .authorization()
+            .unwrap()
+            .callout()
+            .unwrap()
+            .url()
+            .to_string(),
+          "https://www.example.com/"
         );
         let auth = config
           .data_server()
@@ -894,16 +936,22 @@ pub(crate) mod tests {
           .auth()
           .unwrap();
         assert_eq!(
-          auth.auth_mode().unwrap(),
-          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+          auth.jwt().unwrap().jwks().unwrap().url().to_string(),
+          "https://www.example.com/"
         );
         assert_eq!(
           auth.validate_audience(),
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url().unwrap(),
-          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
+          auth
+            .authorization()
+            .unwrap()
+            .callout()
+            .unwrap()
+            .url()
+            .to_string(),
+          "https://www.example.com/"
         );
       },
     );
@@ -913,23 +961,29 @@ pub(crate) mod tests {
   fn config_server_auth_global() {
     test_config_from_file(
       r#"
-      auth.jwks_url = "https://www.example.com/"
+      auth.jwt = { kind = "jwks", url = "https://www.example.com/" }
       auth.validate_audience = ["aud1"]
-      auth.authorization_url = "https://www.example.com"
+      auth.authorization = { kind = "callout", url = "https://www.example.com" }
       "#,
       |config| {
         let auth = config.auth.unwrap();
         assert_eq!(
-          auth.auth_mode().unwrap(),
-          &AuthMode::Jwks("https://www.example.com/".parse().unwrap())
+          auth.jwt().unwrap().jwks().unwrap().url().to_string(),
+          "https://www.example.com/"
         );
         assert_eq!(
           auth.validate_audience(),
           Some(vec!["aud1".to_string()].as_slice())
         );
         assert_eq!(
-          auth.authorization_url().unwrap(),
-          &UrlOrStatic::Url("https://www.example.com".parse::<Uri>().unwrap())
+          auth
+            .authorization()
+            .unwrap()
+            .callout()
+            .unwrap()
+            .url()
+            .to_string(),
+          "https://www.example.com/"
         );
       },
     );

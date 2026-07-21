@@ -1,8 +1,10 @@
-//! Configuration for remote URL server storage.
+//! Configuration for a remote URL storage server, supporting raw bytes and
+//! JSONPath manifest modes via [`Parse`].
 //!
 
 use crate::config::advanced;
 use crate::config::advanced::HttpClient;
+use crate::config::advanced::callout::{Forward, Parse, Reflect};
 use crate::error::Result;
 use crate::http::client::HttpClientConfig;
 #[cfg(feature = "experimental")]
@@ -11,8 +13,33 @@ use http::Uri;
 use reqwest_middleware::ClientWithMiddleware;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::Display;
 
-/// Configure the server to reach out to a remote URL to fetch data.
+/// Either a JSON path or a url.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JsonPathOrUrl {
+  Url(#[serde(with = "http_serde::uri")] Uri),
+  JsonPath(String),
+}
+
+impl Display for JsonPathOrUrl {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let s = match self {
+      JsonPathOrUrl::Url(url) => &url.to_string(),
+      JsonPathOrUrl::JsonPath(url) => url.as_str(),
+    };
+    f.write_str(s)
+  }
+}
+
+impl Default for JsonPathOrUrl {
+  fn default() -> Self {
+    Self::JsonPath("$".to_string())
+  }
+}
+
+/// URL-backed storage. Replaces the previous `url` and `json_path` backends.
 #[derive(JsonSchema, Deserialize, Serialize, Debug, Clone)]
 #[serde(try_from = "advanced::url::Url", deny_unknown_fields)]
 pub struct Url {
@@ -20,18 +47,12 @@ pub struct Url {
   #[schemars(with = "String")]
   #[serde(with = "http_serde::uri")]
   url: Uri,
-  /// The URL of the response tickets.
-  #[schemars(with = "String")]
-  #[serde(with = "http_serde::uri")]
-  response_url: Uri,
-  /// Headers that are forwarded to the backend storage server. Supports wildcards using `*` and `?`.
-  allow_headers_backend: Vec<String>,
-  /// Headers that are not forwarded to the backend storage server. Supports wildcards using `*` and `?`.
-  deny_headers_backend: Vec<String>,
-  /// Headers that are reflected back to the client in tickets. Supports wildcards using `*` and `?`.
-  allow_headers_client: Vec<String>,
-  /// Headers that are not reflected back to the client in tickets. Supports wildcards using `*` and `?`.
-  deny_headers_client: Vec<String>,
+  /// How to interpret the response from `url`.
+  parse: Parse,
+  /// What request data is forwarded to the backend.
+  forward: Forward,
+  /// What response data is reflected back to the client in tickets.
+  reflect: Reflect,
   #[serde(skip_serializing)]
   #[schemars(skip)]
   client: HttpClient,
@@ -51,32 +72,26 @@ impl Eq for Url {}
 impl PartialEq for Url {
   fn eq(&self, other: &Self) -> bool {
     self.url == other.url
-      && self.response_url == other.response_url
-      && self.allow_headers_backend == other.allow_headers_backend
-      && self.deny_headers_backend == other.deny_headers_backend
-      && self.allow_headers_client == other.allow_headers_client
-      && self.deny_headers_client == other.deny_headers_client
+      && self.parse == other.parse
+      && self.forward == other.forward
+      && self.reflect == other.reflect
   }
 }
 
 impl Url {
-  /// Create a new url storage client.
+  /// Create a new URL storage backend.
   pub fn new(
     url: Uri,
-    response_url: Uri,
-    allow_headers_backend: Vec<String>,
-    deny_headers_backend: Vec<String>,
-    allow_headers_client: Vec<String>,
-    deny_headers_client: Vec<String>,
+    parse: Parse,
+    forward: Forward,
+    reflect: Reflect,
     client: HttpClient,
   ) -> Self {
     Self {
       url,
-      response_url,
-      allow_headers_backend,
-      deny_headers_backend,
-      allow_headers_client,
-      deny_headers_client,
+      parse,
+      forward,
+      reflect,
       client,
       #[cfg(feature = "experimental")]
       keys: None,
@@ -86,36 +101,24 @@ impl Url {
     }
   }
 
-  /// Get the url called when resolving the query.
+  /// The URL to fetch data from.
   pub fn url(&self) -> &Uri {
     &self.url
   }
 
-  /// Get the response url to return to the client
-  pub fn response_url(&self) -> &Uri {
-    &self.response_url
+  /// How to interpret the response.
+  pub fn parse(&self) -> &Parse {
+    &self.parse
   }
 
-  /// Get the headers forwarded to the backend storage server. Supports wildcards using `*` and `?`.
-  pub fn allow_headers_backend(&self) -> &[String] {
-    &self.allow_headers_backend
+  /// What to forward to the backend.
+  pub fn forward(&self) -> &Forward {
+    &self.forward
   }
 
-  /// Get the headers blocked from being forwarded to the backend storage server. Supports
-  /// wildcards using `*` and `?`.
-  pub fn deny_headers_backend(&self) -> &[String] {
-    &self.deny_headers_backend
-  }
-
-  /// Get the headers reflected back to the client in tickets. Supports wildcards using `*` and `?`.
-  pub fn allow_headers_client(&self) -> &[String] {
-    &self.allow_headers_client
-  }
-
-  /// Get the headers blocked from being reflected back to the client in tickets. Supports
-  /// wildcards using `*` and `?`.
-  pub fn deny_headers_client(&self) -> &[String] {
-    &self.deny_headers_client
+  /// What to reflect back to the client.
+  pub fn reflect(&self) -> &Reflect {
+    &self.reflect
   }
 
   /// Get an owned client by cloning.
@@ -164,17 +167,10 @@ impl Default for Url {
     let mut url = Self::new(
       Default::default(),
       Default::default(),
-      vec!["*".to_string()],
-      vec![],
-      vec!["*".to_string()],
-      vec![],
+      Default::default(),
+      Default::default(),
       HttpClient::from(HttpClientConfig::default()),
     );
-
-    #[cfg(feature = "experimental")]
-    {
-      url.set_forward_public_key(true);
-    }
 
     url.is_defaulted = true;
     url

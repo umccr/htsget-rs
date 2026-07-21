@@ -49,7 +49,7 @@ cargo run -p htsget-axum --features aws
 
 This will start a ticket server with `S3Storage` using a bucket called `"data"`.
 
-To use `UrlStorage`, compile with the `url` feature.
+To use the `Url` backend, compile with the `url` feature.
 
 See [htsget-search] for details on how to structure files.
 

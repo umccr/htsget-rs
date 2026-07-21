@@ -14,6 +14,7 @@ use rustls_pemfile::{certs, read_one};
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use serde::{Deserialize, Serialize};
 
+use crate::config::advanced::Bytes;
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::types::Scheme;
@@ -190,6 +191,26 @@ pub fn load_certs<P: AsRef<Path>>(certs_path: P) -> Result<Vec<CertificateDer<'s
   }
 
   Ok(certs)
+}
+
+/// Load root certificates from a PEM file into `reqwest` certificates for use by an HTTP client.
+pub fn load_reqwest_certs<P: AsRef<Path>>(certs_path: P) -> Result<Vec<reqwest::Certificate>> {
+  load_certs(certs_path)?
+    .into_iter()
+    .map(|cert| {
+      reqwest::Certificate::from_der(&cert)
+        .map_err(|err| Error::IoError(format!("failed to read certificate from pem: {err}")))
+    })
+    .collect()
+}
+
+/// Load a `reqwest` client identity from a certificate and key pair.
+pub fn load_reqwest_identity(key_pair: &CertificateKeyPairPath) -> Result<reqwest::Identity> {
+  let certs = Bytes::try_from(key_pair.cert.clone())?.into_inner();
+  let key = Bytes::try_from(key_pair.key.clone())?.into_inner();
+
+  reqwest::Identity::from_pem(&[certs, key].concat())
+    .map_err(|err| Error::IoError(format!("failed to load pkcs8 pem identity: {err}")))
 }
 
 /// Load TLS server config.

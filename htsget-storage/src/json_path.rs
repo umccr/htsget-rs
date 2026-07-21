@@ -9,7 +9,7 @@ use crate::url::{UrlClient, UrlStream};
 use crate::{GetOptions, HeadOptions, RangeUrlOptions, Result, StorageMiddleware, StorageTrait};
 use crate::{Streamable, Url as HtsGetUrl};
 use async_trait::async_trait;
-use htsget_config::storage::json_path::JsonPathOrUrl;
+use htsget_config::storage::url::JsonPathOrUrl;
 use http::{HeaderMap, Method, Uri};
 use jsonpath_rust::JsonPath;
 use reqwest_middleware::ClientWithMiddleware;
