@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.9](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.12.8...htsget-actix-v0.12.9) - 2026-07-22
+
+### Other
+
+- clippy lints
+
 ## [0.12.8](https://github.com/umccr/htsget-rs/compare/htsget-actix-v0.12.7...htsget-actix-v0.12.8) - 2026-06-22
 
 ### Other

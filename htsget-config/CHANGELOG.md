@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.22.1...htsget-config-v0.23.0) - 2026-07-22
+
+### Added
+
+- add http config options
+- *(config)* move filter to callout definition
+- *(config)* add reflect header rules option
+- *(config)* add options to parse the incoming response from a callout
+- *(config)* add callout types and option to unify calling out to remote server
+
+### Other
+
+- clippy lints
+- apply fmt
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into feat/config-options
+- [**breaking**] tidy config options and reduce some code repetition
+- [**breaking**] merge json path with the existing url storage and clarify usage of backend types
+- [**breaking**] remove allow guard as it's deprecated in favour of the auth config
+- fix path quoting issue on windows
+- *(config)* use callout types directly for jwks url and authorization callout
+
 ## [0.22.1](https://github.com/umccr/htsget-rs/compare/htsget-config-v0.22.0...htsget-config-v0.22.1) - 2026-06-22
 
 ### Added

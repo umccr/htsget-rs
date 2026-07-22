@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.13.1...htsget-search-v0.14.0) - 2026-07-22
+
+### Added
+
+- add http config options
+
+### Other
+
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into feat/config-options
+- [**breaking**] merge json path with the existing url storage and clarify usage of backend types
+
 ## [0.13.1](https://github.com/umccr/htsget-rs/compare/htsget-search-v0.13.0...htsget-search-v0.13.1) - 2026-06-22
 
 ### Fixed
