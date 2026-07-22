@@ -180,7 +180,7 @@ fn start_htsget_refserver() -> (DropGuard, String) {
     .arg("-p")
     .arg(format!(
       "{}:3000",
-      &refserver_config.htsget_config.props.port
+      refserver_config.htsget_config.props.port
     ))
     .arg("-v")
     .arg(format!(
@@ -194,7 +194,7 @@ fn start_htsget_refserver() -> (DropGuard, String) {
     .arg("-v")
     .arg(format!(
       "{}:/config",
-      &config_path
+      config_path
         .canonicalize()
         .unwrap()
         .parent()

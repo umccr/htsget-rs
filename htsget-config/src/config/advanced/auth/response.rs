@@ -218,7 +218,7 @@ impl AuthorizationRuleBuilder {
       .as_simple()
       .is_ok_and(|simple| simple.prefix_or_id().is_none())
     {
-      return Err(BuilderError("A prefix or id must be set".to_string()))?;
+      return Err(BuilderError("A prefix or id must be set".to_string()));
     }
 
     Ok(AuthorizationRule {
