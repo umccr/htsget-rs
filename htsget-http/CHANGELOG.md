@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.8.7...htsget-http-v0.9.0) - 2026-07-22
+
+### Added
+
+- add http config options
+- implement new callout config in middleware
+
+### Other
+
+- Merge branch 'main' of https://github.com/umccr/htsget-rs into feat/config-options
+- [**breaking**] remove allow guard as it's deprecated in favour of the auth config
+
 ## [0.8.7](https://github.com/umccr/htsget-rs/compare/htsget-http-v0.8.6...htsget-http-v0.8.7) - 2026-06-22
 
 ### Other
