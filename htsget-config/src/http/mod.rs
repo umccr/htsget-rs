@@ -129,7 +129,14 @@ impl HttpClientOptions {
   }
 
   /// Get the owned root store pair.
-  pub fn into_inner(self) -> (Option<CertificateKeyPairPath>, Option<PathBuf>, bool, CachePolicy) {
+  pub fn into_inner(
+    self,
+  ) -> (
+    Option<CertificateKeyPairPath>,
+    Option<PathBuf>,
+    bool,
+    CachePolicy,
+  ) {
     (self.key_pair, self.root_store, self.use_cache, self.cache)
   }
 }

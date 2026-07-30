@@ -113,11 +113,7 @@ fn default_http_client() -> HttpClient {
 impl Callout {
   /// Create a new callout.
   pub fn new(url: Uri, http: HttpClient, forward: Forward) -> Self {
-    Self {
-      url,
-      http,
-      forward,
-    }
+    Self { url, http, forward }
   }
 
   /// The callout URL.

@@ -97,9 +97,7 @@ impl Auth {
     let http = callout.http_mut();
     let client = http
       .as_inner_built_with_forwarded_headers(&forwarded_header_names)
-      .map_err(|err| {
-        HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}"))
-      })?
+      .map_err(|err| HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}")))?
       .clone();
 
     let ttl_ceiling_secs = callout.http().ttl_ceiling_secs();

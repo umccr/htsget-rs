@@ -69,7 +69,13 @@ impl HttpClientConfig {
     Option<String>,
     CachePolicy,
   ) {
-    (self.cert, self.identity, self.use_cache, self.user_agent, self.cache)
+    (
+      self.cert,
+      self.identity,
+      self.use_cache,
+      self.user_agent,
+      self.cache,
+    )
   }
 
   /// Set the user agent string.

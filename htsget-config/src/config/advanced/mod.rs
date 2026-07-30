@@ -45,14 +45,14 @@ pub fn build_cache_key(parts: &request::Parts, header_names: &[String]) -> Strin
   // Of the headers which would be forwarded, get the header name and value for
   // the request itself.
   let mut cache_headers: Vec<(String, String)> = header_names
-      .iter()
-      .filter_map(|name| {
-        parts
-            .headers
-            .get(name.as_str())
-            .map(|v| (name.clone(), v.to_str().unwrap_or("").to_string()))
-      })
-      .collect();
+    .iter()
+    .filter_map(|name| {
+      parts
+        .headers
+        .get(name.as_str())
+        .map(|v| (name.clone(), v.to_str().unwrap_or("").to_string()))
+    })
+    .collect();
   cache_headers.sort_by(|a, b| a.0.cmp(&b.0));
 
   // Hashing headers to prevert data leak for on-disk cache.
@@ -149,9 +149,8 @@ impl HttpClient {
         .map(|n| n.to_lowercase())
         .collect();
 
-      let cache_key: CacheKey = Arc::new(move |parts: &request::Parts| {
-        build_cache_key(parts, &header_names)
-      });
+      let cache_key: CacheKey =
+        Arc::new(move |parts: &request::Parts| build_cache_key(parts, &header_names));
 
       let options = HttpCacheOptions {
         cache_key: Some(cache_key),
@@ -160,9 +159,7 @@ impl HttpClient {
 
       match cache_policy.store() {
         CacheStore::InMemory { capacity } => {
-          let moka_cache = MokaCacheBuilder::default()
-            .max_capacity(*capacity)
-            .build();
+          let moka_cache = MokaCacheBuilder::default().max_capacity(*capacity).build();
           reqwest_middleware::ClientBuilder::new(inner_client)
             .with(Cache(HttpCache {
               mode: CacheMode::Default,
@@ -380,8 +377,7 @@ mod tests {
     let config = HttpClientConfig::new(None, None, false);
     let mut http_client = HttpClient::new_with_config(config);
 
-    let result =
-      http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
+    let result = http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
     assert!(result.is_ok());
     // We cannot inspect the middleware stack directly, but the client was built successfully.
   }
@@ -392,8 +388,7 @@ mod tests {
     let config = HttpClientConfig::new_with_cache(None, None, true, policy);
     let mut http_client = HttpClient::new_with_config(config);
 
-    let result =
-      http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
+    let result = http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
     assert!(result.is_ok());
   }
 
@@ -403,8 +398,7 @@ mod tests {
     let config = HttpClientConfig::new_with_cache(None, None, true, policy);
     let mut http_client = HttpClient::new_with_config(config);
 
-    let result =
-      http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
+    let result = http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
     assert!(result.is_ok());
   }
 
