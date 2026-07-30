@@ -58,7 +58,7 @@ id = true
 #use_cache = true
 #cache.ttl_ceiling_secs = 3600
 #cache.store.kind = "in_memory"
-#cache.store.capacity = 100
+#cache.store.capacity = 10000
 
 ## Auth can also be set individually for the ticket and data servers instead of globally:
 #[ticket_server.auth]

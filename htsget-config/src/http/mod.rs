@@ -321,6 +321,3 @@ pub(crate) mod tests {
     test(tmp_dir.path(), key, cert);
   }
 }
-    test(tmp_dir.path(), key, cert);
-  }
-}

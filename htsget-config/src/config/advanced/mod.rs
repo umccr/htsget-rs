@@ -14,7 +14,6 @@ use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::env::temp_dir;
-use std::fmt::format;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
@@ -39,6 +38,31 @@ pub enum FormattingStyle {
   Compact,
   Pretty,
   Json,
+}
+
+/// Build a cache key from request parts and forwarded header names.
+pub fn build_cache_key(parts: &request::Parts, header_names: &[String]) -> String {
+  // Of the headers which would be forwarded, get the header name and value for
+  // the request itself.
+  let mut cache_headers: Vec<(String, String)> = header_names
+      .iter()
+      .filter_map(|name| {
+        parts
+            .headers
+            .get(name.as_str())
+            .map(|v| (name.clone(), v.to_str().unwrap_or("").to_string()))
+      })
+      .collect();
+  cache_headers.sort_by(|a, b| a.0.cmp(&b.0));
+
+  // Hashing headers to prevert data leak for on-disk cache.
+  let mut hasher = Sha256::new();
+  for (name, value) in &cache_headers {
+    let hash = format!("{}-{}-{}-{}", parts.method, parts.uri, name, value);
+    hasher.update(hash);
+  }
+  let result = hasher.finalize();
+  result.iter().map(|b| format!("{:x}", b)).collect()
 }
 
 /// A wrapper around a reqwest client to support creating from config fields.
@@ -100,7 +124,7 @@ impl HttpClient {
     let config = self.take_config()?;
     let mut builder = Client::builder();
 
-    let (certs, identity, use_cache, user_agent, cache_policy) = config.into_inner();.
+    let (certs, identity, use_cache, user_agent, cache_policy) = config.into_inner();
     self.ttl_ceiling_secs = Some(cache_policy.ttl_ceiling_secs());
 
     if let Some(certs) = certs {
@@ -125,30 +149,9 @@ impl HttpClient {
         .map(|n| n.to_lowercase())
         .collect();
 
-      let cache_key: CacheKey =
-        Arc::new(move |parts: &request::Parts| {
-          // Of the headers which would be forwarded, get the header name and value for
-          // the request itself.
-          let mut cache_headers: Vec<(String, String)> = header_names
-            .iter()
-            .filter_map(|name| {
-              parts
-                .headers
-                .get(name.as_str())
-                .map(|v| (name.clone(), v.to_str().unwrap_or("").to_string()))
-            })
-            .collect();
-          cache_headers.sort_by(|a, b| a.0.cmp(&b.0));
-
-          // Hashing headers to prevert data leak for on-disk cache.
-          let mut hasher = Sha256::new();
-          for (name, value) in &cache_headers {
-            let hash = format!("{}-{}-{}-{}", parts.method, parts.uri, name, value);
-            hasher.update(hash);
-          }
-          let result = hasher.finalize();
-          result.iter().map(|b| format!("{:x}", b)).collect()
-        });
+      let cache_key: CacheKey = Arc::new(move |parts: &request::Parts| {
+        build_cache_key(parts, &header_names)
+      });
 
       let options = HttpCacheOptions {
         cache_key: Some(cache_key),
@@ -238,42 +241,6 @@ mod tests {
   use crate::config::advanced::callout::{CachePolicy, CacheStore};
   use crate::http::client::HttpClientConfig;
   use http::request;
-  use sha2::{Digest, Sha256};
-
-  /// Helper: build the cache key function the same way as_inner_built_with_forwarded_headers does.
-  fn make_cache_key_fn(
-    forwarded_header_names: &[String],
-  ) -> Arc<dyn Fn(&request::Parts) -> String + Send + Sync> {
-    let header_names: Vec<String> = forwarded_header_names
-      .iter()
-      .map(|n| n.to_lowercase())
-      .collect();
-
-    Arc::new(move |parts: &request::Parts| {
-      let mut relevant_headers: Vec<(String, String)> = header_names
-        .iter()
-        .filter_map(|name| {
-          parts
-            .headers
-            .get(name.as_str())
-            .map(|v| (name.clone(), v.to_str().unwrap_or("").to_string()))
-        })
-        .collect();
-      relevant_headers.sort_by(|a, b| a.0.cmp(&b.0));
-
-      let mut hasher = Sha256::new();
-      for (name, value) in &relevant_headers {
-        hasher.update(name.as_bytes());
-        hasher.update(b"=");
-        hasher.update(value.as_bytes());
-        hasher.update(b"\n");
-      }
-      let result = hasher.finalize();
-      let hash: String = result.iter().map(|b| format!("{:02x}", b)).collect();
-
-      format!("{}:{}:{}", parts.method, parts.uri, hash)
-    })
-  }
 
   /// Build Parts from method, URI and headers.
   fn build_parts(method: &str, uri: &str, headers: Vec<(&str, &str)>) -> request::Parts {
@@ -288,7 +255,6 @@ mod tests {
   #[test]
   fn cache_key_per_requester_isolation() {
     let forwarded = vec!["authorization".to_string(), "htsget-context-id".to_string()];
-    let key_fn = make_cache_key_fn(&forwarded);
 
     let parts_alice = build_parts(
       "GET",
@@ -307,17 +273,16 @@ mod tests {
       ],
     );
 
-    let key_alice = key_fn(&parts_alice);
-    let key_bob = key_fn(&parts_bob);
-
     // Different identities must produce different cache keys.
-    assert_ne!(key_alice, key_bob);
+    assert_ne!(
+      build_cache_key(&parts_alice, &forwarded),
+      build_cache_key(&parts_bob, &forwarded)
+    );
   }
 
   #[test]
   fn cache_key_same_identity_same_key() {
     let forwarded = vec!["authorization".to_string()];
-    let key_fn = make_cache_key_fn(&forwarded);
 
     let parts1 = build_parts(
       "GET",
@@ -330,13 +295,15 @@ mod tests {
       vec![("authorization", "Bearer same-token")],
     );
 
-    assert_eq!(key_fn(&parts1), key_fn(&parts2));
+    assert_eq!(
+      build_cache_key(&parts1, &forwarded),
+      build_cache_key(&parts2, &forwarded)
+    );
   }
 
   #[test]
   fn cache_key_includes_method_and_uri() {
     let forwarded = vec!["authorization".to_string()];
-    let key_fn = make_cache_key_fn(&forwarded);
 
     let parts_get = build_parts(
       "GET",
@@ -354,20 +321,21 @@ mod tests {
       vec![("authorization", "Bearer token")],
     );
 
-    let key_get = key_fn(&parts_get);
-    let key_post = key_fn(&parts_post);
-    let key_different_uri = key_fn(&parts_different_uri);
-
     // Different methods produce different keys.
-    assert_ne!(key_get, key_post);
+    assert_ne!(
+      build_cache_key(&parts_get, &forwarded),
+      build_cache_key(&parts_post, &forwarded)
+    );
     // Different URIs produce different keys.
-    assert_ne!(key_get, key_different_uri);
+    assert_ne!(
+      build_cache_key(&parts_get, &forwarded),
+      build_cache_key(&parts_different_uri, &forwarded)
+    );
   }
 
   #[test]
   fn cache_key_hashed_identity_no_raw_values() {
     let forwarded = vec!["authorization".to_string()];
-    let key_fn = make_cache_key_fn(&forwarded);
 
     let parts = build_parts(
       "GET",
@@ -375,22 +343,19 @@ mod tests {
       vec![("authorization", "Bearer my-secret-token-abc123")],
     );
 
-    let key = key_fn(&parts);
+    let key = build_cache_key(&parts, &forwarded);
 
     // The cache key must not contain the raw header value.
     assert!(
       !key.contains("my-secret-token-abc123"),
       "cache key should not contain raw header value: {key}"
     );
-    // But it should contain the method and URI.
-    assert!(key.starts_with("GET:https://auth.example.com/check:"));
   }
 
   #[test]
   fn cache_key_header_order_independent() {
     // Headers are sorted by name before hashing, so order should not matter.
     let forwarded = vec!["x-header-a".to_string(), "x-header-b".to_string()];
-    let key_fn = make_cache_key_fn(&forwarded);
 
     let parts1 = build_parts(
       "GET",
@@ -403,7 +368,10 @@ mod tests {
       vec![("x-header-b", "value-b"), ("x-header-a", "value-a")],
     );
 
-    assert_eq!(key_fn(&parts1), key_fn(&parts2));
+    assert_eq!(
+      build_cache_key(&parts1, &forwarded),
+      build_cache_key(&parts2, &forwarded)
+    );
   }
 
   #[test]

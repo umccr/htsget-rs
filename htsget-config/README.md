@@ -409,6 +409,10 @@ backend.url = "https://example.com"
 backend.http.root_store = "root.crt"
 ## Disable HTTP caching.
 #backend.http.use_cache = false
+## Configure cache policy.
+#backend.http.cache.ttl_ceiling_secs = 3600
+#backend.http.cache.store.kind = "in_memory"
+#backend.http.cache.store.capacity = 10000
 ```
 
 This project uses [rustls] for all TLS logic, and it does not depend on OpenSSL. The rustls library can be more
@@ -453,7 +457,7 @@ Any `http` section supports a `cache` table that controls HTTP caching. This app
 |--------------------|-----------------------------------------------------|---------------------------|---------------|
 | `ttl_ceiling_secs` | Maximum age a cached response can be reused.        | u64                       | `3600`        |
 | `store.kind`       | Storage backend, either memory based on disk based. | `"in_memory"` or `"disk"` | `"in_memory"` |
-| `store.capacity`   | Maximum entries if `"in-memory"` caching is used.   | u64                       | `10000`       |
+| `store.capacity`   | Maximum entries if `"in_memory"` caching is used.   | u64                       | `10000`       |
 
 When forwarded headers are present, they are hashed into the cache key so distinct identities occupy distinct cache entries,
 which allows for per-identity based HTTP caching.
@@ -470,7 +474,7 @@ backend.http.cache.store.capacity = 200
 # [auth.authorization.http]
 # cache.ttl_ceiling_secs = 3600
 # cache.store.kind = "in_memory"
-# cache.store.capacity = 100
+# cache.store.capacity = 10000
 ```
 
 ### JWT Authentication

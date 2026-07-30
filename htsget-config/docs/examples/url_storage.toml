@@ -56,3 +56,8 @@ locations = "https://127.0.0.1:8081"
 #
 ## Disable HTTP caching
 #backend.http.use_cache = false
+#
+## Configure cache policy
+#backend.http.cache.ttl_ceiling_secs = 3600
+#backend.http.cache.store.kind = "in_memory"
+#backend.http.cache.store.capacity = 10000
