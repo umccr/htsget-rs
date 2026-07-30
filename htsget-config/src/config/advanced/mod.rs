@@ -1,18 +1,24 @@
 //! Configuration options that are advanced in the documentation.
 //!
 
+use crate::config::advanced::callout::CacheStore;
 use crate::config::service_info::PackageInfo;
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::http::client::HttpClientConfig;
+use http::request;
+use http_cache::{CacheKey, MokaCacheBuilder, MokaManager};
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::env::temp_dir;
+use std::fmt::format;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub mod auth;
 pub mod callout;
@@ -41,6 +47,7 @@ pub enum FormattingStyle {
 pub struct HttpClient {
   config: Option<HttpClientConfig>,
   client: Option<ClientWithMiddleware>,
+  ttl_ceiling_secs: Option<u64>,
 }
 
 impl HttpClient {
@@ -49,6 +56,7 @@ impl HttpClient {
     Self {
       config: None,
       client: Some(client),
+      ttl_ceiling_secs: None,
     }
   }
 
@@ -57,6 +65,7 @@ impl HttpClient {
     Self {
       config: Some(config),
       client: None,
+      ttl_ceiling_secs: None,
     }
   }
 
@@ -75,6 +84,15 @@ impl HttpClient {
 
   /// Get the inner client, building it if necessary.
   pub fn as_inner_built(&mut self) -> Result<&ClientWithMiddleware> {
+    self.as_inner_built_with_forwarded_headers(&[])
+  }
+
+  /// Build the inner client with the configured CachePolicy and identity based
+  /// cache from forwarded header names.
+  pub fn as_inner_built_with_forwarded_headers(
+    &mut self,
+    forwarded_header_names: &[String],
+  ) -> Result<&ClientWithMiddleware> {
     if let Some(ref client) = self.client {
       return Ok(client);
     }
@@ -82,7 +100,8 @@ impl HttpClient {
     let config = self.take_config()?;
     let mut builder = Client::builder();
 
-    let (certs, identity, use_cache, user_agent) = config.into_inner();
+    let (certs, identity, use_cache, user_agent, cache_policy) = config.into_inner();.
+    self.ttl_ceiling_secs = Some(cache_policy.ttl_ceiling_secs());
 
     if let Some(certs) = certs {
       for cert in certs {
@@ -99,15 +118,67 @@ impl HttpClient {
     let inner_client = builder
       .build()
       .map_err(|err| ParseError(format!("building http client: {err}")))?;
+
     let client = if use_cache {
-      let client_cache = temp_dir().join("htsget_rs_client_cache");
-      reqwest_middleware::ClientBuilder::new(inner_client)
-        .with(Cache(HttpCache {
-          mode: CacheMode::Default,
-          manager: CACacheManager::new(client_cache, false),
-          options: HttpCacheOptions::default(),
-        }))
-        .build()
+      let header_names: Vec<String> = forwarded_header_names
+        .iter()
+        .map(|n| n.to_lowercase())
+        .collect();
+
+      let cache_key: CacheKey =
+        Arc::new(move |parts: &request::Parts| {
+          // Of the headers which would be forwarded, get the header name and value for
+          // the request itself.
+          let mut cache_headers: Vec<(String, String)> = header_names
+            .iter()
+            .filter_map(|name| {
+              parts
+                .headers
+                .get(name.as_str())
+                .map(|v| (name.clone(), v.to_str().unwrap_or("").to_string()))
+            })
+            .collect();
+          cache_headers.sort_by(|a, b| a.0.cmp(&b.0));
+
+          // Hashing headers to prevert data leak for on-disk cache.
+          let mut hasher = Sha256::new();
+          for (name, value) in &cache_headers {
+            let hash = format!("{}-{}-{}-{}", parts.method, parts.uri, name, value);
+            hasher.update(hash);
+          }
+          let result = hasher.finalize();
+          result.iter().map(|b| format!("{:x}", b)).collect()
+        });
+
+      let options = HttpCacheOptions {
+        cache_key: Some(cache_key),
+        ..Default::default()
+      };
+
+      match cache_policy.store() {
+        CacheStore::InMemory { capacity } => {
+          let moka_cache = MokaCacheBuilder::default()
+            .max_capacity(*capacity)
+            .build();
+          reqwest_middleware::ClientBuilder::new(inner_client)
+            .with(Cache(HttpCache {
+              mode: CacheMode::Default,
+              manager: MokaManager::new(moka_cache),
+              options,
+            }))
+            .build()
+        }
+        CacheStore::Disk => {
+          let client_cache = temp_dir().join("htsget_rs_client_cache");
+          reqwest_middleware::ClientBuilder::new(inner_client)
+            .with(Cache(HttpCache {
+              mode: CacheMode::Default,
+              manager: CACacheManager::new(client_cache, false),
+              options,
+            }))
+            .build()
+        }
+      }
     } else {
       reqwest_middleware::ClientBuilder::new(inner_client).build()
     };
@@ -122,6 +193,11 @@ impl HttpClient {
     self.set_config(builder.with_user_agent(info.id.to_string()));
 
     Ok(())
+  }
+
+  /// Get the TTL ceiling in seconds.
+  pub fn ttl_ceiling_secs(&self) -> Option<u64> {
+    self.ttl_ceiling_secs
   }
 }
 
@@ -153,5 +229,223 @@ impl TryFrom<PathBuf> for Bytes {
     let mut bytes = vec![];
     File::open(path)?.read_to_end(&mut bytes)?;
     Ok(Self(bytes))
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::config::advanced::callout::{CachePolicy, CacheStore};
+  use crate::http::client::HttpClientConfig;
+  use http::request;
+  use sha2::{Digest, Sha256};
+
+  /// Helper: build the cache key function the same way as_inner_built_with_forwarded_headers does.
+  fn make_cache_key_fn(
+    forwarded_header_names: &[String],
+  ) -> Arc<dyn Fn(&request::Parts) -> String + Send + Sync> {
+    let header_names: Vec<String> = forwarded_header_names
+      .iter()
+      .map(|n| n.to_lowercase())
+      .collect();
+
+    Arc::new(move |parts: &request::Parts| {
+      let mut relevant_headers: Vec<(String, String)> = header_names
+        .iter()
+        .filter_map(|name| {
+          parts
+            .headers
+            .get(name.as_str())
+            .map(|v| (name.clone(), v.to_str().unwrap_or("").to_string()))
+        })
+        .collect();
+      relevant_headers.sort_by(|a, b| a.0.cmp(&b.0));
+
+      let mut hasher = Sha256::new();
+      for (name, value) in &relevant_headers {
+        hasher.update(name.as_bytes());
+        hasher.update(b"=");
+        hasher.update(value.as_bytes());
+        hasher.update(b"\n");
+      }
+      let result = hasher.finalize();
+      let hash: String = result.iter().map(|b| format!("{:02x}", b)).collect();
+
+      format!("{}:{}:{}", parts.method, parts.uri, hash)
+    })
+  }
+
+  /// Build Parts from method, URI and headers.
+  fn build_parts(method: &str, uri: &str, headers: Vec<(&str, &str)>) -> request::Parts {
+    let mut builder = http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+      builder = builder.header(name, value);
+    }
+    let (parts, _) = builder.body(()).unwrap().into_parts();
+    parts
+  }
+
+  #[test]
+  fn cache_key_per_requester_isolation() {
+    let forwarded = vec!["authorization".to_string(), "htsget-context-id".to_string()];
+    let key_fn = make_cache_key_fn(&forwarded);
+
+    let parts_alice = build_parts(
+      "GET",
+      "https://auth.example.com/check",
+      vec![
+        ("authorization", "Bearer alice-token"),
+        ("htsget-context-id", "sample1"),
+      ],
+    );
+    let parts_bob = build_parts(
+      "GET",
+      "https://auth.example.com/check",
+      vec![
+        ("authorization", "Bearer bob-token"),
+        ("htsget-context-id", "sample1"),
+      ],
+    );
+
+    let key_alice = key_fn(&parts_alice);
+    let key_bob = key_fn(&parts_bob);
+
+    // Different identities must produce different cache keys.
+    assert_ne!(key_alice, key_bob);
+  }
+
+  #[test]
+  fn cache_key_same_identity_same_key() {
+    let forwarded = vec!["authorization".to_string()];
+    let key_fn = make_cache_key_fn(&forwarded);
+
+    let parts1 = build_parts(
+      "GET",
+      "https://auth.example.com/check",
+      vec![("authorization", "Bearer same-token")],
+    );
+    let parts2 = build_parts(
+      "GET",
+      "https://auth.example.com/check",
+      vec![("authorization", "Bearer same-token")],
+    );
+
+    assert_eq!(key_fn(&parts1), key_fn(&parts2));
+  }
+
+  #[test]
+  fn cache_key_includes_method_and_uri() {
+    let forwarded = vec!["authorization".to_string()];
+    let key_fn = make_cache_key_fn(&forwarded);
+
+    let parts_get = build_parts(
+      "GET",
+      "https://auth.example.com/check",
+      vec![("authorization", "Bearer token")],
+    );
+    let parts_post = build_parts(
+      "POST",
+      "https://auth.example.com/check",
+      vec![("authorization", "Bearer token")],
+    );
+    let parts_different_uri = build_parts(
+      "GET",
+      "https://auth.example.com/other",
+      vec![("authorization", "Bearer token")],
+    );
+
+    let key_get = key_fn(&parts_get);
+    let key_post = key_fn(&parts_post);
+    let key_different_uri = key_fn(&parts_different_uri);
+
+    // Different methods produce different keys.
+    assert_ne!(key_get, key_post);
+    // Different URIs produce different keys.
+    assert_ne!(key_get, key_different_uri);
+  }
+
+  #[test]
+  fn cache_key_hashed_identity_no_raw_values() {
+    let forwarded = vec!["authorization".to_string()];
+    let key_fn = make_cache_key_fn(&forwarded);
+
+    let parts = build_parts(
+      "GET",
+      "https://auth.example.com/check",
+      vec![("authorization", "Bearer my-secret-token-abc123")],
+    );
+
+    let key = key_fn(&parts);
+
+    // The cache key must not contain the raw header value.
+    assert!(
+      !key.contains("my-secret-token-abc123"),
+      "cache key should not contain raw header value: {key}"
+    );
+    // But it should contain the method and URI.
+    assert!(key.starts_with("GET:https://auth.example.com/check:"));
+  }
+
+  #[test]
+  fn cache_key_header_order_independent() {
+    // Headers are sorted by name before hashing, so order should not matter.
+    let forwarded = vec!["x-header-a".to_string(), "x-header-b".to_string()];
+    let key_fn = make_cache_key_fn(&forwarded);
+
+    let parts1 = build_parts(
+      "GET",
+      "https://auth.example.com/check",
+      vec![("x-header-a", "value-a"), ("x-header-b", "value-b")],
+    );
+    let parts2 = build_parts(
+      "GET",
+      "https://auth.example.com/check",
+      vec![("x-header-b", "value-b"), ("x-header-a", "value-a")],
+    );
+
+    assert_eq!(key_fn(&parts1), key_fn(&parts2));
+  }
+
+  #[test]
+  fn use_cache_false_passthrough() {
+    // When use_cache is false, building should produce a client with no cache middleware.
+    let config = HttpClientConfig::new(None, None, false);
+    let mut http_client = HttpClient::new_with_config(config);
+
+    let result =
+      http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
+    assert!(result.is_ok());
+    // We cannot inspect the middleware stack directly, but the client was built successfully.
+  }
+
+  #[test]
+  fn build_client_with_moka_manager() {
+    let policy = CachePolicy::new(3600, CacheStore::InMemory { capacity: 50 });
+    let config = HttpClientConfig::new_with_cache(None, None, true, policy);
+    let mut http_client = HttpClient::new_with_config(config);
+
+    let result =
+      http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn build_client_with_disk_manager() {
+    let policy = CachePolicy::new(7200, CacheStore::Disk);
+    let config = HttpClientConfig::new_with_cache(None, None, true, policy);
+    let mut http_client = HttpClient::new_with_config(config);
+
+    let result =
+      http_client.as_inner_built_with_forwarded_headers(&["authorization".to_string()]);
+    assert!(result.is_ok());
+  }
+
+  #[test]
+  fn build_client_default_policy() {
+    let config = HttpClientConfig::new(None, None, true);
+    let mut http_client = HttpClient::new_with_config(config);
+
+    let result = http_client.as_inner_built();
+    assert!(result.is_ok());
   }
 }

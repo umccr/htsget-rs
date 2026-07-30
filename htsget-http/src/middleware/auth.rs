@@ -89,14 +89,32 @@ impl Auth {
   ) -> HtsGetResult<D> {
     let url = callout.url().to_string();
     trace!("fetching url: {}", url);
-    let response = callout
-      .http_mut()
-      .as_inner_built()
-      .map_err(|err| HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}")))?
-      .get(&url)
-      .headers(headers)
-      .send()
-      .await?;
+
+    let forwarded_header_names: Vec<String> =
+      headers.keys().map(|k| k.as_str().to_string()).collect();
+
+    // Build the client with forwarded headers for identity based cache.
+    let http = callout.http_mut();
+    let client = http
+      .as_inner_built_with_forwarded_headers(&forwarded_header_names)
+      .map_err(|err| {
+        HtsGetError::InternalError(format!("failed to fetch data from {url}: {err}"))
+      })?
+      .clone();
+
+    let ttl_ceiling_secs = callout.http().ttl_ceiling_secs();
+    let mut request_headers = headers;
+    if let Some(ceiling_secs) = ttl_ceiling_secs {
+      let cache_control_value = format!("max-age={ceiling_secs}");
+      request_headers.insert(
+        http::header::CACHE_CONTROL,
+        cache_control_value
+          .parse()
+          .expect("valid cache-control header value"),
+      );
+    }
+
+    let response = client.get(&url).headers(request_headers).send().await?;
     trace!("response: {:?}", response);
 
     let status = response.status();

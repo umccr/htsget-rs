@@ -15,6 +15,7 @@ use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use serde::{Deserialize, Serialize};
 
 use crate::config::advanced::Bytes;
+use crate::config::advanced::callout::CachePolicy;
 use crate::error::Error::ParseError;
 use crate::error::{Error, Result};
 use crate::types::Scheme;
@@ -74,29 +75,31 @@ impl CertificateKeyPair {
   }
 }
 
-/// The location of a certificate and key pair used for TLS.
-/// This is the path to the PEM formatted X.509 certificate and private key.
+/// Options for configuring an HTTP client, including TLS, caching, and response cache policy.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields, default)]
-pub struct RootCertStorePair {
+pub struct HttpClientOptions {
   #[serde(flatten)]
   key_pair: Option<CertificateKeyPairPath>,
   root_store: Option<PathBuf>,
   use_cache: bool,
+  #[serde(default)]
+  cache: CachePolicy,
 }
 
-impl Default for RootCertStorePair {
+impl Default for HttpClientOptions {
   fn default() -> Self {
     Self {
       key_pair: None,
       root_store: None,
       use_cache: true,
+      cache: CachePolicy::default(),
     }
   }
 }
 
-impl RootCertStorePair {
-  /// Create a new RootCertStorePair.
+impl HttpClientOptions {
+  /// Create a new HttpClientOptions.
   pub fn new(
     key_pair: Option<CertificateKeyPairPath>,
     root_store: Option<PathBuf>,
@@ -106,12 +109,28 @@ impl RootCertStorePair {
       key_pair,
       root_store,
       use_cache,
+      cache: CachePolicy::default(),
+    }
+  }
+
+  /// Create a new HttpClientOptions with a cache policy.
+  pub fn new_with_cache(
+    key_pair: Option<CertificateKeyPairPath>,
+    root_store: Option<PathBuf>,
+    use_cache: bool,
+    cache: CachePolicy,
+  ) -> Self {
+    Self {
+      key_pair,
+      root_store,
+      use_cache,
+      cache,
     }
   }
 
   /// Get the owned root store pair.
-  pub fn into_inner(self) -> (Option<CertificateKeyPairPath>, Option<PathBuf>, bool) {
-    (self.key_pair, self.root_store, self.use_cache)
+  pub fn into_inner(self) -> (Option<CertificateKeyPairPath>, Option<PathBuf>, bool, CachePolicy) {
+    (self.key_pair, self.root_store, self.use_cache, self.cache)
   }
 }
 
@@ -299,6 +318,9 @@ pub(crate) mod tests {
     );
     let cert = certs(&mut Cursor::new(cert)).next().unwrap().unwrap();
 
+    test(tmp_dir.path(), key, cert);
+  }
+}
     test(tmp_dir.path(), key, cert);
   }
 }
