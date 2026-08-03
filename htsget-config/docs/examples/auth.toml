@@ -53,6 +53,13 @@ id = true
 ## omitted it is derived from the path, e.g. `$.user.id` becomes `Htsget-Context-User-Id`.
 #extensions = [{ json_path = "$.user.id" }]
 
+# HTTP response caching
+#[auth.authorization.http]
+#use_cache = true
+#cache.ttl_ceiling_secs = 3600
+#cache.store.kind = "in_memory"
+#cache.store.capacity = 10000
+
 ## Auth can also be set individually for the ticket and data servers instead of globally:
 #[ticket_server.auth]
 #[data_server.auth]

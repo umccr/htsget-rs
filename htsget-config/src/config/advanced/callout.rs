@@ -9,7 +9,90 @@ use heck::ToTrainCase;
 use http::{HeaderMap, Uri};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use wildmatch::WildMatch;
+
+/// The default TTL ceiling.
+const DEFAULT_TTL_CEILING_SECS: u64 = 3600;
+
+/// The default in-memory cache capacity.
+const DEFAULT_CACHE_CAPACITY: u64 = 10000;
+
+/// Cache policy for a callout's HTTP response cache. Controls how the callout response cache behaves.
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields, default)]
+pub struct CachePolicy {
+  /// TTL ceiling in seconds.
+  #[serde(default = "default_ttl_ceiling_secs")]
+  ttl_ceiling_secs: u64,
+  /// The cache storage backend.
+  #[serde(default)]
+  store: CacheStore,
+}
+
+fn default_ttl_ceiling_secs() -> u64 {
+  DEFAULT_TTL_CEILING_SECS
+}
+
+impl Default for CachePolicy {
+  fn default() -> Self {
+    Self {
+      ttl_ceiling_secs: DEFAULT_TTL_CEILING_SECS,
+      store: CacheStore::default(),
+    }
+  }
+}
+
+impl CachePolicy {
+  /// Create a new cache policy.
+  pub fn new(ttl_ceiling_secs: u64, store: CacheStore) -> Self {
+    Self {
+      ttl_ceiling_secs,
+      store,
+    }
+  }
+
+  /// The TTL ceiling as a `Duration`.
+  pub fn ttl_ceiling(&self) -> Duration {
+    Duration::from_secs(self.ttl_ceiling_secs)
+  }
+
+  /// The TTL ceiling in seconds.
+  pub fn ttl_ceiling_secs(&self) -> u64 {
+    self.ttl_ceiling_secs
+  }
+
+  /// The cache store configuration.
+  pub fn store(&self) -> &CacheStore {
+    &self.store
+  }
+}
+
+/// The backend store for the callout cache.
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum CacheStore {
+  /// In-memory cache.
+  InMemory {
+    /// Maximum number of entries.
+    #[serde(default = "default_cache_capacity")]
+    capacity: u64,
+  },
+  /// Disk-backed cache.
+  Disk,
+}
+
+fn default_cache_capacity() -> u64 {
+  DEFAULT_CACHE_CAPACITY
+}
+
+impl Default for CacheStore {
+  fn default() -> Self {
+    CacheStore::InMemory {
+      capacity: DEFAULT_CACHE_CAPACITY,
+    }
+  }
+}
 
 /// A callout to a remote server.
 #[derive(Deserialize, Debug, Clone)]
@@ -545,5 +628,57 @@ mod tests {
     let reflect: Reflect = toml::from_str(toml).unwrap();
     assert_eq!(reflect.headers().allow(), &["Authorization".to_string()]);
     assert_eq!(reflect.headers().deny(), &["X-Custom-*".to_string()]);
+  }
+
+  #[test]
+  fn cache_policy_ttl() {
+    let toml = r#"ttl_ceiling_secs = 7200"#;
+    let policy: CachePolicy = toml::from_str(toml).unwrap();
+    assert_eq!(policy.ttl_ceiling_secs(), 7200);
+  }
+
+  #[test]
+  fn cache_policy_store() {
+    let toml = r#"
+      ttl_ceiling_secs = 1800
+
+      [store]
+      kind = "in_memory"
+      capacity = 200
+    "#;
+    let policy: CachePolicy = toml::from_str(toml).unwrap();
+    assert_eq!(policy.ttl_ceiling_secs(), 1800);
+    assert_eq!(policy.store(), &CacheStore::InMemory { capacity: 200 });
+
+    let toml = r#"
+      [store]
+      kind = "disk"
+    "#;
+    let policy: CachePolicy = toml::from_str(toml).unwrap();
+    assert_eq!(policy.store(), &CacheStore::Disk);
+  }
+
+  #[test]
+  fn cache_policy_http_config() {
+    let toml = r#"
+      url = "https://example.com"
+
+      [http]
+      use_cache = true
+      cache.ttl_ceiling_secs = 300
+
+      [http.cache.store]
+      kind = "in_memory"
+      capacity = 50
+    "#;
+    let callout: Callout = toml::from_str(toml).unwrap();
+    assert_eq!(callout.url().to_string(), "https://example.com/");
+  }
+
+  #[test]
+  fn callout_default_http_cache_policy() {
+    let toml = r#"url = "https://example.com""#;
+    let callout: Callout = toml::from_str(toml).unwrap();
+    assert_eq!(callout.url().to_string(), "https://example.com/");
   }
 }

@@ -1,20 +1,22 @@
 //! TLS configuration related to HTTP clients.
 //!
 
+use crate::config::advanced::callout::CachePolicy;
 use crate::error::{Error, Result};
-use crate::http::{RootCertStorePair, load_reqwest_certs, load_reqwest_identity};
+use crate::http::{HttpClientOptions, load_reqwest_certs, load_reqwest_identity};
 use reqwest::{Certificate, Identity};
 use serde::Deserialize;
 
 /// A certificate and key pair used for TLS. Serialization is not implemented because there
 /// is no way to convert back to a `PathBuf`.
 #[derive(Deserialize, Debug, Clone)]
-#[serde(try_from = "RootCertStorePair", deny_unknown_fields)]
+#[serde(try_from = "HttpClientOptions", deny_unknown_fields)]
 pub struct HttpClientConfig {
   cert: Option<Vec<Certificate>>,
   identity: Option<Identity>,
   use_cache: bool,
   user_agent: Option<String>,
+  cache: CachePolicy,
 }
 
 impl Default for HttpClientConfig {
@@ -24,6 +26,7 @@ impl Default for HttpClientConfig {
       identity: None,
       use_cache: true,
       user_agent: None,
+      cache: CachePolicy::default(),
     }
   }
 }
@@ -35,6 +38,23 @@ impl HttpClientConfig {
       cert,
       identity,
       use_cache,
+      cache: CachePolicy::default(),
+      ..Default::default()
+    }
+  }
+
+  /// Create a new TlsClientConfig with a cache policy.
+  pub fn new_with_cache(
+    cert: Option<Vec<Certificate>>,
+    identity: Option<Identity>,
+    use_cache: bool,
+    cache: CachePolicy,
+  ) -> Self {
+    Self {
+      cert,
+      identity,
+      use_cache,
+      cache,
       ..Default::default()
     }
   }
@@ -47,8 +67,15 @@ impl HttpClientConfig {
     Option<Identity>,
     bool,
     Option<String>,
+    CachePolicy,
   ) {
-    (self.cert, self.identity, self.use_cache, self.user_agent)
+    (
+      self.cert,
+      self.identity,
+      self.use_cache,
+      self.user_agent,
+      self.cache,
+    )
   }
 
   /// Set the user agent string.
@@ -58,23 +85,23 @@ impl HttpClientConfig {
   }
 }
 
-impl TryFrom<RootCertStorePair> for HttpClientConfig {
+impl TryFrom<HttpClientOptions> for HttpClientConfig {
   type Error = Error;
 
-  fn try_from(root_store_pair: RootCertStorePair) -> Result<Self> {
-    let (key_pair, root_store, use_cache) = root_store_pair.into_inner();
+  fn try_from(root_store_pair: HttpClientOptions) -> Result<Self> {
+    let (key_pair, root_store, use_cache, cache) = root_store_pair.into_inner();
 
     let cert = root_store.map(load_reqwest_certs).transpose()?;
     let identity = key_pair.as_ref().map(load_reqwest_identity).transpose()?;
 
-    Ok(Self::new(cert, identity, use_cache))
+    Ok(Self::new_with_cache(cert, identity, use_cache, cache))
   }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
   use crate::http::tests::with_test_certificates;
-  use crate::http::{CertificateKeyPairPath, RootCertStorePair};
+  use crate::http::{CertificateKeyPairPath, HttpClientOptions};
   use std::path::Path;
 
   use super::*;
@@ -83,7 +110,7 @@ pub(crate) mod tests {
   async fn test_tls_client_config() {
     with_test_certificates(|path, _, _| {
       let client_config = client_config_from_path(path);
-      let (certs, identity, _, _) = client_config.into_inner();
+      let (certs, identity, _, _, _) = client_config.into_inner();
 
       assert_eq!(certs.unwrap().len(), 1);
       assert!(identity.is_some());
@@ -91,7 +118,7 @@ pub(crate) mod tests {
   }
 
   pub(crate) fn client_config_from_path(path: &Path) -> HttpClientConfig {
-    HttpClientConfig::try_from(RootCertStorePair::new(
+    HttpClientConfig::try_from(HttpClientOptions::new(
       Some(CertificateKeyPairPath::new(
         path.join("cert.pem"),
         path.join("key.pem"),

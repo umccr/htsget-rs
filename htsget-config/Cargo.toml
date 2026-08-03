@@ -37,7 +37,9 @@ rustls-pki-types = "1"
 chrono = { version = "0.4", features = ["now"], default-features = false }
 reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
 http-cache-reqwest = "0.16"
+http-cache = { version = "0.21", default-features = false, features = ["manager-moka"] }
 reqwest-middleware = "0.4"
+sha2 = "0.11"
 schemars = "1"
 base64 = "0.22"
 heck = "0.5"
